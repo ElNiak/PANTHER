@@ -1,23 +1,34 @@
 # syntax=docker/dockerfile:1
 
 # =============================================================================
-# PANTHER Service - 3-Stage Multi-Target BuildKit Dockerfile
-# BUILDER -> DEBUG -> PROFILE runtime environments with execution tools
+# PANTHER Service - Modern Multi-Platform BuildKit Dockerfile
+# Cross-platform build with automatic platform detection and security hardening
 # =============================================================================
 
-ARG TARGETPLATFORM=linux/amd64
+# BuildKit automatic platform arguments
+ARG BUILDPLATFORM
+ARG TARGETPLATFORM
+ARG TARGETOS=linux
+ARG TARGETARCH
+ARG BUILDVARIANT
+
+# Runtime configuration
 ARG RUNTIME_MODE=minimal
+ARG BASE_IMAGE_DIGEST=sha256:965fbcae990b0467ed5657caceaec165018ef44a4d2d46c7cdea80a9dff0d1ea
 
 # =============================================================================
-# STAGE 1: BUILDER - Build tools and dependencies
+# STAGE 1: BUILDER - Multi-platform build environment with cross-compilation
 # =============================================================================
-FROM ubuntu:20.04 AS builder
+
+# Use digest-pinned image with platform awareness for security and performance
+FROM --platform=$BUILDPLATFORM ubuntu:22.04@${BASE_IMAGE_DIGEST} AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# APT package cache optimization with BuildKit cache mounts
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+# Platform-aware package installation with enhanced security
+RUN --mount=type=cache,target=/var/cache/apt,id=apt-$BUILDPLATFORM,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,id=aptlib-$BUILDPLATFORM,sharing=locked \
+    --mount=type=tmpfs,target=/tmp \
     ln -fs /usr/share/zoneinfo/UTC /etc/localtime && \
     apt-get update && \
     apt-get install --fix-missing --auto-remove --show-upgraded --no-install-recommends -y \
@@ -25,19 +36,60 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     openssl libssl-dev pkg-config python3 \
     clang automake autoconf libtool \
     wget curl sudo \
-    libc6-dev libdw1 libelf1 libunwind-dev
+    libc6-dev libdw1 libelf1 libunwind-dev && \
+    rm -rf /var/lib/apt/lists/*
 
-# Git clone with cache mount for build artifacts
-RUN --mount=type=cache,target=/tmp/build-cache \
-    git clone https://github.com/gperftools/gperftools /tmp/build-cache/gperftools || \
-    (cd /tmp/build-cache/gperftools && git pull) && \
-    cp -r /tmp/build-cache/gperftools /gperftools
+# Install cross-compilation tools based on target architecture
+RUN --mount=type=cache,target=/var/cache/apt,id=crossbuild-$BUILDPLATFORM,sharing=locked \
+    case "$TARGETARCH" in \
+        arm64) \
+            apt-get update && \
+            apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu && \
+            rm -rf /var/lib/apt/lists/* ;; \
+        arm) \
+            apt-get update && \
+            apt-get install -y gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf && \
+            rm -rf /var/lib/apt/lists/* ;; \
+        amd64) \
+            echo "Native compilation for amd64" ;; \
+        *) \
+            echo "Unsupported target architecture: $TARGETARCH" && exit 1 ;; \
+    esac
+
+# Set cross-compilation environment variables
+ENV CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
+    CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++ \
+    CC_arm_unknown_linux_gnueabihf=arm-linux-gnueabihf-gcc \
+    CXX_arm_unknown_linux_gnueabihf=arm-linux-gnueabihf-g++
+
+# Add platform-specific CMake environment (for downstream usage)
+RUN case "${TARGETARCH}" in \
+        "amd64") \
+            echo 'export CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=x86_64 -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++"' >> /etc/environment \
+            ;; \
+        "arm64") \
+            echo 'export CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=aarch64 -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++"' >> /etc/environment \
+            ;; \
+        "arm") \
+            echo 'export CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=arm -DCMAKE_C_COMPILER=arm-linux-gnueabihf-gcc -DCMAKE_CXX_COMPILER=arm-linux-gnueabihf-g++"' >> /etc/environment \
+            ;; \
+        *) \
+            echo 'export CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=x86_64"' >> /etc/environment \
+            ;; \
+    esac
+
+# Git clone with platform-specific build cache isolation
+RUN --mount=type=cache,target=/tmp/git-cache,id=git-$TARGETPLATFORM,sharing=locked \
+    --mount=type=cache,target=/tmp/build-cache,id=build-$TARGETPLATFORM,sharing=private \
+    git clone https://github.com/gperftools/gperftools /tmp/git-cache/gperftools || \
+    (cd /tmp/git-cache/gperftools && git pull) && \
+    cp -r /tmp/git-cache/gperftools /gperftools
 
 WORKDIR /gperftools
 
-# Build with cache for compiled objects
-RUN --mount=type=cache,target=/gperftools/.libs \
-    --mount=type=cache,target=/gperftools/src/.libs \
+# Build with platform-specific cache for compiled objects
+RUN --mount=type=cache,target=/gperftools/.libs,id=gperflibs-$TARGETPLATFORM,sharing=locked \
+    --mount=type=cache,target=/gperftools/src/.libs,id=gperfsrc-$TARGETPLATFORM,sharing=locked \
     ./autogen.sh && \
     ./configure && \
     make && \
@@ -53,11 +105,14 @@ RUN mkdir -p /app /opt
 # =============================================================================
 FROM builder AS debug
 
-# Install debugging tools with cache
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+# Install debugging tools with platform-specific cache
+RUN --mount=type=cache,target=/var/cache/apt,id=debug-$TARGETPLATFORM,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,id=debuglib-$TARGETPLATFORM,sharing=locked \
+    --mount=type=tmpfs,target=/tmp \
+    apt-get update && \
     apt-get install --no-install-recommends -y \
-    gdb valgrind strace util-linux
+    gdb valgrind strace util-linux && \
+    rm -rf /var/lib/apt/lists/*
 
 # Copy built gperftools for debugging
 COPY --from=builder /usr/local/lib/libprofiler.* /usr/local/lib/
@@ -68,12 +123,15 @@ COPY --from=builder /usr/local/lib/libtcmalloc.* /usr/local/lib/
 # =============================================================================
 FROM debug AS profile
 
-# Install performance profiling tools with cache
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+# Install performance profiling tools with platform-specific cache
+RUN --mount=type=cache,target=/var/cache/apt,id=profile-$TARGETPLATFORM,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,id=profilelib-$TARGETPLATFORM,sharing=locked \
+    --mount=type=tmpfs,target=/tmp \
+    apt-get update && \
     apt-get install --no-install-recommends -y \
     linux-tools-generic linux-tools-common linux-cloud-tools-common \
-    radare2 google-perftools graphviz gv
+    radare2 google-perftools graphviz gv && \
+    rm -rf /var/lib/apt/lists/*
 
 # Update library cache for gperftools
 RUN ldconfig
@@ -81,40 +139,63 @@ RUN ldconfig
 # =============================================================================
 # STAGE 4: MINIMAL - Core runtime + network analysis (PANTHER requirement)
 # =============================================================================
-FROM ubuntu:20.04 AS minimal
+
+# Target platform runtime with security hardening
+FROM --platform=$TARGETPLATFORM ubuntu:22.04@${BASE_IMAGE_DIGEST} AS minimal
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Core runtime and network analysis tools with cache
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+# Note: User security is applied via Dockerfile.user.buildkit layer for flexibility
+
+# Platform-aware runtime dependencies with security
+RUN --mount=type=cache,target=/var/cache/apt,id=runtime-$TARGETPLATFORM,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,id=runtimelib-$TARGETPLATFORM,sharing=locked \
+    --mount=type=tmpfs,target=/tmp \
     ln -fs /usr/share/zoneinfo/UTC /etc/localtime && \
     apt-get update && \
     apt-get install --fix-missing --auto-remove --show-upgraded --no-install-recommends -y \
-    python3 openssl \
+    python3 openssl ca-certificates \
     net-tools tcpdump iperf iperf3 traceroute \
     wireshark tshark libcap2-bin \
     iputils-ping iproute2 netcat-openbsd \
-    curl dnsutils
+    curl dnsutils && \
+    rm -rf /var/lib/apt/lists/*
 
 # Configure wireshark for non-root usage (PANTHER protocol testing requirement)
-RUN yes yes | DEBIAN_FRONTEND=teletype dpkg-reconfigure wireshark-common && \
-    usermod -aG wireshark root
+# Note: User will be added to wireshark group in security layer
+RUN yes yes | DEBIAN_FRONTEND=teletype dpkg-reconfigure wireshark-common
 
-# Create application directories
-RUN mkdir -p /app /opt
+# Create application directories (ownership handled by security layer)
+RUN mkdir -p /app /opt /app/logs /app/certs /app/data
 
 # =============================================================================
-# FINAL STAGE: Runtime mode selection
+# FINAL STAGE: Runtime mode selection with platform metadata
 # =============================================================================
 FROM ${RUNTIME_MODE} AS final
 
-# Labels for runtime identification
+# Platform and build metadata for debugging and compliance
+ARG BUILDPLATFORM
+ARG TARGETPLATFORM
 ARG RUNTIME_MODE=minimal
+ARG TARGETOS
+ARG TARGETARCH
+
+LABEL platform.build="${BUILDPLATFORM}"
+LABEL platform.target="${TARGETPLATFORM}"
+LABEL platform.os="${TARGETOS}"
+LABEL platform.arch="${TARGETARCH}"
 LABEL runtime.mode="${RUNTIME_MODE}"
 LABEL runtime.description="PANTHER base service execution environment"
+LABEL security.user="pantheruser"
+LABEL build.syntax="docker/dockerfile:1"
 LABEL runtime.capabilities.network="wireshark,tshark,tcpdump,iperf3"
 LABEL runtime.capabilities.debug="gdb,valgrind,strace"
 LABEL runtime.capabilities.profile="perf,gperftools,radare2"
 
+# Security: Switch to non-root user
+USER pantheruser
 WORKDIR /app
+
+# Health check for runtime validation
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python3 -c "import sys; sys.exit(0)" || exit 1

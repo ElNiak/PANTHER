@@ -21,8 +21,70 @@ from panther.core.outputs.output_collector import IOutputCollector
 
 class OutputAggregator:
     """
+    Central orchestrator for collecting and organizing outputs from PANTHER execution environments.
 
-    Aggregates outputs from execution environments and prepares them for tester analysis.
+    The OutputAggregator coordinates output collection across multiple execution environments,
+    providing event-driven progress tracking and organizing collected artifacts for efficient
+    tester analysis. It handles heterogeneous environment types (Docker Compose, localhost,
+    Shadow NS) and implements the IOutputCollector interface pattern.
+
+    ## Architecture Integration
+
+    ```mermaid
+    sequenceDiagram
+        participant EA as ExperimentAnalysis
+        participant OA as OutputAggregator
+        participant ENV as ExecutionEnvironment
+        participant EE as EnvironmentEventEmitter
+
+        EA->>OA: collect_from_environments(envs)
+        OA->>EE: emit_output_collection_started()
+
+        loop For each environment
+            OA->>ENV: hasattr(collect_outputs)
+            ENV-->>OA: true/false
+            alt Implements IOutputCollector
+                OA->>ENV: collect_outputs()
+                ENV-->>OA: outputs dict
+                OA->>ENV: get_output_metadata()
+                ENV-->>OA: metadata dict
+                OA->>EE: emit_outputs_collected()
+            end
+        end
+
+        OA->>EE: emit_output_collection_completed()
+        OA-->>EA: collected_outputs
+    ```
+
+    ## Collection Strategy
+
+    The aggregator implements a two-phase collection strategy:
+
+    1. **Active Collection**: Iterates through environments that implement `IOutputCollector`
+       interface, collecting registered outputs with full metadata
+    2. **Event Emission**: Provides real-time progress tracking through environment events
+       for monitoring collection performance and debugging failures
+
+    ## Output Organization
+
+    Collected outputs are organized in two formats:
+    - **Environment-centric**: `{env_type: {output_type: path}}` - useful for debugging
+    - **Type-centric**: `{output_type: {env_type: path}}` - optimized for tester analysis
+
+    ## Error Handling
+
+    The aggregator implements graceful error handling:
+    - Individual environment failures don't halt collection
+    - Missing files are logged with diagnostic information
+    - Partial collections are still returned for analysis
+    - Event emission continues even on collection errors
+
+    ## Performance Characteristics
+
+    - **Parallel Collection**: Environments can be processed concurrently
+    - **Lazy Evaluation**: Only environments with `collect_outputs` method are processed
+    - **Memory Efficient**: Output paths are returned rather than file contents
+    - **Event Batching**: Metadata and outputs are collected together to minimize events
     """
 
     def __init__(

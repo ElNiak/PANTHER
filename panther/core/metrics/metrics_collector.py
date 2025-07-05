@@ -99,6 +99,26 @@ class Metric:
     - **Temporal Ordering**: High-precision timestamp for chronological analysis
     - **Type Safety**: Strongly typed metric categorization
 
+    **Usage Examples**:
+    ```python
+    # Counter metric
+    metric = Metric("tests_executed", MetricType.COUNTER, 1,
+                   test_case="quic_basic", phase=Phase.EXECUTION)
+
+    # Timing metric with metadata
+    metric = Metric("test_duration", MetricType.TIMING, 45.3,
+                   metadata={"test_type": "integration", "timeout": 60})
+
+    # Error metric with context
+    metric = Metric("connection_errors", MetricType.ERROR, 1,
+                   component="client", metadata={"error_code": "TIMEOUT"})
+    ```
+
+    **Storage Efficiency**:
+    - **Memory**: ~200 bytes per metric including metadata overhead
+    - **Serialization**: JSON-compatible for persistence and analysis
+    - **Indexing**: Fast filtering by timestamp, type, test_case, and component
+
     **Typical Usage**:
     Created automatically by MetricsCollector methods, not directly instantiated.
     Supports filtering and aggregation operations for experiment analysis.
@@ -139,7 +159,8 @@ class Metric:
 
 @dataclass
 class TimingContext:
-    """Context manager data structure for timing operations.
+    """
+    Context manager data structure for timing operations.
 
     Stores metadata for active timing operations, supporting both manual
     timer management and automatic context manager patterns.
@@ -166,7 +187,8 @@ class TimingContext:
 
 
 class MetricsCollector(LoggerMixin):
-    """Central metrics collection system for PANTHER experiments.
+    """
+    Central metrics collection system for PANTHER experiments.
 
     Provides comprehensive metrics collection, monitoring, and analysis capabilities
     for PANTHER experiment execution. Implements sophisticated patterns for performance
@@ -189,11 +211,11 @@ class MetricsCollector(LoggerMixin):
     **Metric Categories**:
     ```
     Core Metrics:
-    ├── Timing Metrics: Operation durations, test execution times, plugin latencies
-    ├── Counter Metrics: Event counts, error rates, test completion counts
-    ├── Gauge Metrics: Resource usage, connection counts, queue depths
-    ├── Error Metrics: Structured error tracking with context and metadata
-    └── Artifact Metrics: File generation tracking with size and metadata
+    - Timing Metrics: Operation durations, test execution times, plugin latencies
+    - Counter Metrics: Event counts, error rates, test completion counts
+    - Gauge Metrics: Resource usage, connection counts, queue depths
+    - Error Metrics: Structured error tracking with context and metadata
+    - Artifact Metrics: File generation tracking with size and metadata
     ```
 
     **Performance Optimizations**:
@@ -232,7 +254,7 @@ class MetricsCollector(LoggerMixin):
 
     **Thread Safety**: All public methods are thread-safe with granular locking strategy
     **Memory Usage**: O(n) where n is number of recorded metrics (configurable retention)
-    **Performance**: <1ms overhead per metric recording in typical usage
+    **Performance**: Less than 1ms overhead per metric recording in typical usage
     """
 
     def __init__(

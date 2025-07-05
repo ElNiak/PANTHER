@@ -27,10 +27,47 @@ from panther.core.observer.management.event_manager import EventManager
 
 class EmitterRegistry:
     """
-    Centralized registry for all event emitters in PANTHER.
+    Centralized registry for all event emitters in PANTHER with state validation.
 
-    This class ensures that only one instance of each emitter type exists
-    and provides controlled access to test-specific emitters.
+    This class manages the complete lifecycle of event emitters, ensuring singleton
+    instances per emitter type while providing state-aware event emission with
+    validation. It integrates closely with state managers to prevent invalid
+    state transitions and maintains referential integrity across the event system.
+
+    **Architecture Responsibilities:**
+    - Singleton management for all emitter types
+    - State transition validation before event emission
+    - Test-specific emitter lifecycle management
+    - Memory cleanup for completed entities
+    - Integration with domain-specific state managers
+
+    **State Management Integration:**
+    ```mermaid
+    stateDiagram-v2
+        [*] --> CREATED: Service Creation
+        CREATED --> PREPARING: Preparation Start
+        PREPARING --> DEPLOYING: Deployment Start
+        DEPLOYING --> DEPLOYED: Deployment Complete
+        DEPLOYED --> READY: Ready Check
+        READY --> RUNNING: Service Start
+        RUNNING --> STOPPED: Service Stop
+        RUNNING --> ERROR: Error Occurred
+        ERROR --> STOPPED: Recovery
+        STOPPED --> [*]
+
+        note right of CREATED : EmitterRegistry validates\neach transition before\nemitting events
+    ```
+
+    **Memory Management Strategy:**
+    - Test emitters: Created on-demand, cleaned up after test completion
+    - Service states: Maintained per service_id, cleaned up on service removal
+    - Environment states: Tracked per env_id with automatic cleanup
+    - Global emitters: Persistent throughout application lifecycle
+
+    **Integration Pattern:**
+    The registry acts as the central coordination point between event producers
+    and the state management system, ensuring that all events maintain system
+    consistency and provide accurate state representations.
     """
 
     def __init__(self, event_manager: EventManager):
@@ -44,16 +81,16 @@ class EmitterRegistry:
 
         # Initialize containers for event-based state managers
         # Note: Individual state managers are created on-demand with entity IDs
-        self.experiment_state: Optional[ExperimentStateManager] = (
-            None  # Created when experiment starts
-        )
+        self.experiment_state: Optional[
+            ExperimentStateManager
+        ] = None  # Created when experiment starts
         self.plugin_state = PluginStateManager()  # Can be created immediately
-        self.environment_states: Dict[str, EnvironmentStateManager] = (
-            {}
-        )  # env_id -> state manager
-        self.service_states: Dict[str, ServiceStateManager] = (
-            {}
-        )  # service_id -> state manager
+        self.environment_states: Dict[
+            str, EnvironmentStateManager
+        ] = {}  # env_id -> state manager
+        self.service_states: Dict[
+            str, ServiceStateManager
+        ] = {}  # service_id -> state manager
         self.test_states: Dict[str, TestStateManager] = {}  # test_id -> state manager
 
         # Create single instances of each emitter type
@@ -98,7 +135,7 @@ class EmitterRegistry:
         if emitter_type == "test":
             # For test emitters, return or create a test-specific emitter
             return self.get_test_emitter(test_name)
-        
+
         emitter_map = {
             "experiment": self.experiment_emitter,
             "service": self.service_emitter,
@@ -108,10 +145,10 @@ class EmitterRegistry:
             "assertion": self.assertion_emitter,
             "metrics": self.metrics_emitter,
         }
-        
+
         if emitter_type not in emitter_map:
             raise ValueError(f"Unknown emitter type: {emitter_type}")
-        
+
         return emitter_map[emitter_type]
 
     def get_experiment_state(self, experiment_id: str) -> ExperimentStateManager:

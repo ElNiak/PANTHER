@@ -1,17 +1,33 @@
-<!-- filepath: /Users/elniak/Documents/Project/PANTHER/panther/plugins/services/README.md -->
 # PANTHER Service Plugins
 
-!!! info "Service Plugin Overview"
-    Service plugins provide concrete implementations and testing tools for protocol evaluation. They include both implementations under test (IUT) and specialized testing services for validation and analysis.
+## Overview
 
-**Implementation Under Test (IUT) and Testing Service Management**
+The PANTHER Service Plugins framework provides a comprehensive architecture for managing network protocol implementations and testing services within containerized environments. This system enables automated testing of protocol implementations across multiple environments (Docker Compose, localhost, Shadow NS) with sophisticated command generation, event handling, and output collection capabilities.
 
-Service plugins in PANTHER represent concrete implementations of network protocols and testing tools. They provide the actual services that participate in protocol testing, including implementations being evaluated (IUT) and tools that perform testing and validation.
+## Architecture
 
-!!! info "Inheritance Architecture"
-    Service plugins use an inheritance-based architecture with specialized base classes, reducing code duplication across implementations.
+The service plugin system follows a hierarchical architecture with clear separation between implementations under test (IUT) and testing services, both built on a common foundation of base classes and interfaces.
 
-<!-- src: /panther/plugins/services/services_interface.py -->
+### Service Type Hierarchy
+
+```
+Services
+├── IUT (Implementation Under Test)
+│   ├── QUIC Implementations
+│   │   ├── aioquic (Python)
+│   │   ├── lsquic (C)
+│   │   ├── mvfst (C++)
+│   │   ├── picoquic (C)
+│   │   ├── quant (C)
+│   │   ├── quic-go (Go)
+│   │   ├── quiche (Rust)
+│   │   └── quinn (Rust)
+│   ├── HTTP Implementations
+│   └── MinIP Implementations
+│       └── ping_pong
+└── Testers
+    └── panther_ivy (Formal Verification)
+```
 
 ## Service Categories
 

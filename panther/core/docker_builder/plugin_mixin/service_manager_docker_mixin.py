@@ -164,14 +164,18 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
             else "panther_base_service",
         )
 
-        base_dockerfile = Path(
-            os.path.join(os.getcwd(), "panther", "plugins", "services", "Dockerfile")
-        )
+        # Select appropriate Dockerfile based on BuildKit availability
+        services_dir = Path(os.path.join(os.getcwd(), "panther", "plugins", "services"))
+        base_dockerfile = self._select_optimal_dockerfile(services_dir)
 
         try:
             self.logger.debug(
                 f"Using Dockerfile at {base_dockerfile} for base image build with runtime_mode='{runtime_mode}'"
             )
+
+            # Set current dockerfile path for BuildKit detection
+            docker_builder._current_dockerfile_path = base_dockerfile
+
             # Build the base image using correct parameters for build_image with runtime mode
             docker_builder.build_image(
                 impl_name="panther_base_service",
@@ -566,6 +570,66 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
             if not env_name and hasattr(exec_env, "type"):
                 env_name = getattr(exec_env, "type", None)
             return env_name
+
+    def _select_optimal_dockerfile(self, services_dir: Path) -> Path:
+        """
+        Select the optimal Dockerfile based on BuildKit availability and preference.
+
+        Priority order:
+        1. Dockerfile.buildkit (if BuildX available and should be used)
+        2. Dockerfile (fallback)
+
+        Args:
+            services_dir: Directory containing Dockerfile variants
+
+        Returns:
+            Path: Path to the selected Dockerfile
+        """
+        docker_builder = DockerBuilder()
+
+        buildkit_dockerfile = services_dir / "Dockerfile.buildkit"
+        regular_dockerfile = services_dir / "Dockerfile"
+
+        # Check if BuildX is available on the system
+        if not docker_builder._check_buildx_available():
+            self.logger.info("BuildX not available, using standard Dockerfile")
+            return (
+                regular_dockerfile
+                if regular_dockerfile.exists()
+                else buildkit_dockerfile
+            )
+
+        # Prefer Dockerfile.buildkit if it exists and BuildX is available
+        if buildkit_dockerfile.exists():
+            self.logger.info(
+                f"Selected BuildKit-optimized Dockerfile: {buildkit_dockerfile}"
+            )
+            return buildkit_dockerfile
+
+        # Check if regular Dockerfile requires BuildKit features
+        if regular_dockerfile.exists():
+            # Temporarily set dockerfile path for BuildKit detection
+            docker_builder._current_dockerfile_path = regular_dockerfile
+            requires_buildkit = docker_builder._dockerfile_requires_buildkit(
+                regular_dockerfile
+            )
+
+            if requires_buildkit:
+                self.logger.warning(
+                    f"Dockerfile requires BuildKit features but no Dockerfile.buildkit found. "
+                    f"BuildX will be forced for: {regular_dockerfile}"
+                )
+
+            self.logger.info(
+                f"Selected standard Dockerfile (BuildKit required: {requires_buildkit}): {regular_dockerfile}"
+            )
+            return regular_dockerfile
+
+        # If neither exists, fall back to regular Dockerfile path (will cause build error)
+        self.logger.warning(
+            f"No Dockerfile found in {services_dir}, using default path"
+        )
+        return regular_dockerfile
 
     def get_docker_run_command(
         self,

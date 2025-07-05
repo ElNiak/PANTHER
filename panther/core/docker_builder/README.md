@@ -1,145 +1,208 @@
-# Docker Builder System
+# Docker Builder Module
 
-The Docker Builder system provides a unified approach to building and managing Docker images across PANTHER's plugin architecture. It separates environment-specific and service-specific Docker operations through dedicated mixins.
+## Overview
 
-## Architecture Overview
+The Docker Builder module provides a singleton-based Docker management system for the PANTHER framework, implementing intelligent caching, cross-platform builds, and resilient fallback mechanisms. This module serves as the central orchestrator for all Docker operations within PANTHER, ensuring consistent image building, container management, and network configuration across the framework.
 
-The Docker builder system is organized into specialized components:
+## Architecture
+
+### Core Design Principles
+
+**Singleton Pattern**: The DockerBuilder class implements a singleton pattern to ensure single Docker client connection per application, shared build cache across all components, and consistent Docker configuration throughout the system.
+
+**Intelligent Build Selection**: The module automatically selects between regular Docker builds and BuildX cross-platform builds based on:
+- Dockerfile BuildKit feature requirements (RUN --mount, COPY --link)
+- Target platform vs host platform compatibility
+- Configuration preferences and multi-platform settings
+- Builder availability and system capabilities
+
+**Resilient Operations**: Built-in fallback mechanisms handle Docker daemon unavailability through:
+- Cache-only mode when Docker daemon unreachable
+- Graceful degradation for image existence checks
+- Persistent cache across application restarts
+- Comprehensive error handling with detailed diagnostics
+
+### Module Structure
 
 ```
 docker_builder/
-├── docker_builder.py                    # Core Docker builder implementation
-├── docker_operations_mixin.py          # Common Docker operations
-├── service_manager_docker_mixin.py     # Service-specific Docker operations
-├── environment_manager_docker_mixing.py # Environment-specific Docker operations
-├── docker_compose_operations_mixin.py  # Docker Compose orchestration
-├── docker_cache_mixin.py               # Docker layer caching
-└── output_parser.py                    # Docker output parsing utilities
+├── README.md                   # Module documentation (this file)
+├── __init__.py                 # Module exports
+├── docker_builder.py          # Core DockerBuilder singleton class
+├── caching/                    # Build caching subsystem
+│   ├── buildkit_cache_mixin.py     # BuildKit cache management
+│   ├── docker_build_cache_mixin.py # Build cache coordination
+│   ├── docker_image_cache.py       # Image existence caching
+│   └── docker_registry.py          # Registry operations cache
+├── plugin_mixin/              # Docker operation mixins
+│   ├── docker_operations_mixin.py      # Core Docker operations
+│   ├── environment_manager_docker_mixing.py  # Environment management
+│   └── service_manager_docker_mixin.py       # Service lifecycle
+└── utils/                     # Utility functions
+    ├── docker_output_parser.py     # Build log parsing
+    └── docker_plateform_mixin.py   # Platform detection
 ```
 
-## Key Components
+### Key Components
 
-### DockerBuilder
+**DockerBuilder** (docker_builder.py): Primary interface providing:
+- Image building with automatic build method selection
+- Container lifecycle management (create, start, stop, remove)
+- Network operations (create, configure, manage)
+- Build cache coordination and optimization
+- Cross-platform build support via BuildX
 
-The main class responsible for building Docker images with proper error handling, caching, and progress tracking.
+**Caching Subsystem** (caching/): Performance optimization through:
+- Build cache validation and reuse decisions
+- Image existence tracking with TTL-based expiration
+- Registry operations caching for faster lookups
+- BuildKit cache mount management for layer optimization
 
-### Service Manager Docker Mixin
+**Plugin Mixins** (plugin_mixin/): Specialized operation mixins for:
+- Environment management integration
+- Service manager coordination
+- Docker operations abstraction layer
 
-Provides Docker operations specific to service plugins:
+**Utilities** (utils/): Supporting functionality including:
+- Docker build output parsing and log management
+- Platform detection and architecture validation
+- Build log organization and experiment tracking
 
-- Building service implementation images
-- Managing service-specific Dockerfiles
-- Handling service deployment configurations
+## Build Strategy Logic
 
-### Environment Manager Docker Mixin
+### Regular Docker vs BuildX Selection
 
-Provides Docker operations specific to network environment plugins:
+The module implements intelligent build method selection based on multiple factors:
 
-- Building base service images from `panther/plugins/services/Dockerfile`
-- Ensuring service images are available before environment deployment
-- Building environment-specific containers (single container, simulator, etc.)
+1. **BuildKit Feature Detection** (Highest Priority)
+   - Scans Dockerfile for BuildKit-specific syntax
+   - Forces BuildX when RUN --mount, COPY --link, or platform args detected
+   - Ensures compatibility with advanced Dockerfile features
 
-## Separation of Concerns
+2. **Cross-Platform Requirements**
+   - Compares host architecture with target platform
+   - Uses BuildX for cross-platform builds (ARM64 → AMD64, etc.)
+   - Optimizes for efficiency on cross-architecture scenarios
 
-The system maintains clear separation between:
+3. **Configuration Preferences**
+   - Respects global_config.docker.use_buildx setting
+   - Enables BuildX for multi_platform configuration
+   - Provides configuration override capabilities
 
-1. **Service Docker Operations** (via `ServiceManagerDockerMixin`):
-   - Build individual service images
-   - Generate service-specific Dockerfiles
-   - Handle service deployment commands
+4. **System Availability**
+   - Validates BuildX installation and context compatibility
+   - Falls back to regular Docker when BuildX unavailable
+   - Handles builder instance creation and management
 
-2. **Environment Docker Operations** (via `EnvironmentManagerDockerMixin`):
-   - Build and tag base images
-   - Verify service image availability
-   - Create multi-stage environment Dockerfiles
-   - Build final environment containers
+### Caching Strategy
 
-## Usage Examples
+**Multi-Level Cache Architecture**:
+- **L1**: In-memory image existence cache with TTL expiration
+- **L2**: Build cache validation using dockerfile + context + args hashing
+- **L3**: BuildKit cache mounts for layer reuse across builds
+- **Registry Cache**: Remote registry operations for faster image pulls
 
-### Service Manager Integration
+**Cache Invalidation Triggers**:
+- Dockerfile content changes (checksum-based detection)
+- Build context modifications (timestamp + file hash validation)
+- Build arguments changes (configuration hash comparison)
+- Force build configuration overrides
+- Cache TTL expiration for staleness prevention
+
+## Configuration Integration
+
+### Global Configuration Support
+
+The module integrates with PANTHER's global configuration system:
 
 ```python
-class MyServiceManager(BaseServiceManager, ServiceManagerDockerMixin):
-    def force_build_docker_image(self):
-        # Service-specific Docker build
-        return self.docker_builder.build_image(
-            dockerfile_path=self.dockerfile_path,
-            image_name=f"{self.service_name}:{self.version}"
-        )
+global_config.docker.force_build_docker_image  # Override cache decisions
+global_config.docker.use_buildx                # BuildX preference
+global_config.docker.multi_platform            # Multi-platform builds
+global_config.docker.target_platform           # Platform override
+global_config.docker.buildx_builder            # Builder instance name
 ```
 
-### Environment Manager Integration
+### Experiment Context Integration
 
-```python
-class MyNetworkEnvironment(BaseNetworkEnvironment, EnvironmentManagerDockerMixin):
-    def generate_environment_services(self, paths, timestamp):
-        # Build base image first
-        base_image_tag = self.build_base_service_image(self.plugin_manager)
+Build operations integrate with experiment tracking:
+- Build logs organized by experiment and test context
+- Experiment-specific cache isolation
+- Test result correlation with build artifacts
+- Performance metrics collection per experiment
 
-        # Ensure service images are available
-        service_images = self.ensure_service_images_available(self.services_managers)
+### Build Mode Support
 
-        # Generate environment Dockerfile with proper base image
-        self.generate_from_template(
-            template_name="Dockerfile.jinja",
-            additional_param={
-                "base_image": base_image_tag,
-                "service_images": service_images
-            }
-        )
-```
+**Architecture-Aware Build Modes**:
+- Standard modes: '' (default), 'debug', 'release'
+- Advanced x86 modes: 'rel-lto', 'debug-asan', 'release-static-pgo'
+- Automatic fallback for incompatible architecture combinations
+- Runtime mode coordination: 'minimal', 'debug', 'profile'
 
-## Multi-Stage Build Support
+## Performance Characteristics
 
-The system fully supports Docker multi-stage builds, commonly used in environment plugins:
+### Time Complexity
+- **Cached Operations**: O(1) for image existence checks, cache hits
+- **Build Operations**: O(n) where n = context size + Dockerfile complexity
+- **Cache Validation**: O(log n) for hash computation and comparison
 
-```dockerfile
-# Base stage with proper image reference
-FROM {{ additional_param.base_image }} AS base
+### Space Complexity
+- **Cache Storage**: O(m) where m = number of unique build configurations
+- **Build Context**: O(n) where n = total size of build context files
+- **Log Storage**: O(k) where k = number of concurrent experiments
 
-# Service stages for each service
-{% for service in services %}
-FROM {{ additional_param.service_images[service.service_name] }} AS {{ service.service_name }}_stage
-{% endfor %}
+### Concurrency Model
+- **Thread-Safe Singleton**: Multiple threads share single instance safely
+- **Docker I/O Blocking**: Build operations block on Docker daemon I/O
+- **Cache Coordination**: Atomic cache updates prevent race conditions
+- **Resource Isolation**: Experiment contexts prevent log interference
 
-# Final stage combining everything
-FROM base
-COPY --from=service1_stage /app /services/service1
-```
+## Error Handling Strategy
 
-## Common Issues and Solutions
+### Layered Error Management
 
-### Empty FROM Instructions
+**Fast-Fail Validation**: Pre-build validation prevents expensive failures:
+- Docker daemon connectivity verification
+- Dockerfile and context path validation
+- Configuration parameter validation
+- Architecture compatibility checks
 
-**Problem**: Generated Dockerfiles have empty FROM instructions
-**Solution**: The environment mixin now ensures base_image is always provided through:
+**Graceful Degradation**: Resilient operation under adverse conditions:
+- Cache-only mode when Docker daemon unavailable
+- Fallback to regular Docker when BuildX fails
+- Alternative platform detection when configuration invalid
+- Log file creation fallbacks for permission issues
 
-- Building and tagging the base service image
-- Passing it in the `additional_param` dictionary to templates
-- Verifying all required images before building
+**Comprehensive Diagnostics**: Detailed error context for debugging:
+- Build failure analysis with log correlation
+- Platform compatibility diagnostic information
+- Cache state inspection for troubleshooting
+- Configuration validation with specific error details
 
-### Service Image Not Found
+## Dependencies
 
-**Problem**: Environment build fails because service images aren't available
-**Solution**: The `ensure_service_images_available()` method now:
+### Required Dependencies
+- **docker**: Python Docker SDK for daemon communication
+- **pathlib**: Modern path handling for cross-platform compatibility
+- **subprocess**: BuildX command execution and platform detection
+- **json**: Configuration serialization and build argument handling
 
-- Checks if each service image exists
-- Builds missing images if needed
-- Returns a mapping of service names to image tags
+### Internal Dependencies
+- **panther.core.exceptions**: PANTHER exception hierarchy
+- **panther.core.utils.logging_mixin**: Structured logging functionality
+- **panther.core.exceptions.error_handler_mixin**: Error management coordination
 
-## Best Practices
+### System Dependencies
+- **Docker Daemon**: Must be running and accessible
+- **Docker BuildX** (Optional): For cross-platform builds and advanced features
+- **Platform Tools**: Native architecture detection utilities
 
-1. **Always use the appropriate mixin** for your plugin type
-2. **Build base images once** per experiment to save time
-3. **Verify Dockerfile validity** before building
-4. **Use multi-stage builds** for complex environments
-5. **Tag images properly** for versioning and identification
+## Thread Safety
 
-## Integration Points
+The DockerBuilder singleton implementation provides thread-safe access through:
+- **Atomic Instance Creation**: Thread-safe singleton pattern implementation
+- **Immutable Configuration**: Configuration updates applied atomically
+- **Cache Coordination**: Thread-safe cache operations with proper locking
+- **Docker Client Sharing**: Single Docker client shared safely across threads
 
-The Docker builder system integrates with:
-
-- **Plugin Manager**: For service discovery and image building
-- **Template System**: For Dockerfile generation
-- **Event System**: For build progress tracking
-- **Error Handling**: For proper error reporting and recovery
+Note: Individual Docker operations may block on I/O but do not compromise thread safety.

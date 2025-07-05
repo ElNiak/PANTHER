@@ -1,35 +1,50 @@
 # syntax=docker/dockerfile:1
+ARG TARGETPLATFORM=linux/amd64
+ARG BUILDPLATFORM=linux/amd64
 FROM --platform=linux/amd64 ubuntu:20.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Layer 1: System base configuration (rarely changes)
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+# Layer 1: System base configuration with platform-specific cache (rarely changes)
+RUN --mount=type=cache,target=/var/cache/apt-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/var/lib/apt-${TARGETPLATFORM//\//-},sharing=locked \
     ln -fs /usr/share/zoneinfo/UTC /etc/localtime && \
     apt-get update
 
-# Layer 2: Core build dependencies (changes infrequently)
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+# Layer 2: Core build dependencies with platform-specific cache (changes infrequently)
+RUN --mount=type=cache,target=/var/cache/apt-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/var/lib/apt-${TARGETPLATFORM//\//-},sharing=locked \
     apt-get install --fix-missing --auto-remove --show-upgraded --no-install-recommends -y \
     build-essential cmake software-properties-common \
     openssl libssl-dev pkg-config \
     git wget curl sudo \
     clang python3
 
-# Layer 3: Network and debugging tools (changes infrequently)
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+# Add platform-specific CMake environment (for downstream usage)
+RUN case "${TARGETPLATFORM}" in \
+        "linux/amd64") \
+            echo 'export CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=x86_64 -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++"' >> /etc/environment \
+            ;; \
+        "linux/arm64") \
+            echo 'export CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=aarch64"' >> /etc/environment \
+            ;; \
+        *) \
+            echo 'export CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=x86_64"' >> /etc/environment \
+            ;; \
+    esac
+
+# Layer 3: Network and debugging tools with platform-specific cache (changes infrequently)
+RUN --mount=type=cache,target=/var/cache/apt-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/var/lib/apt-${TARGETPLATFORM//\//-},sharing=locked \
     apt-get install --fix-missing --auto-remove --show-upgraded --no-install-recommends -y \
     net-tools tcpdump iperf traceroute \
     wireshark tshark libcap2-bin \
     iputils-ping iproute2 iperf3 netcat-openbsd \
     dnsutils radare2 strace
 
-# Layer 4: Performance profiling dependencies (rarely changes)
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+# Layer 4: Performance profiling dependencies with platform-specific cache (rarely changes)
+RUN --mount=type=cache,target=/var/cache/apt-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/var/lib/apt-${TARGETPLATFORM//\//-},sharing=locked \
     apt-get install --no-install-recommends -y \
     libunwind-dev google-perftools graphviz gv gperf
 

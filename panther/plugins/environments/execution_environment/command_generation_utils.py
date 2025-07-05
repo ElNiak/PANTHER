@@ -267,10 +267,208 @@ fi
 
 class ExecutionEnvironmentCommandBuilder:
     """
-    High-level command builder for execution environments.
+    Execution Environment Command Builder - Unified Command Generation Framework
 
-    This class wraps ServiceCommandBuilder with execution environment-specific
-    patterns and provides common command generation utilities.
+    ExecutionEnvironmentCommandBuilder provides a high-level, unified framework for generating
+    and applying analysis tool wrapper commands to services in PANTHER execution environments.
+    This class abstracts the complexity of command generation, output file management, and
+    service integration, enabling consistent execution environment implementation across
+    different analysis tools (strace, Valgrind, GDB, etc.).
+
+    ## Architecture Integration
+
+    The command builder serves as the central coordination point between execution environments
+    and services, providing:
+
+    1. **Command Generation**: Unified wrapper command creation with setup and execution phases
+    2. **Output Management**: Automated output file registration and path management
+    3. **Service Integration**: Seamless integration with service command structures
+    4. **Deduplication**: Intelligent wrapper deduplication to prevent command conflicts
+    5. **Post-Processing**: Automated analysis and summary generation
+
+    ```mermaid
+    graph TD
+        A[ExecutionEnvironment] --> B[CommandBuilder]
+        B --> C[WrapperGeneration]
+        B --> D[OutputManagement]
+        B --> E[ServiceIntegration]
+
+        C --> F[SetupCommands]
+        C --> G[MainWrapper]
+        C --> H[ConditionalLogic]
+
+        D --> I[FileRegistration]
+        D --> J[PathGeneration]
+        D --> K[TypeCategorization]
+
+        E --> L[CommandModification]
+        E --> M[EnvironmentVariables]
+        E --> N[ServiceCommandBuilder]
+    ```
+
+    ## Command Generation Architecture
+
+    ### Two-Phase Command Structure
+    1. **Setup Phase**: Preparation commands executed before service startup
+       - Tool availability verification
+       - Output directory creation
+       - Configuration file generation
+       - Runtime environment preparation
+
+    2. **Wrapper Phase**: Service execution wrapping
+       - Command wrapping with analysis tools
+       - Output redirection and logging
+       - Error handling and recovery
+       - Process monitoring and control
+
+    ### Modern Wrapper Architecture
+    The builder supports both legacy and modern wrapper architectures:
+
+    #### Legacy Mode
+    - Single wrapper command string
+    - Mixed setup and execution logic
+    - Limited flexibility for complex tools
+
+    #### Modern Mode (Recommended)
+    - Separated setup commands and main wrapper
+    - Flexible command composition
+    - Proper argument passthrough with "$@"
+    - Enhanced error handling and logging
+
+    ## Output File Management
+
+    ### Automated File Registration
+    - **Type-Based Organization**: Files categorized by type (logs, traces, profiles, etc.)
+    - **Consistent Naming**: Standardized naming patterns with service and timestamp
+    - **Path Generation**: Automatic path generation with conflict resolution
+    - **Metadata Tracking**: File descriptions and categorization for post-processing
+
+    ### Output Types
+    Standard output categories supported:
+    - `primary_log`: Main tool output (strace logs, Valgrind reports, etc.)
+    - `summary`: Analysis summaries and statistics
+    - `detailed`: Extended analysis reports
+    - `error`: Error logs and debugging information
+    - `metadata`: Tool configuration and runtime metadata
+
+    ## Service Integration Patterns
+
+    ### Command Modification Callback
+    The builder uses a callback pattern for service modification:
+
+    ```python
+    def modify_service_commands(service, modification_type, commands):
+        # Apply commands to service structure
+        # Return modification results
+    ```
+
+    ### Service Command Structure Integration
+    - **pre_run_cmds**: Setup commands executed before service startup
+    - **run_cmd**: Main service execution command (potentially wrapped)
+    - **post_run_cmds**: Cleanup and analysis commands executed after service completion
+    - **environment**: Additional environment variables for tool configuration
+
+    ## Deduplication and Safety
+
+    ### Wrapper Deduplication
+    - **Command Fingerprinting**: MD5 hashing of command structure prevents duplicates
+    - **Environment Awareness**: Considers environment variables and setup commands
+    - **Safe Reapplication**: Prevents wrapper conflicts during multiple setup phases
+
+    ### Error Prevention
+    - **Command Validation**: Syntax and structure validation before application
+    - **Dependency Checking**: Verification of tool availability and prerequisites
+    - **Graceful Fallbacks**: Fallback strategies for missing tools or configuration errors
+
+    ## Post-Processing Integration
+
+    ### Automated Analysis
+    - **Template-Based Processing**: Standardized analysis command templates
+    - **Input/Output Coordination**: Automatic file dependency management
+    - **Error Handling**: Robust error handling for analysis failures
+    - **Multi-Stage Processing**: Support for complex analysis pipelines
+
+    ### Analysis Types
+    Common post-processing patterns:
+    - **Statistical Analysis**: Frequency counts, timing analysis, resource usage
+    - **Error Extraction**: System call errors, tool failures, performance issues
+    - **Summary Generation**: Human-readable reports and dashboards
+    - **Data Transformation**: Format conversion and data normalization
+
+    ## Performance Optimization
+
+    ### Command Summarization
+    - **Smart Logging**: Intelligent command summarization for debug output
+    - **Content Truncation**: Large command truncation with preserved semantics
+    - **Batch Processing**: Efficient handling of multiple command modifications
+
+    ### Resource Management
+    - **Memory Efficiency**: Minimal memory footprint for command storage
+    - **File Handle Management**: Proper cleanup of temporary files and resources
+    - **Process Isolation**: Isolated execution contexts for different tools
+
+    ## Usage Patterns
+
+    ### Basic Wrapper Application
+    ```python
+    builder = create_execution_environment_builder(service, "strace", timestamp, callback, logger)
+    output_file = builder.register_output_file("trace_log", "log", "System call trace")
+    builder.add_wrapper_command(
+        setup_commands=["mkdir -p /tmp/traces"],
+        main_command_wrapper=f'strace -o {output_file} -- "$@"'
+    )
+    results = builder.build_and_apply(modify_service_commands)
+    ```
+
+    ### Conditional Tool Setup
+    ```python
+    builder.add_conditional_wrapper(
+        condition="command -v valgrind >/dev/null 2>&1",
+        wrapper_command="valgrind --tool=memcheck --log-file=memcheck.log",
+        fallback_message="Valgrind not available, skipping memory analysis"
+    )
+    ```
+
+    ### Post-Processing Integration
+    ```python
+    builder.add_post_processing(
+        input_file=trace_file,
+        output_file=summary_file,
+        processing_command="analyze_trace.sh",
+        description="System call analysis",
+        file_type="trace_summary"
+    )
+    ```
+
+    ## Error Handling Strategy
+
+    ### Command Validation
+    - **Syntax Checking**: Shell command syntax validation
+    - **Dependency Verification**: Tool and library availability checking
+    - **Permission Validation**: File system permission verification
+
+    ### Runtime Safety
+    - **Graceful Degradation**: Continued operation despite tool failures
+    - **Error Isolation**: Tool failures don't affect service execution
+    - **Diagnostic Logging**: Comprehensive error diagnosis and debugging
+
+    Attributes:
+        service (IServiceManager): Target service for command modification
+        environment_name (str): Name of the execution environment (strace, valgrind, etc.)
+        timestamp (str): Unique timestamp for output file naming and coordination
+        output_file_manager (OutputFileManager): Manager for output file registration and paths
+        wrapper_generator (WrapperCommandGenerator): Generator for wrapper command creation
+        service_name (str): Extracted service name for logging and file naming
+        service_role (ProtocolRole): Service role (client/server) for context-aware generation
+        command_builder (ServiceCommandBuilder): Underlying command structure builder
+        _applied_wrappers (set): Set of applied wrapper fingerprints for deduplication
+
+    Methods:
+        add_wrapper_command(): Add execution environment wrapper with setup and main phases
+        add_conditional_wrapper(): Add wrapper with conditional tool availability checking
+        add_post_processing(): Add automated analysis and post-processing commands
+        register_output_file(): Register output files with type categorization and path generation
+        build_and_apply(): Build all commands and apply to service through callback
     """
 
     def __init__(

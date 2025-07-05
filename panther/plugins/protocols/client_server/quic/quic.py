@@ -97,28 +97,58 @@ class QUICProtocol(IProtocolManager):
     """
 
     def __init__(self):
+        """Initialize QUIC protocol manager.
+
+        Sets up logging and skips parent YAML loading since configuration
+        is handled through the decorator metadata system.
+        """
         # Skip parent init since we don't need the old YAML loading
         self.logger = logging.getLogger("QUICProtocol")
 
     def validate_config(self):
-        """Validate protocol configuration."""
+        """Validate QUIC protocol configuration.
+
+        Configuration validation is handled automatically through the schema
+        defined in the register_protocol decorator. This method serves as
+        a placeholder for any additional runtime validation.
+        """
         # Configuration is validated through the schema
         pass
 
     def load_config(self) -> dict:
-        """Load protocol configuration."""
+        """Load QUIC protocol configuration from decorator metadata.
+
+        Returns:
+            dict: Default QUIC configuration parameters including stream limits,
+                  data limits, timeout values, and ALPN protocols.
+
+        Examples:
+            >>> config = self.load_config()
+            >>> print(config['initial_max_data'])
+            10485760
+        """
         # Return the default config from decorator
         return self.get_protocol_metadata().get("default_config", {})
 
     def get_version_parameters(self, version: str) -> dict:
-        """
-        Get version-specific parameters.
+        """Get version-specific QUIC protocol parameters.
+
+        Retrieves configuration parameters that are specific to a particular
+        QUIC version, including version negotiation settings and vulnerability
+        testing parameters.
 
         Args:
-            version: Protocol version identifier
+            version: QUIC version identifier (e.g., 'rfc9000', 'draft-27').
 
         Returns:
-            Version-specific parameters
+            dict: Version-specific parameters including initial version hex,
+                  version negotiation flag, compatible versions list, and
+                  optional vulnerability test settings.
+
+        Examples:
+            >>> params = self.get_version_parameters('rfc9000')
+            >>> print(params['initial_version'])
+            '00000001'
         """
         # Version-specific parameters that might differ
         version_params = {
@@ -157,12 +187,28 @@ class QUICProtocol(IProtocolManager):
 
     @classmethod
     def get_default_server_port(cls) -> int:
-        """Get the default server port for QUIC."""
+        """Get the default server port for QUIC connections.
+
+        Returns:
+            int: Default QUIC server port (4443).
+
+        Note:
+            Port 4443 is commonly used for QUIC as it's the HTTPS port (443)
+            plus 4000, making it easy to remember and unlikely to conflict.
+        """
         return 4443
 
     @classmethod
     def get_default_client_port(cls) -> int:
-        """Get the default client port for QUIC (usually ephemeral)."""
+        """Get the default client port for QUIC connections.
+
+        Returns:
+            int: Ephemeral port (0), allowing the OS to assign an available port.
+
+        Note:
+            QUIC clients typically use ephemeral ports assigned by the operating
+            system to avoid port conflicts and enable multiple concurrent connections.
+        """
         return 0  # Ephemeral port
 
 

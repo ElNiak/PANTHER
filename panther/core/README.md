@@ -1,11 +1,40 @@
 # PANTHER Core Framework
 
-**Foundation modules for experiment management and testing infrastructure**
+Central orchestration engine for PANTHER network protocol testing framework, implementing sophisticated experiment lifecycle management through event-driven architecture and plugin-based extensibility.
 
-The core modules provide the essential functionality that powers the PANTHER framework, including experiment orchestration, configuration management, event-driven communication, and command-line operations.
+## Architecture Overview
 
-!!! info "For Framework Developers"
-    This documentation is intended for developers working on PANTHER's core framework or those needing to understand the internal architecture. For plugin development, see the [Plugin Development Guide](../plugins/development.md).
+The core module implements a multi-layered architecture combining several design patterns for enterprise-grade scalability and maintainability.
+
+### Primary Components
+
+**ExperimentManager** - Central facade orchestrating experiment lifecycle
+- Event-driven coordination using EventManager + EmitterRegistry
+- Observer pattern for pluggable monitoring and analysis
+- Strategy pattern delegating to PluginManager for extensible execution
+- Context manager pattern for automatic resource cleanup
+
+**TestCase** - Mixin-composed test execution engine
+- Six specialized mixins providing modular capability composition
+- State machine with explicit transitions (PENDING → RUNNING → DONE)
+- Docker orchestration for multi-service container management
+- Comprehensive performance metrics and timing collection
+
+**Plugin System** - Extensible execution backend
+- Singleton PluginManager with thread-safe initialization
+- Multi-level caching with TTL for performance optimization
+- Protocol, service, and environment plugin types
+- Docker integration with automated container building
+
+### Design Philosophy
+
+The core architecture employs enterprise-grade patterns for scalability and maintainability:
+
+- **Event-Driven Architecture**: Central event bus coordinates all subsystem communication
+- **Observer Pattern**: Pluggable observers for metrics, logging, and analysis
+- **Strategy Pattern**: Pluggable algorithms for experiment execution strategies
+- **Facade Pattern**: ExperimentManager provides unified interface to complex subsystems
+- **Mixin Composition**: Modular capabilities through multiple inheritance
 
 ---
 

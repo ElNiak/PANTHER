@@ -58,64 +58,62 @@ from panther.plugins.plugin_manager import PluginManager
 class ExperimentManager(
     ErrorHandlerMixin, ExperimentObserverMixin, ExperimentAnalysisMixin
 ):
-    """Central orchestrator for PANTHER experiment lifecycle management.
+    """Orchestrate experiment lifecycle with event-driven coordination.
 
-    ExperimentManager implements the Facade pattern, coordinating multiple subsystems:
+    ExperimentManager implements the Facade pattern, coordinating multiple subsystems for
+    reproducible network protocol testing. The class provides centralized control over
+    experiment initialization, execution, monitoring, and cleanup.
 
-    **Architecture Overview**:
-    - **Event-Driven Design**: Uses EventManager + EmitterRegistry for loose coupling
-    - **Observer Pattern**: Pluggable observers for logging, metrics, and analysis
-    - **Strategy Pattern**: Delegates to PluginManager for extensible test execution
-    - **Mixin Composition**: Combines error handling, observation, and analysis capabilities
+    This class is the primary entry point for running PANTHER experiments and manages
+    the complete lifecycle from configuration validation to result collection.
 
-    **Lifecycle Management**:
-    1. **Initialization**: Plugin validation, configuration persistence, observer setup
-    2. **Test Preparation**: Test case creation with shared workflow tracking
-    3. **Execution**: Progress-tracked test running with error recovery
-    4. **Cleanup**: Resource cleanup and final reporting
-
-    **Error Handling Strategy**:
-    - **Fast-fail**: Critical infrastructure errors terminate experiment
-    - **Resilient**: Individual test failures don't stop experiment
-    - **Observable**: All errors emit events for analysis and metrics
-
-    **Thread Safety**: Not thread-safe - designed for single-threaded experiment execution
-
-    **Resource Management**: Implements context manager pattern for automatic cleanup
+    Args:
+        global_config: Global configuration containing paths and defaults.
+        experiment_name: Optional name for the experiment (sanitized automatically).
+        plugin_dir: Directory containing plugin implementations.
+        logger: Optional logger instance (creates default if None).
+        metrics_collector: Optional metrics collection system.
+        fast_fail_enabled: Whether to terminate on critical errors.
+        dry_run: Execute in validation mode without running actual tests.
 
     Attributes:
-        global_config (GlobalConfig): The global configuration for the experiment.
-        experiment_name (str): The name of the experiment.
-        plugin_dir (str): The directory where plugins are located.
-        logger (logging.Logger): Logger for the experiment manager.
-        experiment_config (ExperimentConfig): Configuration specific to the experiment.
-        experiment_dir (Path): Directory where experiment outputs are stored.
-        logs_dir (Path): Directory where logs are stored.
-        plugin_manager (PluginManager): Manager for experiment plugins.
-        test_cases (List[ITestCase]): List of test cases to be executed.
-        event_manager (EventManager): Central event coordination system
-        emitter_registry (EmitterRegistry): Centralized emitter management
-        workflow_tracker (WorkflowStateTracker): Experiment state coordination
-        fast_fail_handler (FastFailHandler): Critical error management
+        global_config (GlobalConfig): Global configuration for the experiment.
+        experiment_name (str): Sanitized experiment identifier with timestamp.
+        experiment_dir (Path): Output directory for experiment artifacts.
+        plugin_manager (PluginManager): Plugin discovery and management system.
+        test_cases (List[ITestCase]): Configured test scenarios for execution.
+        event_manager (EventManager): Central event coordination system.
+        fast_fail_handler (FastFailHandler): Critical error management system.
 
-    Methods:
-        initialize_experiments(experiment_config: ExperimentConfig):
-            Initializes plugins, environment, and validates configuration.
+    Raises:
+        ExperimentInitializationError: When configuration validation fails.
+        PluginValidationError: When required plugins cannot be loaded.
+        TestCaseInitializationError: When test cases cannot be created.
 
-        _save_configuration():
-            Saves the experiment configuration file in the experiment folder.
+    Examples:
+        >>> config = GlobalConfig.load("config.yaml")
+        >>> manager = ExperimentManager(config, experiment_name="quic_test")
+        >>> manager.initialize_experiments(experiment_config)
+        >>> manager.run_tests()
+        >>> manager.cleanup()
 
-        _initialize_test_cases():
-            Initializes the test cases from the experiment configuration.
+        Using as context manager:
+        >>> with ExperimentManager(config) as manager:
+        ...     manager.initialize_experiments(experiment_config)
+        ...     manager.run_tests()
 
-        run_tests():
-            Runs the tests defined in the experiment configuration.
+    Note:
+        - Not thread-safe: designed for single-threaded execution
+        - Uses event-driven architecture for loose coupling between components
+        - Implements observer pattern for extensible monitoring and analysis
+        - Resource cleanup happens automatically when used as context manager
 
-        _load_logging():
-            Configures logging for the experiment manager.
-
-        cleanup():
-            Clean up resources including observers and event handlers.
+    Architecture:
+        The manager coordinates four main phases:
+        1. Initialization: Plugin validation and observer setup
+        2. Preparation: Test case creation and environment validation
+        3. Execution: Progress-tracked test running with error recovery
+        4. Cleanup: Resource teardown and result aggregation
     """
 
     def __init__(

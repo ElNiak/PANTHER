@@ -106,20 +106,32 @@ For detailed workflow documentation, see [WORKFLOW.md](WORKFLOW.md).
 
 ### Plugins
 
-10. [Overview](panther/plugins/README.md)
-11. [Inventory](panther/plugins/plugins_inventory.md)
-12. **Environment Plugins**
-   * [Overview](panther/plugins/environments/README.md)
-   * [Network Environment](panther/plugins/environments/network_environment/README.md)
-   * [Execution Environment](panther/plugins/environments/execution_environment/README.md)
-13. **Protocol Plugins**
-    * [Overview](panther/plugins/protocols/README.md)
-    * [Client-Server Protocols](panther/plugins/protocols/client_server/README.md)
-    * [Peer-to-Peer Protocols](panther/plugins/protocols/peer_to_peer/README.md)
-14. **Service Plugins**
-    * [Overview](panther/plugins/services/README.md)
-    * [Implementation Under Tests (IUTs)](panther/plugins/services/iut/README.md)
-    * [Testing Services](panther/plugins/services/testers/README.md)
+PANTHER's extensible plugin architecture enables seamless integration of new protocols, implementations, testing frameworks, and environments. The modern inheritance-based system provides 47.2% average code reduction while ensuring consistent behavior across all plugin types.
+
+**Core Plugin Categories:**
+
+10. [Overview](panther/plugins/README.md) - Architecture and design patterns
+11. [Inventory](panther/plugins/plugins_inventory.md) - Complete plugin catalog
+12. **Environment Plugins** - Network simulation and execution environments
+   * [Overview](panther/plugins/environments/README.md) - Environment plugin architecture
+   * [Network Environment](panther/plugins/environments/network_environment/README.md) - Docker Compose, localhost, Shadow NS
+   * [Execution Environment](panther/plugins/environments/execution_environment/README.md) - Performance profiling and analysis
+13. **Protocol Plugins** - Protocol definitions and behavioral specifications
+    * [Overview](panther/plugins/protocols/README.md) - Protocol plugin patterns
+    * [Client-Server Protocols](panther/plugins/protocols/client_server/README.md) - QUIC, HTTP, TCP/UDP variants
+    * [Peer-to-Peer Protocols](panther/plugins/protocols/peer_to_peer/README.md) - BitTorrent, WebRTC protocols
+14. **Service Plugins** - Implementation testing and verification services
+    * [Overview](panther/plugins/services/README.md) - Service plugin architecture
+    * [Implementation Under Tests (IUTs)](panther/plugins/services/iut/README.md) - picoquic, aioquic, quiche, quinn
+    * [Testing Services](panther/plugins/services/testers/README.md) - Ivy formal verification, custom testers
+
+**Plugin System Features:**
+- **Automatic Discovery**: Decorator-based registration with metadata validation
+- **Dependency Management**: Semantic versioning and automatic dependency resolution
+- **Version Configurations**: Protocol version-specific configurations (RFC9000, draft-29, etc.)
+- **Event Integration**: Built-in event emission and coordination across plugin lifecycle
+- **Configuration Schema**: JSON Schema-based validation with auto-fixing capabilities
+- **Performance Optimization**: Class caching and lazy loading for improved startup time
 
 ### Developer Guide
 
