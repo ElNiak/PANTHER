@@ -195,7 +195,7 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
         self.experiment_context = experiment_context
 
         # Initialize Docker image cache with platform-aware caching
-        target_platform = self._get_target_platform()
+        target_platform = self.get_target_platform()
         self.image_cache = DockerImageCache(
             cache_ttl=300,
             retry_count=1,
@@ -813,7 +813,7 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
         Returns:
             str: Cache key suffix (e.g., '-linux-amd64', '-linux-arm64')
         """
-        platform = self._get_target_platform().replace("/", "-")
+        platform = self.get_target_platform().replace("/", "-")
         return f"-{platform}"
 
     def _update_cache_platform(self) -> None:
@@ -823,7 +823,7 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
         Ensures cache isolation by switching to platform-specific cache file
         when build platform changes during multi-platform builds.
         """
-        current_platform = self._get_target_platform()
+        current_platform = self.get_target_platform()
 
         if hasattr(self.image_cache, "target_platform"):
             if self.image_cache.target_platform != current_platform:
@@ -841,6 +841,9 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
         dockerfile_path: Path,
         context_path: Path,
         build_args: Dict[str, Any],
+        config: Dict[str, Any],
+        version: str,
+        tag_version: str = "latest",
         experiment_id: Optional[str] = None,
         image_tag: Optional[str] = None,
     ) -> Optional[str]:
@@ -931,7 +934,7 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                 tag_version=tag_version,
                 build_mode=build_mode,
                 runtime_mode=runtime_mode,
-                target_platform=self._get_target_platform(),
+                target_platform=self.get_target_platform(),
             )
             self.logger.info(
                 "Building Docker image '%s' with buildx for platform '%s'",
@@ -942,14 +945,39 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
             dependencies = config.get("dependencies", {})
             dependencies_json = json.dumps(dependencies) if dependencies else "[]"
 
+            target_platform = self.get_target_platform()
+            build_platform = self._get_host_platform()
+
+            # Extract architecture from platform strings (e.g., "linux/arm64" -> "arm64")
+            target_arch = (
+                target_platform.split("/")[-1]
+                if "/" in target_platform
+                else target_platform
+            )
+            target_os = (
+                target_platform.split("/")[0] if "/" in target_platform else "linux"
+            )
+            build_arch = (
+                build_platform.split("/")[-1]
+                if "/" in build_platform
+                else build_platform
+            )
+            build_os = (
+                build_platform.split("/")[0] if "/" in build_platform else "linux"
+            )
+
             build_args = {
                 "VERSION": config.get("commit", "master"),
                 "DEPENDENCIES": dependencies_json,
                 "BUILD_MODE": build_mode,
                 "RUNTIME_MODE": config.get("runtime_mode", "minimal"),
                 "BASE_IMAGE": config.get("BASE_IMAGE", "panther_base_service:latest"),
-                "TARGETPLATFORM": self._get_target_platform(),
-                "BUILDPLATFORM": self._get_host_platform(),
+                "TARGETPLATFORM": target_platform,
+                "BUILDPLATFORM": build_platform,
+                "TARGETARCH": target_arch,
+                "TARGETOS": target_os,
+                "BUILDARCH": build_arch,
+                "BUILDOS": build_os,
             }
 
             # Calculate relative path from context to dockerfile
@@ -1005,9 +1033,11 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                 if len(base_tag_parts) == 2:
                     base_name, tag_with_platform = base_tag_parts
                     # Remove platform suffix from tag
-                    platform_suffix = (
-                        f"-{self._get_target_platform().replace('/', '-')}"
-                    )
+                    # Note: Platform suffix must match sanitized format where '/' becomes '-'
+                    platform_str = self.get_target_platform().replace(
+                        "/", "-"
+                    )  # e.g., "linux-arm64"
+                    platform_suffix = f"-{platform_str}"
                     if tag_with_platform.endswith(platform_suffix):
                         platform_agnostic_tag = (
                             f"{base_name}:{tag_with_platform[:-len(platform_suffix)]}"
@@ -1304,6 +1334,27 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
 
             # Check build cache first
             dependencies = config.get("dependencies", {})
+            target_platform = self.get_target_platform()
+            build_platform = self._get_host_platform()
+
+            # Extract architecture from platform strings (e.g., "linux/arm64" -> "arm64")
+            target_arch = (
+                target_platform.split("/")[-1]
+                if "/" in target_platform
+                else target_platform
+            )
+            target_os = (
+                target_platform.split("/")[0] if "/" in target_platform else "linux"
+            )
+            build_arch = (
+                build_platform.split("/")[-1]
+                if "/" in build_platform
+                else build_platform
+            )
+            build_os = (
+                build_platform.split("/")[0] if "/" in build_platform else "linux"
+            )
+
             build_args = {
                 "VERSION": config.get("commit", "production"),
                 "DEPENDENCIES": json.dumps(dependencies) if dependencies else "[]",
@@ -1315,8 +1366,14 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                     tag_version="latest",
                     build_mode="",
                     runtime_mode=runtime_mode,
-                    target_platform=self.get_target_platform(),
+                    target_platform=target_platform,
                 ),
+                "TARGETPLATFORM": target_platform,
+                "BUILDPLATFORM": build_platform,
+                "TARGETARCH": target_arch,
+                "TARGETOS": target_os,
+                "BUILDARCH": build_arch,
+                "BUILDOS": build_os,
             }
 
             self.logger.debug(
@@ -1367,10 +1424,38 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                 log_f = open(log_filename, "w")
 
             # Calculate relative path from context to dockerfile for Docker API
-            relative_dockerfile_path = Path(dockerfile_path).relative_to(context_path)
+            # Prefer Dockerfile.buildkit or multistage variants if they exist
+            buildkit_candidates = [
+                Path(dockerfile_path).parent / "Dockerfile.buildkit",
+                Path(dockerfile_path).parent / "Dockerfile.multistage",
+                dockerfile_path,  # fallback to original
+            ]
+
+            selected_dockerfile = None
+            for candidate in buildkit_candidates:
+                if candidate.exists():
+                    selected_dockerfile = candidate
+                    self.logger.debug(
+                        "Selected Dockerfile for regular build: %s", selected_dockerfile
+                    )
+                    break
+
+            if selected_dockerfile is None:
+                # This should never happen since dockerfile_path is the fallback
+                raise DockerBuildException(
+                    message=f"No suitable Dockerfile found for regular build",
+                    image_name=impl_name,
+                    dockerfile=str(dockerfile_path),
+                    build_error="Dockerfile not found",
+                )
+
+            relative_dockerfile_path = selected_dockerfile.relative_to(context_path)
 
             # Track build start time for cache
             _build_start_time = time.time()
+
+            # Set the current dockerfile path for BuildKit detection
+            self._current_dockerfile_path = selected_dockerfile
 
             # Check if we should use buildx for this build
             if self._should_use_buildx():
@@ -1380,6 +1465,9 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                     dockerfile_path=dockerfile_path,
                     context_path=context_path,
                     build_args=build_args,
+                    config=config,
+                    version=version,
+                    tag_version=tag_version,
                     experiment_id=experiment_id,
                     image_tag=image_tag,
                 )

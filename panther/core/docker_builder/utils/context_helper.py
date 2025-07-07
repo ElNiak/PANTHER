@@ -1,6 +1,11 @@
 """
+Docker context and host helper utilities for BuildX and multi-platform builds.
+
+This module provides utilities for ensuring proper Docker context configuration
+and host connectivity for multi-platform builds and BuildX operations.
+
 Purpose: Detect and reconcile Docker CLI context vs. buildx builder context
-to prevent the “use `docker --context=default buildx`” error on Apple Silicon
+to prevent the "use `docker --context=default buildx`" error on Apple Silicon
 and other multi-context hosts.
 """
 
@@ -15,6 +20,8 @@ from typing import Literal, Optional, Tuple
 
 DockerContext = str
 Strategy = Literal["switch-cli-context", "recreate-builder"]
+
+logger = logging.getLogger(__name__)
 
 
 def _ensure_docker_host(explicit: Optional[str] = None) -> None:
