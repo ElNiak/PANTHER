@@ -195,7 +195,7 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
         self.experiment_context = experiment_context
 
         # Initialize Docker image cache with platform-aware caching
-        target_platform = self._get_target_platform()
+        target_platform = self.get_target_platform()
         self.image_cache = DockerImageCache(
             cache_ttl=300,
             retry_count=1,
@@ -421,12 +421,12 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
         # Detect host architecture and map to appropriate Docker platform
         machine = platform.machine().lower()
         if machine in ["arm64", "aarch64"]:
-            # docker_platform = "linux/arm64"  # TODO some plugins are not supported on arm64
-            self.logger.warning(
-                "Detected ARM64 architecture '%s', defaulting to linux/amd64 for compatibility",
+            docker_platform = "linux/arm64"  # Native ARM64 support enabled
+            self.logger.info(
+                "Detected ARM64 architecture '%s' -> using native platform: %s",
                 machine,
+                docker_platform,
             )
-            docker_platform = "linux/amd64"  # Fallback to amd64 for compatibility
         elif machine in ["x86_64", "amd64"]:
             docker_platform = "linux/amd64"
         else:
@@ -813,7 +813,7 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
         Returns:
             str: Cache key suffix (e.g., '-linux-amd64', '-linux-arm64')
         """
-        platform = self._get_target_platform().replace("/", "-")
+        platform = self.get_target_platform().replace("/", "-")
         return f"-{platform}"
 
     def _update_cache_platform(self) -> None:
@@ -823,7 +823,7 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
         Ensures cache isolation by switching to platform-specific cache file
         when build platform changes during multi-platform builds.
         """
-        current_platform = self._get_target_platform()
+        current_platform = self.get_target_platform()
 
         if hasattr(self.image_cache, "target_platform"):
             if self.image_cache.target_platform != current_platform:
@@ -931,7 +931,7 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                 tag_version=tag_version,
                 build_mode=build_mode,
                 runtime_mode=runtime_mode,
-                target_platform=self._get_target_platform(),
+                target_platform=self.get_target_platform(),
             )
             self.logger.info(
                 "Building Docker image '%s' with buildx for platform '%s'",
@@ -948,7 +948,7 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                 "BUILD_MODE": build_mode,
                 "RUNTIME_MODE": config.get("runtime_mode", "minimal"),
                 "BASE_IMAGE": config.get("BASE_IMAGE", "panther_base_service:latest"),
-                "TARGETPLATFORM": self._get_target_platform(),
+                "TARGETPLATFORM": self.get_target_platform(),
                 "BUILDPLATFORM": self._get_host_platform(),
             }
 
@@ -1005,9 +1005,11 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                 if len(base_tag_parts) == 2:
                     base_name, tag_with_platform = base_tag_parts
                     # Remove platform suffix from tag
-                    platform_suffix = (
-                        f"-{self._get_target_platform().replace('/', '-')}"
-                    )
+                    # Note: Platform suffix must match sanitized format where '/' becomes '-'
+                    platform_str = self.get_target_platform().replace(
+                        "/", "-"
+                    )  # e.g., "linux-arm64"
+                    platform_suffix = f"-{platform_str}"
                     if tag_with_platform.endswith(platform_suffix):
                         platform_agnostic_tag = (
                             f"{base_name}:{tag_with_platform[:-len(platform_suffix)]}"
