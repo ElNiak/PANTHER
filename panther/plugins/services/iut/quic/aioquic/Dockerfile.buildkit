@@ -27,7 +27,7 @@ ENV DEPENDENCIES=${DEPENDENCIES}
 # STAGE 1: BUILD - Cross-platform build environment for AIOQUIC
 # =============================================================================
 
-FROM --platform=$BUILDPLATFORM panther_base_service:latest AS base
+FROM --platform=$BUILDPLATFORM ${BASE_IMAGE} AS base
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Layer 1: Install cross-compilation tools based on target architecture
@@ -57,18 +57,70 @@ ENV CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
     CMAKE_C_COMPILER_aarch64=aarch64-linux-gnu-gcc \
     CMAKE_CXX_COMPILER_aarch64=aarch64-linux-gnu-g++
 
-# Set cross-compilation environment variables
-ENV CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
-    CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++ \
-    CC_arm_unknown_linux_gnueabihf=arm-linux-gnueabihf-gcc \
-    CXX_arm_unknown_linux_gnueabihf=arm-linux-gnueabihf-g++
+# Layer 3: Dependency building with comprehensive cache (expensive, changes occasionally)
+RUN --mount=type=cache,target=/tmp/git-cache \
+    --mount=type=cache,target=/tmp/build-cache \
+    cd /opt && \
+    echo "Starting dependency installation..." && \
+    echo $DEPENDENCIES | jq -c '.[]' | while read -r dep; do \
+    DEP_NAME=$(echo $dep | jq -r '.name'); \
+    DEP_URL=$(echo $dep | jq -r '.url'); \
+    DEP_COMMIT=$(echo $dep | jq -r '.commit'); \
+    if [ -n "$DEP_NAME" ] && [ -n "$DEP_URL" ] && [ -n "$DEP_COMMIT" ]; then \
+    echo "Processing dependency '$DEP_NAME' from '$DEP_URL' at commit '$DEP_COMMIT'"; \
+    # Use cached git repo if available \
+    if [ -d "/tmp/git-cache/$DEP_NAME" ]; then \
+    echo "Using cached repository for $DEP_NAME"; \
+    cp -r "/tmp/git-cache/$DEP_NAME" "$DEP_NAME"; \
+    cd "$DEP_NAME" && git fetch && git checkout "$DEP_COMMIT"; \
+    else \
+    echo "Cloning fresh repository for $DEP_NAME"; \
+    git clone "$DEP_URL" "$DEP_NAME"; \
+    cd "$DEP_NAME" && git checkout "$DEP_COMMIT"; \
+    # Cache the repository \
+    cp -r "/opt/$DEP_NAME" "/tmp/git-cache/$DEP_NAME"; \
+    fi; \
+    git submodule update --init --recursive; \
+    # Use build cache for compilation \
+    if [ -d "/tmp/build-cache/$DEP_NAME" ]; then \
+    echo "Restoring build cache for $DEP_NAME"; \
+    cp -r "/tmp/build-cache/$DEP_NAME"/* . 2>/dev/null || true; \
+    fi; \
+    OPENSSL_INCLUDE_DIR="/usr/include/openssl" cmake .; \
+    make; \
+    make check; \
+    # Save build artifacts to cache \
+    mkdir -p "/tmp/build-cache/$DEP_NAME"; \
+    cp -r . "/tmp/build-cache/$DEP_NAME/" 2>/dev/null || true; \
+    echo "Successfully built dependency '$DEP_NAME'"; \
+    cd /opt; \
+    else \
+    echo "Invalid dependency configuration: $dep"; \
+    exit 1; \
+    fi; \
+    done
 
-ENV DEBIAN_FRONTEND=noninteractive
-ARG VERSION=master
-ARG DEPENDENCIES="[]"  # JSON-formatted list of dependencies
-ARG USER_N=root  # Define USER_N with default value
-ENV VERSION=${VERSION}
-ENV DEPENDENCIES=${DEPENDENCIES}
+# Layer 4: Main aioquic repository (changes when VERSION changes)
+RUN --mount=type=cache,target=/tmp/git-cache/aioquic \
+    --mount=type=cache,target=/tmp/aioquic-build \
+    cd /opt && \
+    if [ -d "/tmp/git-cache/aioquic/.git" ]; then \
+    echo "Using cached aioquic repository"; \
+    cp -r /tmp/git-cache/aioquic aioquic; \
+    cd aioquic && git fetch && git checkout ${VERSION}; \
+    else \
+    echo "Cloning fresh aioquic repository"; \
+    git clone https://github.com/aiortc/aioquic.git; \
+    cd aioquic && git checkout ${VERSION}; \
+    # Cache the repository \
+    cp -r /opt/aioquic /tmp/git-cache/aioquic; \
+    fi && \
+    # Install aioquic dependencies and build \
+    pip install -e . && \
+    # Save build artifacts to cache \
+    mkdir -p /tmp/aioquic-build && \
+    echo "Successfully built aioquic"
+
 
 # =============================================================================
 # FINAL STAGE: Runtime configuration with platform metadata

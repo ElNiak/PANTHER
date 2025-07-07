@@ -124,7 +124,6 @@ class INetworkEnvironment(IEnvironmentPlugin):
         services_managers (List[IServiceManager]): Coordinated service management instances
         jinja_env (Environment): Jinja2 template engine with security and performance configuration
         plugin_setup (bool): Flag tracking execution plugin initialization state
-
     Methods:
         setup_execution_plugins(): Initialize and configure execution analysis environments
         update_environment(): Apply configuration changes to active network environment

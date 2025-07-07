@@ -221,9 +221,6 @@ class TestCase(
             "PENDING", "RUNNING", "COLLECTING", "DONE", "ERROR"
         ] = "PENDING"
 
-        # Initialize mixin compatibility
-        self.initialize_mixin_compatibility()
-
     def __str__(self):
         return (
             f"TestCase(name={self.test_config.name}, "
@@ -338,12 +335,6 @@ class TestCase(
     #         )
 
     #     return service_names
-
-    def initialize_mixin_compatibility(self):
-        """Initialize compatibility for mixins."""
-        # Ensure execution_environment compatibility
-        if not hasattr(self.test_config, "execution_environment"):
-            self.test_config.execution_environment = self.execution_environment
 
     def run(self):
         """Execute comprehensive test case lifecycle with sophisticated error handling and observability.
