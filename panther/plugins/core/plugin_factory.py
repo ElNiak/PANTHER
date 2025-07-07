@@ -518,17 +518,17 @@ class PluginFactory(LoggerMixin):
             # Handle execution environments (which are stored as a list)
             if env_type == "execution_environment":
                 # Find the specific execution environment config that matches this environment
-                execution_environments = getattr(
-                    test_config, "execution_environments", []
+                execution_environment = getattr(
+                    test_config, "execution_environment", []
                 )
                 self.logger.debug(
                     "Found %d execution environment configs",
-                    len(execution_environments),
+                    len(execution_environment),
                 )
 
                 env_config_data = None
 
-                for index, exec_config in enumerate(execution_environments):
+                for index, exec_config in enumerate(execution_environment):
                     self.logger.debug(
                         "Checking execution environment config %d: %s",
                         index,

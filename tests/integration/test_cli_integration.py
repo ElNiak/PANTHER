@@ -5,17 +5,18 @@ This module tests the complete system integration including CLI interactions,
 temporary workspace creation, and end-to-end workflows.
 """
 
-import pytest
 import os
-import tempfile
 import shutil
 import subprocess
-import yaml
-from pathlib import Path
-from unittest.mock import patch, Mock
 
 # Import test utilities
 import sys
+import tempfile
+from pathlib import Path
+from unittest.mock import Mock, patch
+
+import pytest
+import yaml
 
 sys.path.insert(0, "/Users/elniak/Documents/Project/PANTHER")
 
@@ -39,7 +40,7 @@ class TestPantherCLIIntegration:
                     "name": "integration_test",
                     "description": "Basic integration test",
                     "network_environment": {"type": "localhost", "interface": "lo"},
-                    "execution_environments": [{"type": "localhost", "timeout": 60}],
+                    "execution_environment": [{"type": "localhost", "timeout": 60}],
                     "iterations": 1,
                     "services": {
                         "test_service": {
@@ -133,7 +134,9 @@ class TestPantherCLIIntegration:
     def test_cli_version_command(self):
         """Test CLI version command execution."""
         with patch("subprocess.run") as mock_run:
-            mock_run.return_value = Mock(returncode=0, stdout="PANTHER Version 1.0.0", stderr="")
+            mock_run.return_value = Mock(
+                returncode=0, stdout="PANTHER Version 1.0.0", stderr=""
+            )
 
             result = subprocess.run(
                 [
@@ -168,7 +171,9 @@ class TestPantherCLIIntegration:
             assert config_loader.experiment_file == str(sample_experiment_config)
             assert config_loader.output_dir == str(temp_workspace / "outputs")
 
-    def test_experiment_workspace_creation(self, temp_workspace, sample_experiment_config):
+    def test_experiment_workspace_creation(
+        self, temp_workspace, sample_experiment_config
+    ):
         """Test creation of experiment workspace structure."""
         from panther.config.config_manager import ConfigLoader
 
@@ -190,10 +195,13 @@ class TestPantherCLIIntegration:
         assert outputs_dir.is_dir()
         assert logs_dir.is_dir()
 
-    def test_config_validation_integration(self, temp_workspace, sample_experiment_config):
+    def test_config_validation_integration(
+        self, temp_workspace, sample_experiment_config
+    ):
         """Test configuration validation in integration context."""
-        from panther.config.config_manager import ConfigLoader
         from omegaconf import OmegaConf
+
+        from panther.config.config_manager import ConfigLoader
 
         # Load the actual config file
         loaded_config = OmegaConf.load(sample_experiment_config)
@@ -230,7 +238,6 @@ class TestPantherCLIIntegration:
             patch("pathlib.Path.is_dir", return_value=True),
             patch("docker.from_env") as mock_docker,
         ):
-
             mock_docker.return_value = Mock()
             builder = BuildManager(project_path=str(temp_workspace))
 
@@ -256,9 +263,10 @@ class TestPantherCLIIntegration:
             patch("docker.from_env") as mock_docker,
             patch("subprocess.run") as mock_run,
         ):
-
             mock_docker.return_value = Mock()
-            mock_run.return_value = Mock(returncode=0, stdout="Successfully installed", stderr="")
+            mock_run.return_value = Mock(
+                returncode=0, stdout="Successfully installed", stderr=""
+            )
 
             builder = BuildManager(project_path=str(temp_workspace))
             result = builder.install_dependencies()
@@ -315,8 +323,9 @@ class LocalhostConfig:
 
     def test_logging_integration(self, temp_workspace, sample_global_config):
         """Test logging integration with file outputs."""
-        from panther.config.config_manager import ConfigLoader
         from omegaconf import OmegaConf
+
+        from panther.config.config_manager import ConfigLoader
 
         # Load global config
         global_config_data = OmegaConf.load(sample_global_config)
@@ -341,8 +350,9 @@ class LocalhostConfig:
         # This test simulates a complete PANTHER workflow
 
         # Step 1: Configuration loading
-        from panther.config.config_manager import ConfigLoader
         from omegaconf import OmegaConf
+
+        from panther.config.config_manager import ConfigLoader
 
         with patch("pathlib.Path.exists", return_value=True):
             config_loader = ConfigLoader(
@@ -372,9 +382,10 @@ class LocalhostConfig:
 
     def test_concurrent_access_simulation(self, temp_workspace):
         """Test simulation of concurrent access scenarios."""
-        from panther.config.config_manager import ConfigLoader
         import threading
         import time
+
+        from panther.config.config_manager import ConfigLoader
 
         config_file = temp_workspace / "concurrent_test_config.yaml"
         config_content = {"tests": [{"name": "concurrent_test"}]}
@@ -449,8 +460,9 @@ class LocalhostConfig:
 
     def test_configuration_override_integration(self, temp_workspace):
         """Test configuration override scenarios."""
-        from panther.config.config_manager import ConfigLoader
         from omegaconf import OmegaConf
+
+        from panther.config.config_manager import ConfigLoader
 
         # Base configuration
         base_config = {
@@ -474,9 +486,12 @@ class LocalhostConfig:
             assert global_config.paths.output_dir == override_output_dir
 
     @pytest.mark.slow
-    def test_performance_baseline_integration(self, temp_workspace, sample_experiment_config):
+    def test_performance_baseline_integration(
+        self, temp_workspace, sample_experiment_config
+    ):
         """Test performance baseline for integration operations."""
         import time
+
         from panther.config.config_manager import ConfigLoader
 
         start_time = time.time()
@@ -495,7 +510,9 @@ class LocalhostConfig:
         elapsed_time = time.time() - start_time
 
         # Should complete within reasonable time (adjust threshold as needed)
-        assert elapsed_time < 5.0, f"Integration operations took too long: {elapsed_time}s"
+        assert (
+            elapsed_time < 5.0
+        ), f"Integration operations took too long: {elapsed_time}s"
 
 
 class TestPantherWorkspaceIntegration:

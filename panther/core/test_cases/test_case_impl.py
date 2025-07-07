@@ -156,16 +156,13 @@ class TestCase(
             "PENDING", "RUNNING", "COLLECTING", "DONE", "ERROR"
         ] = "PENDING"
 
-        # Initialize mixin compatibility
-        self.initialize_mixin_compatibility()
-
     def __str__(self):
         return (
             f"TestCase(name={self.test_config.name}, "
             f"description={self.test_config.description}, "
             f"services={self.services}, "
             f"network_environments={self.test_config.network_environment}, "
-            f"execution_environments={self.test_config.execution_environment}, "
+            f"execution_environment={self.test_config.execution_environment}, "
             f"test_experiment_dir={self.test_experiment_dir})"
         )
 
@@ -175,7 +172,7 @@ class TestCase(
             f"description={self.test_config.description}, "
             f"services={self.services}, "
             f"network_environments={self.test_config.network_environment}, "
-            f"execution_environments={self.test_config.execution_environment}, "
+            f"execution_environment={self.test_config.execution_environment}, "
             f"test_experiment_dir={self.test_experiment_dir})"
         )
 
@@ -273,30 +270,6 @@ class TestCase(
     #         )
 
     #     return service_names
-
-    @property
-    def execution_environments(self):
-        """Compatibility property for execution_environments (provides backward compatibility for execution_environment)."""
-        # Handle both execution_environment (singular) and execution_environments (plural)
-        if hasattr(self.test_config, "execution_environments"):
-            return self.test_config.execution_environments
-        elif hasattr(self.test_config, "execution_environment"):
-            # Convert singular to list for compatibility
-            env = self.test_config.execution_environment
-            if env is None:
-                return []
-            elif isinstance(env, list):
-                return env
-            else:
-                return [env]
-        else:
-            return []
-
-    def initialize_mixin_compatibility(self):
-        """Initialize compatibility for mixins."""
-        # Ensure execution_environments compatibility
-        if not hasattr(self.test_config, "execution_environments"):
-            self.test_config.execution_environments = self.execution_environments
 
     def run(self):
         """

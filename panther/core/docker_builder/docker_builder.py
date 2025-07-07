@@ -23,6 +23,7 @@ import json
 import logging
 import os
 import platform
+import re
 import subprocess
 import time
 from pathlib import Path
@@ -31,6 +32,10 @@ from typing import Any, Dict, List, Optional, Union
 import docker
 from docker.errors import BuildError, DockerException, NotFound
 
+from panther.core.docker_builder.utils.context_helper import (
+    _ensure_docker_host,
+    ensure_builder_context,
+)
 from panther.core.docker_builder.utils.docker_output_parser import DockerOutputParser
 from panther.core.exceptions import EnvironmentPluginNotFound, ServicePluginNotFound
 from panther.core.exceptions.error_handler_mixin import ErrorHandlerMixin
@@ -47,18 +52,63 @@ from .caching.docker_image_cache import DockerImageCache
 
 
 class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
-    """
-    DockerBuilder is a utility class for managing Docker images and containers.
+    """Manage Docker operations with singleton pattern and advanced caching.
 
-    Provides methods to build, push, and manage Docker images and containers,
-    as well as manipulate the /etc/hosts file and Docker networks.
+    A singleton Docker management system that provides comprehensive Docker operations
+    including image building, container management, and network configuration. Implements
+    intelligent caching, cross-platform builds, and resilient fallback mechanisms.
 
-    This class implements the Singleton pattern to ensure only one instance
-    exists across the application, preventing multiple Docker client connections.
+    The singleton pattern ensures single Docker client connection per application,
+    shared Docker build cache across components, and consistent configuration.
+
+    Attributes:
+        _instance: Singleton instance holder
+        _initialized: Singleton initialization flag
+        MAX_TAG_LENGTH: Maximum Docker tag length (100 chars)
+        client: Docker client connection
+        image_cache: Docker image cache manager
+        docker_logger: Docker output parser for build logs
+
+    Examples:
+        Basic usage::
+
+            # All return same singleton instance
+            builder = DockerBuilder()
+            builder_alt = DockerBuilder.get_instance()
+
+            # Build image with configuration
+            tag = builder.build_image(
+                impl_name="my_service",
+                version="v1.0",
+                dockerfile_path=Path("Dockerfile"),
+                context_path=Path("."),
+                config={"build_mode": "release"}
+            )
+
+        Cross-platform builds::
+
+            # Automatic buildx for cross-platform
+            builder.global_config.docker.multi_platform = True
+            tag = builder.build_image(...)  # Uses buildx automatically
+
+    Requires:
+        - Docker daemon running and accessible
+        - docker Python package available
+        - Build context directory must exist
+
+    Ensures:
+        - Single Docker client connection maintained
+        - Build cache persisted across operations
+        - Graceful fallback if Docker unavailable
+        - Thread-safe singleton access
+
+    Complexity: O(1) for cached operations, O(n) for builds where n is context size
+    Concurrency: Thread-safe singleton, operations may block on Docker I/O
     """
 
     _instance = None
     _initialized = False
+    MAX_TAG_LENGTH = 100  # Maximum Docker tag length (leave room for registry prefix)
 
     def __new__(cls, *args, **kwargs):
         """
@@ -78,16 +128,41 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
         global_config=None,
         experiment_context=None,
     ):
-        """
-        Initialize the DockerBuilder singleton.
+        """Initialize DockerBuilder singleton with configuration options.
+
+        Creates or updates the singleton DockerBuilder instance with Docker daemon
+        connection, cache configuration, and logging setup. Subsequent calls update
+        existing instance parameters rather than creating new instances.
 
         Args:
-            build_log_file: Whether to create log files for Docker builds
-            enable_cache: Whether to enable Docker build caching
+            build_log_file: Enable Docker build log file creation. Logs saved to
+                experiment-specific directories when experiment_context provided.
+            enable_cache: Enable Docker build caching for faster rebuilds. Disabled
+                automatically when global_config.docker.force_build_docker_image=True.
             global_config: Global configuration object containing Docker settings
-            experiment_context: Optional experiment context for organizing build logs
+                including buildx preferences, platform targets, and build modes.
+            experiment_context: Experiment context for organizing build logs in
+                test-specific directory structures.
 
-        Note: Configuration parameters can be updated on subsequent calls.
+        Raises:
+            DockerException: If Docker daemon connection fails (graceful fallback enabled)
+
+        Examples:
+            Basic initialization::
+
+                builder = DockerBuilder()  # Uses defaults
+
+            With configuration::
+
+                builder = DockerBuilder(
+                    build_log_file=True,
+                    enable_cache=False,  # Force rebuild
+                    global_config=config_obj
+                )
+
+        Note:
+            Configuration parameters update existing singleton instance on subsequent calls.
+            Docker daemon unavailability triggers cache-only mode for resilient operation.
         """
         # Allow parameter updates even for existing instances
         if getattr(self.__class__, "_initialized", False):
@@ -119,9 +194,11 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
         self.global_config = global_config
         self.experiment_context = experiment_context
 
-        # Initialize Docker image cache for resilient operations (#TODO add parameters)
+        # Initialize Docker image cache
         self.image_cache = DockerImageCache(
-            cache_ttl=300, retry_count=1, retry_delay=1.0  # 5 minutes TTL
+            cache_ttl=300,
+            retry_count=1,
+            retry_delay=1.0,  # 5 minutes TTL
         )
 
         self.docker_logger = DockerOutputParser()
@@ -146,6 +223,14 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
             logging.getLogger("requests").setLevel(
                 logging.DEBUG
             )  # Reduce noise from requests library
+            host_override = (
+                getattr(self.global_config.docker, "docker_host_override", None)
+                if hasattr(self, "global_config")
+                and self.global_config
+                and hasattr(self.global_config, "docker")
+                else None
+            )
+            _ensure_docker_host(explicit=host_override)
             self.client = docker.from_env()
             self.client.ping()
             self.logger.info("Connected to Docker daemon successfully.")
@@ -309,7 +394,7 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
             )
             return log_filename
 
-    def _get_target_platform(self) -> str:
+    def get_target_platform(self) -> str:
         """
         Detect the appropriate Docker platform based on the current architecture.
 
@@ -334,7 +419,12 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
         # Detect host architecture and map to appropriate Docker platform
         machine = platform.machine().lower()
         if machine in ["arm64", "aarch64"]:
-            docker_platform = "linux/arm64"  # TODO: Change to arm64 when we have arm64 images for ivy and shadow
+            docker_platform = "linux/arm64"  # Native ARM64 support
+            self.logger.info(
+                "Detected ARM64 architecture '%s' -> using native platform: %s",
+                machine,
+                docker_platform,
+            )
         elif machine in ["x86_64", "amd64"]:
             docker_platform = "linux/amd64"
         else:
@@ -380,6 +470,99 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
             FileNotFoundError,
         ) as e:
             self.logger.warning("Failed to check Docker Buildx availability: %s", e)
+            return False
+
+    def _ensure_buildx_context(self, builder_name: str = "default") -> bool:
+        """
+        Ensure Docker context is properly configured for Buildx operations.
+
+        Args:
+            builder_name: The builder name to test compatibility with
+
+        Returns:
+            bool: True if context is ready, False otherwise
+        """
+        try:
+            # Check current context
+            result = subprocess.run(
+                ["docker", "context", "show"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+
+            if result.returncode == 0:
+                current_context = result.stdout.strip()
+                self.logger.debug(f"Current Docker context: {current_context}")
+
+                # Test if the specific builder works with current context
+                # This mimics the actual validation that BuildX does internally
+                test_result = subprocess.run(
+                    ["docker", "buildx", "inspect", builder_name],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+
+                if test_result.returncode == 0:
+                    self.logger.debug(
+                        f"Builder '{builder_name}' is compatible with context '{current_context}'"
+                    )
+                    return True
+                else:
+                    self.logger.warning(
+                        f"Builder '{builder_name}' not compatible with context '{current_context}': {test_result.stderr}"
+                    )
+
+                    # Try to switch to default context and test again
+                    self.logger.info(
+                        "Attempting to switch to default context for Buildx compatibility"
+                    )
+                    switch_result = subprocess.run(
+                        ["docker", "context", "use", "default"],
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                    )
+
+                    if switch_result.returncode == 0:
+                        self.logger.info("Successfully switched to default context")
+
+                        # Test builder again with default context
+                        retest_result = subprocess.run(
+                            ["docker", "buildx", "inspect", builder_name],
+                            capture_output=True,
+                            text=True,
+                            timeout=10,
+                        )
+
+                        if retest_result.returncode == 0:
+                            self.logger.info(
+                                f"Builder '{builder_name}' is now compatible with default context"
+                            )
+                            return True
+                        else:
+                            self.logger.error(
+                                f"Builder '{builder_name}' still not compatible with default context: {retest_result.stderr}"
+                            )
+                            return False
+                    else:
+                        self.logger.error(
+                            f"Failed to switch to default context: {switch_result.stderr}"
+                        )
+                        return False
+            else:
+                self.logger.warning(
+                    f"Failed to get current Docker context: {result.stderr}"
+                )
+                return False
+
+        except (
+            subprocess.TimeoutExpired,
+            subprocess.CalledProcessError,
+            FileNotFoundError,
+        ) as e:
+            self.logger.warning(f"Error ensuring Buildx context: {e}")
             return False
 
     def _setup_buildx_builder(self, builder_name: str) -> bool:
@@ -443,7 +626,22 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
         Returns:
             bool: True if buildx should be used, False otherwise
         """
-        # Check if buildx is explicitly disabled in configuration
+        # Check if buildx is available on system first
+        if not self._check_buildx_available():
+            self.logger.info(
+                "Buildx not available on system, falling back to regular Docker build"
+            )
+            return False
+
+        # Check if Dockerfile requires BuildKit features (HIGHEST PRIORITY)
+        dockerfile_path = getattr(self, "_current_dockerfile_path", None)
+        if dockerfile_path and self._dockerfile_requires_buildkit(dockerfile_path):
+            self.logger.info(
+                "Dockerfile contains BuildKit-specific features, forcing buildx usage"
+            )
+            return True
+
+        # Check if buildx is explicitly disabled in configuration (only applies if BuildKit not required)
         if (
             hasattr(self, "global_config")
             and self.global_config
@@ -452,13 +650,6 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
         ):
             self.logger.debug(
                 "Buildx disabled in configuration, using regular Docker build"
-            )
-            return False
-
-        # Check if buildx is available on system
-        if not self._check_buildx_available():
-            self.logger.info(
-                "Buildx not available on system, falling back to regular Docker build"
             )
             return False
 
@@ -474,13 +665,13 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
 
         # Use buildx for cross-platform builds (when host != target platform)
         host_platform = self._get_host_platform()
-        is_cross_platform = host_platform != self._get_target_platform()
+        is_cross_platform = host_platform != self.get_target_platform()
 
         if is_cross_platform:
             self.logger.info(
                 "Cross-platform build detected (%s -> %s), using buildx for efficiency",
                 host_platform,
-                self._get_target_platform(),
+                self.get_target_platform(),
             )
             return True
 
@@ -488,7 +679,7 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
         # But default to regular Docker build for maximum compatibility
         self.logger.debug(
             "Same-platform build (%s), using regular Docker build for compatibility",
-            self._get_target_platform(),
+            self.get_target_platform(),
         )
         return False
 
@@ -500,23 +691,159 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
             str: Host platform string (e.g., 'linux/amd64', 'linux/arm64')
         """
         machine = platform.machine().lower()
-        if machine in ["arm64", "aarch64"]:
-            return "linux/arm64"
-        elif machine in ["x86_64", "amd64"]:
-            return "linux/amd64"
+        return "linux/arm64" if machine in ["arm64", "aarch64"] else "linux/amd64"
+
+    def _dockerfile_requires_buildkit(self, dockerfile_path: Path) -> bool:
+        """
+        Check if Dockerfile contains BuildKit-specific features.
+
+        Analyzes Dockerfile content to detect syntax that requires BuildKit/BuildX:
+        - RUN --mount (cache mounts, bind mounts, secret mounts)
+        - RUN --network (network access control)
+        - RUN --security (security sandbox control)
+        - COPY --link (independent layer copying)
+        - ARG with BUILDPLATFORM, TARGETPLATFORM (automatic platform args)
+
+        Args:
+            dockerfile_path: Path to the Dockerfile to analyze
+
+        Returns:
+            bool: True if BuildKit features detected, False otherwise
+        """
+        try:
+            if not dockerfile_path.exists():
+                self.logger.warning(f"Dockerfile not found: {dockerfile_path}")
+                return False
+
+            with open(dockerfile_path, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            # BuildKit-specific patterns that require BuildX
+            buildkit_patterns = [
+                r"RUN\s+--mount\s*=",  # RUN --mount=type=cache,target=...
+                r"RUN\s+--network\s*=",  # RUN --network=none
+                r"RUN\s+--security\s*=",  # RUN --security=insecure
+                r"COPY\s+--link\s+",  # COPY --link
+                r"RUN.*--mount.*type\s*=",  # Various mount types
+            ]
+
+            for pattern in buildkit_patterns:
+                if re.search(pattern, content, re.IGNORECASE | re.MULTILINE):
+                    self.logger.debug(
+                        f"BuildKit feature detected in {dockerfile_path}: pattern '{pattern}'"
+                    )
+                    return True
+
+            # Check for BuildKit automatic platform arguments usage
+            # These work best with BuildX which provides them automatically
+            platform_args = [
+                "BUILDPLATFORM",
+                "TARGETPLATFORM",
+                "TARGETOS",
+                "TARGETARCH",
+                "BUILDOS",
+                "BUILDARCH",
+            ]
+            for arg in platform_args:
+                # Look for ARG declarations or variable usage
+                if re.search(
+                    rf"ARG\s+{arg}|{{{arg}}}|\${{{arg}}}", content, re.IGNORECASE
+                ):
+                    self.logger.debug(
+                        f"BuildKit platform argument detected in {dockerfile_path}: {arg}"
+                    )
+                    return True
+
+            self.logger.debug(f"No BuildKit features detected in {dockerfile_path}")
+            return False
+
+        except (OSError, UnicodeDecodeError) as e:
+            self.logger.error(f"Error reading Dockerfile {dockerfile_path}: {e}")
+            # If we can't read the file, assume it doesn't need BuildKit
+            return False
+
+    def validate_build_mode_for_architecture(self, build_mode: str) -> str:
+        """
+        Validate BUILD_MODE compatibility with host architecture.
+
+        Advanced build modes (rel-lto, debug-asan, release-static-pgo) require x86 architecture.
+        Non-x86 architectures fall back to empty BUILD_MODE for compatibility.
+
+        Args:
+            build_mode: The requested build mode
+
+        Returns:
+            str: Validated build mode (empty string if incompatible with architecture)
+        """
+        if not build_mode:
+            return build_mode
+
+        self.logger.debug(
+            "Validating BUILD_MODE='%s' for current architecture '%s'",
+            build_mode,
+            platform.machine(),
+        )
+
+        # Check if we're on x86 architecture
+        machine = platform.machine().lower()
+        is_x86 = machine in ["x86_64", "amd64", "x86", "i386", "i686"]
+
+        advanced_modes = ["rel-lto", "debug-asan", "release-static-pgo"]
+
+        if build_mode in advanced_modes and not is_x86:
+            self.logger.warning(
+                "BUILD_MODE='%s' requires x86 architecture but detected '%s'. "
+                "Falling back to default build mode for compatibility.",
+                build_mode,
+                machine,
+            )
+            return ""  # Fall back to default/legacy build
+
+        return build_mode
+
+    def _get_cache_key_suffix(self) -> str:
+        """
+        Generate cache key suffix based on target platform for cache isolation.
+
+        This ensures that builds for different platforms (e.g., linux/amd64, linux/arm64)
+        use separate cache directories, preventing architecture conflicts.
+
+        Returns:
+            str: Cache key suffix (e.g., '-linux-amd64', '-linux-arm64')
+        """
+        platform = self.get_target_platform().replace("/", "-")
+        return f"-{platform}"
+
+    def _update_cache_platform(self) -> None:
+        """
+        Update image cache platform when target platform changes.
+
+        Ensures cache isolation by switching to platform-specific cache file
+        when build platform changes during multi-platform builds.
+        """
+        current_platform = self.get_target_platform()
+
+        if hasattr(self.image_cache, "target_platform"):
+            if self.image_cache.target_platform != current_platform:
+                self.image_cache.set_target_platform(current_platform)
+                self.logger.debug(
+                    f"Updated image cache platform to: {current_platform}"
+                )
         else:
-            # Default to amd64 for unknown architectures
-            return "linux/amd64"
+            # Fallback for older cache instances
+            self.logger.warning("Image cache does not support platform switching")
 
     def _build_with_buildx(
         self,
         impl_name: str,
-        version: str,
         dockerfile_path: Path,
         context_path: Path,
+        build_args: Dict[str, Any],
         config: Dict[str, Any],
+        version: str,
         tag_version: str = "latest",
         experiment_id: Optional[str] = None,
+        image_tag: Optional[str] = None,
     ) -> Optional[str]:
         """
         Build a Docker image using Docker Buildx for cross-platform builds.
@@ -551,6 +878,7 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                 )
 
             # Get buildx configuration - use Docker's default builder instead of custom name
+            # Resolve which buildx builder to use
             builder_name = "default"
             if (
                 hasattr(self, "global_config")
@@ -559,6 +887,18 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                 and hasattr(self.global_config.docker, "buildx_builder")
             ):
                 builder_name = self.global_config.docker.buildx_builder
+
+            # Ensure Docker context is properly configured for the specific builder
+            if not self._ensure_buildx_context(builder_name):
+                self.logger.error(
+                    f"Failed to ensure proper Docker context for Buildx builder '{builder_name}'"
+                )
+                raise DockerBuildException(
+                    message=f"Failed to configure Docker context for Buildx builder '{builder_name}'",
+                    image_name=impl_name,
+                    dockerfile=str(dockerfile_path),
+                    build_error="Docker context configuration failed",
+                )
 
             # For "default" builder, skip custom setup - use Docker's built-in default
             if builder_name != "default":
@@ -571,6 +911,16 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                         build_error="Buildx builder setup failed",
                     )
 
+            # For non-default custom builders, make sure they exist
+            if builder_name != "default" and not self._setup_buildx_builder(
+                builder_name
+            ):
+                raise DockerBuildException(
+                    message=f"Failed to setup buildx builder: {builder_name}",
+                    image_name=impl_name,
+                    dockerfile=str(dockerfile_path),
+                    build_error="Buildx builder setup failed",
+                )
             # Extract build and runtime modes from config
             build_mode = config.get("build_mode", "")
             runtime_mode = config.get("runtime_mode", "minimal")
@@ -582,23 +932,50 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                 tag_version=tag_version,
                 build_mode=build_mode,
                 runtime_mode=runtime_mode,
+                target_platform=self.get_target_platform(),
             )
-
             self.logger.info(
                 "Building Docker image '%s' with buildx for platform '%s'",
                 image_tag,
-                self._get_target_platform(),
+                self.get_target_platform(),
             )
-
             # Prepare build arguments
             dependencies = config.get("dependencies", {})
             dependencies_json = json.dumps(dependencies) if dependencies else "[]"
 
+            target_platform = self.get_target_platform()
+            build_platform = self._get_host_platform()
+
+            # Extract architecture from platform strings (e.g., "linux/arm64" -> "arm64")
+            target_arch = (
+                target_platform.split("/")[-1]
+                if "/" in target_platform
+                else target_platform
+            )
+            target_os = (
+                target_platform.split("/")[0] if "/" in target_platform else "linux"
+            )
+            build_arch = (
+                build_platform.split("/")[-1]
+                if "/" in build_platform
+                else build_platform
+            )
+            build_os = (
+                build_platform.split("/")[0] if "/" in build_platform else "linux"
+            )
+
             build_args = {
                 "VERSION": config.get("commit", "master"),
                 "DEPENDENCIES": dependencies_json,
-                "BUILD_MODE": config.get("build_mode", ""),
+                "BUILD_MODE": build_mode,
                 "RUNTIME_MODE": config.get("runtime_mode", "minimal"),
+                "BASE_IMAGE": config.get("BASE_IMAGE", "panther_base_service:latest"),
+                "TARGETPLATFORM": target_platform,
+                "BUILDPLATFORM": build_platform,
+                "TARGETARCH": target_arch,
+                "TARGETOS": target_os,
+                "BUILDARCH": build_arch,
+                "BUILDOS": build_os,
             }
 
             # Calculate relative path from context to dockerfile
@@ -613,7 +990,9 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
             for candidate in buildkit_candidates:
                 if candidate.exists():
                     selected_dockerfile = candidate
-                    self.logger.debug("Selected Dockerfile for buildx: %s", candidate)
+                    self.logger.debug(
+                        "Selected Dockerfile for buildx: %s", selected_dockerfile
+                    )
                     break
 
             if selected_dockerfile is None:
@@ -632,18 +1011,42 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                 "docker",
                 "buildx",
                 "build",
-                "--builder",
-                builder_name,
+                # "--builder",
+                # builder_name,
                 "--platform",
-                self._get_target_platform(),
+                self.get_target_platform(),
                 "--file",
                 str(relative_dockerfile_path),
                 "--tag",
                 image_tag,
                 "--debug",
                 "--load",  # Load the image into local Docker daemon
-                str(context_path),
             ]
+
+            # For base service images, also create platform-agnostic tags for compatibility
+            # This ensures dependent services can find their base images without platform suffixes
+            if "base_service" in impl_name.lower():
+                # Generate platform-agnostic tag (e.g., panther_base_service:latest)
+                base_tag_parts = image_tag.split(":")
+                if len(base_tag_parts) == 2:
+                    base_name, tag_with_platform = base_tag_parts
+                    # Remove platform suffix from tag
+                    # Note: Platform suffix must match sanitized format where '/' becomes '-'
+                    platform_str = self.get_target_platform().replace(
+                        "/", "-"
+                    )  # e.g., "linux-arm64"
+                    platform_suffix = f"-{platform_str}"
+                    if tag_with_platform.endswith(platform_suffix):
+                        platform_agnostic_tag = (
+                            f"{base_name}:{tag_with_platform[:-len(platform_suffix)]}"
+                        )
+                        buildx_cmd.extend(["--tag", platform_agnostic_tag])
+                        self.logger.info(
+                            "Adding platform-agnostic tag for base service: %s",
+                            platform_agnostic_tag,
+                        )
+
+            buildx_cmd.append(str(context_path))
 
             # Add build arguments with proper shell escaping for JSON values
             for key, value in build_args.items():
@@ -663,13 +1066,59 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
             # Track build start time
             build_start_time = time.time()
 
-            # Execute buildx build
-            result = subprocess.run(
-                buildx_cmd, cwd=str(context_path), capture_output=True, text=True
-            )
+            # Ensure context is set right before executing the BuildX command
+            # This handles cases where context switching might not persist across process boundaries
+            original_context = None
+            try:
+                # Get current context to restore later
+                context_result = subprocess.run(
+                    ["docker", "context", "show"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                if context_result.returncode == 0:
+                    original_context = context_result.stdout.strip()
+
+                # Switch to default context for BuildX command if not already there
+                if original_context != "default":
+                    self.logger.debug(
+                        "Switching to default context for BuildX command execution"
+                    )
+                    switch_result = subprocess.run(
+                        ["docker", "context", "use", "default"],
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
+                    )
+                    if switch_result.returncode != 0:
+                        self.logger.warning(
+                            f"Failed to switch to default context: {switch_result.stderr}"
+                        )
+
+                # Execute buildx build
+                result = subprocess.run(
+                    buildx_cmd, cwd=str(context_path), capture_output=True, text=True
+                )
+
+            finally:
+                # Restore original context if we switched it
+                if original_context and original_context != "default":
+                    self.logger.debug(f"Restoring original context: {original_context}")
+                    restore_result = subprocess.run(
+                        ["docker", "context", "use", original_context],
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
+                    )
+                    if restore_result.returncode != 0:
+                        self.logger.warning(
+                            f"Failed to restore original context: {restore_result.stderr}"
+                        )
 
             # Log build output
             build_logs = []
+
             if result.stdout:
                 build_logs.extend(
                     {"stream": line + "\n"} for line in result.stdout.splitlines()
@@ -678,6 +1127,8 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                 build_logs.extend(
                     {"stream": line + "\n"} for line in result.stderr.splitlines()
                 )
+
+            build_logs = iter(build_logs)  # Convert to iterator for logging
 
             # Use existing docker logger for consistency
             log_f = None
@@ -714,15 +1165,19 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
             # Get image ID from local Docker daemon (buildx doesn't return image ID directly)
             try:
                 image = self.client.images.get(image_tag)
-                image_id = image.id
             except Exception as e:
                 self.logger.warning(
                     "Could not get image ID for cache registration: %s", e
                 )
-                image_id = "unknown"
+                raise DockerBuildException(
+                    message=f"Failed to retrieve image ID for '{image_tag}'",
+                    image_name=impl_name,
+                    dockerfile=str(dockerfile_path),
+                    build_error="Image ID retrieval failed",
+                )
 
             self.register_build(
-                image_id=image_id,
+                image_id=image.id,
                 image_tag=image_tag,
                 dockerfile_path=dockerfile_path,
                 context_path=context_path,
@@ -734,7 +1189,7 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
             self.logger.info(
                 "Successfully built Docker image '%s' with buildx for platform '%s'",
                 image_tag,
-                self._get_target_platform(),
+                self.get_target_platform(),
             )
 
             return image_tag
@@ -759,7 +1214,7 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                     "impl_name": impl_name,
                     "dockerfile_path": str(dockerfile_path),
                     "context_path": str(context_path),
-                    "target_platform": self._get_target_platform(),
+                    "target_platform": self.get_target_platform(),
                 },
             )
             raise
@@ -775,18 +1230,72 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
         remove_dangling: bool = False,
         experiment_id: Optional[str] = None,
     ) -> Optional[str]:
-        """
-        Build a Docker image for the specified implementation.
+        """Build Docker image with intelligent caching and cross-platform support.
+
+        Builds Docker image using regular Docker API or BuildX for cross-platform builds.
+        Automatically selects build method based on Dockerfile requirements, target platform,
+        and configuration. Supports intelligent caching, build mode validation, and
+        comprehensive error handling with graceful fallbacks.
+
+        # Update cache platform for multi-platform builds
+        self._update_cache_platform()
+
         Args:
-            impl_name (str): The name of the implementation.
-            version (str): The version of the implementation.
-            dockerfile_path (Path): The path to the Dockerfile.
-            context_path (Path): The path to the build context.
-            config (Dict[str, Any]): Configuration dictionary containing build parameters.
-            tag_version (str, optional): The tag version for the Docker image. Defaults to "latest".
-            build_image_force (bool, optional): Force rebuild of the Docker image even if it already exists. Defaults to False.
+            impl_name: Implementation name for image tagging (e.g., 'my_service')
+            version: Version string for image tagging (e.g., 'v1.0', 'latest')
+            dockerfile_path: Absolute path to Dockerfile
+            context_path: Absolute path to build context directory
+            config: Build configuration containing:
+                - build_mode: Build optimization ('', 'debug-asan', 'rel-lto')
+                - runtime_mode: Runtime configuration ('minimal', 'debug', 'profile')
+                - dependencies: Dict of service dependencies
+                - commit: Git commit or version identifier
+                - BASE_IMAGE: Base image name for Dockerfile
+            tag_version: Docker tag version suffix (default: 'latest')
+            remove_dangling: Remove dangling images after build (default: False)
+            experiment_id: Optional experiment identifier for tracking
+
         Returns:
-            Optional[str]: The tag of the built Docker image, or None if the build was skipped.
+            Generated Docker image tag on success, None if build failed or skipped
+
+        Raises:
+            DockerBuildException: Build operation failed with detailed context
+            PantherException: Validation error or Docker daemon unavailable
+
+        Examples:
+            Basic build::
+
+                tag = builder.build_image(
+                    impl_name="web_service",
+                    version="v2.1.0",
+                    dockerfile_path=Path("docker/Dockerfile"),
+                    context_path=Path("."),
+                    config={"build_mode": "release"}
+                )
+
+            Cross-platform build::
+
+                config = {
+                    "build_mode": "rel-lto",
+                    "runtime_mode": "debug",
+                    "dependencies": {"auth": "v1.0"}
+                }
+                tag = builder.build_image("api", "latest", dockerfile, context, config)
+
+        Requires:
+            - Docker daemon accessible and responsive
+            - Dockerfile exists and readable
+            - Build context directory accessible
+            - Sufficient disk space for image layers
+
+        Ensures:
+            - Build cache updated with timing and metadata
+            - Build logs written to experiment-specific directories
+            - Platform-appropriate build method selected automatically
+            - Graceful error handling with detailed diagnostics
+
+        Complexity: O(n) where n is build context size + Dockerfile complexity
+        Concurrency: Blocks on Docker daemon I/O, thread-safe for singleton access
         """
         try:
             # Fast-fail validation before expensive build operation
@@ -806,7 +1315,9 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                 )
 
             # Extract build and runtime modes from config
-            build_mode = config.get("build_mode", "")
+            build_mode = self.validate_build_mode_for_architecture(
+                config.get("build_mode", "")
+            )
             runtime_mode = config.get("runtime_mode", "minimal")
 
             # Construct image tag with mode information
@@ -816,29 +1327,64 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                 tag_version=tag_version,
                 build_mode=build_mode,
                 runtime_mode=runtime_mode,
+                target_platform=self.get_target_platform(),
             )
 
-            self.logger.debug(
-                f"Generated image tag: {image_tag} (build_mode='{build_mode}', runtime_mode='{runtime_mode}')"
+            # Check build cache first
+            dependencies = config.get("dependencies", {})
+            target_platform = self.get_target_platform()
+            build_platform = self._get_host_platform()
+
+            # Extract architecture from platform strings (e.g., "linux/arm64" -> "arm64")
+            target_arch = (
+                target_platform.split("/")[-1]
+                if "/" in target_platform
+                else target_platform
+            )
+            target_os = (
+                target_platform.split("/")[0] if "/" in target_platform else "linux"
+            )
+            build_arch = (
+                build_platform.split("/")[-1]
+                if "/" in build_platform
+                else build_platform
+            )
+            build_os = (
+                build_platform.split("/")[0] if "/" in build_platform else "linux"
             )
 
+            build_args = {
+                "VERSION": config.get("commit", "production"),
+                "DEPENDENCIES": json.dumps(dependencies) if dependencies else "[]",
+                "BUILD_MODE": build_mode,
+                "RUNTIME_MODE": config.get("runtime_mode", "minimal"),
+                "BASE_IMAGE": self.generate_image_tag(
+                    impl_name="panther_base_service",
+                    version="",
+                    tag_version="latest",
+                    build_mode="",
+                    runtime_mode=runtime_mode,
+                    target_platform=target_platform,
+                ),
+                "TARGETPLATFORM": target_platform,
+                "BUILDPLATFORM": build_platform,
+                "TARGETARCH": target_arch,
+                "TARGETOS": target_os,
+                "BUILDARCH": build_arch,
+                "BUILDOS": build_os,
+            }
+
             self.logger.debug(
-                "Building Docker image '%s' with version '%s' from Dockerfile '%s' in context '%s' with config: %s on architecture '%s'",
+                "Receiving configuration (%s) for building Docker image with tag='%s' with version='%s' from Dockerfile='%s' in context='%s' with arguments=%s for target architecture='%s' on host platform='%s'",
+                config,
                 image_tag,
                 version,
                 dockerfile_path,
                 context_path,
-                config,
-                self._get_target_platform(),
+                build_args,
+                self.get_target_platform(),
+                self._get_host_platform(),
             )
-
-            # Check build cache first
-            build_args_for_cache = {
-                "VERSION": config.get("commit", "production"),
-                "DEPENDENCIES": json.dumps(config.get("dependencies", {})),
-                "BUILD_MODE": config.get("build_mode", ""),
-                "RUNTIME_MODE": config.get("runtime_mode", "minimal"),
-            }
 
             # Check cache and handle cache logic
             force_build = (
@@ -853,59 +1399,76 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                 self.logger.debug(
                     "Checking Docker build cache for image '%s' with args: %s",
                     image_tag,
-                    build_args_for_cache,
+                    build_args,
                 )
                 if cached_result := self.should_use_cached_build(
                     dockerfile_path=dockerfile_path,
                     context_path=context_path,
-                    build_args=build_args_for_cache,
+                    build_args=build_args,
                     image_tag=image_tag,
                     force_build=force_build,
                 ):
+                    self.logger.info(
+                        "Using cached Docker image '%s' for implementation '%s'",
+                        image_tag,
+                        impl_name,
+                    )
                     return cached_result
 
-            # Extract dependencies
-            dependencies = config.get("dependencies", {})
-            dependencies_json = json.dumps(dependencies) if dependencies else "[]"
             log_f = None
-
-            build_args = {
-                "VERSION": config.get("commit", "master"),
-                "DEPENDENCIES": dependencies_json,
-                "BUILD_MODE": config.get("build_mode", ""),
-                "RUNTIME_MODE": config.get("runtime_mode", "minimal"),
-            }
             # Open the build log file if specified
             if self.build_log_file:
                 log_filename = self._get_build_log_path(image_tag)
                 log_f = open(log_filename, "w")
 
             # Calculate relative path from context to dockerfile for Docker API
-            relative_dockerfile_path = Path(dockerfile_path).relative_to(context_path)
+            # Prefer Dockerfile.buildkit or multistage variants if they exist
+            buildkit_candidates = [
+                Path(dockerfile_path).parent / "Dockerfile.buildkit",
+                Path(dockerfile_path).parent / "Dockerfile.multistage",
+                dockerfile_path,  # fallback to original
+            ]
+
+            selected_dockerfile = None
+            for candidate in buildkit_candidates:
+                if candidate.exists():
+                    selected_dockerfile = candidate
+                    self.logger.debug(
+                        "Selected Dockerfile for regular build: %s", selected_dockerfile
+                    )
+                    break
+
+            if selected_dockerfile is None:
+                # This should never happen since dockerfile_path is the fallback
+                raise DockerBuildException(
+                    message=f"No suitable Dockerfile found for regular build",
+                    image_name=impl_name,
+                    dockerfile=str(dockerfile_path),
+                    build_error="Dockerfile not found",
+                )
+
+            relative_dockerfile_path = selected_dockerfile.relative_to(context_path)
 
             # Track build start time for cache
             _build_start_time = time.time()
+
+            # Set the current dockerfile path for BuildKit detection
+            self._current_dockerfile_path = selected_dockerfile
 
             # Check if we should use buildx for this build
             if self._should_use_buildx():
                 # Use buildx for cross-platform builds
                 return self._build_with_buildx(
                     impl_name=impl_name,
-                    version=version,
                     dockerfile_path=dockerfile_path,
                     context_path=context_path,
+                    build_args=build_args,
                     config=config,
+                    version=version,
                     tag_version=tag_version,
                     experiment_id=experiment_id,
+                    image_tag=image_tag,
                 )
-
-            self.logger.debug(
-                "Building Docker image '%s' with Dockerfile '%s' in context '%s' with args: %s",
-                image_tag,
-                relative_dockerfile_path,
-                context_path,
-                build_args,
-            )
 
             # Use regular Docker build for same-platform builds
             image, build_logs = self.client.images.build(
@@ -914,11 +1477,12 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                 tag=image_tag,
                 network_mode="host",
                 buildargs=build_args,
-                platform=self._get_target_platform(),  # Auto-detected platform
+                platform=self.get_target_platform(),  # Auto-detected platform
                 # nocache=force_build,  # Force build if specified
                 # squash=True,  # Squash layers to reduce image size (experimental)
                 # pull=True,  # Always pull latest base images
             )
+
             self.docker_logger.log_docker_output(
                 build_logs, f"Building Docker image '{image_tag}'", log_f
             )
@@ -988,7 +1552,13 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
             )
 
     def generate_image_tag(
-        self, impl_name, version, tag_version, build_mode="", runtime_mode="minimal"
+        self,
+        impl_name,
+        version,
+        tag_version,
+        build_mode="",
+        runtime_mode="minimal",
+        target_platform="",
     ):
         """
         Generate Docker image tag with build and runtime mode differentiation.
@@ -999,32 +1569,34 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
             tag_version: Tag version (e.g., 'latest', 'stable')
             build_mode: Build mode ('', 'debug-asan', 'rel-lto', 'release-static-pgo')
             runtime_mode: Runtime mode ('minimal', 'debug', 'profile')
+            target_platform: Target platform (e.g., 'linux/amd64', 'linux/arm64')
 
         Returns:
             str: Complete image tag
 
         Examples:
-            - picoquic_v1.0_debug-asan_debug:latest (build_mode + runtime_mode)
-            - picoquic_v1.0__minimal:latest (empty build_mode, minimal runtime)
-            - picoquic_v1.0_rel-lto_profile:latest (both modes specified)
-            - picoquic:latest (no version, minimal runtime)
+            - picoquic-v1.0:latest-debug-asan-debug-linux/amd64 (build_mode + runtime_mode + platform)
+            - picoquic-v1.0:latest-linux/amd64 (empty build_mode, minimal runtime + platform)
+            - picoquic-v1.0:latest-rel-lto-profile-linux/amd64 (both modes specified + platform)
+            - picoquic:latest (no version, minimal runtime, no platform)
         """
+
         # Build mode suffix (empty string results in no suffix)
-        build_suffix = f"_{build_mode}" if build_mode else ""
+        build_suffix = f"-{build_mode}" if build_mode else ""
 
         # Runtime mode suffix (minimal is default, so no suffix needed)
         runtime_suffix = (
-            f"_{runtime_mode}" if runtime_mode and runtime_mode != "minimal" else ""
+            f"-{runtime_mode}" if runtime_mode and runtime_mode != "minimal" else ""
         )
 
-        # Construct base name with version
-        if version:
-            base_name = f"{impl_name}_{version}"
-        else:
-            base_name = impl_name
+        platform_suffix = f"-{target_platform}" if target_platform else ""
 
+        # Construct base name with version
+        base_name = f"{impl_name}-{version}" if version else impl_name
         # Combine all parts
-        full_tag = f"{base_name}{build_suffix}{runtime_suffix}:{tag_version}"
+        full_tag = (
+            f"{base_name}:{tag_version}{build_suffix}{runtime_suffix}{platform_suffix}"
+        )
 
         # Sanitize tag (Docker tags have character restrictions)
         return self._sanitize_docker_tag(full_tag)
@@ -1041,23 +1613,23 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
         import re
 
         # Convert to lowercase and replace invalid characters (allow colon for tag separator)
-        sanitized = re.sub(r"[^a-z0-9._:-]", "_", tag.lower())
+        sanitized = re.sub(r"[^a-z0-9._:-]", "-", tag.lower())
 
         # Ensure doesn't start with period or dash
         sanitized = re.sub(r"^[.-]+", "", sanitized)
 
         # Truncate if too long (leave room for registry prefix)
-        if len(sanitized) > 100:
+        if len(sanitized) > self.MAX_TAG_LENGTH:
             # Keep the tag version part intact
             parts = sanitized.split(":")
             if len(parts) == 2:
                 name_part, tag_part = parts
-                max_name_length = 100 - len(tag_part) - 1  # -1 for ':'
+                max_name_length = self.MAX_TAG_LENGTH - len(tag_part) - 1  # -1 for ':'
                 if len(name_part) > max_name_length:
                     name_part = name_part[:max_name_length]
                 sanitized = f"{name_part}:{tag_part}"
             else:
-                sanitized = sanitized[:100]
+                sanitized = sanitized[: self.MAX_TAG_LENGTH]
 
         return sanitized
 
@@ -1148,123 +1720,6 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
             context_path,
         )
 
-    def image_exists(self, image_tag: str) -> bool:
-        """
-        Checks if a Docker image with the given tag exists locally.
-        Delegates to DockerImageCache for resilient image checking.
-
-        :param image_tag: Tag of the Docker image.
-        :return: True if exists, else False.
-        """
-        return self.image_cache.image_exists(image_tag, self.client)
-
-    def find_dockerfiles(self, plugins_dir: str) -> Dict[str, Path]:
-        """
-        Scans the specified plugins directory and its subdirectories for Dockerfiles.
-        This method searches for Dockerfiles in three main locations within the plugins directory:
-        - services/iut
-        - services/testers
-        - environments
-        For each Dockerfile found, it adds an entry to the returned dictionary with the implementation
-        name as the key and the resolved path to the Dockerfile as the value.
-        Args:
-            plugins_dir (str): The path to the plugins directory to scan for Dockerfiles.
-        Returns:
-            Dict[str, Path]: A dictionary where keys are implementation names and values are paths to the Dockerfiles.
-        Raises:
-            ServicePluginNotFound: If the 'services/iut' directory does not exist.
-            EnvironmentPluginNotFound: If the 'environments' directory does not exist.
-        """
-
-        dockerfiles = {}
-        self.plugins_dir = plugins_dir
-
-        implementations_dir = Path(self.plugins_dir) / "services" / "iut"
-
-        self.logger.info(
-            "Scanning for Dockerfiles in '%s'", implementations_dir.resolve()
-        )
-        if not implementations_dir.exists():
-            self.logger.warning(
-                "Implementations directory '%s' does not exist.", implementations_dir
-            )
-            raise ServicePluginNotFound(plugin_name="iut")
-
-        self.scan_implementations_for_dockerfiles(dockerfiles, implementations_dir)
-
-        tester_dir = Path(self.plugins_dir) / "services" / "testers"
-        self.logger.info("Scanning for Dockerfiles in '%s'", tester_dir.resolve())
-        if not tester_dir.exists():
-            self.logger.warning("Testers directory '%s' does not exist.", tester_dir)
-            raise ServicePluginNotFound(plugin_name="testers")
-
-        self.scan_testers_for_dockerfiles(dockerfiles, tester_dir)
-
-        env_dir = Path(plugins_dir) / "environments"
-        self.logger.info("Scanning for Dockerfiles in '%s'", env_dir.resolve())
-        if not env_dir.exists():
-            self.logger.warning("Environment directory '%s' does not exist.", env_dir)
-            raise EnvironmentPluginNotFound(plugin_name="environments")
-
-        self.scan_environment_dockerfiles(dockerfiles, env_dir)
-
-        self.logger.info("Total Dockerfiles found: %s", len(dockerfiles))
-        self.logger.debug("Dockerfiles found: %s", dockerfiles)
-        return dockerfiles
-
-    def scan_environment_dockerfiles(self, dockerfiles, env_dir):
-        for impl_dir in env_dir.rglob("*"):
-            if impl_dir.is_dir():
-                dockerfile = impl_dir / "Dockerfile"
-                if dockerfile.exists():
-                    impl_name = impl_dir.name  # e.g., 'picoquic', 'picotls'
-                    dockerfiles[impl_name] = dockerfile.resolve()
-                    self.logger.debug(
-                        "Found Dockerfile for environment '%s': %s",
-                        impl_name,
-                        dockerfile.resolve(),
-                    )
-
-    def scan_testers_for_dockerfiles(self, dockerfiles, tester_dir):
-        """
-        Recursively scans the tester directory for Dockerfiles and adds them to the dockerfiles dictionary.
-
-        This method searches through all subdirectories in the tester_dir for Dockerfile files.
-        When a Dockerfile is found, it maps the implementation name (directory name) to the
-        absolute path of the Dockerfile.
-
-        Args:
-            dockerfiles (dict): Dictionary to store the mapping of implementation names to Dockerfile paths
-            tester_dir (Path): Directory path to search for Dockerfiles
-
-        Returns:
-            None: The method updates the dockerfiles dictionary passed as an argument
-        """
-        for impl_dir in tester_dir.rglob("*"):
-            if impl_dir.is_dir():
-                dockerfile = impl_dir / "Dockerfile"
-                if dockerfile.exists():
-                    impl_name = impl_dir.name  # e.g., 'picoquic', 'picotls'
-                    dockerfiles[impl_name] = dockerfile.resolve()
-                    self.logger.debug(
-                        "Found Dockerfile for testers '%s': %s",
-                        impl_name,
-                        dockerfile.resolve(),
-                    )
-
-    def scan_implementations_for_dockerfiles(self, dockerfiles, implementations_dir):
-        for impl_dir in implementations_dir.rglob("*"):
-            if impl_dir.is_dir():
-                dockerfile = impl_dir / "Dockerfile"
-                if dockerfile.exists():
-                    impl_name = impl_dir.name  # e.g., 'picoquic', 'picotls'
-                    dockerfiles[impl_name] = dockerfile.resolve()
-                    self.logger.debug(
-                        "Found Dockerfile for implementation '%s': %s",
-                        impl_name,
-                        dockerfile.resolve(),
-                    )
-
     def push_image_to_registry(self, image_tag, registry_image_tag, registry_url, tag):
         # Tag the image for the registry
         image = self.client.images.get(image_tag)
@@ -1286,26 +1741,15 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
         )
         return True
 
-    def list_panther_containers(self) -> List[str]:
+    def image_exists(self, image_tag: str) -> bool:
         """
-        Retrieves a list of all running containers related to Panther.
+        Checks if a Docker image with the given tag exists locally.
+        Delegates to DockerImageCache for resilient image checking.
 
-        :return: List of container names.
+        :param image_tag: Tag of the Docker image.
+        :return: True if exists, else False.
         """
-        if self.client is None:
-            self.logger.error(
-                "Docker client is not available. Cannot list Panther containers."
-            )
-            return []
-
-        try:
-            containers = self.client.containers.list(filters={"name": "panther"})
-            container_names = [container.name for container in containers]
-            self.logger.debug("Panther containers found: %s", container_names)
-            return container_names
-        except DockerException as e:
-            self.logger.error("Error listing Panther containers: %s", e)
-            return []
+        return self.image_cache.image_exists(image_tag, self.client)
 
     def container_exists(self, container_name: str) -> bool:
         """
@@ -1334,98 +1778,6 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
             self.logger.error(
                 "Error checking container existence '%s': %s", container_name, e
             )
-            return False
-
-    def get_container_ip(self, container_name: str) -> Optional[str]:
-        """
-        Retrieve the IP address of a Docker container by its name.
-        Args:
-            container_name (str): The name of the Docker container.
-        Returns:
-            Optional[str]: The IP address of the container if found, otherwise None.
-        Logs:
-            Debug: Logs the IP address of the container if successfully retrieved.
-            Error: Logs an error message if the container is not found, or if there is an issue retrieving the IP address.
-        """
-        if self.client is None:
-            self.logger.error(
-                "Docker client is not available. Cannot get container IP."
-            )
-            return None
-
-        try:
-            container = self.client.containers.get(container_name)
-            ip_address = container.attrs["NetworkSettings"]["Networks"].values()
-            ip = list(ip_address)[0]["IPAddress"]
-            self.logger.debug("Container '%s' IP address: %s", container_name, ip)
-            return ip
-        except (NotFound, KeyError, IndexError) as e:
-            self.logger.error(
-                "Error retrieving IP for container '%s': %s", container_name, e
-            )
-            return None
-        except DockerException as e:
-            self.logger.error(
-                "Docker error retrieving IP for container '%s': %s", container_name, e
-            )
-            return None
-
-    def restore_hosts_file(self) -> bool:
-        """
-        Restores the original /etc/hosts file from a backup.
-        This method attempts to copy the backup file /etc/hosts.bak to /etc/hosts
-        using the `sudo cp` command. If the operation is successful, it logs an
-        informational message and returns True. If there is an error during the
-        process, it logs an error message and returns False.
-        Returns:
-            bool: True if the /etc/hosts file was successfully restored, False otherwise.
-        Raises:
-            subprocess.CalledProcessError: If the subprocess command fails.
-            Exception: For any other unexpected errors.
-        """
-
-        try:
-            subprocess.run(
-                ["sudo", "cp", "/etc/hosts.bak", "/etc/hosts"],
-                check=True,
-                capture_output=True,
-            )
-            self.logger.info("Restored the original /etc/hosts file.")
-            return True
-        except subprocess.CalledProcessError as e:
-            self.logger.error("Error restoring /etc/hosts: %s", e.stderr.decode())
-            return False
-        except Exception as e:
-            self.logger.error("Unexpected error restoring /etc/hosts: %s", e)
-            return False
-
-    def append_to_hosts_file(self, entry: str) -> bool:
-        """
-        Appends a given entry to the /etc/hosts file.
-        This method uses a subprocess to run a command that appends the provided entry
-        to the /etc/hosts file. It requires sudo privileges to execute the command.
-        Args:
-            entry (str): The entry to be added to the /etc/hosts file.
-        Returns:
-            bool: True if the entry was successfully added, False otherwise.
-        Raises:
-            subprocess.CalledProcessError: If the subprocess command fails.
-            Exception: For any other unexpected errors.
-        """
-
-        try:
-            subprocess.run(
-                ["sudo", "bash", "-c", f"echo '{entry.strip()}' >> /etc/hosts"],
-                check=True,
-                capture_output=True,
-            )
-            self.logger.info("Added entry to /etc/hosts: %s", entry.strip())
-            return True
-        except subprocess.CalledProcessError as e:
-            self.logger.error("Error adding entry to /etc/hosts: %s", e.stderr.decode())
-            return False
-        except Exception as e:
-            self.logger.error("Unexpected error adding entry to /etc/hosts: %s", e)
             return False
 
     def create_network(
@@ -1504,63 +1856,6 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
         except DockerException as e:
             self.logger.error(
                 "Error checking network existence '%s': %s", network_name, e
-            )
-            return False
-
-    def get_panther_containers(self) -> List[str]:
-        """
-        Retrieves a list of all running containers related to Panther.
-
-        Returns:
-            List of container names.
-        """
-        if self.client is None:
-            self.logger.error(
-                "Docker client is not available. Cannot get Panther containers."
-            )
-            return []
-
-        try:
-            containers = self.client.containers.list(filters={"name": "panther"})
-            container_names = [container.name for container in containers]
-            self.logger.debug("Panther containers found: %s", container_names)
-            return container_names
-        except DockerException as e:
-            self.logger.error("Error listing Panther containers: %s", e)
-            return []
-
-    def stop_and_remove_container(self, container_name: str) -> bool:
-        """
-        Stops and removes a Docker container.
-
-        :param container_name: Name of the Docker container.
-        :return: True if successful, else False.
-        """
-        if self.client is None:
-            self.logger.error(
-                "Docker client is not available. Cannot stop and remove container."
-            )
-            return False
-
-        try:
-            container = self.client.containers.get(container_name)
-            container.stop()
-            container.remove()
-            self.logger.info("Stopped and removed container '%s'.", container_name)
-            return True
-        except NotFound:
-            self.logger.warning("Container '%s' not found.", container_name)
-            return False
-        except DockerException as e:
-            self.logger.error(
-                "Error stopping/removing container '%s': %s", container_name, e
-            )
-            return False
-        except Exception as e:
-            self.logger.error(
-                "Unexpected error stopping/removing container '%s': %s",
-                container_name,
-                e,
             )
             return False
 

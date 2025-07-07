@@ -446,7 +446,7 @@ if [ -f "{helgrind_output_file}" ]; then
         grep -o "Thread #[0-9]*:" {helgrind_output_file} | sort -u | wc -l >> {summary_file} 2>/dev/null
 
         echo "Synchronization primitives used:" >> {summary_file}
-        grep -o "pthread_[a-z_]*" {helgrind_output_file} | Union[sort, uniq]-c | head -10 >> {summary_file} 2>/dev/null || echo "None detected" >> {summary_file}
+        grep -o "pthread_[a-z_]*" {helgrind_output_file} | sort | uniq -c | head -10 >> {summary_file} 2>/dev/null || echo "None detected" >> {summary_file}
     else
         echo "No detailed thread information available" >> {summary_file}
     fi

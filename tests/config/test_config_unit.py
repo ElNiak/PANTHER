@@ -108,7 +108,7 @@ class TestConfigManager:
                     "name": "test_basic_functionality",
                     "description": "Basic functionality test",
                     "network_environment": {"type": "docker_compose", "version": "3.8"},
-                    "execution_environments": [{"type": "localhost", "timeout": 300}],
+                    "execution_environment": [{"type": "localhost", "timeout": 300}],
                     "iterations": 5,
                     "services": {
                         "web_server": {
@@ -654,7 +654,7 @@ class TestConfigExperimentSchema:
         assert config.steps is None
         assert config.assertions is None
         assert isinstance(config.network_environment, type(config.network_environment))
-        assert isinstance(config.execution_environments, list)
+        assert isinstance(config.execution_environment, list)
         assert isinstance(config.services, dict)
 
     def test_test_config_custom_values(self):

@@ -47,9 +47,9 @@ class EnvironmentUtilities:
 
         # Skip directory creation for execution environments that manage their own file placement
         # TODO: add decorator to skip directory creation for specific execution environments
-        execution_environments_skip = {"strace"}
+        execution_environment_skip = {"strace"}
 
-        if env_sub_type in execution_environments_skip:
+        if env_sub_type in execution_environment_skip:
             logger.debug(
                 f"Skipping directory creation for {env_sub_type} - manages own file placement"
             )

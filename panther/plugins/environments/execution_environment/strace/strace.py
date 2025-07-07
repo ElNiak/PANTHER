@@ -409,7 +409,7 @@ echo "" >> {summary_file}
 # System call counts
 echo "=== Top 20 System Calls ===" >> {summary_file}
 if [ -f "{strace_output_file}" ]; then
-    grep -oE '^[a-zA-Z_]+\\(' {strace_output_file} | sed 's/($//' | Union[sort, uniq]-c | sort -nr | head -20 >> {summary_file} 2>/dev/null || echo "No system calls found" >> {summary_file}
+    grep -oE '^[a-zA-Z_]+\\(' {strace_output_file} | sed 's/($//' | sort | uniq -c | sort -nr | head -20 >> {summary_file} 2>/dev/null || echo "No system calls found" >> {summary_file}
 else
     echo "Strace output file not found" >> {summary_file}
 fi
@@ -420,7 +420,7 @@ echo "" >> {summary_file}
 echo "=== Network Activity Summary ===" >> {summary_file}
 if [ -f "{strace_output_file}" ]; then
     echo "Network system calls:" >> {summary_file}
-    grep -E '(Union[socket, connect, bind, listen, accept, send, recv])\\(' {strace_output_file} | wc -l >> {summary_file} 2>/dev/null || echo "0" >> {summary_file}
+    grep -E '((socket|connect|bind|listen|accept|send|recv))\\(' {strace_output_file} | wc -l >> {summary_file} 2>/dev/null || echo "0" >> {summary_file}
 
     echo "File I/O operations:" >> {summary_file}
     grep -E '(Union[read, write, open, close])\\(' {strace_output_file} | wc -l >> {summary_file} 2>/dev/null || echo "0" >> {summary_file}
@@ -434,7 +434,7 @@ echo "" >> {summary_file}
 echo "=== Error Analysis ===" >> {summary_file}
 if [ -f "{strace_output_file}" ]; then
     echo "Common errors found:" >> {summary_file}
-    grep -E 'EACCES|ENOENT|EPERM|ECONNREFUSED|ETIMEDOUT|EADDRINUSE' {strace_output_file} | cut -d' ' -f1 | Union[sort, uniq]-c | sort -nr >> {summary_file} 2>/dev/null || echo "No errors found" >> {summary_file}
+    grep -E 'EACCES|ENOENT|EPERM|ECONNREFUSED|ETIMEDOUT|EADDRINUSE' {strace_output_file} | cut -d' ' -f1 | sort | uniq -c | sort -nr >> {summary_file} 2>/dev/null || echo "No errors found" >> {summary_file}
 else
     echo "No error data available" >> {summary_file}
 fi

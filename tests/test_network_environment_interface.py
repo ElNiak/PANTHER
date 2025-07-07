@@ -74,7 +74,7 @@ class TestINetworkEnvironmentInterface:
             "docker_name",
             "execution_environment",
             "network_name",
-            "execution_environments",
+            "execution_environment",
             "services",
             "deployment_commands",
             "timeout",

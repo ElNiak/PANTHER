@@ -265,7 +265,7 @@ class PluginConfigResolver:
         """
         available = {
             "network_environments": [],
-            "execution_environments": [],
+            "execution_environment": [],
             "services": [],
             "protocols": [],
         }
@@ -285,7 +285,7 @@ class PluginConfigResolver:
         if exec_env_dir.exists():
             for path in exec_env_dir.iterdir():
                 if path.is_dir() and (path / "config_schema.py").exists():
-                    available["execution_environments"].append(path.name)
+                    available["execution_environment"].append(path.name)
 
         return available
 

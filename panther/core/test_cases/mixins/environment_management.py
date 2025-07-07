@@ -54,7 +54,7 @@ class EnvironmentManagementMixin:
                 )
 
             # Setup execution environments
-            exec_env_configs = self.test_config.execution_environments or []
+            exec_env_configs = self.test_config.execution_environment or []
             for exec_env_config in exec_env_configs:
                 self._setup_execution_environment(exec_env_config)
 
@@ -70,7 +70,7 @@ class EnvironmentManagementMixin:
                     global_config=self.global_config,
                     timestamp=time.strftime("%Y%m%d_%H%M%S"),
                     plugin_manager=self.plugin_manager,
-                    execution_environment=self.execution_environment,
+                    execution_environment=self.execution_environment_plugins,
                 )
 
                 # Add to environment managers
@@ -88,7 +88,7 @@ class EnvironmentManagementMixin:
                     environment_type=self.test_config.network_environment.type,
                     setup_details={
                         "network_environment": network_env_config,
-                        "execution_environments": exec_env_configs,
+                        "execution_environment": exec_env_configs,
                         "test_case": self.test_name,  # Add test case name to setup details
                     },
                 )
@@ -181,7 +181,7 @@ class EnvironmentManagementMixin:
 
                 # Add to execution environments
                 self.environment_plugin_manager.append(exec_plugin)
-                self.execution_environment.append(exec_plugin)
+                self.execution_environment_plugins.append(exec_plugin)
 
                 self.logger.info(
                     f"Execution environment {env_type} set up successfully"
@@ -246,7 +246,7 @@ class EnvironmentManagementMixin:
 
             # Clear environment managers
             self.environment_plugin_manager.clear()
-            self.execution_environment.clear()
+            self.execution_environment_plugins.clear()
 
             env_emitter = None
             if self.emitter_registry:
