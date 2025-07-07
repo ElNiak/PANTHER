@@ -95,6 +95,7 @@ class LocalhostSingleContainerEnvironment(
         env_type: str,
         env_sub_type: str,
         event_manager: EventManager,
+        target_platform: Optional[str] = None,
     ):
         # First initialize all parent classes including StandardOutputCollectorMixin
         super().__init__(
@@ -912,3 +913,18 @@ class LocalhostSingleContainerEnvironment(
                 f"Failed to resolve placeholders in command '{command}': {e}"
             )
             return command
+
+    def _get_service_ip(self, service_name: str) -> str:
+        """
+        Get the IP address for a service in localhost single container environment.
+
+        In a localhost single container environment, all services run in the same container
+        and communicate via the loopback interface.
+
+        Args:
+            service_name: Name of the service to get IP address for
+
+        Returns:
+            str: Always returns "127.0.0.1" for localhost environment
+        """
+        return "127.0.0.1"

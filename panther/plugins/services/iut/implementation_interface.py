@@ -16,9 +16,10 @@ class IImplementationManager(IServiceManager, ABC):
         protocol (ProtocolConfig): The protocol configuration.
         implementation_name (str): The name of the implementation.
         event_manager (Optional[EventManager]): Manager for handling events.
+        test_case: Reference to parent test case for execution environment access.
 
     Methods:
-        __init__(service_config_to_test, service_type, protocol, implementation_name, event_manager):
+        __init__(service_config_to_test, service_type, protocol, implementation_name, event_manager, test_case):
             Initializes the IImplementationManager with the given parameters.
 
         is_tester():
@@ -32,6 +33,8 @@ class IImplementationManager(IServiceManager, ABC):
         protocol: ProtocolConfig,
         implementation_name: str,
         event_manager: Optional[EventManager] = None,
+        test_case=None,  # Reference to parent test case for execution environment access
+        **kwargs,
     ):
         super().__init__(
             service_config_to_test,
@@ -39,6 +42,8 @@ class IImplementationManager(IServiceManager, ABC):
             protocol,
             implementation_name,
             event_manager,
+            test_case=test_case,
+            **kwargs,
         )
 
     def is_tester(self):

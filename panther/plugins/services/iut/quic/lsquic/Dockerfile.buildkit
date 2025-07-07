@@ -1,8 +1,20 @@
 # syntax=docker/dockerfile:1
-ARG TARGETPLATFORM=linux/amd64
-FROM panther_base_service:latest AS base
+
+# =============================================================================
+# LSQUIC Implementation - Modern Multi-Platform BuildKit Dockerfile
+# Cross-platform build with automatic platform detection and security hardening
+# =============================================================================
+
+# BuildKit automatic platform arguments
+ARG BUILDPLATFORM
+ARG TARGETPLATFORM
+ARG TARGETOS=linux
+ARG TARGETARCH
+ARG BUILDVARIANT
+
+# Runtime configuration
 ARG RUNTIME_MODE=minimal
-ENV DEBIAN_FRONTEND=noninteractive
+ARG BASE_IMAGE_DIGEST=sha256:965fbcae990b0467ed5657caceaec165018ef44a4d2d46c7cdea80a9dff0d1ea
 
 # Define build arguments for version-specific configurations
 ARG VERSION=master
@@ -11,23 +23,56 @@ ARG USER_N=root  # Define USER_N with default value
 ENV VERSION=${VERSION}
 ENV DEPENDENCIES=${DEPENDENCIES}
 
-# Layer 1: Perl dependencies for picotls test code (rarely changes)
-RUN --mount=type=cache,target=/root/.cpan \
+# =============================================================================
+# STAGE 1: BUILD - Cross-platform build environment for LSQUIC
+# =============================================================================
+
+FROM --platform=$BUILDPLATFORM panther_base_service:latest AS base
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Layer 1: Install cross-compilation tools based on target architecture
+RUN --mount=type=cache,target=/var/cache/apt,id=crossbuild-$BUILDPLATFORM,sharing=locked \
+    --mount=type=tmpfs,target=/tmp \
+    case "$TARGETARCH" in \
+        arm64) \
+            apt-get update && \
+            apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu && \
+            rm -rf /var/lib/apt/lists/* ;; \
+        arm) \
+            apt-get update && \
+            apt-get install -y gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf && \
+            rm -rf /var/lib/apt/lists/* ;; \
+        amd64) \
+            echo "Native compilation for amd64" ;; \
+        *) \
+            echo "Unsupported target architecture: $TARGETARCH" && exit 1 ;; \
+    esac
+
+# Set cross-compilation environment variables
+ENV CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
+    CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++ \
+    CC_arm_unknown_linux_gnueabihf=arm-linux-gnueabihf-gcc \
+    CXX_arm_unknown_linux_gnueabihf=arm-linux-gnueabihf-g++
+
+# Layer 2: Perl dependencies for picotls test code (rarely changes)
+RUN --mount=type=cache,target=/root/.cpan,id=cpan-$TARGETPLATFORM,sharing=locked \
     echo install Test::TCP | perl -MCPAN - && \
     echo install Scope::Guard | perl -MCPAN -
 
-# Layer 2: Install jq with cache mount for apt packages
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+# Layer 3: Install jq with platform-aware cache mount
+RUN --mount=type=cache,target=/var/cache/apt,id=apt-$TARGETPLATFORM,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,id=aptlib-$TARGETPLATFORM,sharing=locked \
+    --mount=type=tmpfs,target=/tmp \
     apt-get update && \
-    apt-get install --fix-missing -y jq
+    apt-get install --fix-missing --no-install-recommends -y jq && \
+    rm -rf /var/lib/apt/lists/*
 
 # Switch to specified user (now properly defined)
 USER ${USER_N}
 
-# Layer 3: BoringSSL build with cache (expensive, rarely changes)
-RUN --mount=type=cache,target=/tmp/boringssl-cache \
-    --mount=type=cache,target=/tmp/boringssl-build \
+# Layer 4: BoringSSL build with enhanced platform-aware cache
+RUN --mount=type=cache,target=/tmp/boringssl-cache,id=boringssl-git-$TARGETPLATFORM,sharing=locked \
+    --mount=type=cache,target=/tmp/boringssl-build,id=boringssl-build-$TARGETPLATFORM,sharing=private \
     if [ -d "/tmp/boringssl-cache/.git" ]; then \
         echo "Using cached BoringSSL repository"; \
         cp -r /tmp/boringssl-cache boringssl; \
@@ -46,15 +91,30 @@ RUN --mount=type=cache,target=/tmp/boringssl-cache \
         echo "Restoring BoringSSL build cache"; \
         cp -r /tmp/boringssl-build/cmake_cache/* . 2>/dev/null || true; \
     fi && \
-    cmake . && make && \
+    # Enhanced cross-compilation CMake configuration \
+    case "$TARGETARCH" in \
+        amd64) \
+            CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=x86_64 -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++" \
+            ;; \
+        arm64) \
+            CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=aarch64 -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++" \
+            ;; \
+        arm) \
+            CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=arm -DCMAKE_C_COMPILER=arm-linux-gnueabihf-gcc -DCMAKE_CXX_COMPILER=arm-linux-gnueabihf-g++" \
+            ;; \
+        *) \
+            echo "Unsupported architecture: $TARGETARCH" && exit 1 \
+            ;; \
+    esac && \
+    cmake $CMAKE_ARGS . && make && \
     # Save build cache \
     mkdir -p /tmp/boringssl-build/cmake_cache && \
     cp -r CMakeCache.txt CMakeFiles/ Makefile /tmp/boringssl-build/cmake_cache/ 2>/dev/null || true
 
 ENV BORINGSSL=/src/boringssl/
 
-# Layer 4: LSQUIC repository (changes when VERSION changes)
-RUN --mount=type=cache,target=/tmp/lsquic-cache \
+# Layer 5: LSQUIC repository with platform-aware cache (changes when VERSION changes)
+RUN --mount=type=cache,target=/tmp/lsquic-cache,id=lsquic-git-$TARGETPLATFORM,sharing=locked \
     if [ -d "/tmp/lsquic-cache/.git" ]; then \
         echo "Using cached LSQUIC repository"; \
         cp -r /tmp/lsquic-cache lsquic; \
@@ -68,25 +128,68 @@ RUN --mount=type=cache,target=/tmp/lsquic-cache \
     fi && \
     git submodule update --init
 
-# Layer 5: LSQUIC build with cache
-RUN --mount=type=cache,target=/tmp/lsquic-build \
+# Layer 6: LSQUIC build with enhanced platform-aware cache
+RUN --mount=type=cache,target=/tmp/lsquic-build,id=lsquic-build-$TARGETPLATFORM,sharing=private \
     cd /opt/lsquic && \
     # Use build cache for compilation \
     if [ -d "/tmp/lsquic-build/cmake_cache" ]; then \
         echo "Restoring LSQUIC build cache"; \
         cp -r /tmp/lsquic-build/cmake_cache/* . 2>/dev/null || true; \
     fi && \
-    cmake -DBORINGSSL_DIR=/src/boringssl/ . && \
+    # Enhanced cross-compilation CMake configuration \
+    case "$TARGETARCH" in \
+        amd64) \
+            CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=x86_64 -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++" \
+            ;; \
+        arm64) \
+            CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=aarch64 -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++" \
+            ;; \
+        arm) \
+            CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=arm -DCMAKE_C_COMPILER=arm-linux-gnueabihf-gcc -DCMAKE_CXX_COMPILER=arm-linux-gnueabihf-g++" \
+            ;; \
+        *) \
+            echo "Unsupported architecture: $TARGETARCH" && exit 1 \
+            ;; \
+    esac && \
+    cmake $CMAKE_ARGS -DBORINGSSL_DIR=/src/boringssl/ . && \
     make && \
     make test || true && \
     # Save build cache \
     mkdir -p /tmp/lsquic-build/cmake_cache && \
     cp -r CMakeCache.txt CMakeFiles/ Makefile /tmp/lsquic-build/cmake_cache/ 2>/dev/null || true
 
-# Layer 6: Runtime configuration (rarely changes)
+# =============================================================================
+# FINAL STAGE: Runtime configuration with platform metadata
+# =============================================================================
+
+# Target platform runtime stage
+FROM --platform=$TARGETPLATFORM base AS runtime
+
+# Layer 7: Runtime configuration (rarely changes)
 EXPOSE 4443 8080
 
 RUN mkdir -p /app/logs /opt/certs /opt/ticket
+
+# Platform and build metadata for debugging and compliance
+ARG BUILDPLATFORM
+ARG TARGETPLATFORM
+ARG RUNTIME_MODE
+ARG TARGETOS
+ARG TARGETARCH
+
+LABEL platform.build="${BUILDPLATFORM}"
+LABEL platform.target="${TARGETPLATFORM}"
+LABEL platform.os="${TARGETOS}"
+LABEL platform.arch="${TARGETARCH}"
+LABEL runtime.mode="${RUNTIME_MODE}"
+LABEL implementation="lsquic"
+LABEL version="v4.0.9"
+LABEL runtime.description="LSQUIC QUIC implementation execution environment"
+LABEL build.syntax="docker/dockerfile:1"
+
+# Health check for runtime validation
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD test -f /opt/lsquic/bin/http_client || exit 1
 
 # Set entrypoint (can be overridden)
 ENTRYPOINT [ "/bin/bash", "-l", "-c" ]

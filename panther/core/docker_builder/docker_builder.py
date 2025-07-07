@@ -194,11 +194,13 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
         self.global_config = global_config
         self.experiment_context = experiment_context
 
-        # Initialize Docker image cache
+        # Initialize Docker image cache with platform-aware caching
+        target_platform = self.get_target_platform()
         self.image_cache = DockerImageCache(
             cache_ttl=300,
             retry_count=1,
             retry_delay=1.0,  # 5 minutes TTL
+            target_platform=target_platform,
         )
 
         self.docker_logger = DockerOutputParser()
@@ -419,12 +421,12 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
         # Detect host architecture and map to appropriate Docker platform
         machine = platform.machine().lower()
         if machine in ["arm64", "aarch64"]:
-            docker_platform = "linux/arm64"  # Native ARM64 support
-            self.logger.info(
-                "Detected ARM64 architecture '%s' -> using native platform: %s",
+            # docker_platform = "linux/arm64"  # TODO some plugins are not supported on arm64
+            self.logger.warning(
+                "Detected ARM64 architecture '%s', defaulting to linux/amd64 for compatibility",
                 machine,
-                docker_platform,
             )
+            docker_platform = "linux/amd64"  # Fallback to amd64 for compatibility
         elif machine in ["x86_64", "amd64"]:
             docker_platform = "linux/amd64"
         else:

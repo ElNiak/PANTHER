@@ -23,34 +23,53 @@ if TYPE_CHECKING:
 
 
 def quote_shell(s: str) -> str:
-    """
-    Safely quote a string for shell commands using shlex.quote
+    """Quote string for safe shell command execution.
+
+    Uses shlex.quote to properly escape special characters in shell arguments,
+    preventing command injection vulnerabilities.
 
     Args:
-        s: The string to quote
+        s: String to quote for shell safety.
 
     Returns:
-        The quoted string safe for shell execution
+        Shell-safe quoted string.
+
+    Example:
+        >>> quote_shell("file with spaces.txt")
+        "'file with spaces.txt'"
+        >>> quote_shell("normal_file.txt")
+        "normal_file.txt"
     """
     return shlex.quote(str(s))
 
 
 def quote_yaml(s: str) -> str:
-    """
-    Safely quote a string for YAML using yaml.safe_dump
+    """Quote string for safe YAML document inclusion.
+
+    Uses yaml.safe_dump to properly escape YAML special characters and
+    ensure the string can be safely included in YAML documents.
 
     Args:
-        s: The string to quote
+        s: String to quote for YAML safety.
 
     Returns:
-        The quoted string safe for YAML inclusion
+        YAML-safe quoted string.
+
+    Example:
+        >>> quote_yaml("key: value")
+        "'key: value'"
+        >>> quote_yaml("simple_string")
+        "simple_string"
     """
     return yaml.safe_dump(str(s)).strip()
 
 
 class IServiceManager(IPlugin, CommandEventMixin):
-    """
-    IServiceManager is an interface for managing services within the PANTHER-SCP framework. It extends the IPlugin class and provides methods for initializing and rendering commands, as well as generating various types of commands required for service deployment and execution.
+    """Service manager interface for PANTHER network protocol testing framework.
+
+    Manages service lifecycle, command generation, and configuration for network
+    protocol implementations and testing services. Supports both Implementation
+    Under Test (IUT) and Tester service types with event-driven architecture.
 
     Attributes:
         available_types (list): List of valid service types.
@@ -97,6 +116,9 @@ class IServiceManager(IPlugin, CommandEventMixin):
         protocol: ProtocolConfig,
         implementation_name: str,
         event_manager: Optional[EventManager] = None,
+        test_case: Optional[
+            Any
+        ] = None,  # Reference to parent test case for execution environment access
     ):
         super().__init__()
         CommandEventMixin.__init__(self)  # Initialize the CommandEventMixin
@@ -176,6 +198,9 @@ class IServiceManager(IPlugin, CommandEventMixin):
         self.working_dir = None
         self.process = None
         self.available_roles = []
+
+        # Store reference to parent test case for execution environment access
+        self.test_case = test_case
         self.volumes = []
         self.role = self.service_config_to_test.protocol.role
         self.environments = {}
@@ -214,6 +239,9 @@ class IServiceManager(IPlugin, CommandEventMixin):
 
         # Test context to track which test this service belongs to
         self._test_context = None
+
+        self.build_mode = ""
+        self.runtime_mode = "minimal"
 
     def set_test_context(self, test_name: str) -> None:
         """
@@ -354,6 +382,7 @@ class IServiceManager(IPlugin, CommandEventMixin):
                 # Set IS_CLIENT: "1" for client role, "0" for server role
                 is_client = "1" if role_str == "client" else "0"
                 self.environments["IS_CLIENT"] = is_client
+                self.role = role_str  # Set the role attribute
                 self.logger.debug(
                     f"Set IS_CLIENT={is_client} based on role '{role}' for service {self.service_name}"
                 )
@@ -361,17 +390,16 @@ class IServiceManager(IPlugin, CommandEventMixin):
             # 2. PROOTPATH and ROOTPATH - these should match the processed SOURCE_DIR
             # If SOURCE_DIR was already set from version config, use its processed value
             # Otherwise, use the default /opt
-            source_dir = self.environments.get("SOURCE_DIR", "/opt")
+            source_dir = self.environments.get(
+                "SOURCE_DIR", "/opt"
+            )  # TODO false -> set by enviornment plugin
             self.environments["PROOTPATH"] = source_dir
             self.environments["ROOTPATH"] = source_dir
             self.logger.debug(
                 f"Set PROOTPATH={source_dir} and ROOTPATH={source_dir} for service {self.service_name}"
             )
 
-            # 3. Handle system_model vs protocol_model differences
-            # Check if this is a system model configuration
-            use_system_models = getattr(impl_config, "use_system_models", False)
-            if use_system_models:
+            if use_system_models := getattr(impl_config, "use_system_models", False):
                 # For system models, we might need different paths
                 self.environments["MODEL_TYPE"] = "system"
                 self.logger.debug(

@@ -37,6 +37,7 @@ if TYPE_CHECKING:
         "deadlock_detection",
     ],
     external_dependencies=["valgrind>=3.15"],
+    runtime_mode="debug",  # Set to minimal mode for reduced resource usage
 )
 class HelgrindEnvironment(BaseExecutionEnvironment):
     """
@@ -54,6 +55,7 @@ class HelgrindEnvironment(BaseExecutionEnvironment):
         env_type: str,
         env_sub_type: str,
         event_manager: EventManager,
+        target_platform: Optional[str] = None,
     ):
         """Initialize the Helgrind environment."""
         super().__init__(
@@ -62,6 +64,7 @@ class HelgrindEnvironment(BaseExecutionEnvironment):
 
         # Initialize plugin config cache
         self._plugin_config = None
+        self.target_platform = target_platform
 
     def _get_plugin_config(self) -> HelgrindConfig:
         """Get plugin config with caching and fallback."""
@@ -456,14 +459,14 @@ if [ -f "{helgrind_output_file}" ]; then
     # Error severity assessment
     echo "=== Error Severity Assessment ===" >> {summary_file}
     total_errors=$(grep -c "Possible data race\\|lock order\\|Thread #" {helgrind_output_file} 2>/dev/null || echo "0")
-    if [ "$total_errors" -eq 0 ]; then
+    if [ "$' + '{total_errors:-0}" -eq 0 ] 2>/dev/null; then
         echo "✓ No thread errors detected - program appears thread-safe" >> {summary_file}
-    elif [ "$total_errors" -le 5 ]; then
-        echo "⚠ Low severity: $total_errors potential thread issues found" >> {summary_file}
-    elif [ "$total_errors" -le 20 ]; then
-        echo "⚠ Medium severity: $total_errors thread issues found" >> {summary_file}
+    elif [ "$' + '{total_errors:-0}" -le 5 ] 2>/dev/null; then
+        echo "⚠ Low severity: $' + '{total_errors:-0} potential thread issues found" >> {summary_file}
+    elif [ "$' + '{total_errors:-0}" -le 20 ] 2>/dev/null; then
+        echo "⚠ Medium severity: $' + '{total_errors:-0} thread issues found" >> {summary_file}
     else
-        echo "🚨 High severity: $total_errors thread issues found - review recommended" >> {summary_file}
+        echo "🚨 High severity: $' + '{total_errors:-0} thread issues found - review recommended" >> {summary_file}
     fi
 
 else

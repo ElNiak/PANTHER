@@ -25,6 +25,7 @@ class BaseQUICServiceManager(IImplementationManager, StringRepresentationMixin, 
         event_manager: Any = None,
         emitter_registry: Any = None,
         global_config=None,
+        test_case=None,  # Reference to parent test case for execution environment access
         **kwargs,
     ):
         """Initialize the base QUIC service manager.
@@ -36,6 +37,8 @@ class BaseQUICServiceManager(IImplementationManager, StringRepresentationMixin, 
             implementation_name: Name of the implementation
             event_manager: Event manager instance
             emitter_registry: Emitter registry (optional)
+            global_config: Global configuration
+            test_case: Reference to parent test case for execution environment access
             **kwargs: Additional configuration
         """
         # Convert string service_type to ImplementationType enum if needed
@@ -62,6 +65,8 @@ class BaseQUICServiceManager(IImplementationManager, StringRepresentationMixin, 
             protocol,
             implementation_name,
             event_manager,
+            test_case=test_case,  # Pass test case reference to parent classes
+            **kwargs,
         )
 
         # Store global configuration

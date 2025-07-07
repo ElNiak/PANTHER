@@ -1,0 +1,142 @@
+# syntax=docker/dockerfile:1
+ARG BUILDPLATFORM=linux/amd64
+
+ARG TARGETPLATFORM=linux/amd64
+FROM panther_base_service:latest AS base
+ARG RUNTIME_MODE=minimal
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Define build arguments for version-specific configurations
+ARG VERSION=master
+ARG DEPENDENCIES="[]"  # JSON-formatted list of dependencies
+ARG USER_N=root  # Define USER_N with default value
+ENV VERSION=${VERSION}
+ENV DEPENDENCIES=${DEPENDENCIES}
+
+# Layer 1: Perl dependencies for picotls test code (rarely changes)
+RUN --mount=type=cache,target=/root/.cpan-${TARGETPLATFORM//\//-},sharing=locked \
+    echo install Test::TCP | perl -MCPAN - && \
+    echo install Scope::Guard | perl -MCPAN -
+
+# Layer 2: Install jq with cache mount for apt packages
+RUN --mount=type=cache,target=/var/cache/apt-${TARGETPLATFORM//\//-},sharing=locked-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/var/lib/apt-${TARGETPLATFORM//\//-},sharing=locked-${TARGETPLATFORM//\//-},sharing=locked \
+    apt-get update && \
+    apt-get install --fix-missing -y jq
+
+# Switch to specified user (now properly defined)
+USER ${USER_N}
+
+# Layer 3: BoringSSL build with cache (expensive, rarely changes)
+RUN --mount=type=cache,target=/tmp/boringssl-cache-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/tmp/boringssl-build-${TARGETPLATFORM//\//-},sharing=locked \
+    if [ -d "/tmp/boringssl-cache/.git" ]; then \
+        echo "Using cached BoringSSL repository"; \
+        cp -r /tmp/boringssl-cache boringssl; \
+        cd boringssl && git fetch && git checkout 9fc1c33e9c21439ce5f87855a6591a9324e569fd; \
+    else \
+        echo "Cloning fresh BoringSSL repository"; \
+        git clone https://boringssl.googlesource.com/boringssl; \
+        cd boringssl && git checkout 9fc1c33e9c21439ce5f87855a6591a9324e569fd; \
+        # Cache the repository \
+        cp -r /src/boringssl /tmp/boringssl-cache; \
+    fi && \
+    git submodule init && \
+    git submodule update && \
+    # Use build cache for compilation \
+    if [ -d "/tmp/boringssl-build/cmake_cache" ]; then \
+        echo "Restoring BoringSSL build cache"; \
+        cp -r /tmp/boringssl-build/cmake_cache/* . 2>/dev/null || true; \
+    fi && \
+    # Platform-specific CMake configuration
+
+    case "${TARGETPLATFORM}" in \
+
+        "linux/amd64") \
+
+            CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=x86_64 -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++" \
+
+            ;; \
+
+        "linux/arm64") \
+
+            CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=aarch64" \
+
+            ;; \
+
+        *) \
+
+            CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=x86_64" \
+
+            ;; \
+
+    esac && \
+
+    cmake $CMAKE_ARGS . && make && \
+    # Save build cache \
+    mkdir -p /tmp/boringssl-build/cmake_cache && \
+    cp -r CMakeCache.txt CMakeFiles/ Makefile /tmp/boringssl-build/cmake_cache/ 2>/dev/null || true
+
+ENV BORINGSSL=/src/boringssl/
+
+# Layer 4: LSQUIC repository (changes when VERSION changes)
+RUN --mount=type=cache,target=/tmp/lsquic-cache-${TARGETPLATFORM//\//-},sharing=locked \
+    if [ -d "/tmp/lsquic-cache/.git" ]; then \
+        echo "Using cached LSQUIC repository"; \
+        cp -r /tmp/lsquic-cache lsquic; \
+        cd lsquic && git fetch && git checkout v4.0.9; \
+    else \
+        echo "Cloning fresh LSQUIC repository"; \
+        git clone https://github.com/litespeedtech/lsquic.git; \
+        cd lsquic && git checkout v4.0.9; \
+        # Cache the repository \
+        cp -r /opt/lsquic /tmp/lsquic-cache; \
+    fi && \
+    git submodule update --init
+
+# Layer 5: LSQUIC build with cache
+RUN --mount=type=cache,target=/tmp/lsquic-build-${TARGETPLATFORM//\//-},sharing=locked \
+    cd /opt/lsquic && \
+    # Use build cache for compilation \
+    if [ -d "/tmp/lsquic-build/cmake_cache" ]; then \
+        echo "Restoring LSQUIC build cache"; \
+        cp -r /tmp/lsquic-build/cmake_cache/* . 2>/dev/null || true; \
+    fi && \
+    # Platform-specific CMake configuration
+
+    case "${TARGETPLATFORM}" in \
+
+        "linux/amd64") \
+
+            CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=x86_64 -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++" \
+
+            ;; \
+
+        "linux/arm64") \
+
+            CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=aarch64" \
+
+            ;; \
+
+        *) \
+
+            CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=x86_64" \
+
+            ;; \
+
+    esac && \
+
+    cmake $CMAKE_ARGS -DBORINGSSL_DIR=/src/boringssl/ . && \
+    make && \
+    make test || true && \
+    # Save build cache \
+    mkdir -p /tmp/lsquic-build/cmake_cache && \
+    cp -r CMakeCache.txt CMakeFiles/ Makefile /tmp/lsquic-build/cmake_cache/ 2>/dev/null || true
+
+# Layer 6: Runtime configuration (rarely changes)
+EXPOSE 4443 8080
+
+RUN mkdir -p /app/logs /opt/certs /opt/ticket
+
+# Set entrypoint (can be overridden)
+ENTRYPOINT [ "/bin/bash", "-l", "-c" ]

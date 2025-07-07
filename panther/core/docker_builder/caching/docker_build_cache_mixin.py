@@ -45,10 +45,21 @@ class DockerBuildCacheMixin(LoggerMixin):
             self._docker_registry = DockerRegistry()
         return self._docker_registry
 
-    def enable_cache(self, enabled: bool = True) -> None:
-        """Enable or disable Docker build caching."""
-        self._cache_enabled = enabled
-        self.logger.info(f"Docker build cache {'enabled' if enabled else 'disabled'}")
+    def enable_cache(self, enabled: bool = True, reason: str = "manual") -> None:
+        """Enable or disable Docker build caching.
+
+        Args:
+            enabled: Whether to enable caching
+            reason: Context for why cache state is changing (for logging)
+        """
+        # Only log if cache state actually changed
+        if not hasattr(self, "_cache_enabled") or self._cache_enabled != enabled:
+            self._cache_enabled = enabled
+            self.logger.debug(
+                f"Docker build cache {'enabled' if enabled else 'disabled'} ({reason})"
+            )
+        else:
+            self._cache_enabled = enabled
 
     def _calculate_dockerfile_hash(self, dockerfile_path: Path) -> str:
         """Calculate hash of Dockerfile content."""
@@ -177,6 +188,10 @@ class DockerBuildCacheMixin(LoggerMixin):
         )
 
         if not cached_image_id:
+            self.logger.debug(
+                f"No cached build found for {image_tag}, proceeding with build."
+            )
+            self._cache_misses += 1
             return None
 
         self.logger.info(f"Using cached image for {image_tag}: {cached_image_id}")

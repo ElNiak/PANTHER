@@ -85,7 +85,16 @@ class PluginDiscovery(LoggerMixin):
 
             for plugin_id, (plugin_class, manifest) in decorated_plugins.items():
                 self.logger.debug(f"Processing plugin {plugin_id}")
-                metadata = self._convert_manifest_to_metadata(manifest)
+                # Use automatic conversion to ensure all fields including runtime_mode are preserved
+                try:
+                    from panther.plugins.core.conversion.structure_converter import (
+                        auto_convert_manifest_to_metadata,
+                    )
+
+                    metadata = auto_convert_manifest_to_metadata(manifest)
+                except ImportError:
+                    # Fallback to manual conversion if auto-converter not available
+                    metadata = self._convert_manifest_to_metadata(manifest)
                 if metadata:
                     self.discovered_plugins[metadata.name] = metadata
                     self.logger.debug(
@@ -132,6 +141,9 @@ class PluginDiscovery(LoggerMixin):
                 description=manifest.description or "",
                 author=manifest.author or "",
                 capabilities=manifest.capabilities or [],
+                runtime_mode=getattr(manifest, "runtime_mode", None),
+                external_dependencies=manifest.external_dependencies or [],
+                tags=manifest.tags or [],
             )
         except Exception as e:
             self.logger.error(f"Failed to convert manifest to metadata: {e}")

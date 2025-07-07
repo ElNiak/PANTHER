@@ -1,0 +1,134 @@
+# syntax=docker/dockerfile:1
+
+# =============================================================================
+# PANTHER Service - 3-Stage Multi-Target BuildKit Dockerfile
+# BUILDER -> DEBUG -> PROFILE runtime environments with execution tools
+# =============================================================================
+
+ARG TARGETPLATFORM=linux/amd64
+ARG BUILDPLATFORM=linux/amd64
+ARG RUNTIME_MODE=minimal
+
+# =============================================================================
+# STAGE 1: BUILDER - Build tools and dependencies
+# =============================================================================
+FROM ubuntu:20.04 AS builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# APT package cache optimization with platform-specific BuildKit cache mounts
+RUN --mount=type=cache,target=/var/cache/apt-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/var/lib/apt-${TARGETPLATFORM//\//-},sharing=locked \
+    ln -fs /usr/share/zoneinfo/UTC /etc/localtime && \
+    apt-get update && \
+    apt-get install --fix-missing --auto-remove --show-upgraded --no-install-recommends -y \
+    build-essential git cmake software-properties-common \
+    openssl libssl-dev pkg-config python3 \
+    clang automake autoconf libtool \
+    wget curl sudo \
+    libc6-dev libdw1 libelf1 libunwind-dev
+
+# Add platform-specific CMake environment (for downstream usage)
+RUN case "${TARGETPLATFORM}" in \
+        "linux/amd64") \
+            echo 'export CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=x86_64 -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++"' >> /etc/environment \
+            ;; \
+        "linux/arm64") \
+            echo 'export CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=aarch64"' >> /etc/environment \
+            ;; \
+        *) \
+            echo 'export CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=x86_64"' >> /etc/environment \
+            ;; \
+    esac
+
+# Git clone with platform-specific cache mount for build artifacts
+RUN --mount=type=cache,target=/tmp/build-cache-${TARGETPLATFORM//\//-},sharing=locked \
+    git clone https://github.com/gperftools/gperftools /tmp/build-cache-${TARGETPLATFORM//\//-}/gperftools || \
+    (cd /tmp/build-cache-${TARGETPLATFORM//\//-}/gperftools && git pull) && \
+    cp -r /tmp/build-cache-${TARGETPLATFORM//\//-}/gperftools /gperftools
+
+WORKDIR /gperftools
+
+# Build with platform-specific cache for compiled objects
+RUN --mount=type=cache,target=/gperftools/.libs-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/gperftools/src/.libs-${TARGETPLATFORM//\//-},sharing=locked \
+    ./autogen.sh && \
+    ./configure && \
+    make && \
+    make install
+
+RUN whereis libprofiler && whereis libtcmalloc
+
+WORKDIR /
+RUN mkdir -p /app /opt
+
+# =============================================================================
+# STAGE 2: DEBUG - MINIMAL + debugging tools
+# =============================================================================
+FROM builder AS debug
+
+# Install debugging tools with platform-specific cache
+RUN --mount=type=cache,target=/var/cache/apt-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/var/lib/apt-${TARGETPLATFORM//\//-},sharing=locked \
+    apt-get install --no-install-recommends -y \
+    gdb valgrind strace util-linux
+
+# Copy built gperftools for debugging
+COPY --from=builder /usr/local/lib/libprofiler.* /usr/local/lib/
+COPY --from=builder /usr/local/lib/libtcmalloc.* /usr/local/lib/
+
+# =============================================================================
+# STAGE 3: PROFILE - DEBUG + performance profiling tools
+# =============================================================================
+FROM debug AS profile
+
+# Install performance profiling tools with platform-specific cache
+RUN --mount=type=cache,target=/var/cache/apt-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/var/lib/apt-${TARGETPLATFORM//\//-},sharing=locked \
+    apt-get install --no-install-recommends -y \
+    linux-tools-generic linux-tools-common linux-cloud-tools-common \
+    radare2 google-perftools graphviz gv
+
+# Update library cache for gperftools
+RUN ldconfig
+
+# =============================================================================
+# STAGE 4: MINIMAL - Core runtime + network analysis (PANTHER requirement)
+# =============================================================================
+FROM ubuntu:20.04 AS minimal
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Core runtime and network analysis tools with platform-specific cache
+RUN --mount=type=cache,target=/var/cache/apt-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/var/lib/apt-${TARGETPLATFORM//\//-},sharing=locked \
+    ln -fs /usr/share/zoneinfo/UTC /etc/localtime && \
+    apt-get update && \
+    apt-get install --fix-missing --auto-remove --show-upgraded --no-install-recommends -y \
+    python3 openssl \
+    net-tools tcpdump iperf iperf3 traceroute \
+    wireshark tshark libcap2-bin \
+    iputils-ping iproute2 netcat-openbsd \
+    curl dnsutils
+
+# Configure wireshark for non-root usage (PANTHER protocol testing requirement)
+RUN yes yes | DEBIAN_FRONTEND=teletype dpkg-reconfigure wireshark-common && \
+    usermod -aG wireshark root
+
+# Create application directories
+RUN mkdir -p /app /opt
+
+# =============================================================================
+# FINAL STAGE: Runtime mode selection
+# =============================================================================
+FROM ${RUNTIME_MODE} AS final
+
+# Labels for runtime identification
+ARG RUNTIME_MODE=minimal
+LABEL runtime.mode="${RUNTIME_MODE}"
+LABEL runtime.description="PANTHER base service execution environment"
+LABEL runtime.capabilities.network="wireshark,tshark,tcpdump,iperf3"
+LABEL runtime.capabilities.debug="gdb,valgrind,strace"
+LABEL runtime.capabilities.profile="perf,gperftools,radare2"
+
+WORKDIR /app

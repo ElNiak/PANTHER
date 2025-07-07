@@ -25,27 +25,97 @@ if TYPE_CHECKING:
 
 class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
     """
-    IEnvironmentPlugin is an abstract base class that defines the interface for environment plugins.
+    Environment Plugin Interface - Core Framework Contract
+
+    IEnvironmentPlugin defines the fundamental contract for all PANTHER environment implementations,
+    enabling consistent orchestration of diverse execution contexts ranging from network simulation
+    environments (Docker Compose, Shadow NS) to execution analysis environments (Valgrind, strace).
+
+    ## Architecture Integration
+
+    This interface bridges PANTHER's plugin architecture with environment management, providing:
+
+    1. **Lifecycle Management**: Standardized setup/teardown with event notifications
+    2. **Configuration Binding**: Type-safe environment configuration handling
+    3. **Event Integration**: Real-time environment state tracking through EventManager
+    4. **Service Coordination**: Integration with service managers and execution environments
+
+    ```mermaid
+    sequenceDiagram
+        participant PM as PluginManager
+        participant EP as EnvironmentPlugin
+        participant EM as EventManager
+        participant SM as ServiceManager
+
+        PM->>EP: initialize(test_config, output_dir)
+        EP->>EM: emit_environment_setup_started()
+        PM->>EP: setup_environment(services, config)
+        EP->>EP: update_environment()
+        EP->>EP: _do_deploy_services()
+        EP->>EM: emit_environment_setup_completed()
+
+        Note over EP: Environment Active
+
+        PM->>EP: teardown_environment()
+        EP->>EP: _do_teardown_environment()
+        EP->>EM: emit_environment_teardown_completed()
+    ```
+
+    ## Environment Classification
+
+    Implementations fall into two primary categories:
+
+    - **Network Environments**: Provide network isolation and service orchestration
+      (returns `True` for `is_network_environment()`)
+    - **Execution Environments**: Wrap process execution with analysis tools
+      (returns `False` for `is_network_environment()`)
+
+    ## Configuration Pattern
+
+    Each environment plugin receives:
+    - `EnvironmentConfig`: Type-specific configuration (Docker settings, Shadow topology, etc.)
+    - `TestConfig`: Test case configuration defining services and protocols
+    - `GlobalConfig`: Framework-wide settings and paths
+
+    ## Event-Driven Lifecycle
+
+    All environment operations emit standardized events through `EnvironmentEventEmitter`:
+    - Setup lifecycle: started → completed (success/failure)
+    - Teardown lifecycle: started → completed
+    - Service deployment events with detailed context
+
+    ## Error Handling Strategy
+
+    - **Graceful Degradation**: Failed setup emits failure event but doesn't crash framework
+    - **Resource Cleanup**: Teardown is always attempted regardless of setup success
+    - **Context Preservation**: Error events include environment type, test case, and failure details
+
+    ## Template and Output Management
+
+    - `templates_dir`: Environment-specific configuration templates (Docker Compose files, etc.)
+    - `output_dir`: Centralized output collection for logs, traces, and analysis artifacts
+    - `log_dirs`: Structured logging output with environment-specific organization
 
     Attributes:
-        templates_dir (str): Directory path for templates specific to the environment type and subtype.
-        output_dir (str): Directory path for output files.
-        env_type (str): Type of the environment.
-        env_sub_type (str): Subtype of the environment.
-        log_dirs (str): Directory path for log files.
-        plugin_manager: Plugin manager for loading plugins.
-        env_config_to_test (EnvironmentConfig): Configuration of the environment to be tested.
-        event_manager (EventManager): Manager for handling events.
+        templates_dir (str): Directory path for environment-specific configuration templates
+        output_dir (str): Root directory for all environment output artifacts
+        env_type (str): Primary environment category (network_environment, execution_environment)
+        env_sub_type (str): Specific implementation (docker_compose, shadow_ns, strace, etc.)
+        log_dirs (str): Structured logging directory within output_dir
+        plugin_manager: Plugin manager for dynamic plugin loading and coordination
+        env_config_to_test (EnvironmentConfig): Type-specific environment configuration
+        event_manager (EventManager): Centralized event system for framework coordination
+        event_emitter (EnvironmentEventEmitter): Standardized environment event emission
+        services_managers (List[IServiceManager]): Coordinated service management instances
+        test_config (TestConfig): Current test case configuration
+        global_config (GlobalConfig): Framework-wide configuration settings
 
     Methods:
-        is_network_environment():
-            Abstract method. Returns True if the plugin is a network environment.
-
-        setup_environment():
-            Abstract method. Sets up the required environment before running experiments.
-
-        teardown_environment():
-            Abstract method. Tears down the environment after experiments are completed.
+        is_network_environment(): Classification method distinguishing network vs execution environments
+        setup_environment(): Complete environment initialization with service coordination
+        teardown_environment(): Environment cleanup with resource deallocation
+        update_environment(): Dynamic configuration updates during test execution
+        initialize(): Bootstrap environment with framework integration
     """
 
     def __init__(
@@ -81,16 +151,27 @@ class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
     @abstractmethod
     def is_network_environment(self):
         """
-        Returns True if the plugin is a network environment.
+        Environment classification method for plugin orchestration.
+
+        Returns True for network environments (Docker Compose, Shadow NS) that provide
+        network isolation and service orchestration. Returns False for execution
+        environments (strace, Valgrind) that wrap individual process execution.
+
+        This classification drives framework behavior:
+        - Network environments coordinate multiple services with network topology
+        - Execution environments enhance single service execution with analysis tools
+
+        Returns:
+            bool: True if this is a network environment, False for execution environment
         """
         pass
 
     def set_event_manager(self, event_manager: EventManager):
         """
-        Set the event manager for this plugin. (For Mixin)
+        Update event manager reference for dynamic event system integration.
 
         Args:
-            event_manager: The event manager to set
+            event_manager: The event manager instance for framework-wide event coordination
         """
         self.event_manager = event_manager
         self.event_emitter = EnvironmentEventEmitter(event_manager)
@@ -105,7 +186,28 @@ class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
         execution_environment: List["IExecutionEnvironment"],
     ) -> None:
         """
-        Sets up the environment with proper event notifications.
+        Orchestrate complete environment setup with integrated event tracking.
+
+        This method coordinates the full environment initialization sequence:
+        1. Store configuration references for environment operations
+        2. Emit setup started event for monitoring and logging
+        3. Execute environment-specific setup through update_environment()
+        4. Emit completion event with success/failure status
+
+        The setup process integrates service managers, execution environments,
+        and configuration while maintaining event-driven visibility into the
+        environment lifecycle.
+
+        Args:
+            services_managers: List of service management instances for coordination
+            test_config: Test case configuration defining services and protocols
+            global_config: Framework-wide configuration and settings
+            timestamp: Unique timestamp for this test execution session
+            plugin_manager: Plugin management system for dynamic loading
+            execution_environment: List of execution analysis environments to integrate
+
+        Raises:
+            Exception: Any setup failure, with error details captured in failure event
         """
         try:
             self.logger.debug(
@@ -163,21 +265,46 @@ class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
     @abstractmethod
     def _do_deploy_services(self) -> None:
         """
-        Implementation of service deployment, to be overridden by subclasses.
+        Environment-specific service deployment implementation.
+
+        This method contains the core logic for deploying services within
+        the specific environment context (Docker containers, Shadow processes, etc.).
+        Called during the setup phase after configuration is established.
+
+        Implementation varies by environment type:
+        - Docker Compose: docker-compose up with service coordination
+        - Shadow NS: Shadow process spawning with network topology
+        - Execution: Process wrapper setup with analysis tool integration
         """
         pass
 
     @abstractmethod
     def teardown_environment(self) -> None:
         """
-        Teardown the environment with proper event notifications.
+        Orchestrate complete environment cleanup with event tracking.
+
+        Coordinates orderly environment shutdown including:
+        1. Service termination and resource cleanup
+        2. Output collection and finalization
+        3. Event emission for lifecycle tracking
+        4. Error handling for partial teardown scenarios
+
+        Must be implemented to ensure proper resource deallocation
+        regardless of setup success/failure state.
         """
         pass
 
     @abstractmethod
     def _do_teardown_environment(self) -> None:
         """
-        Implementation of environment teardown, to be overridden by subclasses.
+        Environment-specific teardown implementation.
+
+        Contains the core cleanup logic for the specific environment type:
+        - Docker Compose: Container stops, network cleanup, volume removal
+        - Shadow NS: Process termination, simulation state cleanup
+        - Execution: Analysis tool finalization, output collection
+
+        Called by teardown_environment() after event emission setup.
         """
         pass
 
@@ -191,7 +318,18 @@ class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
         test_config: "TestConfig",
     ) -> None:
         """
-        Update environment configuration.
+        Apply configuration updates to active environment.
+
+        Handles dynamic reconfiguration of environment settings during
+        test execution, including service updates, network changes,
+        and execution environment modifications.
+
+        Args:
+            execution_environment: Updated execution analysis environments
+            global_config: Current framework-wide configuration
+            plugin_manager: Plugin management system reference
+            services_managers: Updated service management instances
+            test_config: Current test case configuration
         """
         pass
 
@@ -204,15 +342,25 @@ class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
         global_config: "GlobalConfig",
     ) -> bool:
         """
-        Initialize the environment with configuration settings.
+        Bootstrap environment with framework integration.
+
+        Performs initial environment preparation including:
+        1. Configuration validation and processing
+        2. Output directory structure creation
+        3. Template and resource preparation
+        4. Framework integration validation
+
+        Called before setup_environment() to establish basic environment
+        readiness for test execution.
 
         Args:
-            test_config: Test configuration to use for this environment
-            output_dir: Directory to write environment files
-            event_manager: Shared event manager instance for emitting events
-            global_config: Global configuration settings
+            test_config: Test configuration defining services and protocols
+            output_dir: Root directory for environment output artifacts
+            event_manager: Framework event system for integration
+            global_config: Framework-wide configuration settings
 
         Returns:
-            bool: True if initialization succeeded, False otherwise
+            bool: True if initialization succeeded and environment is ready,
+                 False if critical initialization failures occurred
         """
         pass

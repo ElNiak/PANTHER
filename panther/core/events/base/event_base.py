@@ -75,10 +75,41 @@ class EventType(Enum):
 
 class BaseEvent(ABC):
     """
-    Base event class for all system events.
+    Base event class for all system events in PANTHER's event-driven architecture.
 
-    Provides common functionality for all events including unique identification,
-    timestamps, and basic data management.
+    This class forms the foundation of PANTHER's event system, providing deterministic
+    event identification, deduplication capabilities, and consistent event lifecycle
+    management. All domain-specific events (test, service, environment, etc.) inherit
+    from this base class.
+
+    **Architecture Role:**
+    - Central abstraction for all events in the system
+    - Enables event deduplication through content-based UUIDs
+    - Provides serialization and validation capabilities
+    - Supports event tracing and debugging through signatures
+
+    **Event Deduplication:**
+    Uses UUID5 with a deterministic namespace to generate identical UUIDs for events
+    with the same content, enabling sophisticated deduplication strategies in
+    distributed testing environments.
+
+    **Integration Pattern:**
+    ```mermaid
+    graph LR
+        A[Event Producer] --> B[BaseEvent]
+        B --> C[EventEmitter]
+        C --> D[EventManager]
+        D --> E[Observers]
+    ```
+
+    Attributes:
+        id (str): Unique identifier (UUID4 or content-based UUID5)
+        name (str): Event name/identifier
+        entity_type (EventType): Type of entity this event relates to
+        entity_id (str): Unique identifier of the entity
+        timestamp (datetime): Event creation timestamp
+        data (Dict[str, Any]): Additional event data
+        content_signature (str, optional): Deterministic content signature for deduplication
     """
 
     def __init__(

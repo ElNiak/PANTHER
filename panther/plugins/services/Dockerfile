@@ -3,7 +3,10 @@
 # BUILDER -> DEBUG -> MINIMAL runtime environments with execution tools
 # =============================================================================
 
+ARG TARGETPLATFORM=linux/amd64
+ARG BUILDPLATFORM=linux/amd64
 ARG RUNTIME_MODE=minimal
+ARG TARGETPLATFORM=linux/amd64
 
 # =============================================================================
 # STAGE 1: BUILDER - Build tools and dependencies
@@ -13,19 +16,33 @@ FROM ubuntu:20.04 AS builder
 ENV DEBIAN_FRONTEND=noninteractive
 RUN ln -fs /usr/share/zoneinfo/UTC /etc/localtime
 
-# Essential build tools and libraries
-RUN apt-get update && \
+# Essential build tools and libraries with platform-specific cache
+RUN --mount=type=cache,target=/var/cache/apt-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/var/lib/apt-${TARGETPLATFORM//\//-},sharing=locked \
+    apt-get update && \
     apt-get install --fix-missing --auto-remove --show-upgraded --no-install-recommends -y \
     build-essential git cmake software-properties-common \
     openssl libssl-dev pkg-config python3 \
     clang automake autoconf libtool \
     wget curl sudo \
-    libc6-dev libdw1 libelf1 libunwind-dev
+    libc6-dev libdw1 libelf1 libunwind-dev \
+    net-tools tcpdump iperf iperf3 traceroute \
+    wireshark tshark libcap2-bin \
+    iputils-ping iproute2 netcat-openbsd \
+    curl dnsutils automake autoconf libtool pkg-config libssl-dev \
+    cmake build-essential
 
-# Build gperftools from source (needed for profiling)
-RUN git clone https://github.com/gperftools/gperftools /tmp/gperftools
+
+# Build gperftools from source with platform-specific cache (needed for profiling)
+RUN --mount=type=cache,target=/tmp/git-cache-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/tmp/build-cache-${TARGETPLATFORM//\//-},sharing=locked \
+    git clone https://github.com/gperftools/gperftools /tmp/build-cache-${TARGETPLATFORM//\//-}/gperftools || \
+    (cd /tmp/build-cache-${TARGETPLATFORM//\//-}/gperftools && git pull) && \
+    cp -r /tmp/build-cache-${TARGETPLATFORM//\//-}/gperftools /tmp/gperftools
 WORKDIR /tmp/gperftools
-RUN ./autogen.sh && \
+RUN --mount=type=cache,target=/tmp/gperftools/.libs-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/tmp/gperftools/src/.libs-${TARGETPLATFORM//\//-},sharing=locked \
+    ./autogen.sh && \
     ./configure && \
     make && \
     make install
@@ -38,8 +55,10 @@ RUN mkdir -p /app /opt
 # =============================================================================
 FROM builder AS debug
 
-# Install debugging tools
-RUN apt-get install --no-install-recommends -y \
+# Install debugging tools with platform-specific cache
+RUN --mount=type=cache,target=/var/cache/apt-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/var/lib/apt-${TARGETPLATFORM//\//-},sharing=locked \
+    apt-get install --no-install-recommends -y \
     gdb valgrind strace util-linux
 
 # Copy built gperftools for debugging
@@ -51,8 +70,10 @@ COPY --from=builder /usr/local/lib/libtcmalloc.* /usr/local/lib/
 # =============================================================================
 FROM debug AS profile
 
-# Install performance profiling tools
-RUN apt-get install --no-install-recommends -y \
+# Install performance profiling tools with platform-specific cache
+RUN --mount=type=cache,target=/var/cache/apt-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/var/lib/apt-${TARGETPLATFORM//\//-},sharing=locked \
+    apt-get install --no-install-recommends -y \
     linux-tools-generic linux-tools-common linux-cloud-tools-common \
     radare2 google-perftools graphviz gv
 
@@ -70,14 +91,18 @@ FROM ubuntu:20.04 AS minimal
 ENV DEBIAN_FRONTEND=noninteractive
 RUN ln -fs /usr/share/zoneinfo/UTC /etc/localtime
 
-# Core runtime and network analysis tools (required for PANTHER protocol testing)
-RUN apt-get update && \
+# Core runtime and network analysis tools with platform-specific cache (required for PANTHER protocol testing)
+RUN --mount=type=cache,target=/var/cache/apt-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/var/lib/apt-${TARGETPLATFORM//\//-},sharing=locked \
+    apt-get update && \
     apt-get install --fix-missing --auto-remove --show-upgraded --no-install-recommends -y \
     python3 openssl \
     net-tools tcpdump iperf iperf3 traceroute \
     wireshark tshark libcap2-bin \
     iputils-ping iproute2 netcat-openbsd \
-    curl dnsutils
+    curl dnsutils software-properties-common git sudo \
+    jq automake autoconf libtool pkg-config libssl-dev \
+    cmake build-essential
 
 # Configure wireshark for non-root usage (PANTHER protocol testing requirement)
 RUN yes yes | DEBIAN_FRONTEND=teletype dpkg-reconfigure wireshark-common && \
@@ -90,6 +115,7 @@ RUN mkdir -p /app /opt
 # FINAL STAGE: Runtime mode selection
 # =============================================================================
 FROM ${RUNTIME_MODE} AS final
+
 
 # Labels for runtime identification
 ARG RUNTIME_MODE=minimal

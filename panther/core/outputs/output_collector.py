@@ -11,11 +11,76 @@ from abc import ABC, abstractmethod
 
 class IOutputCollector(ABC):
     """
+    Abstract interface contract for execution environment output collection in PANTHER.
 
-    Interface for collecting outputs from execution environments.
+    This interface establishes the contract that execution environment plugins must implement
+    to participate in PANTHER's automated output collection system. It enables the
+    OutputAggregator to discover and collect artifacts from diverse environment types
+    including Docker Compose, localhost containers, and Shadow NS simulations.
 
-    This interface must be implemented by execution environment plugins
-    to enable output collection for tester analysis.
+    ## Interface Contract
+
+    Implementing classes must provide:
+    1. **Output Discovery**: `collect_outputs()` returns paths to all generated artifacts
+    2. **Metadata Provision**: `get_output_metadata()` provides size, format, timing info
+
+    ## Implementation Guidelines
+
+    ### Output Path Conventions
+    - Use container-standard paths (`/app/logs/`) that will be mapped to host paths
+    - Support service-specific subdirectories for multi-service environments
+    - Include both phase-based outputs (compile, runtime, test) and artifact outputs
+
+    ### Protocol-Specific Artifacts
+    - **QUIC**: qlog files, SSL key logs, connection statistics, PCAP captures
+    - **HTTP**: access/error logs, HAR files, response time metrics
+    - **TCP**: tcpdump captures, netstat outputs, socket statistics
+    - **MINIP**: ping results, network traces, connectivity statistics
+
+    ### Error Handling
+    - Return empty dict rather than raising exceptions for missing outputs
+    - Log warnings for expected but missing artifacts
+    - Include partial results when some outputs are unavailable
+
+    ## Architecture Integration
+
+    ```mermaid
+    classDiagram
+        class IOutputCollector {
+            <<interface>>
+            +collect_outputs() Dict[str, str]
+            +get_output_metadata() Dict[str, Any]
+        }
+
+        class StandardOutputCollectorMixin {
+            +register_output_file()
+            +register_service_outputs()
+            +_resolve_container_path_to_host()
+            +_perform_deferred_discovery()
+        }
+
+        class ExecutionEnvironment {
+            +env_sub_type: str
+            +output_dir: Path
+            +services_managers: List
+        }
+
+        IOutputCollector <|.. StandardOutputCollectorMixin
+        StandardOutputCollectorMixin <|-- ExecutionEnvironment
+    ```
+
+    ## Example Implementation
+
+    ```python
+    class StraceEnvironment(ExecutionEnvironment, StandardOutputCollectorMixin):
+        def collect_outputs(self) -> Dict[str, str]:
+            # Mixin handles registration and path resolution
+            return super().collect_outputs()
+
+        def get_output_metadata(self) -> Dict[str, Any]:
+            # Mixin provides metadata with size, format, timestamps
+            return super().get_output_metadata()
+    ```
     """
 
     @abstractmethod

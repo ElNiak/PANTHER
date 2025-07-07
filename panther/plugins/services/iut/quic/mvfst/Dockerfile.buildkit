@@ -1,10 +1,20 @@
 # syntax=docker/dockerfile:1
-ARG TARGETPLATFORM=linux/amd64
-ARG RUNTIME_MODE=minimal
-ARG BASE_IMAGE=panther_base_service:latest
-FROM ${BASE_IMAGE} AS base
 
-ENV DEBIAN_FRONTEND=noninteractive
+# =============================================================================
+# MVFST Implementation - Modern Multi-Platform BuildKit Dockerfile
+# Cross-platform build with automatic platform detection and security hardening
+# =============================================================================
+
+# BuildKit automatic platform arguments
+ARG BUILDPLATFORM
+ARG TARGETPLATFORM
+ARG TARGETOS=linux
+ARG TARGETARCH
+ARG BUILDVARIANT
+
+# Runtime configuration
+ARG RUNTIME_MODE=minimal
+ARG BASE_IMAGE_DIGEST=sha256:965fbcae990b0467ed5657caceaec165018ef44a4d2d46c7cdea80a9dff0d1ea
 
 # Define build arguments for version-specific configurations
 ARG VERSION=master
@@ -13,19 +23,39 @@ ARG USER_N=root  # Define USER_N with default value
 ENV VERSION=${VERSION}
 ENV DEPENDENCIES=${DEPENDENCIES}
 
-# Layer 1: Perl dependencies for picotls test code (rarely changes)
-RUN --mount=type=cache,target=/root/.cpan \
-    echo install Test::TCP | perl -MCPAN - && \
-    echo install Scope::Guard | perl -MCPAN -
+# =============================================================================
+# STAGE 1: BUILD - Cross-platform build environment for MVFST
+# =============================================================================
 
-# Layer 2: Install jq with cache mount for apt packages
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update && \
-    apt-get install --fix-missing -y jq
+FROM --platform=$BUILDPLATFORM ${BASE_IMAGE} AS base
+ENV DEBIAN_FRONTEND=noninteractive
 
-# Switch to specified user (now properly defined)
-USER ${USER_N}
+# Layer 1: Install cross-compilation tools based on target architecture
+RUN --mount=type=cache,target=/var/cache/apt,id=crossbuild-$BUILDPLATFORM,sharing=locked \
+    --mount=type=cache,target=/var/cache/apt,id=crossbuild-$TARGETPLATFORM,sharing=locked \
+    --mount=type=tmpfs,target=/tmp \
+    case "$TARGETARCH" in \
+        arm64) \
+            apt-get update && \
+            apt-get install --no-install-recommends -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu && \
+            rm -rf /var/lib/apt/lists/* ;; \
+        arm) \
+            apt-get update && \
+            apt-get install --no-install-recommends -y gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf && \
+            rm -rf /var/lib/apt/lists/* ;; \
+        amd64) \
+            echo "Native compilation for amd64" ;; \
+        *) \
+            echo "Unsupported target architecture: $TARGETARCH" && exit 1 ;; \
+    esac
+
+# Set cross-compilation environment variables with CMAKE support
+ENV CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
+    CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++ \
+    CC_arm_unknown_linux_gnueabihf=arm-linux-gnueabihf-gcc \
+    CXX_arm_unknown_linux_gnueabihf=arm-linux-gnueabihf-g++ \
+    CMAKE_C_COMPILER_aarch64=aarch64-linux-gnu-gcc \
+    CMAKE_CXX_COMPILER_aarch64=aarch64-linux-gnu-g++
 
 # Layer 3: Dependency building with comprehensive cache (expensive, changes occasionally)
 RUN --mount=type=cache,target=/tmp/git-cache \
@@ -98,23 +128,39 @@ RUN --mount=type=cache,target=/tmp/mvfst-cache \
     mkdir -p /tmp/mvfst-build/cmake_cache && \
     cp -r CMakeCache.txt CMakeFiles/ Makefile /tmp/mvfst-build/cmake_cache/ 2>/dev/null || true
 
-# Layer 5: Runtime configuration (rarely changes)
+
+# =============================================================================
+# FINAL STAGE: Runtime configuration with platform metadata
+# =============================================================================
+
+# Target platform runtime stage
+FROM --platform=$TARGETPLATFORM base AS runtime
+
+# Layer: Runtime configuration
 EXPOSE 4443 8080
 
 RUN mkdir -p /app/logs /opt/certs /opt/ticket
 
-# =============================================================================
-# FINAL STAGE: Runtime mode selection for MVFST
-# =============================================================================
-FROM base AS final
+# Platform and build metadata for debugging and compliance
+ARG BUILDPLATFORM
+ARG TARGETPLATFORM
+ARG RUNTIME_MODE
+ARG TARGETOS
+ARG TARGETARCH
 
-# Labels for service identification
-ARG RUNTIME_MODE=minimal
-ARG VERSION=master
-LABEL service.name="mvfst"
-LABEL service.version="${VERSION}"
+LABEL platform.build="${BUILDPLATFORM}"
+LABEL platform.target="${TARGETPLATFORM}"
+LABEL platform.os="${TARGETOS}"
+LABEL platform.arch="${TARGETARCH}"
 LABEL runtime.mode="${RUNTIME_MODE}"
-LABEL runtime.description="Facebook MVFST QUIC implementation"
+LABEL implementation="mvfst"
+LABEL version="master"
+LABEL runtime.description="MVFST implementation execution environment"
+LABEL build.syntax="docker/dockerfile:1"
+
+# Health check for runtime validation
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD test -d /opt || exit 1
 
 # Set entrypoint (can be overridden)
 ENTRYPOINT [ "/bin/bash", "-l", "-c" ]

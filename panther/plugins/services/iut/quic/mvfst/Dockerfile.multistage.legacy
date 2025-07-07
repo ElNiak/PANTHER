@@ -1,0 +1,213 @@
+# syntax=docker/dockerfile:1
+ARG TARGETPLATFORM=linux/amd64
+ARG BUILDPLATFORM=linux/amd64
+
+
+# Multi-stage build for mvfst plugin isolation and optimization
+# Build stage: Contains all build tools and dependencies
+# Runtime stage: Minimal environment with only runtime binaries
+
+# ============================================================================
+# BUILD STAGE: Complete build environment with all tools and dependencies
+# ============================================================================
+
+FROM --platform=linux/amd64 panther_base_service:latest AS builder
+
+# Build arguments and environment
+ARG VERSION=master
+ARG DEPENDENCIES="[]"
+ENV VERSION=${VERSION}
+ENV DEPENDENCIES=${DEPENDENCIES}
+
+# System configuration for build environment
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Build dependencies with cache optimization
+RUN --mount=type=cache,target=/var/cache/apt-${TARGETPLATFORM//\//-},sharing=locked-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/var/lib/apt-${TARGETPLATFORM//\//-},sharing=locked-${TARGETPLATFORM//\//-},sharing=locked \
+    apt-get update && apt-get install -y \
+        build-essential \
+        # Platform-specific CMake configuration
+
+        case "${TARGETPLATFORM}" in \
+
+            "linux/amd64") \
+
+                CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=x86_64 -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++" \
+
+                ;; \
+
+            "linux/arm64") \
+
+                CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=aarch64" \
+
+                ;; \
+
+            *) \
+
+                CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=x86_64" \
+
+                ;; \
+
+        esac && \
+
+        cmake $CMAKE_ARGS \
+        autoconf \
+        libtool \
+        git \
+        wget \
+        curl \
+        pkg-config \
+        libssl-dev \
+        jq \
+        && rm -rf /var/lib/apt/lists/*
+
+# Perl dependencies for picotls test code
+RUN echo install Test::TCP | perl -MCPAN - && \
+    echo install Scope::Guard | perl -MCPAN -
+
+# User setup for build environment
+USER ${USER_N}
+WORKDIR /opt
+
+# Compilation steps with build cache optimization
+# Function to parse and build dependencies
+RUN --mount=type=cache,target=/tmp/git-cache-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/tmp/build-cache-${TARGETPLATFORM//\//-},sharing=locked \
+    echo "Starting dependency installation..." && \
+    echo $DEPENDENCIES | jq -c '.[]' | while read -r dep; do \
+    DEP_NAME=$(echo $dep | jq -r '.name'); \
+    DEP_URL=$(echo $dep | jq -r '.url'); \
+    DEP_COMMIT=$(echo $dep | jq -r '.commit'); \
+    if [ -n "$DEP_NAME" ] && [ -n "$DEP_URL" ] && [ -n "$DEP_COMMIT" ]; then \
+    echo "Cloning dependency '$DEP_NAME' from '$DEP_URL' at commit '$DEP_COMMIT'" && \
+    git clone "$DEP_URL" "$DEP_NAME" && \
+    cd "$DEP_NAME" && \
+    git checkout "$DEP_COMMIT" && \
+    git submodule update --init --recursive && \
+    OPENSSL_INCLUDE_DIR="/usr/include/openssl" # Platform-specific CMake configuration
+ case "${TARGETPLATFORM}" in \
+     "linux/amd64") \
+         CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=x86_64 -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++" \
+         ;; \
+     "linux/arm64") \
+         CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=aarch64" \
+         ;; \
+     *) \
+         CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=x86_64" \
+         ;; \
+ esac && \
+ cmake $CMAKE_ARGS . && \
+    make && \
+    make check && \
+    echo "Successfully built dependency '$DEP_NAME'"; \
+    else \
+    echo "Invalid dependency configuration: $dep"; \
+    exit 1; \
+    fi; \
+    done
+
+# Clone and build picoquic with build cache optimization
+RUN --mount=type=cache,target=/tmp/git-cache-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/tmp/build-cache-${TARGETPLATFORM//\//-},sharing=locked \
+    git clone https://github.com/private-octopus/picoquic.git && \
+    cd /opt/picoquic && \
+    git checkout ${VERSION}
+
+# Add customized files
+ADD file_to_change/rfc9000/picoquic_internal.h /opt/picoquic/picoquic/picoquic_internal.h
+
+# Build picoquic with build cache optimization
+RUN --mount=type=cache,target=/tmp/build-cache-${TARGETPLATFORM//\//-},sharing=locked \
+    cd /opt/picoquic && \
+    # Platform-specific CMake configuration
+
+    case "${TARGETPLATFORM}" in \
+
+        "linux/amd64") \
+
+            CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=x86_64 -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++" \
+
+            ;; \
+
+        "linux/arm64") \
+
+            CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=aarch64" \
+
+            ;; \
+
+        *) \
+
+            CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=x86_64" \
+
+            ;; \
+
+    esac && \
+
+    cmake $CMAKE_ARGS . && \
+    make && \
+    ./picoquic_ct || true
+
+# ============================================================================
+# RUNTIME STAGE: Selected runtime environment (minimal/debug/profile)
+# ============================================================================
+
+# Use base service with runtime mode selection
+# Base service provides: minimal (core+network) / debug (+gdb,valgrind,strace) / profile (+perf,gperftools,radare2)
+ARG RUNTIME_MODE
+FROM --platform=linux/amd64 panther_base_service:latest
+
+# Runtime arguments (inherited ARG RUNTIME_MODE from global scope)
+ARG VERSION=master
+ARG DEPENDENCIES="[]"
+ENV VERSION=${VERSION}
+ENV DEPENDENCIES=${DEPENDENCIES}
+
+# Runtime dependencies only (no build tools)
+RUN --mount=type=cache,target=/var/cache/apt-${TARGETPLATFORM//\//-},sharing=locked-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/var/lib/apt-${TARGETPLATFORM//\//-},sharing=locked-${TARGETPLATFORM//\//-},sharing=locked \
+    apt-get update && apt-get install -y \
+        jq \
+        libtest-tcp-perl \
+        libssl1.1 \
+        && rm -rf /var/lib/apt/lists/*
+
+# Copy compiled binaries and artifacts from build stage
+COPY --from=builder /opt/ /opt/
+
+# Runtime environment setup
+USER ${USER_N}
+
+# Default runtime configuration
+EXPOSE 4443
+EXPOSE 8080
+
+# Ensure required directories exist
+RUN mkdir -p /app/logs /opt/certs /opt/ticket
+
+# Runtime mode labels for identification
+ARG RUNTIME_MODE
+LABEL panther.runtime.mode="${RUNTIME_MODE}"
+LABEL panther.service.name="mvfst"
+LABEL panther.service.type="quic_iut"
+LABEL panther.runtime.capabilities.minimal="mvfst,picoquic,wireshark,tshark,tcpdump,iperf3"
+LABEL panther.runtime.capabilities.debug="minimal+gdb,valgrind,strace"
+LABEL panther.runtime.capabilities.profile="debug+perf,gperftools,radare2"
+
+# Set entrypoint
+ENTRYPOINT [ "/bin/bash", "-l", "-c" ]
+
+# =============================================================================
+# Usage Examples:
+# Build mvfst with minimal runtime (production):
+#   docker build --build-arg RUNTIME_MODE=minimal -t mvfst:minimal .
+#
+# Build mvfst with debug runtime (development):
+#   docker build --build-arg RUNTIME_MODE=debug -t mvfst:debug .
+#
+# Build mvfst with profile runtime (performance analysis):
+#   docker build --build-arg RUNTIME_MODE=profile -t mvfst:profile .
+#
+# Run mvfst server:
+#   docker run -p 4443:4443 -p 8080:8080 mvfst:minimal "cd /opt/picoquic && ./picoquic_ct"
+# =============================================================================

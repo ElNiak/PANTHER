@@ -3,155 +3,120 @@ Docker context and host helper utilities for BuildX and multi-platform builds.
 
 This module provides utilities for ensuring proper Docker context configuration
 and host connectivity for multi-platform builds and BuildX operations.
+
+Purpose: Detect and reconcile Docker CLI context vs. buildx builder context
+to prevent the "use `docker --context=default buildx`" error on Apple Silicon
+and other multi-context hosts.
 """
 
+from __future__ import annotations
+
+import json
 import logging
 import os
 import subprocess
-from typing import Optional
+from pathlib import Path
+from typing import Literal, Optional, Tuple
+
+DockerContext = str
+Strategy = Literal["switch-cli-context", "recreate-builder"]
 
 logger = logging.getLogger(__name__)
 
 
 def _ensure_docker_host(explicit: Optional[str] = None) -> None:
     """
-    Ensure Docker host is properly configured for the build environment.
+    Guarantee DOCKER_HOST is set *before* docker.from_env() is called.
 
-    This function configures the DOCKER_HOST environment variable based on
-    explicit configuration or platform defaults. It's essential for ensuring
-    proper connectivity to Docker daemon across different platforms.
-
-    Args:
-        explicit: Explicit Docker host to use, if provided
+    Order of precedence:
+    1. explicit override (arg or global_config).
+    2. already-exported value.
+    3. value from current `docker context inspect` JSON.
+    4. fallback '/var/run/docker.sock'.
     """
-    if explicit:
-        # Use explicitly provided Docker host
+    if explicit:  # via config
         os.environ["DOCKER_HOST"] = explicit
-        logger.debug(f"Set explicit Docker host: {explicit}")
         return
 
-    # Check if DOCKER_HOST is already set
-    current_host = os.environ.get("DOCKER_HOST")
-    if current_host:
-        logger.debug(f"Using existing Docker host: {current_host}")
-        return
+    if os.environ.get("DOCKER_HOST"):
+        return  # user already set it
 
-    # Platform-specific defaults
-    import platform
-
-    system = platform.system().lower()
-
-    if system == "darwin":  # macOS
-        # Check for Docker Desktop socket
-        docker_desktop_socket = "/var/run/docker.sock"
-        if os.path.exists(docker_desktop_socket):
-            os.environ["DOCKER_HOST"] = f"unix://{docker_desktop_socket}"
-            logger.debug(f"Set macOS Docker host: unix://{docker_desktop_socket}")
-        else:
-            logger.debug("Using default Docker host configuration for macOS")
-    elif system == "linux":
-        # Standard Linux Docker socket
-        linux_socket = "/var/run/docker.sock"
-        if os.path.exists(linux_socket):
-            os.environ["DOCKER_HOST"] = f"unix://{linux_socket}"
-            logger.debug(f"Set Linux Docker host: unix://{linux_socket}")
-        else:
-            logger.debug("Using default Docker host configuration for Linux")
-    else:
-        # Windows or other platforms - use defaults
-        logger.debug(f"Using default Docker host configuration for {system}")
-
-
-def ensure_builder_context(builder_name: str = "panther-builder") -> bool:
-    """
-    Ensure BuildX builder context is properly configured and accessible.
-
-    This function ensures that the specified BuildX builder exists and is
-    accessible from the current Docker context. It handles context switching
-    and builder validation for multi-platform builds.
-
-    Args:
-        builder_name: Name of the BuildX builder to ensure
-
-    Returns:
-        bool: True if builder context is ready, False if setup failed
-    """
     try:
-        # Check current Docker context
-        result = subprocess.run(
-            ["docker", "context", "show"],
-            capture_output=True,
+        ctx = subprocess.run(
+            ["docker", "context", "inspect", "--format", "{{json .}}"],
+            check=True,
             text=True,
-            timeout=10,
-        )
+            capture_output=True,
+        ).stdout
+        host = json.loads(ctx)["Endpoints"]["docker"]["Host"]
+        if host:
+            os.environ["DOCKER_HOST"] = host
+            return
+    except Exception as err:  # non-fatal: fall back
+        logging.getLogger(__name__).debug("Could not auto-detect DOCKER_HOST: %s", err)
 
-        if result.returncode == 0:
-            current_context = result.stdout.strip()
-            logger.debug(f"Current Docker context: {current_context}")
+    # Final fallback (Unix default)
+    os.environ.setdefault("DOCKER_HOST", "unix:///var/run/docker.sock")
 
-            # Test if the specific builder works with current context
-            test_result = subprocess.run(
-                ["docker", "buildx", "inspect", builder_name],
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
 
-            if test_result.returncode == 0:
-                logger.debug(
-                    f"Builder '{builder_name}' is compatible with context '{current_context}'"
-                )
-                return True
-            else:
-                logger.warning(
-                    f"Builder '{builder_name}' not compatible with context '{current_context}': {test_result.stderr}"
-                )
+def _run(*args: str) -> str:
+    """Run a Docker CLI command and return stripped stdout; raise on failure."""
+    proc = subprocess.run(
+        args,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return proc.stdout.strip()
 
-                # Try to switch to default context and test again
-                logger.info(
-                    "Attempting to switch to default context for Buildx compatibility"
-                )
-                switch_result = subprocess.run(
-                    ["docker", "context", "use", "default"],
-                    capture_output=True,
-                    text=True,
-                    timeout=10,
-                )
 
-                if switch_result.returncode == 0:
-                    logger.info("Successfully switched to default context")
+def _current_cli_context() -> DockerContext:
+    return _run("docker", "context", "show")
 
-                    # Test builder again with default context
-                    retest_result = subprocess.run(
-                        ["docker", "buildx", "inspect", builder_name],
-                        capture_output=True,
-                        text=True,
-                        timeout=10,
-                    )
 
-                    if retest_result.returncode == 0:
-                        logger.info(
-                            f"Builder '{builder_name}' is now compatible with default context"
-                        )
-                        return True
-                    else:
-                        logger.error(
-                            f"Builder '{builder_name}' still not compatible with default context: {retest_result.stderr}"
-                        )
-                        return False
-                else:
-                    logger.error(
-                        f"Failed to switch to default context: {switch_result.stderr}"
-                    )
-                    return False
-        else:
-            logger.warning(f"Failed to get current Docker context: {result.stderr}")
-            return False
+def _builder_context(builder: str) -> DockerContext:
+    return _run(
+        "docker",
+        "buildx",
+        "inspect",
+        builder,
+        "--format",
+        "{.Context}",
+    )
 
-    except (
-        subprocess.TimeoutExpired,
-        subprocess.CalledProcessError,
-        FileNotFoundError,
-    ) as e:
-        logger.warning(f"Error ensuring builder context: {e}")
-        return False
+
+def _switch_cli_context(target: DockerContext) -> None:
+    _run("docker", "context", "use", target)
+
+
+def _recreate_builder(builder: str) -> None:
+    # Destroy & recreate with same name in *current* context
+    _run("docker", "buildx", "rm", builder)
+    _run("docker", "buildx", "create", "--name", builder, "--use")
+
+
+def ensure_builder_context(
+    builder: str = "default",
+    strategy: Strategy = "switch-cli-context",
+) -> Tuple[DockerContext, DockerContext]:
+    """
+    Ensure `builder` was created in the same Docker context as the CLI.
+
+    Returns (cli_ctx, builder_ctx). Raises subprocess.CalledProcessError
+    on underlying Docker errors.
+    """
+
+    cli_ctx = _current_cli_context()
+    builder_ctx = _builder_context(builder)
+
+    if cli_ctx == builder_ctx:
+        return cli_ctx, builder_ctx  # All good.
+
+    if strategy == "switch-cli-context":
+        _switch_cli_context(builder_ctx)
+    elif strategy == "recreate-builder":
+        _recreate_builder(builder)
+    else:
+        raise ValueError(f"Unknown strategy: {strategy}")
+
+    return _current_cli_context(), _builder_context(builder)

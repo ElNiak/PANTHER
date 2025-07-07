@@ -33,6 +33,7 @@ if TYPE_CHECKING:
     author="PANTHER Team",
     capabilities=["iterative_testing", "statistical_analysis", "performance_variance"],
     external_dependencies=[],
+    runtime_mode="minimal",  # Set to minimal mode for reduced resource usage
 )
 class IterationsEnvironment(BaseExecutionEnvironment):
     """
@@ -51,6 +52,7 @@ class IterationsEnvironment(BaseExecutionEnvironment):
         env_type: str,
         env_sub_type: str,
         event_manager: EventManager,
+        target_platform: Optional[str] = None,
     ):
         """Initialize the iterations environment."""
         super().__init__(
@@ -59,6 +61,7 @@ class IterationsEnvironment(BaseExecutionEnvironment):
 
         # Initialize plugin config cache
         self._plugin_config = None
+        self.target_platform = target_platform
 
     def _get_plugin_config(self) -> IterationsConfig:
         """Get plugin config with caching and fallback."""

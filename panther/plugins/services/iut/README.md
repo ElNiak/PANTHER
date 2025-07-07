@@ -1,12 +1,50 @@
 # Implementation Under Test (IUT) Plugins
 
 > **Plugin Type**: IUT Service
-
 > **Verified Source Location**: `plugins/services/iut/`
 
 ## Overview
 
 Implementation Under Test (IUT) plugins represent the actual protocol implementations being evaluated within the PANTHER framework. These implementations can be tested for standards conformance, performance characteristics, or security vulnerabilities.
+
+IUT plugins provide a standardized interface for testing network protocol implementations in isolated container environments, enabling PANTHER to test various implementations without requiring local installation of implementation dependencies.
+
+## Architecture
+
+### Design Principles
+
+1. **Container Isolation**: Each implementation runs in its own Docker container to prevent environment conflicts
+2. **Template-Based Configuration**: Uses Jinja2 templates for generating implementation-specific configurations
+3. **Event-Driven Architecture**: Emits structured events during test execution for monitoring and debugging
+4. **Role-Based Testing**: Supports both client and server role testing with dynamic role assignment
+5. **Version Management**: Automatic discovery and validation of protocol version configurations
+
+### Core Components
+
+```mermaid
+graph TB
+    IImplementationManager[IImplementationManager] --> IServiceManager[IServiceManager]
+    IUTServiceManagerMixin[IUTServiceManagerMixin] --> ServiceManagerMixin[ServiceManagerMixin]
+    IUTServiceManagerMixin --> IImplementationManager
+    IUTManagerEventMixin[IUTManagerEventMixin] --> EventManager[EventManager]
+
+    subgraph "QUIC Implementations"
+        PicoquicServiceManager[PicoquicServiceManager] --> IUTServiceManagerMixin
+        QuicheServiceManager[QuicheServiceManager] --> IUTServiceManagerMixin
+        QuinnServiceManager[QuinnServiceManager] --> IUTServiceManagerMixin
+    end
+
+    subgraph "Core Dependencies"
+        ServiceTemplateRenderer[ServiceTemplateRenderer] --> PluginDirectory[Plugin Directory]
+        DockerIntegration[Docker Integration] --> ContainerRuntime[Container Runtime]
+    end
+```
+
+### Key Classes
+
+- **`IImplementationManager`**: Abstract base class defining the core contract for all IUT implementations
+- **`IUTServiceManagerMixin`**: Provides common initialization patterns and Docker integration
+- **`IUTManagerEventMixin`**: Handles event emission and monitoring during test execution
 
 <!-- src: /panther/plugins/services/iut/ -->
 

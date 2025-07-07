@@ -22,6 +22,9 @@ class ITesterManager(IServiceManager, ABC):
         protocol: ProtocolConfig,
         implementation_name: str,
         event_manager: Optional[EventManager] = None,
+        test_case: Optional[
+            Any
+        ] = None,  # Reference to parent test case for execution environment access
     ):
         super().__init__(
             service_config_to_test,
@@ -29,6 +32,7 @@ class ITesterManager(IServiceManager, ABC):
             protocol,
             implementation_name,
             event_manager,
+            test_case=test_case,
         )
         self._status = {
             "state": "created",

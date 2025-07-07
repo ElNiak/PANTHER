@@ -13,6 +13,7 @@ Key Features:
 """
 
 import json
+import stat
 import threading
 import time
 from dataclasses import asdict, dataclass
@@ -63,23 +64,27 @@ class DockerImageCache(LoggerMixin):
         cache_file: Optional[Path] = None,
         retry_count: int = 3,
         retry_delay: float = 1.0,
+        target_platform: Optional[str] = None,
     ):
         """
-        Initialize Docker image cache.
+        Initialize Docker image cache with platform-aware caching.
 
         Args:
             cache_ttl: Time-to-live for cached images in seconds
             cache_file: Path to persistent cache file (optional)
             retry_count: Number of retry attempts for Docker operations
             retry_delay: Delay between retry attempts in seconds
+            target_platform: Target platform for cache isolation (e.g., 'linux/amd64')
         """
         super().__init__()
         self.__init_logger__("docker_image_cache")
 
         self.cache_ttl = cache_ttl
-        self.cache_file = (
-            cache_file or Path.home() / ".panther" / "docker_image_cache.json"
-        )
+        self.target_platform = target_platform or self._detect_host_platform()
+
+        # Generate platform-aware cache file path
+        self.cache_file = self._get_platform_cache_file(cache_file)
+
         self.retry_count = retry_count
         self.retry_delay = retry_delay
 
@@ -91,16 +96,169 @@ class DockerImageCache(LoggerMixin):
         # Docker client (will be set by DockerBuilder)
         self._docker_client: Optional[docker.DockerClient] = None
 
-        # Create cache directory
-        self.cache_file.parent.mkdir(parents=True, exist_ok=True)
+        # Initialize secure cache file and directory
+        self._initialize_secure_cache_file()
 
         # Load existing cache
         self._load_cache()
 
         self.logger.info(
             f"Docker image cache initialized with TTL={cache_ttl}s, "
-            f"cache_file={self.cache_file}"
+            f"platform={self.target_platform}, cache_file={self.cache_file}"
         )
+
+    def _detect_host_platform(self) -> str:
+        """
+        Detect the host platform for platform-aware caching.
+
+        Returns:
+            str: Platform string in Docker format (e.g., 'linux/amd64')
+        """
+        import platform
+
+        # Map Python platform names to Docker platform format
+        arch_map = {
+            "x86_64": "amd64",
+            "amd64": "amd64",
+            "aarch64": "arm64",
+            "arm64": "arm64",
+            "armv7l": "arm/v7",
+        }
+
+        system = platform.system().lower()
+        machine = platform.machine().lower()
+
+        docker_arch = arch_map.get(machine, machine)
+        return f"{system}/{docker_arch}"
+
+    def _get_platform_cache_file(self, cache_file: Optional[Path]) -> Path:
+        """
+        Generate platform-specific cache file path.
+
+        Args:
+            cache_file: Optional cache file path override
+
+        Returns:
+            Path: Platform-specific cache file path
+        """
+        if cache_file:
+            # If explicit cache file provided, add platform suffix
+            platform_suffix = self.target_platform.replace("/", "-")
+            cache_dir = cache_file.parent
+            cache_name = cache_file.stem
+            cache_ext = cache_file.suffix
+            return cache_dir / f"{cache_name}-{platform_suffix}{cache_ext}"
+        else:
+            # Default platform-specific cache file
+            platform_suffix = self.target_platform.replace("/", "-")
+            return (
+                Path.home() / ".panther" / f"docker_image_cache-{platform_suffix}.json"
+            )
+
+    def set_target_platform(self, platform: str) -> None:
+        """
+        Update target platform and reinitialize cache file if needed.
+
+        Args:
+            platform: New target platform (e.g., 'linux/arm64')
+        """
+        if platform != self.target_platform:
+            old_platform = self.target_platform
+            old_cache_file = self.cache_file
+
+            # Update platform and cache file path
+            self.target_platform = platform
+            self.cache_file = self._get_platform_cache_file(None)
+
+            # Save current cache before switching
+            if self._cache:
+                self._save_cache()
+
+            # Clear cache and reload for new platform
+            with self._cache_lock:
+                self._cache = {}
+                self._last_refresh = 0.0
+
+            # Initialize new platform cache
+            self._initialize_secure_cache_file()
+            self._load_cache()
+
+            self.logger.info(
+                f"Switched cache platform: {old_platform} -> {platform}, "
+                f"cache_file: {old_cache_file} -> {self.cache_file}"
+            )
+
+    def _initialize_secure_cache_file(self) -> None:
+        """
+        Initialize cache file and directory with secure permissions.
+
+        Creates cache directory with 700 permissions (owner read/write/execute only)
+        and ensures cache file has 600 permissions (owner read/write only).
+        """
+        try:
+            # Create cache directory with secure permissions (700 - owner only)
+            self.cache_file.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+
+            # Ensure directory has correct permissions (in case it already existed)
+            self.cache_file.parent.chmod(0o700)
+
+            # If cache file exists, ensure it has secure permissions
+            if self.cache_file.exists():
+                self.cache_file.chmod(0o600)  # Owner read/write only
+                self.logger.debug(
+                    f"Secured existing cache file permissions: {self.cache_file}"
+                )
+
+            self.logger.debug(
+                f"Cache directory initialized with secure permissions: {self.cache_file.parent}"
+            )
+
+        except (OSError, PermissionError) as e:
+            self.logger.error(f"Failed to initialize secure cache file: {e}")
+            # Don't raise exception - allow cache to work without security if necessary
+            self.logger.warning("Cache will operate with default permissions")
+
+    def _validate_cache_file_security(self) -> bool:
+        """
+        Validate cache file and directory have secure permissions.
+
+        Returns:
+            bool: True if permissions are secure, False otherwise
+        """
+        try:
+            # Check directory permissions (should be 700)
+            dir_stat = self.cache_file.parent.stat()
+            dir_perms = stat.filemode(dir_stat.st_mode)[
+                -3:
+            ]  # Last 3 chars (owner perms)
+
+            if dir_perms != "rwx":
+                self.logger.warning(
+                    f"Cache directory permissions not secure: {dir_perms} "
+                    f"(expected: rwx, path: {self.cache_file.parent})"
+                )
+                return False
+
+            # Check file permissions if file exists (should be 600)
+            if self.cache_file.exists():
+                file_stat = self.cache_file.stat()
+                file_perms = stat.filemode(file_stat.st_mode)[
+                    -3:
+                ]  # Last 3 chars (owner perms)
+
+                if file_perms != "rw-":
+                    self.logger.warning(
+                        f"Cache file permissions not secure: {file_perms} "
+                        f"(expected: rw-, path: {self.cache_file})"
+                    )
+                    return False
+
+            self.logger.debug("Cache file security validation passed")
+            return True
+
+        except (OSError, AttributeError) as e:
+            self.logger.error(f"Failed to validate cache file security: {e}")
+            return False
 
     def set_docker_client(self, client: docker.DockerClient):
         """Set the Docker client for cache operations."""
@@ -108,7 +266,13 @@ class DockerImageCache(LoggerMixin):
         self.logger.debug("Docker client set for image cache")
 
     def _load_cache(self):
-        """Load cache from persistent storage."""
+        """Load cache from persistent storage with security validation."""
+        # Validate cache file security
+        if not self._validate_cache_file_security():
+            self.logger.warning(
+                "Cache file security validation failed, proceeding anyway"
+            )
+
         if not self.cache_file.exists():
             self.logger.debug("No cache file found, starting with empty cache")
             return
@@ -116,6 +280,13 @@ class DockerImageCache(LoggerMixin):
         try:
             with open(self.cache_file, "r") as f:
                 data = json.load(f)
+
+            # Validate cache file version for future compatibility
+            cache_version = data.get("version", "unknown")
+            if cache_version != "1.0" and cache_version != "unknown":
+                self.logger.warning(
+                    f"Unknown cache version: {cache_version}, proceeding anyway"
+                )
 
             with self._cache_lock:
                 self._cache = {
@@ -137,8 +308,14 @@ class DockerImageCache(LoggerMixin):
                 self._cache = {}
                 self._last_refresh = 0.0
 
-    def _save_cache(self):
-        """Save cache to persistent storage."""
+    def _save_cache(self) -> None:
+        """
+        Save cache to persistent storage using atomic writes.
+
+        Uses atomic write pattern (write to temp file, then rename) to prevent
+        cache corruption from concurrent access or interrupted writes.
+        """
+        temp_file = None
         try:
             cache_data = {
                 "images": {
@@ -146,15 +323,46 @@ class DockerImageCache(LoggerMixin):
                 },
                 "last_refresh": self._last_refresh,
                 "saved_at": time.time(),
+                "version": "1.0",  # Add version for future compatibility
             }
 
-            with open(self.cache_file, "w") as f:
+            # Create temporary file in same directory for atomic rename
+            temp_file = self.cache_file.with_suffix(".tmp")
+
+            # Write to temporary file with secure permissions
+            with open(temp_file, "w") as f:
                 json.dump(cache_data, f, indent=2)
 
-            self.logger.debug(f"Saved {len(self._cache)} images to cache file")
+            # Set secure permissions on temp file
+            temp_file.chmod(0o600)
 
-        except (OSError, json.JSONEncodeError) as e:
+            # Atomic rename (replaces original file)
+            temp_file.replace(self.cache_file)
+
+            self.logger.debug(
+                f"Atomically saved {len(self._cache)} images to cache file"
+            )
+
+        except (OSError, json.JSONEncodeError, PermissionError) as e:
             self.logger.error(f"Failed to save cache file: {e}")
+
+            # Clean up temp file if it exists
+            if temp_file and temp_file.exists():
+                try:
+                    temp_file.unlink()
+                    self.logger.debug("Cleaned up temporary cache file after error")
+                except OSError as cleanup_error:
+                    self.logger.warning(f"Failed to cleanup temp file: {cleanup_error}")
+
+        except Exception as e:
+            self.logger.error(f"Unexpected error saving cache: {e}")
+
+            # Clean up temp file if it exists
+            if temp_file and temp_file.exists():
+                try:
+                    temp_file.unlink()
+                except OSError:
+                    pass  # Best effort cleanup
 
     def _clean_expired_entries(self):
         """Remove expired entries from cache."""
@@ -345,18 +553,19 @@ class DockerImageCache(LoggerMixin):
             self._last_refresh = 0.0
         self.logger.info("Docker image cache invalidated")
 
-    def get_cache_stats(self) -> Dict[str, Union[int, float, str]]:
+    def get_cache_stats(self) -> Dict[str, Union[int, float, str, bool]]:
         """
-        Get cache statistics.
+        Get cache statistics including security status.
 
         Returns:
-            Dictionary with cache statistics
+            Dictionary with cache statistics and security information
         """
         current_time = time.time()
 
         with self._cache_lock:
             cache_age = current_time - self._last_refresh
             total_size = sum(image.size for image in self._cache.values())
+            security_valid = self._validate_cache_file_security()
 
             return {
                 "total_images": len(self._cache),
@@ -364,6 +573,7 @@ class DockerImageCache(LoggerMixin):
                 "cache_fresh": self._is_cache_fresh(),
                 "total_size_mb": total_size / (1024 * 1024),
                 "cache_file": str(self.cache_file),
+                "cache_secure": security_valid,
                 "last_refresh": datetime.fromtimestamp(self._last_refresh).isoformat()
                 if self._last_refresh
                 else "never",
