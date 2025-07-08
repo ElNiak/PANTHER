@@ -1,27 +1,31 @@
 # syntax=docker/dockerfile:1
 
-# Multi-stage build for lsquic plugin isolation and optimization
-# Build stage: Contains all build tools, BoringSSL, and dependencies
-# Runtime stage: Minimal environment with only runtime binaries
+# =============================================================================
+# BUILD STAGE: Cross-platform build environment with BoringSSL
+# =============================================================================
 
-# ============================================================================
-# BUILD STAGE: Complete build environment with BoringSSL and dependencies
-# ============================================================================
+FROM --platform=$BUILDPLATFORM ubuntu:22.04@sha256:965fbcae990b0467ed5657caceaec165018ef44a4d2d46c7cdea80a9dff0d1ea AS builder
 
-FROM --platform=linux/amd64 panther_base_service:latest AS builder
+# BuildKit automatic arguments
+ARG BUILDPLATFORM
+ARG TARGETPLATFORM
+ARG TARGETOS=linux
+ARG TARGETARCH
 
-# Build arguments and environment
+# Build configuration
 ARG VERSION=master
 ARG DEPENDENCIES="[]"
+ARG BUILD_MODE=""
 ENV VERSION=${VERSION}
 ENV DEPENDENCIES=${DEPENDENCIES}
+ENV BUILD_MODE=${BUILD_MODE}
 
 # System configuration for build environment
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Build dependencies with cache optimization
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+# Build dependencies with platform-aware cache optimization
+RUN --mount=type=cache,target=/var/cache/apt,id=apt-$BUILDPLATFORM,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,id=aptlib-$BUILDPLATFORM,sharing=locked \
     apt-get update && apt-get install -y \
         build-essential \
         cmake \
@@ -33,6 +37,19 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         jq \
         && rm -rf /var/lib/apt/lists/*
 
+# Cross-compilation setup
+RUN --mount=type=cache,target=/var/cache/apt,id=crossbuild-$BUILDPLATFORM,sharing=locked \
+    case "$TARGETARCH" in \
+        arm64) apt-get update && apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu && rm -rf /var/lib/apt/lists/* ;; \
+        arm) apt-get update && apt-get install -y gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf && rm -rf /var/lib/apt/lists/* ;; \
+        amd64) echo "Native build for amd64" ;; \
+        *) echo "Unsupported architecture: $TARGETARCH" && exit 1 ;; \
+    esac
+
+# Set cross-compilation environment
+ENV CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
+    CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++
+
 # Perl dependencies for picotls test code
 RUN echo install Test::TCP | perl -MCPAN - && \
     echo install Scope::Guard | perl -MCPAN -
@@ -41,9 +58,9 @@ RUN echo install Test::TCP | perl -MCPAN - && \
 USER ${USER_N}
 WORKDIR /opt
 
-# Build BoringSSL with build cache optimization
-RUN --mount=type=cache,target=/tmp/git-cache \
-    --mount=type=cache,target=/tmp/build-cache \
+# Build BoringSSL with platform-specific build cache optimization
+RUN --mount=type=cache,target=/tmp/git-cache,id=git-$TARGETPLATFORM,sharing=locked \
+    --mount=type=cache,target=/tmp/build-cache,id=build-$TARGETPLATFORM,sharing=private \
     git clone https://boringssl.googlesource.com/boringssl && \
     cd boringssl && \
     git checkout 9fc1c33e9c21439ce5f87855a6591a9324e569fd && \

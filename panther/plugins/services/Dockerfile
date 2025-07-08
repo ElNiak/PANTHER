@@ -54,7 +54,9 @@ FROM debug AS profile
 # Install performance profiling tools
 RUN apt-get install --no-install-recommends -y \
     linux-tools-generic linux-tools-common linux-cloud-tools-common \
-    radare2 google-perftools graphviz gv
+    google-perftools graphviz gv
+
+RUN snap install radare2 --classic
 
 # Update library cache for gperftools
 RUN ldconfig

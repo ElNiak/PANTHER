@@ -3,15 +3,24 @@ name: {{ experiment_name | lower }}
 services:
 {% for service in services %}
   {{ service.service_name  }}:
-{# Follow same logic as service_manager_docker_mixin.py #}
+{# Follow same logic as service_manager_docker_mixin.py with platform-aware tagging #}
 {% set base_version = service.service_protocol.version or 'latest' %}
 {% set build_mode_suffix = ('_' + service.build_mode) if service.build_mode else '' %}
 {% set version = base_version + build_mode_suffix %}
+
+{# Generate platform-aware image tag matching docker_builder.generate_image_tag() logic #}
+{% set target_platform = additional_param.computed_target_platform or 'linux/amd64' %}
+{% set platform_suffix = '-' + target_platform.replace('/', '-') if target_platform else '' %}
+{% set build_mode_tag_suffix = '-' + service.build_mode if service.build_mode else '' %}
+{% set runtime_mode = service.runtime_mode or 'minimal' %}
+{% set runtime_suffix = '-' + runtime_mode if runtime_mode and runtime_mode != 'minimal' else '' %}
+
 {% if version %}
-  {% set image_name = service.implementation_name + '_' + version %}
+  {% set base_image_name = service.implementation_name + '-' + version %}
 {% else %}
-  {% set image_name = service.implementation_name %}
+  {% set base_image_name = service.implementation_name %}
 {% endif %}
+{% set image_name = base_image_name + ':latest' + build_mode_tag_suffix + runtime_suffix + platform_suffix %}
 {% if additional_param.docker_config and additional_param.docker_config.pull_policy in ['never', 'build'] %}
     build:
       context: {{ paths.plugin_dir }}/services/iut/{{ service.service_protocol.name }}/{{ service.implementation_name }}

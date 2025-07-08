@@ -1,1 +1,0 @@
-"""ATLAS Commands Plugins System"""

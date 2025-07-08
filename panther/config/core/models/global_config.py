@@ -131,7 +131,10 @@ class DockerConfig(BaseUnifiedModel):
         None,
         description="Override target platform (e.g., linux/amd64, linux/arm64). If None, auto-detects based on host architecture",
     )
-    buildx_builder: str = Field("default", description="Buildx builder instance name")
+    buildx_builder: str = Field(
+        "auto",
+        description="Buildx builder instance name. Use 'auto' for auto-detection, 'default' for Docker's default builder, or specify a custom builder name",
+    )
     multi_platform: bool = Field(
         False, description="Enable multi-platform image building"
     )

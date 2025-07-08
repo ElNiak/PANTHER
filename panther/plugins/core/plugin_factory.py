@@ -431,6 +431,9 @@ class PluginFactory(LoggerMixin):
                     self.logger.error(f"Error creating service manager: {e}")
                     raise
 
+            # Set plugin_manager attribute after successful creation for runtime mode detection
+            service_manager.plugin_manager = self.plugin_manager
+
             self.logger.info(
                 "Successfully created service manager for %s (%s)",
                 implementation_name,

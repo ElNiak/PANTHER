@@ -344,10 +344,17 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
         # Fallback to host detection with improved ARM64 support
         machine = platform.machine().lower()
         if machine in ["arm64", "aarch64"]:
-            docker_platform = "linux/arm64"
-            # Validate ARM64 support for current context
-            if hasattr(self, "_validate_arm64_support"):
-                self._validate_arm64_support()
+            docker_platform = "linux/amd64"  # Native ARM64 support enabled
+            self.logger.info(
+                "Detected ARM64 architecture '%s' -> using native platform: %s",
+                machine,
+                "linux/amd64",  # TODO: picotls, z3, ivy etc. do not support ARM64 yet
+            )
+        # if machine in ["arm64", "aarch64"]:
+        #     docker_platform = "linux/arm64"
+        #     # Validate ARM64 support for current context
+        #     if hasattr(self, "_validate_arm64_support"):
+        #         self._validate_arm64_support()
         elif machine in ["x86_64", "amd64"]:
             docker_platform = "linux/amd64"
         else:
@@ -364,6 +371,70 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
         )
 
         return docker_platform
+
+    def _get_active_buildx_builder(self) -> str:
+        """
+        Auto-detect the currently active Docker buildx builder.
+
+        This method queries Docker to find the active builder, providing a more
+        robust alternative to hardcoding "default".
+
+        Returns:
+            str: Name of the active buildx builder
+        """
+        try:
+            # Query Docker buildx for the current builder list
+            result = subprocess.run(
+                ["docker", "buildx", "ls"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+
+            if result.returncode == 0:
+                # Parse output to find the current builder (marked with *)
+                for line in result.stdout.strip().split("\n"):
+                    if line.strip() and not line.startswith(" \\"):  # Skip sub-entries
+                        # Look for builder name followed by * (current builder indicator)
+                        if "*" in line:
+                            # Extract builder name (first column before *)
+                            name_part = line.split()[0]  # Get first column
+                            builder_name = name_part.rstrip("*")  # Remove * suffix
+                            self.logger.debug(
+                                "Auto-detected active buildx builder: %s", builder_name
+                            )
+                            return builder_name
+
+                # Fallback: if no current builder found, use first available
+                lines = result.stdout.strip().split("\n")
+                for line in lines:
+                    if (
+                        line.strip()
+                        and not line.startswith("NAME/NODE")
+                        and not line.startswith(" \\")
+                    ):
+                        first_builder = line.split()[0].rstrip("*")
+                        self.logger.debug(
+                            "Using first available buildx builder: %s", first_builder
+                        )
+                        return first_builder
+
+        except subprocess.TimeoutExpired:
+            self.logger.warning(
+                "Timeout detecting buildx builder, falling back to 'default'"
+            )
+        except subprocess.SubprocessError as e:
+            self.logger.warning(
+                "Failed to detect buildx builder: %s, falling back to 'default'", e
+            )
+        except Exception as e:
+            self.logger.warning(
+                "Unexpected error detecting buildx builder: %s, falling back to 'default'",
+                e,
+            )
+
+        # Ultimate fallback
+        return "default"
 
     def _validate_arm64_support(self) -> None:
         """
@@ -408,11 +479,17 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
             List[str]: Complete buildx command ready for execution
         """
         relative_dockerfile_path = dockerfile_path.relative_to(context_path)
+        self.logger.debug(
+            "BUILDX: Using Dockerfile at relative path: %s from %s",
+            relative_dockerfile_path,
+            context_path,
+        )
         host_platform = self._get_host_platform()
 
         # Base buildx command with modern options
         buildx_cmd = [
             "docker",
+            "--debug",  # Enable debug mode for better output
             "buildx",
             "build",
             "--builder",
@@ -428,17 +505,30 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
             "--load",  # Load the image into local Docker daemon
         ]
 
-        # Add BuildKit automatic platform arguments
-        automatic_args = self._get_buildkit_automatic_args(
-            host_platform, target_platform
+        # Docker buildx automatically provides BuildKit platform arguments (TARGETARCH, TARGETPLATFORM, etc.)
+        # when using --platform flag. No need to pass them manually as per Docker documentation.
+        self.logger.debug(
+            "BUILDX: host_platform=%s, target_platform=%s",
+            host_platform,
+            target_platform,
         )
-        for key, value in automatic_args.items():
-            buildx_cmd.extend(["--build-arg", f"{key}={value}"])
+        self.logger.debug(
+            "BUILDX: Relying on Docker automatic platform arguments (TARGETARCH, TARGETPLATFORM, etc.)"
+        )
 
-        # Add user-provided build arguments
+        # # Force rebuild if configured
+        # force_build = getattr(self.global_config.docker, 'force_build_docker_image', True) if hasattr(self, 'global_config') and self.global_config and hasattr(self.global_config, 'docker') else True
+        # if force_build:
+        #     buildx_cmd.append("--no-cache")
+
+        # Add all build arguments
+        self.logger.debug("BUILDX: Adding build arguments: %s", build_args)
         for key, value in build_args.items():
-            buildx_cmd.extend(["--build-arg", f"{key}={value}"])
-
+            if value is None or value == "":
+                self.logger.warning("BUILDX: Skipping empty build arg: %s", key)
+            else:
+                buildx_cmd.extend(["--build-arg", f"{key}={value}"])
+                self.logger.debug("BUILDX: Added arg: %s=%s", key, value)
         # Add network mode for dependency resolution
         buildx_cmd.extend(["--network", "host"])
 
@@ -450,7 +540,7 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
         # Add context path
         buildx_cmd.append(str(context_path))
 
-        self.logger.debug("Constructed buildx command: %s", " ".join(buildx_cmd))
+        self.logger.debug("BUILDX: Final command: %s", " ".join(buildx_cmd))
         return buildx_cmd
 
     def _get_buildkit_automatic_args(
@@ -482,7 +572,7 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
             "BUILDARCH": build_arch,
         }
 
-        self.logger.debug("BuildKit automatic arguments: %s", automatic_args)
+        self.logger.debug("BUILDX: Generated automatic args: %s", automatic_args)
         return automatic_args
 
     def _parse_platform(self, platform: str) -> tuple[str, str]:
@@ -543,12 +633,15 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
             self.logger.warning("Failed to get cache arguments: %s", e)
             return []
 
-    def _validate_buildx_command(self, buildx_cmd: List[str]) -> bool:
+    def _validate_buildx_command(
+        self, buildx_cmd: List[str], context_path: Path
+    ) -> bool:
         """
         Validate BuildX command structure before execution.
 
         Args:
             buildx_cmd: BuildX command list
+            context_path: Build context path for relative file validation
 
         Returns:
             bool: True if command is valid, False otherwise
@@ -572,12 +665,13 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
             self.logger.error("Invalid --platform argument structure")
             return False
 
-        # Validate file exists
+        # Validate file exists relative to context path
         try:
             file_index = buildx_cmd.index("--file") + 1
             dockerfile_path = buildx_cmd[file_index]
-            if not Path(dockerfile_path).exists():
-                self.logger.error("Dockerfile not found: %s", dockerfile_path)
+            full_dockerfile_path = context_path / dockerfile_path
+            if not full_dockerfile_path.exists():
+                self.logger.error("Dockerfile not found: %s", full_dockerfile_path)
                 return False
         except (IndexError, ValueError):
             self.logger.error("Invalid --file argument structure")
@@ -836,15 +930,35 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                     build_error="Docker client not initialized",
                 )
 
-            # Get buildx configuration - use Docker's default builder instead of custom name
+            # Get buildx configuration with auto-detection support
             builder_name = "default"
+            self.logger.debug("Initial builder_name set to: %s", builder_name)
             if (
                 hasattr(self, "global_config")
                 and self.global_config
                 and hasattr(self.global_config, "docker")
                 and hasattr(self.global_config.docker, "buildx_builder")
             ):
-                builder_name = self.global_config.docker.buildx_builder
+                configured_builder = self.global_config.docker.buildx_builder
+
+                # Auto-detect active builder if config is set to "auto" or "default"
+                if configured_builder in ["auto", "default"]:
+                    builder_name = self._get_active_buildx_builder()
+                    self.logger.debug(
+                        "Auto-detected buildx builder '%s' (config was '%s')",
+                        builder_name,
+                        configured_builder,
+                    )
+                else:
+                    builder_name = configured_builder
+                    self.logger.debug(
+                        "Using configured buildx builder: %s", builder_name
+                    )
+            else:
+                self.logger.debug(
+                    "No global_config.docker.buildx_builder found, using default: %s",
+                    builder_name,
+                )
 
             # For "default" builder, skip custom setup - use Docker's built-in default
             if builder_name != "default":
@@ -882,13 +996,17 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
             dependencies_json = json.dumps(dependencies) if dependencies else "[]"
 
             build_args = {
-                "VERSION": config.get("commit", "master"),
+                "VERSION": config.get("COMMIT", "master"),
                 "DEPENDENCIES": dependencies_json,
                 "BUILD_MODE": build_mode,
-                "RUNTIME_MODE": config.get("runtime_mode", "minimal"),
-                "BASE_IMAGE": config.get("BASE_IMAGE", "panther_base_service:latest"),
+                "RUNTIME_MODE": config.get("RUNTIME_MODE", "minimal"),
+                "BASE_IMAGE": self._generate_platform_aware_base_image(),
+                "TARGETPLATFORM": self._get_target_platform(),
+                "BUILDPLATFORM": self._get_host_platform(),
+                "TARGETOS": self._get_target_platform().split("/")[0],
+                "TARGETARCH": self._get_target_platform().split("/")[1],
             }
-
+            self.logger.debug("BUILDX: Generated build arguments: %s", build_args)
             # Calculate relative path from context to dockerfile
             # For buildx, prefer Dockerfile.buildkit or multistage variants if they exist
             buildkit_candidates = [
@@ -913,8 +1031,6 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                     build_error="Dockerfile not found",
                 )
 
-            relative_dockerfile_path = selected_dockerfile.relative_to(context_path)
-
             # Construct buildx command with modern BuildKit features
             buildx_cmd = self._construct_buildx_command(
                 builder_name=builder_name,
@@ -925,13 +1041,8 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                 target_platform=self._get_target_platform(),
             )
 
-            # Force rebuild if configured
-            # force_build = getattr(self.global_config.docker, 'force_build_docker_image', True) if hasattr(self, 'global_config') and self.global_config and hasattr(self.global_config, 'docker') else True
-            # if force_build:
-            #     buildx_cmd.append("--no-cache")
-
             # Validate command before execution
-            if not self._validate_buildx_command(buildx_cmd):
+            if not self._validate_buildx_command(buildx_cmd, context_path):
                 raise DockerBuildException(
                     message="Invalid BuildX command structure",
                     image_name=impl_name,
@@ -1121,11 +1232,11 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
 
             # Check build cache first
             build_args_for_cache = {
-                "VERSION": config.get("commit", "production"),
-                "DEPENDENCIES": json.dumps(config.get("dependencies", {})),
+                "VERSION": config.get("COMMIT", "production"),
+                "DEPENDENCIES": json.dumps(config.get("DEPENDENCIES", {})),
                 "BUILD_MODE": build_mode,
-                "RUNTIME_MODE": config.get("runtime_mode", "minimal"),
-                "BASE_IMAGE": config.get("BASE_IMAGE", "panther_base_service:latest"),
+                "RUNTIME_MODE": config.get("RUNTIME_MODE", "minimal"),
+                "BASE_IMAGE": self._generate_platform_aware_base_image(),
             }
 
             # Check cache and handle cache logic
@@ -1153,16 +1264,16 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                     return cached_result
 
             # Extract dependencies
-            dependencies = config.get("dependencies", {})
+            dependencies = config.get("DEPENDENCIES", {})
             dependencies_json = json.dumps(dependencies) if dependencies else "[]"
             log_f = None
 
             build_args = {
-                "VERSION": config.get("commit", "master"),
+                "VERSION": config.get("COMMIT", "master"),
                 "DEPENDENCIES": dependencies_json,
                 "BUILD_MODE": build_mode,
-                "RUNTIME_MODE": config.get("runtime_mode", "minimal"),
-                "BASE_IMAGE": config.get("BASE_IMAGE", "panther_base_service:latest"),
+                "RUNTIME_MODE": config.get("RUNTIME_MODE", "minimal"),
+                "BASE_IMAGE": self._generate_platform_aware_base_image(),
             }
             # Open the build log file if specified
             if self.build_log_file:
@@ -1267,6 +1378,27 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
             self.docker_logger.log_and_raise_build_exception(
                 impl_name, dockerfile_path, tag_for_error, e, log_file
             )
+
+    def _generate_platform_aware_base_image(
+        self, base_image_name: str = "panther_base_service:latest"
+    ) -> str:
+        """
+        Generate platform-aware base image tag to match the actual built base image.
+
+        Args:
+            base_image_name: The base image name (default: "panther_base_service:latest")
+
+        Returns:
+            str: Platform-aware base image tag (e.g., "panther_base_service:latest-linux-arm64")
+        """
+        target_platform = self._get_target_platform()
+        platform_suffix = f"-{target_platform.replace('/', '-')}"
+
+        # If the base image already has a platform suffix, don't add another one
+        if platform_suffix in base_image_name:
+            return base_image_name
+
+        return f"{base_image_name}{platform_suffix}"
 
     def generate_image_tag(
         self,

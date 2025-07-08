@@ -584,6 +584,7 @@ class PluginManager(LoggerMixin):
                 description=manifest.description or "",
                 author=manifest.author or "",
                 capabilities=manifest.capabilities or [],
+                runtime_mode=manifest.runtime_mode,  # Fix: Include runtime_mode from manifest
             )
         except Exception as e:
             self.logger.error(f"Failed to convert manifest to metadata: {e}")

@@ -13,6 +13,7 @@ Key Features:
 """
 
 import json
+import stat
 import threading
 import time
 from dataclasses import asdict, dataclass
@@ -91,8 +92,8 @@ class DockerImageCache(LoggerMixin):
         # Docker client (will be set by DockerBuilder)
         self._docker_client: Optional[docker.DockerClient] = None
 
-        # Create cache directory
-        self.cache_file.parent.mkdir(parents=True, exist_ok=True)
+        # Initialize secure cache file and directory
+        self._initialize_secure_cache_file()
 
         # Load existing cache
         self._load_cache()
@@ -107,8 +108,92 @@ class DockerImageCache(LoggerMixin):
         self._docker_client = client
         self.logger.debug("Docker client set for image cache")
 
+    def _initialize_secure_cache_file(self) -> None:
+        """
+        Initialize cache file and directory with secure permissions.
+
+        Creates cache directory with 700 permissions (owner read/write/execute only)
+        and ensures cache file has 600 permissions (owner read/write only).
+        """
+        try:
+            # Create cache directory with secure permissions (700 - owner only)
+            self.cache_file.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+
+            # Ensure directory has correct permissions (in case it already existed)
+            self.cache_file.parent.chmod(0o700)
+
+            # If cache file exists, ensure it has secure permissions
+            if self.cache_file.exists():
+                self.cache_file.chmod(0o600)  # Owner read/write only
+                self.logger.debug(
+                    f"Secured existing cache file permissions: {self.cache_file}"
+                )
+
+            self.logger.debug(
+                f"Cache directory initialized with secure permissions: {self.cache_file.parent}"
+            )
+
+        except (OSError, PermissionError) as e:
+            self.logger.error(f"Failed to initialize secure cache file: {e}")
+            # Don't raise exception - allow cache to work without security if necessary
+            self.logger.warning("Cache will operate with default permissions")
+
+    def _validate_cache_file_security(self) -> bool:
+        """
+        Validate cache file and directory have secure permissions.
+
+        Returns:
+            bool: True if permissions are secure, False otherwise
+        """
+        try:
+            # Check directory permissions (should be 700)
+            dir_stat = self.cache_file.parent.stat()
+            full_perms = stat.filemode(dir_stat.st_mode)[
+                1:
+            ]  # All permissions (skip dir type)
+            owner_perms = full_perms[0:3]  # Owner perms
+            group_perms = full_perms[3:6]  # Group perms
+            other_perms = full_perms[6:9]  # Other perms
+
+            if owner_perms != "rwx" or group_perms != "---" or other_perms != "---":
+                self.logger.warning(
+                    f"Cache directory permissions not secure: {full_perms} "
+                    f"(expected: rwx------, path: {self.cache_file.parent})"
+                )
+                return False
+
+            # Check file permissions if file exists (should be 600)
+            if self.cache_file.exists():
+                file_stat = self.cache_file.stat()
+                full_perms = stat.filemode(file_stat.st_mode)[
+                    1:
+                ]  # All permissions (skip file type)
+                owner_perms = full_perms[0:3]  # Owner perms
+                group_perms = full_perms[3:6]  # Group perms
+                other_perms = full_perms[6:9]  # Other perms
+
+                if owner_perms != "rw-" or group_perms != "---" or other_perms != "---":
+                    self.logger.warning(
+                        f"Cache file permissions not secure: {full_perms} "
+                        f"(expected: rw-------, path: {self.cache_file})"
+                    )
+                    return False
+
+            self.logger.debug("Cache file security validation passed")
+            return True
+
+        except (OSError, AttributeError) as e:
+            self.logger.error(f"Failed to validate cache file security: {e}")
+            return False
+
     def _load_cache(self):
-        """Load cache from persistent storage."""
+        """Load cache from persistent storage with security validation."""
+        # Validate cache file security
+        if not self._validate_cache_file_security():
+            self.logger.warning(
+                "Cache file security validation failed, proceeding anyway"
+            )
+
         if not self.cache_file.exists():
             self.logger.debug("No cache file found, starting with empty cache")
             return
@@ -116,6 +201,13 @@ class DockerImageCache(LoggerMixin):
         try:
             with open(self.cache_file, "r") as f:
                 data = json.load(f)
+
+            # Validate cache file version for future compatibility
+            cache_version = data.get("version", "unknown")
+            if cache_version != "1.0" and cache_version != "unknown":
+                self.logger.warning(
+                    f"Unknown cache version: {cache_version}, proceeding anyway"
+                )
 
             with self._cache_lock:
                 self._cache = {
@@ -137,8 +229,14 @@ class DockerImageCache(LoggerMixin):
                 self._cache = {}
                 self._last_refresh = 0.0
 
-    def _save_cache(self):
-        """Save cache to persistent storage."""
+    def _save_cache(self) -> None:
+        """
+        Save cache to persistent storage using atomic writes.
+
+        Uses atomic write pattern (write to temp file, then rename) to prevent
+        cache corruption from concurrent access or interrupted writes.
+        """
+        temp_file = None
         try:
             cache_data = {
                 "images": {
@@ -146,15 +244,46 @@ class DockerImageCache(LoggerMixin):
                 },
                 "last_refresh": self._last_refresh,
                 "saved_at": time.time(),
+                "version": "1.0",  # Add version for future compatibility
             }
 
-            with open(self.cache_file, "w") as f:
+            # Create temporary file in same directory for atomic rename
+            temp_file = self.cache_file.with_suffix(".tmp")
+
+            # Write to temporary file with secure permissions
+            with open(temp_file, "w") as f:
                 json.dump(cache_data, f, indent=2)
 
-            self.logger.debug(f"Saved {len(self._cache)} images to cache file")
+            # Set secure permissions on temp file
+            temp_file.chmod(0o600)
 
-        except (OSError, json.JSONEncodeError) as e:
+            # Atomic rename (replaces original file)
+            temp_file.replace(self.cache_file)
+
+            self.logger.debug(
+                f"Atomically saved {len(self._cache)} images to cache file"
+            )
+
+        except (OSError, PermissionError) as e:
             self.logger.error(f"Failed to save cache file: {e}")
+
+            # Clean up temp file if it exists
+            if temp_file and temp_file.exists():
+                try:
+                    temp_file.unlink()
+                    self.logger.debug("Cleaned up temporary cache file after error")
+                except OSError as cleanup_error:
+                    self.logger.warning(f"Failed to cleanup temp file: {cleanup_error}")
+
+        except Exception as e:
+            self.logger.error(f"Unexpected error saving cache: {e}")
+
+            # Clean up temp file if it exists
+            if temp_file and temp_file.exists():
+                try:
+                    temp_file.unlink()
+                except OSError:
+                    pass  # Best effort cleanup
 
     def _clean_expired_entries(self):
         """Remove expired entries from cache."""
@@ -345,18 +474,19 @@ class DockerImageCache(LoggerMixin):
             self._last_refresh = 0.0
         self.logger.info("Docker image cache invalidated")
 
-    def get_cache_stats(self) -> Dict[str, Union[int, float, str]]:
+    def get_cache_stats(self) -> Dict[str, Union[int, float, str, bool]]:
         """
-        Get cache statistics.
+        Get cache statistics including security status.
 
         Returns:
-            Dictionary with cache statistics
+            Dictionary with cache statistics and security information
         """
         current_time = time.time()
 
         with self._cache_lock:
             cache_age = current_time - self._last_refresh
             total_size = sum(image.size for image in self._cache.values())
+            security_valid = self._validate_cache_file_security()
 
             return {
                 "total_images": len(self._cache),
@@ -364,6 +494,7 @@ class DockerImageCache(LoggerMixin):
                 "cache_fresh": self._is_cache_fresh(),
                 "total_size_mb": total_size / (1024 * 1024),
                 "cache_file": str(self.cache_file),
+                "cache_secure": security_valid,
                 "last_refresh": datetime.fromtimestamp(self._last_refresh).isoformat()
                 if self._last_refresh
                 else "never",

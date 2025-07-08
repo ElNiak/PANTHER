@@ -319,33 +319,25 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
         self.emit_docker_build_started(str(dockerfile_path), expected_image_tag)
 
         try:
-            # Determine the correct base image based on runtime mode
-            if runtime_mode == "minimal":
-                base_image = "panther_base_service:latest"
-            else:
-                base_image = f"panther_base_service_{runtime_mode}:latest"
-
             if dependencies is not None:
                 self.logger.debug(
-                    f"Building service image {self.implementation_name} with dependencies: {dependencies}, commit: {commit}, build_mode: '{build_mode}', and base_image: '{base_image}'"
+                    f"Building service image {self.implementation_name} with dependencies: {dependencies}, commit: {commit}, build_mode: '{build_mode}'"
                 )
                 version_dict = {
-                    "dependencies": dependencies,
-                    "version": base_version,
-                    "commit": commit,
-                    "build_mode": build_mode,
+                    "DEPENDENCIES": dependencies,
+                    "VERSION": base_version,
+                    "COMMIT": commit,
+                    "BUILD_MODE": build_mode,
                     "RUNTIME_MODE": runtime_mode,
-                    "BASE_IMAGE": base_image,  # Pass base image as build arg
                 }
             else:
                 self.logger.debug(
-                    f"Building service image {self.implementation_name} with version: {base_version}, build_mode: '{build_mode}', and base_image: '{base_image}'"
+                    f"Building service image {self.implementation_name} with version: {base_version}, build_mode: '{build_mode}'"
                 )
                 version_dict = {
-                    "version": base_version,
-                    "build_mode": build_mode,
+                    "VERSION": base_version,
+                    "BUILD_MODE": build_mode,
                     "RUNTIME_MODE": runtime_mode,
-                    "BASE_IMAGE": base_image,  # Pass base image as build arg
                 }
 
             self.logger.debug(
@@ -469,6 +461,17 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
             self.logger.debug(
                 "Attempting to determine runtime_mode from execution environment"
             )
+            self.logger.debug(
+                f"service_config_to_test exists: {hasattr(self, 'service_config_to_test')}"
+            )
+            if hasattr(self, "service_config_to_test"):
+                self.logger.debug(
+                    f"service_config_to_test has test_config: {hasattr(self.service_config_to_test, 'test_config')}"
+                )
+                if hasattr(self.service_config_to_test, "test_config"):
+                    self.logger.debug(
+                        f"test_config.execution_environment: {getattr(self.service_config_to_test.test_config, 'execution_environment', 'NOT_FOUND')}"
+                    )
             if (
                 not execution_env_name
                 and hasattr(self, "service_config_to_test")
@@ -503,12 +506,31 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
 
             # Auto-discover runtime mode from execution environment type
             # Check plugin metadata to determine if it's debug, profile, or minimal
+            self.logger.debug(
+                f"Checking plugin_manager availability: hasattr={hasattr(self, 'plugin_manager')}, value={getattr(self, 'plugin_manager', None)}"
+            )
             if hasattr(self, "plugin_manager") and self.plugin_manager:
                 try:
                     self.logger.debug(
                         f"Auto-discovering runtime_mode for {execution_env_name}"
                     )
+
+                    # Debug: List all available plugins to see if strace is discovered
+                    discovered_plugins = self.plugin_manager.discover_plugins()
+                    self.logger.debug(
+                        f"Available discovered plugins: {list(discovered_plugins.keys())}"
+                    )
+
                     plugin_info = self.plugin_manager.get_plugin(execution_env_name)
+                    self.logger.debug(
+                        f"Plugin lookup result for '{execution_env_name}': {plugin_info}"
+                    )
+                    if plugin_info:
+                        self.logger.debug(f"Plugin info attributes: {dir(plugin_info)}")
+                        self.logger.debug(
+                            f"Plugin runtime_mode: {getattr(plugin_info, 'runtime_mode', 'NOT_FOUND')}"
+                        )
+
                     if (
                         plugin_info
                         and hasattr(plugin_info, "runtime_mode")

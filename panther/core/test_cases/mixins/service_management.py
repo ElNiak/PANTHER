@@ -317,6 +317,10 @@ class ServiceManagementMixin:
             self.logger.debug(f"Plugin manifest file_path: {plugin_manifest.file_path}")
             self.logger.debug(f"Implementation dir: {implementation_dir}")
 
+            # Enhance service_details with test_config for runtime mode detection
+            # This enables the legacy pattern: service_config_to_test.test_config.execution_environment
+            service_details.test_config = self.test_config
+
             if service_manager := self.plugin_manager.create_service_manager(
                 protocol=protocol,
                 implementation=implementation,
