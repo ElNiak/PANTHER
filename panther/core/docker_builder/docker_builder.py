@@ -47,11 +47,14 @@ from panther.core.exceptions.fast_fail import (
 )
 from panther.core.utils.logging_mixin import LoggerMixin
 
+from .base_images import BaseImageManagerMixin
 from .caching.docker_build_cache_mixin import DockerBuildCacheMixin
 from .caching.docker_image_cache import DockerImageCache
 
 
-class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
+class DockerBuilder(
+    BaseImageManagerMixin, DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin
+):
     """Manage Docker operations with singleton pattern and advanced caching.
 
     A singleton Docker management system that provides comprehensive Docker operations
@@ -421,11 +424,11 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
         # Detect host architecture and map to appropriate Docker platform
         machine = platform.machine().lower()
         if machine in ["arm64", "aarch64"]:
-            docker_platform = "linux/arm64"  # Native ARM64 support enabled
+            docker_platform = "linux/amd64"  # Native ARM64 support enabled
             self.logger.info(
                 "Detected ARM64 architecture '%s' -> using native platform: %s",
                 machine,
-                docker_platform,
+                "linux/amd64",  # TODO: picotls, z3, ivy etc. do not support ARM64 yet
             )
         elif machine in ["x86_64", "amd64"]:
             docker_platform = "linux/amd64"
@@ -971,7 +974,9 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                 "DEPENDENCIES": dependencies_json,
                 "BUILD_MODE": build_mode,
                 "RUNTIME_MODE": config.get("runtime_mode", "minimal"),
-                "BASE_IMAGE": config.get("BASE_IMAGE", "panther_base_service:latest"),
+                "BASE_IMAGE": self.select_optimal_base_image(
+                    impl_name, config, target_platform
+                ),
                 "TARGETPLATFORM": target_platform,
                 "BUILDPLATFORM": build_platform,
                 "TARGETARCH": target_arch,
@@ -1360,13 +1365,8 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                 "DEPENDENCIES": json.dumps(dependencies) if dependencies else "[]",
                 "BUILD_MODE": build_mode,
                 "RUNTIME_MODE": config.get("runtime_mode", "minimal"),
-                "BASE_IMAGE": self.generate_image_tag(
-                    impl_name="panther_base_service",
-                    version="",
-                    tag_version="latest",
-                    build_mode="",
-                    runtime_mode=runtime_mode,
-                    target_platform=target_platform,
+                "BASE_IMAGE": self.select_optimal_base_image(
+                    impl_name, config, target_platform
                 ),
                 "TARGETPLATFORM": target_platform,
                 "BUILDPLATFORM": build_platform,
@@ -1602,6 +1602,27 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
 
         # Sanitize tag (Docker tags have character restrictions)
         return self._sanitize_docker_tag(full_tag)
+
+    def _generate_platform_aware_base_image(
+        self, base_image_name: str = "panther_base_service:latest"
+    ) -> str:
+        """
+        Generate platform-aware base image tag to match the actual built base image.
+
+        Args:
+            base_image_name: The base image name (default: "panther_base_service:latest")
+
+        Returns:
+            str: Platform-aware base image tag (e.g., "panther_base_service:latest-linux-arm64")
+        """
+        target_platform = self.get_target_platform()
+        platform_suffix = f"-{target_platform.replace('/', '-')}"
+
+        # If the base image already has a platform suffix, don't add another one
+        if platform_suffix in base_image_name:
+            return base_image_name
+
+        return f"{base_image_name}{platform_suffix}"
 
     def _sanitize_docker_tag(self, tag: str) -> str:
         """

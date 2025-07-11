@@ -44,7 +44,10 @@ if TYPE_CHECKING:
         "version_negotiation",
     ],
     tags=["quic", "implementation", "c", "minimalist", "research"],
-    external_dependencies=["docker"],
+    external_dependencies=[
+        "docker",
+        "picotls",
+    ],  # TODO: ARM: https://github.com/h2o/picotls/wiki/Using-picotls
 )
 class PicoquicServiceManager(
     IUTServiceManagerMixin,

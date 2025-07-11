@@ -69,7 +69,7 @@ PANTHER experiments follow a **4-phase execution model**:
 * **Event-driven**: Real-time monitoring and coordination
 * **Extensible**: Plugin architecture for new protocols and environments
 
-For detailed workflow documentation, see [WORKFLOW.md](WORKFLOW.md).
+For detailed workflow documentation, see [workflow.md](workflow.md).
 
 ---
 
@@ -93,10 +93,11 @@ For detailed workflow documentation, see [WORKFLOW.md](WORKFLOW.md).
 
 1. [Installation Guide](INSTALL.md)
 2. [Quick Start](QUICK_START.md)
-3. [Configuration](panther/config/README.md)
-4. [Workflows](WORKFLOW.md)
-5. [Core](panther/core/README.md)
-6. [Web Application Workflows](panther/webapp/README.md)
+3. [Command Line Interface (CLI)](docs/cli_click.md) - **New Click-based CLI with enhanced UX**
+4. [Configuration](panther/config/README.md)
+5. [Workflows](workflow.md)
+6. [Core](panther/core/README.md)
+7. [Web Application Workflows](panther/webapp/README.md)
 
 ### System Features
 

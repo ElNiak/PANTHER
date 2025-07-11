@@ -1,7 +1,7 @@
 # QUIC(k) Start — Your First Experiment in ≈10(30) min 🚀
 
-This guide shows how to install **PANTHER**, spin up a simple
-**client ↔ server experiment**, and inspect the results.
+This guide shows how to install **PANTHER** with the new enhanced Click CLI, spin up a simple
+**client ↔ server experiment**, and inspect the results using modern command-line tools.
 
 We use **QUIC** as a concrete example because multiple ready-made QUIC
 implementations ship with PANTHER, **yet the exact same steps apply to
@@ -24,8 +24,27 @@ source .venv/bin/activate
 pip install panther-net
 ```
 
-`panther-net` is the official PyPI package that bundles the core engine, all built-in plugins, and CLI entry-points.
+`panther-net` is the official PyPI package that bundles the core engine, all built-in plugins, and the enhanced Click CLI.
 Upgrade later with `pip install -U panther-net`.
+
+### New CLI Features
+
+The enhanced CLI provides:
+- **Visual feedback** with colors and emojis (✅ ❌ ⚠️ 🚀)
+- **Progress bars** for long operations
+- **Better help** with examples and suggestions
+- **Tab completion** for commands and options
+- **Interactive tutorials** for learning
+
+```bash
+# Verify installation and explore
+panther --version
+panther --help
+
+# Enable bash completion (optional but recommended)
+panther completion bash > ~/.panther-complete.bash
+echo 'source ~/.panther-complete.bash' >> ~/.bashrc
+```
 
 ## 2 — Write a Minimal Experiment (YAML)
 
@@ -102,7 +121,7 @@ tests:
           type: iut
         protocol:
           name: quic
-          version: rfc9000 
+          version: rfc9000
           role: client
           target: server
     steps:
@@ -113,10 +132,17 @@ tests:
 
 ## 3 — Run the Experiment
 
+With the new CLI, experiment execution is more intuitive and provides better feedback:
+
 ```bash
-panther --experiment-config quic_demo.yaml --enable-metrics
-# Or
-python -m panther  --experiment-config quic_demo.yaml --enable-metrics
+# First, validate your configuration (recommended)
+panther config validate --config quic_demo.yaml --explain
+
+# Preview what will happen (optional dry run)
+panther run --config quic_demo.yaml --dry-run
+
+# Run the actual experiment with metrics
+panther run --config quic_demo.yaml --enable-metrics --verbose
 ```
 
 PANTHER validates the YAML, builds images if absent, launches the two
@@ -124,10 +150,10 @@ containers under Docker Compose, runs the handshake for 15 s, and writes
 results to `outputs/`.
 
 !!! note "Alternative Test Configuration"
-    You can also test with:
+    You can also test with built-in examples:
 
     ```bash
-    python -m panther  --experiment-config experiment-config/experiment_config_example.yaml --enable-metrics
+    panther run --config experiment-config/experiment_config_example.yaml --enable-metrics
     ```
 
 ---

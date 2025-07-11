@@ -45,12 +45,14 @@ try:
     def record(name, value, tags=None):
         global _build_collector
         if _build_collector is None:
-            from pathlib import Path
             import tempfile
+            from pathlib import Path
+
             output_dir = Path(tempfile.mkdtemp())
             _build_collector = MetricsCollector("build_system", output_dir)
 
         from panther.core.metrics.enums import MetricType
+
         _build_collector.record_metric(name, MetricType.PERFORMANCE, value, tags or {})
 
     def flush(kind, extra=None):
@@ -63,9 +65,10 @@ try:
 
     class ResourceSampler:
         def __init__(self):
-            from panther.core.metrics.metrics_collector import MetricsCollector
-            from pathlib import Path
             import tempfile
+            from pathlib import Path
+
+            from panther.core.metrics.metrics_collector import MetricsCollector
 
             # Create temporary metrics collection for build system
             output_dir = Path(tempfile.mkdtemp())
@@ -83,6 +86,7 @@ try:
     # Utility functions for build system
     def get_directory_size_mb(path):
         import os
+
         total_size = 0
         for dirpath, dirnames, filenames in os.walk(path):
             for filename in filenames:
@@ -110,21 +114,25 @@ try:
             # Fallback to direct API call if cache doesn't have size
             if builder.client:
                 image = builder.client.images.get(name)
-                return image.attrs['Size'] / (1024 * 1024)  # Convert to MB
+                return image.attrs["Size"] / (1024 * 1024)  # Convert to MB
 
             return None
         except Exception as e:
             # Log the error for debugging but don't fail the build
             try:
                 from panther.core.docker_builder.docker_builder import DockerBuilder
+
                 builder = DockerBuilder.get_instance()
-                builder.logger.warning(f"Failed to get Docker image size for '{name}': {e}")
+                builder.logger.warning(
+                    f"Failed to get Docker image size for '{name}': {e}"
+                )
             except:
                 pass  # Avoid nested errors
             return None
 
     def find_latest_wheel(dist_dir, package_name):
         from pathlib import Path
+
         dist_path = Path(dist_dir)
         wheels = list(dist_path.glob(f"{package_name}*.whl"))
         if not wheels:
@@ -448,7 +456,13 @@ class BuildManager:
             # Create a backup of mkdocs.yml
             mkdocs_file = self.project_root / "mkdocs.yml"
             if mkdocs_file.exists():
-                backup_file = self.project_root / "panther" / "tools" / "docs_gen" / "mkdocs.yml.bak"
+                backup_file = (
+                    self.project_root
+                    / "panther"
+                    / "tools"
+                    / "docs_gen"
+                    / "mkdocs.yml.bak"
+                )
                 if backup_file.exists():
                     print(f"Restoring backup of mkdocs.yml from {backup_file}")
                     shutil.copy2(backup_file, mkdocs_file)
@@ -462,9 +476,14 @@ class BuildManager:
             # Phase 1 Automated Documentation Discovery (replaces 85+ manual mappings)
             print("🔍 Generating automated build_dict...")
             try:
-                from panther.tools.docs_gen.generate_build_mapping import get_automated_build_dict
+                from panther.tools.docs_gen.generate_build_mapping import (
+                    get_automated_build_dict,
+                )
+
                 build_dict = get_automated_build_dict()
-                print(f"📚 Generated {len(build_dict)} documentation mappings automatically")
+                print(
+                    f"📚 Generated {len(build_dict)} documentation mappings automatically"
+                )
             except Exception as e:
                 print(f"⚠️  Automated discovery failed: {e}")
                 print("🔄 Falling back to emergency mappings...")
@@ -511,7 +530,12 @@ class BuildManager:
             # Run the MkDocs automation script
             print("Running MkDocs automation script...")
             mkdocs_script = (
-                self.project_root / "panther" / "tools" / "docs_gen" / "mkdocs" / "automate_mkdocs.py"
+                self.project_root
+                / "panther"
+                / "tools"
+                / "docs_gen"
+                / "mkdocs"
+                / "automate_mkdocs.py"
             )
             if mkdocs_script.exists():
                 result = self.run_command([sys.executable, str(mkdocs_script)])
@@ -529,7 +553,11 @@ class BuildManager:
             # Generate plugin inventory
             print("Generating plugin inventory...")
             inventory_script = (
-                self.project_root / "panther" / "tools" / "docs_gen" / "generate_plugin_inventory.py"
+                self.project_root
+                / "panther"
+                / "tools"
+                / "docs_gen"
+                / "generate_plugin_inventory.py"
             )
             if inventory_script.exists():
                 result = self.run_command(
@@ -579,7 +607,6 @@ class BuildManager:
                     dest_path.parent.mkdir(parents=True, exist_ok=True)
                     print(f"Copying {md_file} to {dest_path}")
                     shutil.copy2(md_file, dest_path)
-
 
             # Build documentation with MkDocs
             print("Building documentation with MkDocs...")

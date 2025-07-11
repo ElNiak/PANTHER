@@ -11,6 +11,7 @@ __all__ = [
     # Primary configuration system exports
     "ConfigurationManager",
     "core",
+    "load_experiment",
     # Configuration models
     "BaseConfig",
     "ExperimentConfig",
@@ -65,5 +66,11 @@ def __getattr__(name):  # pylint: disable=invalid-name
         from .core.models import TestConfig  # pylint: disable=import-outside-toplevel
 
         return TestConfig
+    elif name == "load_experiment":
+        from .core.manager import (  # pylint: disable=import-outside-toplevel
+            load_experiment,
+        )
+
+        return load_experiment
     else:
         raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

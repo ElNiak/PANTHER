@@ -14,11 +14,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import click
 import yaml
 from colorlog import ColoredFormatter
 from omegaconf import OmegaConf
-from tqdm import tqdm
-from tqdm.contrib.logging import logging_redirect_tqdm
 
 from panther.config.core.models import ExperimentConfig, GlobalConfig
 from panther.core.events.emitter_registry import EmitterRegistry
@@ -603,277 +602,253 @@ class ExperimentManager(
                     "Starting test execution for experiment: %s", self.experiment_name
                 )
 
-            # Conditionally redirect main loggers through tqdm to prevent progress bar corruption
-            # Observer logs will still go to files for detailed analysis
-            if self.global_config.progress.redirect_logging:
-                redirect_context = logging_redirect_tqdm()
+            # Initialize test counters before progress handling
+            successful_tests = 0
+            failed_tests = 0
+
+            # Use Click progress bar if enabled, otherwise use a simple iterator
+            if self.global_config.progress.enable_progress_bar:
+                self.logger.debug("Using Click progress bar for test execution")
+
+                # Click progress bar context
+                progress_context = click.progressbar(
+                    self.test_cases,
+                    length=len(self.test_cases),
+                    label="Running test cases",
+                    show_eta=True,
+                    show_percent=True,
+                    show_pos=True,
+                    file=sys.stdout,
+                    color=True,
+                )
             else:
-                # No-op context manager when logging redirection is disabled
-                from contextlib import nullcontext
+                self.logger.debug("Progress bar disabled, using simple iterator")
 
-                redirect_context = nullcontext()
+                # Simple iterator wrapper for compatibility
+                class SimpleProgressIterator:
+                    def __init__(self, iterable):
+                        self.iterable = iterable
+                        self.current_test = None
 
-            with redirect_context:
-                # Use tqdm progress bar if enabled, otherwise use a simple iterator
-                if self.global_config.progress.enable_progress_bar:
-                    self.logger.debug("Using tqdm progress bar for test execution")
-                    progress_context = tqdm(
-                        self.test_cases,
-                        total=len(self.test_cases),
-                        desc="Current Test Case - Running",
-                        position=1,
-                        leave=True,
-                        bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]",
-                        dynamic_ncols=True,
-                        file=sys.stdout,
-                    )
-                else:
-                    self.logger.debug("Progress bar disabled, using simple iterator")
+                    def __iter__(self):
+                        return iter(self.iterable)
 
-                    # Simple iterator wrapper that provides write() method for compatibility
-                    class SimpleProgressIterator:
-                        def __init__(self, iterable):
-                            self.iterable = iterable
+                    def __enter__(self):
+                        return self
 
-                        def __iter__(self):
-                            return iter(self.iterable)
+                    def __exit__(self, *args):
+                        pass
 
-                        def __enter__(self):
-                            return self
+                    def update_label(self, label):
+                        # No-op for simple iterator
+                        pass
 
-                        def __exit__(self, *args):
-                            pass
+                progress_context = SimpleProgressIterator(self.test_cases)
 
-                        def write(self, msg):
-                            print(msg)  # Simple print for status messages
+            with progress_context as progress_bar:
+                for i, test_case in enumerate(self.test_cases):
+                    # Update progress bar label for Click progress bar
+                    if self.global_config.progress.enable_progress_bar:
+                        # Click progress bar handles the iteration automatically
+                        # We'll update the label if needed
+                        progress_bar.label = f"Test {i+1}/{len(self.test_cases)} - {test_case.test_config.name}"
 
-                    progress_context = SimpleProgressIterator(self.test_cases)
-
-                with progress_context as progress_bar:
-                    successful_tests = 0
-                    failed_tests = 0
-                    for i, test_case in enumerate(self.test_cases):
-                        # Update progress bar description and position
-                        if self.global_config.progress.enable_progress_bar:
-                            progress_bar.set_description(
-                                f"Test {i+1}/{len(self.test_cases)} - {test_case.test_config.name}"
-                            )
-                            progress_bar.set_postfix({"Status": "Starting"})
-
-                        # Show important status updates using tqdm.write (configurable)
-                        if self.global_config.progress.show_test_status:
-                            emoji = (
-                                "🧪 " if self.global_config.progress.use_emojis else ""
-                            )
-                            self.logger.info(
-                                f"{emoji}Starting: {test_case.test_config.name}"
-                            )
+                    # Show important status updates (configurable)
+                    if self.global_config.progress.show_test_status:
+                        emoji = "🧪 " if self.global_config.progress.use_emojis else ""
                         self.logger.info(
-                            "Running test case: %s", test_case.test_config.name
+                            f"{emoji}Starting: {test_case.test_config.name}"
+                        )
+                    self.logger.info(
+                        "Running test case: %s", test_case.test_config.name
+                    )
+
+                    # Get test-specific emitter for this test case
+                    test_specific_emitter = self.emitter_registry.get_test_emitter(
+                        test_case.test_config.name
+                    )
+
+                    # Emit test execution started event
+                    test_specific_emitter.emit_execution_started(
+                        steps=["setup", "execute", "assertions", "teardown"]
+                    )
+                    try:
+                        # Save test-specific configuration before execution
+                        self._save_test_configuration(
+                            test_case.test_config, test_case.test_experiment_dir
                         )
 
-                        # Get test-specific emitter for this test case
-                        test_specific_emitter = self.emitter_registry.get_test_emitter(
-                            test_case.test_config.name
+                        self.logger.info(
+                            "Executing test case: %s", test_case.test_config.name
                         )
+                        test_result = test_case.run()
 
-                        # Emit test execution started event
-                        test_specific_emitter.emit_execution_started(
-                            steps=["setup", "execute", "assertions", "teardown"]
-                        )
+                        # Click progress bar updates automatically via iteration
 
-                        # Update progress bar status
-                        if self.global_config.progress.enable_progress_bar:
-                            progress_bar.set_postfix({"Status": "Running"})
-                        try:
-                            # Save test-specific configuration before execution
-                            self._save_test_configuration(
-                                test_case.test_config, test_case.test_experiment_dir
-                            )
-
-                            self.logger.info(
-                                "Executing test case: %s", test_case.test_config.name
-                            )
-                            test_result = test_case.run()
-
-                            # Manually update progress bar after test completion
-                            if self.global_config.progress.enable_progress_bar:
-                                progress_bar.update(1)  # Increment progress
-                                progress_bar.set_postfix({"Status": "Completed"})
-                                progress_bar.refresh()
-
-                            # Check if test actually passed (returns None or True for success, False for failure)
-                            if test_result is False:
-                                failed_tests += 1
-                                if self.global_config.progress.show_test_status:
-                                    emoji = (
-                                        "❌ "
-                                        if self.global_config.progress.use_emojis
-                                        else ""
-                                    )
-                                    self.logger.info(
-                                        f"{emoji}Failed: {test_case.test_config.name} - Test analysis failed"
-                                    )
-                                # Emit test failed event
-                                test_specific_emitter.emit_failed(
-                                    error_message="Test analysis failed",
-                                    error_type="TestAnalysisFailure",
-                                    phase="analysis",
-                                    summary={
-                                        "test_name": test_case.test_config.name,
-                                        "reason": "Tester analysis determined test failure",
-                                    },
-                                )
-                                continue
-
-                            successful_tests += 1
+                        # Check if test actually passed (returns None or True for success, False for failure)
+                        if test_result is False:
+                            failed_tests += 1
                             if self.global_config.progress.show_test_status:
                                 emoji = (
-                                    "✅ "
+                                    "❌ "
                                     if self.global_config.progress.use_emojis
                                     else ""
                                 )
                                 self.logger.info(
-                                    f"{emoji}Completed: {test_case.test_config.name}"
+                                    f"{emoji}Failed: {test_case.test_config.name} - Test analysis failed"
                                 )
-
-                            # Emit test completed successfully event
-                            test_specific_emitter.emit_completed(
-                                summary={
-                                    "status": "success",
-                                    "test_name": test_case.test_config.name,
-                                }
-                            )
-
-                        except (KeyboardInterrupt, SystemExit):
-                            # Update progress bar for interrupted test
-                            if self.global_config.progress.enable_progress_bar:
-                                progress_bar.update(1)
-                                progress_bar.set_postfix({"Status": "Interrupted"})
-
-                            # Emit interrupted test event
-                            self.logger.warning(
-                                "Test interrupted: %s",
-                                test_case.test_config.name,
-                                exc_info=True,
-                            )
+                            # Emit test failed event
                             test_specific_emitter.emit_failed(
-                                error_message="Test interrupted",
-                                error_type="KeyboardInterrupt",
-                                phase="execution",
+                                error_message="Test analysis failed",
+                                error_type="TestAnalysisFailure",
+                                phase="analysis",
+                                summary={
+                                    "test_name": test_case.test_config.name,
+                                    "reason": "Tester analysis determined test failure",
+                                },
                             )
-                            raise  # Re-raise to break out of the loop
+                            continue
 
-                        except (
-                            TestCaseInitializationError,
-                            TestExecutionError,
-                            ValueError,
-                            TypeError,
-                            AttributeError,
-                            RuntimeError,
-                            OSError,
-                            PantherExperimentError,
-                            subprocess.CalledProcessError,
-                            DockerComposeException,
-                            PortConflictException,
-                            IvyCompilationException,
-                            ResourceExhaustionException,
-                            CertificateException,
-                            ConfigurationException,
-                            TimeoutCascadeException,
-                        ) as test_error:
-                            # Handle all expected error types with a single handler
-                            failed_tests += 1
+                        successful_tests += 1
+                        if self.global_config.progress.show_test_status:
+                            emoji = (
+                                "✅ " if self.global_config.progress.use_emojis else ""
+                            )
+                            self.logger.info(
+                                f"{emoji}Completed: {test_case.test_config.name}"
+                            )
 
-                            # Update progress bar for failed test
-                            if self.global_config.progress.enable_progress_bar:
-                                progress_bar.update(1)
-                                progress_bar.set_postfix({"Status": "Failed"})
+                        # Emit test completed successfully event
+                        test_specific_emitter.emit_completed(
+                            summary={
+                                "status": "success",
+                                "test_name": test_case.test_config.name,
+                            }
+                        )
 
-                            self.record_failed_test(test_case, test_error)
+                    except (KeyboardInterrupt, SystemExit):
+                        # Handle interrupted test - Click progress bar handles iteration automatically
 
-                            # Check for critical errors that should terminate experiment
-                            if isinstance(
-                                test_error,
-                                (
-                                    DockerComposeException,
-                                    PortConflictException,
-                                    IvyCompilationException,
-                                    ResourceExhaustionException,
-                                    CertificateException,
-                                ),
-                            ):
-                                # Use fast-fail handler to determine if we should continue
-                                should_continue = self.fast_fail_handler.handle_error(
-                                    test_error, raise_on_critical=False
-                                )
-                                if not should_continue:
-                                    self.logger.critical(
-                                        "Critical %s error in test %s, terminating experiment",
-                                        test_error.category.value,
-                                        test_case.test_config.name,
-                                    )
-                                    # Emit experiment failure and re-raise to stop execution
-                                    self.experiment_emitter.emit_finished_early(
-                                        reason=f"Critical {test_error.category.value} Failure",
-                                        details={
-                                            "test_name": test_case.test_config.name,
-                                            "error_type": type(test_error).__name__,
-                                            "error_category": test_error.category.value,
-                                            "error_context": test_error.context,
-                                        },
-                                    )
-                                    raise test_error  # This will break out of the test loop
+                        # Emit interrupted test event
+                        self.logger.warning(
+                            "Test interrupted: %s",
+                            test_case.test_config.name,
+                            exc_info=True,
+                        )
+                        test_specific_emitter.emit_failed(
+                            error_message="Test interrupted",
+                            error_type="KeyboardInterrupt",
+                            phase="execution",
+                        )
+                        raise  # Re-raise to break out of the loop
 
-                            # Add recursion protection for AttributeError
-                            if isinstance(
-                                test_error, AttributeError
-                            ) and "emit_service_setup_completed" in str(test_error):
-                                self.logger.error(
-                                    "Test case %s failed due to missing event emitter method: %s",
+                    except (
+                        TestCaseInitializationError,
+                        TestExecutionError,
+                        ValueError,
+                        TypeError,
+                        AttributeError,
+                        RuntimeError,
+                        OSError,
+                        PantherExperimentError,
+                        subprocess.CalledProcessError,
+                        DockerComposeException,
+                        PortConflictException,
+                        IvyCompilationException,
+                        ResourceExhaustionException,
+                        CertificateException,
+                        ConfigurationException,
+                        TimeoutCascadeException,
+                    ) as test_error:
+                        # Handle all expected error types with a single handler
+                        failed_tests += 1
+
+                        # Click progress bar handles iteration automatically
+
+                        self.record_failed_test(test_case, test_error)
+
+                        # Check for critical errors that should terminate experiment
+                        if isinstance(
+                            test_error,
+                            (
+                                DockerComposeException,
+                                PortConflictException,
+                                IvyCompilationException,
+                                ResourceExhaustionException,
+                                CertificateException,
+                            ),
+                        ):
+                            # Use fast-fail handler to determine if we should continue
+                            should_continue = self.fast_fail_handler.handle_error(
+                                test_error, raise_on_critical=False
+                            )
+                            if not should_continue:
+                                self.logger.critical(
+                                    "Critical %s error in test %s, terminating experiment",
+                                    test_error.category.value,
                                     test_case.test_config.name,
-                                    str(test_error),
                                 )
-                                # Emit a simple failed event without triggering more errors
-                                with contextlib.suppress(Exception):
-                                    test_specific_emitter.emit_failed(
-                                        error_message=str(test_error),
-                                        error_type="AttributeError",
-                                        phase="setup",
-                                    )
-                            else:
-                                self._handle_test_error(test_case, test_error)
-                                # Continue with other tests unless critical error occurred
+                                # Emit experiment failure and re-raise to stop execution
+                                self.experiment_emitter.emit_finished_early(
+                                    reason=f"Critical {test_error.category.value} Failure",
+                                    details={
+                                        "test_name": test_case.test_config.name,
+                                        "error_type": type(test_error).__name__,
+                                        "error_category": test_error.category.value,
+                                        "error_context": test_error.context,
+                                    },
+                                )
+                                raise test_error  # This will break out of the test loop
 
-                        except Exception as test_error:  # pylint: disable=broad-except
-                            # Generic error handling as a fallback
-                            # This is necessary to ensure all tests run even if some fail
-                            failed_tests += 1
+                        # Add recursion protection for AttributeError
+                        if isinstance(
+                            test_error, AttributeError
+                        ) and "emit_service_setup_completed" in str(test_error):
+                            self.logger.error(
+                                "Test case %s failed due to missing event emitter method: %s",
+                                test_case.test_config.name,
+                                str(test_error),
+                            )
+                            # Emit a simple failed event without triggering more errors
+                            with contextlib.suppress(Exception):
+                                test_specific_emitter.emit_failed(
+                                    error_message=str(test_error),
+                                    error_type="AttributeError",
+                                    phase="setup",
+                                )
+                        else:
                             self._handle_test_error(test_case, test_error)
+                            # Continue with other tests unless critical error occurred
+
+                    except Exception as test_error:  # pylint: disable=broad-except
+                        # Generic error handling as a fallback
+                        # This is necessary to ensure all tests run even if some fail
+                        failed_tests += 1
+                        self._handle_test_error(test_case, test_error)
+                        self.logger.warning(
+                            "Unexpected error type %s caught. Consider adding specific handling.",
+                            type(test_error).__name__,
+                        )
+
+                    finally:
+                        # Clean up test-specific observers after each test completes
+                        # This prevents observer duplication when multiple tests run
+                        try:
+                            self.event_manager.cleanup_scoped_observers("test")
+                            self.logger.debug(
+                                "Cleaned up test-scoped observers for test: %s",
+                                test_case.test_config.name,
+                            )
+                        except (
+                            Exception
+                        ) as cleanup_error:  # pylint: disable=broad-except
                             self.logger.warning(
-                                "Unexpected error type %s caught. Consider adding specific handling.",
-                                type(test_error).__name__,
+                                "Failed to cleanup test observers for %s: %s",
+                                test_case.test_config.name,
+                                cleanup_error,
                             )
 
-                        finally:
-                            # Clean up test-specific observers after each test completes
-                            # This prevents observer duplication when multiple tests run
-                            try:
-                                self.event_manager.cleanup_scoped_observers("test")
-                                self.logger.debug(
-                                    "Cleaned up test-scoped observers for test: %s",
-                                    test_case.test_config.name,
-                                )
-                            except (
-                                Exception
-                            ) as cleanup_error:  # pylint: disable=broad-except
-                                self.logger.warning(
-                                    "Failed to cleanup test observers for %s: %s",
-                                    test_case.test_config.name,
-                                    cleanup_error,
-                                )
-
-            tqdm.write("")  # Ensures the bar stays at the bottom after completion
+            self.logger.info("")  # Add final newline for clean output formatting
 
             # Experiment-level summary is handled by experiment_emitter
             self.logger.info(

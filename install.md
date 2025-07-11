@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document provides instructions for installing and setting up the PANTHER system on your environment.
+This document provides instructions for installing and setting up the PANTHER system on your environment with the new enhanced Click-based CLI featuring improved user experience and comprehensive command structure.
 
 ## Prerequisites
 
@@ -33,8 +33,30 @@ source .venv/bin/activate
 pip install "panther-net"
 ```
 
-`panther-net` is the official PyPI package that bundles the core engine, all built-in plugins, and CLI entry-points.
+`panther-net` is the official PyPI package that bundles the core engine, all built-in plugins, and the enhanced Click-based CLI.
 Upgrade later with `pip install -U "panther-net"`.
+
+#### CLI Verification and Setup
+
+After installation, verify the CLI is working and set up enhanced features:
+
+```bash
+# Verify installation
+panther --version
+
+# Check system readiness
+panther tools doctor
+
+# Enable bash completion for enhanced productivity
+panther completion bash > ~/.panther-complete.bash
+echo 'source ~/.panther-complete.bash' >> ~/.bashrc
+source ~/.bashrc
+
+# Get help and explore commands
+panther --help
+panther run --help
+panther config --help
+```
 
 ### Option B — From Source *(for dev)*
 
@@ -140,6 +162,67 @@ python -c "import panther; print(panther.__version__)"
 # Run the CLI help command
 panther --help
 ```
+
+## CLI Quick Start
+
+### Enhanced Click-based CLI
+
+PANTHER now features a modern, user-friendly CLI built with Click that provides:
+
+- **Colored output** with emojis for visual feedback
+- **Progress bars** for long-running operations
+- **Enhanced error messages** with contextual suggestions
+- **Bash completion** for improved productivity
+- **Interactive tutorials** for learning
+- **Comprehensive help** with examples
+
+### Your First Experiment
+
+Get started quickly with the new CLI:
+
+```bash
+# 1. Generate your first experiment configuration
+panther create template experiment --output my-first-experiment.yaml
+
+# 2. Validate the configuration
+panther config validate --config my-first-experiment.yaml --explain
+
+# 3. Run a dry-run to see what would happen
+panther run --config my-first-experiment.yaml --dry-run
+
+# 4. Execute the actual experiment
+panther run --config my-first-experiment.yaml --enable-metrics
+```
+
+### Interactive Learning
+
+Explore PANTHER through interactive tutorials:
+
+```bash
+# Start interactive tutorial system
+panther tutorial interactive
+
+# Or run specific tutorials
+panther tutorial run service --mode guided
+panther tutorial run configuration --mode quick
+```
+
+### Plugin Management
+
+Discover and manage plugins easily:
+
+```bash
+# List available plugins
+panther plugins list
+
+# Get information about a specific plugin
+panther plugins info picoquic --verbose
+
+# Check plugin parameters
+panther plugins params picoquic --type iut
+```
+
+For comprehensive CLI documentation, see [CLI Documentation](docs/cli_click.md).
 
 ## Troubleshooting
 

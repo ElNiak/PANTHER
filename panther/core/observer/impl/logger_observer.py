@@ -10,11 +10,11 @@ from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
 
 try:
-    from tqdm import tqdm
+    import click
 
-    TQDM_AVAILABLE = True
+    CLICK_AVAILABLE = True
 except ImportError:
-    TQDM_AVAILABLE = False
+    CLICK_AVAILABLE = False
 
 from panther.core.events.base.event_base import BaseEvent
 from panther.core.events.environment.events import EnvironmentErrorEvent
@@ -239,43 +239,31 @@ class LoggerObserver(ITypedObserver):
                 self.event_correlations[corr_id] = []
             self.event_correlations[corr_id].append(event_id)
 
-    def _is_tqdm_active(self) -> bool:
-        """Check if a tqdm progress bar is currently active."""
-        if not TQDM_AVAILABLE:
+    def _is_progress_active(self) -> bool:
+        """Check if a Click progress bar is currently active."""
+        if not CLICK_AVAILABLE:
             return False
 
         try:
-            # Try multiple methods to detect active tqdm instances
-            # Method 1: Check _instances set
-            if hasattr(tqdm, "_instances") and getattr(tqdm, "_instances"):
-                instances = getattr(tqdm, "_instances")
-                if isinstance(instances, set) and len(instances) > 0:
-                    return True
-                elif hasattr(instances, "__len__") and len(instances) > 0:
-                    return True
+            # For Click progress bars, we check if progress configuration is enabled
+            # This is a simpler check since Click progress bars don't maintain global state like tqdm
+            # We can check if the global config indicates progress bars are enabled
+            if hasattr(self, "config") and self.config:
+                return getattr(self.config, "progress", {}).get(
+                    "enable_progress_bar", False
+                )
 
-            # Method 2: Check tqdm.std._instances (more recent tqdm versions)
-            if hasattr(tqdm, "std") and hasattr(tqdm.std, "_instances"):
-                std_instances = getattr(tqdm.std, "_instances")
-                if std_instances and len(std_instances) > 0:
-                    return True
-
-            # Method 3: Check for active monitors
-            if hasattr(tqdm, "auto") and hasattr(tqdm.auto, "_instances"):
-                auto_instances = getattr(tqdm.auto, "_instances")
-                if auto_instances and len(auto_instances) > 0:
-                    return True
-
+            # Default to False if we can't determine progress state
             return False
         except (AttributeError, TypeError, ImportError):
             return False
 
-    def _should_use_tqdm_write(self, event: BaseEvent) -> bool:
-        """Determine if we should use tqdm.write() for this event."""
-        if not self._is_tqdm_active():
+    def _should_use_progress_coordination(self, event: BaseEvent) -> bool:
+        """Determine if we should use progress coordination for this event."""
+        if not self._is_progress_active():
             return False
 
-        # Use tqdm.write for all events when progress bars are active to prevent interleaving
+        # Use coordinated logging for all events when progress bars are active to prevent interleaving
         # This ensures coordinated output between progress bars and log messages
         return True
 
@@ -405,12 +393,12 @@ class LoggerObserver(ITypedObserver):
 
         self.logger.info(json.dumps(structured_data, default=str))
 
-    def _log_docker_build_event_with_tqdm(
+    def _log_docker_build_event_with_click(
         self, event: BaseEvent, msg: str, log_level: int
     ):
-        """Log Docker build events using tqdm.write() to avoid progress bar interference."""
-        if not TQDM_AVAILABLE:
-            # Fallback to regular logging if tqdm is not available
+        """Log Docker build events using coordinated logging to avoid progress bar interference."""
+        if not CLICK_AVAILABLE:
+            # Fallback to regular logging if click is not available
             self.logger.log(log_level, msg)
             return
 
@@ -427,7 +415,7 @@ class LoggerObserver(ITypedObserver):
             if self.debug_mode:
                 tqdm_msg += f" from {dockerfile_path}"
 
-            tqdm.write(tqdm_msg)
+            self.logger.info(tqdm_msg)
 
         elif isinstance(event, DockerBuildCompletedEvent):
             service_name = event_data.get("service_name", "Unknown")
@@ -443,7 +431,7 @@ class LoggerObserver(ITypedObserver):
                 error_message = event_data.get("error_message", "Unknown error")
                 tqdm_msg = f"❌ Docker build failed: {service_name} ({image_name}) - {error_message}"
 
-            tqdm.write(tqdm_msg)
+            self.logger.info(tqdm_msg)
 
         elif isinstance(event, DockerBuildFailedEvent):
             service_name = event_data.get("service_name", "Unknown")
@@ -454,7 +442,7 @@ class LoggerObserver(ITypedObserver):
             if build_duration and build_duration > 0:
                 tqdm_msg += f" after {build_duration:.1f}s"
 
-            tqdm.write(tqdm_msg)
+            self.logger.info(tqdm_msg)
 
         # Still log to the regular logger for file output and detailed analysis
         self.logger.log(log_level, msg)

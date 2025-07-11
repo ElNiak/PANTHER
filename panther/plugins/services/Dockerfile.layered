@@ -7,14 +7,14 @@ FROM --platform=linux/amd64 ubuntu:20.04
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Layer 1: System base configuration (rarely changes)
-RUN --mount=type=cache,target=/var/cache/apt-${TARGETPLATFORM//\//-},sharing=locked-${TARGETPLATFORM//\//-},sharing=locked \
-    --mount=type=cache,target=/var/lib/apt-${TARGETPLATFORM//\//-},sharing=locked-${TARGETPLATFORM//\//-},sharing=locked \
+RUN --mount=type=cache,target=/var/cache/apt,id=aptcache-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,id=aptlib-${TARGETPLATFORM//\//-},sharing=locked \
     ln -fs /usr/share/zoneinfo/UTC /etc/localtime && \
     apt-get update
 
 # Layer 2: Core build dependencies (changes infrequently)
-RUN --mount=type=cache,target=/var/cache/apt-${TARGETPLATFORM//\//-},sharing=locked-${TARGETPLATFORM//\//-},sharing=locked \
-    --mount=type=cache,target=/var/lib/apt-${TARGETPLATFORM//\//-},sharing=locked-${TARGETPLATFORM//\//-},sharing=locked \
+RUN --mount=type=cache,target=/var/cache/apt,id=aptcache-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,id=aptlib-${TARGETPLATFORM//\//-},sharing=locked \
     apt-get install --fix-missing --auto-remove --show-upgraded --no-install-recommends -y \
     build-essential # Platform-specific CMake configuration
  case "${TARGETPLATFORM}" in \
@@ -35,11 +35,11 @@ RUN --mount=type=cache,target=/var/cache/apt-${TARGETPLATFORM//\//-},sharing=loc
     util-linux libc6-dev
 
 # Layer 3: Network and debugging tools (changes infrequently)
-RUN --mount=type=cache,target=/var/cache/apt-${TARGETPLATFORM//\//-},sharing=locked-${TARGETPLATFORM//\//-},sharing=locked \
-    --mount=type=cache,target=/var/lib/apt-${TARGETPLATFORM//\//-},sharing=locked-${TARGETPLATFORM//\//-},sharing=locked \
+RUN --mount=type=cache,target=/var/cache/apt,id=aptcache-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,id=aptlib-${TARGETPLATFORM//\//-},sharing=locked \
     apt-get install --fix-missing --auto-remove --show-upgraded --no-install-recommends -y \
     python3 net-tools tcpdump iperf traceroute \
-    wireshark tshark clang libcap2-bin \
+    wireshark-common wireshark tshark clang libcap2-bin \
     iputils-ping iproute2 iperf3 netcat-openbsd \
     dnsutils radare2 strace valgrind \
     libdw1 libelf1 linux-tools-generic \
@@ -47,8 +47,8 @@ RUN --mount=type=cache,target=/var/cache/apt-${TARGETPLATFORM//\//-},sharing=loc
     libunwind-dev gdb
 
 # Layer 4: Performance profiling dependencies (rarely changes)
-RUN --mount=type=cache,target=/var/cache/apt-${TARGETPLATFORM//\//-},sharing=locked-${TARGETPLATFORM//\//-},sharing=locked \
-    --mount=type=cache,target=/var/lib/apt-${TARGETPLATFORM//\//-},sharing=locked-${TARGETPLATFORM//\//-},sharing=locked \
+RUN --mount=type=cache,target=/var/cache/apt,id=aptcache-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,id=aptlib-${TARGETPLATFORM//\//-},sharing=locked \
     apt-get install --no-install-recommends -y \
     google-perftools graphviz gv
 
@@ -81,7 +81,8 @@ RUN --mount=type=cache,target=/tmp/git-cache-${TARGETPLATFORM//\//-},sharing=loc
     whereis libtcmalloc
 
 # Layer 6: System configuration (changes rarely)
-RUN yes yes | DEBIAN_FRONTEND=teletype dpkg-reconfigure wireshark-common && \
+RUN apt-get install -y wireshark-common && \
+    yes yes | DEBIAN_FRONTEND=teletype dpkg-reconfigure wireshark-common && \
     usermod -aG wireshark root
 
 # Layer 7: Application directories (rarely changes)
