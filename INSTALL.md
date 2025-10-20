@@ -6,9 +6,10 @@ This document provides instructions for installing and setting up the PANTHER sy
 
 ## Prerequisites
 
-!!! warning "System requirements"
-    Running PANTHER requires root-level Docker access and can consume significant system resources
-    during protocol testing. Ensure adequate disk space (>=20GB) for container images.
+> [!WARNING]
+> "System requirements"
+> Running PANTHER requires root-level Docker access and can consume significant system resources
+> during protocol testing. Ensure adequate disk space (>=20GB) for container images.
 
 - Operating System: Linux, macOS
 - Docker v27 or higher
@@ -16,9 +17,17 @@ This document provides instructions for installing and setting up the PANTHER sy
 - pip (Python package manager)
 - Git (for cloning the repository)
 
-!!! note "Dependencies"
-    `pyproject.toml` is the source of truth for Python dependencies.
-    `requirements.txt` is a frozen snapshot—**do not edit**.
+> [!NOTE]
+>  "Dependencies"
+> `pyproject.toml` is the source of truth for Python dependencies.
+> `requirements.txt` is a frozen snapshot—**do not edit**.
+
+> [!WARNING]  
+> CLI and core being refactored, some deadcode and legacy or unimplemented code remains.
+
+> [!WARNING]  
+> ARM still need some works, Z3 generate maths errors and docker modules is being refactored in consequences (thus introducing potencial bugs)
+> This branch is more stable (but not supporting ARM at all) - [development-scp-refactor](https://github.com/ElNiak/PANTHER/tree/development-scp-refactor)
 
 ## Installation Steps
 
@@ -60,20 +69,24 @@ panther config --help
 
 ### Option B — From Source *(for dev)*
 
-#### Clone the Repository
+#### B.1 - Clone the Repository
 
 ```bash
 git clone --recurse-submodules https://github.com/ElNiak/PANTHER.git;
+# If submodule not cloned initially ;)
+git submodule update --init --recursive;
 cd PANTHER
 python -m venv .venv && source .venv/bin/activate;
 ```
 
-#### 🔧 **Recommended: Using the Builder Script** *(cross-platform)*
+#### B.2.a - 🔧 **Recommended: Using the Builder Script** *(cross-platform)*
 
 For development work, we **highly recommend** using the included Python builder script instead of the traditional Makefile:
 
 ```bash
 git clone --recurse-submodules https://github.com/ElNiak/PANTHER.git
+# If submodule not cloned initially ;)
+git submodule update --init --recursive;
 cd PANTHER
 python -m venv .venv && source .venv/bin/activate
 # After cloning and setting up your environment:
@@ -113,15 +126,7 @@ Examples:
     python panther_builder.py remove-images-all # Remove all Docker images with 'panther'
 ```
 
-**Why use the builder?**
-
-- ✅ **Cross-platform**: Works on Linux, macOS
-- ✅ **Smart checks**: Automatically validates Python ≥3.10 and Docker ≥27.0
-- ✅ **Integrated**: Replaces previous Makefile with better error handling
-- ✅ **Developer-friendly**: Includes quality checks, documentation builds, and cleanup
-- ✅ **Docker management**: Built-in Docker image and volume cleanup commands
-
-#### Manually
+#### B.2.b - Manually
 
 ```bash
 # (.venv)
@@ -144,11 +149,19 @@ pip install --no-cache -e ".[tests,lint,doc]"
 
 Both methods read dependencies from **`pyproject.toml`**—**do not
 manually edit `requirements.txt`**, it’s just a frozen lock.
+---
 
-!!! note "Entry point argument auto-completion"
-    We have add the package `argcomplete`in the project
-    You can also activate this package globally with
-    `activate-global-python-argcomplete --user`
+> [!NOTE]
+> "Entry point argument auto-completion"
+> We have add the package `argcomplete`in the project
+> You can also activate this package globally with
+> `activate-global-python-argcomplete --user`
+
+> [!NOTE]
+> If you have installed both remote (recommended) and local version of Panther (dev),
+> I recommend you to use `python -m panther` to be sure to run the dev version.
+
+---
 
 ### Verify Installation
 
@@ -164,17 +177,6 @@ panther --help
 ```
 
 ## CLI Quick Start
-
-### Enhanced Click-based CLI
-
-PANTHER now features a modern, user-friendly CLI built with Click that provides:
-
-- **Colored output** with emojis for visual feedback
-- **Progress bars** for long-running operations
-- **Enhanced error messages** with contextual suggestions
-- **Bash completion** for improved productivity
-- **Interactive tutorials** for learning
-- **Comprehensive help** with examples
 
 ### Your First Experiment
 
@@ -194,7 +196,27 @@ panther run --config my-first-experiment.yaml --dry-run
 panther run --config my-first-experiment.yaml --enable-metrics
 ```
 
-### Interactive Learning
+### On Going Updates 
+
+#### Click-based CLI (*In Progress*)
+
+PANTHER now features a modern, user-friendly CLI built with Click that provides:
+
+- **Colored output** with emojis for visual feedback
+- **Progress bars** for long-running operations
+- **Enhanced error messages** with contextual suggestions
+- **Bash completion** for improved productivity
+- **Interactive tutorials** for learning
+- **Comprehensive help** with examples
+
+#### UV package manager (*TODO*)
+
+"[An extremely fast Python package and project manager, written in Rust.](https://github.com/astral-sh/uv)" 
+- Faster
+- Better version management
+- Remote usage possible 
+
+### Interactive Learning (*In Progress*)
 
 Explore PANTHER through interactive tutorials:
 
@@ -207,7 +229,7 @@ panther tutorial run service --mode guided
 panther tutorial run configuration --mode quick
 ```
 
-### Plugin Management
+### Plugin Management  (*In Progress*)
 
 Discover and manage plugins easily:
 

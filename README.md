@@ -18,10 +18,13 @@
 
 PANTHER is a **plugin‑based, research‑grade test harness** that lets you design, reproduce, and analyse complex **network‑protocol experiments** without hand‑rolling scripts or bespoke infrastructure.
 
-!!! info "What PANTHER Solves"
-    - **Protocol Validation**: Test QUIC or custom protocol implementations under failure, jitter, or adverse timing
-    - **Performance Profiling**: Analyze CPU, heap, and syscall characteristics across different builds or OS kernels
-    - **Formal Verification**: Run conformance checks (Ivy) in deterministic network simulation (Shadow)
+[comment]: <> (TODO -> > "[!WARNING]", ... must be replaced temporary by "!!! warning" for the online documentation)
+
+> [!NOTE]
+>  "What PANTHER Solves"
+>    - **Protocol Validation**: Test QUIC or custom protocol implementations under failure, jitter, or adverse timing
+>    - **Performance Profiling**: Analyze CPU, heap, and syscall characteristics across different builds or OS kernels
+>    - **Formal Verification**: Run conformance checks (Ivy) in deterministic network simulation (Shadow)
 
 **Core characteristics:**
 
@@ -30,6 +33,15 @@ PANTHER is a **plugin‑based, research‑grade test harness** that lets you des
 ▸ **Extensible:** a plugin system adds new protocols, services, profilers, or network back‑ends with minimal boilerplate.
 
 ▸ **Multi‑audience:** useful to academic researchers, industrial developers, security analysts, SRE teams, and educators.esting Harness for Extensible Research
+
+---
+
+> [!WARNING]  
+> CLI and core being refactored, some deadcode and legacy or unimplemented code remains.
+
+> [!WARNING]  
+> ARM still need some works, Z3 generate maths errors and docker modules is being refactored in consequences (thus introducing potencial bugs)
+> This branch is more stable (but not supporting ARM at all) - [development-scp-refactor](https://github.com/ElNiak/PANTHER/tree/development-scp-refactor)
 
 ---
 
@@ -83,7 +95,11 @@ For detailed workflow documentation, see [workflow.md](workflow.md).
 `pyproject.toml` is the source of truth for Python dependencies.
 `requirements.txt` is a frozen snapshot—**do not edit**.
 
-**Note**: We propose to install [`slim`](https://github.com/slimtoolkit/slim) in our builder, fasten container size.
+> [!NOTE]
+>  (TODO) We propose to install [`slim`](https://github.com/slimtoolkit/slim) in our builder, fasten container size. 
+
+> [!WARNING]
+> I tried but it seems that it is not as straight forward as it seems, need more research before using that.
 
 ---
 
