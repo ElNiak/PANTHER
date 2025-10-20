@@ -18,10 +18,13 @@
 
 PANTHER is a **plugin‑based, research‑grade test harness** that lets you design, reproduce, and analyse complex **network‑protocol experiments** without hand‑rolling scripts or bespoke infrastructure.
 
-!!! info "What PANTHER Solves"
-    - **Protocol Validation**: Test QUIC or custom protocol implementations under failure, jitter, or adverse timing
-    - **Performance Profiling**: Analyze CPU, heap, and syscall characteristics across different builds or OS kernels
-    - **Formal Verification**: Run conformance checks (Ivy) in deterministic network simulation (Shadow)
+[comment]: <> TODO -> > "[!WARNING]", ... must be replaced temporary by "!!! warning" for the online documentation)
+
+> [!NOTE]
+>  "What PANTHER Solves"
+>    - **Protocol Validation**: Test QUIC or custom protocol implementations under failure, jitter, or adverse timing
+>    - **Performance Profiling**: Analyze CPU, heap, and syscall characteristics across different builds or OS kernels
+>    - **Formal Verification**: Run conformance checks (Ivy) in deterministic network simulation (Shadow)
 
 **Core characteristics:**
 
