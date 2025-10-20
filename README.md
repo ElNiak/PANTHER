@@ -33,6 +33,11 @@ PANTHER is a **plugin‑based, research‑grade test harness** that lets you des
 
 ---
 
+> [!WARNING]  
+> CLI and core being refactored, some deadcode and legacy or unimplemented code remains.
+
+---
+
 ## 🔄 Quick Workflow Overview
 
 PANTHER experiments follow a **4-phase execution model**:
