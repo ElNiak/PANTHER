@@ -18,7 +18,7 @@
 
 PANTHER is a **plugin‑based, research‑grade test harness** that lets you design, reproduce, and analyse complex **network‑protocol experiments** without hand‑rolling scripts or bespoke infrastructure.
 
-[comment]: <> TODO -> > "[!WARNING]", ... must be replaced temporary by "!!! warning" for the online documentation)
+[comment]: <> (TODO -> > "[!WARNING]", ... must be replaced temporary by "!!! warning" for the online documentation)
 
 > [!NOTE]
 >  "What PANTHER Solves"
