@@ -60,7 +60,7 @@ panther config --help
 
 ### Option B — From Source *(for dev)*
 
-#### Clone the Repository
+#### B.1 - Clone the Repository
 
 ```bash
 git clone --recurse-submodules https://github.com/ElNiak/PANTHER.git;
@@ -70,7 +70,7 @@ cd PANTHER
 python -m venv .venv && source .venv/bin/activate;
 ```
 
-#### 🔧 **Recommended: Using the Builder Script** *(cross-platform)*
+#### B.2.a - 🔧 **Recommended: Using the Builder Script** *(cross-platform)*
 
 For development work, we **highly recommend** using the included Python builder script instead of the traditional Makefile:
 
@@ -117,15 +117,7 @@ Examples:
     python panther_builder.py remove-images-all # Remove all Docker images with 'panther'
 ```
 
-**Why use the builder?**
-
-- ✅ **Cross-platform**: Works on Linux, macOS
-- ✅ **Smart checks**: Automatically validates Python ≥3.10 and Docker ≥27.0
-- ✅ **Integrated**: Replaces previous Makefile with better error handling
-- ✅ **Developer-friendly**: Includes quality checks, documentation builds, and cleanup
-- ✅ **Docker management**: Built-in Docker image and volume cleanup commands
-
-#### Manually
+#### B.2.b - Manually
 
 ```bash
 # (.venv)
@@ -148,11 +140,15 @@ pip install --no-cache -e ".[tests,lint,doc]"
 
 Both methods read dependencies from **`pyproject.toml`**—**do not
 manually edit `requirements.txt`**, it’s just a frozen lock.
+---
 
-!!! note "Entry point argument auto-completion"
-    We have add the package `argcomplete`in the project
-    You can also activate this package globally with
-    `activate-global-python-argcomplete --user`
+> [!NOTE]
+> "Entry point argument auto-completion"
+> We have add the package `argcomplete`in the project
+> You can also activate this package globally with
+> `activate-global-python-argcomplete --user`
+
+---
 
 ### Verify Installation
 
@@ -169,7 +165,7 @@ panther --help
 
 ## CLI Quick Start
 
-### Enhanced Click-based CLI
+### Note - Click-based CLI (*In Progress*)
 
 PANTHER now features a modern, user-friendly CLI built with Click that provides:
 
@@ -198,7 +194,7 @@ panther run --config my-first-experiment.yaml --dry-run
 panther run --config my-first-experiment.yaml --enable-metrics
 ```
 
-### Interactive Learning
+### Interactive Learning (*In Progress*)
 
 Explore PANTHER through interactive tutorials:
 
