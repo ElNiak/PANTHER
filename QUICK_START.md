@@ -14,21 +14,6 @@ MiniP, HTTP/3, a custom protocol plugin, or any future protocol you add**.
 
 ---
 
-## 1 — Install PANTHER
-
-> [!TIP]
-> "Recommended Setup"
-> Using a virtual environment is highly recommended to avoid dependency conflicts:
-
-```bash
-python -m venv .venv              # optional but recommended
-source .venv/bin/activate
-pip install panther-net
-```
-
-`panther-net` is the official PyPI package that bundles the core engine, all built-in plugins, and the enhanced Click CLI.
-Upgrade later with `pip install -U panther-net`.
-
 ## 1 — Write a Minimal Experiment (YAML)
 
 > [!NOTE]
