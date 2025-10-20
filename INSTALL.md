@@ -6,9 +6,10 @@ This document provides instructions for installing and setting up the PANTHER sy
 
 ## Prerequisites
 
-!!! warning "System requirements"
-    Running PANTHER requires root-level Docker access and can consume significant system resources
-    during protocol testing. Ensure adequate disk space (>=20GB) for container images.
+> [!WARNING]
+> "System requirements"
+> Running PANTHER requires root-level Docker access and can consume significant system resources
+> during protocol testing. Ensure adequate disk space (>=20GB) for container images.
 
 - Operating System: Linux, macOS
 - Docker v27 or higher
@@ -16,9 +17,17 @@ This document provides instructions for installing and setting up the PANTHER sy
 - pip (Python package manager)
 - Git (for cloning the repository)
 
-!!! note "Dependencies"
-    `pyproject.toml` is the source of truth for Python dependencies.
-    `requirements.txt` is a frozen snapshot—**do not edit**.
+> [!NOTE]
+>  "Dependencies"
+> `pyproject.toml` is the source of truth for Python dependencies.
+> `requirements.txt` is a frozen snapshot—**do not edit**.
+
+> [!WARNING]  
+> CLI and core being refactored, some deadcode and legacy or unimplemented code remains.
+
+> [!WARNING]  
+> ARM still need some works, Z3 generate maths errors and docker modules is being refactored in consequences (thus introducing potencial bugs)
+> This branch is more stable (but not supporting ARM at all) - [development-scp-refactor](https://github.com/ElNiak/PANTHER/tree/development-scp-refactor)
 
 ## Installation Steps
 
@@ -165,17 +174,6 @@ panther --help
 
 ## CLI Quick Start
 
-### Note - Click-based CLI (*In Progress*)
-
-PANTHER now features a modern, user-friendly CLI built with Click that provides:
-
-- **Colored output** with emojis for visual feedback
-- **Progress bars** for long-running operations
-- **Enhanced error messages** with contextual suggestions
-- **Bash completion** for improved productivity
-- **Interactive tutorials** for learning
-- **Comprehensive help** with examples
-
 ### Your First Experiment
 
 Get started quickly with the new CLI:
@@ -194,6 +192,26 @@ panther run --config my-first-experiment.yaml --dry-run
 panther run --config my-first-experiment.yaml --enable-metrics
 ```
 
+### On Going Updates 
+
+#### Click-based CLI (*In Progress*)
+
+PANTHER now features a modern, user-friendly CLI built with Click that provides:
+
+- **Colored output** with emojis for visual feedback
+- **Progress bars** for long-running operations
+- **Enhanced error messages** with contextual suggestions
+- **Bash completion** for improved productivity
+- **Interactive tutorials** for learning
+- **Comprehensive help** with examples
+
+#### UV package manager (*TODO*)
+
+"[An extremely fast Python package and project manager, written in Rust.](https://github.com/astral-sh/uv)" 
+- Faster
+- Better version management
+- Remote usage possible 
+
 ### Interactive Learning (*In Progress*)
 
 Explore PANTHER through interactive tutorials:
@@ -207,7 +225,7 @@ panther tutorial run service --mode guided
 panther tutorial run configuration --mode quick
 ```
 
-### Plugin Management
+### Plugin Management  (*In Progress*)
 
 Discover and manage plugins easily:
 
