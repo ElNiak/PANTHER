@@ -64,6 +64,8 @@ panther config --help
 
 ```bash
 git clone --recurse-submodules https://github.com/ElNiak/PANTHER.git;
+# If submodule not cloned initially ;)
+git submodule update --init --recursive;
 cd PANTHER
 python -m venv .venv && source .venv/bin/activate;
 ```
@@ -74,6 +76,8 @@ For development work, we **highly recommend** using the included Python builder 
 
 ```bash
 git clone --recurse-submodules https://github.com/ElNiak/PANTHER.git
+# If submodule not cloned initially ;)
+git submodule update --init --recursive;
 cd PANTHER
 python -m venv .venv && source .venv/bin/activate
 # After cloning and setting up your environment:
