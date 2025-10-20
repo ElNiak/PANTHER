@@ -91,8 +91,11 @@ For detailed workflow documentation, see [workflow.md](workflow.md).
 `pyproject.toml` is the source of truth for Python dependencies.
 `requirements.txt` is a frozen snapshot—**do not edit**.
 
-**Note**: We propose to install [`slim`](https://github.com/slimtoolkit/slim) in our builder, fasten container size. 
-**Note 2**: I tried but it seems that it is not as straight forward as it seems, need more research before using that.
+> [!NOTE]
+>  (TODO) We propose to install [`slim`](https://github.com/slimtoolkit/slim) in our builder, fasten container size. 
+
+> [!WARNING]
+> I tried but it seems that it is not as straight forward as it seems, need more research before using that.
 
 ---
 
