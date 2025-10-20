@@ -39,6 +39,10 @@ PANTHER is a **plugin‑based, research‑grade test harness** that lets you des
 > [!WARNING]  
 > CLI and core being refactored, some deadcode and legacy or unimplemented code remains.
 
+> [!WARNING]  
+> ARM still need some works, Z3 generate maths errors and docker modules is being refactored in consequences (thus introducing potencial bugs)
+> This branch is more stable (but not supporting ARM at all) - [development-scp-refactor](https://github.com/ElNiak/PANTHER/tree/development-scp-refactor)
+
 ---
 
 ## 🔄 Quick Workflow Overview
