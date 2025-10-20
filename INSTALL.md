@@ -157,6 +157,10 @@ manually edit `requirements.txt`**, it’s just a frozen lock.
 > You can also activate this package globally with
 > `activate-global-python-argcomplete --user`
 
+> [!NOTE]
+> If you have installed both remote (recommended) and local version of Panther (dev),
+> I recommend you to use `python -m panther` to be sure to run the dev version.
+
 ---
 
 ### Verify Installation
