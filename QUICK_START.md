@@ -98,6 +98,18 @@ tests:
 
 ## 2 — Run the Experiment
 
+
+> [!WARNING]
+>  "Docker Buildkit"
+> You SHOULD disable buildkit (experimental) in the config files:
+> ```yaml
+> docker:
+>   force_build_docker_image: true
+>   log_docker_image_build: true  # Enable Docker build log files
+>   use_buildx: false
+> ```
+
+
 With the  CLI, experiment execution is more intuitive and provides better feedback (*In Progress*):
 
 ```bash
