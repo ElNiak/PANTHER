@@ -196,7 +196,7 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
             updated_params.append(f"build_log_file={build_log_file}")
         enable_cache = True  # Default to True unless overridden by global config
         if (
-            global_config is not None
+            global_config 
             and getattr(self, "global_config", None) != global_config
         ):
             self.global_config = global_config
@@ -212,7 +212,9 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                 self.logger.warning(
                     "Force build enabled via updated config, disabling Docker build cache."
                 )
-
+        elif self.global_config and self.global_config.docker.force_build_docker_image:
+            enable_cache = False  # Force build overrides cache setting
+            self.logger.warning("Force build enabled, disabling Docker build cache.")
         if (
             experiment_context is not None
             and getattr(self, "experiment_context", None) != experiment_context
@@ -461,12 +463,17 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
         Returns:
             bool: True if buildx should be used, False otherwise
         """
+        # Use buildx for cross-platform builds (when host != target platform)
+        host_platform = self._get_host_platform()
+        is_cross_platform = host_platform != self.get_target_platform()
+        
         # Check if buildx is explicitly disabled in configuration
         if (
             hasattr(self, "global_config")
             and self.global_config
             and hasattr(self.global_config, "docker")
             and not self.global_config.docker.use_buildx
+            and not is_cross_platform
         ):
             self.logger.debug(
                 "Buildx disabled in configuration, using regular Docker build"
@@ -478,6 +485,11 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
             self.logger.info(
                 "Buildx not available on system, falling back to regular Docker build"
             )
+            if is_cross_platform:
+                self.logger.warning(
+                    "Cross-platform build requested but buildx is unavailable; build may fail."
+                )
+                
             return False
 
         # If multi-platform builds are enabled, always use buildx
@@ -490,13 +502,9 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
             self.logger.debug("Multi-platform builds enabled, using buildx")
             return True
 
-        # Use buildx for cross-platform builds (when host != target platform)
-        host_platform = self._get_host_platform()
-        is_cross_platform = host_platform != self.get_target_platform()
-
         if is_cross_platform:
             self.logger.info(
-                "Cross-platform build detected (%s -> %s), using buildx for efficiency",
+                "Cross-platform build detected (%s -> %s), using buildx (required)",
                 host_platform,
                 self.get_target_platform(),
             )
@@ -890,6 +898,7 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                 "DEPENDENCIES": json.dumps(dependencies) if dependencies else "[]",
                 "BUILD_MODE": build_mode,
                 "RUNTIME_MODE": config.get("runtime_mode", "minimal"),
+                "TARGETPLATFORM": self.get_target_platform(),
                 "BASE_IMAGE": self.generate_image_tag(
                     impl_name="panther_base_service",
                     version="",
@@ -966,6 +975,11 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                 )
 
             # Use regular Docker build for same-platform builds
+            self.logger.info(
+                "Building Docker image '%s' using standard Docker build for platform '%s'",
+                image_tag,
+                self.get_target_platform(),
+            )
             image, build_logs = self.client.images.build(
                 path=str(context_path),
                 dockerfile=str(relative_dockerfile_path),
@@ -973,7 +987,7 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                 network_mode="host",
                 buildargs=build_args,
                 platform=self.get_target_platform(),  # Auto-detected platform
-                # nocache=force_build,  # Force build if specified
+                nocache=force_build,  # Force build if specified
                 # squash=True,  # Squash layers to reduce image size (experimental)
                 # pull=True,  # Always pull latest base images
             )

@@ -209,7 +209,7 @@ class TestDockerComposeLifecycleManager:
             "PANTHER_IVY_BASE_DIR": "/source/panther_ivy",
             "IVY_PROTOCOL_BASE": "/protocols/test_protocol",
             "USE_APT_PROTOCOLS": "1",
-            "IVY_INCLUDE_PATH": "/usr/local/lib/python3.10/dist-packages/ivy/include/1.7",
+            "IVY_INCLUDE_PATH": "/root/.pyenv/versions/3.10.12/lib/python3.10/site-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/1.7",
             "PANTHER_IVY_ARCHITECTURE": "apt",
         }
 

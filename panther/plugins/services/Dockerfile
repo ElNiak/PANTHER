@@ -2,16 +2,16 @@
 # PANTHER Service - 3-Stage Multi-Target Dockerfile
 # BUILDER -> DEBUG -> MINIMAL runtime environments with execution tools
 # =============================================================================
-
 ARG RUNTIME_MODE=minimal
-ARG TARGETPLATFORM=linux/amd64
 
 # =============================================================================
 # STAGE 1: BUILDER - Build tools and dependencies
 # =============================================================================
-FROM ubuntu:20.04 AS builder
+FROM  ubuntu:20.04  AS builder
+
 
 ENV DEBIAN_FRONTEND=noninteractive
+
 RUN ln -fs /usr/share/zoneinfo/UTC /etc/localtime
 
 # Essential build tools and libraries
@@ -27,8 +27,7 @@ RUN apt-get update && \
     iputils-ping iproute2 netcat-openbsd \
     curl dnsutils automake autoconf libtool pkg-config libssl-dev \
     cmake build-essential
-
-
+    
 # Build gperftools from source (needed for profiling)
 RUN git clone https://github.com/gperftools/gperftools /tmp/gperftools
 WORKDIR /tmp/gperftools
@@ -43,11 +42,14 @@ RUN mkdir -p /app /opt
 # =============================================================================
 # STAGE 2: DEBUG - MINIMAL + debugging tools
 # =============================================================================
-FROM builder AS debug
+FROM  builder AS debug
+
+
+ENV DEBIAN_FRONTEND=noninteractive
 
 # Install debugging tools
 RUN apt-get install --no-install-recommends -y \
-    gdb valgrind strace util-linux
+    gdb valgrind strace util-linux; 
 
 # Copy built gperftools for debugging
 COPY --from=builder /usr/local/lib/libprofiler.* /usr/local/lib/
@@ -56,13 +58,14 @@ COPY --from=builder /usr/local/lib/libtcmalloc.* /usr/local/lib/
 # =============================================================================
 # STAGE 3: PROFILE - DEBUG + performance profiling tools
 # =============================================================================
-FROM debug AS profile
+FROM  debug AS profile
+
+ENV DEBIAN_FRONTEND=noninteractive
 
 # Install performance profiling tools
 RUN apt-get install --no-install-recommends -y \
     linux-tools-generic linux-tools-common linux-cloud-tools-common \
-    radare2 google-perftools graphviz gv
-
+    radare2 google-perftools graphviz gv; 
 # Update library cache for gperftools
 RUN ldconfig
 
@@ -72,7 +75,8 @@ RUN whereis libprofiler && whereis libtcmalloc
 # =============================================================================
 # STAGE 4: MINIMAL - Core runtime + network analysis (PANTHER requirement)
 # =============================================================================
-FROM ubuntu:20.04 AS minimal
+FROM  ubuntu:20.04 AS minimal
+
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN ln -fs /usr/share/zoneinfo/UTC /etc/localtime
@@ -88,6 +92,10 @@ RUN apt-get update && \
     jq automake autoconf libtool pkg-config libssl-dev \
     cmake build-essential
 
+# RUN apt-get purge -y packagekit packagekit-tools policykit-1 dconf-service gsettings-desktop-schemas || true; \
+#     apt-get autoremove -y; \
+#     rm -rf /var/lib/apt/lists/*
+
 # Configure wireshark for non-root usage (PANTHER protocol testing requirement)
 RUN yes yes | DEBIAN_FRONTEND=teletype dpkg-reconfigure wireshark-common && \
     usermod -aG wireshark root
@@ -98,9 +106,10 @@ RUN mkdir -p /app /opt
 # =============================================================================
 # FINAL STAGE: Runtime mode selection
 # =============================================================================
-FROM ${RUNTIME_MODE} AS final
+FROM  ${RUNTIME_MODE} AS final
 
 
+ENV DEBIAN_FRONTEND=noninteractive
 # Labels for runtime identification
 ARG RUNTIME_MODE=minimal
 LABEL runtime.mode="${RUNTIME_MODE}"

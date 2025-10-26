@@ -6,10 +6,15 @@ import logging
 from abc import ABC, abstractmethod
 from argparse import ArgumentParser, _SubParsersAction
 from typing import Any, Dict
+from panther.core.utils.logging_mixin import LoggerMixin
 
 
-class BaseCommand(ABC):
-    """Base class for CLI subcommands."""
+class BaseCommand(LoggerMixin, ABC):
+    """Base class for CLI subcommands - singleton pattern."""
+    _instance = None
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     @classmethod
     @abstractmethod
@@ -22,6 +27,13 @@ class BaseCommand(ABC):
     def handle(cls, args: Any) -> int:
         """Handle the subcommand execution."""
         pass
+    
+    @classmethod
+    def get_instance(cls) -> "BaseCommand":
+        """Get or create the singleton instance of the command."""
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
 
 
 class CLIActionDispatchMixin:

@@ -11,9 +11,8 @@ import sys
 from pathlib import Path
 
 import argcomplete
-
+from panther.core.utils.logger_factory import LoggerFactory
 from panther.cli.subcommands import (
-    AdminCommand,
     CheckCommand,
     ConfigCommand,
     CreateCommand,
@@ -68,7 +67,6 @@ For more information on each command, use:
     PluginsCommand.register_parser(subparsers)
     CreateCommand.register_parser(subparsers)
     TutorialCommand.register_parser(subparsers)
-    AdminCommand.register_parser(subparsers)
     CheckCommand.register_parser(subparsers)
     MetricsCommand.register_parser(subparsers)
     ToolsCommand.register_parser(subparsers)
@@ -87,12 +85,18 @@ def main():
 
     # Set up debug logging if requested
     if hasattr(args, "debug") and args.debug:
-        from panther.core.utils.logger_factory import LoggerFactory
-
         # Initialize LoggerFactory with debug level and colors
         LoggerFactory.initialize(
             {
                 "level": "DEBUG",
+                "format": "%(asctime)s [%(levelname)s] - %(module)s - %(message)s",
+                "enable_colors": True,
+            }
+        )
+    else:
+        LoggerFactory.initialize(
+            {
+                "level": "INFO",
                 "format": "%(asctime)s [%(levelname)s] - %(module)s - %(message)s",
                 "enable_colors": True,
             }
@@ -105,20 +109,19 @@ def main():
 
     # Dispatch to appropriate command handler
     command_map = {
-        "run": RunCommand.handle,
-        "config": ConfigCommand.handle,
-        "plugins": PluginsCommand.handle,
-        "create": CreateCommand.handle,
-        "tutorial": TutorialCommand.handle,
-        "admin": AdminCommand.handle,
-        "check": CheckCommand.handle,
-        "metrics": MetricsCommand.handle,
-        "tools": ToolsCommand.handle,
+        "run": RunCommand,
+        "config": ConfigCommand,
+        "plugins": PluginsCommand,
+        "create": CreateCommand,
+        "tutorial": TutorialCommand,
+        "check": CheckCommand,
+        "metrics": MetricsCommand,
+        "tools": ToolsCommand,
     }
 
     if args.command in command_map:
         try:
-            return command_map[args.command](args)
+            return command_map[args.command].handle(args)
         except KeyboardInterrupt:
             logging.info("\n⚠️  Operation cancelled by user")
             return 130

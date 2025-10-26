@@ -94,7 +94,7 @@ class MetricsCommand(BaseCommand):
     def handle(cls, args: Any) -> int:
         """Handle the metrics command execution."""
         if not hasattr(args, "metrics_action") or args.metrics_action is None:
-            logging.info(
+            cls.get_instance().logger.info(
                 "❌ No metrics action specified. Use 'panther metrics --help' for options."
             )
             return 1
@@ -104,8 +104,8 @@ class MetricsCommand(BaseCommand):
             from panther.core.metrics.metrics_collector import MetricsCollector
             from panther.core.metrics.metrics_exporter import MetricsExporter
         except ImportError:
-            logging.info("❌ Metrics system is not available.")
-            logging.info(
+            cls.get_instance().logger.info("❌ Metrics system is not available.")
+            cls.get_instance().logger.info(
                 "   Make sure PANTHER is properly installed with metrics support."
             )
             return 1
@@ -121,7 +121,7 @@ class MetricsCommand(BaseCommand):
         elif args.metrics_action == "summary":
             return cls._summary_metrics(args)
         else:
-            logging.info(f"❌ Unknown metrics action: {args.metrics_action}")
+            cls.get_instance().logger.info(f"❌ Unknown metrics action: {args.metrics_action}")
             return 1
 
     @classmethod
@@ -147,7 +147,7 @@ class MetricsCommand(BaseCommand):
     @classmethod
     def _list_metrics(cls, args: Any) -> int:
         """List available metrics."""
-        logging.info("📊 Listing available metrics...")
+        cls.get_instance().logger.info("📊 Listing available metrics...")
 
         try:
             from panther.core.metrics.metrics_collector import MetricsCollector
@@ -162,7 +162,7 @@ class MetricsCommand(BaseCommand):
             all_metrics = collector.get_metrics()
 
             if not all_metrics:
-                logging.info("ℹ️  No metrics have been collected yet.")
+                cls.get_instance().logger.info("ℹ️  No metrics have been collected yet.")
                 return 0
 
             # Extract metric names for display
@@ -176,11 +176,11 @@ class MetricsCommand(BaseCommand):
                 metric_names = [m for m in metric_names if pattern.search(m)]
 
             if not metric_names:
-                logging.info(f"ℹ️  No metrics match the filter: {args.filter}")
+                cls.get_instance().logger.info(f"ℹ️  No metrics match the filter: {args.filter}")
                 return 0
 
-            logging.info(f"Found {len(metric_names)} metric(s):")
-            logging.info("-" * 60)
+            cls.get_instance().logger.info(f"Found {len(metric_names)} metric(s):")
+            cls.get_instance().logger.info("-" * 60)
 
             # Group metrics by category
             categories = {}
@@ -191,20 +191,20 @@ class MetricsCommand(BaseCommand):
                 categories[category].append(metric)
 
             for category, cat_metrics in sorted(categories.items()):
-                logging.info(f"\n{category.upper()}:")
+                cls.get_instance().logger.info(f"\n{category.upper()}:")
                 for metric in sorted(cat_metrics):
-                    logging.info(f"  - {metric}")
+                    cls.get_instance().logger.info(f"  - {metric}")
 
             return 0
 
         except Exception as e:
-            logging.info(f"❌ Error listing metrics: {e}")
+            cls.get_instance().logger.info(f"❌ Error listing metrics: {e}")
             return 1
 
     @classmethod
     def _show_metrics(cls, args: Any) -> int:
         """Display metrics data."""
-        logging.info("📈 Showing metrics data...")
+        cls.get_instance().logger.info("📈 Showing metrics data...")
 
         try:
             from panther.core.metrics.metrics_collector import MetricsCollector
@@ -222,7 +222,7 @@ class MetricsCommand(BaseCommand):
                 # Show specific metric by name
                 matching_metrics = [m for m in all_metrics if m.name == args.metric]
                 if not matching_metrics:
-                    logging.info(f"❌ Metric not found: {args.metric}")
+                    cls.get_instance().logger.info(f"❌ Metric not found: {args.metric}")
                     return 1
 
                 metrics_data = {args.metric: matching_metrics}
@@ -235,40 +235,40 @@ class MetricsCommand(BaseCommand):
                     metrics_data[metric.name].append(metric)
 
             if not metrics_data:
-                logging.info("ℹ️  No metrics data available.")
+                cls.get_instance().logger.info("ℹ️  No metrics data available.")
                 return 0
 
-            logging.info(f"Metrics data ({len(metrics_data)} metric type(s)):")
-            logging.info("-" * 60)
+            cls.get_instance().logger.info(f"Metrics data ({len(metrics_data)} metric type(s)):")
+            cls.get_instance().logger.info("-" * 60)
 
             for name, metrics_list in sorted(metrics_data.items()):
-                logging.info(f"\n📊 {name}:")
-                logging.info(f"   Count: {len(metrics_list)}")
+                cls.get_instance().logger.info(f"\n📊 {name}:")
+                cls.get_instance().logger.info(f"   Count: {len(metrics_list)}")
 
                 # Show sample values
-                logging.info(f"   Values (showing up to {args.limit}):")
+                cls.get_instance().logger.info(f"   Values (showing up to {args.limit}):")
                 for i, metric in enumerate(metrics_list[: args.limit], 1):
                     timestamp_str = (
                         metric.timestamp if hasattr(metric, "timestamp") else "N/A"
                     )
                     value_str = metric.value if hasattr(metric, "value") else "N/A"
-                    logging.info(f"     {i}: {value_str} (timestamp: {timestamp_str})")
+                    cls.get_instance().logger.info(f"     {i}: {value_str} (timestamp: {timestamp_str})")
 
                 if len(metrics_list) > args.limit:
-                    logging.info(
+                    cls.get_instance().logger.info(
                         f"     ... and {len(metrics_list) - args.limit} more values"
                     )
 
             return 0
 
         except Exception as e:
-            logging.info(f"❌ Error showing metrics: {e}")
+            cls.get_instance().logger.info(f"❌ Error showing metrics: {e}")
             return 1
 
     @classmethod
     def _export_metrics(cls, args: Any) -> int:
         """Export metrics to file."""
-        logging.info("💾 Exporting metrics data...")
+        cls.get_instance().logger.info("💾 Exporting metrics data...")
 
         try:
             from panther.core.metrics.metrics_collector import MetricsCollector
@@ -298,34 +298,34 @@ class MetricsCommand(BaseCommand):
                 # For txt format, use JSON as fallback since export_to_text doesn't exist
                 success = exporter.export_to_json(str(output_file))
             else:
-                logging.info(f"❌ Unsupported format: {args.format}")
+                cls.get_instance().logger.info(f"❌ Unsupported format: {args.format}")
                 return 1
 
             if success:
-                logging.info(f"✅ Metrics exported successfully to: {output_file}")
+                cls.get_instance().logger.info(f"✅ Metrics exported successfully to: {output_file}")
 
                 # Show file size
                 size_kb = output_file.stat().st_size / 1024
-                logging.info(f"   File size: {size_kb:.1f} KB")
+                cls.get_instance().logger.info(f"   File size: {size_kb:.1f} KB")
 
                 return 0
             else:
-                logging.info("❌ No metrics data available to export.")
+                cls.get_instance().logger.info("❌ No metrics data available to export.")
                 return 1
 
         except Exception as e:
-            logging.info(f"❌ Error exporting metrics: {e}")
+            cls.get_instance().logger.info(f"❌ Error exporting metrics: {e}")
             return 1
 
     @classmethod
     def _clear_metrics(cls, args: Any) -> int:
         """Clear stored metrics."""
-        logging.info("🗑️  Clearing metrics data...")
+        cls.get_instance().logger.info("🗑️  Clearing metrics data...")
 
         if not args.force:
             response = input("This will delete all stored metrics. Continue? (y/N): ")
             if response.lower() not in ["y", "yes"]:
-                logging.info("❌ Clear operation cancelled")
+                cls.get_instance().logger.info("❌ Clear operation cancelled")
                 return 0
 
         try:
@@ -341,7 +341,7 @@ class MetricsCommand(BaseCommand):
             # Note: The MetricsCollector doesn't have a clear_all_metrics method
             # Instead we can work with the available data
             metrics_before = len(collector.get_metrics())
-            logging.info(f"📊 Found {metrics_before} metrics in the system")
+            cls.get_instance().logger.info(f"📊 Found {metrics_before} metrics in the system")
 
             # Clear the metrics directory if it exists
             if output_dir.exists():
@@ -349,21 +349,21 @@ class MetricsCommand(BaseCommand):
 
                 shutil.rmtree(output_dir)
                 output_dir.mkdir(parents=True, exist_ok=True)
-                logging.info("✅ Metrics directory has been cleared")
+                cls.get_instance().logger.info("✅ Metrics directory has been cleared")
             else:
-                logging.info("ℹ️  No metrics directory found to clear")
+                cls.get_instance().logger.info("ℹ️  No metrics directory found to clear")
 
             return 0
 
         except Exception as e:
-            logging.info(f"❌ Error clearing metrics: {e}")
+            cls.get_instance().logger.info(f"❌ Error clearing metrics: {e}")
             return 1
 
     @classmethod
     def _summary_metrics(cls, args: Any) -> int:
         """Show metrics summary."""
-        logging.info("📊 Metrics Summary")
-        logging.info("=" * 60)
+        cls.get_instance().logger.info("📊 Metrics Summary")
+        cls.get_instance().logger.info("=" * 60)
 
         try:
             from panther.core.metrics.metrics_collector import MetricsCollector
@@ -379,39 +379,39 @@ class MetricsCommand(BaseCommand):
             summary = reporter.generate_summary()
 
             if not summary:
-                logging.info("ℹ️  No metrics data available for summary.")
+                cls.get_instance().logger.info("ℹ️  No metrics data available for summary.")
                 return 0
 
             # Display summary sections
             if "overview" in summary:
-                logging.info("\n📋 Overview:")
+                cls.get_instance().logger.info("\n📋 Overview:")
                 for key, value in summary["overview"].items():
-                    logging.info(f"   {key}: {value}")
+                    cls.get_instance().logger.info(f"   {key}: {value}")
 
             if "categories" in summary:
-                logging.info("\n📂 Categories:")
+                cls.get_instance().logger.info("\n📂 Categories:")
                 for category, count in summary["categories"].items():
-                    logging.info(f"   {category}: {count} metric(s)")
+                    cls.get_instance().logger.info(f"   {category}: {count} metric(s)")
 
             if "recent_activity" in summary:
-                logging.info("\n🕐 Recent Activity:")
+                cls.get_instance().logger.info("\n🕐 Recent Activity:")
                 for activity in summary["recent_activity"][:5]:
-                    logging.info(f"   - {activity}")
+                    cls.get_instance().logger.info(f"   - {activity}")
 
             if "performance" in summary:
-                logging.info("\n⚡ Performance Metrics:")
+                cls.get_instance().logger.info("\n⚡ Performance Metrics:")
                 perf = summary["performance"]
                 for key, value in perf.items():
-                    logging.info(f"   {key}: {value}")
+                    cls.get_instance().logger.info(f"   {key}: {value}")
 
             if "resource_usage" in summary:
-                logging.info("\n💾 Resource Usage:")
+                cls.get_instance().logger.info("\n💾 Resource Usage:")
                 resources = summary["resource_usage"]
                 for key, value in resources.items():
-                    logging.info(f"   {key}: {value}")
+                    cls.get_instance().logger.info(f"   {key}: {value}")
 
             return 0
 
         except Exception as e:
-            logging.info(f"❌ Error generating summary: {e}")
+            cls.get_instance().logger.info(f"❌ Error generating summary: {e}")
             return 1

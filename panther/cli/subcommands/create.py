@@ -96,7 +96,7 @@ class CreateCommand(BaseCommand):
     def handle(cls, args: Any) -> int:
         """Handle the create command execution."""
         if not hasattr(args, "create_action") or args.create_action is None:
-            logging.info(
+            cls.get_instance().logger.info(
                 "❌ No create action specified. Use 'panther create --help' for options."
             )
             return 1
@@ -108,7 +108,7 @@ class CreateCommand(BaseCommand):
         elif args.create_action == "template":
             return cls._handle_create_template(args)
         else:
-            logging.info(f"❌ Unknown create action: {args.create_action}")
+            cls.get_instance().logger.info(f"❌ Unknown create action: {args.create_action}")
             return 1
 
     @classmethod
@@ -127,7 +127,7 @@ class CreateCommand(BaseCommand):
             elif args.production_mode:
                 dev_mode = False
 
-            logging.info(f"🔧 Creating {plugin_type} plugin: {plugin_name}")
+            cls.get_instance().logger.info(f"🔧 Creating {plugin_type} plugin: {plugin_name}")
 
             success = create_plugin(
                 plugin_type,
@@ -137,14 +137,14 @@ class CreateCommand(BaseCommand):
             )
 
             if success:
-                logging.info(f"✅ Plugin '{plugin_name}' created successfully")
+                cls.get_instance().logger.info(f"✅ Plugin '{plugin_name}' created successfully")
                 return 0
             else:
-                logging.info(f"❌ Failed to create plugin '{plugin_name}'")
+                cls.get_instance().logger.info(f"❌ Failed to create plugin '{plugin_name}'")
                 return 1
 
         except Exception as e:
-            logging.info(f"❌ Error creating plugin: {e}")
+            cls.get_instance().logger.info(f"❌ Error creating plugin: {e}")
             if hasattr(args, "debug") and args.debug:
                 import traceback
 
@@ -168,7 +168,7 @@ class CreateCommand(BaseCommand):
             elif args.production_mode:
                 dev_mode = False
 
-            logging.info(
+            cls.get_instance().logger.info(
                 f"🔧 Creating subplugin '{subplugin_name}' for {plugin_type} plugin '{plugin_name}'"
             )
 
@@ -177,14 +177,14 @@ class CreateCommand(BaseCommand):
             )
 
             if success:
-                logging.info(f"✅ Subplugin '{subplugin_name}' created successfully")
+                cls.get_instance().logger.info(f"✅ Subplugin '{subplugin_name}' created successfully")
                 return 0
             else:
-                logging.info(f"❌ Failed to create subplugin '{subplugin_name}'")
+                cls.get_instance().logger.info(f"❌ Failed to create subplugin '{subplugin_name}'")
                 return 1
 
         except Exception as e:
-            logging.info(f"❌ Error creating subplugin: {e}")
+            cls.get_instance().logger.info(f"❌ Error creating subplugin: {e}")
             if hasattr(args, "debug") and args.debug:
                 import traceback
 
@@ -198,7 +198,7 @@ class CreateCommand(BaseCommand):
             template_type = args.template_type
             output_path = args.output
 
-            logging.info(f"🔧 Creating {template_type} template")
+            cls.get_instance().logger.info(f"🔧 Creating {template_type} template")
 
             # Template content based on type
             templates = {
@@ -209,7 +209,7 @@ class CreateCommand(BaseCommand):
 
             template_content = templates.get(template_type)
             if not template_content:
-                logging.info(f"❌ Unknown template type: {template_type}")
+                cls.get_instance().logger.info(f"❌ Unknown template type: {template_type}")
                 return 1
 
             if output_path:
@@ -221,14 +221,14 @@ class CreateCommand(BaseCommand):
                 with open(output_file, "w") as f:
                     f.write(template_content)
 
-                logging.info(f"✅ Template created: {output_file}")
+                cls.get_instance().logger.info(f"✅ Template created: {output_file}")
             else:
-                logging.info(template_content)
+                cls.get_instance().logger.info(template_content)
 
             return 0
 
         except Exception as e:
-            logging.info(f"❌ Error creating template: {e}")
+            cls.get_instance().logger.info(f"❌ Error creating template: {e}")
             return 1
 
     @classmethod

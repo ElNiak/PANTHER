@@ -15,7 +15,10 @@ from panther.plugins.core.structures.plugin_type import PluginType
 
 class PluginsCommand(BaseCommand):
     """Handle plugin discovery and management commands."""
-
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
     @classmethod
     def register_parser(cls, subparsers: _SubParsersAction) -> ArgumentParser:
         """Register the plugins subcommand parser."""
@@ -116,9 +119,11 @@ class PluginsCommand(BaseCommand):
 
     @classmethod
     def handle(cls, args: Any) -> int:
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
         """Handle the plugins command execution."""
         if not hasattr(args, "plugins_action") or args.plugins_action is None:
-            logging.info(
+            cls.get_instance().logger.info(
                 "❌ No plugin action specified. Use 'panther plugins --help' for options."
             )
             return 1
@@ -136,12 +141,14 @@ class PluginsCommand(BaseCommand):
         if handler:
             return handler(args)
         else:
-            logging.info(f"❌ Unknown plugin action: {args.plugins_action}")
+            cls.get_instance().logger.info(f"❌ Unknown plugin action: {args.plugins_action}")
             return 1
 
     @classmethod
     def _handle_list(cls, args: Any) -> int:
         """Handle plugin listing."""
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
         try:
             # Initialize plugin discovery
             from pathlib import Path
@@ -151,13 +158,13 @@ class PluginsCommand(BaseCommand):
             discovery = PluginManager()
             base_plugin_dir = Path(__file__).parent.parent.parent / "plugins"
 
-            logging.info(f"🔍 Scanning for plugins in: {base_plugin_dir}")
+            cls.get_instance().logger.info(f"🔍 Scanning for plugins in: {base_plugin_dir}")
 
             # Discover plugins first
             discovery.discover_plugins()
 
             # Debug: print args
-            logging.debug(f"Args type: {args.type}, format: {args.format}")
+            cls.get_instance().logger.debug(f"Args type: {args.type}, format: {args.format}")
 
             # Get plugins based on filter
             if args.type == "all":
@@ -169,9 +176,9 @@ class PluginsCommand(BaseCommand):
 
             if not plugins:
                 if args.type == "all":
-                    logging.info("ℹ️  No plugins found")
+                    cls.get_instance().logger.info("ℹ️  No plugins found")
                 else:
-                    logging.info(f"ℹ️  No plugins found for type: {args.type}")
+                    cls.get_instance().logger.info(f"ℹ️  No plugins found for type: {args.type}")
                 return 0
 
             # Display plugins
@@ -187,19 +194,19 @@ class PluginsCommand(BaseCommand):
                             "path": str(plugin.path),
                         }
                     )
-                logging.info(json.dumps(plugin_data, indent=2))
+                cls.get_instance().logger.info(json.dumps(plugin_data, indent=2))
 
             elif args.format == "simple":
                 for plugin in plugins:
-                    logging.info(f"{plugin.name} ({plugin.type})")
+                    cls.get_instance().logger.info(f"{plugin.name} ({plugin.type})")
 
             else:  # table format
-                logging.info(f"\n📦 Found {len(plugins)} plugin(s):")
-                logging.info("-" * 80)
-                logging.info(
+                cls.get_instance().logger.info(f"\n📦 Found {len(plugins)} plugin(s):")
+                cls.get_instance().logger.info("-" * 80)
+                cls.get_instance().logger.info(
                     f"{'Name':<20} {'Type':<20} {'Version':<10} {'Description':<25}"
                 )
-                logging.info("-" * 80)
+                cls.get_instance().logger.info("-" * 80)
 
                 for plugin in plugins:
                     description = (
@@ -207,16 +214,16 @@ class PluginsCommand(BaseCommand):
                         if len(plugin.description) > 25
                         else plugin.description
                     )
-                    logging.info(
+                    cls.get_instance().logger.info(
                         f"{plugin.name:<20} {plugin.type:<20} {plugin.version:<10} {description:<25}"
                     )
 
-                logging.info("-" * 80)
+                cls.get_instance().logger.info("-" * 80)
 
             return 0
 
         except Exception as e:
-            logging.info(f"❌ Error listing plugins: {e}")
+            cls.get_instance().logger.info(f"❌ Error listing plugins: {e}")
             if hasattr(args, "debug") and args.debug:
                 import traceback
 
@@ -262,12 +269,12 @@ class PluginsCommand(BaseCommand):
                         break
 
             if not plugin_type:
-                logging.error(
+                cls.get_instance().logger.error(
                     f"❌ Plugin '{plugin_name}' not found and no type specified"
                 )
                 return 1
 
-            logging.info(f"📋 Parameters for plugin: {plugin_name} ({plugin_type})")
+            cls.get_instance().logger.info(f"📋 Parameters for plugin: {plugin_name} ({plugin_type})")
 
             # Get plugin parameters
             try:
@@ -276,27 +283,27 @@ class PluginsCommand(BaseCommand):
                 )
 
                 if params:
-                    logging.info("\n🔧 Available Parameters:")
-                    logging.info("-" * 50)
+                    cls.get_instance().logger.info("\n🔧 Available Parameters:")
+                    cls.get_instance().logger.info("-" * 50)
                     for param_name, param_info in params.items():
                         param_type = param_info.get("type", "unknown")
                         param_default = param_info.get("default", "N/A")
                         param_desc = param_info.get("description", "No description")
 
-                        logging.info(f"  {param_name} ({param_type})")
-                        logging.info(f"    Default: {param_default}")
-                        logging.info(f"    Description: {param_desc}")
+                        cls.get_instance().logger.info(f"  {param_name} ({param_type})")
+                        cls.get_instance().logger.info(f"    Default: {param_default}")
+                        cls.get_instance().logger.info(f"    Description: {param_desc}")
                 else:
-                    logging.info("ℹ️  No parameters found for this plugin")
+                    cls.get_instance().logger.info("ℹ️  No parameters found for this plugin")
 
             except Exception as e:
-                logging.error(f"❌ Error getting plugin parameters: {e}")
+                cls.get_instance().logger.error(f"❌ Error getting plugin parameters: {e}")
                 return 1
 
             return 0
 
         except Exception as e:
-            logging.error(f"❌ Error displaying plugin parameters: {e}")
+            cls.get_instance().logger.error(f"❌ Error displaying plugin parameters: {e}")
             if hasattr(args, "debug") and args.debug:
                 import traceback
 
@@ -315,17 +322,17 @@ class PluginsCommand(BaseCommand):
                 scan_dir = args.directory
             else:
                 scan_dir = str(Path(__file__).parent.parent.parent / "plugins")
-            logging.info(f"🔍 Scanning directory: {scan_dir}")
+            cls.get_instance().logger.info(f"🔍 Scanning directory: {scan_dir}")
 
             discovery = PluginDiscovery([scan_dir])
             plugins_dict = discovery.discover_plugins()
 
             total_plugins = sum(len(plugins) for plugins in plugins_dict.values())
-            logging.info(f"✅ Scan complete. Found {total_plugins} plugin(s):")
+            cls.get_instance().logger.info(f"✅ Scan complete. Found {total_plugins} plugin(s):")
 
             for plugin_type, plugin_names in plugins_dict.items():
                 if plugin_names:
-                    logging.info(
+                    cls.get_instance().logger.info(
                         f"\n📦 {plugin_type.upper()} Plugins ({len(plugin_names)}):"
                     )
                     for plugin_name in plugin_names:
@@ -335,12 +342,12 @@ class PluginsCommand(BaseCommand):
                             if plugin_info
                             else "unknown"
                         )
-                        logging.info(f"  - {plugin_name} (v{version})")
+                        cls.get_instance().logger.info(f"  - {plugin_name} (v{version})")
 
             return 0
 
         except Exception as e:
-            logging.info(f"❌ Error scanning plugins: {e}")
+            cls.get_instance().logger.info(f"❌ Error scanning plugins: {e}")
             return 1
 
     @classmethod
@@ -350,23 +357,23 @@ class PluginsCommand(BaseCommand):
             plugin_path = Path(args.plugin_path)
 
             if not plugin_path.exists():
-                logging.info(f"❌ Plugin path not found: {plugin_path}")
+                cls.get_instance().logger.info(f"❌ Plugin path not found: {plugin_path}")
                 return 1
 
-            logging.info(f"🔍 Validating plugin: {plugin_path}")
+            cls.get_instance().logger.info(f"🔍 Validating plugin: {plugin_path}")
 
             # Basic structure validation
             if plugin_path.is_dir():
                 # Check for main plugin file
                 plugin_file = plugin_path / f"{plugin_path.name}.py"
                 if not plugin_file.exists():
-                    logging.info(f"❌ Main plugin file not found: {plugin_file}")
+                    cls.get_instance().logger.info(f"❌ Main plugin file not found: {plugin_file}")
                     return 1
 
                 # Check for config schema
                 config_file = plugin_path / "config_schema.py"
                 if not config_file.exists():
-                    logging.info(f"⚠️  Warning: No config schema found: {config_file}")
+                    cls.get_instance().logger.info(f"⚠️  Warning: No config schema found: {config_file}")
 
                 # Enhanced validation: syntax check
                 try:
@@ -374,12 +381,12 @@ class PluginsCommand(BaseCommand):
                         import ast
 
                         ast.parse(f.read())
-                    logging.info("✅ Plugin syntax is valid")
+                    cls.get_instance().logger.info("✅ Plugin syntax is valid")
                 except SyntaxError as e:
-                    logging.info(f"❌ Syntax error in plugin: {e}")
+                    cls.get_instance().logger.info(f"❌ Syntax error in plugin: {e}")
                     return 1
 
-                logging.info("✅ Plugin structure is valid")
+                cls.get_instance().logger.info("✅ Plugin structure is valid")
             else:
                 # For single file plugins, check syntax
                 try:
@@ -387,15 +394,15 @@ class PluginsCommand(BaseCommand):
                         import ast
 
                         ast.parse(f.read())
-                    logging.info("✅ Plugin file exists and has valid syntax")
+                    cls.get_instance().logger.info("✅ Plugin file exists and has valid syntax")
                 except SyntaxError as e:
-                    logging.info(f"❌ Syntax error in plugin: {e}")
+                    cls.get_instance().logger.info(f"❌ Syntax error in plugin: {e}")
                     return 1
 
             return 0
 
         except Exception as e:
-            logging.info(f"❌ Error validating plugin: {e}")
+            cls.get_instance().logger.info(f"❌ Error validating plugin: {e}")
             return 1
 
     @classmethod
@@ -405,10 +412,10 @@ class PluginsCommand(BaseCommand):
             plugin_path = Path(args.plugin_path)
 
             if not plugin_path.exists():
-                logging.info(f"❌ Plugin path not found: {plugin_path}")
+                cls.get_instance().logger.info(f"❌ Plugin path not found: {plugin_path}")
                 return 1
 
-            logging.info(f"🔍 Checking dependencies for: {plugin_path}")
+            cls.get_instance().logger.info(f"🔍 Checking dependencies for: {plugin_path}")
 
             # Basic import checking
             if plugin_path.is_file():
@@ -440,22 +447,22 @@ class PluginsCommand(BaseCommand):
                     continue
 
             if missing_deps:
-                logging.info(
+                cls.get_instance().logger.info(
                     f"⚠️  Missing dependencies: {', '.join(sorted(missing_deps))}"
                 )
                 return 1
             else:
-                logging.info("✅ All dependencies are available")
+                cls.get_instance().logger.info("✅ All dependencies are available")
                 return 0
 
         except Exception as e:
-            logging.info(f"❌ Error checking dependencies: {e}")
+            cls.get_instance().logger.info(f"❌ Error checking dependencies: {e}")
             return 1
 
     @classmethod
     def _handle_migrate(cls, args: Any) -> int:
         """Handle plugin migration."""
-        logging.info("❌ Plugin migration feature has been removed")
-        logging.info("   This feature was incomplete and has been deprecated")
-        logging.info("   Create new plugins using 'panther create plugin' instead")
+        cls.get_instance().logger.info("❌ Plugin migration feature has been removed")
+        cls.get_instance().logger.info("   This feature was incomplete and has been deprecated")
+        cls.get_instance().logger.info("   Create new plugins using 'panther create plugin' instead")
         return 1

@@ -73,19 +73,19 @@ class ToolsCommand(BaseCommand, CLIActionDispatchMixin):
     @classmethod
     def _install_slim(cls, args: Any) -> int:
         """Install slim tool for Docker image optimization."""
-        logging.info("Installing slim tool for Docker image optimization...")
+        cls.get_instance().logger.info("Installing slim tool for Docker image optimization...")
 
         # Check if slim is already installed
         if not args.force:
             result = subprocess.run(["which", "slim"], capture_output=True)
             if result.returncode == 0:
-                logging.info(
+                cls.get_instance().logger.info(
                     "✅ slim is already installed at: " + result.stdout.decode().strip()
                 )
                 return 0
 
         # Install slim using the official installation script
-        logging.info("Downloading and installing slim...")
+        cls.get_instance().logger.info("Downloading and installing slim...")
         try:
             # Use subprocess.Popen to chain commands securely without shell=True
             curl_cmd = [
@@ -112,35 +112,35 @@ class ToolsCommand(BaseCommand, CLIActionDispatchMixin):
             verify_result = subprocess.run(["which", "slim"], capture_output=True)
 
             if verify_result.returncode == 0:
-                logging.info(
+                cls.get_instance().logger.info(
                     "✅ slim installed successfully at: "
                     + verify_result.stdout.decode().strip()
                 )
                 return 0
             else:
-                logging.info("❌ slim installation failed. Could not find slim in PATH.")
+                cls.get_instance().logger.info("❌ slim installation failed. Could not find slim in PATH.")
                 return 1
 
         except subprocess.CalledProcessError as e:
-            logging.info(f"❌ Error installing slim: {e}")
+            cls.get_instance().logger.info(f"❌ Error installing slim: {e}")
             return 1
         except Exception as e:
-            logging.info(f"❌ Unexpected error during slim installation: {e}")
+            cls.get_instance().logger.info(f"❌ Unexpected error during slim installation: {e}")
             return 1
 
     @classmethod
     def _install_precommit(cls, args: Any) -> int:
         """Install and configure pre-commit hooks."""
-        logging.info("Installing and configuring pre-commit hooks...")
+        cls.get_instance().logger.info("Installing and configuring pre-commit hooks...")
 
         # Install pre-commit
-        logging.info("Installing pre-commit package...")
+        cls.get_instance().logger.info("Installing pre-commit package...")
         result = subprocess.run(
             [sys.executable, "-m", "pip", "install", "pre-commit"], capture_output=True
         )
         if result.returncode != 0:
-            logging.info("❌ Failed to install pre-commit package")
-            logging.info(result.stderr.decode())
+            cls.get_instance().logger.info("❌ Failed to install pre-commit package")
+            cls.get_instance().logger.info(result.stderr.decode())
             return result.returncode
 
         # Find project root (where .git directory is)
@@ -154,7 +154,7 @@ class ToolsCommand(BaseCommand, CLIActionDispatchMixin):
             current_path = current_path.parent
 
         if not project_root:
-            logging.info(
+            cls.get_instance().logger.info(
                 "❌ Not in a git repository. Please run from within a git repository."
             )
             return 1
@@ -163,7 +163,7 @@ class ToolsCommand(BaseCommand, CLIActionDispatchMixin):
         precommit_config = project_root / ".pre-commit-config.yaml"
 
         if not precommit_config.exists():
-            logging.info("No .pre-commit-config.yaml found in root. Creating one...")
+            cls.get_instance().logger.info("No .pre-commit-config.yaml found in root. Creating one...")
 
             # Create a basic pre-commit config
             basic_config = """# See https://pre-commit.com for more information
@@ -201,41 +201,41 @@ repos:
 """
             with open(precommit_config, "w") as f:
                 f.write(basic_config)
-            logging.info("✅ Created basic .pre-commit-config.yaml")
+            cls.get_instance().logger.info("✅ Created basic .pre-commit-config.yaml")
         else:
-            logging.info("✅ .pre-commit-config.yaml already exists in root")
+            cls.get_instance().logger.info("✅ .pre-commit-config.yaml already exists in root")
 
         # Install the pre-commit hooks
-        logging.info("Installing pre-commit hooks into .git/hooks/...")
+        cls.get_instance().logger.info("Installing pre-commit hooks into .git/hooks/...")
         result = subprocess.run(
             ["pre-commit", "install"], cwd=project_root, capture_output=True
         )
         if result.returncode != 0:
-            logging.info("❌ Failed to install pre-commit hooks")
-            logging.info(result.stderr.decode())
+            cls.get_instance().logger.info("❌ Failed to install pre-commit hooks")
+            cls.get_instance().logger.info(result.stderr.decode())
             return result.returncode
 
         # Update hooks if requested
         if args.update:
-            logging.info("Updating pre-commit hooks to latest versions...")
+            cls.get_instance().logger.info("Updating pre-commit hooks to latest versions...")
             result = subprocess.run(
                 ["pre-commit", "autoupdate"], cwd=project_root, capture_output=True
             )
             if result.returncode != 0:
-                logging.info(
+                cls.get_instance().logger.info(
                     "⚠️  Warning: Failed to update pre-commit hooks, but installation was successful"
                 )
 
-        logging.info("✅ Pre-commit hooks installed and configured successfully!")
-        logging.info("💡 To run pre-commit on all files: pre-commit run --all-files")
+        cls.get_instance().logger.info("✅ Pre-commit hooks installed and configured successfully!")
+        cls.get_instance().logger.info("💡 To run pre-commit on all files: pre-commit run --all-files")
 
         return 0
 
     @classmethod
     def _list_tools(cls, args: Any) -> int:
         """List installed tools and their status."""
-        logging.info("🔍 PANTHER Tools Status")
-        logging.info("=" * 40)
+        cls.get_instance().logger.info("🔍 PANTHER Tools Status")
+        cls.get_instance().logger.info("=" * 40)
 
         tools = [
             ("slim", "Docker image optimizer"),
@@ -284,8 +284,8 @@ repos:
                 except Exception:
                     pass
 
-                logging.info(f"✅ {tool_name:<12} {version:<10} - {description}")
+                cls.get_instance().logger.info(f"✅ {tool_name:<12} {version:<10} - {description}")
             else:
-                logging.info(f"❌ {tool_name:<12} {'not found':<10} - {description}")
+                cls.get_instance().logger.info(f"❌ {tool_name:<12} {'not found':<10} - {description}")
 
         return 0

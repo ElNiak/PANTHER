@@ -154,24 +154,24 @@ class RunCommand(BaseCommand):
             # Validate config file exists
             config_path = Path(args.config)
             if not config_path.exists():
-                logging.error(f"❌ Configuration file not found: {config_path}")
-                logging.error(
+                cls.get_instance().logger.error(f"❌ Configuration file not found: {config_path}")
+                cls.get_instance().logger.error(
                     f"   Please ensure the experiment config file exists at the specified path."
                 )
-                logging.error(f"   Current working directory: {Path.cwd()}")
+                cls.get_instance().logger.error(f"   Current working directory: {Path.cwd()}")
                 if config_path.is_absolute():
-                    logging.error(f"   Absolute path provided: {config_path}")
+                    cls.get_instance().logger.error(f"   Absolute path provided: {config_path}")
                 else:
-                    logging.error(
+                    cls.get_instance().logger.error(
                         f"   Relative path resolved to: {config_path.resolve()}"
                     )
                 return 1
 
-            logging.info(f"🚀 Starting PANTHER experiment with config: {config_path}")
+            cls.get_instance().logger.info(f"🚀 Starting PANTHER experiment with config: {config_path}")
 
             # Check for dry-run mode
             if args.dry_run:
-                logging.info(
+                cls.get_instance().logger.info(
                     "🔍 DRY-RUN MODE: Analyzing experiment configuration without execution"
                 )
 
@@ -181,7 +181,7 @@ class RunCommand(BaseCommand):
                 debug_override=args.debug if hasattr(args, "debug") else False,
             )
 
-            logging.info("📂 Loading global configuration...")
+            cls.get_instance().logger.info("📂 Loading global configuration...")
             # Load global config for logging settings
             global_config = config_loader.load_and_validate_global_config()
 
@@ -202,11 +202,11 @@ class RunCommand(BaseCommand):
             if global_config and hasattr(global_config, "logging"):
                 logging_config = {
                     "level": (
-                        global_config.logging.level.name
-                        if hasattr(global_config.logging.level, "name")
-                        else str(global_config.logging.level)
+                        global_config.cls.get_instance().logger.level.name
+                        if hasattr(global_config.cls.get_instance().logger.level, "name")
+                        else str(global_config.cls.get_instance().logger.level)
                     ),
-                    "format": global_config.logging.format,
+                    "format": global_config.cls.get_instance().logger.format,
                     "enable_colors": getattr(
                         global_config.logging, "enable_colors", True
                     ),
@@ -216,7 +216,7 @@ class RunCommand(BaseCommand):
                 if hasattr(global_config.logging, "feature_levels"):
                     logging_config[
                         "feature_levels"
-                    ] = global_config.logging.feature_levels
+                    ] = global_config.cls.get_instance().logger.feature_levels
 
                 LoggerFactory.initialize(logging_config)
 
@@ -252,12 +252,12 @@ class RunCommand(BaseCommand):
                     )
 
                     if not args.metrics_quiet:
-                        logging.info(
+                        cls.get_instance().logger.info(
                             f"📊 Metrics collection enabled for: {experiment_name}"
                         )
 
                 except Exception as e:
-                    logging.info(f"⚠️  Warning: Failed to initialize metrics: {e}")
+                    cls.get_instance().logger.info(f"⚠️  Warning: Failed to initialize metrics: {e}")
 
             # Update config_loader with additional parameters
             config_loader.output_dir = args.output_dir
@@ -268,20 +268,20 @@ class RunCommand(BaseCommand):
             config_loader.metrics_collector = metrics_collector
 
             # Load experiment configuration
-            logging.info("📋 Loading experiment configuration...")
+            cls.get_instance().logger.info("📋 Loading experiment configuration...")
             try:
                 experiment_config = config_loader.load_and_validate_experiment_config()
             except FileNotFoundError as e:
-                logging.error(f"❌ Configuration file error: {e}")
+                cls.get_instance().logger.error(f"❌ Configuration file error: {e}")
                 return 1
             except ValueError as e:
-                logging.error(f"❌ Configuration validation error: {e}")
+                cls.get_instance().logger.error(f"❌ Configuration validation error: {e}")
                 return 1
             except PermissionError as e:
-                logging.error(f"❌ Configuration file access error: {e}")
+                cls.get_instance().logger.error(f"❌ Configuration file access error: {e}")
                 return 1
             except Exception as e:
-                logging.error(f"❌ Unexpected configuration error: {e}")
+                cls.get_instance().logger.error(f"❌ Unexpected configuration error: {e}")
                 if hasattr(args, "debug") and args.debug:
                     import traceback
 
@@ -297,7 +297,7 @@ class RunCommand(BaseCommand):
             )
 
             # Initialize experiments with experiment config
-            logging.info("🔧 Initializing experiment...")
+            cls.get_instance().logger.info("🔧 Initializing experiment...")
             experiment_manager.initialize_experiments(experiment_config)
 
             # Start resource monitoring if enabled
@@ -305,12 +305,12 @@ class RunCommand(BaseCommand):
                 try:
                     resource_monitor.start()
                 except Exception as e:
-                    logging.info(
+                    cls.get_instance().logger.info(
                         f"⚠️  Warning: Failed to start resource monitoring: {e}"
                     )
 
             # Run the tests
-            logging.info("🚀 Running tests...")
+            cls.get_instance().logger.info("🚀 Running tests...")
             success = experiment_manager.run_tests()
 
             # Stop resource monitoring
@@ -318,7 +318,7 @@ class RunCommand(BaseCommand):
                 try:
                     resource_monitor.stop()
                 except Exception as e:
-                    logging.info(
+                    cls.get_instance().logger.info(
                         f"⚠️  Warning: Failed to stop resource monitoring: {e}"
                     )
 
@@ -328,11 +328,11 @@ class RunCommand(BaseCommand):
                     report_path = metrics_output_dir / "metrics_report.txt"
                     success = metrics_reporter.generate_report(str(report_path))
                     if success and not args.metrics_quiet:
-                        logging.info("📈 Metrics report generated")
+                        cls.get_instance().logger.info("📈 Metrics report generated")
                     elif not success:
-                        logging.info("⚠️  Warning: Failed to generate metrics report")
+                        cls.get_instance().logger.info("⚠️  Warning: Failed to generate metrics report")
                 except Exception as e:
-                    logging.info(f"⚠️  Warning: Failed to generate metrics report: {e}")
+                    cls.get_instance().logger.info(f"⚠️  Warning: Failed to generate metrics report: {e}")
 
             # Export metrics
             if metrics_exporter:
@@ -349,28 +349,28 @@ class RunCommand(BaseCommand):
                         success = metrics_exporter.export_to_json(output_path)
 
                     if success and not args.metrics_quiet:
-                        logging.info(
+                        cls.get_instance().logger.info(
                             f"💾 Metrics exported to {args.metrics_format} format"
                         )
                     elif not success:
-                        logging.info(
+                        cls.get_instance().logger.info(
                             f"⚠️  Warning: Failed to export metrics to {args.metrics_format} format"
                         )
                 except Exception as e:
-                    logging.info(f"⚠️  Warning: Failed to export metrics: {e}")
+                    cls.get_instance().logger.info(f"⚠️  Warning: Failed to export metrics: {e}")
 
             if success:
-                logging.info("✅ Experiment completed successfully")
+                cls.get_instance().logger.info("✅ Experiment completed successfully")
                 return 0
             else:
-                logging.info("❌ Experiment failed")
+                cls.get_instance().logger.info("❌ Experiment failed")
                 return 1
 
         except KeyboardInterrupt:
-            logging.info("\n⚠️  Experiment interrupted by user")
+            cls.get_instance().logger.info("\n⚠️  Experiment interrupted by user")
             return 130
         except Exception as e:
-            logging.info(f"❌ Error running experiment: {e}")
+            cls.get_instance().logger.info(f"❌ Error running experiment: {e}")
             if hasattr(args, "debug") and args.debug:
                 import traceback
 

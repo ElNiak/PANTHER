@@ -98,19 +98,19 @@ class CheckCommand(BaseCommand):
                 checks_to_run.append("test")
 
         if not checks_to_run:
-            logging.info(
+            cls.get_instance().logger.info(
                 "❌ No checks specified. Use --all or specify individual checks."
             )
-            logging.info(
+            cls.get_instance().logger.info(
                 "   Available checks: --format, --imports, --lint, --type, --security, --test"
             )
             return 1
 
-        logging.info(f"🔍 Running code quality checks on: {args.path}")
-        logging.info(f"   Checks to run: {', '.join(checks_to_run)}")
+        cls.get_instance().logger.info(f"🔍 Running code quality checks on: {args.path}")
+        cls.get_instance().logger.info(f"   Checks to run: {', '.join(checks_to_run)}")
         if args.fix:
-            logging.info("   Auto-fix: Enabled")
-        logging.info("-" * 60)
+            cls.get_instance().logger.info("   Auto-fix: Enabled")
+        cls.get_instance().logger.info("-" * 60)
 
         # Install required tools if needed
         cls._ensure_tools_installed(checks_to_run)
@@ -139,17 +139,17 @@ class CheckCommand(BaseCommand):
             total_errors += errors
 
         # Summary
-        logging.info("\n" + "=" * 60)
-        logging.info("📊 Check Summary:")
+        cls.get_instance().logger.info("\n" + "=" * 60)
+        cls.get_instance().logger.info("📊 Check Summary:")
         for check, errors in results:
             status = "✅ PASSED" if errors == 0 else f"❌ FAILED ({errors} issues)"
-            logging.info(f"   {check:<12}: {status}")
+            cls.get_instance().logger.info(f"   {check:<12}: {status}")
 
         if total_errors == 0:
-            logging.info("\n✅ All checks passed!")
+            cls.get_instance().logger.info("\n✅ All checks passed!")
             return 0
         else:
-            logging.info(f"\n❌ {total_errors} total issue(s) found")
+            cls.get_instance().logger.info(f"\n❌ {total_errors} total issue(s) found")
             return 1
 
     @classmethod
@@ -169,7 +169,7 @@ class CheckCommand(BaseCommand):
             tools_to_install.update(required_tools.get(check, []))
 
         if tools_to_install:
-            logging.info("📦 Checking required tools...")
+            cls.get_instance().logger.info("📦 Checking required tools...")
             missing_tools = []
 
             for tool in tools_to_install:
@@ -183,7 +183,7 @@ class CheckCommand(BaseCommand):
                     missing_tools.append(tool)
 
             if missing_tools:
-                logging.info(f"   Installing missing tools: {', '.join(missing_tools)}")
+                cls.get_instance().logger.info(f"   Installing missing tools: {', '.join(missing_tools)}")
                 subprocess.run(
                     [sys.executable, "-m", "pip", "install"] + missing_tools,
                     check=False,
@@ -192,71 +192,71 @@ class CheckCommand(BaseCommand):
     @classmethod
     def _check_format(cls, args: Any) -> int:
         """Check code formatting with black."""
-        logging.info("\n🎨 Checking code formatting with black...")
+        cls.get_instance().logger.info("\n🎨 Checking code formatting with black...")
 
         cmd = [sys.executable, "-m", "black"]
         if args.fix:
             cmd.append(args.path)
-            logging.info("   Running black to format code...")
+            cls.get_instance().logger.info("   Running black to format code...")
         else:
             cmd.extend(["--check", "--diff", args.path])
-            logging.info("   Running black in check mode...")
+            cls.get_instance().logger.info("   Running black in check mode...")
 
         result = subprocess.run(cmd, capture_output=True, text=True)
 
         if result.returncode == 0:
-            logging.info("   ✅ Code formatting is correct")
+            cls.get_instance().logger.info("   ✅ Code formatting is correct")
             return 0
         else:
             if args.fix:
-                logging.info("   ✅ Code has been formatted")
+                cls.get_instance().logger.info("   ✅ Code has been formatted")
                 return 0
             else:
-                logging.info("   ❌ Code formatting issues found")
+                cls.get_instance().logger.info("   ❌ Code formatting issues found")
                 if result.stdout:
-                    logging.info("\nSuggested changes:")
-                    logging.info(result.stdout)
-                logging.info("\n   💡 Run with --fix to automatically format")
+                    cls.get_instance().logger.info("\nSuggested changes:")
+                    cls.get_instance().logger.info(result.stdout)
+                cls.get_instance().logger.info("\n   💡 Run with --fix to automatically format")
                 return 1
 
     @classmethod
     def _check_imports(cls, args: Any) -> int:
         """Check import sorting with isort."""
-        logging.info("\n📦 Checking import sorting with isort...")
+        cls.get_instance().logger.info("\n📦 Checking import sorting with isort...")
 
         cmd = [sys.executable, "-m", "isort"]
         if args.fix:
             cmd.append(args.path)
-            logging.info("   Running isort to sort imports...")
+            cls.get_instance().logger.info("   Running isort to sort imports...")
         else:
             cmd.extend(["--check-only", "--diff", args.path])
-            logging.info("   Running isort in check mode...")
+            cls.get_instance().logger.info("   Running isort in check mode...")
 
         result = subprocess.run(cmd, capture_output=True, text=True)
 
         if result.returncode == 0:
-            logging.info("   ✅ Import sorting is correct")
+            cls.get_instance().logger.info("   ✅ Import sorting is correct")
             return 0
         else:
             if args.fix:
-                logging.info("   ✅ Imports have been sorted")
+                cls.get_instance().logger.info("   ✅ Imports have been sorted")
                 return 0
             else:
-                logging.info("   ❌ Import sorting issues found")
+                cls.get_instance().logger.info("   ❌ Import sorting issues found")
                 if result.stdout:
                     # Limit output to first 20 lines
                     lines = result.stdout.split("\n")[:20]
-                    logging.info("\nSuggested changes (first 20 lines):")
-                    logging.info("\n".join(lines))
+                    cls.get_instance().logger.info("\nSuggested changes (first 20 lines):")
+                    cls.get_instance().logger.info("\n".join(lines))
                     if len(result.stdout.split("\n")) > 20:
-                        logging.info("   ... and more")
-                logging.info("\n   💡 Run with --fix to automatically sort imports")
+                        cls.get_instance().logger.info("   ... and more")
+                cls.get_instance().logger.info("\n   💡 Run with --fix to automatically sort imports")
                 return 1
 
     @classmethod
     def _check_lint(cls, args: Any) -> int:
         """Run linting with flake8."""
-        logging.info("\n🔍 Running flake8 linting...")
+        cls.get_instance().logger.info("\n🔍 Running flake8 linting...")
 
         cmd = [sys.executable, "-m", "flake8", args.path]
 
@@ -270,10 +270,10 @@ class CheckCommand(BaseCommand):
         result = subprocess.run(cmd, capture_output=True, text=True)
 
         if result.returncode == 0:
-            logging.info("   ✅ No linting issues found")
+            cls.get_instance().logger.info("   ✅ No linting issues found")
             return 0
         else:
-            logging.info("   ❌ Linting issues found:")
+            cls.get_instance().logger.info("   ❌ Linting issues found:")
 
             # Parse and count issues
             issues = result.stdout.strip().split("\n") if result.stdout else []
@@ -281,19 +281,19 @@ class CheckCommand(BaseCommand):
 
             # Show first 10 issues
             if issues:
-                logging.info("\nFirst 10 issues:")
+                cls.get_instance().logger.info("\nFirst 10 issues:")
                 for issue in issues[:10]:
                     if issue:
-                        logging.info(f"   {issue}")
+                        cls.get_instance().logger.info(f"   {issue}")
                 if len(issues) > 10:
-                    logging.info(f"\n   ... and {len(issues) - 10} more issues")
+                    cls.get_instance().logger.info(f"\n   ... and {len(issues) - 10} more issues")
 
             return issue_count if issue_count > 0 else 1
 
     @classmethod
     def _check_type(cls, args: Any) -> int:
         """Run type checking with mypy."""
-        logging.info("\n🔤 Running mypy type checking...")
+        cls.get_instance().logger.info("\n🔤 Running mypy type checking...")
 
         cmd = [sys.executable, "-m", "mypy", args.path]
 
@@ -314,10 +314,10 @@ class CheckCommand(BaseCommand):
         result = subprocess.run(cmd, capture_output=True, text=True)
 
         if result.returncode == 0 and not result.stdout.strip():
-            logging.info("   ✅ No type checking issues found")
+            cls.get_instance().logger.info("   ✅ No type checking issues found")
             return 0
         else:
-            logging.info("   ❌ Type checking issues found:")
+            cls.get_instance().logger.info("   ❌ Type checking issues found:")
 
             # Parse and show issues
             output = result.stdout.strip()
@@ -327,25 +327,25 @@ class CheckCommand(BaseCommand):
                 warning_count = len([l for l in lines if ": warning:" in l])
                 note_count = len([l for l in lines if ": note:" in l])
 
-                logging.info(
+                cls.get_instance().logger.info(
                     f"\n   Errors: {error_count}, Warnings: {warning_count}, Notes: {note_count}"
                 )
 
                 # Show first 10 errors
                 errors = [l for l in lines if ": error:" in l][:10]
                 if errors:
-                    logging.info("\nFirst 10 errors:")
+                    cls.get_instance().logger.info("\nFirst 10 errors:")
                     for error in errors:
-                        logging.info(f"   {error}")
+                        cls.get_instance().logger.info(f"   {error}")
                     if len([l for l in lines if ": error:" in l]) > 10:
-                        logging.info("   ... and more errors")
+                        cls.get_instance().logger.info("   ... and more errors")
 
             return 1
 
     @classmethod
     def _check_security(cls, args: Any) -> int:
         """Run security checks with bandit."""
-        logging.info("\n🔒 Running bandit security checks...")
+        cls.get_instance().logger.info("\n🔒 Running bandit security checks...")
 
         cmd = [sys.executable, "-m", "bandit", "-r", args.path]
 
@@ -359,10 +359,10 @@ class CheckCommand(BaseCommand):
         result = subprocess.run(cmd, capture_output=True, text=True)
 
         if result.returncode == 0:
-            logging.info("   ✅ No security issues found")
+            cls.get_instance().logger.info("   ✅ No security issues found")
             return 0
         else:
-            logging.info("   ❌ Security issues found:")
+            cls.get_instance().logger.info("   ❌ Security issues found:")
 
             # Parse output to show summary
             output = result.stdout
@@ -370,7 +370,7 @@ class CheckCommand(BaseCommand):
                 # Extract summary line
                 for line in output.split("\n"):
                     if "Total issues" in line:
-                        logging.info(f"\n   {line.strip()}")
+                        cls.get_instance().logger.info(f"\n   {line.strip()}")
                         break
 
             # Show first few issues
@@ -390,17 +390,17 @@ class CheckCommand(BaseCommand):
                                 break
 
                 if issue_lines:
-                    logging.info("\nSecurity issues found:")
-                    logging.info("\n".join(issue_lines[:50]))
+                    cls.get_instance().logger.info("\nSecurity issues found:")
+                    cls.get_instance().logger.info("\n".join(issue_lines[:50]))
                     if len(issue_lines) > 50:
-                        logging.info("\n   ... and more issues")
+                        cls.get_instance().logger.info("\n   ... and more issues")
 
             return 1
 
     @classmethod
     def _run_tests(cls, args: Any) -> int:
         """Run tests with pytest."""
-        logging.info("\n🧪 Running tests with pytest...")
+        cls.get_instance().logger.info("\n🧪 Running tests with pytest...")
 
         cmd = [sys.executable, "-m", "pytest"]
 
@@ -415,7 +415,7 @@ class CheckCommand(BaseCommand):
         if test_path.exists():
             cmd.append(str(test_path))
         else:
-            logging.info("   ⚠️  No tests directory found")
+            cls.get_instance().logger.info("   ⚠️  No tests directory found")
             return 0
 
         # Add config file if specified
@@ -426,10 +426,10 @@ class CheckCommand(BaseCommand):
         result = subprocess.run(cmd, capture_output=False)  # Let pytest handle output
 
         if result.returncode == 0:
-            logging.info("\n   ✅ All tests passed")
+            cls.get_instance().logger.info("\n   ✅ All tests passed")
             if args.coverage:
-                logging.info("   📊 Coverage report generated in htmlcov/")
+                cls.get_instance().logger.info("   📊 Coverage report generated in htmlcov/")
             return 0
         else:
-            logging.info("\n   ❌ Some tests failed")
+            cls.get_instance().logger.info("\n   ❌ Some tests failed")
             return 1

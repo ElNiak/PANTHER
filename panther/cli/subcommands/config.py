@@ -111,7 +111,7 @@ class ConfigCommand(BaseCommand):
     def handle(cls, args: Any) -> int:
         """Handle the config command execution."""
         if not hasattr(args, "config_action") or args.config_action is None:
-            logging.info(
+            cls.get_instance().logger.info(
                 "❌ No config action specified. Use 'panther config --help' for options."
             )
             return 1
@@ -125,7 +125,7 @@ class ConfigCommand(BaseCommand):
         elif args.config_action == "design":
             return cls._handle_design(args)
         else:
-            logging.info(f"❌ Unknown config action: {args.config_action}")
+            cls.get_instance().logger.info(f"❌ Unknown config action: {args.config_action}")
             return 1
 
     @classmethod
@@ -140,18 +140,18 @@ class ConfigCommand(BaseCommand):
 
             config_path = Path(args.config)
             if not config_path.exists():
-                logging.info(f"❌ Configuration file not found: {config_path}")
+                cls.get_instance().logger.info(f"❌ Configuration file not found: {config_path}")
                 return 1
 
-            logging.info(f"🔍 Validating configuration: {config_path}")
+            cls.get_instance().logger.info(f"🔍 Validating configuration: {config_path}")
 
             # Basic YAML syntax check
             try:
                 with open(config_path, "r") as f:
                     config_data = yaml.safe_load(f)
-                logging.info("✅ YAML syntax is valid")
+                cls.get_instance().logger.info("✅ YAML syntax is valid")
             except yaml.YAMLError as e:
-                logging.info(f"❌ YAML syntax error: {e}")
+                cls.get_instance().logger.info(f"❌ YAML syntax error: {e}")
                 return 1
 
             # Initialize LoggerFactory with colors if specified in config
@@ -177,26 +177,26 @@ class ConfigCommand(BaseCommand):
 
                 # Load and validate configuration
                 experiment_config = config_loader.load_and_validate_experiment_config()
-                logging.info("✅ Configuration schema is valid")
+                cls.get_instance().logger.info("✅ Configuration schema is valid")
 
                 # Show configuration summary
                 if experiment_config and hasattr(experiment_config, "tests"):
                     test_count = (
                         len(experiment_config.tests) if experiment_config.tests else 0
                     )
-                    logging.info(f"📋 Found {test_count} test(s) in configuration")
+                    cls.get_instance().logger.info(f"📋 Found {test_count} test(s) in configuration")
 
                     if args.show_schema:
-                        logging.info("\n📖 Configuration Summary:")
+                        cls.get_instance().logger.info("\n📖 Configuration Summary:")
                         if experiment_config.tests:
                             for i, test in enumerate(experiment_config.tests, 1):
-                                logging.info(f"  Test {i}: {test.name}")
+                                cls.get_instance().logger.info(f"  Test {i}: {test.name}")
                                 if hasattr(test, "services") and test.services:
                                     service_count = len(test.services)
-                                    logging.info(f"    Services: {service_count}")
+                                    cls.get_instance().logger.info(f"    Services: {service_count}")
 
             except Exception as e:
-                logging.info(f"❌ Configuration validation failed: {e}")
+                cls.get_instance().logger.info(f"❌ Configuration validation failed: {e}")
 
                 # Enhanced error explanation if requested
                 if hasattr(args, "explain") and args.explain:
@@ -204,14 +204,14 @@ class ConfigCommand(BaseCommand):
                         ValidationHelper,
                     )
 
-                    logging.info("\n" + ValidationHelper.explain_validation_error(e))
+                    cls.get_instance().logger.info("\n" + ValidationHelper.explain_validation_error(e))
 
                     # Try to provide specific suggestions
                     suggestions = ValidationHelper.suggest_fixes(config_data, e)
                     if suggestions:
-                        logging.info("\n💡 Suggestions:")
+                        cls.get_instance().logger.info("\n💡 Suggestions:")
                         for suggestion in suggestions:
-                            logging.info(f"   {suggestion}")
+                            cls.get_instance().logger.info(f"   {suggestion}")
 
                 if hasattr(args, "debug") and args.debug:
                     import traceback
@@ -227,18 +227,18 @@ class ConfigCommand(BaseCommand):
                     config_path
                 )
 
-                logging.info("\n📋 Detailed Validation Report:")
+                cls.get_instance().logger.info("\n📋 Detailed Validation Report:")
                 for explanation in explanations:
-                    logging.info(f"   {explanation}")
+                    cls.get_instance().logger.info(f"   {explanation}")
 
                 if not valid:
                     return 1
 
-            logging.info("✅ Configuration is valid and ready to use")
+            cls.get_instance().logger.info("✅ Configuration is valid and ready to use")
             return 0
 
         except Exception as e:
-            logging.info(f"❌ Error during validation: {e}")
+            cls.get_instance().logger.info(f"❌ Error during validation: {e}")
             return 1
 
     @classmethod
@@ -247,11 +247,11 @@ class ConfigCommand(BaseCommand):
         try:
             from panther.config.core.models import ExperimentConfig, GlobalConfig
 
-            logging.info("📖 PANTHER Configuration Schema")
-            logging.info("=" * 40)
+            cls.get_instance().logger.info("📖 PANTHER Configuration Schema")
+            cls.get_instance().logger.info("=" * 40)
 
             if args.format == "text":
-                logging.info(
+                cls.get_instance().logger.info(
                     """
 Main Configuration Sections:
   - logging: Logging configuration (level, format, etc.)
@@ -280,15 +280,15 @@ For complete schema details, see the configuration documentation.
                 )
             elif args.format == "json":
                 # This would ideally generate JSON schema
-                logging.info('{"message": "JSON schema export not yet implemented"}')
+                cls.get_instance().logger.info('{"message": "JSON schema export not yet implemented"}')
             elif args.format == "yaml":
                 # This would ideally generate YAML schema
-                logging.info("# YAML schema export not yet implemented")
+                cls.get_instance().logger.info("# YAML schema export not yet implemented")
 
             return 0
 
         except Exception as e:
-            logging.info(f"❌ Error displaying schema: {e}")
+            cls.get_instance().logger.info(f"❌ Error displaying schema: {e}")
             return 1
 
     @classmethod
@@ -305,7 +305,7 @@ For complete schema details, see the configuration documentation.
 
             template_content = templates.get(args.template)
             if not template_content:
-                logging.info(f"❌ Unknown template: {args.template}")
+                cls.get_instance().logger.info(f"❌ Unknown template: {args.template}")
                 return 1
 
             if args.output:
@@ -313,14 +313,14 @@ For complete schema details, see the configuration documentation.
                 output_path.parent.mkdir(parents=True, exist_ok=True)
                 with open(output_path, "w") as f:
                     f.write(template_content)
-                logging.info(f"✅ Template generated: {output_path}")
+                cls.get_instance().logger.info(f"✅ Template generated: {output_path}")
             else:
-                logging.info(template_content)
+                cls.get_instance().logger.info(template_content)
 
             return 0
 
         except Exception as e:
-            logging.info(f"❌ Error generating template: {e}")
+            cls.get_instance().logger.info(f"❌ Error generating template: {e}")
             return 1
 
     @classmethod
@@ -657,29 +657,29 @@ tests:
                 quick_mode=args.quick if hasattr(args, "quick") else False,
             )
 
-            logging.info("🎨 Welcome to PANTHER Interactive Configuration Designer!")
-            logging.info("=" * 60)
+            cls.get_instance().logger.info("🎨 Welcome to PANTHER Interactive Configuration Designer!")
+            cls.get_instance().logger.info("=" * 60)
 
             # Run the interactive designer
             success = designer.run()
 
             if success:
-                logging.info(f"\n✅ Configuration successfully created: {args.output}")
-                logging.info(
+                cls.get_instance().logger.info(f"\n✅ Configuration successfully created: {args.output}")
+                cls.get_instance().logger.info(
                     "📋 You can validate it with: panther config validate --config {} --explain".format(
                         args.output
                     )
                 )
                 return 0
             else:
-                logging.info("\n❌ Configuration design cancelled or failed")
+                cls.get_instance().logger.info("\n❌ Configuration design cancelled or failed")
                 return 1
 
         except KeyboardInterrupt:
-            logging.info("\n⚠️  Design session cancelled by user")
+            cls.get_instance().logger.info("\n⚠️  Design session cancelled by user")
             return 130
         except Exception as e:
-            logging.info(f"❌ Error during configuration design: {e}")
+            cls.get_instance().logger.info(f"❌ Error during configuration design: {e}")
             if hasattr(args, "debug") and args.debug:
                 import traceback
 

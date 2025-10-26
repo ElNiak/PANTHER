@@ -5,7 +5,7 @@
 # BUILDER -> DEBUG -> PROFILE runtime environments with execution tools
 # =============================================================================
 
-ARG TARGETPLATFORM=linux/amd64
+# ARG TARGETPLATFORM=linux/amd64
 ARG RUNTIME_MODE=minimal
 
 # =============================================================================
@@ -16,8 +16,8 @@ FROM ubuntu:20.04 AS builder
 ENV DEBIAN_FRONTEND=noninteractive
 
 # APT package cache optimization with BuildKit cache mounts
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+RUN --mount=type=cache,target=/var/cache/apt-${TARGETPLATFORM},sharing=locked \
+    --mount=type=cache,target=/var/lib/apt-${TARGETPLATFORM},sharing=locked \
     ln -fs /usr/share/zoneinfo/UTC /etc/localtime && \
     apt-get update && \
     apt-get install --fix-missing --auto-remove --show-upgraded --no-install-recommends -y \
@@ -34,16 +34,17 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 
 
 # Git clone with cache mount for build artifacts
-RUN --mount=type=cache,target=/tmp/build-cache \
+RUN --mount=type=cache,target=/var/cache/apt-${TARGETPLATFORM},sharing=locked \
+    --mount=type=cache,target=/var/lib/apt-${TARGETPLATFORM},sharing=locked \
     git clone https://github.com/gperftools/gperftools /tmp/build-cache/gperftools || \
     (cd /tmp/build-cache/gperftools && git pull) && \
-    cp -r /tmp/build-cache/gperftools /gperftools
+    cp -r /tmp/build-cache/gperftools /gperftools-${TARGETPLATFORM}
 
-WORKDIR /gperftools
+WORKDIR /gperftools-${TARGETPLATFORM}
 
 # Build with cache for compiled objects
-RUN --mount=type=cache,target=/gperftools/.libs \
-    --mount=type=cache,target=/gperftools/src/.libs \
+RUN --mount=type=cache,target=/gperftools-${TARGETPLATFORM}/.libs \
+    --mount=type=cache,target=/gperftools-${TARGETPLATFORM}/src/.libs \
     ./autogen.sh && \
     ./configure && \
     make && \
@@ -60,8 +61,8 @@ RUN mkdir -p /app /opt
 FROM builder AS debug
 
 # Install debugging tools with cache
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+RUN --mount=type=cache,target=/var/cache/apt-${TARGETPLATFORM},sharing=locked \
+    --mount=type=cache,target=/var/lib/apt-${TARGETPLATFORM},sharing=locked \
     apt-get update && \
     apt-get install --no-install-recommends -y \
     gdb valgrind strace util-linux
@@ -76,8 +77,8 @@ COPY --from=builder /usr/local/lib/libtcmalloc.* /usr/local/lib/
 FROM debug AS profile
 
 # Install performance profiling tools with cache
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+RUN --mount=type=cache,target=/var/cache/apt-${TARGETPLATFORM},sharing=locked \
+    --mount=type=cache,target=/var/lib/apt-${TARGETPLATFORM},sharing=locked \
     apt-get update && \
     apt-get install --no-install-recommends -y \
     linux-tools-generic linux-tools-common linux-cloud-tools-common \
@@ -94,8 +95,8 @@ FROM ubuntu:20.04 AS minimal
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Core runtime and network analysis tools with cache
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+RUN --mount=type=cache,target=/var/cache/apt-${TARGETPLATFORM},sharing=locked \
+    --mount=type=cache,target=/var/lib/apt-${TARGETPLATFORM},sharing=locked \
     ln -fs /usr/share/zoneinfo/UTC /etc/localtime && \
     apt-get update && \
     apt-get install --fix-missing --auto-remove --show-upgraded --no-install-recommends -y \
