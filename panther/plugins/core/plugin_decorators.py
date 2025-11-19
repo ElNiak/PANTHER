@@ -40,7 +40,6 @@ def register_plugin(
     **kwargs,
 ):
     """
-    Enhanced decorator to register a plugin with complete metadata.
 
     Usage:
         @register_plugin(

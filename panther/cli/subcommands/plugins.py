@@ -234,53 +234,25 @@ class PluginsCommand(BaseCommand):
     def _handle_params(cls, args: Any) -> int:
         """Handle plugin parameter display."""
         try:
-            from panther.config.config_manager import ConfigLoader
+            from panther.plugins.plugin_manager import PluginManager
 
-            # Initialize config loader to access plugin parameters
-            config_loader = ConfigLoader(
-                experiment_file="experiment-config/experiment_config_example_minimal.yaml",
-                debug_override=hasattr(args, "debug") and args.debug,
-            )
-
-            # Set global config to avoid None errors
-            if config_loader.global_config is None:
-                from panther.config.core.models import GlobalConfig
-
-                config_loader.global_config = GlobalConfig()
+            # Initialize plugin manager to access plugin parameters
+            plugin_manager = PluginManager()
 
             plugin_name = args.plugin_name
             plugin_type = args.type
             protocol = args.protocol
 
-            # Auto-detect plugin type if not specified
-            if not plugin_type:
-                from pathlib import Path
-
-                from panther.plugins.core.plugin_discovery import PluginDiscovery
-
-                base_plugin_dir = Path(__file__).parent.parent.parent / "plugins"
-                discovery = PluginDiscovery([str(base_plugin_dir)])
-                plugins_dict = discovery.discover_plugins(force_refresh=True)
-
-                # Find plugin type by searching all plugin types
-                for p_type, plugin_names in plugins_dict.items():
-                    if plugin_name in plugin_names:
-                        plugin_type = p_type
-                        break
-
-            if not plugin_type:
-                cls.get_instance().logger.error(
-                    f"❌ Plugin '{plugin_name}' not found and no type specified"
-                )
-                return 1
-
             cls.get_instance().logger.info(f"📋 Parameters for plugin: {plugin_name} ({plugin_type})")
 
             # Get plugin parameters
             try:
-                params = config_loader.list_plugin_parameters(
-                    plugin_name=plugin_name, plugin_type=plugin_type, protocol=protocol
-                )
+                params = plugin_manager.get_plugin(
+                    name=plugin_name)
+                if not params:
+                    cls.get_instance().logger.info(f"❌ Plugin not found: {plugin_name}")
+                    return 1
+                params = params.to_dict()
 
                 if params:
                     cls.get_instance().logger.info("\n🔧 Available Parameters:")

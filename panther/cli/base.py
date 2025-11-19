@@ -60,7 +60,7 @@ class CLIActionDispatchMixin:
             Exit code (0 for success, 1 for error)
         """
         if not hasattr(args, action_attr) or getattr(args, action_attr) is None:
-            logging.info(
+            cls.get_instance().logger.info(
                 f"❌ No {command_name} action specified. Use 'panther {command_name} --help' for options."
             )
             return 1
@@ -70,5 +70,12 @@ class CLIActionDispatchMixin:
         if handler:
             return handler(args)
         else:
-            logging.info(f"❌ Unknown {command_name} action: {action}")
+            cls.get_instance().logger.info(f"❌ Unknown {command_name} action: {action}")
             return 1
+
+    @classmethod
+    def get_instance(cls) -> "BaseCommand":
+        """Get or create the singleton instance of the command."""
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance

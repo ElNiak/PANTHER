@@ -47,6 +47,7 @@ class CommandMetadata:
     has_control_operators: bool = False
     control_operators: List[str] = field(default_factory=list)
     is_variable_assignment: bool = False
+    is_environment_variable_assignment: bool = False
     is_shell_builtin: bool = False
     is_control_structure: bool = False
     has_nested_quotes: bool = False
@@ -94,7 +95,12 @@ class ShellCommand(LoggerMixin):
         # Elegantly apply all kwargs to metadata attributes if they exist
         for key, value in kwargs.items():
             if hasattr(self.metadata, key):
+                self.logger.debug(f"Setting ShellCommand metadata '{key}' to '{value}'")
                 setattr(self.metadata, key, value)
+            else:
+                self.logger.debug(
+                    f"ShellCommand metadata has no attribute '{key}', ignoring."
+                )
             # Silently ignore unknown attributes for backward compatibility
 
         # Normalize the command
@@ -124,6 +130,7 @@ class ShellCommand(LoggerMixin):
         # Validate if requested
         if validate:
             self._validate()
+            
 
     def _parse_command_structure(self) -> None:
         """Parse the command to extract its components."""
@@ -211,7 +218,7 @@ class ShellCommand(LoggerMixin):
             self.metadata.is_multiline = True
 
         # Enhanced variable assignment detection
-        if self._is_variable_assignment(command_str, cmd_parts):
+        if self._is_variable_assignment(command_str, cmd_parts) and not self.metadata.is_environment_variable_assignment:
             self.metadata.is_variable_assignment = True
 
         # Check for simple function call
@@ -248,7 +255,7 @@ class ShellCommand(LoggerMixin):
         # Check for export command
         if cmd_parts[0] == "export":
             # export VAR or export VAR=value
-            return True
+            return False
 
         # Check for variable assignment pattern
         # This regex matches: VARNAME=anything including $(cmd) or `cmd`
@@ -423,6 +430,7 @@ class ShellCommand(LoggerMixin):
     def to_dict(self) -> Dict[str, Any]:
         """
         Convert command to dictionary representation.
+        # TODO: improve maintenance by using asdict from dataclasses
 
         Returns:
             Dictionary with command data
@@ -448,6 +456,7 @@ class ShellCommand(LoggerMixin):
                 "has_control_operators": self.metadata.has_control_operators,
                 "control_operators": self.metadata.control_operators,
                 "is_variable_assignment": self.metadata.is_variable_assignment,
+                "is_environment_variable_assignment": self.metadata.is_environment_variable_assignment,
                 "is_shell_builtin": self.metadata.is_shell_builtin,
                 "is_control_structure": self.metadata.is_control_structure,
                 "has_nested_quotes": self.metadata.has_nested_quotes,

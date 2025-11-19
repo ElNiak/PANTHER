@@ -213,6 +213,7 @@ class ServiceCommandBuilder(CommandBuilder):
         is_critical: bool = True,
         is_variable_assignment: bool = False,
         is_function_call: bool = False,
+        is_environment_variable_assignment: bool = False,
         working_dir: Optional[str] = None,
         environment: Optional[Dict[str, str]] = None,
         timeout: Optional[int] = None,
@@ -252,6 +253,7 @@ class ServiceCommandBuilder(CommandBuilder):
             is_function_call=is_function_call,
             working_dir=working_dir,
             environment=environment or {},
+            is_environment_variable_assignment=is_environment_variable_assignment,
             timeout=timeout,
         )
         self._shell_commands.append(shell_cmd)

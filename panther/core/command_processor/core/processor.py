@@ -66,9 +66,11 @@ class CommandProcessor(ICommandProcessor, ErrorHandlerMixin):
 
                 if cmd_type == "run_cmd":
                     # Handle the special structure of run_cmd
+                    self.logger.debug("Processing 'run_cmd' structure")
                     processed_commands["run_cmd"] = self._process_run_cmd(cmds)
                 else:
                     # Process regular command lists
+                    self.logger.debug("Processing '%s' commands", cmd_type)
                     processed_commands[cmd_type] = self.process_command_list(cmds)
 
             return processed_commands

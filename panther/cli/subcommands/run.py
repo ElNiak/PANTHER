@@ -202,11 +202,11 @@ class RunCommand(BaseCommand):
             if global_config and hasattr(global_config, "logging"):
                 logging_config = {
                     "level": (
-                        global_config.cls.get_instance().logger.level.name
-                        if hasattr(global_config.cls.get_instance().logger.level, "name")
-                        else str(global_config.cls.get_instance().logger.level)
+                        global_config.logging.level.name
+                        if hasattr(global_config.logging.level, "name")
+                        else str(global_config.logging.level)
                     ),
-                    "format": global_config.cls.get_instance().logger.format,
+                    "format": global_config.logging.format,
                     "enable_colors": getattr(
                         global_config.logging, "enable_colors", True
                     ),
@@ -216,7 +216,7 @@ class RunCommand(BaseCommand):
                 if hasattr(global_config.logging, "feature_levels"):
                     logging_config[
                         "feature_levels"
-                    ] = global_config.cls.get_instance().logger.feature_levels
+                    ] = global_config.logging.feature_levels
 
                 LoggerFactory.initialize(logging_config)
 

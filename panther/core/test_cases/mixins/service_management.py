@@ -123,7 +123,7 @@ class ServiceManagementMixin:
 
                     if service_manager:
                         self.service_managers.append(service_manager)
-                        self.logger.info(f"Tester {service_name} set up successfully")
+                        self.logger.info(f"Tester {service_name} set up successfully ({service_manager})")
 
                 except Exception as e:
                     self.logger.error(f"Failed to setup tester {service_name}: {e}")
@@ -153,7 +153,7 @@ class ServiceManagementMixin:
                     if service_manager:
                         self.service_managers.append(service_manager)
                         self.logger.info(
-                            f"Implementation {service_name} set up successfully"
+                            f"Implementation {service_name} set up successfully ({service_manager})"
                         )
 
                 except Exception as e:

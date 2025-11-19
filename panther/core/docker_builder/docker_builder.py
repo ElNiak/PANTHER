@@ -674,7 +674,7 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
             for candidate in buildkit_candidates:
                 if candidate.exists():
                     selected_dockerfile = candidate
-                    self.logger.debug(
+                    self.logger.info(
                         "Selected Dockerfile for buildx: %s", selected_dockerfile
                     )
                     break
@@ -1229,6 +1229,11 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
         )
 
     def push_image_to_registry(self, image_tag, registry_image_tag, registry_url, tag):
+        if self.client is None:
+            self.logger.error(
+                "Docker client is not available. Cannot push Docker image to registry."
+            )
+            return False
         # Tag the image for the registry
         image = self.client.images.get(image_tag)
         image.tag(registry_image_tag)
