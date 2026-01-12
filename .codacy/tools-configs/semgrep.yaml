@@ -29501,6 +29501,43 @@ rules:
             }
         - focus-metavariable: $SECRET
       severity: WARNING
+    - id: terraform.aws.security.aws-provisioner-exec.aws-provisioner-exec
+      languages:
+        - terraform
+      message: Provisioners are a tool of last resort and should be avoided where possible. Provisioner behavior cannot be mapped by Terraform as part of a plan, and execute arbitrary shell commands by design.
+      metadata:
+        category: security
+        confidence: HIGH
+        cwe:
+            - 'CWE-77: Improper Neutralization of Special Elements used in a Command (''Command Injection'')'
+            - 'CWE-94: Improper Control of Generation of Code (''Code Injection'')'
+        impact: MEDIUM
+        likelihood: HIGH
+        owasp:
+            - A03:2021 - Injection
+            - A01:2017 - Injection
+        references:
+            - https://developer.hashicorp.com/terraform/language/resources/provisioners/remote-exec
+            - https://developer.hashicorp.com/terraform/language/resources/provisioners/local-exec
+        subcategory:
+            - guardrail
+        technology:
+            - terraform
+      patterns:
+        - pattern-either:
+            - pattern: |
+                provisioner "remote-exec" {
+                    ...
+                }
+            - pattern: |
+                provisioner "local-exec" {
+                    ...
+                }
+        - pattern-inside: |
+            resource "aws_instance" "..." {
+                ...
+            }
+      severity: WARNING
     - id: terraform.aws.security.aws-rds-backup-no-retention.aws-rds-backup-no-retention
       languages:
         - hcl
@@ -34374,8 +34411,12 @@ rules:
             - A3:2017 Sensitive Data Exposure
       options:
         generic_ellipsis_max_span: 0
-      pattern: |
-        $PASSWORD VARCHAR2($LENGTH) := $...VALUE;
+      patterns:
+        - pattern: |
+            $PASSWORD VARCHAR2($LENGTH) := $...VALUE;
+        - metavariable-regex:
+            metavariable: $PASSWORD
+            regex: (?i).*(password|motdepasse|heslo|adgangskode|wachtwoord|salasana|passwort|passord|senha|geslo|clave|losenord|clave|parola|secret|pwd).*
       severity: ERROR
     - id: codacy.generic.plsql.resource-injection
       languages:
@@ -34435,3 +34476,82 @@ rules:
             - '*.yml'
       pattern-regex: "[​‌‍⁠\uFEFF]"
       severity: WARNING
+    - id: codacy.python.openai.non-guardrails-direct-call
+      languages:
+        - python
+      message: Direct OpenAI SDK call detected. Use Guardrails client (GuardrailsOpenAI/GuardrailsAsyncOpenAI) instead.
+      metadata:
+        category: security
+        confidence: MEDIUM
+        cwe: 'CWE-20: Improper Input Validation'
+        justification: |
+            Guardrails is a drop-in replacement that automatically validates inputs/outputs. Prefer Guardrails clients over raw openai.* calls.
+        references:
+            - https://openai.github.io/openai-guardrails-python/
+      patterns:
+        - pattern-either:
+            - pattern: openai.ChatCompletion.create(...)
+            - pattern: openai.Completion.create(...)
+            - pattern: openai.chat.completions.create(...)
+            - pattern: openai.responses.create(...)
+            - pattern: openai.embeddings.create(...)
+            - pattern: openai.images.generate(...)
+            - pattern: openai.audio.transcriptions.create(...)
+            - pattern: openai.audio.speech.create(...)
+      severity: WARNING
+    - id: codacy.python.openai.non-guardrails-client-usage
+      languages:
+        - python
+      message: OpenAI client used without Guardrails. Replace with GuardrailsOpenAI / GuardrailsAsyncOpenAI.
+      metadata:
+        category: security
+        confidence: MEDIUM
+        cwe: 'CWE-20: Improper Input Validation'
+        justification: |
+            Guardrails advises using GuardrailsOpenAI/GuardrailsAsyncOpenAI as a drop-in replacement so validation runs automatically on every API call.
+        references:
+            - https://openai.github.io/openai-guardrails-python/
+      patterns:
+        - pattern-either:
+            - pattern: |
+                $C = OpenAI(...)
+                ...
+                $C.chat.completions.create(...)
+            - pattern: |
+                $C = OpenAI(...)
+                ...
+                $C.responses.create(...)
+            - pattern: |
+                $C = OpenAI(...)
+                ...
+                $C.embeddings.create(...)
+            - pattern: |
+                $C = AsyncOpenAI(...)
+                ...
+                $C.chat.completions.create(...)
+            - pattern: |
+                $C = AsyncOpenAI(...)
+                ...
+                $C.responses.create(...)
+            - pattern: |
+                $C = AsyncOpenAI(...)
+                ...
+                $C.embeddings.create(...)
+        - pattern-not: |
+            $C = GuardrailsOpenAI(...)
+        - pattern-not: |
+            $C = GuardrailsAsyncOpenAI(...)
+      severity: WARNING
+    - id: codacy.python.openai.import-without-guardrails
+      languages:
+        - python
+      message: OpenAI SDK imported without Guardrails import. Consider GuardrailsOpenAI / GuardrailsAsyncOpenAI.
+      metadata:
+        category: security
+        confidence: MEDIUM
+        references:
+            - https://openai.github.io/openai-guardrails-python/
+      pattern: |
+        import openai
+      pattern-not: "from guardrails import GuardrailsOpenAI |\nfrom guardrails import GuardrailsAsyncOpenAI    \n"
+      severity: INFO
