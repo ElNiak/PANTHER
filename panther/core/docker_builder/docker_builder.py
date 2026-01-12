@@ -243,7 +243,7 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
         except DockerException:
             return False
 
-    def get_docker_status(self) -> Dict[str, Union[bool, str, int]]:
+    def get_docker_status(self) -> dict[str, Union[bool, bool, str, int, float, bool]]:
         """
         Get comprehensive Docker status including cache information.
 
@@ -251,7 +251,7 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
             Dictionary with Docker and cache status
         """
         docker_available = self.is_docker_available()
-        cache_stats = self.image_cache.get_cache_stats()
+        cache_stats : dict[str, Union[int, bool, float]] = self.image_cache.get_cache_stats()
 
         return {
             "docker_available": docker_available,
@@ -620,7 +620,7 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                 builder_name = self.global_config.docker.buildx_builder
                 # 🔄 NEW: ensure CLI context matches builder context
                 try:
-                    strategy = (
+                    strategy : str = (
                         getattr(
                             self.global_config.docker,
                             "docker_context_strategy",
