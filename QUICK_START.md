@@ -120,7 +120,7 @@ panther config validate --config quic_demo.yaml --explain
 panther run --config quic_demo.yaml --dry-run
 
 # Run the actual experiment with metrics
-panther run --config quic_demo.yaml --enable-metrics --verbose
+panther --debug run --config quic_demo.yaml --verbose
 ```
 
 PANTHER validates the YAML, builds images if absent, launches the two

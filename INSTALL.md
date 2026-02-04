@@ -37,8 +37,8 @@ This document provides instructions for installing and setting up the PANTHER sy
     This is the simplest installation method and includes all core functionality and built-in plugins.
 
 ```bash
-python -m venv .venv              # optional but recommended
-source .venv/bin/activate
+# optional but recommended
+python -m venv .venv; source .venv/bin/activate
 pip install "panther-net"
 ```
 
@@ -84,11 +84,6 @@ python -m venv .venv && source .venv/bin/activate;
 For development work, we **highly recommend** using the included Python builder script instead of the traditional Makefile:
 
 ```bash
-git clone --recurse-submodules https://github.com/ElNiak/PANTHER.git
-# If submodule not cloned initially ;)
-git submodule update --init --recursive;
-cd PANTHER
-python -m venv .venv && source .venv/bin/activate
 # After cloning and setting up your environment:
 python panther_builder.py package-dev    # Install in development mode
 python panther_builder.py docs           # Build documentation
