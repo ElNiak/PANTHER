@@ -637,12 +637,15 @@ class DockerBuilder(
         host_platform = self._get_host_platform()
         is_cross_platform = host_platform != self.get_target_platform()
         
-        # Check if buildx is explicitly disabled in configuration
         # Check if buildx is available on system first
         if not self._check_buildx_available():
             self.logger.info(
                 "Buildx not available on system, falling back to regular Docker build"
             )
+            if is_cross_platform:
+                self.logger.warning(
+                    "Cross-platform build requested but buildx is unavailable; build may fail."
+                )
             return False
 
         # Check if Dockerfile requires BuildKit features (HIGHEST PRIORITY)
@@ -664,18 +667,6 @@ class DockerBuilder(
             self.logger.debug(
                 "Buildx disabled in configuration, using regular Docker build"
             )
-            return False
-
-        # Check if buildx is available on system
-        if not self._check_buildx_available():
-            self.logger.info(
-                "Buildx not available on system, falling back to regular Docker build"
-            )
-            if is_cross_platform:
-                self.logger.warning(
-                    "Cross-platform build requested but buildx is unavailable; build may fail."
-                )
-                
             return False
 
         # If multi-platform builds are enabled, always use buildx
