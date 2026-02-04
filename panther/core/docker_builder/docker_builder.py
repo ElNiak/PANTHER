@@ -1432,20 +1432,32 @@ class DockerBuilder(
                 log_f = open(log_filename, "w")
 
             # Calculate relative path from context to dockerfile for Docker API
-            # Prefer Dockerfile.buildkit if it exists
+            # Only prefer Dockerfile.buildkit if use_buildx is enabled in config
             # Note: Dockerfile.multistage is excluded as it relies on deadsnakes PPA
             # which is broken on Ubuntu 20.04 for Python 3.10
-            buildkit_candidates = [
-                Path(dockerfile_path).parent / "Dockerfile.buildkit",
-                dockerfile_path,  # fallback to original
-            ]
+            use_buildx_config = (
+                hasattr(self, "global_config")
+                and self.global_config
+                and hasattr(self.global_config, "docker")
+                and self.global_config.docker.use_buildx
+            )
+
+            if use_buildx_config:
+                buildkit_candidates = [
+                    Path(dockerfile_path).parent / "Dockerfile.buildkit",
+                    dockerfile_path,  # fallback to original
+                ]
+            else:
+                # When use_buildx is false, only use regular Dockerfile
+                buildkit_candidates = [dockerfile_path]
 
             selected_dockerfile = None
             for candidate in buildkit_candidates:
                 if candidate.exists():
                     selected_dockerfile = candidate
                     self.logger.debug(
-                        "Selected Dockerfile for regular build: %s", selected_dockerfile
+                        "Selected Dockerfile (use_buildx=%s): %s",
+                        use_buildx_config, selected_dockerfile
                     )
                     break
 

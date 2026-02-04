@@ -286,19 +286,54 @@ def run(
 
                 info_message(f"Loading configuration...")
 
+                # Load raw YAML first to extract global settings (docker, logging, paths, etc.)
+                with open(config, "r") as f:
+                    raw_config = yaml.safe_load(f)
+
                 # Load experiment configuration using the convenience function
                 experiment_config = load_experiment(
                     config, validate=True, auto_fix=True
                 )
 
-                # Create a basic global config for ExperimentManager
+                # Extract global settings from raw config, with defaults
+                yaml_docker_config = raw_config.get("docker", {})
+                yaml_logging_config = raw_config.get("logging", {})
+                yaml_paths_config = raw_config.get("paths", {})
+                yaml_progress_config = raw_config.get("progress", {})
+                yaml_observers_config = raw_config.get("observers", {})
+
+                # Merge with CLI defaults - YAML values take precedence
+                docker_config = {
+                    "build_docker_image": yaml_docker_config.get("build_docker_image", False),
+                    "force_build_docker_image": yaml_docker_config.get("force_build_docker_image", False),
+                    "log_docker_image_build": yaml_docker_config.get("log_docker_image_build", False),
+                    "use_buildx": yaml_docker_config.get("use_buildx", True),  # Default True for backwards compat
+                }
+                # Add other docker config keys if present
+                for key in ["user_mapping", "build_args", "network_mode", "buildx_builder", "multi_platform", "target_platform"]:
+                    if key in yaml_docker_config:
+                        docker_config[key] = yaml_docker_config[key]
+
+                logging_config = {
+                    "level": yaml_logging_config.get("level", "INFO"),
+                    "format": yaml_logging_config.get("format", "%(levelname)s - %(message)s"),
+                }
+                # Add feature_levels if present
+                if "feature_levels" in yaml_logging_config:
+                    logging_config["feature_levels"] = yaml_logging_config["feature_levels"]
+
+                paths_config = {
+                    "output_dir": yaml_paths_config.get("output_dir", str(output_dir)),
+                    "log_dir": yaml_paths_config.get("log_dir", f"{output_dir}/logs"),
+                }
+
+                # Create global config with merged settings
                 global_config = GlobalConfig(
-                    logging={"level": "INFO", "format": "%(levelname)s - %(message)s"},
-                    paths={
-                        "output_dir": str(output_dir),
-                        "log_dir": f"{output_dir}/logs",
-                    },
-                    docker={"build_docker_image": False},
+                    logging=logging_config,
+                    paths=paths_config,
+                    docker=docker_config,
+                    progress=yaml_progress_config if yaml_progress_config else None,
+                    observers=yaml_observers_config if yaml_observers_config else None,
                 )
 
                 # Set up metrics if enabled

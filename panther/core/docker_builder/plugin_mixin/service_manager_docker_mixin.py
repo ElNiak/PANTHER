@@ -760,12 +760,28 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
                 else buildkit_dockerfile
             )
 
-        # Prefer Dockerfile.buildkit if it exists and BuildX is available
-        if buildkit_dockerfile.exists():
-            self.logger.info(
+        # Check if use_buildx is enabled in config (use self.global_config, not docker_builder)
+        # Default to True only if config is not accessible (backwards compatibility)
+        gc = getattr(self, "global_config", None)
+        if gc is not None and hasattr(gc, "docker") and gc.docker is not None:
+            use_buildx_config = getattr(gc.docker, "use_buildx", True)
+            self.logger.debug(f"use_buildx from global_config: {use_buildx_config}")
+        else:
+            # No config available, default to buildkit for backwards compatibility
+            use_buildx_config = True
+            self.logger.debug("No global_config.docker available, defaulting use_buildx=True")
+
+        # Prefer Dockerfile.buildkit only if use_buildx is enabled in config
+        if use_buildx_config and buildkit_dockerfile.exists():
+            self.logger.debug(
                 f"Selected BuildKit-optimized Dockerfile: {buildkit_dockerfile}"
             )
             return buildkit_dockerfile
+        elif not use_buildx_config and regular_dockerfile.exists():
+            self.logger.debug(
+                f"Selected standard Dockerfile (use_buildx=False): {regular_dockerfile}"
+            )
+            return regular_dockerfile
 
         # Check if regular Dockerfile requires BuildKit features
         if regular_dockerfile.exists():
