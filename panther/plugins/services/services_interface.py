@@ -23,34 +23,53 @@ if TYPE_CHECKING:
 
 
 def quote_shell(s: str) -> str:
-    """
-    Safely quote a string for shell commands using shlex.quote
+    """Quote string for safe shell command execution.
+
+    Uses shlex.quote to properly escape special characters in shell arguments,
+    preventing command injection vulnerabilities.
 
     Args:
-        s: The string to quote
+        s: String to quote for shell safety.
 
     Returns:
-        The quoted string safe for shell execution
+        Shell-safe quoted string.
+
+    Example:
+        >>> quote_shell("file with spaces.txt")
+        "'file with spaces.txt'"
+        >>> quote_shell("normal_file.txt")
+        "normal_file.txt"
     """
     return shlex.quote(str(s))
 
 
 def quote_yaml(s: str) -> str:
-    """
-    Safely quote a string for YAML using yaml.safe_dump
+    """Quote string for safe YAML document inclusion.
+
+    Uses yaml.safe_dump to properly escape YAML special characters and
+    ensure the string can be safely included in YAML documents.
 
     Args:
-        s: The string to quote
+        s: String to quote for YAML safety.
 
     Returns:
-        The quoted string safe for YAML inclusion
+        YAML-safe quoted string.
+
+    Example:
+        >>> quote_yaml("key: value")
+        "'key: value'"
+        >>> quote_yaml("simple_string")
+        "simple_string"
     """
     return yaml.safe_dump(str(s)).strip()
 
 
 class IServiceManager(IPlugin, CommandEventMixin):
-    """
-    IServiceManager is an interface for managing services within the PANTHER-SCP framework. It extends the IPlugin class and provides methods for initializing and rendering commands, as well as generating various types of commands required for service deployment and execution.
+    """Service manager interface for PANTHER network protocol testing framework.
+
+    Manages service lifecycle, command generation, and configuration for network
+    protocol implementations and testing services. Supports both Implementation
+    Under Test (IUT) and Tester service types with event-driven architecture.
 
     Attributes:
         available_types (list): List of valid service types.

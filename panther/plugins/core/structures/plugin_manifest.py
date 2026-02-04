@@ -1,7 +1,11 @@
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from panther.plugins.core.structures.plugin_dependency import PluginDependency
 from panther.plugins.core.structures.plugin_type import PluginType
+
+# Use TYPE_CHECKING to avoid circular imports
+if TYPE_CHECKING:
+    from panther.plugins.core.docker_metadata import DockerRequirements
 
 """
 Plugin Manifest and Metadata Definitions

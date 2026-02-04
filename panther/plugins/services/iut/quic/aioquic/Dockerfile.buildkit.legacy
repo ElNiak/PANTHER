@@ -1,0 +1,168 @@
+# syntax=docker/dockerfile:1
+ARG BUILDPLATFORM=linux/amd64
+
+ARG TARGETPLATFORM=linux/amd64
+ARG RUNTIME_MODE=minimal
+ARG BASE_IMAGE=panther_base_service:latest
+FROM ${BASE_IMAGE} AS base
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Define build arguments for version-specific configurations
+ARG VERSION=master
+ARG DEPENDENCIES="[]"  # JSON-formatted list of dependencies
+ARG USER_N=root  # Define USER_N with default value
+ENV VERSION=${VERSION}
+ENV DEPENDENCIES=${DEPENDENCIES}
+
+# Layer 1: Perl dependencies for picotls test code (rarely changes)
+RUN --mount=type=cache,target=/root/.cpan-${TARGETPLATFORM//\//-},sharing=locked \
+    echo install Test::TCP | perl -MCPAN - && \
+    echo install Scope::Guard | perl -MCPAN -
+
+# Layer 2: Install jq with cache mount for apt packages
+RUN --mount=type=cache,target=/var/cache/apt,id=aptcache-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,id=aptlib-${TARGETPLATFORM//\//-},sharing=locked \
+    apt-get update && \
+    apt-get install --fix-missing -y jq
+
+# Switch to specified user (now properly defined)
+USER ${USER_N}
+
+# Layer 3: Dependency building with comprehensive cache (expensive, changes occasionally)
+RUN --mount=type=cache,target=/tmp/git-cache-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/tmp/build-cache-${TARGETPLATFORM//\//-},sharing=locked \
+    cd /opt && \
+    echo "Starting dependency installation..." && \
+    echo $DEPENDENCIES | jq -c '.[]' | while read -r dep; do \
+    DEP_NAME=$(echo $dep | jq -r '.name'); \
+    DEP_URL=$(echo $dep | jq -r '.url'); \
+    DEP_COMMIT=$(echo $dep | jq -r '.commit'); \
+    if [ -n "$DEP_NAME" ] && [ -n "$DEP_URL" ] && [ -n "$DEP_COMMIT" ]; then \
+    echo "Processing dependency '$DEP_NAME' from '$DEP_URL' at commit '$DEP_COMMIT'"; \
+    # Use cached git repo if available \
+    if [ -d "/tmp/git-cache/$DEP_NAME" ]; then \
+    echo "Using cached repository for $DEP_NAME"; \
+    cp -r "/tmp/git-cache/$DEP_NAME" "$DEP_NAME"; \
+    cd "$DEP_NAME" && git fetch && git checkout "$DEP_COMMIT"; \
+    else \
+    echo "Cloning fresh repository for $DEP_NAME"; \
+    git clone "$DEP_URL" "$DEP_NAME"; \
+    cd "$DEP_NAME" && git checkout "$DEP_COMMIT"; \
+    # Cache the repository \
+    cp -r "/opt/$DEP_NAME" "/tmp/git-cache/$DEP_NAME"; \
+    fi; \
+    git submodule update --init --recursive; \
+    # Use build cache for compilation \
+    if [ -d "/tmp/build-cache/$DEP_NAME" ]; then \
+    echo "Restoring build cache for $DEP_NAME"; \
+    cp -r "/tmp/build-cache/$DEP_NAME"/* . 2>/dev/null || true; \
+    fi; \
+    OPENSSL_INCLUDE_DIR="/usr/include/openssl" # Platform-specific CMake configuration
+ case "${TARGETPLATFORM}" in \
+     "linux/amd64") \
+         CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=x86_64 -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++" \
+         ;; \
+     "linux/arm64") \
+         CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=aarch64" \
+         ;; \
+     *) \
+         CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=x86_64" \
+         ;; \
+ esac && \
+ cmake $CMAKE_ARGS .; \
+    make; \
+    make check; \
+    # Save build artifacts to cache \
+    mkdir -p "/tmp/build-cache/$DEP_NAME"; \
+    cp -r . "/tmp/build-cache/$DEP_NAME/" 2>/dev/null || true; \
+    echo "Successfully built dependency '$DEP_NAME'"; \
+    cd /opt; \
+    else \
+    echo "Invalid dependency configuration: $dep"; \
+    exit 1; \
+    fi; \
+    done
+
+# Layer 4: Main picoquic repository (changes when VERSION changes)
+RUN --mount=type=cache,target=/tmp/git-cache/picoquic-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/tmp/picoquic-build-${TARGETPLATFORM//\//-},sharing=locked \
+    cd /opt && \
+    if [ -d "/tmp/git-cache/picoquic/.git" ]; then \
+    echo "Using cached picoquic repository"; \
+    cp -r /tmp/git-cache/picoquic picoquic; \
+    cd picoquic && git fetch && git checkout ${VERSION}; \
+    else \
+    echo "Cloning fresh picoquic repository"; \
+    git clone https://github.com/private-octopus/picoquic.git; \
+    cd picoquic && git checkout ${VERSION}; \
+    # Cache the repository \
+    cp -r /opt/picoquic /tmp/git-cache/picoquic; \
+    fi && \
+    # Use build cache for compilation \
+    if [ -d "/tmp/picoquic-build/cmake_cache" ]; then \
+    echo "Restoring # Platform-specific CMake configuration
+ case "${TARGETPLATFORM}" in \
+     "linux/amd64") \
+         CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=x86_64 -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++" \
+         ;; \
+     "linux/arm64") \
+         CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=aarch64" \
+         ;; \
+     *) \
+         CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=x86_64" \
+         ;; \
+ esac && \
+ cmake $CMAKE_ARGS cache"; \
+    cp -r /tmp/picoquic-build/cmake_cache/* . 2>/dev/null || true; \
+    fi && \
+    # Platform-specific CMake configuration
+
+    case "${TARGETPLATFORM}" in \
+
+        "linux/amd64") \
+
+            CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=x86_64 -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++" \
+
+            ;; \
+
+        "linux/arm64") \
+
+            CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=aarch64" \
+
+            ;; \
+
+        *) \
+
+            CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=x86_64" \
+
+            ;; \
+
+    esac && \
+
+    cmake $CMAKE_ARGS . && \
+    make && \
+    ./picoquic_ct || true && \
+    # Save # Platform-specific CMake configuration
+ case "${TARGETPLATFORM}" in \
+     "linux/amd64") \
+         CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=x86_64 -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++" \
+         ;; \
+     "linux/arm64") \
+         CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=aarch64" \
+         ;; \
+     *) \
+         CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=x86_64" \
+         ;; \
+ esac && \
+ cmake $CMAKE_ARGS cache \
+    mkdir -p /tmp/picoquic-build/cmake_cache && \
+    cp -r CMakeCache.txt CMakeFiles/ Makefile /tmp/picoquic-build/cmake_cache/ 2>/dev/null || true
+
+# Layer 5: Runtime configuration (rarely changes)
+EXPOSE 4443 8080
+
+RUN mkdir -p /app/logs /opt/certs /opt/ticket
+
+# Set entrypoint (can be overridden)
+ENTRYPOINT [ "/bin/bash", "-l", "-c" ]

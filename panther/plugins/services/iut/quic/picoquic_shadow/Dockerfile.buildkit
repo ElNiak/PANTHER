@@ -1,10 +1,20 @@
 # syntax=docker/dockerfile:1
-# ARG TARGETPLATFORM=linux/amd64
-ARG RUNTIME_MODE=minimal
-ARG BASE_IMAGE=panther_base_service:latest
-FROM ${BASE_IMAGE} AS base
 
-ENV DEBIAN_FRONTEND=noninteractive
+# =============================================================================
+# PICOQUIC_SHADOW Implementation - Modern Multi-Platform BuildKit Dockerfile
+# Cross-platform build with automatic platform detection and security hardening
+# =============================================================================
+
+# BuildKit automatic platform arguments
+ARG BUILDPLATFORM=linux/amd64
+ARG TARGETPLATFORM=linux/amd64
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+ARG BUILDVARIANT
+
+# Runtime configuration
+ARG RUNTIME_MODE=minimal
+ARG BASE_IMAGE_DIGEST=sha256:965fbcae990b0467ed5657caceaec165018ef44a4d2d46c7cdea80a9dff0d1ea
 
 # Define build arguments for version-specific configurations
 ARG VERSION=master
@@ -13,19 +23,39 @@ ARG USER_N=root  # Define USER_N with default value
 ENV VERSION=${VERSION}
 ENV DEPENDENCIES=${DEPENDENCIES}
 
-# Layer 1: Perl dependencies for picotls test code (rarely changes)
-RUN --mount=type=cache,target=/root/.cpan \
-    echo install Test::TCP | perl -MCPAN - && \
-    echo install Scope::Guard | perl -MCPAN -
+# =============================================================================
+# STAGE 1: BUILD - Cross-platform build environment for PICOQUIC_SHADOW
+# =============================================================================
 
-# Layer 2: Install jq with cache mount for apt packages
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update && \
-    apt-get install --fix-missing -y jq libtest-tcp-perl
+FROM --platform=linux/amd64 ${BASE_IMAGE} AS base
+ENV DEBIAN_FRONTEND=noninteractive
 
-# Switch to specified user (now properly defined)
-USER ${USER_N}
+# Layer 1: Install cross-compilation tools based on target architecture
+RUN --mount=type=cache,target=/var/cache/apt,id=crossbuild-$BUILDPLATFORM,sharing=locked \
+    --mount=type=cache,target=/var/cache/apt,id=crossbuild-$TARGETPLATFORM,sharing=locked \
+    --mount=type=tmpfs,target=/tmp \
+    case "$TARGETARCH" in \
+        arm64) \
+            apt-get update && \
+            apt-get install --no-install-recommends -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu && \
+            rm -rf /var/lib/apt/lists/* ;; \
+        arm) \
+            apt-get update && \
+            apt-get install --no-install-recommends -y gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf && \
+            rm -rf /var/lib/apt/lists/* ;; \
+        amd64) \
+            echo "Native compilation for amd64" ;; \
+        *) \
+            echo "Unsupported target architecture: $TARGETARCH" && exit 1 ;; \
+    esac
+
+# Set cross-compilation environment variables with CMAKE support
+ENV CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
+    CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++ \
+    CC_arm_unknown_linux_gnueabihf=arm-linux-gnueabihf-gcc \
+    CXX_arm_unknown_linux_gnueabihf=arm-linux-gnueabihf-g++ \
+    CMAKE_C_COMPILER_aarch64=aarch64-linux-gnu-gcc \
+    CMAKE_CXX_COMPILER_aarch64=aarch64-linux-gnu-g++
 
 # Layer 3: Dependency building with comprehensive cache (expensive, changes occasionally)
 RUN --mount=type=cache,target=/tmp/git-cache \
@@ -84,14 +114,7 @@ RUN --mount=type=cache,target=/tmp/git-cache/picoquic \
     cd picoquic && git checkout ${VERSION}; \
     # Cache the repository \
     cp -r /opt/picoquic /tmp/git-cache/picoquic; \
-    fi
-
-# Layer 5: Custom file modifications for shadow (changes when files change)
-COPY file_to_change/rfc9000/picoquic_internal.h /opt/picoquic/picoquic/picoquic_internal.h
-
-# Layer 6: Build picoquic with cache (expensive, changes when code/VERSION changes)
-RUN --mount=type=cache,target=/tmp/picoquic-build \
-    cd /opt/picoquic && \
+    fi && \
     # Use build cache for compilation \
     if [ -d "/tmp/picoquic-build/cmake_cache" ]; then \
     echo "Restoring cmake cache"; \
@@ -104,26 +127,38 @@ RUN --mount=type=cache,target=/tmp/picoquic-build \
     mkdir -p /tmp/picoquic-build/cmake_cache && \
     cp -r CMakeCache.txt CMakeFiles/ Makefile /tmp/picoquic-build/cmake_cache/ 2>/dev/null || true
 
-# Layer 7: Runtime configuration (rarely changes)
+# =============================================================================
+# FINAL STAGE: Runtime configuration with platform metadata
+# =============================================================================
+
+# Target platform runtime stage
+FROM --platform=linux/amd64 base AS runtime
+
+# Layer: Runtime configuration
 EXPOSE 4443 8080
 
 RUN mkdir -p /app/logs /opt/certs /opt/ticket
 
-# Final stage: Runtime selection with proper labels
-FROM base AS minimal
-LABEL org.panther.service.type="quic"
-LABEL org.panther.service.name="picoquic_shadow"
-LABEL org.panther.service.runtime="minimal"
-ENTRYPOINT [ "/bin/bash", "-l", "-c" ]
+# Platform and build metadata for debugging and compliance
+ARG BUILDPLATFORM
+ARG TARGETPLATFORM
+ARG RUNTIME_MODE
+ARG TARGETOS
+ARG TARGETARCH
 
-FROM base AS full
-LABEL org.panther.service.type="quic"
-LABEL org.panther.service.name="picoquic_shadow"
-LABEL org.panther.service.runtime="full"
-RUN apt-get update && apt-get install -y \
-    strace tcpdump net-tools procps htop curl wget \
-    && rm -rf /var/lib/apt/lists/*
-ENTRYPOINT [ "/bin/bash", "-l", "-c" ]
+LABEL platform.build="${BUILDPLATFORM}"
+LABEL platform.target="${TARGETPLATFORM}"
+LABEL platform.os="${TARGETOS}"
+LABEL platform.arch="${TARGETARCH}"
+LABEL runtime.mode="${RUNTIME_MODE}"
+LABEL implementation="picoquic_shadow"
+LABEL version="master"
+LABEL runtime.description="PICOQUIC_SHADOW implementation execution environment"
+LABEL build.syntax="docker/dockerfile:1"
 
-# Default to runtime mode specified by build arg
-FROM ${RUNTIME_MODE} AS final
+# Health check for runtime validation
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD test -d /opt || exit 1
+
+# Set entrypoint (can be overridden)
+ENTRYPOINT [ "/bin/bash", "-l", "-c" ]

@@ -238,59 +238,51 @@ class ExperimentObserver(IObserver):
             and self.global_config.progress.enable_progress_bar
         ):
             try:
-                import tqdm
-
                 # Create unique key for this step
                 pbar_key = f"{test_case_id or 'unknown'}_{step_name}_{step_id}"
 
                 if pbar_key not in self._step_progress_bars:
-                    # Create new progress bar for this waiting step
-                    # Use higher position numbers for step progress bars so main test bar stays at top (position 0)
-                    position = (
-                        len(self._step_progress_bars) + 2
-                    )  # Start from position 2, leaving 0 for main test bar
-                    self._step_progress_bars[pbar_key] = tqdm.tqdm(
-                        total=100,
-                        desc=f"⏳ {step_name} ({test_case_id or 'unknown test'})",
-                        unit="%",
-                        position=3,  # Higher positions for step bars
-                        leave=False,  # Keep visible during execution, we'll manage cleanup manually
-                        bar_format="{l_bar}{bar}| {n:.1f}% [{elapsed}<{remaining}] {postfix}",
-                        file=sys.stdout,  # Use same stream as main progress bar for coordination
-                        dynamic_ncols=True,  # Adapt to terminal width
-                        miniters=1,  # Update every 1%
-                    )
+                    # Create new Click progress bar for this waiting step
+                    # Note: Click progressbar doesn't support position like tqdm, so we'll use coordinated messages
 
-                    # Log initial progress bar creation using tqdm.write for coordination
-                    tqdm.tqdm.write(
+                    # Log initial progress bar creation using logger for coordination
+                    self.logger.info(
                         f"🚀 Started progress tracking for {step_name} in {test_case_id or 'unknown test'}"
                     )
 
-                pbar = self._step_progress_bars[pbar_key]
+                    # Store progress state for this step
+                    self._step_progress_bars[pbar_key] = {
+                        "current_progress": 0,
+                        "step_name": step_name,
+                        "test_case_id": test_case_id or "unknown test",
+                        "last_message": "",
+                    }
 
-                # Update progress bar
-                current_progress = pbar.n
-                new_progress = min(int(progress_percentage), 100.0)
-                delta = new_progress - current_progress
+                step_state = self._step_progress_bars[pbar_key]
 
-                if delta > 0:
-                    pbar.update(delta)
+                # Update progress
+                new_progress = min(int(progress_percentage), 100)
+                if new_progress > step_state["current_progress"]:
+                    step_state["current_progress"] = new_progress
 
-                # Update description with current message
-                if progress_message:
-                    pbar.set_postfix_str(progress_message)
+                    # Update message if provided
+                    if (
+                        progress_message
+                        and progress_message != step_state["last_message"]
+                    ):
+                        step_state["last_message"] = progress_message
+                        self.logger.info(
+                            f"⏳ {step_name} ({test_case_id or 'unknown test'}): {progress_message} [{new_progress}%]"
+                        )
 
                 # Close progress bar when complete (only when step is truly finished)
                 if progress_percentage >= 100.0:
-                    # Use tqdm.write for coordinated completion message
-                    tqdm.tqdm.write(
+                    # Use logger for coordinated completion message
+                    self.logger.info(
                         f"✅ {step_name} completed in {test_case_id or 'unknown test'}"
                     )
                     # Don't close immediately - let test completion handle cleanup
                     # This prevents premature disappearing during step execution
-            except ImportError:
-                # Fall back to regular logging if tqdm is not available
-                pass
             except Exception as e:
                 # If progress bar fails, continue with regular logging
                 self.logger.debug("Progress bar error: %s", e)
@@ -324,41 +316,43 @@ class ExperimentObserver(IObserver):
             return
 
         try:
-            import tqdm
-
             # Get list of keys to remove (to avoid modifying dict during iteration)
             keys_to_remove = []
 
-            for pbar_key, pbar in list(self._step_progress_bars.items()):
+            for pbar_key, step_state in list(self._step_progress_bars.items()):
                 # If test_name is specified, only clean up bars for that test
                 if test_name and not pbar_key.startswith(test_name.replace(" ", "_")):
                     continue
 
                 try:
-                    # Set progress to 100% and close the progress bar to clear it from terminal
-                    if not pbar.disable:
-                        pbar.n = 100
-                        pbar.refresh()
-                        pbar.close()
+                    # Mark step as complete if it hasn't reached 100%
+                    if (
+                        isinstance(step_state, dict)
+                        and step_state.get("current_progress", 0) < 100
+                    ):
+                        step_name = step_state.get("step_name", "Unknown Step")
+                        test_case_id = step_state.get("test_case_id", "unknown test")
+                        self.logger.info(f"✅ {step_name} completed in {test_case_id}")
+
                     keys_to_remove.append(pbar_key)
 
-                    # Use tqdm.write for coordinated cleanup message
+                    # Use logger for coordinated cleanup message
                     if test_name:
-                        tqdm.tqdm.write(f"🧹 Cleaned up progress bar for {test_name}")
+                        self.logger.info(
+                            f"🧹 Cleaned up progress tracking for {test_name}"
+                        )
 
                 except Exception as e:
-                    self.logger.debug(f"Error closing progress bar {pbar_key}: {e}")
+                    self.logger.debug(
+                        f"Error cleaning up progress tracking {pbar_key}: {e}"
+                    )
 
-            # Remove closed progress bars from our tracking dict
+            # Remove cleaned up progress trackers from our tracking dict
             for key in keys_to_remove:
                 del self._step_progress_bars[key]
 
-        except ImportError:
-            # If tqdm is not available, just clear the tracking dict
-            if hasattr(self, "_step_progress_bars"):
-                self._step_progress_bars.clear()
         except Exception as e:
-            self.logger.debug(f"Error during progress bar cleanup: {e}")
+            self.logger.debug(f"Error during progress tracking cleanup: {e}")
 
     def _handle_step_completed(self, event: StepExecutionCompletedEvent) -> bool:
         """Handle step completion events."""

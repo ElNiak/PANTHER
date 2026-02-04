@@ -319,8 +319,7 @@ class PluginStructureConverter:
     def _validate_manifest_conversion(self, data: Dict[str, Any], plugin_name: str):
         """Validate that manifest conversion includes required fields."""
         required_fields = {"name", "type", "version"}
-        missing = required_fields - set(data.keys())
-        if missing:
+        if missing := required_fields - set(data.keys()):
             raise ValueError(
                 f"Missing required fields for PluginManifest ({plugin_name}): {missing}"
             )

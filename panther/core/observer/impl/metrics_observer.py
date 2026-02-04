@@ -308,8 +308,76 @@ class MetricsAggregator:
 
 class MetricsObserver(ITypedObserver):
     """
-    Metrics observer that provides comprehensive metrics collection,
-    real-time monitoring, and advanced analytics capabilities.
+    Comprehensive metrics observer with real-time monitoring and advanced analytics.
+
+    This observer implements a sophisticated metrics collection system that integrates
+    with PANTHER's event architecture to provide real-time performance monitoring,
+    resource tracking, and statistical analysis for test execution environments.
+
+    **Architecture Overview:**
+    ```mermaid
+    graph TB
+        subgraph "MetricsObserver Core"
+            MO[MetricsObserver]
+            SMC[SystemMetricsCollector]
+            TMC[TestMetricsCollector]
+            MA[MetricsAggregator]
+        end
+
+        subgraph "Monitoring Layer"
+            RM[ResourceMonitor]
+            RT[Real-time Thread]
+            LFH[Lazy File Handlers]
+        end
+
+        subgraph "Data Structures"
+            MS[MetricsSnapshot]
+            TCM[TestCaseMetrics]
+            TH[Timeseries History]
+        end
+
+        subgraph "Event Integration"
+            TE[Test Events]
+            SE[Step Events]
+            ME[Metrics Events]
+        end
+
+        MO --> SMC
+        MO --> TMC
+        MO --> MA
+        MO --> RM
+        MO --> RT
+        MO --> LFH
+
+        SMC --> MS
+        TMC --> TCM
+        MA --> TH
+
+        TE --> MO
+        SE --> MO
+        ME --> MO
+    ```
+
+    **Key Capabilities:**
+    - **Real-time Resource Monitoring**: CPU, memory, disk I/O, network tracking
+    - **Test Lifecycle Analytics**: Complete test execution performance profiling
+    - **Statistical Analysis**: Mean, median, standard deviation calculations
+    - **Trend Detection**: Historical analysis with trend identification
+    - **Memory-Efficient Collection**: Windowed data collection with cleanup
+    - **Multi-threaded Monitoring**: Background collection without blocking tests
+
+    **Performance Metrics Collected:**
+    - Process and system CPU utilization
+    - Memory usage (RSS, virtual, system-wide)
+    - Disk I/O operations (read/write bytes)
+    - Network I/O traffic (sent/received bytes)
+    - Test step execution statistics
+    - Custom application-specific metrics
+
+    **Integration with Event System:**
+    The observer automatically responds to test lifecycle events, creating comprehensive
+    metrics profiles for each test execution while maintaining low overhead through
+    intelligent batching and lazy file creation.
     """
 
     def __init__(

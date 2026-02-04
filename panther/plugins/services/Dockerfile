@@ -2,6 +2,9 @@
 # PANTHER Service - 3-Stage Multi-Target Dockerfile
 # BUILDER -> DEBUG -> MINIMAL runtime environments with execution tools
 # =============================================================================
+
+ARG TARGETPLATFORM=linux/amd64
+ARG BUILDPLATFORM=linux/amd64
 ARG RUNTIME_MODE=minimal
 
 # =============================================================================
@@ -14,8 +17,10 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN ln -fs /usr/share/zoneinfo/UTC /etc/localtime
 
-# Essential build tools and libraries
-RUN apt-get update && \
+# Essential build tools and libraries with platform-specific cache
+RUN --mount=type=cache,target=/var/cache/apt-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/var/lib/apt-${TARGETPLATFORM//\//-},sharing=locked \
+    apt-get update && \
     apt-get install --fix-missing --auto-remove --show-upgraded --no-install-recommends -y \
     build-essential git cmake software-properties-common \
     openssl libssl-dev pkg-config python3 \
@@ -27,11 +32,18 @@ RUN apt-get update && \
     iputils-ping iproute2 netcat-openbsd \
     curl dnsutils automake autoconf libtool pkg-config libssl-dev \
     cmake build-essential
-    
-# Build gperftools from source (needed for profiling)
-RUN git clone https://github.com/gperftools/gperftools /tmp/gperftools
+
+
+# Build gperftools from source with platform-specific cache (needed for profiling)
+RUN --mount=type=cache,target=/tmp/git-cache-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/tmp/build-cache-${TARGETPLATFORM//\//-},sharing=locked \
+    git clone https://github.com/gperftools/gperftools /tmp/build-cache-${TARGETPLATFORM//\//-}/gperftools || \
+    (cd /tmp/build-cache-${TARGETPLATFORM//\//-}/gperftools && git pull) && \
+    cp -r /tmp/build-cache-${TARGETPLATFORM//\//-}/gperftools /tmp/gperftools
 WORKDIR /tmp/gperftools
-RUN ./autogen.sh && \
+RUN --mount=type=cache,target=/tmp/gperftools/.libs-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/tmp/gperftools/src/.libs-${TARGETPLATFORM//\//-},sharing=locked \
+    ./autogen.sh && \
     ./configure && \
     make && \
     make install
@@ -47,9 +59,11 @@ FROM  builder AS debug
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install debugging tools
-RUN apt-get install --no-install-recommends -y \
-    gdb valgrind strace util-linux; 
+# Install debugging tools with platform-specific cache
+RUN --mount=type=cache,target=/var/cache/apt-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/var/lib/apt-${TARGETPLATFORM//\//-},sharing=locked \
+    apt-get install --no-install-recommends -y \
+    gdb valgrind strace util-linux
 
 # Copy built gperftools for debugging
 COPY --from=builder /usr/local/lib/libprofiler.* /usr/local/lib/
@@ -62,8 +76,10 @@ FROM  debug AS profile
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install performance profiling tools
-RUN apt-get install --no-install-recommends -y \
+# Install performance profiling tools with platform-specific cache
+RUN --mount=type=cache,target=/var/cache/apt-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/var/lib/apt-${TARGETPLATFORM//\//-},sharing=locked \
+    apt-get install --no-install-recommends -y \
     linux-tools-generic linux-tools-common linux-cloud-tools-common \
     radare2 google-perftools graphviz gv; 
 # Update library cache for gperftools
@@ -81,8 +97,10 @@ FROM  ubuntu:20.04 AS minimal
 ENV DEBIAN_FRONTEND=noninteractive
 RUN ln -fs /usr/share/zoneinfo/UTC /etc/localtime
 
-# Core runtime and network analysis tools (required for PANTHER protocol testing)
-RUN apt-get update && \
+# Core runtime and network analysis tools with platform-specific cache (required for PANTHER protocol testing)
+RUN --mount=type=cache,target=/var/cache/apt-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/var/lib/apt-${TARGETPLATFORM//\//-},sharing=locked \
+    apt-get update && \
     apt-get install --fix-missing --auto-remove --show-upgraded --no-install-recommends -y \
     python3 openssl \
     net-tools tcpdump iperf iperf3 traceroute \

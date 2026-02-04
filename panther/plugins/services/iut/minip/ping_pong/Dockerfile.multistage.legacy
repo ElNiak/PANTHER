@@ -1,0 +1,74 @@
+# syntax=docker/dockerfile:1
+ARG TARGETPLATFORM=linux/amd64
+ARG BUILDPLATFORM=linux/amd64
+
+
+# Multi-stage build for minip ping_pong service isolation and optimization
+# Build stage: Contains GCC compiler and build tools
+# Runtime stage: Minimal environment with only compiled binaries
+
+# ============================================================================
+# BUILD STAGE: Complete build environment with GCC and build tools
+# ============================================================================
+
+FROM --platform=linux/amd64 panther_base_service:latest AS builder
+
+# Build arguments and environment
+ARG VERSION=random
+ENV VERSION=${VERSION}
+
+# System configuration for build environment
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Build dependencies with cache optimization
+RUN --mount=type=cache,target=/var/cache/apt,id=aptcache-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,id=aptlib-${TARGETPLATFORM//\//-},sharing=locked \
+    apt-get update && apt-get install -y \
+        build-essential \
+        gcc \
+        && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt/
+
+# Copy source files for compilation
+ADD src/${VERSION}/miniP.h /opt/ping-pong/miniP.h
+ADD src/${VERSION}/delay.h /opt/ping-pong/delay.h
+ADD src/${VERSION}/miniP_client.c /opt/ping-pong/miniP_client.c
+ADD src/${VERSION}/miniP_server.c /opt/ping-pong/miniP_server.c
+
+# Compile miniP client and server with build cache optimization
+RUN --mount=type=cache,target=/tmp/build-cache-${TARGETPLATFORM//\//-},sharing=locked \
+    cd ping-pong && \
+    gcc miniP_client.c -o miniP_client && \
+    gcc miniP_server.c -o miniP_server
+
+# ============================================================================
+# RUNTIME STAGE: Minimal runtime environment with only compiled binaries
+# ============================================================================
+
+FROM --platform=linux/amd64 panther_base_service:latest
+
+# Runtime arguments
+ARG VERSION=random
+ENV VERSION=${VERSION}
+
+# Runtime dependencies only (no build tools)
+RUN --mount=type=cache,target=/var/cache/apt,id=aptcache-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,id=aptlib-${TARGETPLATFORM//\//-},sharing=locked \
+    apt-get update && apt-get install -y \
+        libc6 \
+        && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt/
+
+# Copy compiled binaries and headers from build stage
+COPY --from=builder /opt/ping-pong/miniP_client /opt/ping-pong/miniP_client
+COPY --from=builder /opt/ping-pong/miniP_server /opt/ping-pong/miniP_server
+COPY --from=builder /opt/ping-pong/miniP.h /opt/ping-pong/miniP.h
+COPY --from=builder /opt/ping-pong/delay.h /opt/ping-pong/delay.h
+
+# Ensure binaries are executable
+RUN chmod +x /opt/ping-pong/miniP_client /opt/ping-pong/miniP_server
+
+# Set entrypoint
+ENTRYPOINT [ "/bin/bash", "-l", "-c" ]

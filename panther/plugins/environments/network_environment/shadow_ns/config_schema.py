@@ -19,7 +19,7 @@ class GeneralConfig(BaseModel):
         """Convert integer seconds to string format with 's' suffix."""
         return shadow_time_validator(cls, v)
 
-    model_unblocked_syscall_latency: bool = Field(
+    unblocked_syscall_latency: bool = Field(
         default=False, description="Add latency for unblocked system calls"
     )
 

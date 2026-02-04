@@ -92,6 +92,92 @@ This configuration defines a test scenario where a Picoquic client communicates 
 
 ---
 
+## System Architecture Overview
+
+PANTHER's configuration system implements a sophisticated modular architecture designed for flexibility, type safety, and extensibility. Understanding this architecture helps developers work effectively with the configuration system.
+
+### Core Architecture Components
+
+#### 1. Configuration Foundation (`core/base.py`)
+
+The `BaseConfig` class provides the foundation combining:
+- **Pydantic validation** for type safety and schema enforcement
+- **OmegaConf features** for interpolation (`${variable}` syntax) and merging
+- **Hybrid model** supporting both dot-notation access and dictionary operations
+- **Serialization/deserialization** with automatic format detection
+
+#### 2. Configuration Manager (`core/manager.py`)
+
+The `ConfigurationManager` orchestrates all configuration operations through:
+- **Mixin composition** inheriting from 9 specialized functionality mixins
+- **Multi-stage validation** (schema → business rules → plugin compatibility)
+- **Plugin discovery and integration** with automatic schema merging
+- **Performance optimization** with intelligent caching and lazy loading
+
+#### 3. Specialized Mixins (`core/mixins/`)
+
+**Core operational mixins:**
+- `ConfigLoadingMixin` - File/environment loading with hot-reload support
+- `ValidationOperationsMixin` - Multi-layered validation with auto-fix capabilities
+- `ConfigOperationsMixin` - Deep merging and field operations
+- `EnvironmentHandlingMixin` - Environment variable resolution
+- `PluginManagementMixin` - Dynamic plugin discovery and integration
+- `CachingMixin` - Performance optimization and memory management
+- `StateManagementMixin` - Health monitoring and resource lifecycle
+- `LoggingFeaturesMixin` - Debug support and comprehensive error reporting
+
+#### 4. Functional Components (`core/components/`)
+
+**Specialized processing units:**
+- `UnifiedValidator` - Combines Pydantic, business rules, and compatibility validation
+- `ExperimentBuilder` - Constructs experiment configurations with intelligent auto-fixing
+- `UnifiedYAMLLoader` - Advanced YAML parsing with environment interpolation
+- `UnifiedMerger` - Sophisticated configuration merging with conflict resolution
+
+#### 5. Type-Safe Models (`core/models/`)
+
+**Pydantic model definitions for:**
+- `ExperimentConfig` - Complete test experiment specifications
+- `ServiceConfig` - Service and protocol configurations
+- `GlobalConfig` - System-wide settings and defaults
+- `EnvironmentConfig` - Runtime environment specifications
+- Plugin-specific configuration schemas
+
+### Configuration Processing Flow
+
+```mermaid
+graph TD
+    A[YAML/Dict Input] --> B[ConfigLoadingMixin]
+    B --> C[UnifiedYAMLLoader]
+    C --> D[Environment Variable Resolution]
+    D --> E[Plugin Discovery]
+    E --> F[Schema Validation]
+    F --> G[Business Rules Validation]
+    G --> H[Auto-Fix Processing]
+    H --> I[Validated Configuration]
+    I --> J[Cached for Performance]
+```
+
+### Advanced Features
+
+#### Port Management System
+- **Automatic port assignment** with protocol-aware defaults
+- **Conflict detection and resolution** across services
+- **Validation rules** ensuring proper port mappings for server/client roles
+
+#### Plugin Architecture
+- **Dynamic discovery** of protocol and service implementations
+- **Schema contribution** from each plugin for validation
+- **Version compatibility** tracking and validation
+- **Graceful fallback** when plugins fail to load
+
+#### Configuration Auto-Fixing
+- **Common issue detection** (missing ports, invalid formats)
+- **Intelligent correction** with user notification
+- **Validation guidance** with specific error messages and suggestions
+
+---
+
 ## Configuration Sections
 
 ### 1. Global Settings
@@ -551,5 +637,285 @@ logging             LoggingConfig                  None                 Yes     
 ```
 
 This feature helps you understand exactly what parameters are available and required for each plugin without having to examine the source code directly.
+
+---
+
+## Developer Guide
+
+### Working with the Configuration System
+
+#### Using ConfigurationManager
+
+The `ConfigurationManager` is the primary interface for all configuration operations:
+
+```python
+from panther.config.core.manager import ConfigurationManager
+
+# Initialize the manager
+config_manager = ConfigurationManager()
+
+# Load and validate configuration
+config = config_manager.load_and_validate_config("experiment.yaml")
+
+# Access configuration data
+print(config.global_config.logging.level)
+print(config.tests[0].services[0].name)
+
+# Use auto-fix for common issues
+fixed_config = config_manager.load_and_validate_config(
+    "experiment.yaml",
+    auto_fix=True
+)
+```
+
+#### Working with BaseConfig
+
+For custom configuration classes, extend `BaseConfig` to get hybrid Pydantic/OmegaConf features:
+
+```python
+from panther.config.core.base import BaseConfig
+from dataclasses import dataclass
+from typing import Optional
+
+@dataclass
+class CustomConfig(BaseConfig):
+    name: str
+    port: int = 8080
+    debug: bool = False
+
+# Create instance with validation
+config = CustomConfig(name="test-service", port="${PORT}")
+
+# Access with dot notation
+print(config.get_field("name"))
+
+# Convert to OmegaConf for interpolation
+omega_config = config.to_omegaconf()
+```
+
+#### Creating Custom Validators
+
+Extend the validation system for domain-specific rules:
+
+```python
+from panther.config.core.components.validators import BusinessRulesValidator
+
+class CustomBusinessValidator(BusinessRulesValidator):
+    def validate_experiment_config(self, config: ExperimentConfig) -> ValidationResult:
+        result = ValidationResult()
+
+        # Custom validation logic
+        if len(config.tests) > 10:
+            result.add_warning("More than 10 tests may impact performance")
+
+        # Validate service relationships
+        for test in config.tests:
+            self._validate_service_dependencies(test, result)
+
+        return result
+```
+
+#### Implementing Plugin Configuration
+
+For new plugins, create configuration schemas:
+
+```python
+# In your plugin's config_schema.py
+from dataclasses import dataclass
+from typing import List, Optional
+
+@dataclass
+class MyPluginBinaryConfig:
+    path: str
+    args: Optional[List[str]] = None
+    working_dir: str = "/app"
+
+@dataclass
+class MyPluginConfig:
+    binary: MyPluginBinaryConfig
+    timeout: int = 60
+    retries: int = 3
+
+    @classmethod
+    def get_default_server_port(cls) -> int:
+        """Return default port for server role"""
+        return 9000
+```
+
+#### Using Configuration Mixins
+
+Mixins provide focused functionality that can be combined:
+
+```python
+from panther.config.core.mixins.config_loading import ConfigLoadingMixin
+from panther.config.core.mixins.validation_ops import ValidationOperationsMixin
+
+class MyConfigHandler(ConfigLoadingMixin, ValidationOperationsMixin):
+    def process_config(self, config_path: str):
+        # Load configuration with hot-reload support
+        config = self.load_from_file(config_path, enable_cache=True)
+
+        # Validate with auto-fix
+        validation_result = self.validate_experiment_config(
+            config,
+            auto_fix=True
+        )
+
+        if not validation_result.is_valid:
+            raise ConfigurationError(validation_result.get_summary())
+
+        return config
+```
+
+#### Advanced Configuration Operations
+
+##### Environment Variable Handling
+
+```python
+# In YAML configuration
+database:
+  host: "${DB_HOST:localhost}"     # Default to localhost if DB_HOST not set
+  port: "${DB_PORT:5432}"          # Default to 5432
+  password: "${DB_PASSWORD}"       # Required environment variable
+
+# In Python code
+config_manager = ConfigurationManager()
+config = config_manager.load_with_environment(
+    "config.yaml",
+    env_vars={"DB_HOST": "prod-db", "DB_PORT": "5433"}
+)
+```
+
+##### Configuration Merging
+
+```python
+# Merge multiple configurations
+base_config = config_manager.load_from_file("base.yaml")
+override_config = config_manager.load_from_file("override.yaml")
+
+merged = config_manager.merge_configs(
+    base_config,
+    override_config,
+    strategy="deep_merge"  # or "replace", "append"
+)
+```
+
+##### Caching and Performance
+
+```python
+# Enable caching for better performance
+config_manager.enable_cache(ttl=300)  # 5-minute TTL
+
+# Warm cache for frequently used configs
+config_manager.warm_cache([
+    "experiment1.yaml",
+    "experiment2.yaml"
+])
+
+# Monitor cache statistics
+stats = config_manager.get_cache_stats()
+print(f"Cache hit rate: {stats.hit_rate}%")
+```
+
+### Best Practices
+
+#### Configuration Design
+
+1. **Use type hints**: Leverage Pydantic's type validation for robust configurations
+2. **Provide defaults**: Always include sensible defaults for optional parameters
+3. **Document schemas**: Use docstrings and field descriptions for clarity
+4. **Modular design**: Split large configurations into focused, reusable components
+
+#### Error Handling
+
+1. **Use ValidationResult**: Return structured validation results rather than raising exceptions
+2. **Provide context**: Include specific field paths and suggestions in error messages
+3. **Enable auto-fix**: Implement auto-fix logic for common configuration issues
+4. **Graceful degradation**: Handle plugin loading failures gracefully
+
+#### Performance Optimization
+
+1. **Enable caching**: Use caching for frequently loaded configurations
+2. **Lazy loading**: Only load plugin configurations when needed
+3. **Validate early**: Catch configuration errors before expensive operations
+4. **Monitor performance**: Track validation and loading times
+
+#### Testing Configuration
+
+```python
+import pytest
+from panther.config.core.manager import ConfigurationManager
+
+class TestConfigurationSystem:
+    def test_valid_configuration(self):
+        config_manager = ConfigurationManager()
+        config = config_manager.load_from_dict({
+            "tests": [{
+                "name": "test",
+                "network_environment": {"type": "docker_compose"},
+                "services": [{"name": "server", "protocol": {"role": "server"}}]
+            }]
+        })
+        assert config.tests[0].name == "test"
+
+    def test_auto_fix_missing_ports(self):
+        config_manager = ConfigurationManager()
+        config_dict = {
+            "tests": [{
+                "services": [{
+                    "name": "server",
+                    "protocol": {"name": "quic", "role": "server"}
+                    # Missing ports - should be auto-fixed
+                }]
+            }]
+        }
+
+        config = config_manager.load_and_validate_config(
+            config_dict,
+            auto_fix=True
+        )
+
+        # Should have auto-assigned default QUIC port
+        assert "4443:4443" in config.tests[0].services[0].ports
+```
+
+### Common Patterns
+
+#### Plugin Registration
+
+```python
+# Register custom plugin with configuration schema
+from panther.config.core.manager import ConfigurationManager
+
+config_manager = ConfigurationManager()
+config_manager.register_plugin(
+    "my_custom_plugin",
+    plugin_type="iut",
+    protocol="custom_protocol",
+    config_schema=MyPluginConfig
+)
+```
+
+#### Configuration Inheritance
+
+```python
+# Base configuration for common settings
+@dataclass
+class BaseServiceConfig(BaseConfig):
+    timeout: int = 60
+    retries: int = 3
+    debug: bool = False
+
+# Specialized configuration inheriting common settings
+@dataclass
+class WebServiceConfig(BaseServiceConfig):
+    port: int = 8080
+    ssl_enabled: bool = True
+
+@dataclass
+class DatabaseConfig(BaseServiceConfig):
+    port: int = 5432
+    max_connections: int = 100
+```
 
 ---

@@ -1,39 +1,24 @@
 # QUIC(k) Start — Your First Experiment in ≈10(30) min 🚀
 
-This guide shows how to install **PANTHER**, spin up a simple
-**client ↔ server experiment**, and inspect the results.
+This guide shows how to install **PANTHER** with the new enhanced Click CLI, spin up a simple
+**client ↔ server experiment**, and inspect the results using modern command-line tools.
 
 We use **QUIC** as a concrete example because multiple ready-made QUIC
 implementations ship with PANTHER, **yet the exact same steps apply to
 MiniP, HTTP/3, a custom protocol plugin, or any future protocol you add**.
 
-!!! info "System Requirements"
-    **Target platform:** Linux (x86-64) or Mac with Docker >= 27
-    **Estimated time (the first time):** ≈ 10 minutes if you do not use Ivy tester and ≈ 30 minutes (due to containers building times of implementation), then around 2 minutes. Ivy is very long to compile and depend on your computer.
+> [!NOTE]
+> "System Requirements"
+> **Target platform:** Linux (x86-64) or Mac with Docker >= 27
+> **Estimated time (the first time):** ≈ 10 minutes if you do not use Ivy tester and ≈ 30 minutes (due to containers building times of implementation), then around 2 minutes. Ivy is very long to compile and depend on your computer.
 
 ---
 
-## 1 — Install PANTHER
+## 1 — Write a Minimal Experiment (YAML)
 
-!!! tip "Recommended Setup"
-    Using a virtual environment is highly recommended to avoid dependency conflicts:
-
-```bash
-python -m venv .venv              # optional but recommended
-source .venv/bin/activate
-pip install panther-net
-```
-
-`panther-net` is the official PyPI package that bundles the core engine, all built-in plugins, and CLI entry-points.
-Upgrade later with `pip install -U panther-net`.
-
-## 2 — Write a Minimal Experiment (YAML)
-
-!!! example "Your First Experiment Configuration"
-    Create `quic_demo.yaml` (swap `quic` for `minip` to test other protocols):
-
-!!! info "Experiments vs Tests"
-  In PANTHER, an **experiment** is the overall configuration file that defines what to run, while **tests** are individual scenarios within that experiment. A single experiment can contain multiple tests, each with its own configuration, network setup, and measurements.
+> [!NOTE]
+> "Experiments vs Tests"
+> In PANTHER, an **experiment** is the overall configuration file that defines what to run, while **tests** are individual scenarios within that experiment. A single experiment can contain multiple tests, each with its own configuration, network setup, and measurements.
 
 
 ```yaml
@@ -102,7 +87,7 @@ tests:
           type: iut
         protocol:
           name: quic
-          version: rfc9000 
+          version: rfc9000
           role: client
           target: server
     steps:
@@ -111,28 +96,47 @@ tests:
 
 ---
 
-## 3 — Run the Experiment
+## 2 — Run the Experiment
+
+
+> [!WARNING]
+>  "Docker Buildkit"
+> You SHOULD disable buildkit (experimental) in the config files:
+> ```yaml
+> docker:
+>   force_build_docker_image: true
+>   log_docker_image_build: true  # Enable Docker build log files
+>   use_buildx: false
+> ```
+
+
+With the  CLI, experiment execution is more intuitive and provides better feedback (*In Progress*):
 
 ```bash
-panther --experiment-config quic_demo.yaml --enable-metrics
-# Or
-python -m panther  --experiment-config quic_demo.yaml --enable-metrics
+# First, validate your configuration (recommended)
+panther config validate --config quic_demo.yaml --explain
+
+# Preview what will happen (optional dry run)
+panther run --config quic_demo.yaml --dry-run
+
+# Run the actual experiment with metrics
+panther run --config quic_demo.yaml --enable-metrics --verbose
 ```
 
 PANTHER validates the YAML, builds images if absent, launches the two
 containers under Docker Compose, runs the handshake for 15 s, and writes
 results to `outputs/`.
 
-!!! note "Alternative Test Configuration"
-    You can also test with:
-
-    ```bash
-    python -m panther  --experiment-config experiment-config/experiment_config_example.yaml --enable-metrics
-    ```
+> [!NOTE]
+>  "Alternative Test Configuration"
+> You can also test with built-in examples:
+> ```bash
+> panther run --config experiment-config/experiment_config_example.yaml --enable-metrics
+> ```
 
 ---
 
-## 4 — Inspect Results
+## 3 — Inspect Results
 
 PANTHER creates a timestamped output directory with subfolders for each test:
 
@@ -165,7 +169,7 @@ outputs/
 
 ---
 
-## 5 — Next Steps 🧭
+## 4 — Next Steps 🧭
 
 | Idea                      | How                                                             |
 | ------------------------- | --------------------------------------------------------------- |

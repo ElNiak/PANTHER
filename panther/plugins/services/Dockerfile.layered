@@ -1,30 +1,45 @@
 # syntax=docker/dockerfile:1
+ARG TARGETPLATFORM=linux/amd64
+ARG BUILDPLATFORM=linux/amd64
+
 FROM --platform=linux/amd64 ubuntu:20.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Layer 1: System base configuration (rarely changes)
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+RUN --mount=type=cache,target=/var/cache/apt,id=aptcache-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,id=aptlib-${TARGETPLATFORM//\//-},sharing=locked \
     ln -fs /usr/share/zoneinfo/UTC /etc/localtime && \
     apt-get update
 
 # Layer 2: Core build dependencies (changes infrequently)
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+RUN --mount=type=cache,target=/var/cache/apt,id=aptcache-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,id=aptlib-${TARGETPLATFORM//\//-},sharing=locked \
     apt-get install --fix-missing --auto-remove --show-upgraded --no-install-recommends -y \
-    build-essential cmake software-properties-common \
+    build-essential # Platform-specific CMake configuration
+ case "${TARGETPLATFORM}" in \
+     "linux/amd64") \
+         CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=x86_64 -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++" \
+         ;; \
+     "linux/arm64") \
+         CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=aarch64" \
+         ;; \
+     *) \
+         CMAKE_ARGS="-DCMAKE_SYSTEM_PROCESSOR=x86_64" \
+         ;; \
+ esac && \
+ cmake $CMAKE_ARGS software-properties-common \
     openssl libssl-dev pkg-config \
     git wget curl sudo \
     autoconf automake libtool \
     util-linux libc6-dev
 
 # Layer 3: Network and debugging tools (changes infrequently)
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+RUN --mount=type=cache,target=/var/cache/apt,id=aptcache-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,id=aptlib-${TARGETPLATFORM//\//-},sharing=locked \
     apt-get install --fix-missing --auto-remove --show-upgraded --no-install-recommends -y \
     python3 net-tools tcpdump iperf traceroute \
-    wireshark tshark clang libcap2-bin \
+    wireshark-common wireshark tshark clang libcap2-bin \
     iputils-ping iproute2 iperf3 netcat-openbsd \
     dnsutils radare2 strace valgrind \
     libdw1 libelf1 linux-tools-generic \
@@ -32,14 +47,14 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     libunwind-dev gdb
 
 # Layer 4: Performance profiling dependencies (rarely changes)
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+RUN --mount=type=cache,target=/var/cache/apt,id=aptcache-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,id=aptlib-${TARGETPLATFORM//\//-},sharing=locked \
     apt-get install --no-install-recommends -y \
     google-perftools graphviz gv
 
 # Layer 5: gperftools compilation with optimized cache (expensive, rarely changes)
-RUN --mount=type=cache,target=/tmp/git-cache \
-    --mount=type=cache,target=/tmp/build-cache \
+RUN --mount=type=cache,target=/tmp/git-cache-${TARGETPLATFORM//\//-},sharing=locked \
+    --mount=type=cache,target=/tmp/build-cache-${TARGETPLATFORM//\//-},sharing=locked \
     if [ -d "/tmp/build-cache/gperftools-install" ]; then \
         echo "Restoring gperftools from build cache"; \
         cp -r /tmp/build-cache/gperftools-install/* /usr/local/ 2>/dev/null || true; \
@@ -66,7 +81,8 @@ RUN --mount=type=cache,target=/tmp/git-cache \
     whereis libtcmalloc
 
 # Layer 6: System configuration (changes rarely)
-RUN yes yes | DEBIAN_FRONTEND=teletype dpkg-reconfigure wireshark-common && \
+RUN apt-get install -y wireshark-common && \
+    yes yes | DEBIAN_FRONTEND=teletype dpkg-reconfigure wireshark-common && \
     usermod -aG wireshark root
 
 # Layer 7: Application directories (rarely changes)

@@ -75,7 +75,9 @@ class TestCaseBase(ITestCase):
         self.service_managers: List[Any] = []
         self.environment_plugin_manager: List[Any] = []
         self.event_manager = None
-        self.execution_environment: List[Any] = []
+        # Runtime list for execution environment plugin instances
+        self.execution_environment_plugins: List[Any] = []
+        # Configuration data accessed via self.test_config.execution_environment
         self.services = self.test_config.services
 
         # Ensure experiment directory exists

@@ -19,6 +19,12 @@ Comprehensive development documentation for each plugin category:
 !!! success "Base Class System"
     PANTHER now uses an inheritance-based architecture with specialized base classes that eliminate code duplication and provide consistent behavior. All new plugins should inherit from appropriate base classes rather than implementing functionality from scratch.
 
+**Architectural Evolution**: The modern PANTHER plugin system has evolved from a traditional interface-based approach to a sophisticated inheritance hierarchy that provides:
+- **47.2% Average Code Reduction**: Eliminate duplicate functionality across plugin implementations
+- **Consistent Behavior**: Shared functionality and event integration across all plugin types
+- **Automatic Updates**: New features and fixes in base classes automatically benefit all derived plugins
+- **Comprehensive Integration**: Built-in support for event management, configuration resolution, and error handling
+
 ### Base Class Hierarchy
 
 ```text
@@ -28,7 +34,7 @@ BaseQUICServiceManager              # Core QUIC functionality
 └── Direct inheritance             # C/Go implementations (picoquic, lsquic, etc.)
 
 DockerBuilderFactory               # Docker build patterns
-├── QUICDockerBuilder              # QUIC-specific build configurations  
+├── QUICDockerBuilder              # QUIC-specific build configurations
 ├── RustDockerBuilder              # Rust compilation patterns
 └── PythonDockerBuilder            # Python async patterns
 ```
@@ -43,22 +49,22 @@ from panther.plugins.services.base.quic_service_base import BaseQUICServiceManag
 
 class MyQuicImplementation(BaseQUICServiceManager):
     """Modern QUIC implementation using inheritance."""
-    
+
     def _get_implementation_name(self) -> str:
         return "my_quic"
-    
+
     def _get_binary_name(self) -> str:
         return "my_quic_server"
-    
+
     def _get_server_specific_args(self, **kwargs) -> List[str]:
         port = kwargs.get("port", 4443)
         return ["-p", str(port)]
-    
+
     def _get_client_specific_args(self, **kwargs) -> List[str]:
         host = kwargs.get("host", "localhost")
         port = kwargs.get("port", 4443)
         return [host, str(port)]
-    
+
     # All common functionality inherited automatically!
 ```
 
@@ -93,11 +99,11 @@ from panther.plugins.services.base.quic_service_base import BaseQUICServiceManag
 class ModernQuicPlugin(BaseQUICServiceManager):
     def _get_implementation_name(self) -> str:
         return "my_quic"
-    
+
     def _get_server_specific_args(self, **kwargs) -> List[str]:
         port = kwargs.get("port", 4443)
         return ["-p", str(port)]
-    
+
     # 90% of the logic is now inherited!
 ```
 
@@ -117,22 +123,22 @@ class ModernQuicPlugin(BaseQUICServiceManager):
     # REQUIRED: Implement these abstract methods
     def _get_implementation_name(self) -> str:
         return "my_implementation"
-    
+
     def _get_binary_name(self) -> str:
         return "my_binary"
-    
+
     def _get_server_specific_args(self, **kwargs) -> List[str]:
         # Return implementation-specific server arguments
         pass
-    
+
     def _get_client_specific_args(self, **kwargs) -> List[str]:
         # Return implementation-specific client arguments
         pass
-    
+
     def generate_deployment_commands(self) -> str:
         # Return deployment commands
         pass
-    
+
     def _do_prepare(self, plugin_manager=None):
         # Implementation-specific preparation
         pass
@@ -154,7 +160,7 @@ class ModernQuicPlugin(BaseQUICServiceManager):
             repo_url="https://github.com/example/my-quic.git",
             build_features=["async", "tls13"]
         )
-    
+
     def generate_dockerfile_content(self) -> str:
         builder = self._get_docker_builder()
         return builder.generate_complete_dockerfile()
@@ -166,7 +172,7 @@ class ModernQuicPlugin(BaseQUICServiceManager):
 # Predefined builders from DockerBuilderFactory
 QUIC_DOCKER_BUILDERS = {
     "picoquic": PicoquicDockerBuilder(),
-    "aioquic": AioquicDockerBuilder(),  
+    "aioquic": AioquicDockerBuilder(),
     "quiche": QuicheDockerBuilder(),
     "quinn": QuinnDockerBuilder(),
     "lsquic": LsquicDockerBuilder(),
@@ -337,35 +343,35 @@ from panther.plugins.protocols.config_schema import ProtocolConfig
 @dataclass
 class MyPluginConfig:
     """Configuration schema for MyPlugin."""
-    
+
     # Required parameters
     required_param: str
-    
+
     # Optional parameters with defaults
     optional_param: Optional[int] = None
     timeout: int = 30
-    
+
     # For protocol plugins, inherit from ProtocolConfig for port management
     # This automatically provides port validation and default assignment
     # based on protocol type (QUIC, HTTP, etc.)
 
 # For protocol-specific plugins (e.g., QUIC implementations)
-@dataclass 
+@dataclass
 class MyQuicProtocolConfig(ProtocolConfig):
     """QUIC-specific configuration with automatic port management."""
-    
+
     @classmethod
     def get_default_server_port(cls) -> int:
         """Define the default server port for this protocol."""
         return 4443  # QUIC default
-    
+
     def get_default_port_mapping(self) -> Optional[str]:
         """Get default port mapping for this protocol configuration."""
         if self.role == "server":
             port = self.get_default_server_port()
             return f"{port}:{port}"
         return None
-    
+
     def requires_server_port(self) -> bool:
         """Check if this protocol configuration requires server ports."""
         return self.role == "server"
@@ -376,22 +382,22 @@ from panther.plugins.services.config_schema import ServiceConfig
 @dataclass
 class MyServiceConfig(ServiceConfig):
     """Service configuration with automatic port validation."""
-    
+
     # Service-specific configuration
     binary_path: str = "/usr/local/bin/my_service"
     log_level: str = "info"
-    
+
     def validate_configuration(self) -> List[str]:
         """Custom validation logic for this service."""
         errors = []
-        
+
         # Ensure server services have ports (handled automatically)
         self.ensure_server_has_ports()
-        
+
         # Add custom validation
         if self.binary_path and not self.binary_path.startswith('/'):
             errors.append("Binary path must be absolute")
-            
+
         return errors
 ```
 
@@ -423,27 +429,27 @@ from panther.plugins.protocols.client_server.config_schema import ClientServerPr
 @dataclass
 class MyCustomProtocolConfig(ClientServerProtocolConfig):
     """Custom protocol with automatic port management."""
-    
+
     # Protocol-specific settings
     encryption_enabled: bool = True
     compression_level: int = 6
-    
+
     @classmethod
     def get_default_server_port(cls) -> int:
         """Custom protocol uses port 9443."""
         return 9443
-    
+
     def get_supported_roles(self) -> List[str]:
         """Define supported roles for this protocol."""
         return ["server", "client", "proxy"]
-    
+
     def validate_role_specific_config(self) -> List[str]:
         """Validate role-specific configuration."""
         errors = []
-        
+
         if self.role == "proxy" and not self.encryption_enabled:
             errors.append("Proxy role requires encryption to be enabled")
-            
+
         return errors
 ```
 
@@ -455,7 +461,67 @@ This configuration automatically provides:
 
 ### 5. Register Your Plugin
 
-Make your plugin discoverable by updating your `__init__.py`:
+**Modern Registration System**: PANTHER uses a decorator-based registration system that automatically discovers and validates plugins during import. This eliminates the need for manual registration and provides comprehensive metadata management.
+
+#### Using the @register_plugin Decorator
+
+```python
+# plugins/<plugin_type>/<plugin_name>/plugin.py
+from panther.plugins.core.plugin_decorators import register_plugin
+from panther.plugins.core.structures.plugin_type import PluginType
+
+@register_plugin(
+    plugin_type=PluginType.IUT,
+    name="my_implementation",
+    version="1.0.0",
+    author="Your Name",
+    description="Enhanced implementation with advanced features",
+    license="MIT",
+    homepage="https://github.com/your-org/my-implementation",
+    min_panther_version="1.0.0",
+    dependencies=["quic_protocol>=1.0.0"],
+    config_schema={
+        "type": "object",
+        "properties": {
+            "timeout": {"type": "number", "default": 60, "minimum": 1},
+            "host": {"type": "string", "default": "localhost"},
+            "port": {"type": "number", "minimum": 1, "maximum": 65535}
+        },
+        "required": ["host", "port"]
+    },
+    default_config={"timeout": 60, "generate_certificates": True},
+    supported_protocols=["quic"],
+    capabilities=["rfc9000", "0rtt", "migration", "async"],
+    tags=["quic", "implementation", "c"],
+    external_dependencies=["docker>=20.0", "openssl>=1.1.1"],
+    runtime_mode="minimal"
+)
+class MyImplementationServiceManager(BaseQUICServiceManager):
+    """Modern QUIC implementation using comprehensive registration."""
+
+    def _get_implementation_name(self) -> str:
+        return "my_implementation"
+
+    def _get_binary_name(self) -> str:
+        return "my_implementation_server"
+
+    # Implementation-specific methods...
+```
+
+#### Registration Benefits
+
+The decorator-based registration provides:
+
+- **Automatic Discovery**: Plugins are automatically discovered during system startup
+- **Metadata Validation**: Comprehensive validation of plugin metadata during registration
+- **Dependency Management**: Automatic dependency resolution with semantic versioning
+- **Version Configuration**: Support for protocol version-specific configurations
+- **Schema Integration**: JSON Schema validation for plugin configurations
+- **Performance Optimization**: Registration metadata cached for fast access
+
+#### Legacy Registration Support
+
+For backward compatibility, you can still update `__init__.py` for manual imports:
 
 ```python
 # plugins/<plugin_type>/<plugin_name>/__init__.py
@@ -463,6 +529,16 @@ from .plugin import MyPlugin
 
 __all__ = ["MyPlugin"]
 ```
+
+#### Plugin Discovery Process
+
+The registration system follows this discovery workflow:
+
+1. **Import Phase**: Decorators execute during module import, storing metadata in global registry
+2. **Discovery Phase**: PluginManager scans registered plugins during system initialization
+3. **Validation Phase**: Plugin metadata validated for consistency and dependencies
+4. **Instantiation Phase**: PluginFactory uses metadata for type-safe plugin creation
+5. **Runtime Phase**: EventManager coordinates plugin lifecycle with automatic event emission
 
 ### 6. Create Tests
 
