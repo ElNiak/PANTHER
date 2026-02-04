@@ -255,7 +255,7 @@ class ShellCommand(LoggerMixin):
         # Check for export command
         if cmd_parts[0] == "export":
             # export VAR or export VAR=value
-            return False
+            return True
 
         # Check for variable assignment pattern
         # This regex matches: VARNAME=anything including $(cmd) or `cmd`

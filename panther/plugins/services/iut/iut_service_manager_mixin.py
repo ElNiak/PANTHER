@@ -52,7 +52,7 @@ class IUTServiceManagerMixin(ServiceManagerMixin, IImplementationManager):
     @property
     def role(self) -> str:
         """Get the service role (client/server)."""
-        return self._role
+        return self._role or "client"
 
     @role.setter
     def role(self, value) -> None:
