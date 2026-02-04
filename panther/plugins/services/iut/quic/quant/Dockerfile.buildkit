@@ -20,15 +20,25 @@ ARG BASE_IMAGE_DIGEST=sha256:965fbcae990b0467ed5657caceaec165018ef44a4d2d46c7cde
 ARG VERSION=master
 ARG DEPENDENCIES="[]"  # JSON-formatted list of dependencies
 ARG USER_N=root  # Define USER_N with default value
-ENV VERSION=${VERSION}
-ENV DEPENDENCIES=${DEPENDENCIES}
+ARG BASE_IMAGE=ntap/quant:latest
 
 # =============================================================================
 # STAGE 1: BUILD - Cross-platform build environment for QUANT
 # =============================================================================
 
-FROM --platform=linux/amd64 ntap/quant:latest AS base
+FROM --platform=$TARGETPLATFORM ${BASE_IMAGE} AS base
+
+# Re-declare ARGs after FROM to make them available in this stage
+ARG VERSION
+ARG DEPENDENCIES
+ARG TARGETARCH
+ARG BUILDPLATFORM
+ARG TARGETPLATFORM
+ARG USER_N
+
 ENV DEBIAN_FRONTEND=noninteractive
+ENV VERSION=${VERSION}
+ENV DEPENDENCIES=${DEPENDENCIES}
 
 # Layer 1: Install cross-compilation tools based on target architecture
 RUN --mount=type=cache,target=/var/cache/apt,id=crossbuild-$BUILDPLATFORM,sharing=locked \
@@ -57,24 +67,16 @@ ENV CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
     CMAKE_C_COMPILER_aarch64=aarch64-linux-gnu-gcc \
     CMAKE_CXX_COMPILER_aarch64=aarch64-linux-gnu-g++
 
-# Set cross-compilation environment variables
-ENV CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
-    CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++ \
-    CC_arm_unknown_linux_gnueabihf=arm-linux-gnueabihf-gcc \
-    CXX_arm_unknown_linux_gnueabihf=arm-linux-gnueabihf-g++
-
-ENV DEBIAN_FRONTEND=noninteractive
-ARG VERSION=master
-ARG DEPENDENCIES="[]"  # JSON-formatted list of dependencies
-ARG USER_N=root  # Define USER_N with default value
-ENV VERSION=${VERSION}
-ENV DEPENDENCIES=${DEPENDENCIES}
 RUN --mount=type=cache,target=/var/cache/apt-${TARGETPLATFORM//\//-},sharing=locked \
     --mount=type=cache,target=/var/lib/apt-${TARGETPLATFORM//\//-},sharing=locked \
     apt-get update && \
     apt-get install --fix-missing --no-install-recommends -y jq
+
 USER ${USER_N}
-FROM --platform=linux/amd64 ntap/quant:latest as quant
+
+# Copy binaries from quant image
+FROM --platform=$TARGETPLATFORM ntap/quant:latest as quant
+FROM --platform=$TARGETPLATFORM base AS base-with-binaries
 COPY --from=quant /bin/server /opt/quant/bin/server
 COPY --from=quant /bin/client /opt/quant/bin/client
 
@@ -83,7 +85,7 @@ COPY --from=quant /bin/client /opt/quant/bin/client
 # =============================================================================
 
 # Target platform runtime stage
-FROM --platform=linux/amd64 base AS runtime
+FROM --platform=$TARGETPLATFORM base-with-binaries AS runtime
 
 # Layer: Runtime configuration
 EXPOSE 4443 8080
