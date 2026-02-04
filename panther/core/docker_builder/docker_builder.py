@@ -1529,10 +1529,11 @@ class DockerBuilder(
                 )
 
             # Use regular Docker build for same-platform builds
+            effective_platform = self.get_effective_build_platform()
             self.logger.info(
                 "Building Docker image '%s' using standard Docker build for platform '%s'",
                 image_tag,
-                self.get_target_platform(),
+                effective_platform,
             )
             image, build_logs = self.client.images.build(
                 path=str(context_path),
@@ -1540,7 +1541,7 @@ class DockerBuilder(
                 tag=image_tag,
                 network_mode="host",
                 buildargs=build_args,
-                platform=self.get_target_platform(),  # Auto-detected platform
+                platform=effective_platform,  # Use effective platform (host when buildx disabled)
                 nocache=force_build,  # Force build if specified
                 # squash=True,  # Squash layers to reduce image size (experimental)
                 # pull=True,  # Always pull latest base images
