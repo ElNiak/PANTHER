@@ -37,13 +37,15 @@ class BuildKitCacheMixin(LoggerMixin):
         self, base_dockerfile_path: Union[str, Path]
     ) -> Path:
         """
-        Get the appropriate Dockerfile path with comprehensive 3-case selection.
+        Get the appropriate Dockerfile path with comprehensive selection.
 
-        Selection logic handles four Dockerfile variants:
-        1. Dockerfile.multistage (3-stage architecture: minimal/debug/profile)
-        2. Dockerfile.secure (security and performance optimized)
-        3. Dockerfile.buildkit (legacy BuildKit optimization)
-        4. Dockerfile (standard Docker build)
+        Selection logic handles three Dockerfile variants:
+        1. Dockerfile.secure (security and performance optimized)
+        2. Dockerfile.buildkit (BuildKit optimization with pyenv Python install)
+        3. Dockerfile (standard Docker build)
+
+        Note: Dockerfile.multistage is intentionally excluded as it relies on
+        deadsnakes PPA which is broken on Ubuntu 20.04 for Python 3.10.
 
         Args:
             base_dockerfile_path: Original Dockerfile path
@@ -52,7 +54,6 @@ class BuildKitCacheMixin(LoggerMixin):
             Path to the optimal Dockerfile for current environment and capabilities
         """
         base_path = Path(base_dockerfile_path)
-        multistage_path = base_path.parent / f"{base_path.stem}.multistage"
         secure_path = base_path.parent / f"{base_path.stem}.secure"
         buildkit_path = base_path.parent / f"{base_path.stem}.buildkit"
 
@@ -63,20 +64,7 @@ class BuildKitCacheMixin(LoggerMixin):
             and self._should_use_buildx()
         )
 
-        # Case 1: 3-stage multistage architecture (highest priority)
-        if multistage_path.exists():
-            if buildkit_available:
-                self.logger.debug(
-                    f"Using 3-stage multistage Dockerfile with BuildKit: {multistage_path}"
-                )
-                return multistage_path
-            else:
-                self.logger.warning(
-                    f"3-stage Dockerfile found but BuildKit unavailable, falling back: {secure_path}"
-                )
-                # Continue to next case
-
-        # Case 2: Security-optimized Dockerfile (high priority)
+        # Case 1: Security-optimized Dockerfile (highest priority)
         if secure_path.exists():
             if buildkit_available:
                 self.logger.debug(
@@ -89,11 +77,11 @@ class BuildKitCacheMixin(LoggerMixin):
                 )
                 # Continue to next case
 
-        # Case 3: Legacy BuildKit optimization (medium priority)
+        # Case 2: BuildKit optimization (medium priority)
         if buildkit_path.exists():
             if buildkit_available:
                 self.logger.debug(
-                    f"Using legacy BuildKit optimized Dockerfile: {buildkit_path}"
+                    f"Using BuildKit optimized Dockerfile: {buildkit_path}"
                 )
                 return buildkit_path
             else:
@@ -102,7 +90,7 @@ class BuildKitCacheMixin(LoggerMixin):
                 )
                 # Continue to next case
 
-        # Case 4: Standard Dockerfile (fallback)
+        # Case 3: Standard Dockerfile (fallback)
         if base_path.exists():
             self.logger.debug(f"Using standard Dockerfile: {base_path}")
             return base_path

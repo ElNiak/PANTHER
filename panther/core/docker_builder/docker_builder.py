@@ -988,10 +988,11 @@ class DockerBuilder(
             }
 
             # Calculate relative path from context to dockerfile
-            # For buildx, prefer Dockerfile.buildkit or multistage variants if they exist
+            # For buildx, prefer Dockerfile.buildkit if it exists
+            # Note: Dockerfile.multistage is excluded as it relies on deadsnakes PPA
+            # which is broken on Ubuntu 20.04 for Python 3.10
             buildkit_candidates = [
                 Path(dockerfile_path).parent / "Dockerfile.buildkit",
-                Path(dockerfile_path).parent / "Dockerfile.multistage",
                 dockerfile_path,  # fallback to original
             ]
 
@@ -1431,10 +1432,11 @@ class DockerBuilder(
                 log_f = open(log_filename, "w")
 
             # Calculate relative path from context to dockerfile for Docker API
-            # Prefer Dockerfile.buildkit or multistage variants if they exist
+            # Prefer Dockerfile.buildkit if it exists
+            # Note: Dockerfile.multistage is excluded as it relies on deadsnakes PPA
+            # which is broken on Ubuntu 20.04 for Python 3.10
             buildkit_candidates = [
                 Path(dockerfile_path).parent / "Dockerfile.buildkit",
-                Path(dockerfile_path).parent / "Dockerfile.multistage",
                 dockerfile_path,  # fallback to original
             ]
 
