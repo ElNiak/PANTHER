@@ -1013,7 +1013,7 @@ class TestBaseNetworkEnvironmentComplexMethods:
             "PANTHER_IVY_BASE_DIR": "/source/panther_ivy",
             "IVY_PROTOCOL_BASE": "/protocols/quic",
             "USE_APT_PROTOCOLS": "1",
-            "IVY_INCLUDE_PATH": "/usr/local/lib/python3.10/dist-packages/ivy/include/1.7",
+            "IVY_INCLUDE_PATH": "/opt/panther_ivy/ivy/include/1.7",
         }
 
         env = TestExtractorEnv()

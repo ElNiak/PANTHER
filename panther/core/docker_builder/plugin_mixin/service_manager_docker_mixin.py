@@ -130,6 +130,9 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
             plugin_manager
         )
 
+        self.logger.debug(
+            f"Ensuring base Docker image is built with runtime_mode='{runtime_mode}' and global_config='{getattr(self, 'global_config', None)}'"
+        )
         # Build base image tag using docker_builder's tag generation logic
         docker_builder = DockerBuilder.get_instance(
             global_config=getattr(self, "global_config", None),
@@ -284,14 +287,16 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
 
         # Use clean version (without build_mode suffix) - Docker builder will handle mode differentiation
         base_version = protocol_version or "latest"
+        
+        gc = getattr(self, "global_config", None)
 
         self.logger.debug(
-            f"Preparing service {self.implementation_name} with version {base_version} (build_mode: '{build_mode}', runtime_mode: '{runtime_mode}')"
+            f"Preparing service {self.implementation_name} with version {base_version} (build_mode: '{build_mode}', runtime_mode: '{runtime_mode}' and global config: '{gc}' )"
         )
 
         dockerfile_path = getattr(self, "docker_file_path", "Unknown")
         docker_builder = DockerBuilder.get_instance(
-            global_config=getattr(self, "global_config", None),
+            global_config=gc,
             experiment_context=getattr(plugin_manager, "experiment_context", None),
         )
 

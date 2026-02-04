@@ -216,7 +216,6 @@ class ServiceManagerMixin(LoggerMixin):
 
         # Note: Network substitutions are now handled by placeholder resolution
         # in the environment's _resolve_network_placeholders_in_commands method
-        # Legacy _apply_network_substitutions call removed
         self._commands_initialized = True
         self.logger.debug("Commands initialized for service '%s'", self.service_name)
         return self._run_cmd
@@ -241,22 +240,23 @@ class ServiceManagerMixin(LoggerMixin):
         # for better shell command representation with metadata and proper escaping
 
         # Using ShellCommand objects for better structure, error handling, and debugging support
-        commands = [
+        commands: List[ShellCommand] = [
             ShellCommand(
                 command="set -x;",
                 is_critical=True,
             ),
             ShellCommand(
-                command="export SHELLOPTS",
+                command="export SHELLOPTS;",
                 is_critical=True,
+                is_environment_variable_assignment=True
             ),
             ShellCommand(
                 command="export PATH=$PATH:$ADDITIONAL_PATH;",
-                is_critical=False,  # Non-critical as ADDITIONAL_PATH might be empty
+                is_environment_variable_assignment=True,  # Non-critical as ADDITIONAL_PATH might be empty (TODO - set defaults?)
             ),
             ShellCommand(
                 command="export PYTHONPATH=$PYTHONPATH:$ADDITIONAL_PYTHONPATH;",
-                is_critical=False,  # Non-critical as ADDITIONAL_PYTHONPATH might be empty
+                is_environment_variable_assignment=True,  # Non-critical as ADDITIONAL_PYTHONPATH might be empty (TODO - set defaults?)
             ),
             ShellCommand(
                 command="env >> /app/logs/env.log;",

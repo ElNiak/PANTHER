@@ -138,7 +138,7 @@ class PicoquicConfig(ServicePluginConfig):
         Returns:
             PicoquicConfig instance with appropriate version configuration
         """
-        logging.debug("Creating PicoquicConfig with protocol context")
+        logging.debug("Creaol context")
         if protocol and hasattr(protocol, "version") and protocol.version:
             try:
                 version_config = cls.load_versions_from_files(

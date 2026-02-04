@@ -531,6 +531,9 @@ class BaseNetworkEnvironment(INetworkEnvironment, StringRepresentationMixin):
 
             # All non-tester services wait for ivy compilation first
             if not service.is_tester():
+                self.logger.debug(
+                    f"Adding ivy compilation wait logic for service: {service.service_name}"
+                )
                 wait_script = (
                     'echo "Non-tester service '
                     + service.service_name
@@ -557,6 +560,9 @@ class BaseNetworkEnvironment(INetworkEnvironment, StringRepresentationMixin):
 
             # After ivy compilation, different services have different additional waits
             if service.is_client():
+                self.logger.debug(
+                    f"Adding client wait logic for service: {service.service_name}"
+                )
                 # Client services also wait for server readiness
                 wait_script = (
                     '\necho "Client '
@@ -582,6 +588,9 @@ class BaseNetworkEnvironment(INetworkEnvironment, StringRepresentationMixin):
                 )
                 wait_commands.append(wait_script)
             else:
+                self.logger.debug(
+                    f"No additional wait logic needed for service: {service.service_name}"
+                )
                 # Other non-tester services just wait for ivy
                 wait_commands.append(
                     'echo "Ivy compilation complete - '

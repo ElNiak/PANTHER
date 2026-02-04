@@ -42,8 +42,8 @@ This document provides instructions for installing and setting up the PANTHER sy
 > If you plan to contribute to PANTHER development, consider installing from source (Option B).
 
 ```bash
-python -m venv .venv              # optional but recommended
-source .venv/bin/activate
+# optional but recommended
+python -m venv .venv; source .venv/bin/activate
 pip install "panther-net"
 ```
 

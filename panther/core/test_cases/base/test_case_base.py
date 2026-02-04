@@ -4,7 +4,7 @@ import logging
 import re
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, List
+from typing import Any, List, Optional
 
 from colorlog import ColoredFormatter
 
@@ -35,6 +35,7 @@ class TestCaseBase(ITestCase):
         metrics_collector=None,
         emitter_registry=None,
         workflow_tracker=None,
+        test_index: Optional[int] = None,
     ):
         super().__init__(test_config, global_config)
 
@@ -65,6 +66,8 @@ class TestCaseBase(ITestCase):
 
         # Test identification
         self.test_name = re.sub(r"[^a-zA-Z0-9_]", "_", test_config.name.strip())
+        if test_index is not None:
+            self.test_name = f"{test_index}_{self.test_name}"
         self.test_experiment_dir = experiment_dir / self.test_name
 
         # Initialize collections

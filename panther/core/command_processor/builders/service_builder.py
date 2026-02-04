@@ -213,6 +213,7 @@ class ServiceCommandBuilder(CommandBuilder):
         is_critical: bool = True,
         is_variable_assignment: bool = False,
         is_function_call: bool = False,
+        is_environment_variable_assignment: bool = False,
         working_dir: Optional[str] = None,
         environment: Optional[Dict[str, str]] = None,
         timeout: Optional[int] = None,
@@ -252,6 +253,7 @@ class ServiceCommandBuilder(CommandBuilder):
             is_function_call=is_function_call,
             working_dir=working_dir,
             environment=environment or {},
+            is_environment_variable_assignment=is_environment_variable_assignment,
             timeout=timeout,
         )
         self._shell_commands.append(shell_cmd)
@@ -376,7 +378,7 @@ class ServiceCommandBuilder(CommandBuilder):
             print(
                 f"⚠️  SHELL SYNTAX ERROR: {len(validation_warnings)} issue(s) in command:"
             )
-            print(f"   Command: {command[:80]}{'...' if len(command) > 80 else ''}")
+            print(f"   Command: {command}")
 
             for i, warning in enumerate(validation_warnings, 1):
                 print(f"   {i}. {warning}")
@@ -400,16 +402,10 @@ class ServiceCommandBuilder(CommandBuilder):
             # Also log through the logger system
             self._logger.warning(
                 "Command syntax validation found issues in command: %s",
-                command[:60] + "..." if len(command) > 60 else command,
+                command,
             )
             for warning in validation_warnings:
                 self._logger.warning("  - %s", warning)
-
-            # Add helpful context for common redirection issues
-            if any("redirection" in w.lower() for w in validation_warnings):
-                self._logger.warning(
-                    "  Common fix: Change '>N/path' to 'N>/path' (e.g., '2>/dev/null')"
-                )
 
     def _check_template_generation_issues(
         self, command: str, validation_warnings: list

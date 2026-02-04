@@ -273,7 +273,7 @@ class DockerBuilder(
             updated_params.append(f"build_log_file={build_log_file}")
         enable_cache = True  # Default to True unless overridden by global config
         if (
-            global_config is not None
+            global_config 
             and getattr(self, "global_config", None) != global_config
         ):
             self.global_config = global_config
@@ -289,7 +289,9 @@ class DockerBuilder(
                 self.logger.warning(
                     "Force build enabled via updated config, disabling Docker build cache."
                 )
-
+        elif self.global_config and self.global_config.docker.force_build_docker_image:
+            enable_cache = False  # Force build overrides cache setting
+            self.logger.warning("Force build enabled, disabling Docker build cache.")
         if (
             experiment_context is not None
             and getattr(self, "experiment_context", None) != experiment_context
@@ -318,7 +320,7 @@ class DockerBuilder(
         except DockerException:
             return False
 
-    def get_docker_status(self) -> Dict[str, Union[bool, str, int]]:
+    def get_docker_status(self) -> dict[str, Union[bool, bool, str, int, float, bool]]:
         """
         Get comprehensive Docker status including cache information.
 
@@ -326,7 +328,7 @@ class DockerBuilder(
             Dictionary with Docker and cache status
         """
         docker_available = self.is_docker_available()
-        cache_stats = self.image_cache.get_cache_stats()
+        cache_stats : dict[str, Union[int, bool, float]] = self.image_cache.get_cache_stats()
 
         return {
             "docker_available": docker_available,
@@ -631,11 +633,19 @@ class DockerBuilder(
         Returns:
             bool: True if buildx should be used, False otherwise
         """
+        # Use buildx for cross-platform builds (when host != target platform)
+        host_platform = self._get_host_platform()
+        is_cross_platform = host_platform != self.get_target_platform()
+        
         # Check if buildx is available on system first
         if not self._check_buildx_available():
             self.logger.info(
                 "Buildx not available on system, falling back to regular Docker build"
             )
+            if is_cross_platform:
+                self.logger.warning(
+                    "Cross-platform build requested but buildx is unavailable; build may fail."
+                )
             return False
 
         # Check if Dockerfile requires BuildKit features (HIGHEST PRIORITY)
@@ -652,6 +662,7 @@ class DockerBuilder(
             and self.global_config
             and hasattr(self.global_config, "docker")
             and not self.global_config.docker.use_buildx
+            and not is_cross_platform
         ):
             self.logger.debug(
                 "Buildx disabled in configuration, using regular Docker build"
@@ -668,13 +679,9 @@ class DockerBuilder(
             self.logger.debug("Multi-platform builds enabled, using buildx")
             return True
 
-        # Use buildx for cross-platform builds (when host != target platform)
-        host_platform = self._get_host_platform()
-        is_cross_platform = host_platform != self.get_target_platform()
-
         if is_cross_platform:
             self.logger.info(
-                "Cross-platform build detected (%s -> %s), using buildx for efficiency",
+                "Cross-platform build detected (%s -> %s), using buildx (required)",
                 host_platform,
                 self.get_target_platform(),
             )
@@ -916,16 +923,6 @@ class DockerBuilder(
                         build_error="Buildx builder setup failed",
                     )
 
-            # For non-default custom builders, make sure they exist
-            if builder_name != "default" and not self._setup_buildx_builder(
-                builder_name
-            ):
-                raise DockerBuildException(
-                    message=f"Failed to setup buildx builder: {builder_name}",
-                    image_name=impl_name,
-                    dockerfile=str(dockerfile_path),
-                    build_error="Buildx builder setup failed",
-                )
             # Extract build and runtime modes from config
             build_mode = config.get("build_mode", "")
             runtime_mode = config.get("runtime_mode", "minimal")
@@ -974,8 +971,13 @@ class DockerBuilder(
                 "DEPENDENCIES": dependencies_json,
                 "BUILD_MODE": build_mode,
                 "RUNTIME_MODE": config.get("runtime_mode", "minimal"),
-                "BASE_IMAGE": self.select_optimal_base_image(
-                    impl_name, config, target_platform
+                "BASE_IMAGE": self.generate_image_tag(
+                    impl_name="panther_base_service",
+                    version="",
+                    tag_version="latest",
+                    build_mode="",
+                    runtime_mode=runtime_mode,
+                    target_platform=target_platform,
                 ),
                 "TARGETPLATFORM": target_platform,
                 "BUILDPLATFORM": build_platform,
@@ -997,7 +999,7 @@ class DockerBuilder(
             for candidate in buildkit_candidates:
                 if candidate.exists():
                     selected_dockerfile = candidate
-                    self.logger.debug(
+                    self.logger.info(
                         "Selected Dockerfile for buildx: %s", selected_dockerfile
                     )
                     break
@@ -1365,10 +1367,15 @@ class DockerBuilder(
                 "DEPENDENCIES": json.dumps(dependencies) if dependencies else "[]",
                 "BUILD_MODE": build_mode,
                 "RUNTIME_MODE": config.get("runtime_mode", "minimal"),
-                "BASE_IMAGE": self.select_optimal_base_image(
-                    impl_name, config, target_platform
-                ),
                 "TARGETPLATFORM": target_platform,
+                "BASE_IMAGE": self.generate_image_tag(
+                    impl_name="panther_base_service",
+                    version="",
+                    tag_version="latest",
+                    build_mode="",
+                    runtime_mode=runtime_mode,
+                    target_platform=target_platform,
+                ),
                 "BUILDPLATFORM": build_platform,
                 "TARGETARCH": target_arch,
                 "TARGETOS": target_os,
@@ -1473,6 +1480,11 @@ class DockerBuilder(
                 )
 
             # Use regular Docker build for same-platform builds
+            self.logger.info(
+                "Building Docker image '%s' using standard Docker build for platform '%s'",
+                image_tag,
+                self.get_target_platform(),
+            )
             image, build_logs = self.client.images.build(
                 path=str(context_path),
                 dockerfile=str(relative_dockerfile_path),
@@ -1480,7 +1492,7 @@ class DockerBuilder(
                 network_mode="host",
                 buildargs=build_args,
                 platform=self.get_target_platform(),  # Auto-detected platform
-                # nocache=force_build,  # Force build if specified
+                nocache=force_build,  # Force build if specified
                 # squash=True,  # Squash layers to reduce image size (experimental)
                 # pull=True,  # Always pull latest base images
             )
@@ -1744,6 +1756,11 @@ class DockerBuilder(
         )
 
     def push_image_to_registry(self, image_tag, registry_image_tag, registry_url, tag):
+        if self.client is None:
+            self.logger.error(
+                "Docker client is not available. Cannot push Docker image to registry."
+            )
+            return False
         # Tag the image for the registry
         image = self.client.images.get(image_tag)
         image.tag(registry_image_tag)

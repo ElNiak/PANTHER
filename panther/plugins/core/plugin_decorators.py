@@ -78,7 +78,6 @@ def register_plugin(
     **kwargs,
 ):
     """
-    Enhanced decorator to register plugins with comprehensive metadata and automatic discovery.
 
     This decorator implements PANTHER's plugin registration system, enabling automatic discovery,
     dependency resolution, and lifecycle management for all plugin types. The decorator stores

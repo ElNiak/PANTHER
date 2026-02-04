@@ -486,6 +486,8 @@ class ExperimentManager(
         try:
             test_count = len(self.experiment_config.tests)
             test_names = [test.name for test in self.experiment_config.tests]
+            
+            test_index = 0
 
             for test_config in self.experiment_config.tests:
                 self.logger.info("Initializing test case: %s", test_config.name)
@@ -511,8 +513,9 @@ class ExperimentManager(
                     metrics_collector=self.metrics_collector,
                     emitter_registry=self.emitter_registry,
                     workflow_tracker=self.workflow_tracker,
+                    test_index=test_index,
                 )
-
+                test_index += 1
                 self.logger.info("Initialized test case '%s'", test_case)
                 self.test_cases.append(test_case)
 

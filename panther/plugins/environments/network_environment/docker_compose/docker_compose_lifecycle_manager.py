@@ -255,7 +255,7 @@ class DockerComposeLifecycleManager:
             "SOURCE_DIR": "/opt",
             "ROOTPATH": "/opt",
             "MODEL_TYPE": "protocol",
-            "PYTHON_IVY_DIR": "/usr/local/lib/python3.10/dist-packages/",
+            "PYTHON_IVY_DIR": "/root/.pyenv/versions/3.10.12/lib/python3.10/site-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/",
         }
 
         # Update working vars with base values if not already set
@@ -283,6 +283,7 @@ class DockerComposeLifecycleManager:
                         value in ["${UID}", "${GID}"]
                         or value.startswith("$LD_LIBRARY_PATH:")
                         or value.startswith("$IVY_INCLUDE_PATH:")
+                        or value.startswith("$PATH:")      
                         or value.startswith("$PYTHONPATH:")
                     ):
                         continue
@@ -319,6 +320,7 @@ class DockerComposeLifecycleManager:
                     value.startswith("$LD_LIBRARY_PATH:")
                     or value.startswith("$IVY_INCLUDE_PATH:")
                     or value.startswith("$PYTHONPATH:")
+                    or value.startswith("$PATH:")
                     or value in ["${UID}", "${GID}"]
                 ):
                     # These are variables that Docker should handle
@@ -393,6 +395,7 @@ class DockerComposeLifecycleManager:
         # Build complete command as list
 
         self.logger.info(f"Executing Docker Compose command: {' '.join(compose_args)}")
+        self.logger.info(f"With environment variables: {list(env_vars.keys())}")
         self.logger.info(f"Current working directory: {os.getcwd()}")
 
         # Start Docker Compose

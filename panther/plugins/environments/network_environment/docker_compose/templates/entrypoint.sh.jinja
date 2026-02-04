@@ -47,6 +47,10 @@ log "Changed to working directory: {{ cmd_obj.metadata.working_directory }}"
 
 {% if cmd_obj.metadata.is_empty %}
 log "Skipping empty $cmd_type command #{{ loop.index }}"
+
+{% elif cmd_obj.metadata.is_environment_variable_assignment %}
+{{ cmd_obj.command }}
+
 {% elif not cmd_obj.metadata.is_critical %}
 # Handle non-critical command
 MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
@@ -485,11 +489,17 @@ execute_with_error_tracking() {
   # Keep individual command files in phase directory if needed for debugging
   local status_file="$phase_dir/cmd-$cmd_num-status.txt"
   local output_file="$phase_dir/cmd-$cmd_num-output.log"
+  local cmd_env_file="$phase_dir/cmd-$cmd_num-env.env"
+
+  # Save current environment to a file for reference
+  env > "$cmd_env_file"
 
   # Append command header to phase stdout
   echo "" >> "$phase_stdout"
   echo "=== Command $cmd_num ===" >> "$phase_stdout"
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution" >> "$phase_stdout"
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of $cmd" >> "$phase_stdout"
+  echo "Is Multiline: $is_multiline" >> "$phase_stdout"
+  echo "Is Critical: $is_critical" >> "$phase_stdout"
   echo "----------------------------------------" >> "$phase_stdout"
 
   # Execute the command and capture output to phase files
@@ -498,7 +508,7 @@ execute_with_error_tracking() {
     eval "$cmd" >> "$phase_stdout" 2>> "$phase_stderr"
   else
     # For single line commands, use bash -c
-    bash -c "$cmd" >> "$phase_stdout" 2>> "$phase_stderr"
+    bash -c "source $cmd_env_file; source  ~/.bashrc; $cmd" >> "$phase_stdout" 2>> "$phase_stderr"
   fi
   local status=$?
 

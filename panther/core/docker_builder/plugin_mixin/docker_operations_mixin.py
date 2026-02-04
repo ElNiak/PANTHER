@@ -41,6 +41,7 @@ class DockerOperationsMixin(LoggerMixin):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._docker_builder = None
+        self.global_config = getattr(self, "global_config", None)
 
     @property
     def docker_builder(self) -> "DockerBuilder":

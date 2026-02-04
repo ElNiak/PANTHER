@@ -116,6 +116,12 @@ class PicoquicServiceManager(
 
         # Cache plugin config for easy access
         self._plugin_config = None
+        
+        self.standard_iut_initialization(
+            service_config_to_test, service_type, protocol, 
+            implementation_name, event_manager,
+            plugin_dir=Path(__file__).parent
+        )
 
     def _get_plugin_config(self) -> Optional[PicoquicConfig]:
         """Get plugin config with caching and fallback."""

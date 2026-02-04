@@ -157,6 +157,7 @@ class TestCase(
         metrics_collector=None,
         emitter_registry=None,
         workflow_tracker=None,
+        test_index: Optional[int] = None,
     ):
         # Initialize mixin attributes before calling super()
         # This ensures all mixins have what they need during initialization
@@ -174,6 +175,7 @@ class TestCase(
             metrics_collector,
             emitter_registry,
             workflow_tracker,
+            test_index,
         )
 
         # Timeout cascade detection

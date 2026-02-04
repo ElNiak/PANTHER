@@ -38,7 +38,7 @@ class PluginManagementMixin(LoggerMixin):
         at panther/plugins/services/testers/{testers_dir}
 
         Side Effects:
-            Deletes the directory specified by `testers_dir` and all its contents.
+            Deletes the directory specified platforby `testers_dir` and all its contents.
         """
         if getattr(self, "testers_dir", None) and self.testers_dir != "":
             testers_target_dir = os.path.join(

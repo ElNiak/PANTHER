@@ -57,8 +57,9 @@ from panther.plugins.core.plugin_catalog import PluginCatalog
 from panther.plugins.core.plugin_factory import PluginFactory
 from panther.plugins.core.structures.plugin_manifest import PluginManifest
 
-# Import unified core components
+# Import plugins core components
 from panther.plugins.core.structures.plugin_metadata import PluginMetadata, PluginType
+
 from panther.plugins.environments.environment_interface import IEnvironmentPlugin
 from panther.plugins.services.services_interface import IServiceManager
 
