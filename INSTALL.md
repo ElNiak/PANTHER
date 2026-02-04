@@ -33,8 +33,13 @@ This document provides instructions for installing and setting up the PANTHER sy
 
 ### Option A — From PyPI *(easiest)*
 
-!!! tip "Recommended for most users"
-    This is the simplest installation method and includes all core functionality and built-in plugins.
+>  [!TIP]
+> "Recommended for most users"
+> This is the simplest installation method and includes all core functionality and built-in plugins.
+
+> [!WARNING]
+> "Development Warning"
+> If you plan to contribute to PANTHER development, consider installing from source (Option B).
 
 ```bash
 # optional but recommended
@@ -53,14 +58,6 @@ After installation, verify the CLI is working and set up enhanced features:
 # Verify installation
 panther --version
 
-# Check system readiness
-panther tools doctor
-
-# Enable bash completion for enhanced productivity
-panther completion bash > ~/.panther-complete.bash
-echo 'source ~/.panther-complete.bash' >> ~/.bashrc
-source ~/.bashrc
-
 # Get help and explore commands
 panther --help
 panther run --help
@@ -74,15 +71,15 @@ panther config --help
 ```bash
 git clone --recurse-submodules https://github.com/ElNiak/PANTHER.git;
 # If submodule not cloned initially ;)
+cd PANTHER;
 git submodule update --init --recursive;
-cd PANTHER
+# Check that 'python" points to Python 3.10+ (otherwise use 'python3')
 python -m venv .venv && source .venv/bin/activate;
 ```
 
 #### B.2.a - 🔧 **Recommended: Using the Builder Script** *(cross-platform)*
 
 For development work, we **highly recommend** using the included Python builder script instead of the traditional Makefile:
-
 ```bash
 # After cloning and setting up your environment:
 python panther_builder.py package-dev    # Install in development mode
@@ -92,13 +89,15 @@ python panther_builder.py clean          # Clean build artifacts
 ```
 
 More details with:
-
 ```bash
 # (.venv)
 python panther_builder.py --help         # See all available commands
 usage: panther_builder.py [-h] [-v]
                           [{package,package-dev,package-test,clean,install-local,docs,serve-docs,deploy-docs,check,zip-outputs,remove-images-all,remove-images-services,remove-system-all,remove-system-services,remove-volume,help}]
+```
 
+With output similar to:
+```text
 PANTHER Build Script - A portable Python-based build system
 
 positional arguments:
@@ -175,71 +174,9 @@ panther --help
 
 ### Your First Experiment
 
-Get started quickly with the new CLI:
-
-```bash
-# 1. Generate your first experiment configuration
-panther create template experiment --output my-first-experiment.yaml
-
-# 2. Validate the configuration
-panther config validate --config my-first-experiment.yaml --explain
-
-# 3. Run a dry-run to see what would happen
-panther run --config my-first-experiment.yaml --dry-run
-
-# 4. Execute the actual experiment
-panther run --config my-first-experiment.yaml --enable-metrics
-```
-
-### On Going Updates 
-
-#### Click-based CLI (*In Progress*)
-
-PANTHER now features a modern, user-friendly CLI built with Click that provides:
-
-- **Colored output** with emojis for visual feedback
-- **Progress bars** for long-running operations
-- **Enhanced error messages** with contextual suggestions
-- **Bash completion** for improved productivity
-- **Interactive tutorials** for learning
-- **Comprehensive help** with examples
-
-#### UV package manager (*TODO*)
-
-"[An extremely fast Python package and project manager, written in Rust.](https://github.com/astral-sh/uv)" 
-- Faster
-- Better version management
-- Remote usage possible 
-
-### Interactive Learning (*In Progress*)
-
-Explore PANTHER through interactive tutorials:
-
-```bash
-# Start interactive tutorial system
-panther tutorial interactive
-
-# Or run specific tutorials
-panther tutorial run service --mode guided
-panther tutorial run configuration --mode quick
-```
-
-### Plugin Management  (*In Progress*)
-
-Discover and manage plugins easily:
-
-```bash
-# List available plugins
-panther plugins list
-
-# Get information about a specific plugin
-panther plugins info picoquic --verbose
-
-# Check plugin parameters
-panther plugins params picoquic --type iut
-```
-
-For comprehensive CLI documentation, see [CLI Documentation](docs/cli_click.md).
+> [!WARNING]
+> "Work in Progress"
+> The CLI is being actively developed. Some commands may change in future releases.
 
 ## Troubleshooting
 

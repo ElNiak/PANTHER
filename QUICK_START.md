@@ -113,11 +113,10 @@ tests:
 With the  CLI, experiment execution is more intuitive and provides better feedback (*In Progress*):
 
 ```bash
-# First, validate your configuration (recommended)
-panther config validate --config quic_demo.yaml --explain
+# Preview what will happen (optional dry run) without building images and running them.
+panther --debug run --config quic_demo.yaml --dry-run
 
-# Preview what will happen (optional dry run)
-panther run --config quic_demo.yaml --dry-run
+panther run --config quic_demo.yaml --dry-run --verbose
 
 # Run the actual experiment with metrics
 panther --debug run --config quic_demo.yaml --verbose
@@ -131,7 +130,7 @@ results to `outputs/`.
 >  "Alternative Test Configuration"
 > You can also test with built-in examples:
 > ```bash
-> panther run --config experiment-config/experiment_config_example.yaml --enable-metrics
+> panther run --config experiment-config/experiment_config_example.yaml 
 > ```
 
 ---
