@@ -19,12 +19,16 @@ ARG RUNTIME_MODE=minimal
 # STAGE 1: BUILDER - Multi-platform build environment with cross-compilation
 # =============================================================================
 
-# Use Ubuntu 20.04 targeting amd64
-FROM --platform=linux/amd64 ubuntu:20.04 AS builder
+# Use Ubuntu 20.04 for target platform
+FROM --platform=$TARGETPLATFORM ubuntu:20.04 AS builder
+
+# Redeclare ARGs after FROM to make them available in this stage
+ARG TARGETPLATFORM
+ARG TARGETARCH
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Platform-aware package installation with enhanced security
+# Platform-aware package installation with enhanced security (including pyenv dependencies)
 RUN --mount=type=cache,target=/var/cache/apt,id=apt-${TARGETPLATFORM},sharing=locked \
     --mount=type=cache,target=/var/lib/apt,id=aptlib-${TARGETPLATFORM},sharing=locked \
     --mount=type=tmpfs,target=/tmp \
@@ -32,7 +36,7 @@ RUN --mount=type=cache,target=/var/cache/apt,id=apt-${TARGETPLATFORM},sharing=lo
     apt-get update && \
     apt-get install --fix-missing --auto-remove --show-upgraded --no-install-recommends -y \
     build-essential git cmake software-properties-common \
-    openssl libssl-dev pkg-config python3 \
+    openssl libssl-dev pkg-config \
     clang automake autoconf libtool \
     wget curl sudo \
     libc6-dev libdw1 libelf1 libunwind-dev \
@@ -40,7 +44,34 @@ RUN --mount=type=cache,target=/var/cache/apt,id=apt-${TARGETPLATFORM},sharing=lo
     wireshark tshark libcap2-bin \
     iputils-ping iproute2 netcat-openbsd \
     curl dnsutils automake autoconf libtool pkg-config libssl-dev \
-    cmake build-essential
+    cmake build-essential \
+    libffi-dev libbz2-dev libreadline-dev libsqlite3-dev \
+    llvm libncurses5-dev libncursesw5-dev xz-utils tk-dev liblzma-dev
+
+# Install pyenv and Python 3.10.12
+# Note: Cache mount at /tmp to avoid creating /root/.pyenv before pyenv installer runs
+RUN --mount=type=cache,target=/tmp/pyenv-cache,id=pyenv-${TARGETPLATFORM},sharing=locked \
+    curl https://pyenv.run | bash && \
+    echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc && \
+    echo 'export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc && \
+    echo 'eval "$(pyenv init -)"' >> ~/.bashrc && \
+    echo 'eval "$(pyenv virtualenv-init -)"' >> ~/.bashrc && \
+    export PYENV_ROOT="$HOME/.pyenv" && \
+    export PATH="$PYENV_ROOT/bin:$PATH" && \
+    eval "$(pyenv init -)" && \
+    eval "$(pyenv virtualenv-init -)" && \
+    pyenv install 3.10.12 && \
+    pyenv global 3.10.12
+
+# Create symlinks for python commands
+RUN ln -sf "$HOME/.pyenv/shims/python3.10" /usr/local/bin/python3.10 && \
+    ln -sf "$HOME/.pyenv/shims/python3" /usr/local/bin/python3 && \
+    ln -sf "$HOME/.pyenv/shims/python" /usr/local/bin/python && \
+    python3 -V && which python3
+
+# Set PATH for pyenv in environment
+ENV PYENV_ROOT=/root/.pyenv
+ENV PATH=$PYENV_ROOT/shims:$PYENV_ROOT/bin:$PATH
 
 
 # Install cross-compilation tools based on target architecture
@@ -140,36 +171,69 @@ RUN --mount=type=cache,target=/var/cache/apt,id=profile-${TARGETPLATFORM},sharin
 # Update library cache for gperftools
 RUN ldconfig
 
+# Verify profiling tools installation
+RUN whereis libprofiler && whereis libtcmalloc
+
 # =============================================================================
 # STAGE 4: MINIMAL - Core runtime + network analysis (PANTHER requirement)
 # =============================================================================
 
 # Target platform runtime with security hardening
-FROM --platform=linux/amd64 ubuntu:20.04 AS minimal
+FROM --platform=$TARGETPLATFORM ubuntu:20.04 AS minimal
+
+# Redeclare ARGs after FROM to make them available in this stage
+ARG TARGETPLATFORM
 
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Note: User security is applied via Dockerfile.user.buildkit layer for flexibility
 
-# Platform-aware runtime dependencies with security
+# Platform-aware runtime dependencies with security (including pyenv dependencies)
 RUN --mount=type=cache,target=/var/cache/apt,id=runtime-${TARGETPLATFORM},sharing=locked \
     --mount=type=cache,target=/var/lib/apt,id=runtimelib-${TARGETPLATFORM},sharing=locked \
     --mount=type=tmpfs,target=/tmp \
     ln -fs /usr/share/zoneinfo/UTC /etc/localtime && \
     apt-get update && \
     apt-get install --fix-missing --auto-remove --show-upgraded --no-install-recommends -y \
-    python3 openssl ca-certificates \
-    git jq \
+    openssl ca-certificates \
+    git jq sudo \
     net-tools tcpdump iperf iperf3 traceroute \
     wireshark-common wireshark tshark libcap2-bin \
     iputils-ping iproute2 netcat-openbsd \
-    curl dnsutils automake autoconf libtool pkg-config libssl-dev \
-    cmake build-essential
+    curl dnsutils software-properties-common \
+    automake autoconf libtool pkg-config libssl-dev \
+    cmake build-essential \
+    libffi-dev libbz2-dev libreadline-dev libsqlite3-dev \
+    llvm libncurses5-dev libncursesw5-dev xz-utils tk-dev liblzma-dev
+
+# Install pyenv and Python 3.10.12
+# Note: Cache mount moved to /tmp to avoid creating /root/.pyenv before pyenv installer runs
+RUN --mount=type=cache,target=/tmp/pyenv-cache,id=pyenv-runtime-${TARGETPLATFORM},sharing=locked \
+    curl https://pyenv.run | bash && \
+    echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc && \
+    echo 'export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc && \
+    echo 'eval "$(pyenv init -)"' >> ~/.bashrc && \
+    echo 'eval "$(pyenv virtualenv-init -)"' >> ~/.bashrc && \
+    export PYENV_ROOT="$HOME/.pyenv" && \
+    export PATH="$PYENV_ROOT/bin:$PATH" && \
+    eval "$(pyenv init -)" && \
+    eval "$(pyenv virtualenv-init -)" && \
+    pyenv install 3.10.12 && \
+    pyenv global 3.10.12
+
+# Create symlinks for python commands
+RUN ln -sf "$HOME/.pyenv/shims/python3.10" /usr/local/bin/python3.10 && \
+    ln -sf "$HOME/.pyenv/shims/python3" /usr/local/bin/python3 && \
+    ln -sf "$HOME/.pyenv/shims/python" /usr/local/bin/python && \
+    python3 -V && which python3
+
+# Set PATH for pyenv in environment
+ENV PYENV_ROOT=/root/.pyenv
+ENV PATH=$PYENV_ROOT/shims:$PYENV_ROOT/bin:$PATH
 
 # Configure wireshark for non-root usage (PANTHER protocol testing requirement)
-# Note: User will be added to wireshark group in security layer
-RUN apt-get install -y wireshark-common && \
-    yes yes | DEBIAN_FRONTEND=teletype dpkg-reconfigure wireshark-common
+RUN yes yes | DEBIAN_FRONTEND=teletype dpkg-reconfigure wireshark-common && \
+    usermod -aG wireshark root
 
 # Create application directories (ownership handled by security layer)
 RUN mkdir -p /app /opt /app/logs /app/certs /app/data

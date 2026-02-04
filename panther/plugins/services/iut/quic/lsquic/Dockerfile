@@ -5,6 +5,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Define build arguments for version-specific configurations
 ARG VERSION=master
 ARG DEPENDENCIES="[]"  # JSON-formatted list of dependencies
+ARG USER_N=root  # Define USER_N with default value
 ENV VERSION=${VERSION}
 ENV DEPENDENCIES=${DEPENDENCIES}
 
@@ -17,24 +18,26 @@ RUN apt-get install --fix-missing -y jq
 
 USER ${USER_N}
 
-# Function to parse and build dependencies
-RUN git clone https://boringssl.googlesource.com/boringssl;  \
-    cd boringssl; \
-    git checkout 9fc1c33e9c21439ce5f87855a6591a9324e569fd; \
-    git submodule init; \
-    git submodule update; \
-    cmake . &&  make
+WORKDIR /opt
 
-ENV BORINGSSL=/src/boringssl/
+# Build boringssl dependency
+RUN git clone https://boringssl.googlesource.com/boringssl && \
+    cd boringssl && \
+    git checkout 9fc1c33e9c21439ce5f87855a6591a9324e569fd && \
+    git submodule init && \
+    git submodule update && \
+    cmake . && make
 
-RUN git clone https://github.com/litespeedtech/lsquic.git;  \
-    cd lsquic;    \
-    git checkout v4.0.9; \
-    git submodule update --init;
+ENV BORINGSSL=/opt/boringssl/
+
+RUN git clone https://github.com/litespeedtech/lsquic.git && \
+    cd lsquic && \
+    git checkout v4.0.9 && \
+    git submodule update --init
 
 RUN cd /opt/lsquic && \
-    cmake -DBORINGSSL_DIR=/src/boringssl/ .; \
-    make; \
+    cmake -DBORINGSSL_DIR=/opt/boringssl/ . && \
+    make && \
     make test || true
 
 # Expose necessary ports

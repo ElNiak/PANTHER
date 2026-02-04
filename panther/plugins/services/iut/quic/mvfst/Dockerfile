@@ -5,6 +5,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Define build arguments for version-specific configurations
 ARG VERSION=master
 ARG DEPENDENCIES="[]"  # JSON-formatted list of dependencies
+ARG USER_N=root  # Define USER_N with default value
 ENV VERSION=${VERSION}
 ENV DEPENDENCIES=${DEPENDENCIES}
 
@@ -43,12 +44,10 @@ RUN cd /opt && \
 
 
 RUN cd /opt && \
-    git clone https://github.com/private-octopus/picoquic.git && \
-    cd /opt/picoquic && \
+    git clone https://github.com/facebookincubator/mvfst.git && \
+    cd /opt/mvfst && \
     git checkout ${VERSION} && \
-    cmake . && \
-    make && \
-    ./picoquic_ct || true
+    ./build_helper.sh
 
 # Expose necessary ports
 EXPOSE 4443

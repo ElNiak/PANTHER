@@ -5,6 +5,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Define build arguments for version-specific configurations
 ARG VERSION=master
 ARG DEPENDENCIES="[]"  # JSON-formatted list of dependencies
+ARG USER_N=root  # Define USER_N with default value
 ENV VERSION=${VERSION}
 ENV DEPENDENCIES=${DEPENDENCIES}
 
