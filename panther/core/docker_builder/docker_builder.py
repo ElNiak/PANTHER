@@ -656,14 +656,22 @@ class DockerBuilder(
             )
             return True
 
-        # Check if buildx is explicitly disabled in configuration (only applies if BuildKit not required)
+        # Check if buildx is explicitly disabled in configuration
+        # This now respects use_buildx=false even for cross-platform builds
         if (
             hasattr(self, "global_config")
             and self.global_config
             and hasattr(self.global_config, "docker")
             and not self.global_config.docker.use_buildx
-            and not is_cross_platform
         ):
+            if is_cross_platform:
+                self.logger.warning(
+                    "Buildx disabled via config but cross-platform build detected (%s -> %s). "
+                    "Build may fail without QEMU/emulation support. "
+                    "Set use_buildx: true to enable buildx for cross-platform builds.",
+                    host_platform,
+                    self.get_target_platform(),
+                )
             self.logger.debug(
                 "Buildx disabled in configuration, using regular Docker build"
             )
