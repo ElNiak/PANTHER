@@ -713,6 +713,33 @@ class DockerBuilder(
         machine = platform.machine().lower()
         return "linux/arm64" if machine in ["arm64", "aarch64"] else "linux/amd64"
 
+    def get_effective_build_platform(self) -> str:
+        """
+        Get the platform that will actually be built.
+
+        When buildx is enabled, cross-platform builds are possible, so return target platform.
+        When buildx is disabled, standard Docker builds for native platform only,
+        so return host platform regardless of target platform setting.
+
+        Returns:
+            str: Effective build platform (e.g., 'linux/amd64', 'linux/arm64')
+        """
+        if self._should_use_buildx():
+            # Buildx enabled - can cross-compile, use target platform
+            return self.get_target_platform()
+        else:
+            # Buildx disabled - standard Docker builds for native platform only
+            host_platform = self._get_host_platform()
+            target_platform = self.get_target_platform()
+            if host_platform != target_platform:
+                self.logger.warning(
+                    "Buildx disabled: building for native platform %s instead of target %s. "
+                    "Set use_buildx: true to enable cross-platform builds.",
+                    host_platform,
+                    target_platform,
+                )
+            return host_platform
+
     def _dockerfile_requires_buildkit(self, dockerfile_path: Path) -> bool:
         """
         Check if Dockerfile contains BuildKit-specific features.
@@ -942,12 +969,12 @@ class DockerBuilder(
                 tag_version=tag_version,
                 build_mode=build_mode,
                 runtime_mode=runtime_mode,
-                target_platform=self.get_target_platform(),
+                target_platform=self.get_effective_build_platform(),
             )
             self.logger.info(
                 "Building Docker image '%s' with buildx for platform '%s'",
                 image_tag,
-                self.get_target_platform(),
+                self.get_effective_build_platform(),
             )
             # Prepare build arguments
             dependencies = config.get("dependencies", {})
@@ -1345,12 +1372,12 @@ class DockerBuilder(
                 tag_version=tag_version,
                 build_mode=build_mode,
                 runtime_mode=runtime_mode,
-                target_platform=self.get_target_platform(),
+                target_platform=self.get_effective_build_platform(),
             )
 
             # Check build cache first
             dependencies = config.get("dependencies", {})
-            target_platform = self.get_target_platform()
+            target_platform = self.get_effective_build_platform()
             build_platform = self._get_host_platform()
 
             # Extract architecture from platform strings (e.g., "linux/arm64" -> "arm64")
@@ -1649,7 +1676,7 @@ class DockerBuilder(
         Returns:
             str: Platform-aware base image tag (e.g., "panther_base_service:latest-linux-arm64")
         """
-        target_platform = self.get_target_platform()
+        target_platform = self.get_effective_build_platform()
         platform_suffix = f"-{target_platform.replace('/', '-')}"
 
         # If the base image already has a platform suffix, don't add another one
