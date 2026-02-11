@@ -342,12 +342,43 @@ class DockerComposeLifecycleManager:
 
         return resolved
 
+    def _pre_launch_cleanup(self) -> None:
+        """Clean up stale Docker resources before launching new services.
+
+        Runs ``docker compose down -v --remove-orphans`` to remove leftover
+        containers, networks, and volumes from a previous crashed run.  Failures
+        are expected when there is nothing to clean up and are logged at debug
+        level only.
+        """
+        self.logger.info("Pre-launch cleanup: removing stale Docker resources")
+        try:
+            compose_args = [
+                "compose",
+                "-f",
+                str(self.config_file_path),
+                "down",
+                "-v",
+                "--remove-orphans",
+            ]
+            self.docker_executor.execute_docker_command(
+                docker_args=compose_args,
+                timeout=30,
+            )
+            self.logger.info("Pre-launch cleanup completed")
+        except Exception as e:
+            self.logger.debug(
+                f"Pre-launch cleanup (expected if no previous run): {e}"
+            )
+
     def launch_services(self) -> None:
         """Launch Docker Compose services with extracted environment variables."""
         self.logger.info("Launching Docker Compose services")
 
         if not self.docker_executor:
             raise RuntimeError("Docker executor not available for service launch")
+
+        # Clean up stale resources from any previous crashed run
+        self._pre_launch_cleanup()
 
         # Extract environment variables for the Docker Compose execution
         # Start with current environment to preserve PATH and other system variables

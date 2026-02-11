@@ -311,6 +311,43 @@ class NetworkEnvironmentUtils:
             except Exception:
                 pass
 
+        # Remove volumes
+        if remove_volumes:
+            try:
+                result = subprocess.run(
+                    ["docker", "volume", "ls", "-q", "--filter", f"name={prefix}"],
+                    capture_output=True,
+                    text=True,
+                )
+                if result.stdout.strip():
+                    volume_ids = result.stdout.strip().split("\n")
+                    subprocess.run(
+                        ["docker", "volume", "rm", "-f"] + volume_ids,
+                        capture_output=True,
+                    )
+                    removed["volumes"] = len(volume_ids)
+            except Exception:
+                pass
+
+        # Remove networks
+        if remove_networks:
+            try:
+                result = subprocess.run(
+                    ["docker", "network", "ls", "-q", "--filter", f"name={prefix}"],
+                    capture_output=True,
+                    text=True,
+                )
+                if result.stdout.strip():
+                    network_ids = result.stdout.strip().split("\n")
+                    for nid in network_ids:
+                        subprocess.run(
+                            ["docker", "network", "rm", nid],
+                            capture_output=True,
+                        )
+                    removed["networks"] = len(network_ids)
+            except Exception:
+                pass
+
         return removed
 
     @staticmethod

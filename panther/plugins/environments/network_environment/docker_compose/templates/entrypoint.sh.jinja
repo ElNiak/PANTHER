@@ -434,6 +434,22 @@ set_environment() {
 log "Setting up environment variables..."
 set_environment
 
+# Clean stale coordination files from previous crashed runs
+mkdir -p /app/coordination
+CLEANUP_LOCK="/app/coordination/.cleanup_lock"
+if ! ls /app/coordination/.cleanup_done 1>/dev/null 2>&1; then
+  if (set -o noclobber; echo "$$" > "$CLEANUP_LOCK") 2>/dev/null; then
+    log "Cleaning stale coordination files from previous run..."
+    rm -f /app/coordination/*_ready /app/coordination/*_ip.txt /app/coordination/server_ready_*
+    touch /app/coordination/.cleanup_done
+    rm -f "$CLEANUP_LOCK"
+    log "Stale coordination files cleaned"
+  else
+    log "Another service is cleaning coordination files, waiting..."
+    while [ -f "$CLEANUP_LOCK" ] && [ ! -f /app/coordination/.cleanup_done ]; do sleep 0.5; done
+  fi
+fi
+
 # Create all phase directories upfront
 log "Creating phase directories..."
 mkdir -p /app/logs/{pre-compile,compile,post-compile,pre-run,runtime,post-run,test,artifacts}
@@ -716,8 +732,19 @@ else
   CMD_PID=$!
 
   if [[ "${ROLE:-}" == "server" ]]; then
-    # optional smarter readiness check; fallback to simple sleep
-    # until nc -z localhost $PORT; do sleep 0.2; done
+    # Wait for server to actually start listening before signaling ready
+    READY_WAIT=0
+    while [ $READY_WAIT -lt 120 ]; do
+      if nc -z localhost ${PORT:-4443} 2>/dev/null; then
+        log "Server port ${PORT:-4443} is open"
+        break
+      fi
+      sleep 0.5
+      READY_WAIT=$((READY_WAIT + 1))
+    done
+    if [ $READY_WAIT -ge 120 ]; then
+      log "WARNING: Server port readiness check timed out after 60s, signaling ready anyway"
+    fi
     printf 'server_ready' >"$READY_FILE"
     log "Server ready signal written to $READY_FILE"
   fi
