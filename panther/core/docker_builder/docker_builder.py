@@ -426,12 +426,25 @@ class DockerBuilder(
         # Detect host architecture and map to appropriate Docker platform
         machine = platform.machine().lower()
         if machine in ["arm64", "aarch64"]:
-            docker_platform = "linux/arm64"  # Native ARM64 support enabled
-            self.logger.warning(
-                "Detected ARM64 architecture '%s' -> using native platform: %s BUT expected errors may occur due to lack of support in some tools (picoTLS, z3, ivy) - set target_platform override if you want to force a different platform",
-                machine,
-                "linux/arm64",  # TODO: picotls, z3, ivy etc. do not support ARM64 yet 
-            )
+            if not self._check_buildx_available():
+                self.logger.warning(
+                    "ARM64 architecture detected but Docker Buildx is not available. "
+                    "Cross-platform builds may fail without Buildx support. "
+                    "Set use_buildx: true to enable buildx for ARM64 builds."
+                )
+                docker_platform = "linux/arm64"  # Native ARM64 support enabled
+                self.logger.warning(
+                    "Detected ARM64 architecture '%s' -> using native platform: %s BUT expected errors may occur due to lack of support in some tools (picoTLS, z3, ivy) - set target_platform override if you want to force a different platform",
+                    machine,
+                    "linux/arm64",  # TODO: picotls, z3, ivy etc. do not support ARM64 yet 
+                )
+            else:  
+                self.logger.info(
+                    "ARM64 architecture detected with Buildx available -> using linux/amd64 for cross-platform builds"
+                )
+                docker_platform = "linux/amd64"  # Use buildx for cross-platform AMD64 builds on ARM64 hosts
+                
+            
         elif machine in ["x86_64", "amd64"]:
             docker_platform = "linux/amd64"
         else:

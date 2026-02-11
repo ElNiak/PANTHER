@@ -232,7 +232,7 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
         runtime_mode = "minimal"  # Default runtime mode
 
         if hasattr(self, "get_build_mode"):
-            # Use the mixin's get_build_mode method if available (e.g., for IvyBuildModeMixin)
+            # Use the service's get_build_mode method if available
             build_mode = self.get_build_mode()
             self.logger.debug(f"Using build_mode from get_build_mode: '{build_mode}'")
         else:
