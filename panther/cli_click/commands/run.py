@@ -339,12 +339,18 @@ def run(
                 # Set up metrics if enabled
                 metrics_collector = None
                 if enable_metrics:
+                    metrics_output_path = Path(metrics_output_dir)
+                    metrics_output_path.mkdir(parents=True, exist_ok=True)
+                    exp_name = experiment_name or Path(config).stem
                     metrics_collector = MetricsCollector(
-                        interval=metrics_interval,
-                        output_dir=metrics_output_dir,
-                        export_format=metrics_export_format,
-                        disable_resource_monitoring=metrics_disable_resource_monitoring,
+                        experiment_name=exp_name,
+                        output_dir=metrics_output_path,
+                        collection_interval=float(metrics_interval),
                     )
+                    if not metrics_disable_resource_monitoring:
+                        metrics_collector.start_collection_thread(
+                            interval=float(metrics_interval)
+                        )
 
                 info_message(f"Initializing experiment manager...")
 
