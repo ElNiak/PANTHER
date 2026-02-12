@@ -20,6 +20,7 @@ from pathlib import Path
 import click
 from termcolor import colored
 
+from panther import __version__
 from panther.cli_click.core.base import setup_logging
 
 
@@ -30,7 +31,7 @@ from panther.cli_click.core.base import setup_logging
     help="Enable debug logging with detailed output",
 )
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
-@click.version_option(version="1.1.3", prog_name="panther")
+@click.version_option(version=__version__, prog_name="panther")
 @click.pass_context
 def cli(ctx, debug, verbose):
     """
