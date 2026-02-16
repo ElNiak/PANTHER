@@ -5,7 +5,7 @@ Modern CLI implementation using Click framework for improved user experience,
 better error handling, and enhanced maintainability.
 """
 
-from .core.main import cli
+from panther import __version__
 
-__version__ = "1.1.3"
+from .core.main import cli
 __all__ = ["cli"]

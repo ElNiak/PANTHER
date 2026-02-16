@@ -8,6 +8,7 @@ completion functionality, and command registration.
 import pytest
 from click.testing import CliRunner
 
+from panther import __version__
 from panther.cli_click.core.main import cli, main, register_commands
 
 
@@ -26,7 +27,7 @@ class TestMainCLI:
         """Test version option displays correct version."""
         result = cli_runner.invoke(cli, ["--version"])
         assert result.exit_code == 0
-        assert "1.1.3" in result.output
+        assert __version__ in result.output
         assert "panther" in result.output
 
     def test_cli_debug_flag(self, cli_runner):
@@ -230,4 +231,4 @@ class TestCLIOutput:
         assert result.exit_code == 0
         # Should contain both program name and version
         assert "panther" in result.output.lower()
-        assert "1.1.3" in result.output
+        assert __version__ in result.output
