@@ -323,6 +323,16 @@ class TestGetMetricValues:
         values = loader.get_metric_values(sample_metrics_json, "nonexistent_metric")
         assert values == []
 
+    def test_no_false_positive_error_data_for_unrelated_metrics(self, sample_metrics_json):
+        """Regression: 'name.lower() in "error"' matched substrings like 'e', 'or', 'r'."""
+        loader = MetricsDataLoader()
+        for name in ("e", "or", "r", "ro", "rr", "cpu_usage"):
+            values = loader.get_metric_values(sample_metrics_json, name)
+            error_sources = [v for v in values if v.get("source") == "error_metrics"]
+            assert error_sources == [], (
+                f"Metric '{name}' should not return error_metrics data"
+            )
+
 
 class TestGetSummary:
     def test_includes_export_metadata(self, sample_metrics_json):

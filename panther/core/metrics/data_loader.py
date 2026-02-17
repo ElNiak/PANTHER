@@ -200,7 +200,7 @@ class MetricsDataLoader:
 
         # Check error metrics
         errors = data.get("error_metrics", {})
-        if isinstance(errors, dict) and name.lower() in "error":
+        if isinstance(errors, dict) and name.lower() in ("errors", "error"):
             error_summary = {k: v for k, v in errors.items() if not isinstance(v, (dict, list))}
             if error_summary:
                 results.append({
