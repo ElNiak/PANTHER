@@ -273,10 +273,10 @@ class ResourceMonitor:
             component="resource_monitor",
         )
 
-        # Disk I/O metrics
+        # Disk I/O metrics (GAUGE: cumulative totals from psutil, take latest value)
         self.metrics_collector.record_metric(
             name="disk_read_mb_total",
-            metric_type=MetricType.COUNTER,
+            metric_type=MetricType.GAUGE,
             value=snapshot.disk_read_mb,
             phase=phase,
             component="resource_monitor",
@@ -284,16 +284,16 @@ class ResourceMonitor:
 
         self.metrics_collector.record_metric(
             name="disk_write_mb_total",
-            metric_type=MetricType.COUNTER,
+            metric_type=MetricType.GAUGE,
             value=snapshot.disk_write_mb,
             phase=phase,
             component="resource_monitor",
         )
 
-        # Network I/O metrics
+        # Network I/O metrics (GAUGE: cumulative totals from psutil, take latest value)
         self.metrics_collector.record_metric(
             name="network_sent_mb_total",
-            metric_type=MetricType.COUNTER,
+            metric_type=MetricType.GAUGE,
             value=snapshot.network_sent_mb,
             phase=phase,
             component="resource_monitor",
@@ -301,7 +301,7 @@ class ResourceMonitor:
 
         self.metrics_collector.record_metric(
             name="network_recv_mb_total",
-            metric_type=MetricType.COUNTER,
+            metric_type=MetricType.GAUGE,
             value=snapshot.network_recv_mb,
             phase=phase,
             component="resource_monitor",

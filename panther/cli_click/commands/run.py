@@ -70,7 +70,7 @@ from panther.cli_click.core.base import (
 @click.option(
     "--enable-metrics/--disable-metrics",
     default=False,
-    help="Enable/disable metrics collection during experiment",
+    help="Enable/disable ALL metrics collection (CLI and observer-based) during experiment",
 )
 @click.option(
     "--metrics-output-dir",
@@ -301,6 +301,11 @@ def run(
                 yaml_paths_config = raw_config.get("paths", {})
                 yaml_progress_config = raw_config.get("progress", {})
                 yaml_observers_config = raw_config.get("observers", {})
+
+                # CLI metrics flag overrides YAML observer metrics config
+                if "metrics" not in yaml_observers_config:
+                    yaml_observers_config["metrics"] = {}
+                yaml_observers_config["metrics"]["enabled"] = enable_metrics
 
                 # Merge with CLI defaults - YAML values take precedence
                 docker_config = {

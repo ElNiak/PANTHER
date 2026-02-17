@@ -42,6 +42,7 @@ from panther.core.exceptions.fast_fail import (
 from panther.core.experiment_analysis import ExperimentAnalysisMixin
 from panther.core.experiment_observer import ExperimentObserverMixin
 from panther.core.metrics.metrics_collector import MetricsCollector
+from panther.core.metrics.enums import Phase
 from panther.core.observer.factory import get_observer_factory
 from panther.core.observer.management.event_manager import EventManager
 from panther.core.observer.workflow import (  # pylint: disable=import-outside-toplevel
@@ -592,6 +593,12 @@ class ExperimentManager(
                 test_count=len(self.test_cases)
             )
 
+            # Track experiment start in metrics
+            if self.metrics_collector:
+                self.metrics_collector.increment_counter(
+                    "experiments_total", phase=Phase.TEST_EXECUTION
+                )
+
             # Experiment-level execution tracking is handled by experiment_emitter
             if self.dry_run:
                 self.logger.info(
@@ -691,6 +698,13 @@ class ExperimentManager(
                         # Check if test actually passed (returns None or True for success, False for failure)
                         if test_result is False:
                             failed_tests += 1
+                            if self.metrics_collector:
+                                self.metrics_collector.increment_counter(
+                                    "test_cases_total", phase=Phase.TEST_EXECUTION
+                                )
+                                self.metrics_collector.increment_counter(
+                                    "test_cases_failed", phase=Phase.TEST_EXECUTION
+                                )
                             if self.global_config.progress.show_test_status:
                                 emoji = (
                                     "❌ "
@@ -713,6 +727,13 @@ class ExperimentManager(
                             continue
 
                         successful_tests += 1
+                        if self.metrics_collector:
+                            self.metrics_collector.increment_counter(
+                                "test_cases_total", phase=Phase.TEST_EXECUTION
+                            )
+                            self.metrics_collector.increment_counter(
+                                "test_cases_successful", phase=Phase.TEST_EXECUTION
+                            )
                         if self.global_config.progress.show_test_status:
                             emoji = (
                                 "✅ " if self.global_config.progress.use_emojis else ""
@@ -765,6 +786,13 @@ class ExperimentManager(
                     ) as test_error:
                         # Handle all expected error types with a single handler
                         failed_tests += 1
+                        if self.metrics_collector:
+                            self.metrics_collector.increment_counter(
+                                "test_cases_total", phase=Phase.TEST_EXECUTION
+                            )
+                            self.metrics_collector.increment_counter(
+                                "test_cases_failed", phase=Phase.TEST_EXECUTION
+                            )
 
                         # Click progress bar handles iteration automatically
 
@@ -852,6 +880,17 @@ class ExperimentManager(
                             )
 
             self.logger.info("")  # Add final newline for clean output formatting
+
+            # Track experiment outcome in metrics
+            if self.metrics_collector:
+                if failed_tests == 0:
+                    self.metrics_collector.increment_counter(
+                        "experiments_successful", phase=Phase.TEST_EXECUTION
+                    )
+                else:
+                    self.metrics_collector.increment_counter(
+                        "experiments_failed", phase=Phase.TEST_EXECUTION
+                    )
 
             # Experiment-level summary is handled by experiment_emitter
             self.logger.info(

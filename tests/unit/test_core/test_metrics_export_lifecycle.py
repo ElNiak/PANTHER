@@ -198,3 +198,104 @@ class TestExperimentManagerCleanupMetricsExport:
         data = json.load(open(metrics_json, "r", encoding="utf-8"))
         assert "timing_metrics" in data
         assert "error_metrics" in data
+
+
+class TestPhaseMetricsFix:
+    """Bug 2: _get_phase_metrics uses .phase field instead of substring matching."""
+
+    def test_phase_metrics_nonzero_with_phase_field(self, tmp_path):
+        """Phase metrics return non-zero data when metrics have .phase set."""
+        c = MetricsCollector(
+            experiment_name="phase_test",
+            output_dir=tmp_path / "experiment",
+            collection_interval=60.0,
+        )
+        c.record_metric(
+            "timing.setup_docker",
+            MetricType.TIMING,
+            5.0,
+            phase=Phase.ENVIRONMENT_SETUP,
+        )
+        c.record_metric(
+            "timing.run_test_scenario",
+            MetricType.TIMING,
+            12.5,
+            phase=Phase.TEST_EXECUTION,
+        )
+        c.record_metric(
+            "timing.teardown_environment_containers",
+            MetricType.TIMING,
+            3.2,
+            phase=Phase.ENVIRONMENT_TEARDOWN,
+        )
+        c.finalize()
+
+        exporter = MetricsExporter(c)
+        phase_data = exporter._get_phase_metrics()
+
+        # These should now be non-zero thanks to .phase field filtering
+        assert phase_data[Phase.ENVIRONMENT_SETUP.value]["total_time"] == pytest.approx(5.0)
+        assert phase_data[Phase.ENVIRONMENT_SETUP.value]["count"] == 1
+        assert phase_data[Phase.TEST_EXECUTION.value]["total_time"] == pytest.approx(12.5)
+        assert phase_data[Phase.TEST_EXECUTION.value]["count"] == 1
+        assert phase_data[Phase.ENVIRONMENT_TEARDOWN.value]["total_time"] == pytest.approx(3.2)
+        assert phase_data[Phase.ENVIRONMENT_TEARDOWN.value]["count"] == 1
+
+    def test_summary_nonzero_after_counter_increments(self, tmp_path):
+        """Summary data returns non-zero values after counters are incremented."""
+        c = MetricsCollector(
+            experiment_name="summary_test",
+            output_dir=tmp_path / "experiment",
+            collection_interval=60.0,
+        )
+        c.increment_counter("experiments_total", phase=Phase.TEST_EXECUTION)
+        c.increment_counter("experiments_successful", phase=Phase.TEST_EXECUTION)
+        c.increment_counter("test_cases_total", phase=Phase.TEST_EXECUTION)
+        c.increment_counter("test_cases_total", phase=Phase.TEST_EXECUTION)
+        c.increment_counter("test_cases_successful", phase=Phase.TEST_EXECUTION)
+        c.increment_counter("test_cases_failed", phase=Phase.TEST_EXECUTION)
+        c.finalize()
+
+        exporter = MetricsExporter(c)
+        summary = exporter._get_summary_data()
+
+        assert summary["total_experiments"] == 1
+        assert summary["successful_experiments"] == 1
+        assert summary["total_test_cases"] == 2
+        assert summary["successful_test_cases"] == 1
+        assert summary["failed_test_cases"] == 1
+
+
+class TestResourceMonitorGaugeFix:
+    """Bug 3: I/O metrics use GAUGE so latest value is reported, not sum."""
+
+    def test_io_metrics_recorded_as_gauge(self, tmp_path):
+        """Disk and network I/O metrics are recorded as GAUGE type."""
+        c = MetricsCollector(
+            experiment_name="gauge_test",
+            output_dir=tmp_path / "experiment",
+            collection_interval=60.0,
+        )
+        # Simulate what resource_monitor now does (GAUGE for cumulative totals)
+        c.record_metric("disk_read_mb_total", MetricType.GAUGE, 100.0, component="resource_monitor")
+        c.record_metric("disk_read_mb_total", MetricType.GAUGE, 200.0, component="resource_monitor")
+        c.record_metric("disk_read_mb_total", MetricType.GAUGE, 300.0, component="resource_monitor")
+
+        # GAUGE takes latest value, not sum
+        gauges = c.gauges
+        assert gauges["disk_read_mb_total"] == pytest.approx(300.0)
+
+    def test_counter_would_sum_incorrectly(self, tmp_path):
+        """Demonstrate that COUNTER sums all samples (the old broken behavior)."""
+        c = MetricsCollector(
+            experiment_name="counter_demo",
+            output_dir=tmp_path / "experiment",
+            collection_interval=60.0,
+        )
+        # If these were COUNTER, the sum would be 100+200+300 = 600 (wrong!)
+        c.record_metric("example_counter", MetricType.COUNTER, 100.0)
+        c.record_metric("example_counter", MetricType.COUNTER, 200.0)
+        c.record_metric("example_counter", MetricType.COUNTER, 300.0)
+
+        counters = c.counters
+        assert counters["example_counter"] == 600  # Sum, not latest
