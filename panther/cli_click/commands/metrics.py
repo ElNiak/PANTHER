@@ -8,6 +8,7 @@ Reads real metrics data from experiment output directories.
 import csv
 import json
 import logging
+import re
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -44,7 +45,7 @@ def _shared_options(func):
 
 
 def _load_or_fail(experiment_dir, output_dir):
-    """Load metrics data, returning (data, exp_path) or printing error and returning None."""
+    """Load metrics data, returning (data, exp_path, loader) or printing error and returning None."""
     loader = MetricsDataLoader(output_dir=Path(output_dir))
     exp_path = Path(experiment_dir) if experiment_dir else None
     data, exp_path = loader.load_metrics(experiment_dir=exp_path)
@@ -58,8 +59,8 @@ def _load_or_fail(experiment_dir, output_dir):
         else:
             warning_message(f"No metrics data found in {exp_path}/metrics/")
             info_message("Run experiments with --enable-metrics to collect data.")
-        return None, None
-    return data, exp_path
+        return None, None, None
+    return data, exp_path, loader
 
 
 @click.group()
@@ -98,17 +99,18 @@ def list_metrics(ctx, filter_pattern, experiment_dir, output_dir):
       panther metrics list --filter cpu       # Filter by 'cpu'
       panther metrics list --filter "mem.*"   # Regex filter for memory metrics
     """
-    data, exp_path = _load_or_fail(experiment_dir, output_dir)
+    data, exp_path, loader = _load_or_fail(experiment_dir, output_dir)
     if data is None:
         return
 
-    loader = MetricsDataLoader(output_dir=Path(output_dir))
     available = loader.get_available_metrics(data)
 
     if filter_pattern:
-        import re
-
-        available = [m for m in available if re.search(filter_pattern, m["name"])]
+        try:
+            available = [m for m in available if re.search(filter_pattern, m["name"])]
+        except re.error as e:
+            error_message(f"Invalid filter pattern '{filter_pattern}': {e}")
+            return
 
     if not available:
         if filter_pattern:
@@ -161,11 +163,9 @@ def show(ctx, metric, limit, experiment_dir, output_dir):
       panther metrics show --metric cpu_usage    # Show specific metric
       panther metrics show --limit 5             # Limit to 5 values per metric
     """
-    data, exp_path = _load_or_fail(experiment_dir, output_dir)
+    data, exp_path, loader = _load_or_fail(experiment_dir, output_dir)
     if data is None:
         return
-
-    loader = MetricsDataLoader(output_dir=Path(output_dir))
 
     if metric:
         metrics_to_show = [metric]
@@ -240,7 +240,7 @@ def export(ctx, output, fmt, experiment_dir, output_dir):
       panther metrics export --format csv            # Export to CSV
       panther metrics export --output metrics.json   # Custom output file
     """
-    data, exp_path = _load_or_fail(experiment_dir, output_dir)
+    data, exp_path, loader = _load_or_fail(experiment_dir, output_dir)
     if data is None:
         return
 
@@ -263,15 +263,17 @@ def export(ctx, output, fmt, experiment_dir, output_dir):
             rows.append({"metric": name, "value": value, "type": "timing"})
         raw = data.get("raw_metrics", {})
         if isinstance(raw, dict):
-            for section in ("counters", "gauges"):
+            for section in ("counters", "gauges", "histograms"):
                 for name, value in raw.get(section, {}).items():
-                    rows.append({"metric": name, "value": value, "type": section})
+                    if isinstance(value, list):
+                        rows.append({"metric": name, "value": len(value), "type": section})
+                    else:
+                        rows.append({"metric": name, "value": value, "type": section})
         with open(output_path, "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=["metric", "value", "type"])
             writer.writeheader()
             writer.writerows(rows)
     else:  # txt
-        loader = MetricsDataLoader(output_dir=Path(output_dir))
         summary = loader.get_summary(data)
         with open(output_path, "w", encoding="utf-8") as f:
             f.write("PANTHER Metrics Export\n")
@@ -302,7 +304,7 @@ def clear(ctx, force, experiment_dir, output_dir):
     loader = MetricsDataLoader(output_dir=Path(output_dir))
 
     if experiment_dir:
-        targets = [Path(experiment_dir) / "metrics"]
+        targets = [metrics_dir for metrics_dir in [Path(experiment_dir) / "metrics"] if metrics_dir.exists()]
     else:
         experiments = loader.find_experiments_with_metrics()
         targets = [exp / "metrics" for exp in experiments]
@@ -345,11 +347,10 @@ def summary(ctx, experiment_dir, output_dir):
     Examples:
       panther metrics summary    # Show complete metrics summary
     """
-    data, exp_path = _load_or_fail(experiment_dir, output_dir)
+    data, exp_path, loader = _load_or_fail(experiment_dir, output_dir)
     if data is None:
         return
 
-    loader = MetricsDataLoader(output_dir=Path(output_dir))
     summary_data = loader.get_summary(data)
 
     click.echo(colored("Metrics Summary Report", "blue", attrs=["bold"]))
@@ -465,7 +466,10 @@ def backup(ctx, output, experiment_dir, output_dir):
         experiment_dir=experiment_dir,
         output_dir=output_dir,
     )
-    success_message(f"Backup created: {output}")
+    if Path(output).exists():
+        success_message(f"Backup created: {output}")
+    else:
+        warning_message("No backup created - no metrics data available")
 
 
 if __name__ == "__main__":

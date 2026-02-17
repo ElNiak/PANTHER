@@ -7,7 +7,6 @@ providing a clean interface for CLI commands to read real metrics.
 
 import json
 import logging
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -188,6 +187,28 @@ class MetricsDataLoader:
                         }
                     )
 
+        # Check phase metrics
+        phase = data.get("phase_metrics", {})
+        if isinstance(phase, dict):
+            for phase_name, phase_data in phase.items():
+                if isinstance(phase_data, dict) and name.lower() in phase_name.lower():
+                    results.append({
+                        "timestamp": None,
+                        "value": phase_data,
+                        "source": "phase_metrics"
+                    })
+
+        # Check error metrics
+        errors = data.get("error_metrics", {})
+        if isinstance(errors, dict) and name.lower() in "error":
+            error_summary = {k: v for k, v in errors.items() if not isinstance(v, (dict, list))}
+            if error_summary:
+                results.append({
+                    "timestamp": None,
+                    "value": error_summary,
+                    "source": "error_metrics"
+                })
+
         # Check raw_metrics for time-series data
         raw = data.get("raw_metrics", {})
         if isinstance(raw, dict):
@@ -281,10 +302,10 @@ class MetricsDataLoader:
         if isinstance(resource, dict):
             cpu = resource.get("cpu_usage", {})
             mem = resource.get("memory_usage", {})
-            if isinstance(cpu, dict) and cpu.get("average"):
+            if isinstance(cpu, dict) and cpu.get("average") is not None:
                 summary["avg_cpu"] = f"{cpu['average']:.1f}%"
                 summary["peak_cpu"] = f"{cpu.get('peak', 0):.1f}%"
-            if isinstance(mem, dict) and mem.get("average"):
+            if isinstance(mem, dict) and mem.get("average") is not None:
                 summary["avg_memory"] = f"{mem['average']:.1f}%"
                 summary["peak_memory"] = f"{mem.get('peak', 0):.1f}%"
             summary["resource_samples"] = resource.get("samples_count", 0)

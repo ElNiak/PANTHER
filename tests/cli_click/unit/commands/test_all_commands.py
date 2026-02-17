@@ -4,6 +4,7 @@ Test cases for all remaining CLI commands.
 Comprehensive tests for create, tutorial, admin, check, metrics, and tools commands.
 """
 
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
@@ -270,7 +271,7 @@ class TestMetricsCommand:
         result = cli_runner.invoke(
             cli, ["metrics", "list", "--output-dir", str(temp_dir)]
         )
-        assert result.exit_code is not None
+        assert result.exit_code == 0
 
     def test_metrics_list_with_data(self, cli_runner, temp_dir):
         """Test listing metrics with real data."""
@@ -291,21 +292,22 @@ class TestMetricsCommand:
         result = cli_runner.invoke(
             cli, ["metrics", "list", "--output-dir", str(temp_dir)]
         )
-        assert result.exit_code is not None
+        assert result.exit_code == 0
+        assert "test_dur" in result.output or "tests_run" in result.output
 
     def test_metrics_show_no_data(self, cli_runner, temp_dir):
         """Test showing metrics when no data is available."""
         result = cli_runner.invoke(
             cli, ["metrics", "show", "--output-dir", str(temp_dir)]
         )
-        assert result.exit_code is not None
+        assert result.exit_code == 0
 
     def test_metrics_summary_no_data(self, cli_runner, temp_dir):
         """Test summary when no data is available."""
         result = cli_runner.invoke(
             cli, ["metrics", "summary", "--output-dir", str(temp_dir)]
         )
-        assert result.exit_code is not None
+        assert result.exit_code == 0
 
     def test_metrics_export_no_data(self, cli_runner, temp_dir):
         """Test export when no data is available."""
@@ -320,7 +322,7 @@ class TestMetricsCommand:
                 "json",
             ],
         )
-        assert result.exit_code is not None
+        assert result.exit_code == 0
 
     def test_metrics_clear_no_data(self, cli_runner, temp_dir):
         """Test clear when no data is available."""
@@ -334,7 +336,7 @@ class TestMetricsCommand:
                 str(temp_dir),
             ],
         )
-        assert result.exit_code is not None
+        assert result.exit_code == 0
 
     def test_metrics_export_with_data(self, cli_runner, temp_dir):
         """Test export with real experiment data."""
@@ -367,7 +369,8 @@ class TestMetricsCommand:
                 "json",
             ],
         )
-        assert result.exit_code is not None
+        assert result.exit_code == 0
+        assert Path(output_file).exists()
 
     def test_metrics_list_with_filter(self, cli_runner, temp_dir):
         """Test listing metrics with filter pattern."""
@@ -388,7 +391,8 @@ class TestMetricsCommand:
         result = cli_runner.invoke(
             cli, ["metrics", "list", "--output-dir", str(temp_dir), "--filter", "cpu"]
         )
-        assert result.exit_code is not None
+        assert result.exit_code == 0
+        assert "cpu_duration" in result.output
 
     def test_metrics_with_experiment_dir(self, cli_runner, temp_dir):
         """Test metrics commands with --experiment-dir option."""
@@ -410,7 +414,163 @@ class TestMetricsCommand:
         result = cli_runner.invoke(
             cli, ["metrics", "list", "--experiment-dir", str(exp_dir)]
         )
-        assert result.exit_code is not None
+        assert result.exit_code == 0
+        assert "test_dur" in result.output
+
+    # --- Gap #13: clear --force with actual data ---
+
+    def test_metrics_clear_force_with_actual_data(self, cli_runner, temp_dir):
+        """Test clear --force deletes metrics directory when real data exists."""
+        import json
+
+        # Create experiment directory with valid metrics data
+        exp_dir = temp_dir / "exp1"
+        metrics_dir = exp_dir / "metrics"
+        metrics_dir.mkdir(parents=True)
+        metrics_data = {
+            "timing_metrics": {"test_dur": 1.5, "build_dur": 3.2},
+            "resource_metrics": {},
+            "phase_metrics": {},
+            "error_metrics": {"total_errors": 1},
+            "raw_metrics": {"counters": {"tests_run": 5}, "gauges": {}, "histograms": {}},
+        }
+        with open(metrics_dir / "metrics.json", "w") as f:
+            json.dump(metrics_data, f)
+
+        # Verify data exists before clearing
+        assert metrics_dir.exists()
+        assert (metrics_dir / "metrics.json").exists()
+
+        result = cli_runner.invoke(
+            cli,
+            [
+                "metrics",
+                "clear",
+                "--force",
+                "--output-dir",
+                str(temp_dir),
+            ],
+        )
+        assert result.exit_code == 0
+        # The metrics directory should have been deleted
+        assert not metrics_dir.exists()
+
+    # --- Gap #14: show and summary with real data ---
+
+    def test_metrics_show_with_data(self, cli_runner, temp_dir):
+        """Test show command displays a specific metric when data is present."""
+        import json
+
+        exp_dir = temp_dir / "exp1" / "metrics"
+        exp_dir.mkdir(parents=True)
+        metrics_data = {
+            "timing_metrics": {"test_dur": {"total": 5.0}},
+            "resource_metrics": {},
+            "phase_metrics": {},
+            "error_metrics": {"total_errors": 0},
+            "raw_metrics": {"counters": {}, "gauges": {}, "histograms": {}},
+        }
+        with open(exp_dir / "metrics.json", "w") as f:
+            json.dump(metrics_data, f)
+
+        result = cli_runner.invoke(
+            cli,
+            [
+                "metrics",
+                "show",
+                "--metric",
+                "test_dur",
+                "--output-dir",
+                str(temp_dir),
+            ],
+        )
+        assert result.exit_code == 0
+        assert "test_dur" in result.output
+
+    def test_metrics_summary_with_data(self, cli_runner, temp_dir):
+        """Test summary command outputs expected sections with rich fixture data."""
+        import json
+
+        exp_dir = temp_dir / "exp1" / "metrics"
+        exp_dir.mkdir(parents=True)
+        metrics_data = {
+            "export_metadata": {
+                "timestamp": "2025-06-15T12:00:00",
+                "export_format": "json",
+            },
+            "summary": {
+                "total_experiments": 3,
+                "successful_experiments": 2,
+                "failed_experiments": 1,
+                "total_test_cases": 10,
+                "error_count": 2,
+                "total_execution_time": 42.5,
+            },
+            "timing_metrics": {
+                "build_duration": 12.3,
+                "test_execution": 30.2,
+            },
+            "resource_metrics": {
+                "cpu_usage": {"average": 55.0, "peak": 92.3, "min": 10.0},
+                "memory_usage": {"average": 40.0, "peak": 78.5, "min": 15.0},
+                "samples_count": 120,
+            },
+            "phase_metrics": {},
+            "error_metrics": {
+                "total_errors": 2,
+                "error_categories": {"timeout": 1, "connection_refused": 1},
+            },
+            "raw_metrics": {"counters": {}, "gauges": {}, "histograms": {}},
+        }
+        with open(exp_dir / "metrics.json", "w") as f:
+            json.dump(metrics_data, f)
+
+        result = cli_runner.invoke(
+            cli,
+            [
+                "metrics",
+                "summary",
+                "--output-dir",
+                str(temp_dir),
+            ],
+        )
+        assert result.exit_code == 0
+        # Verify summary output contains key sections
+        assert "Summary" in result.output or "summary" in result.output.lower()
+        assert "42.50s" in result.output  # total_execution_time formatted
+        assert "55.0%" in result.output  # avg_cpu formatted
+        assert "timeout" in result.output  # error category
+
+    # --- Gap #15: quick and backup smoke tests ---
+
+    def test_metrics_quick_no_data(self, cli_runner, temp_dir):
+        """Test quick command handles no-data gracefully."""
+        result = cli_runner.invoke(
+            cli,
+            [
+                "metrics",
+                "quick",
+                "--output-dir",
+                str(temp_dir),
+            ],
+        )
+        assert result.exit_code == 0
+
+    def test_metrics_backup_no_data(self, cli_runner, temp_dir):
+        """Test backup command handles no-data gracefully."""
+        backup_file = temp_dir / "backup_output.json"
+        result = cli_runner.invoke(
+            cli,
+            [
+                "metrics",
+                "backup",
+                "--output",
+                str(backup_file),
+                "--output-dir",
+                str(temp_dir),
+            ],
+        )
+        assert result.exit_code == 0
 
 
 class TestToolsCommand:

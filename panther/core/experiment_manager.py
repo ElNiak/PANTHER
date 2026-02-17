@@ -1030,7 +1030,10 @@ class ExperimentManager(
                 self.logger.debug("Cleared workflow state for experiment")
 
             # Generate experiment report
-            self._generate_experiment_report()
+            try:
+                self._generate_experiment_report()
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                self.logger.warning("Failed to generate report: %s", e)
 
             # Export metrics to disk if collector is present
             if self.metrics_collector is not None:
