@@ -198,6 +198,27 @@ class TestLoadMetrics:
         assert data is None
         assert path is None
 
+    def test_load_metrics_selects_newest_experiment(self, tmp_path):
+        """load_metrics() without experiment_dir picks the newest by mtime."""
+        older_exp = tmp_path / "older_exp"
+        newer_exp = tmp_path / "newer_exp"
+
+        for exp, value in ((older_exp, 1.0), (newer_exp, 9.9)):
+            metrics_dir = exp / "metrics"
+            metrics_dir.mkdir(parents=True)
+            with open(metrics_dir / "metrics.json", "w") as f:
+                json.dump({"timing_metrics": {"marker": value}}, f)
+
+        os.utime(older_exp, (1000, 1000))
+        os.utime(newer_exp, (2000, 2000))
+
+        loader = MetricsDataLoader(output_dir=tmp_path)
+        data, path = loader.load_metrics()
+
+        assert data is not None
+        assert path == newer_exp
+        assert data["timing_metrics"]["marker"] == 9.9
+
     def test_load_metrics_returns_none_when_latest_is_corrupt(self, tmp_path):
         older_exp = tmp_path / "older_exp"
         older_metrics_dir = older_exp / "metrics"

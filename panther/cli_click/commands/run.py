@@ -76,7 +76,7 @@ from panther.cli_click.core.base import (
     "--metrics-output-dir",
     type=click.Path(),
     default="outputs",
-    help="Base directory for metrics output; a 'metrics' subdirectory is created automatically (default: outputs)",
+    help="Base directory for metrics collector state. Note: final exported metrics are written to <experiment_dir>/metrics/ during cleanup (default: outputs)",
 )
 @click.option(
     "--metrics-interval",

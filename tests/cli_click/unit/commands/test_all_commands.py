@@ -371,6 +371,11 @@ class TestMetricsCommand:
         )
         assert result.exit_code == 0
         assert Path(output_file).exists()
+        assert output_file.stat().st_size > 0
+
+        exported = json.loads(output_file.read_text())
+        assert "timing_metrics" in exported
+        assert "test_dur" in exported["timing_metrics"]
 
     def test_metrics_list_with_filter(self, cli_runner, temp_dir):
         """Test listing metrics with filter pattern."""
