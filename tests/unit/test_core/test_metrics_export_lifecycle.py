@@ -50,6 +50,20 @@ class TestMetricsExportLifecycle:
         assert "timing_metrics" in data
         assert "error_metrics" in data
 
+        # Verify export metadata has a dynamic panther version
+        export_metadata = data["export_metadata"]
+        panther_version = export_metadata.get("panther_version")
+        assert isinstance(panther_version, str)
+        assert panther_version.strip() != ""
+
+        # Verify summary fields are populated with the exact keys from
+        # MetricsExporter._get_summary_data()
+        summary = data["summary"]
+        assert "error_count" in summary
+        assert "total_execution_time" in summary
+        # The fixture records one error, so error_count must be >= 1
+        assert summary["error_count"] >= 1
+
     def test_timing_metrics_survive_roundtrip(self, tmp_path, collector):
         """Timing metrics recorded in collector are available after export+load."""
         collector.finalize()

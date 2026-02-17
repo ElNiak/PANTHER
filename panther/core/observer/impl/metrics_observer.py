@@ -46,7 +46,10 @@ from panther.core.events.test.events import (
 from panther.core.metrics.enums import MetricType, Phase
 from panther.core.observer.base.typed_observer_interface import ITypedObserver
 
-from panther.core.metrics.resource_monitor import ResourceMonitor
+if PSUTIL_AVAILABLE:
+    from panther.core.metrics.resource_monitor import ResourceMonitor
+else:
+    ResourceMonitor = None  # type: ignore[assignment]
 
 
 @dataclass

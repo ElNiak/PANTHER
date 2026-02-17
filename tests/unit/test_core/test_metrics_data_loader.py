@@ -1,6 +1,7 @@
 """Tests for MetricsDataLoader."""
 
 import json
+import os
 
 import pytest
 
@@ -134,6 +135,27 @@ class TestFindExperimentsWithMetrics:
         loader = MetricsDataLoader(output_dir=tmp_path)
         assert loader.find_experiments_with_metrics() == []
 
+    def test_returns_experiments_ordered_by_mtime_descending(self, tmp_path):
+        exp_a = tmp_path / "exp_a"
+        exp_b = tmp_path / "exp_b"
+        exp_c = tmp_path / "exp_c"
+
+        for exp in (exp_a, exp_b, exp_c):
+            metrics_dir = exp / "metrics"
+            metrics_dir.mkdir(parents=True)
+            with open(metrics_dir / "metrics.json", "w") as f:
+                json.dump({"timing_metrics": {}}, f)
+
+        os.utime(exp_a, (1000, 1000))
+        os.utime(exp_b, (3000, 3000))
+        os.utime(exp_c, (2000, 2000))
+
+        loader = MetricsDataLoader(output_dir=tmp_path)
+        result = loader.find_experiments_with_metrics()
+
+        assert len(result) == 3
+        assert result == [exp_b, exp_c, exp_a]
+
 
 class TestLoadMetrics:
     def test_loads_valid_json(self, experiment_with_metrics, sample_metrics_json):
@@ -175,6 +197,30 @@ class TestLoadMetrics:
         data, path = loader.load_metrics()
         assert data is None
         assert path is None
+
+    def test_load_metrics_returns_none_when_latest_is_corrupt(self, tmp_path):
+        older_exp = tmp_path / "older_exp"
+        older_metrics_dir = older_exp / "metrics"
+        older_metrics_dir.mkdir(parents=True)
+        with open(older_metrics_dir / "metrics.json", "w") as f:
+            json.dump({"timing_metrics": {"test": 1.0}}, f)
+
+        newer_exp = tmp_path / "newer_exp"
+        newer_metrics_dir = newer_exp / "metrics"
+        newer_metrics_dir.mkdir(parents=True)
+        with open(newer_metrics_dir / "metrics.json", "w") as f:
+            f.write("not valid json{")
+
+        os.utime(older_exp, (1000, 1000))
+        os.utime(newer_exp, (2000, 2000))
+
+        loader = MetricsDataLoader(output_dir=tmp_path)
+        data, path = loader.load_metrics()
+
+        # The loader picks the latest experiment (newer_exp) and returns None
+        # for corrupt data without falling back to older experiments.
+        assert data is None
+        assert path == newer_exp
 
 
 class TestGetAvailableMetrics:

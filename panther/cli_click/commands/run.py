@@ -75,8 +75,8 @@ from panther.cli_click.core.base import (
 @click.option(
     "--metrics-output-dir",
     type=click.Path(),
-    default="outputs/metrics",
-    help="Directory for metrics output (default: outputs/metrics)",
+    default="outputs",
+    help="Base directory for metrics output; a 'metrics' subdirectory is created automatically (default: outputs)",
 )
 @click.option(
     "--metrics-interval",
@@ -223,7 +223,7 @@ def run(
             click.echo(f"   🔍 Mode: {colored('DRY RUN', 'yellow', attrs=['bold'])}")
         if enable_metrics:
             click.echo(f"   📊 Metrics: {colored('ENABLED', 'green', attrs=['bold'])}")
-            click.echo(f"   📈 Metrics output: {metrics_output_dir}")
+            click.echo(f"   📈 Metrics output: {Path(metrics_output_dir) / 'metrics'}")
         click.echo()
 
     # Dry run mode information
@@ -264,7 +264,7 @@ def run(
 
             click.echo(f"   ✓ Output directory: {output_dir}")
             if enable_metrics:
-                click.echo(f"   ✓ Metrics directory: {metrics_output_dir}")
+                click.echo(f"   ✓ Metrics directory: {Path(metrics_output_dir) / 'metrics'}")
             click.echo(f"   ✓ Experiment ready to execute")
 
             info_message("Dry run completed - configuration is valid")

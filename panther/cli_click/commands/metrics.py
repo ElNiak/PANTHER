@@ -269,6 +269,40 @@ def export(ctx, output, fmt, experiment_dir, output_dir):
                         rows.append({"metric": name, "value": len(value), "type": section})
                     else:
                         rows.append({"metric": name, "value": value, "type": section})
+        # Resource metrics (e.g. cpu_usage, memory_usage with nested stats)
+        resource = data.get("resource_metrics", {})
+        if isinstance(resource, dict):
+            for name, stats in resource.items():
+                if isinstance(stats, dict):
+                    for stat_name, stat_value in stats.items():
+                        if not isinstance(stat_value, (dict, list)):
+                            rows.append(
+                                {
+                                    "metric": f"{name}.{stat_name}",
+                                    "value": stat_value,
+                                    "type": "resource",
+                                }
+                            )
+        # Phase metrics (e.g. initialization, execution with duration/status)
+        phase = data.get("phase_metrics", {})
+        if isinstance(phase, dict):
+            for name, phase_data in phase.items():
+                if isinstance(phase_data, dict):
+                    for field, value in phase_data.items():
+                        if not isinstance(value, (dict, list)):
+                            rows.append(
+                                {
+                                    "metric": f"{name}.{field}",
+                                    "value": value,
+                                    "type": "phase",
+                                }
+                            )
+        # Error metrics (top-level scalars like total_errors, error_rate)
+        errors = data.get("error_metrics", {})
+        if isinstance(errors, dict):
+            for name, value in errors.items():
+                if isinstance(value, (int, float, str, bool)):
+                    rows.append({"metric": name, "value": value, "type": "error"})
         with open(output_path, "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=["metric", "value", "type"])
             writer.writeheader()

@@ -572,6 +572,98 @@ class TestMetricsCommand:
         )
         assert result.exit_code == 0
 
+    # --- Edge case tests ---
+
+    def test_metrics_list_filter_no_match(self, cli_runner, temp_dir):
+        """Test listing metrics with a filter that matches nothing."""
+        import json
+        import os
+
+        exp_dir = temp_dir / "exp_filter" / "metrics"
+        exp_dir.mkdir(parents=True)
+        metrics_data = {
+            "timing_metrics": {"cpu_duration": 1.5, "mem_duration": 2.0},
+            "resource_metrics": {},
+            "phase_metrics": {},
+            "error_metrics": {"total_errors": 0},
+            "raw_metrics": {"counters": {}, "gauges": {}, "histograms": {}},
+        }
+        with open(exp_dir / "metrics.json", "w") as f:
+            json.dump(metrics_data, f)
+
+        result = cli_runner.invoke(
+            cli,
+            [
+                "metrics",
+                "list",
+                "--filter",
+                "nonexistent_xyz",
+                "--output-dir",
+                str(temp_dir),
+            ],
+        )
+        assert result.exit_code == 0
+        assert "cpu_duration" not in result.output
+        assert "mem_duration" not in result.output
+        assert "No metrics found matching" in result.output
+
+    def test_metrics_with_experiment_dir_no_metrics(self, cli_runner, temp_dir):
+        """Test metrics list with --experiment-dir pointing to a bare directory (no metrics/)."""
+        import os
+
+        exp_dir = temp_dir / "bare_experiment"
+        exp_dir.mkdir(parents=True)
+
+        result = cli_runner.invoke(
+            cli, ["metrics", "list", "--experiment-dir", str(exp_dir)]
+        )
+        assert result.exit_code == 0
+        assert "No metrics data found" in result.output
+
+    def test_metrics_list_multiple_experiments_selects_latest(self, cli_runner, temp_dir):
+        """Test that metrics list auto-selects the latest experiment by mtime."""
+        import json
+        import os
+        import time
+
+        # Create older experiment
+        older_dir = temp_dir / "older_experiment"
+        older_metrics = older_dir / "metrics"
+        older_metrics.mkdir(parents=True)
+        older_data = {
+            "timing_metrics": {"old_metric": 1.0},
+            "resource_metrics": {},
+            "phase_metrics": {},
+            "error_metrics": {"total_errors": 0},
+            "raw_metrics": {"counters": {}, "gauges": {}, "histograms": {}},
+        }
+        with open(older_metrics / "metrics.json", "w") as f:
+            json.dump(older_data, f)
+
+        # Create newer experiment
+        newer_dir = temp_dir / "newer_experiment"
+        newer_metrics = newer_dir / "metrics"
+        newer_metrics.mkdir(parents=True)
+        newer_data = {
+            "timing_metrics": {"new_metric": 9.9},
+            "resource_metrics": {},
+            "phase_metrics": {},
+            "error_metrics": {"total_errors": 0},
+            "raw_metrics": {"counters": {}, "gauges": {}, "histograms": {}},
+        }
+        with open(newer_metrics / "metrics.json", "w") as f:
+            json.dump(newer_data, f)
+
+        # Set explicit mtimes to avoid flakiness: older = 1000, newer = 2000
+        os.utime(str(older_dir), (1000, 1000))
+        os.utime(str(newer_dir), (2000, 2000))
+
+        result = cli_runner.invoke(
+            cli, ["metrics", "list", "--output-dir", str(temp_dir)]
+        )
+        assert result.exit_code == 0
+        assert "newer_experiment" in result.output
+
 
 class TestToolsCommand:
     """Test the tools command functionality."""
@@ -723,7 +815,8 @@ class TestCommandArgumentValidation:
         """Test metrics command argument validation."""
         # Invalid export format
         result = cli_runner.invoke(cli, ["metrics", "export", "--format", "invalid"])
-        assert result.exit_code != 0 or result.exit_code is None
+        assert result.exit_code != 0
+        assert "invalid" in result.output.lower() or "invalid choice" in result.output.lower()
 
     def test_tools_argument_validation(self, cli_runner):
         """Test tools command argument validation."""

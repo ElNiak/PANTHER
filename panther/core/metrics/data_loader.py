@@ -145,7 +145,7 @@ class MetricsDataLoader:
                         count = (
                             len(value)
                             if isinstance(value, list)
-                            else (1 if value else 0)
+                            else (0 if value is None else 1)
                         )
                         results.append(
                             {"name": name, "category": section_key, "count": count}
