@@ -55,7 +55,7 @@ class MetricsExporter:
             export_data = {
                 "export_metadata": {
                     "timestamp": self.export_timestamp.isoformat(),
-                    "panther_version": "1.0.0",  # This could be dynamic
+                    "panther_version": self._get_panther_version(),
                     "export_format": "json",
                     "include_raw_data": include_raw_data,
                 },
@@ -338,6 +338,15 @@ class MetricsExporter:
         except Exception as e:
             logger.error("Failed to prepare dashboard metrics: %s", e)
             return False
+
+    @staticmethod
+    def _get_panther_version() -> str:
+        """Get PANTHER version dynamically from package metadata."""
+        try:
+            from panther import __version__
+            return __version__
+        except Exception:
+            return "unknown"
 
     def _get_summary_data(self) -> Dict[str, Any]:
         """Get summary metrics data."""

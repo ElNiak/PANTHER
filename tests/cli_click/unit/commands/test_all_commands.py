@@ -4,6 +4,7 @@ Test cases for all remaining CLI commands.
 Comprehensive tests for create, tutorial, admin, check, metrics, and tools commands.
 """
 
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
@@ -265,104 +266,408 @@ class TestMetricsCommand:
         result = cli_runner.invoke(cli, ["metrics", "--help"])
         assert result.exit_code == 0 or result.exit_code == 2
 
-    def test_metrics_list(self, cli_runner):
-        """Test listing available metrics."""
-        result = cli_runner.invoke(cli, ["metrics", "list"])
-        assert result.exit_code is not None
-
-    def test_metrics_config(self, cli_runner, sample_config_file):
-        """Test metrics configuration display."""
+    def test_metrics_list_no_data(self, cli_runner, temp_dir):
+        """Test listing metrics when no data is available."""
         result = cli_runner.invoke(
-            cli, ["metrics", "config", "--config", str(sample_config_file)]
+            cli, ["metrics", "list", "--output-dir", str(temp_dir)]
         )
-        assert result.exit_code is not None
+        assert result.exit_code == 0
 
-    def test_metrics_analyze(self, cli_runner, temp_dir):
-        """Test metrics analysis."""
-        results_dir = temp_dir / "results"
-        results_dir.mkdir()
+    def test_metrics_list_with_data(self, cli_runner, temp_dir):
+        """Test listing metrics with real data."""
+        import json
 
-        result = cli_runner.invoke(
-            cli, ["metrics", "analyze", "--results-dir", str(results_dir)]
-        )
-        assert result.exit_code is not None
-
-    def test_metrics_report_json(self, cli_runner, temp_dir):
-        """Test metrics report generation in JSON format."""
-        results_dir = temp_dir / "results"
-        results_dir.mkdir()
+        exp_dir = temp_dir / "exp1" / "metrics"
+        exp_dir.mkdir(parents=True)
+        metrics_data = {
+            "timing_metrics": {"test_dur": 1.5},
+            "resource_metrics": {},
+            "phase_metrics": {},
+            "error_metrics": {"total_errors": 0},
+            "raw_metrics": {"counters": {"tests_run": 3}, "gauges": {}, "histograms": {}},
+        }
+        with open(exp_dir / "metrics.json", "w") as f:
+            json.dump(metrics_data, f)
 
         result = cli_runner.invoke(
-            cli,
-            [
-                "metrics",
-                "report",
-                "--results-dir",
-                str(results_dir),
-                "--format",
-                "json",
-            ],
+            cli, ["metrics", "list", "--output-dir", str(temp_dir)]
         )
-        assert result.exit_code is not None
+        assert result.exit_code == 0
+        assert "test_dur" in result.output or "tests_run" in result.output
 
-    def test_metrics_report_html(self, cli_runner, temp_dir):
-        """Test metrics report generation in HTML format."""
-        results_dir = temp_dir / "results"
-        results_dir.mkdir()
-
+    def test_metrics_show_no_data(self, cli_runner, temp_dir):
+        """Test showing metrics when no data is available."""
         result = cli_runner.invoke(
-            cli,
-            [
-                "metrics",
-                "report",
-                "--results-dir",
-                str(results_dir),
-                "--format",
-                "html",
-            ],
+            cli, ["metrics", "show", "--output-dir", str(temp_dir)]
         )
-        assert result.exit_code is not None
+        assert result.exit_code == 0
 
-    def test_metrics_export(self, cli_runner, temp_dir):
-        """Test metrics data export."""
-        results_dir = temp_dir / "results"
-        output_file = temp_dir / "metrics.csv"
-        results_dir.mkdir()
+    def test_metrics_summary_no_data(self, cli_runner, temp_dir):
+        """Test summary when no data is available."""
+        result = cli_runner.invoke(
+            cli, ["metrics", "summary", "--output-dir", str(temp_dir)]
+        )
+        assert result.exit_code == 0
 
+    def test_metrics_export_no_data(self, cli_runner, temp_dir):
+        """Test export when no data is available."""
         result = cli_runner.invoke(
             cli,
             [
                 "metrics",
                 "export",
-                "--results-dir",
-                str(results_dir),
+                "--output-dir",
+                str(temp_dir),
+                "--format",
+                "json",
+            ],
+        )
+        assert result.exit_code == 0
+
+    def test_metrics_clear_no_data(self, cli_runner, temp_dir):
+        """Test clear when no data is available."""
+        result = cli_runner.invoke(
+            cli,
+            [
+                "metrics",
+                "clear",
+                "--force",
+                "--output-dir",
+                str(temp_dir),
+            ],
+        )
+        assert result.exit_code == 0
+
+    def test_metrics_export_with_data(self, cli_runner, temp_dir):
+        """Test export with real experiment data."""
+        import json
+
+        exp_dir = temp_dir / "exp1" / "metrics"
+        exp_dir.mkdir(parents=True)
+        metrics_data = {
+            "export_metadata": {"timestamp": "2025-01-15T10:00:00"},
+            "timing_metrics": {"test_dur": 1.5},
+            "resource_metrics": {},
+            "phase_metrics": {},
+            "error_metrics": {"total_errors": 0},
+            "raw_metrics": {"counters": {}, "gauges": {}, "histograms": {}},
+        }
+        with open(exp_dir / "metrics.json", "w") as f:
+            json.dump(metrics_data, f)
+
+        output_file = temp_dir / "exported.json"
+        result = cli_runner.invoke(
+            cli,
+            [
+                "metrics",
+                "export",
+                "--output-dir",
+                str(temp_dir),
                 "--output",
                 str(output_file),
                 "--format",
-                "csv",
+                "json",
             ],
         )
-        assert result.exit_code is not None
+        assert result.exit_code == 0
+        assert Path(output_file).exists()
+        assert output_file.stat().st_size > 0
 
-    def test_metrics_compare(self, cli_runner, temp_dir):
-        """Test metrics comparison between runs."""
-        results_dir1 = temp_dir / "results1"
-        results_dir2 = temp_dir / "results2"
-        results_dir1.mkdir()
-        results_dir2.mkdir()
+        exported = json.loads(output_file.read_text())
+        assert "timing_metrics" in exported
+        assert "test_dur" in exported["timing_metrics"]
+
+    def test_metrics_list_with_filter(self, cli_runner, temp_dir):
+        """Test listing metrics with filter pattern."""
+        import json
+
+        exp_dir = temp_dir / "exp1" / "metrics"
+        exp_dir.mkdir(parents=True)
+        metrics_data = {
+            "timing_metrics": {"cpu_duration": 1.5, "mem_duration": 2.0},
+            "resource_metrics": {},
+            "phase_metrics": {},
+            "error_metrics": {"total_errors": 0},
+            "raw_metrics": {"counters": {}, "gauges": {}, "histograms": {}},
+        }
+        with open(exp_dir / "metrics.json", "w") as f:
+            json.dump(metrics_data, f)
+
+        result = cli_runner.invoke(
+            cli, ["metrics", "list", "--output-dir", str(temp_dir), "--filter", "cpu"]
+        )
+        assert result.exit_code == 0
+        assert "cpu_duration" in result.output
+
+    def test_metrics_with_experiment_dir(self, cli_runner, temp_dir):
+        """Test metrics commands with --experiment-dir option."""
+        import json
+
+        exp_dir = temp_dir / "specific_exp"
+        metrics_dir = exp_dir / "metrics"
+        metrics_dir.mkdir(parents=True)
+        metrics_data = {
+            "timing_metrics": {"test_dur": 5.0},
+            "resource_metrics": {},
+            "phase_metrics": {},
+            "error_metrics": {"total_errors": 0},
+            "raw_metrics": {"counters": {}, "gauges": {}, "histograms": {}},
+        }
+        with open(metrics_dir / "metrics.json", "w") as f:
+            json.dump(metrics_data, f)
+
+        result = cli_runner.invoke(
+            cli, ["metrics", "list", "--experiment-dir", str(exp_dir)]
+        )
+        assert result.exit_code == 0
+        assert "test_dur" in result.output
+
+    # --- Gap #13: clear --force with actual data ---
+
+    def test_metrics_clear_force_with_actual_data(self, cli_runner, temp_dir):
+        """Test clear --force deletes metrics directory when real data exists."""
+        import json
+
+        # Create experiment directory with valid metrics data
+        exp_dir = temp_dir / "exp1"
+        metrics_dir = exp_dir / "metrics"
+        metrics_dir.mkdir(parents=True)
+        metrics_data = {
+            "timing_metrics": {"test_dur": 1.5, "build_dur": 3.2},
+            "resource_metrics": {},
+            "phase_metrics": {},
+            "error_metrics": {"total_errors": 1},
+            "raw_metrics": {"counters": {"tests_run": 5}, "gauges": {}, "histograms": {}},
+        }
+        with open(metrics_dir / "metrics.json", "w") as f:
+            json.dump(metrics_data, f)
+
+        # Verify data exists before clearing
+        assert metrics_dir.exists()
+        assert (metrics_dir / "metrics.json").exists()
 
         result = cli_runner.invoke(
             cli,
             [
                 "metrics",
-                "compare",
-                "--baseline",
-                str(results_dir1),
-                "--comparison",
-                str(results_dir2),
+                "clear",
+                "--force",
+                "--output-dir",
+                str(temp_dir),
             ],
         )
-        assert result.exit_code is not None
+        assert result.exit_code == 0
+        # The metrics directory should have been deleted
+        assert not metrics_dir.exists()
+
+    # --- Gap #14: show and summary with real data ---
+
+    def test_metrics_show_with_data(self, cli_runner, temp_dir):
+        """Test show command displays a specific metric when data is present."""
+        import json
+
+        exp_dir = temp_dir / "exp1" / "metrics"
+        exp_dir.mkdir(parents=True)
+        metrics_data = {
+            "timing_metrics": {"test_dur": {"total": 5.0}},
+            "resource_metrics": {},
+            "phase_metrics": {},
+            "error_metrics": {"total_errors": 0},
+            "raw_metrics": {"counters": {}, "gauges": {}, "histograms": {}},
+        }
+        with open(exp_dir / "metrics.json", "w") as f:
+            json.dump(metrics_data, f)
+
+        result = cli_runner.invoke(
+            cli,
+            [
+                "metrics",
+                "show",
+                "--metric",
+                "test_dur",
+                "--output-dir",
+                str(temp_dir),
+            ],
+        )
+        assert result.exit_code == 0
+        assert "test_dur" in result.output
+
+    def test_metrics_summary_with_data(self, cli_runner, temp_dir):
+        """Test summary command outputs expected sections with rich fixture data."""
+        import json
+
+        exp_dir = temp_dir / "exp1" / "metrics"
+        exp_dir.mkdir(parents=True)
+        metrics_data = {
+            "export_metadata": {
+                "timestamp": "2025-06-15T12:00:00",
+                "export_format": "json",
+            },
+            "summary": {
+                "total_experiments": 3,
+                "successful_experiments": 2,
+                "failed_experiments": 1,
+                "total_test_cases": 10,
+                "error_count": 2,
+                "total_execution_time": 42.5,
+            },
+            "timing_metrics": {
+                "build_duration": 12.3,
+                "test_execution": 30.2,
+            },
+            "resource_metrics": {
+                "cpu_usage": {"average": 55.0, "peak": 92.3, "min": 10.0},
+                "memory_usage": {"average": 40.0, "peak": 78.5, "min": 15.0},
+                "samples_count": 120,
+            },
+            "phase_metrics": {},
+            "error_metrics": {
+                "total_errors": 2,
+                "error_categories": {"timeout": 1, "connection_refused": 1},
+            },
+            "raw_metrics": {"counters": {}, "gauges": {}, "histograms": {}},
+        }
+        with open(exp_dir / "metrics.json", "w") as f:
+            json.dump(metrics_data, f)
+
+        result = cli_runner.invoke(
+            cli,
+            [
+                "metrics",
+                "summary",
+                "--output-dir",
+                str(temp_dir),
+            ],
+        )
+        assert result.exit_code == 0
+        # Verify summary output contains key sections
+        assert "Summary" in result.output or "summary" in result.output.lower()
+        assert "42.50s" in result.output  # total_execution_time formatted
+        assert "55.0%" in result.output  # avg_cpu formatted
+        assert "timeout" in result.output  # error category
+
+    # --- Gap #15: quick and backup smoke tests ---
+
+    def test_metrics_quick_no_data(self, cli_runner, temp_dir):
+        """Test quick command handles no-data gracefully."""
+        result = cli_runner.invoke(
+            cli,
+            [
+                "metrics",
+                "quick",
+                "--output-dir",
+                str(temp_dir),
+            ],
+        )
+        assert result.exit_code == 0
+
+    def test_metrics_backup_no_data(self, cli_runner, temp_dir):
+        """Test backup command handles no-data gracefully."""
+        backup_file = temp_dir / "backup_output.json"
+        result = cli_runner.invoke(
+            cli,
+            [
+                "metrics",
+                "backup",
+                "--output",
+                str(backup_file),
+                "--output-dir",
+                str(temp_dir),
+            ],
+        )
+        assert result.exit_code == 0
+
+    # --- Edge case tests ---
+
+    def test_metrics_list_filter_no_match(self, cli_runner, temp_dir):
+        """Test listing metrics with a filter that matches nothing."""
+        import json
+        import os
+
+        exp_dir = temp_dir / "exp_filter" / "metrics"
+        exp_dir.mkdir(parents=True)
+        metrics_data = {
+            "timing_metrics": {"cpu_duration": 1.5, "mem_duration": 2.0},
+            "resource_metrics": {},
+            "phase_metrics": {},
+            "error_metrics": {"total_errors": 0},
+            "raw_metrics": {"counters": {}, "gauges": {}, "histograms": {}},
+        }
+        with open(exp_dir / "metrics.json", "w") as f:
+            json.dump(metrics_data, f)
+
+        result = cli_runner.invoke(
+            cli,
+            [
+                "metrics",
+                "list",
+                "--filter",
+                "nonexistent_xyz",
+                "--output-dir",
+                str(temp_dir),
+            ],
+        )
+        assert result.exit_code == 0
+        assert "cpu_duration" not in result.output
+        assert "mem_duration" not in result.output
+        assert "No metrics found matching" in result.output
+
+    def test_metrics_with_experiment_dir_no_metrics(self, cli_runner, temp_dir):
+        """Test metrics list with --experiment-dir pointing to a bare directory (no metrics/)."""
+        import os
+
+        exp_dir = temp_dir / "bare_experiment"
+        exp_dir.mkdir(parents=True)
+
+        result = cli_runner.invoke(
+            cli, ["metrics", "list", "--experiment-dir", str(exp_dir)]
+        )
+        assert result.exit_code == 0
+        assert "No metrics data found" in result.output
+
+    def test_metrics_list_multiple_experiments_selects_latest(self, cli_runner, temp_dir):
+        """Test that metrics list auto-selects the latest experiment by mtime."""
+        import json
+        import os
+        import time
+
+        # Create older experiment
+        older_dir = temp_dir / "older_experiment"
+        older_metrics = older_dir / "metrics"
+        older_metrics.mkdir(parents=True)
+        older_data = {
+            "timing_metrics": {"old_metric": 1.0},
+            "resource_metrics": {},
+            "phase_metrics": {},
+            "error_metrics": {"total_errors": 0},
+            "raw_metrics": {"counters": {}, "gauges": {}, "histograms": {}},
+        }
+        with open(older_metrics / "metrics.json", "w") as f:
+            json.dump(older_data, f)
+
+        # Create newer experiment
+        newer_dir = temp_dir / "newer_experiment"
+        newer_metrics = newer_dir / "metrics"
+        newer_metrics.mkdir(parents=True)
+        newer_data = {
+            "timing_metrics": {"new_metric": 9.9},
+            "resource_metrics": {},
+            "phase_metrics": {},
+            "error_metrics": {"total_errors": 0},
+            "raw_metrics": {"counters": {}, "gauges": {}, "histograms": {}},
+        }
+        with open(newer_metrics / "metrics.json", "w") as f:
+            json.dump(newer_data, f)
+
+        # Set explicit mtimes to avoid flakiness: older = 1000, newer = 2000
+        os.utime(str(older_dir), (1000, 1000))
+        os.utime(str(newer_dir), (2000, 2000))
+
+        result = cli_runner.invoke(
+            cli, ["metrics", "list", "--output-dir", str(temp_dir)]
+        )
+        assert result.exit_code == 0
+        assert "newer_experiment" in result.output
 
 
 class TestToolsCommand:
@@ -513,9 +818,10 @@ class TestCommandArgumentValidation:
 
     def test_metrics_argument_validation(self, cli_runner):
         """Test metrics command argument validation."""
-        # Invalid format
-        result = cli_runner.invoke(cli, ["metrics", "report", "--format", "invalid"])
-        assert result.exit_code != 0 or result.exit_code is None
+        # Invalid export format
+        result = cli_runner.invoke(cli, ["metrics", "export", "--format", "invalid"])
+        assert result.exit_code != 0
+        assert "invalid" in result.output.lower() or "invalid choice" in result.output.lower()
 
     def test_tools_argument_validation(self, cli_runner):
         """Test tools command argument validation."""
@@ -531,7 +837,6 @@ class TestCommandOutputFormats:
         "command,subcommand",
         [
             ("plugins", "list"),
-            ("metrics", "list"),
             ("tools", "list"),
             ("admin", "status"),
         ],
@@ -543,7 +848,7 @@ class TestCommandOutputFormats:
 
     @pytest.mark.parametrize(
         "command,subcommand",
-        [("plugins", "list"), ("metrics", "list"), ("tools", "list")],
+        [("plugins", "list"), ("tools", "list")],
     )
     def test_table_output_format(self, cli_runner, command, subcommand):
         """Test table output format for various commands."""
@@ -551,7 +856,7 @@ class TestCommandOutputFormats:
         assert result.exit_code is not None
 
     @pytest.mark.parametrize(
-        "command,subcommand", [("metrics", "report"), ("admin", "status")]
+        "command,subcommand", [("admin", "status",)]
     )
     def test_yaml_output_format(self, cli_runner, command, subcommand):
         """Test YAML output format for various commands."""

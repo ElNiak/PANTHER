@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from statistics import mean, median, stdev
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 try:
     import psutil
@@ -46,8 +46,10 @@ from panther.core.events.test.events import (
 from panther.core.metrics.enums import MetricType, Phase
 from panther.core.observer.base.typed_observer_interface import ITypedObserver
 
-if TYPE_CHECKING:
+if PSUTIL_AVAILABLE:
     from panther.core.metrics.resource_monitor import ResourceMonitor
+else:
+    ResourceMonitor = None  # type: ignore[assignment]
 
 
 @dataclass

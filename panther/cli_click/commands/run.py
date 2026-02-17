@@ -75,8 +75,8 @@ from panther.cli_click.core.base import (
 @click.option(
     "--metrics-output-dir",
     type=click.Path(),
-    default="outputs/metrics",
-    help="Directory for metrics output (default: outputs/metrics)",
+    default="outputs",
+    help="Base directory for metrics collector state. Note: final exported metrics are written to <experiment_dir>/metrics/ during cleanup (default: outputs)",
 )
 @click.option(
     "--metrics-interval",
@@ -223,7 +223,7 @@ def run(
             click.echo(f"   🔍 Mode: {colored('DRY RUN', 'yellow', attrs=['bold'])}")
         if enable_metrics:
             click.echo(f"   📊 Metrics: {colored('ENABLED', 'green', attrs=['bold'])}")
-            click.echo(f"   📈 Metrics output: {metrics_output_dir}")
+            click.echo(f"   📈 Metrics output: {Path(metrics_output_dir) / 'metrics'}")
         click.echo()
 
     # Dry run mode information
@@ -264,7 +264,7 @@ def run(
 
             click.echo(f"   ✓ Output directory: {output_dir}")
             if enable_metrics:
-                click.echo(f"   ✓ Metrics directory: {metrics_output_dir}")
+                click.echo(f"   ✓ Metrics directory: {Path(metrics_output_dir) / 'metrics'}")
             click.echo(f"   ✓ Experiment ready to execute")
 
             info_message("Dry run completed - configuration is valid")
@@ -339,36 +339,42 @@ def run(
                 # Set up metrics if enabled
                 metrics_collector = None
                 if enable_metrics:
+                    metrics_output_path = Path(metrics_output_dir)
+                    metrics_output_path.mkdir(parents=True, exist_ok=True)
+                    exp_name = experiment_name or Path(config).stem
                     metrics_collector = MetricsCollector(
-                        interval=metrics_interval,
-                        output_dir=metrics_output_dir,
-                        export_format=metrics_export_format,
-                        disable_resource_monitoring=metrics_disable_resource_monitoring,
+                        experiment_name=exp_name,
+                        output_dir=metrics_output_path,
+                        collection_interval=float(metrics_interval),
                     )
+                    if not metrics_disable_resource_monitoring:
+                        metrics_collector.start_collection_thread(
+                            interval=float(metrics_interval)
+                        )
 
                 info_message(f"Initializing experiment manager...")
 
-                # Initialize experiment manager (matching legacy CLI pattern)
-                experiment_manager = ExperimentManager(
+                # Initialize experiment manager with context manager so
+                # cleanup() (including metrics export) always runs.
+                with ExperimentManager(
                     global_config=global_config,
                     experiment_name=experiment_name,
                     metrics_collector=metrics_collector,
-                    dry_run=False,  # We're in actual execution mode
-                )
+                    dry_run=False,
+                ) as experiment_manager:
+                    # Initialize experiments with experiment config
+                    info_message("🔧 Initializing experiment...")
+                    experiment_manager.initialize_experiments(experiment_config)
 
-                # Initialize experiments with experiment config
-                info_message("🔧 Initializing experiment...")
-                experiment_manager.initialize_experiments(experiment_config)
+                    # Execute the experiment
+                    info_message("🚀 Running tests...")
+                    success = experiment_manager.run_tests()
 
-                # Execute the experiment
-                info_message("🚀 Running tests...")
-                success = experiment_manager.run_tests()
-
-                if success:
-                    success_message("All experiments completed successfully")
-                else:
-                    error_message("Experiment execution encountered errors")
-                    raise click.Abort()
+                    if success:
+                        success_message("All experiments completed successfully")
+                    else:
+                        error_message("Experiment execution encountered errors")
+                        raise click.Abort()
 
             except ImportError as e:
                 error_message(f"ExperimentManager not available: {e}")
