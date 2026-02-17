@@ -427,9 +427,15 @@ class StatusCollector:
                 error_message = self._extract_error_message(content)
 
             # Check if fast-fail was triggered for this test
+            fast_fail_patterns = [
+                "fast-fail triggered",
+                "fast_fail(triggered=true",
+                "terminating experiment due to",
+                "fast-fail terminating",
+            ]
             fast_fail_triggered = any(
-                keyword in content.lower()
-                for keyword in ["fast-fail", "critical error", "terminating experiment"]
+                pattern in content.lower()
+                for pattern in fast_fail_patterns
             )
 
             return TestResult(
@@ -482,45 +488,71 @@ class StatusCollector:
         return start_time, end_time, duration
 
     def _determine_test_status(self, content: str, test_dir: Path) -> TestStatus:
-        """Determine test status from log content and directory structure."""
+        """Determine test status from analysis results, log content, and directory structure."""
+        # 1. Check analysis_results.json first (authoritative source)
+        analysis_file = test_dir / "analysis" / "analysis_results.json"
+        if analysis_file.exists():
+            try:
+                with open(analysis_file, "r", encoding="utf-8") as f:
+                    analysis = json.load(f)
+                for _tester_name, tester_data in analysis.items():
+                    results = tester_data if isinstance(tester_data, dict) else {}
+                    # Check nested "results" key or top-level
+                    result_data = results.get("results", results)
+                    if result_data.get("passed") is True:
+                        return TestStatus.PASSED
+                    elif result_data.get("passed") is False:
+                        return TestStatus.FAILED
+            except (json.JSONDecodeError, OSError, KeyError):
+                pass  # Fall through to keyword matching
+
+        # 2. Fall back to keyword matching with specific patterns
+        #    (Match log-level prefixed patterns, not bare words)
         content_lower = content.lower()
 
-        # Check for explicit failure indicators
         failure_indicators = [
-            "error",
-            "failed",
-            "exception",
-            "critical",
-            "timeout",
+            "- error -",
+            "- critical -",
+            "explicitly failed:",
             "docker build failed",
             "service start failed",
             "port conflict",
         ]
 
+        timeout_indicators = [
+            "timed out",
+            "timeout exceeded",
+            "timeout: failed to run",
+        ]
+
+        if any(indicator in content_lower for indicator in timeout_indicators):
+            return TestStatus.TIMEOUT
+
         if any(indicator in content_lower for indicator in failure_indicators):
-            # Check if it's specifically a timeout
-            if "timeout" in content_lower or "timed out" in content_lower:
-                return TestStatus.TIMEOUT
             return TestStatus.FAILED
 
         # Check for success indicators
         success_indicators = [
-            "test completed",
-            "execution completed",
-            "success",
-            "passed",
+            "test completed successfully",
+            "execution completed successfully",
+            "all tests passed",
         ]
 
         if any(indicator in content_lower for indicator in success_indicators):
             return TestStatus.PASSED
 
         # Check for interruption indicators
-        interruption_indicators = ["interrupted", "terminated", "killed", "aborted"]
+        interruption_indicators = [
+            "experiment interrupted",
+            "terminated by signal",
+            "killed by signal",
+            "aborted by user",
+        ]
 
         if any(indicator in content_lower for indicator in interruption_indicators):
             return TestStatus.INTERRUPTED
 
-        # Check directory structure for additional clues
+        # 3. Check directory structure for additional clues
         logs_dir = test_dir / "logs"
         if logs_dir.exists():
             # If logs directory exists but is empty, likely failed early
