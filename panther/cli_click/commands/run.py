@@ -354,27 +354,27 @@ def run(
 
                 info_message(f"Initializing experiment manager...")
 
-                # Initialize experiment manager (matching legacy CLI pattern)
-                experiment_manager = ExperimentManager(
+                # Initialize experiment manager with context manager so
+                # cleanup() (including metrics export) always runs.
+                with ExperimentManager(
                     global_config=global_config,
                     experiment_name=experiment_name,
                     metrics_collector=metrics_collector,
-                    dry_run=False,  # We're in actual execution mode
-                )
+                    dry_run=False,
+                ) as experiment_manager:
+                    # Initialize experiments with experiment config
+                    info_message("🔧 Initializing experiment...")
+                    experiment_manager.initialize_experiments(experiment_config)
 
-                # Initialize experiments with experiment config
-                info_message("🔧 Initializing experiment...")
-                experiment_manager.initialize_experiments(experiment_config)
+                    # Execute the experiment
+                    info_message("🚀 Running tests...")
+                    success = experiment_manager.run_tests()
 
-                # Execute the experiment
-                info_message("🚀 Running tests...")
-                success = experiment_manager.run_tests()
-
-                if success:
-                    success_message("All experiments completed successfully")
-                else:
-                    error_message("Experiment execution encountered errors")
-                    raise click.Abort()
+                    if success:
+                        success_message("All experiments completed successfully")
+                    else:
+                        error_message("Experiment execution encountered errors")
+                        raise click.Abort()
 
             except ImportError as e:
                 error_message(f"ExperimentManager not available: {e}")
