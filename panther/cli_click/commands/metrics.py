@@ -7,11 +7,11 @@ Reads real metrics data from experiment output directories.
 
 import csv
 import json
-import logging
 import re
 import shutil
 from datetime import datetime
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 import click
 from termcolor import colored
@@ -19,12 +19,20 @@ from termcolor import colored
 from panther.cli_click.core.base import (
     error_message,
     handle_errors,
-    info_message,
     pass_context_and_setup_logging,
-    success_message,
     warning_message,
 )
 from panther.core.metrics import MetricsDataLoader
+
+
+def _info(msg: str) -> None:
+    """Print an info message directly via click.echo (avoids logger-level filtering)."""
+    click.echo(colored(f"  {msg}", "blue"))
+
+
+def _success(msg: str) -> None:
+    """Print a success message directly via click.echo (avoids logger-level filtering)."""
+    click.echo(colored(f"  {msg}", "green"))
 
 
 def _shared_options(func):
@@ -53,14 +61,243 @@ def _load_or_fail(experiment_dir, output_dir):
     if data is None:
         if exp_path is None:
             warning_message(
-                f"No experiment directories with metrics found in {output_dir}/"
+                f"No experiment directories with metrics found in {Path(output_dir)}"
             )
-            info_message("Run experiments with --enable-metrics to collect data.")
+            _info("Run experiments with --enable-metrics to collect data.")
         else:
             warning_message(f"No metrics data found in {exp_path}/metrics/")
-            info_message("Run experiments with --enable-metrics to collect data.")
+            _info("Run experiments with --enable-metrics to collect data.")
         return None, None, None
     return data, exp_path, loader
+
+
+# -- list_metrics helpers --
+
+
+def _filter_metrics(
+    available: List[Dict[str, Any]], filter_pattern: str
+) -> Optional[List[Dict[str, Any]]]:
+    """Apply regex filter to metrics list. Returns None on regex error."""
+    try:
+        return [m for m in available if re.search(filter_pattern, m["name"])]
+    except re.error as e:
+        error_message(f"Invalid filter pattern '{filter_pattern}': {e}")
+        return None
+
+
+def _display_metrics_by_category(available: List[Dict[str, Any]]) -> int:
+    """Group metrics by category and display them. Returns category count."""
+    categories: Dict[str, list] = {}
+    for metric in available:
+        cat = metric["category"]
+        if cat not in categories:
+            categories[cat] = []
+        categories[cat].append(metric)
+
+    for category, cat_metrics in categories.items():
+        click.echo(colored(f"  {category.title()} Metrics:", "cyan"))
+        for metric in cat_metrics:
+            samples_info = f" ({metric['count']} samples)" if metric["count"] > 0 else ""
+            click.echo(f"    {metric['name']}{samples_info}")
+        click.echo()
+
+    return len(categories)
+
+
+# -- show helpers --
+
+
+def _format_metric_entry(entry: Dict[str, Any], metric_name: str) -> None:
+    """Display a single metric entry with timestamp, label, value formatting."""
+    ts = entry.get("timestamp")
+    val = entry.get("value")
+    entry_type = entry.get("type") or entry.get("source", "")
+    display_name = entry.get("name", "")
+    ts_str = ""
+    if ts and isinstance(ts, (int, float)):
+        ts_str = f"{datetime.fromtimestamp(ts).strftime('%H:%M:%S')} "
+
+    label = ""
+    if display_name and display_name != metric_name:
+        label = f"{display_name}: "
+
+    if isinstance(val, dict):
+        click.echo(f"    {label}{ts_str}[{entry_type}]")
+        for k, v in val.items():
+            if isinstance(v, float):
+                click.echo(f"      {k}: {v:.4f}")
+            else:
+                click.echo(f"      {k}: {v}")
+    elif isinstance(val, float):
+        click.echo(f"    {label}{ts_str}{val:.4f}  [{entry_type}]")
+    else:
+        click.echo(f"    {label}{ts_str}{val}  [{entry_type}]")
+
+
+# -- export helpers --
+
+
+def _build_csv_rows(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Flatten metrics data into a list of CSV-compatible row dicts."""
+    rows: List[Dict[str, Any]] = []
+    _append_timing_rows(rows, data.get("timing_metrics", {}))
+    _append_raw_metric_rows(rows, data.get("raw_metrics", {}))
+    _append_nested_section_rows(rows, data.get("resource_metrics", {}), "resource")
+    _append_nested_section_rows(rows, data.get("phase_metrics", {}), "phase")
+    _append_scalar_rows(rows, data.get("error_metrics", {}), "error")
+    return rows
+
+
+def _append_timing_rows(rows: list, timing: Any) -> None:
+    for name, value in timing.items():
+        rows.append({"metric": name, "value": value, "type": "timing"})
+
+
+def _append_raw_metric_rows(rows: list, raw: Any) -> None:
+    if not isinstance(raw, dict):
+        return
+    for section in ("counters", "gauges", "histograms"):
+        for name, value in raw.get(section, {}).items():
+            if isinstance(value, list):
+                rows.append({"metric": name, "value": len(value), "type": section})
+            else:
+                rows.append({"metric": name, "value": value, "type": section})
+
+
+def _append_nested_section_rows(rows: list, section_data: Any, type_label: str) -> None:
+    """Flatten nested dict-of-dict sections (resource_metrics, phase_metrics)."""
+    if not isinstance(section_data, dict):
+        return
+    for name, stats in section_data.items():
+        if isinstance(stats, dict):
+            for field, value in stats.items():
+                if not isinstance(value, (dict, list)):
+                    rows.append(
+                        {"metric": f"{name}.{field}", "value": value, "type": type_label}
+                    )
+
+
+def _append_scalar_rows(rows: list, section_data: Any, type_label: str) -> None:
+    """Flatten top-level scalar values (error_metrics)."""
+    if not isinstance(section_data, dict):
+        return
+    for name, value in section_data.items():
+        if isinstance(value, (int, float, str, bool)):
+            rows.append({"metric": name, "value": value, "type": type_label})
+
+
+def _export_json(data: Dict[str, Any], output_path: Path) -> None:
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+
+def _export_csv(data: Dict[str, Any], output_path: Path) -> None:
+    rows = _build_csv_rows(data)
+    with open(output_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=["metric", "value", "type"])
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _export_txt(
+    data: Dict[str, Any], exp_path: Path, loader: MetricsDataLoader, output_path: Path
+) -> None:
+    summary_data = loader.get_summary(data)
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write("PANTHER Metrics Export\n")
+        f.write("=" * 40 + "\n")
+        f.write(f"Source: {exp_path.name}\n\n")
+        for key, value in summary_data.items():
+            f.write(f"{key}: {value}\n")
+
+
+# -- clear helpers --
+
+
+def _find_clear_targets(
+    experiment_dir: Optional[str], loader: MetricsDataLoader
+) -> List[Path]:
+    """Locate metrics directories to clear."""
+    if experiment_dir:
+        candidate = Path(experiment_dir) / "metrics"
+        return [candidate] if candidate.exists() else []
+    experiments = loader.find_experiments_with_metrics()
+    return [exp / "metrics" for exp in experiments]
+
+
+# -- summary display helpers --
+
+
+def _display_summary_export_info(summary_data: Dict[str, Any]) -> None:
+    if "export_timestamp" in summary_data:
+        click.echo(colored("  Export Info:", "cyan", attrs=["bold"]))
+        click.echo(f"    Exported at: {summary_data['export_timestamp']}")
+        click.echo()
+
+
+def _display_summary_overview(summary_data: Dict[str, Any]) -> None:
+    has_overview = any(
+        k in summary_data
+        for k in ("total_experiments", "total_test_cases", "error_count")
+    )
+    if not has_overview:
+        return
+    click.echo(colored("  Overview:", "cyan", attrs=["bold"]))
+    if "total_experiments" in summary_data:
+        click.echo(f"    Total experiments: {summary_data['total_experiments']}")
+    if "successful_experiments" in summary_data:
+        click.echo(f"    Successful: {summary_data['successful_experiments']}")
+    if "failed_experiments" in summary_data:
+        click.echo(f"    Failed: {summary_data['failed_experiments']}")
+    if "total_test_cases" in summary_data:
+        click.echo(f"    Test cases: {summary_data['total_test_cases']}")
+    if "total_execution_time" in summary_data:
+        click.echo(
+            f"    Total execution time: {summary_data['total_execution_time']}"
+        )
+    if "error_count" in summary_data:
+        click.echo(f"    Error count: {summary_data['error_count']}")
+    click.echo()
+
+
+def _display_summary_timing(summary_data: Dict[str, Any]) -> None:
+    if "timing_metric_count" in summary_data:
+        click.echo(colored("  Timing:", "cyan", attrs=["bold"]))
+        click.echo(f"    Metric count: {summary_data['timing_metric_count']}")
+        click.echo(f"    Total: {summary_data.get('total_timing', 'N/A')}")
+        click.echo()
+
+
+def _display_summary_resources(summary_data: Dict[str, Any]) -> None:
+    has_resource = any(k in summary_data for k in ("avg_cpu", "avg_memory"))
+    if not has_resource:
+        return
+    click.echo(colored("  Resources:", "cyan", attrs=["bold"]))
+    if "avg_cpu" in summary_data:
+        click.echo(f"    Avg CPU: {summary_data['avg_cpu']}")
+        click.echo(f"    Peak CPU: {summary_data.get('peak_cpu', 'N/A')}")
+    if "avg_memory" in summary_data:
+        click.echo(f"    Avg Memory: {summary_data['avg_memory']}")
+        click.echo(
+            f"    Peak Memory: {summary_data.get('peak_memory', 'N/A')}"
+        )
+    if "resource_samples" in summary_data:
+        click.echo(f"    Samples: {summary_data['resource_samples']}")
+    click.echo()
+
+
+def _display_summary_errors(summary_data: Dict[str, Any]) -> None:
+    if summary_data.get("total_errors", 0) > 0:
+        click.echo(colored("  Errors:", "cyan", attrs=["bold"]))
+        click.echo(f"    Total: {summary_data['total_errors']}")
+        categories = summary_data.get("error_categories", {})
+        if categories:
+            for cat, count in categories.items():
+                click.echo(f"    {cat}: {count}")
+        click.echo()
+
+
+# ========== Click Commands ==========
 
 
 @click.group()
@@ -77,7 +314,6 @@ def metrics():
       panther metrics export --format csv     # Export to CSV
       panther metrics summary                 # Generate summary
     """
-    pass
 
 
 @metrics.command("list")
@@ -87,7 +323,7 @@ def metrics():
 @_shared_options
 @handle_errors
 @pass_context_and_setup_logging
-def list_metrics(ctx, filter_pattern, experiment_dir, output_dir):
+def list_metrics(_ctx, filter_pattern, experiment_dir, output_dir):
     """
     List all available metrics collected during experiments.
 
@@ -106,10 +342,8 @@ def list_metrics(ctx, filter_pattern, experiment_dir, output_dir):
     available = loader.get_available_metrics(data)
 
     if filter_pattern:
-        try:
-            available = [m for m in available if re.search(filter_pattern, m["name"])]
-        except re.error as e:
-            error_message(f"Invalid filter pattern '{filter_pattern}': {e}")
+        available = _filter_metrics(available, filter_pattern)
+        if available is None:
             return
 
     if not available:
@@ -124,22 +358,8 @@ def list_metrics(ctx, filter_pattern, experiment_dir, output_dir):
     )
     click.echo()
 
-    # Group by category
-    categories = {}
-    for metric in available:
-        cat = metric["category"]
-        if cat not in categories:
-            categories[cat] = []
-        categories[cat].append(metric)
-
-    for category, cat_metrics in categories.items():
-        click.echo(colored(f"  {category.title()} Metrics:", "cyan"))
-        for metric in cat_metrics:
-            samples_info = f" ({metric['count']} samples)" if metric["count"] > 0 else ""
-            click.echo(f"    {metric['name']}{samples_info}")
-        click.echo()
-
-    success_message(f"Found {len(available)} metric(s) across {len(categories)} category(ies)")
+    cat_count = _display_metrics_by_category(available)
+    _success(f"Found {len(available)} metric(s) across {cat_count} category(ies)")
 
 
 @metrics.command()
@@ -153,7 +373,7 @@ def list_metrics(ctx, filter_pattern, experiment_dir, output_dir):
 @_shared_options
 @handle_errors
 @pass_context_and_setup_logging
-def show(ctx, metric, limit, experiment_dir, output_dir):
+def show(_ctx, metric, limit, experiment_dir, output_dir):
     """
     Display detailed metrics data with values and timestamps.
 
@@ -184,28 +404,16 @@ def show(ctx, metric, limit, experiment_dir, output_dir):
 
     for metric_name in metrics_to_show:
         values = loader.get_metric_values(data, metric_name, limit=limit)
+        click.echo(colored(f"  {metric_name}:", "cyan", attrs=["bold"]))
         if not values:
-            click.echo(colored(f"  {metric_name}:", "cyan", attrs=["bold"]))
             click.echo("    No data points found")
             click.echo()
             continue
-
-        click.echo(colored(f"  {metric_name}:", "cyan", attrs=["bold"]))
         for entry in values:
-            ts = entry.get("timestamp")
-            val = entry.get("value")
-            entry_type = entry.get("type", "")
-            ts_str = ""
-            if ts and isinstance(ts, (int, float)):
-                ts_str = f"{datetime.fromtimestamp(ts).strftime('%H:%M:%S')} "
-
-            if isinstance(val, float):
-                click.echo(f"    {ts_str}{val:.4f}  [{entry_type}]")
-            else:
-                click.echo(f"    {ts_str}{val}  [{entry_type}]")
+            _format_metric_entry(entry, metric_name)
         click.echo()
 
-    success_message("Metrics data displayed")
+    _success("Metrics data displayed")
 
 
 @metrics.command()
@@ -224,7 +432,7 @@ def show(ctx, metric, limit, experiment_dir, output_dir):
 @_shared_options
 @handle_errors
 @pass_context_and_setup_logging
-def export(ctx, output, fmt, experiment_dir, output_dir):
+def export(_ctx, output, fmt, experiment_dir, output_dir):
     """
     Export collected metrics data to various file formats.
 
@@ -251,74 +459,18 @@ def export(ctx, output, fmt, experiment_dir, output_dir):
     output_path = Path(output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    info_message(f"Exporting metrics to {fmt.upper()} format...")
+    _info(f"Exporting metrics to {fmt.upper()} format...")
 
     if fmt == "json":
-        with open(output_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
+        _export_json(data, output_path)
     elif fmt == "csv":
-        # Flatten timing metrics + raw counters/gauges into rows
-        rows = []
-        for name, value in data.get("timing_metrics", {}).items():
-            rows.append({"metric": name, "value": value, "type": "timing"})
-        raw = data.get("raw_metrics", {})
-        if isinstance(raw, dict):
-            for section in ("counters", "gauges", "histograms"):
-                for name, value in raw.get(section, {}).items():
-                    if isinstance(value, list):
-                        rows.append({"metric": name, "value": len(value), "type": section})
-                    else:
-                        rows.append({"metric": name, "value": value, "type": section})
-        # Resource metrics (e.g. cpu_usage, memory_usage with nested stats)
-        resource = data.get("resource_metrics", {})
-        if isinstance(resource, dict):
-            for name, stats in resource.items():
-                if isinstance(stats, dict):
-                    for stat_name, stat_value in stats.items():
-                        if not isinstance(stat_value, (dict, list)):
-                            rows.append(
-                                {
-                                    "metric": f"{name}.{stat_name}",
-                                    "value": stat_value,
-                                    "type": "resource",
-                                }
-                            )
-        # Phase metrics (e.g. initialization, execution with duration/status)
-        phase = data.get("phase_metrics", {})
-        if isinstance(phase, dict):
-            for name, phase_data in phase.items():
-                if isinstance(phase_data, dict):
-                    for field, value in phase_data.items():
-                        if not isinstance(value, (dict, list)):
-                            rows.append(
-                                {
-                                    "metric": f"{name}.{field}",
-                                    "value": value,
-                                    "type": "phase",
-                                }
-                            )
-        # Error metrics (top-level scalars like total_errors, error_rate)
-        errors = data.get("error_metrics", {})
-        if isinstance(errors, dict):
-            for name, value in errors.items():
-                if isinstance(value, (int, float, str, bool)):
-                    rows.append({"metric": name, "value": value, "type": "error"})
-        with open(output_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=["metric", "value", "type"])
-            writer.writeheader()
-            writer.writerows(rows)
-    else:  # txt
-        summary = loader.get_summary(data)
-        with open(output_path, "w", encoding="utf-8") as f:
-            f.write("PANTHER Metrics Export\n")
-            f.write("=" * 40 + "\n")
-            f.write(f"Source: {exp_path.name}\n\n")
-            for key, value in summary.items():
-                f.write(f"{key}: {value}\n")
+        _export_csv(data, output_path)
+    else:
+        _export_txt(data, exp_path, loader, output_path)
 
-    success_message(f"Metrics exported to: {output_path.absolute()}")
+    _success(f"Metrics exported to: {output_path.absolute()}")
     size_kb = output_path.stat().st_size / 1024
-    info_message(f"File size: {size_kb:.1f} KB")
+    _info(f"File size: {size_kb:.1f} KB")
 
 
 @metrics.command()
@@ -326,7 +478,7 @@ def export(ctx, output, fmt, experiment_dir, output_dir):
 @_shared_options
 @handle_errors
 @pass_context_and_setup_logging
-def clear(ctx, force, experiment_dir, output_dir):
+def clear(_ctx, force, experiment_dir, output_dir):
     """
     Clear stored metrics data from experiment directories.
 
@@ -336,12 +488,7 @@ def clear(ctx, force, experiment_dir, output_dir):
       panther metrics clear --force   # Force clear without prompts
     """
     loader = MetricsDataLoader(output_dir=Path(output_dir))
-
-    if experiment_dir:
-        targets = [metrics_dir for metrics_dir in [Path(experiment_dir) / "metrics"] if metrics_dir.exists()]
-    else:
-        experiments = loader.find_experiments_with_metrics()
-        targets = [exp / "metrics" for exp in experiments]
+    targets = _find_clear_targets(experiment_dir, loader)
 
     if not targets:
         warning_message("No metrics data found to clear.")
@@ -357,7 +504,7 @@ def clear(ctx, force, experiment_dir, output_dir):
                 f"Delete metrics from {len(targets)} experiment(s)?", "yellow"
             )
         ):
-            info_message("Clear operation cancelled")
+            _info("Clear operation cancelled")
             return
 
     deleted_count = 0
@@ -366,14 +513,14 @@ def clear(ctx, force, experiment_dir, output_dir):
             shutil.rmtree(metrics_dir)
             deleted_count += 1
 
-    success_message(f"Cleared metrics from {deleted_count} experiment(s)")
+    _success(f"Cleared metrics from {deleted_count} experiment(s)")
 
 
 @metrics.command()
 @_shared_options
 @handle_errors
 @pass_context_and_setup_logging
-def summary(ctx, experiment_dir, output_dir):
+def summary(_ctx, experiment_dir, output_dir):
     """
     Generate and display comprehensive metrics summary.
 
@@ -392,69 +539,13 @@ def summary(ctx, experiment_dir, output_dir):
     click.echo(colored(f"Experiment: {exp_path.name}", "blue"))
     click.echo()
 
-    # Export info
-    if "export_timestamp" in summary_data:
-        click.echo(colored("  Export Info:", "cyan", attrs=["bold"]))
-        click.echo(f"    Exported at: {summary_data['export_timestamp']}")
-        click.echo()
+    _display_summary_export_info(summary_data)
+    _display_summary_overview(summary_data)
+    _display_summary_timing(summary_data)
+    _display_summary_resources(summary_data)
+    _display_summary_errors(summary_data)
 
-    # Experiment overview
-    has_overview = any(
-        k in summary_data
-        for k in ("total_experiments", "total_test_cases", "error_count")
-    )
-    if has_overview:
-        click.echo(colored("  Overview:", "cyan", attrs=["bold"]))
-        if "total_experiments" in summary_data:
-            click.echo(f"    Total experiments: {summary_data['total_experiments']}")
-        if "successful_experiments" in summary_data:
-            click.echo(f"    Successful: {summary_data['successful_experiments']}")
-        if "failed_experiments" in summary_data:
-            click.echo(f"    Failed: {summary_data['failed_experiments']}")
-        if "total_test_cases" in summary_data:
-            click.echo(f"    Test cases: {summary_data['total_test_cases']}")
-        if "total_execution_time" in summary_data:
-            click.echo(
-                f"    Total execution time: {summary_data['total_execution_time']}"
-            )
-        if "error_count" in summary_data:
-            click.echo(f"    Error count: {summary_data['error_count']}")
-        click.echo()
-
-    # Timing stats
-    if "timing_metric_count" in summary_data:
-        click.echo(colored("  Timing:", "cyan", attrs=["bold"]))
-        click.echo(f"    Metric count: {summary_data['timing_metric_count']}")
-        click.echo(f"    Total: {summary_data.get('total_timing', 'N/A')}")
-        click.echo()
-
-    # Resource stats
-    has_resource = any(k in summary_data for k in ("avg_cpu", "avg_memory"))
-    if has_resource:
-        click.echo(colored("  Resources:", "cyan", attrs=["bold"]))
-        if "avg_cpu" in summary_data:
-            click.echo(f"    Avg CPU: {summary_data['avg_cpu']}")
-            click.echo(f"    Peak CPU: {summary_data.get('peak_cpu', 'N/A')}")
-        if "avg_memory" in summary_data:
-            click.echo(f"    Avg Memory: {summary_data['avg_memory']}")
-            click.echo(
-                f"    Peak Memory: {summary_data.get('peak_memory', 'N/A')}"
-            )
-        if "resource_samples" in summary_data:
-            click.echo(f"    Samples: {summary_data['resource_samples']}")
-        click.echo()
-
-    # Error stats
-    if summary_data.get("total_errors", 0) > 0:
-        click.echo(colored("  Errors:", "cyan", attrs=["bold"]))
-        click.echo(f"    Total: {summary_data['total_errors']}")
-        categories = summary_data.get("error_categories", {})
-        if categories:
-            for cat, count in categories.items():
-                click.echo(f"    {cat}: {count}")
-        click.echo()
-
-    success_message("Summary generated")
+    _success("Summary generated")
 
 
 @metrics.command("quick")
@@ -492,7 +583,7 @@ def backup(ctx, output, experiment_dir, output_dir):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         output = f"metrics_backup_{timestamp}.json"
 
-    info_message(f"Creating metrics backup: {output}")
+    _info(f"Creating metrics backup: {output}")
     ctx.invoke(
         export,
         output=output,
@@ -501,7 +592,7 @@ def backup(ctx, output, experiment_dir, output_dir):
         output_dir=output_dir,
     )
     if Path(output).exists():
-        success_message(f"Backup created: {output}")
+        _success(f"Backup created: {output}")
     else:
         warning_message("No backup created - no metrics data available")
 

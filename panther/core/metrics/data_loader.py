@@ -26,13 +26,19 @@ class MetricsDataLoader:
     def find_latest_experiment(self) -> Optional[Path]:
         """Find the most recently modified experiment directory.
 
+        Only considers directories that look like experiment outputs
+        (timestamp-named dirs), excluding utility directories like 'metrics/'.
+
         Returns:
             Path to latest experiment directory, or None if none found.
         """
         if not self.output_dir.exists():
             return None
 
-        experiment_dirs = [d for d in self.output_dir.iterdir() if d.is_dir()]
+        experiment_dirs = [
+            d for d in self.output_dir.iterdir()
+            if d.is_dir() and d.name not in ("metrics", ".cache", "__pycache__")
+        ]
         if not experiment_dirs:
             return None
 
@@ -88,6 +94,8 @@ class MetricsDataLoader:
             logger.warning("Failed to load metrics from %s: %s", metrics_file, e)
             return None, experiment_dir
 
+    # -- get_available_metrics and helpers --
+
     def get_available_metrics(self, data: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Extract available metric names/types/counts from loaded data.
 
@@ -97,14 +105,22 @@ class MetricsDataLoader:
         Returns:
             List of dicts with keys: name, category, count.
         """
-        results = []
+        results: List[Dict[str, Any]] = []
+        results.extend(self._extract_timing_metrics(data))
+        results.extend(self._extract_resource_metrics(data))
+        results.extend(self._extract_phase_metrics(data))
+        results.extend(self._extract_error_metrics(data))
+        results.extend(self._extract_raw_metrics(data))
+        return results
 
-        # Timing metrics
+    @staticmethod
+    def _extract_timing_metrics(data: Dict[str, Any]) -> List[Dict[str, Any]]:
         timing = data.get("timing_metrics", {})
-        for name in timing:
-            results.append({"name": name, "category": "timing", "count": 1})
+        return [{"name": name, "category": "timing", "count": 1} for name in timing]
 
-        # Resource metrics
+    @staticmethod
+    def _extract_resource_metrics(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        results = []
         resource = data.get("resource_metrics", {})
         if isinstance(resource, dict):
             for section_name in ("cpu_usage", "memory_usage"):
@@ -117,8 +133,11 @@ class MetricsDataLoader:
                             "count": resource.get("samples_count", 0),
                         }
                     )
+        return results
 
-        # Phase metrics
+    @staticmethod
+    def _extract_phase_metrics(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        results = []
         phases = data.get("phase_metrics", {})
         for phase_name, phase_data in phases.items():
             count = phase_data.get("count", 0) if isinstance(phase_data, dict) else 0
@@ -126,16 +145,19 @@ class MetricsDataLoader:
                 results.append(
                     {"name": phase_name, "category": "phase", "count": count}
                 )
+        return results
 
-        # Error metrics
+    @staticmethod
+    def _extract_error_metrics(data: Dict[str, Any]) -> List[Dict[str, Any]]:
         errors = data.get("error_metrics", {})
         total_errors = errors.get("total_errors", 0) if isinstance(errors, dict) else 0
         if total_errors > 0:
-            results.append(
-                {"name": "errors", "category": "error", "count": total_errors}
-            )
+            return [{"name": "errors", "category": "error", "count": total_errors}]
+        return []
 
-        # Raw metrics (individual metric names from raw_metrics section)
+    @staticmethod
+    def _extract_raw_metrics(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        results = []
         raw = data.get("raw_metrics", {})
         if isinstance(raw, dict):
             for section_key in ("counters", "gauges", "histograms"):
@@ -150,8 +172,9 @@ class MetricsDataLoader:
                         results.append(
                             {"name": name, "category": section_key, "count": count}
                         )
-
         return results
+
+    # -- get_metric_values and helpers --
 
     def get_metric_values(
         self, data: Dict[str, Any], name: str, limit: int = 10
@@ -166,14 +189,26 @@ class MetricsDataLoader:
         Returns:
             List of dicts with keys: timestamp, value (and optionally others).
         """
-        results = []
+        results: List[Dict[str, Any]] = []
+        results.extend(self._search_timing(data, name))
+        results.extend(self._search_resource(data, name))
+        results.extend(self._search_phases(data, name))
+        results.extend(self._search_errors(data, name))
+        results.extend(self._search_raw_sections(data, name, limit))
+        results.extend(self._search_raw_resource_list(data, name, limit))
+        results.extend(self._search_raw_errors_list(data, name, limit))
+        return results[:limit]
 
-        # Check timing metrics
+    @staticmethod
+    def _search_timing(data: Dict[str, Any], name: str) -> List[Dict[str, Any]]:
         timing = data.get("timing_metrics", {})
         if name in timing:
-            results.append({"name": name, "value": timing[name], "type": "timing"})
+            return [{"name": name, "value": timing[name], "type": "timing"}]
+        return []
 
-        # Check resource metrics
+    @staticmethod
+    def _search_resource(data: Dict[str, Any], name: str) -> List[Dict[str, Any]]:
+        results = []
         resource = data.get("resource_metrics", {})
         if isinstance(resource, dict) and name in resource:
             section = resource[name]
@@ -186,77 +221,106 @@ class MetricsDataLoader:
                             "type": "resource",
                         }
                     )
+        return results
 
-        # Check phase metrics
+    @staticmethod
+    def _search_phases(data: Dict[str, Any], name: str) -> List[Dict[str, Any]]:
+        results = []
         phase = data.get("phase_metrics", {})
         if isinstance(phase, dict):
             for phase_name, phase_data in phase.items():
                 if isinstance(phase_data, dict) and name.lower() in phase_name.lower():
                     results.append({
+                        "name": phase_name,
                         "timestamp": None,
                         "value": phase_data,
-                        "source": "phase_metrics"
+                        "type": "phase",
                     })
+        return results
 
-        # Check error metrics
+    @staticmethod
+    def _search_errors(data: Dict[str, Any], name: str) -> List[Dict[str, Any]]:
         errors = data.get("error_metrics", {})
         if isinstance(errors, dict) and name.lower() in ("errors", "error"):
             error_summary = {k: v for k, v in errors.items() if not isinstance(v, (dict, list))}
             if error_summary:
-                results.append({
+                return [{
+                    "name": "error_summary",
                     "timestamp": None,
                     "value": error_summary,
-                    "source": "error_metrics"
-                })
+                    "type": "error",
+                }]
+        return []
 
-        # Check raw_metrics for time-series data
+    @staticmethod
+    def _search_raw_sections(
+        data: Dict[str, Any], name: str, limit: int
+    ) -> List[Dict[str, Any]]:
+        results = []
         raw = data.get("raw_metrics", {})
-        if isinstance(raw, dict):
-            # Search counters, gauges, histograms
-            for section_key in ("counters", "gauges", "histograms"):
-                section = raw.get(section_key, {})
-                if isinstance(section, dict) and name in section:
-                    val = section[name]
-                    if isinstance(val, list):
-                        for item in val[:limit]:
-                            results.append(
-                                {"name": name, "value": item, "type": section_key}
-                            )
-                    else:
+        if not isinstance(raw, dict):
+            return results
+        for section_key in ("counters", "gauges", "histograms"):
+            section = raw.get(section_key, {})
+            if isinstance(section, dict) and name in section:
+                val = section[name]
+                if isinstance(val, list):
+                    for item in val[:limit]:
                         results.append(
-                            {"name": name, "value": val, "type": section_key}
+                            {"name": name, "value": item, "type": section_key}
                         )
-
-            # Search resource_metrics list
-            resource_list = raw.get("resource_metrics", [])
-            if isinstance(resource_list, list):
-                matching = [r for r in resource_list if r.get("name") == name]
-                for item in matching[:limit]:
+                else:
                     results.append(
-                        {
-                            "name": name,
-                            "value": item.get("value"),
-                            "timestamp": item.get("timestamp"),
-                            "type": "resource",
-                        }
+                        {"name": name, "value": val, "type": section_key}
                     )
+        return results
 
-            # Search errors list
-            errors_list = raw.get("errors", [])
-            if isinstance(errors_list, list) and name in ("errors", "error_occurred"):
-                for item in errors_list[:limit]:
-                    results.append(
-                        {
-                            "name": "error",
-                            "value": item.get("metadata", {}).get(
-                                "error_message", "unknown"
-                            ),
-                            "timestamp": item.get("timestamp"),
-                            "type": "error",
-                        }
-                    )
+    @staticmethod
+    def _search_raw_resource_list(
+        data: Dict[str, Any], name: str, limit: int
+    ) -> List[Dict[str, Any]]:
+        results = []
+        raw = data.get("raw_metrics", {})
+        if not isinstance(raw, dict):
+            return results
+        resource_list = raw.get("resource_metrics", [])
+        if isinstance(resource_list, list):
+            matching = [r for r in resource_list if r.get("name") == name]
+            for item in matching[:limit]:
+                results.append(
+                    {
+                        "name": name,
+                        "value": item.get("value"),
+                        "timestamp": item.get("timestamp"),
+                        "type": "resource",
+                    }
+                )
+        return results
 
-        return results[:limit]
+    @staticmethod
+    def _search_raw_errors_list(
+        data: Dict[str, Any], name: str, limit: int
+    ) -> List[Dict[str, Any]]:
+        results = []
+        raw = data.get("raw_metrics", {})
+        if not isinstance(raw, dict):
+            return results
+        errors_list = raw.get("errors", [])
+        if isinstance(errors_list, list) and name in ("errors", "error_occurred"):
+            for item in errors_list[:limit]:
+                results.append(
+                    {
+                        "name": "error",
+                        "value": item.get("metadata", {}).get(
+                            "error_message", "unknown"
+                        ),
+                        "timestamp": item.get("timestamp"),
+                        "type": "error",
+                    }
+                )
+        return results
+
+    # -- get_summary and helpers --
 
     def get_summary(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Get summary statistics from loaded metrics data.
@@ -267,15 +331,27 @@ class MetricsDataLoader:
         Returns:
             Summary dict with export_metadata, timing stats, resource stats, errors.
         """
-        summary = {}
+        summary: Dict[str, Any] = {}
+        summary.update(self._summarize_export_metadata(data))
+        summary.update(self._summarize_overview(data))
+        summary.update(self._summarize_timing(data))
+        summary.update(self._summarize_resources(data))
+        summary.update(self._summarize_errors(data))
+        return summary
 
-        # Export metadata
+    @staticmethod
+    def _summarize_export_metadata(data: Dict[str, Any]) -> Dict[str, Any]:
         export_meta = data.get("export_metadata", {})
         if export_meta:
-            summary["export_timestamp"] = export_meta.get("timestamp", "unknown")
-            summary["export_format"] = export_meta.get("export_format", "unknown")
+            return {
+                "export_timestamp": export_meta.get("timestamp", "unknown"),
+                "export_format": export_meta.get("export_format", "unknown"),
+            }
+        return {}
 
-        # Summary section
+    @staticmethod
+    def _summarize_overview(data: Dict[str, Any]) -> Dict[str, Any]:
+        summary: Dict[str, Any] = {}
         data_summary = data.get("summary", {})
         if data_summary:
             summary["total_experiments"] = data_summary.get("total_experiments", 0)
@@ -288,16 +364,23 @@ class MetricsDataLoader:
             total_time = data_summary.get("total_execution_time")
             if total_time is not None:
                 summary["total_execution_time"] = f"{total_time:.2f}s"
+        return summary
 
-        # Timing stats
+    @staticmethod
+    def _summarize_timing(data: Dict[str, Any]) -> Dict[str, Any]:
         timing = data.get("timing_metrics", {})
         if timing:
             values = [v for v in timing.values() if isinstance(v, (int, float))]
             if values:
-                summary["timing_metric_count"] = len(values)
-                summary["total_timing"] = f"{sum(values):.2f}s"
+                return {
+                    "timing_metric_count": len(values),
+                    "total_timing": f"{sum(values):.2f}s",
+                }
+        return {}
 
-        # Resource stats
+    @staticmethod
+    def _summarize_resources(data: Dict[str, Any]) -> Dict[str, Any]:
+        summary: Dict[str, Any] = {}
         resource = data.get("resource_metrics", {})
         if isinstance(resource, dict):
             cpu = resource.get("cpu_usage", {})
@@ -309,13 +392,15 @@ class MetricsDataLoader:
                 summary["avg_memory"] = f"{mem['average']:.1f}%"
                 summary["peak_memory"] = f"{mem.get('peak', 0):.1f}%"
             summary["resource_samples"] = resource.get("samples_count", 0)
+        return summary
 
-        # Error stats
+    @staticmethod
+    def _summarize_errors(data: Dict[str, Any]) -> Dict[str, Any]:
+        summary: Dict[str, Any] = {}
         errors = data.get("error_metrics", {})
         if isinstance(errors, dict):
             summary["total_errors"] = errors.get("total_errors", 0)
             categories = errors.get("error_categories", {})
             if categories:
                 summary["error_categories"] = categories
-
         return summary
