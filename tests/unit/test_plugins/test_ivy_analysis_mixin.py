@@ -335,7 +335,8 @@ class TestAnalyzeOutputsIntegration:
                 os.unlink(f)
 
     def test_passed_requires_decisive_verdict(self, analyzer):
-        """ivy has NO_VIOLATION_FOUND, picoquic has UNKNOWN -> passed: true."""
+        """ivy has NO_VIOLATION_FOUND, picoquic has UNKNOWN -> passed: true
+        (only when all compilations succeed)."""
         file_contents = {
             "compilation_status_ivy_server": "Compilation succeeded\n",
             "runtime_stdout_ivy_server": (
@@ -345,8 +346,9 @@ class TestAnalyzeOutputsIntegration:
                 "starting runtime phase\ncall_generating\ncycles = 100\n"
             ),
             # picoquic has no IVY markers -> UNKNOWN verdict
+            # but must have compilation evidence for passed=True
             "runtime_stdout_picoquic_server": "some picoquic output\n",
-            "runtime_stderr_picoquic_server": "picoquic running\n",
+            "runtime_stderr_picoquic_server": "starting runtime phase\ncall_generating\n",
         }
         outputs, temp_files = self._make_outputs_with_files(file_contents)
         try:
@@ -558,3 +560,252 @@ class TestStatusCollector:
         result = collector._extract_test_result(test_dir)
         assert result is not None
         assert result.fast_fail_triggered is True
+
+
+# ---------------------------------------------------------------------------
+# Bug 3: passed=true despite compilation failure
+# ---------------------------------------------------------------------------
+
+
+class TestCompilationFailurePreventsPass:
+    """Tests for Bug 3: passed logic must check compilation_succeeded."""
+
+    def _make_outputs_with_files(self, file_contents):
+        outputs = {}
+        temp_files = []
+        for key, content in file_contents.items():
+            tf = tempfile.NamedTemporaryFile(
+                mode="w", suffix=".txt", delete=False
+            )
+            tf.write(content)
+            tf.close()
+            temp_files.append(tf.name)
+            outputs[key] = tf.name
+        return outputs, temp_files
+
+    def test_compilation_failed_overrides_no_violation(self, analyzer):
+        """NO_VIOLATION_FOUND verdict but compilation failed -> passed=False."""
+        file_contents = {
+            "compilation_status_ivy_server": "Compilation failed\n",
+            "runtime_stdout_ivy_server": (
+                "> quic_connected\n< quic_packet\ntest_completed\n"
+            ),
+            "runtime_stderr_ivy_server": "some output\n",
+        }
+        outputs, temp_files = self._make_outputs_with_files(file_contents)
+        try:
+            result = analyzer.analyze_outputs_with_data(outputs)
+            assert result["passed"] is False
+        finally:
+            for f in temp_files:
+                os.unlink(f)
+
+    def test_compilation_succeeded_allows_pass(self, analyzer):
+        """NO_VIOLATION_FOUND + compilation succeeded -> passed=True."""
+        file_contents = {
+            "compilation_status_ivy_server": "Compilation succeeded\n",
+            "runtime_stdout_ivy_server": (
+                "> quic_connected\ntest_completed\n"
+            ),
+            "runtime_stderr_ivy_server": (
+                "starting runtime phase\ncall_generating\n"
+            ),
+        }
+        outputs, temp_files = self._make_outputs_with_files(file_contents)
+        try:
+            result = analyzer.analyze_outputs_with_data(outputs)
+            assert result["passed"] is True
+        finally:
+            for f in temp_files:
+                os.unlink(f)
+
+
+# ---------------------------------------------------------------------------
+# Bug 4: Flexible compilation status detection
+# ---------------------------------------------------------------------------
+
+
+class TestFlexibleCompilationStatus:
+    """Tests for Bug 4: compilation status should accept multiple formats."""
+
+    def test_status_succeeded(self, analyzer):
+        outputs = {"compile_status": "succeeded"}
+        assert analyzer._check_compilation_status(outputs) is True
+
+    def test_status_success(self, analyzer):
+        outputs = {"compile_status": "success"}
+        assert analyzer._check_compilation_status(outputs) is True
+
+    def test_status_ok(self, analyzer):
+        outputs = {"compile_status": "ok"}
+        assert analyzer._check_compilation_status(outputs) is True
+
+    def test_status_failed(self, analyzer):
+        outputs = {"compile_status": "failed"}
+        assert analyzer._check_compilation_status(outputs) is False
+
+    def test_status_error(self, analyzer):
+        outputs = {"compile_status": "error during compilation"}
+        assert analyzer._check_compilation_status(outputs) is False
+
+
+# ---------------------------------------------------------------------------
+# Bug 7: Duplicate failure deduplication
+# ---------------------------------------------------------------------------
+
+
+class TestFailureDeduplication:
+    """Tests for Bug 7: duplicate failures should be removed."""
+
+    def _make_outputs_with_files(self, file_contents):
+        outputs = {}
+        temp_files = []
+        for key, content in file_contents.items():
+            tf = tempfile.NamedTemporaryFile(
+                mode="w", suffix=".txt", delete=False
+            )
+            tf.write(content)
+            tf.close()
+            temp_files.append(tf.name)
+            outputs[key] = tf.name
+        return outputs, temp_files
+
+    def test_duplicate_errors_not_repeated(self, analyzer):
+        """Same error from multiple services should appear only once."""
+        file_contents = {
+            "runtime_stdout_ivy_server": "some output\n",
+            "runtime_stderr_ivy_server": "error: No such file or directory\n",
+            "runtime_stdout_ivy_client": "some output\n",
+            "runtime_stderr_ivy_client": "error: No such file or directory\n",
+        }
+        outputs, temp_files = self._make_outputs_with_files(file_contents)
+        try:
+            result = analyzer.analyze_outputs_with_data(outputs)
+            # Check for no duplicates in failures
+            assert len(result["failures"]) == len(set(result["failures"]))
+        finally:
+            for f in temp_files:
+                os.unlink(f)
+
+
+# ---------------------------------------------------------------------------
+# Bug 5: TIMEOUT status counting
+# ---------------------------------------------------------------------------
+
+
+class TestStatusCounting:
+    """Tests for Bug 5: ExperimentSummary status counters."""
+
+    def test_timeout_tests_counted(self, tmp_path):
+        """TIMEOUT tests should be counted separately."""
+        from panther.core.reporting.status_collector import (
+            ExperimentSummary,
+            ExperimentStatus,
+            FastFailInfo,
+            ResourceUsage,
+            TestResult,
+            TestStatus,
+        )
+
+        summary = ExperimentSummary(
+            experiment_id="test",
+            status=ExperimentStatus.TIMEOUT,
+            start_time=None,
+            end_time=None,
+            duration=None,
+            configuration_file=None,
+            tests=[
+                TestResult(name="t1", status=TestStatus.PASSED, duration=1.0),
+                TestResult(name="t2", status=TestStatus.TIMEOUT, duration=30.0),
+                TestResult(name="t3", status=TestStatus.INTERRUPTED, duration=5.0),
+                TestResult(name="t4", status=TestStatus.UNKNOWN, duration=0.0),
+            ],
+            fast_fail=FastFailInfo(enabled=False),
+            resources=ResourceUsage(),
+        )
+
+        assert summary.total_tests == 4
+        assert summary.passed_tests == 1
+        assert summary.timeout_tests == 1
+        assert summary.interrupted_tests == 1
+        assert summary.unknown_tests == 1
+
+    def test_to_dict_includes_all_counters(self):
+        """to_dict() must include timeout, interrupted, unknown counts."""
+        from panther.core.reporting.status_collector import (
+            ExperimentSummary,
+            ExperimentStatus,
+            FastFailInfo,
+            ResourceUsage,
+            TestResult,
+            TestStatus,
+        )
+
+        summary = ExperimentSummary(
+            experiment_id="test",
+            status=ExperimentStatus.COMPLETED,
+            start_time=None,
+            end_time=None,
+            duration=None,
+            configuration_file=None,
+            tests=[
+                TestResult(name="t1", status=TestStatus.PASSED, duration=1.0),
+                TestResult(name="t2", status=TestStatus.TIMEOUT, duration=30.0),
+            ],
+            fast_fail=FastFailInfo(enabled=False),
+            resources=ResourceUsage(),
+        )
+
+        d = summary.to_dict()
+        assert "timeout" in d["tests"]
+        assert "interrupted" in d["tests"]
+        assert "unknown" in d["tests"]
+        assert d["tests"]["timeout"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Bug 11: Experiment status for plugin failures
+# ---------------------------------------------------------------------------
+
+
+class TestExperimentStatusPluginFailure:
+    """Tests for Bug 11: empty test_results with plugin failure -> FAILED."""
+
+    def test_empty_results_with_plugin_failure(self, tmp_path):
+        """Empty test_results but log shows plugin validation failed -> FAILED."""
+        from panther.core.reporting.status_collector import (
+            ExperimentStatus,
+            StatusCollector,
+        )
+
+        experiment_dir = tmp_path / "experiment"
+        experiment_dir.mkdir()
+
+        (experiment_dir / "experiment.log").write_text(
+            "2026-02-17 18:00:00 INFO Starting experiment\n"
+            "2026-02-17 18:00:05 ERROR Plugin Validation Failed: missing config\n"
+            "2026-02-17 18:00:06 INFO Experiment terminated\n"
+        )
+
+        collector = StatusCollector(experiment_dir)
+        summary = collector.collect_experiment_summary()
+        assert summary.status == ExperimentStatus.FAILED
+
+    def test_empty_results_no_failure_indicators(self, tmp_path):
+        """Empty test_results and no failure indicators -> UNKNOWN."""
+        from panther.core.reporting.status_collector import (
+            ExperimentStatus,
+            StatusCollector,
+        )
+
+        experiment_dir = tmp_path / "experiment"
+        experiment_dir.mkdir()
+
+        (experiment_dir / "experiment.log").write_text(
+            "2026-02-17 18:00:00 INFO Starting experiment\n"
+            "2026-02-17 18:00:01 INFO Configuration loaded\n"
+        )
+
+        collector = StatusCollector(experiment_dir)
+        summary = collector.collect_experiment_summary()
+        assert summary.status == ExperimentStatus.UNKNOWN
