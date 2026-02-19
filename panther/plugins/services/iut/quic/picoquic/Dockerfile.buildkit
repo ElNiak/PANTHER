@@ -34,6 +34,7 @@ ARG DEPENDENCIES
 ARG TARGETARCH
 ARG BUILDPLATFORM
 ARG TARGETPLATFORM
+ARG RUNTIME_MODE=minimal
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV VERSION=${VERSION}
@@ -67,8 +68,8 @@ ENV CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
     CMAKE_CXX_COMPILER_aarch64=aarch64-linux-gnu-g++
 
 # Layer 3: Dependency building with comprehensive cache (expensive, changes occasionally)
-RUN --mount=type=cache,target=/tmp/git-cache \
-    --mount=type=cache,target=/tmp/build-cache \
+RUN --mount=type=cache,target=/tmp/git-cache,id=picoquic-git-${RUNTIME_MODE}-${TARGETPLATFORM},sharing=locked \
+    --mount=type=cache,target=/tmp/build-cache,id=picoquic-build-${RUNTIME_MODE}-${TARGETPLATFORM},sharing=private \
     cd /opt && \
     echo "Starting dependency installation..." && \
     echo $DEPENDENCIES | jq -c '.[]' | while read -r dep; do \
@@ -95,9 +96,9 @@ RUN --mount=type=cache,target=/tmp/git-cache \
     echo "Restoring build cache for $DEP_NAME"; \
     cp -r "/tmp/build-cache/$DEP_NAME"/* . 2>/dev/null || true; \
     fi; \
-    OPENSSL_INCLUDE_DIR="/usr/include/openssl" cmake .; \
-    make; \
-    make check; \
+    OPENSSL_INCLUDE_DIR="/usr/include/openssl" cmake . && \
+    make && \
+    (make check || echo "Warning: make check failed for $DEP_NAME, continuing..."); \
     # Save build artifacts to cache \
     mkdir -p "/tmp/build-cache/$DEP_NAME"; \
     cp -r . "/tmp/build-cache/$DEP_NAME/" 2>/dev/null || true; \
@@ -110,8 +111,8 @@ RUN --mount=type=cache,target=/tmp/git-cache \
     done
 
 # Layer 4: Main picoquic repository (changes when VERSION changes)
-RUN --mount=type=cache,target=/tmp/git-cache/picoquic \
-    --mount=type=cache,target=/tmp/picoquic-build \
+RUN --mount=type=cache,target=/tmp/git-cache/picoquic,id=picoquic-src-${RUNTIME_MODE}-${TARGETPLATFORM},sharing=locked \
+    --mount=type=cache,target=/tmp/picoquic-build,id=picoquic-cmake-${RUNTIME_MODE}-${TARGETPLATFORM},sharing=private \
     cd /opt && \
     if [ -d "/tmp/git-cache/picoquic/.git" ]; then \
     echo "Using cached picoquic repository"; \
@@ -131,7 +132,10 @@ RUN --mount=type=cache,target=/tmp/git-cache/picoquic \
     fi && \
     cmake . && \
     make && \
-    ./picoquic_ct || true && \
+    (./picoquic_ct || true) && \
+    # Verify binary was built \
+    test -f /opt/picoquic/picoquicdemo && \
+    echo "picoquicdemo binary verified" && \
     # Save cmake cache \
     mkdir -p /tmp/picoquic-build/cmake_cache && \
     cp -r CMakeCache.txt CMakeFiles/ Makefile /tmp/picoquic-build/cmake_cache/ 2>/dev/null || true
