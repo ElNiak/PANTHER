@@ -36,3 +36,7 @@ class DockerComposeConfig(NetworkEnvironmentPluginConfig):
     allow_partial_deployment: bool = Field(
         default=False, description="Continue experiment even if some services fail"
     )
+    deploy_timeout: int = Field(
+        default=120,
+        description="Timeout in seconds for docker compose up/down operations",
+    )

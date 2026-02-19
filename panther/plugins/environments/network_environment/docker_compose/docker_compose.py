@@ -698,6 +698,14 @@ class DockerComposeEnvironment(
         if not hasattr(self, "global_config"):
             self.global_config = global_config
 
+        # Override timeout from plugin config if available
+        plugin_config = self._get_plugin_config()
+        if hasattr(plugin_config, "deploy_timeout"):
+            self.timeout = plugin_config.deploy_timeout
+            self.logger.debug(
+                f"Deploy timeout set to {self.timeout}s from plugin config"
+            )
+
         # Initialize lifecycle manager now that all required variables are set
         if hasattr(self, "services_managers") and self.services_managers:
             self.lifecycle_manager = DockerComposeLifecycleManager(

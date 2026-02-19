@@ -155,7 +155,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
 
         self.services = {}
         self.deployment_commands = {}
-        self.timeout = 60
+        self.timeout = 120
 
         self.global_config = None
         self.test_config = None
