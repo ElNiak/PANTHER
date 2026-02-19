@@ -149,17 +149,32 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
             target_platform=docker_builder.get_target_platform(),
         )
 
+        force_build = False
         if (
-            docker_builder.image_exists(base_image_tag)
-            and not getattr(self, "global_config", None)
-            or not getattr(self.global_config, "docker", None)
-            or not getattr(self.global_config.docker, "force_build_docker_image", False)
+            hasattr(self, "global_config")
+            and self.global_config
+            and hasattr(self.global_config, "docker")
+            and self.global_config.docker
         ):
-            self.logger.info(
-                f"Base Docker image '{base_image_tag}'  already exists, skipping build"
+            force_build = getattr(
+                self.global_config.docker, "force_build_docker_image", False
             )
-            self._base_image_built = True
-            return
+
+        if docker_builder.image_exists(base_image_tag) and not force_build:
+            # Verify with direct Docker API (same as Fix 7)
+            try:
+                docker_builder.client.images.get(base_image_tag)
+                self.logger.info(
+                    f"Base Docker image verified and exists, skipping build: {base_image_tag}"
+                )
+                self._base_image_built = True
+                return
+            except Exception:
+                self.logger.warning(
+                    f"Cache reported base image exists but Docker API verification failed for "
+                    f"'{base_image_tag}', proceeding with build"
+                )
+                docker_builder.image_cache.invalidate_cache()
 
         self.logger.info(
             f"Building base Docker image with runtime_mode='{runtime_mode}' (once per experiment)"
@@ -326,11 +341,25 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
             f"Force build flag is set to {force_build} for service {self.implementation_name}"
         )
         if docker_builder.image_exists(expected_image_tag) and not force_build:
-            self.logger.info(
-                f"Service Docker image already exists, skipping build: {expected_image_tag}"
-            )
-            self.emit_docker_build_completed(expected_image_tag, True)
-            return
+            # Verify with direct Docker API to avoid stale cache false positives
+            try:
+                docker_builder.client.images.get(expected_image_tag)
+                self.logger.info(
+                    f"Service Docker image verified and exists, skipping build: {expected_image_tag}"
+                )
+                # Set runtime_mode even when using cached image (for docker-compose template)
+                self.runtime_mode = runtime_mode
+                self.build_mode = docker_builder.validate_build_mode_for_architecture(
+                    build_mode
+                )
+                self.emit_docker_build_completed(expected_image_tag, True)
+                return
+            except Exception:
+                self.logger.warning(
+                    f"Cache reported image exists but Docker API verification failed for "
+                    f"'{expected_image_tag}', proceeding with build"
+                )
+                docker_builder.image_cache.invalidate_cache()
 
         self.logger.info(f"Building service Docker image: {expected_image_tag}")
 
@@ -505,12 +534,12 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
                         f"Found execution_env_name from service_config_to_test: {execution_env_name}"
                     )
 
-            # Pattern 3: test_case.execution_environment
+            # Pattern 3: test_case.execution_environment or test_case.test_config.execution_environment
             self.logger.debug(
                 "Attempting to determine runtime_mode from test_case execution environment"
             )
             self.logger.debug(f"test_case available: {hasattr(self, 'test_case')}")
-            if hasattr(self, "test_case") and self.test_case:
+            if not execution_env_name and hasattr(self, "test_case") and self.test_case:
                 self.logger.debug(
                     f"test_case.execution_environment: {getattr(self.test_case, 'execution_environment', 'MISSING')}"
                 )
@@ -523,6 +552,19 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
                     )
                     self.logger.debug(
                         f"Found execution_env_name from test_case: {execution_env_name}"
+                    )
+                # Fallback: TestCaseBase stores it in test_config.execution_environment
+                elif (
+                    hasattr(self.test_case, "test_config")
+                    and self.test_case.test_config
+                    and hasattr(self.test_case.test_config, "execution_environment")
+                    and self.test_case.test_config.execution_environment
+                ):
+                    execution_env_name = self._extract_env_name_from_config(
+                        self.test_case.test_config.execution_environment
+                    )
+                    self.logger.debug(
+                        f"Found execution_env_name from test_case.test_config: {execution_env_name}"
                     )
 
             self.logger.debug(

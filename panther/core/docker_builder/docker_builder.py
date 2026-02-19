@@ -201,7 +201,7 @@ class DockerBuilder(
         target_platform = self.get_target_platform()
         self.image_cache = DockerImageCache(
             cache_ttl=300,
-            retry_count=1,
+            retry_count=2,
             retry_delay=1.0,  # 5 minutes TTL
             target_platform=target_platform,
         )
