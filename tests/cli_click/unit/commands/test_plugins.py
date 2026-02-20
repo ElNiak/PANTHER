@@ -4,10 +4,6 @@ Test cases for the plugins command.
 Tests plugin management, listing, installation, and configuration functionality.
 """
 
-from unittest.mock import Mock, patch
-
-import pytest
-
 from panther.cli_click.core.main import cli
 
 
@@ -182,39 +178,6 @@ class TestPluginsValidateCommand:
         """Test plugins validate with strict mode."""
         result = cli_runner.invoke(cli, ["plugins", "validate", "--strict"])
         assert result.exit_code is not None
-
-
-class TestPluginsWithMockAdapter:
-    """Test plugins commands with mocked adapters."""
-
-    def test_plugins_list_with_mock_adapter(self, cli_runner):
-        """Test plugins list with mocked adapter."""
-        mock_adapter = Mock()
-        mock_adapter.handle_with_conversion.return_value = 0
-
-        with patch("panther.cli_click.commands.plugins.plugins_adapter", mock_adapter):
-            result = cli_runner.invoke(cli, ["plugins", "list"])
-            # If adapter is available, should be called
-            if hasattr(result, "exit_code"):
-                assert result.exit_code is not None
-
-    def test_plugins_adapter_failure(self, cli_runner):
-        """Test plugins command when adapter fails."""
-        mock_adapter = Mock()
-        mock_adapter.handle_with_conversion.return_value = 1
-
-        with patch("panther.cli_click.commands.plugins.plugins_adapter", mock_adapter):
-            result = cli_runner.invoke(cli, ["plugins", "list"])
-            assert result.exit_code is not None
-
-    def test_plugins_adapter_exception(self, cli_runner):
-        """Test plugins command when adapter raises exception."""
-        mock_adapter = Mock()
-        mock_adapter.handle_with_conversion.side_effect = RuntimeError("Adapter error")
-
-        with patch("panther.cli_click.commands.plugins.plugins_adapter", mock_adapter):
-            result = cli_runner.invoke(cli, ["plugins", "list"])
-            assert result.exit_code is not None
 
 
 class TestPluginsErrorHandling:

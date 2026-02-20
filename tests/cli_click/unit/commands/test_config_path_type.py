@@ -96,7 +96,7 @@ class TestTutorialPathType:
         source = Path(tutorial_mod.__file__).read_text()
         # Verify Path conversion appears before .mkdir() call
         conversion_pos = source.find("Path(output_dir)")
-        mkdir_pos = source.find("output_dir.mkdir(")
+        mkdir_pos = source.find("output_path.mkdir(")
         assert conversion_pos != -1, "Path(output_dir) conversion missing"
-        assert mkdir_pos != -1, "output_dir.mkdir() call missing"
+        assert mkdir_pos != -1, "output_path.mkdir() call missing"
         assert conversion_pos < mkdir_pos, "Path conversion must come before .mkdir()"

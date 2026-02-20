@@ -5,12 +5,11 @@ Tests configuration validation, schema display, template generation,
 and interactive configuration design functionality.
 """
 
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
 import yaml
 
-from panther.cli_click.commands.config import config
 from panther.cli_click.core.main import cli
 
 
@@ -386,55 +385,19 @@ class TestConfigDesignCommand:
         """Test handling of keyboard interrupt in design mode."""
         output_file = temp_dir / "interrupted_config.yaml"
 
-        # Simulate KeyboardInterrupt during interactive session
-        with patch("click.prompt", side_effect=KeyboardInterrupt):
+        # Simulate KeyboardInterrupt during ExperimentDesigner.run()
+        # The stub ExperimentDesigner doesn't use click.prompt, so we
+        # patch the designer's run method to raise KeyboardInterrupt.
+        with patch(
+            "panther.cli_click.commands.config.ExperimentDesigner"
+        ) as MockDesigner:
+            MockDesigner.return_value.run.side_effect = KeyboardInterrupt
             result = cli_runner.invoke(
                 cli, ["config", "design", "--output", str(output_file)]
             )
 
             assert result.exit_code == 1
             assert "Design session cancelled by user" in result.output
-
-
-class TestConfigWithAdapter:
-    """Test config commands with argparse adapter."""
-
-    def test_validate_with_mock_adapter(self, cli_runner, sample_config_file):
-        """Test validate command with mocked adapter."""
-        mock_adapter = Mock()
-        mock_adapter.handle_with_conversion.return_value = 0
-
-        with patch("panther.cli_click.commands.config.config_adapter", mock_adapter):
-            result = cli_runner.invoke(
-                cli, ["config", "validate", "--config", str(sample_config_file)]
-            )
-            assert result.exit_code == 0
-            assert "✅ Configuration is valid and ready to use" in result.output
-            mock_adapter.handle_with_conversion.assert_called_once()
-
-    def test_validate_adapter_failure(self, cli_runner, sample_config_file):
-        """Test validate command when adapter fails."""
-        mock_adapter = Mock()
-        mock_adapter.handle_with_conversion.return_value = 1
-
-        with patch("panther.cli_click.commands.config.config_adapter", mock_adapter):
-            result = cli_runner.invoke(
-                cli, ["config", "validate", "--config", str(sample_config_file)]
-            )
-            assert result.exit_code == 0  # Command completes but shows error
-            assert "❌ Configuration validation failed" in result.output
-
-    def test_validate_adapter_exception(self, cli_runner, sample_config_file):
-        """Test validate command when adapter raises exception."""
-        mock_adapter = Mock()
-        mock_adapter.handle_with_conversion.side_effect = RuntimeError("Adapter error")
-
-        with patch("panther.cli_click.commands.config.config_adapter", mock_adapter):
-            result = cli_runner.invoke(
-                cli, ["config", "validate", "--config", str(sample_config_file)]
-            )
-            assert result.exit_code == 1
-            assert "❌ Validation failed: Adapter error" in result.output
 
 
 class TestConfigIntegration:

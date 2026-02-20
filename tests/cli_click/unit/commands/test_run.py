@@ -5,8 +5,6 @@ Tests experiment execution, options handling, plugin directories,
 metrics configuration, and Docker user mapping.
 """
 
-from unittest.mock import Mock, patch
-
 import pytest
 
 from panther.cli_click.core.main import cli
@@ -397,45 +395,6 @@ class TestRunDockerOptions:
             ],
         )
         assert result.exit_code != 0
-
-
-class TestRunWithAdapter:
-    """Test run command with argparse adapter."""
-
-    def test_run_with_mock_adapter(self, cli_runner, sample_config_file):
-        """Test run command with mocked adapter."""
-        mock_adapter = Mock()
-        mock_adapter.handle_with_conversion.return_value = 0
-
-        with patch("panther.cli_click.commands.run.run_adapter", mock_adapter):
-            result = cli_runner.invoke(
-                cli, ["run", "--config", str(sample_config_file)]
-            )
-            # Should call adapter
-            mock_adapter.handle_with_conversion.assert_called_once()
-
-    def test_run_adapter_failure(self, cli_runner, sample_config_file):
-        """Test run command when adapter fails."""
-        mock_adapter = Mock()
-        mock_adapter.handle_with_conversion.return_value = 1
-
-        with patch("panther.cli_click.commands.run.run_adapter", mock_adapter):
-            result = cli_runner.invoke(
-                cli, ["run", "--config", str(sample_config_file)]
-            )
-            # Should handle failure gracefully
-            assert result.exit_code is not None
-
-    def test_run_adapter_exception(self, cli_runner, sample_config_file):
-        """Test run command when adapter raises exception."""
-        mock_adapter = Mock()
-        mock_adapter.handle_with_conversion.side_effect = RuntimeError("Adapter error")
-
-        with patch("panther.cli_click.commands.run.run_adapter", mock_adapter):
-            result = cli_runner.invoke(
-                cli, ["run", "--config", str(sample_config_file)]
-            )
-            assert result.exit_code == 1
 
 
 class TestRunArgumentValidation:

@@ -74,7 +74,7 @@ def cli(ctx, debug, verbose):
 
     if debug:
         click.echo(colored("🐛 Debug mode enabled", "yellow"))
-    elif verbose:
+    if verbose:
         click.echo(colored("🔍 Verbose mode enabled", "blue"))
 
 
