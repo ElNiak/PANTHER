@@ -85,6 +85,7 @@ def tutorial():
 @pass_context_and_setup_logging
 @handle_errors
 def run(
+    ctx,
     tutorial_type: str,
     mode: str,
     level: str,
@@ -448,7 +449,7 @@ def list_tutorials(ctx, output_format: str, level: str, category: str):
 )
 @pass_context_and_setup_logging
 @handle_errors
-def interactive(quick_start: bool):
+def interactive(ctx, quick_start: bool):
     """
     Start interactive tutorial mode with guided selection.
 
@@ -522,7 +523,6 @@ def interactive(quick_start: bool):
                 return 0
             elif choice == "l":
                 # Call list command programmatically
-                ctx = click.get_current_context()
                 ctx.invoke(
                     list_tutorials, output_format="detail", level="all", category="all"
                 )
@@ -550,7 +550,6 @@ def interactive(quick_start: bool):
                     info_message(f"🚀 Starting {tutorial_type.title()} tutorial...")
 
                     # Call run command programmatically
-                    ctx = click.get_current_context()
                     result = ctx.invoke(
                         run,
                         tutorial_type=tutorial_type,

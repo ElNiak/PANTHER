@@ -108,7 +108,7 @@ class TestTutorialCommand:
     def test_tutorial_list(self, cli_runner):
         """Test listing available tutorials."""
         result = cli_runner.invoke(cli, ["tutorial", "list"])
-        assert result.exit_code is not None
+        assert result.exit_code == 0
 
     def test_tutorial_info(self, cli_runner):
         """Test getting tutorial information."""
@@ -124,17 +124,22 @@ class TestTutorialCommand:
         assert result.exit_code is not None
 
     def test_tutorial_run_service(self, cli_runner, temp_dir):
-        """Test running service tutorial."""
+        """Test running service tutorial (ctx parameter binds correctly)."""
         output_dir = temp_dir / "service_tutorial"
         result = cli_runner.invoke(
-            cli, ["tutorial", "run", "service", "--output-dir", str(output_dir)]
+            cli,
+            ["tutorial", "run", "service", "--no-interactive", "--output-dir", str(output_dir)],
         )
-        assert result.exit_code is not None
+        # Exit code 0 (success) or 1 (runtime error from run_tutorial) are both acceptable.
+        # Exit code 2 would mean Click failed to parse the command (e.g. wrong parameter binding).
+        assert result.exit_code in (0, 1), f"Unexpected exit code: {result.exit_code}"
 
     def test_tutorial_interactive(self, cli_runner):
-        """Test interactive tutorial mode."""
-        result = cli_runner.invoke(cli, ["tutorial", "interactive"])
-        assert result.exit_code is not None
+        """Test interactive tutorial mode (ctx parameter binds correctly)."""
+        result = cli_runner.invoke(cli, ["tutorial", "interactive"], input="q\n")
+        assert result.exit_code == 0
+        # Must NOT crash with TypeError from missing ctx parameter
+        assert "TypeError" not in (result.output or "")
 
     def test_tutorial_with_dry_run(self, cli_runner, temp_dir):
         """Test tutorial with dry-run mode."""

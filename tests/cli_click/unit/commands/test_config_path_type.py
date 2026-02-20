@@ -85,12 +85,7 @@ class TestConfigDesignPathType:
 
 @pytest.mark.unit
 class TestTutorialPathType:
-    """Verify tutorial.py has the Path conversion fix.
-
-    Note: tutorial run() has a pre-existing bug (missing ctx parameter
-    from @pass_context_and_setup_logging decorator) that prevents
-    end-to-end CLI testing. The Path fix is verified by source reading.
-    """
+    """Verify tutorial.py has the Path conversion fix."""
 
     def test_tutorial_source_has_path_conversion(self):
         """Verify tutorial.py converts output_dir str to Path before .mkdir()."""
