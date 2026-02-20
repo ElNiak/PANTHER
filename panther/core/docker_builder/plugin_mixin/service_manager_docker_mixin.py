@@ -160,7 +160,9 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
                 self.global_config.docker, "force_build_docker_image", False
             )
 
-        if docker_builder.image_exists(base_image_tag) and not force_build:
+        if docker_builder.image_exists(base_image_tag) and (
+            not force_build or DockerBuilder.was_built_this_session(base_image_tag)
+        ):
             # Verify with direct Docker API (same as Fix 7)
             try:
                 docker_builder.client.images.get(base_image_tag)
@@ -340,7 +342,9 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
         self.logger.debug(
             f"Force build flag is set to {force_build} for service {self.implementation_name}"
         )
-        if docker_builder.image_exists(expected_image_tag) and not force_build:
+        if docker_builder.image_exists(expected_image_tag) and (
+            not force_build or DockerBuilder.was_built_this_session(expected_image_tag)
+        ):
             # Verify with direct Docker API to avoid stale cache false positives
             try:
                 docker_builder.client.images.get(expected_image_tag)
@@ -354,10 +358,11 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
                 )
                 self.emit_docker_build_completed(expected_image_tag, True)
                 return
-            except Exception:
+            except Exception as e:
                 self.logger.warning(
                     f"Cache reported image exists but Docker API verification failed for "
-                    f"'{expected_image_tag}', proceeding with build"
+                    f"'{expected_image_tag}', proceeding with build: {e}",
+                    exc_info=True,
                 )
                 docker_builder.image_cache.invalidate_cache()
 

@@ -6,6 +6,7 @@ including service deployment, monitoring, and cleanup operations.
 
 import logging
 import os
+import subprocess
 import threading
 import time
 from pathlib import Path
@@ -356,6 +357,8 @@ class DockerComposeLifecycleManager:
                 "compose",
                 "-f",
                 str(self.config_file_path),
+                "-p",
+                self.network_name,
                 "down",
                 "-v",
                 "--remove-orphans",
@@ -485,9 +488,13 @@ class DockerComposeLifecycleManager:
                     timeout=30,
                 )
                 self.logger.debug("Docker Compose containers killed")
-            except Exception as e:
+            except subprocess.CalledProcessError as e:
                 self.logger.debug(
                     f"Docker Compose kill (expected if no containers running): {e}"
+                )
+            except Exception as e:
+                self.logger.warning(
+                    f"Unexpected error during Docker Compose kill: {e}"
                 )
 
             # Then clean removal of containers, networks, and volumes

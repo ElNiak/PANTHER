@@ -302,10 +302,15 @@ def run(
                 yaml_progress_config = raw_config.get("progress", {})
                 yaml_observers_config = raw_config.get("observers", {})
 
-                # CLI metrics flag overrides YAML observer metrics config
+                # CLI metrics flag overrides YAML observer metrics config only if
+                # explicitly passed on the command line (not just the default value)
                 if "metrics" not in yaml_observers_config:
                     yaml_observers_config["metrics"] = {}
-                yaml_observers_config["metrics"]["enabled"] = enable_metrics
+                metrics_source = ctx.get_parameter_source("enable_metrics")
+                if metrics_source == click.core.ParameterSource.COMMANDLINE:
+                    yaml_observers_config["metrics"]["enabled"] = enable_metrics
+                elif "enabled" not in yaml_observers_config["metrics"]:
+                    yaml_observers_config["metrics"]["enabled"] = enable_metrics
 
                 # Merge with CLI defaults - YAML values take precedence
                 docker_config = {

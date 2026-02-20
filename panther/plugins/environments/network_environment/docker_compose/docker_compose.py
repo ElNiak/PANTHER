@@ -5,6 +5,7 @@ that uses the base class and mixins to eliminate code duplication.
 """
 
 import os
+import re
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List
@@ -704,6 +705,41 @@ class DockerComposeEnvironment(
             self.timeout = plugin_config.deploy_timeout
             self.logger.debug(
                 f"Deploy timeout set to {self.timeout}s from plugin config"
+            )
+
+        # Auto-scale timeout when execution environments (strace, gdb, etc.)
+        # are present, since debug images are significantly larger and slower
+        # to start, especially under platform emulation (e.g. amd64 on ARM).
+        if self.execution_environment:
+            multiplier = getattr(
+                plugin_config, "deploy_timeout_debug_multiplier", 2.0
+            )
+            if multiplier != 1.0:
+                original_timeout = self.timeout
+                self.timeout = int(self.timeout * multiplier)
+                env_types = [
+                    getattr(ee, "env_sub_type", type(ee).__name__)
+                    for ee in self.execution_environment
+                ]
+                self.logger.info(
+                    f"Execution environments detected ({env_types}): "
+                    f"deploy timeout scaled {original_timeout}s -> {self.timeout}s "
+                    f"(multiplier={multiplier})"
+                )
+
+        # Use a unique project name per test to prevent cross-test resource
+        # conflicts.  The output directory basename is already unique per test
+        # run, so we derive the project name from it and sanitize it for
+        # Docker naming rules (lowercase alphanumeric + hyphens).
+        experiment_name = str(self.output_dir).split("/")[-1]
+        sanitized_name = re.sub(r"[^a-z0-9-]", "-", experiment_name.lower())
+        sanitized_name = re.sub(r"^[^a-z0-9]+", "", sanitized_name)
+        sanitized_name = re.sub(r"-+", "-", sanitized_name).rstrip("-")
+        if sanitized_name:
+            self.network_name = sanitized_name
+            self.logger.debug(
+                f"Docker Compose project name set to '{self.network_name}' "
+                f"(from output dir: {experiment_name})"
             )
 
         # Initialize lifecycle manager now that all required variables are set

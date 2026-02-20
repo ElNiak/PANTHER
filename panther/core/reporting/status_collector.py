@@ -561,14 +561,18 @@ class StatusCollector:
             try:
                 with open(analysis_file, "r", encoding="utf-8") as f:
                     analysis = json.load(f)
+                has_any_result = False
                 for _tester_name, tester_data in analysis.items():
                     results = tester_data if isinstance(tester_data, dict) else {}
                     # Check nested "results" key or top-level
                     result_data = results.get("results", results)
-                    if result_data.get("passed") is True:
-                        return TestStatus.PASSED
-                    elif result_data.get("passed") is False:
+                    if result_data.get("passed") is False:
                         return TestStatus.FAILED
+                    elif result_data.get("passed") is True:
+                        has_any_result = True
+                # Only return PASSED if all testers passed (none returned False)
+                if has_any_result:
+                    return TestStatus.PASSED
             except (json.JSONDecodeError, OSError, KeyError):
                 pass  # Fall through to keyword matching
 

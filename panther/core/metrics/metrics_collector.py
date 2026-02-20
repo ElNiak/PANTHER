@@ -283,6 +283,7 @@ class MetricsCollector(LoggerMixin):
 
         # Initialize experiment start time
         self.experiment_start_time = time.time()
+        self._finalized = False
 
         # Create metrics output directory
         self.metrics_dir = output_dir / "metrics"
@@ -1115,7 +1116,13 @@ class MetricsCollector(LoggerMixin):
     def finalize(self) -> None:
         """
         Finalize metrics collection and record experiment completion.
+
+        Idempotent: calling finalize() multiple times has no additional effect.
         """
+        if self._finalized:
+            return
+        self._finalized = True
+
         # Stop the collection thread if running
         if self.collection_running:
             self.stop_collection_thread()

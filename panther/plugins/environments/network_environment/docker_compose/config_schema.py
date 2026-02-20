@@ -37,6 +37,10 @@ class DockerComposeConfig(NetworkEnvironmentPluginConfig):
         default=False, description="Continue experiment even if some services fail"
     )
     deploy_timeout: int = Field(
-        default=120,
+        default=300,
         description="Timeout in seconds for docker compose up/down operations",
+    )
+    deploy_timeout_debug_multiplier: float = Field(
+        default=2.0,
+        description="Multiplier applied to deploy_timeout when execution environments (strace, gdb, etc.) are enabled, since debug images are larger and slower to start. Set to 1.0 to disable auto-scaling.",
     )

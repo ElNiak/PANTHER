@@ -405,17 +405,23 @@ class DockerImageCache(LoggerMixin):
                 # Use low-level API to avoid per-image inspect_image() calls that hang.
                 # self._docker_client.images.list() calls get() per image which does inspect.
                 # self._docker_client.api.images() returns raw dicts without inspect.
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                    future = executor.submit(
-                        self._docker_client.api.images, all=False
+                # NOTE: Do not use ThreadPoolExecutor as a context manager here.
+                # If future.result() times out, __exit__ calls shutdown(wait=True),
+                # which blocks indefinitely when Docker is hung.
+                executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+                future = executor.submit(
+                    self._docker_client.api.images, all=False
+                )
+                try:
+                    raw_images = future.result(timeout=30)
+                except concurrent.futures.TimeoutError:
+                    self.logger.error(
+                        "Docker image list timed out after 30 seconds"
                     )
-                    try:
-                        raw_images = future.result(timeout=30)
-                    except concurrent.futures.TimeoutError:
-                        self.logger.error(
-                            "Docker image list timed out after 30 seconds"
-                        )
-                        break
+                    executor.shutdown(wait=False, cancel_futures=True)
+                    break
+                finally:
+                    executor.shutdown(wait=False)
 
                 current_time = time.time()
 

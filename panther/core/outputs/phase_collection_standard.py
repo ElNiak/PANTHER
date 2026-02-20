@@ -38,7 +38,7 @@ class PhaseCollectionStandard:
         # Compilation status
         ("compilation_status", "compile/compilation_status.txt"),
         # Legacy compatibility
-        ("compilation_status", "compilation_status.txt"),
+        ("compilation_status_legacy", "compilation_status.txt"),
         ("stdout", "stdout.log"),
         ("stderr", "stderr.log"),
         ("logs", "{service_name}.log"),

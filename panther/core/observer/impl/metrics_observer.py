@@ -54,10 +54,7 @@ else:
 
 @dataclass
 class MetricsSnapshot:
-    """
-
-    from typing import Any, Dict, ListSnapshot of metrics at a specific point in time.
-    """
+    """Snapshot of metrics at a specific point in time."""
 
     timestamp: datetime
     cpu_percent: float
@@ -470,6 +467,9 @@ class MetricsObserver(ITypedObserver):
         self.last_publish_time = time.time()
         self.collection_timer = None
 
+        # Circuit breaker for lazy MetricsCollector creation
+        self._collector_creation_failed = False
+
         self.logger.info(
             "MetricsObserver initialized with publish_interval=%d seconds",
             self.publish_interval,
@@ -501,7 +501,7 @@ class MetricsObserver(ITypedObserver):
             from panther.core.metrics.metrics_collector import MetricsCollector
 
             self.metrics_collector = MetricsCollector(
-                experiment_name, output_dir, self.publish_interval
+                experiment_name, output_dir, self.metric_collection_interval
             )
 
         self.current_test_metrics = TestCaseMetrics(
@@ -654,11 +654,15 @@ class MetricsObserver(ITypedObserver):
         """
         if self.metrics_collector:
             return True
+        if self._collector_creation_failed:
+            return False
         try:
             from panther.core.metrics.metrics_collector import MetricsCollector
 
             self.metrics_collector = MetricsCollector(
-                self.experiment_name, self.output_dir, self.publish_interval
+                self.experiment_name,
+                self.output_dir,
+                self.metric_collection_interval,
             )
             self.logger.info(
                 "Lazily created MetricsCollector for experiment: %s",
@@ -666,7 +670,10 @@ class MetricsObserver(ITypedObserver):
             )
             return True
         except Exception as e:
-            self.logger.warning("Failed to create MetricsCollector: %s", e)
+            self._collector_creation_failed = True
+            self.logger.error(
+                "Failed to create MetricsCollector (will not retry): %s", e
+            )
             return False
 
     def on_counter_metric(self, event: CounterMetricEvent) -> bool:

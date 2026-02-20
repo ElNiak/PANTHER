@@ -27,7 +27,7 @@ import re
 import subprocess
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Set, Union
 
 import docker
 from docker.errors import BuildError, DockerException, NotFound
@@ -112,6 +112,7 @@ class DockerBuilder(
     _instance = None
     _initialized = False
     MAX_TAG_LENGTH = 100  # Maximum Docker tag length (leave room for registry prefix)
+    _session_built_tags: Set[str] = set()
 
     def __new__(cls, *args, **kwargs):
         """
@@ -189,6 +190,7 @@ class DockerBuilder(
         # Initialize with docker_operations feature for specialized logging
         self.__init_logger__("docker_operations")
         self.__class__._initialized = True
+        DockerBuilder._session_built_tags = set()
         self.logger.info("Initializing DockerBuilder singleton instance")
 
         self.plugins_dir = None
@@ -1114,10 +1116,20 @@ class DockerBuilder(
             # Add network mode
             buildx_cmd.extend(["--network", "host"])
 
-            # Force rebuild if configured
-            # force_build = getattr(self.global_config.docker, 'force_build_docker_image', True) if hasattr(self, 'global_config') and self.global_config and hasattr(self.global_config, 'docker') else True
-            # if force_build:
-            #     buildx_cmd.append("--no-cache")
+            # Force rebuild if configured - pass --no-cache to buildx only on first
+            # build of each tag to prevent stale layer cache
+            force_build = (
+                getattr(self.global_config.docker, "force_build_docker_image", False)
+                if hasattr(self, "global_config")
+                and self.global_config
+                and hasattr(self.global_config, "docker")
+                else False
+            )
+            if force_build and not DockerBuilder.was_built_this_session(image_tag):
+                buildx_cmd.append("--no-cache")
+                self.logger.info(
+                    "force_build: passing --no-cache for first build of %s", image_tag
+                )
 
             self.logger.debug("Executing buildx command: %s", " ".join(buildx_cmd))
 
@@ -1243,6 +1255,7 @@ class DockerBuilder(
                 build_time_seconds=build_time,
                 experiment_id=experiment_id,
             )
+            DockerBuilder.mark_session_built(image_tag)
 
             self.logger.info(
                 "Successfully built Docker image '%s' with buildx for platform '%s'",
@@ -1582,6 +1595,7 @@ class DockerBuilder(
                 build_time_seconds=build_time,
                 experiment_id=experiment_id,
             )
+            DockerBuilder.mark_session_built(image_tag)
 
             self.logger.info(
                 "Successfully built Docker image '%s' with context '%s' and build args '%s'",
@@ -2004,6 +2018,17 @@ class DockerBuilder(
         """
         cls._instance = None
         cls._initialized = False
+        cls._session_built_tags = set()
+
+    @classmethod
+    def mark_session_built(cls, image_tag: str) -> None:
+        """Record that an image was freshly built in this session."""
+        cls._session_built_tags.add(image_tag)
+
+    @classmethod
+    def was_built_this_session(cls, image_tag: str) -> bool:
+        """Check if an image was already freshly built in this session."""
+        return image_tag in cls._session_built_tags
 
     @classmethod
     def get_instance(
