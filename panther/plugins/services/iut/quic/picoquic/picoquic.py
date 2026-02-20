@@ -555,9 +555,9 @@ class PicoquicServiceManager(
             # Copy binary to artifacts (not root logs)
             "cp /opt/picoquic/picoquicdemo /app/logs/artifacts/picoquicdemo 2>/dev/null || true;",
             # Copy any QUIC logs to artifacts
-            "find /tmp -name '*.qlog' -exec cp {} /app/logs/artifacts/ \\; 2>/dev/null || true;",
+            "find /tmp -name \"*.qlog\" -exec cp {} /app/logs/artifacts/ \\; 2>/dev/null || true;",
             # Copy SSL key logs to artifacts
-            "find /tmp -name '*keys.log' -exec cp {} /app/logs/artifacts/ \\; 2>/dev/null || true;",
+            "find /tmp -name \"*keys.log\" -exec cp {} /app/logs/artifacts/ \\; 2>/dev/null || true;",
         ]
 
     def _do_prepare(self, plugin_manager: Optional["PluginManager"] = None):

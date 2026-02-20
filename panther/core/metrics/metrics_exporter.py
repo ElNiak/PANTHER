@@ -457,13 +457,13 @@ class MetricsExporter:
                 "success_rate": 0,
             }
 
-        # Aggregate phase-specific metrics
-        for metric_name, value in self.metrics_collector.timing_metrics.items():
-            for phase in Phase:
-                if phase.value.lower() in metric_name.lower():
-                    phase_data[phase.value]["total_time"] += value
-                    phase_data[phase.value]["count"] += 1
-                    break
+        # Aggregate phase-specific metrics using the .phase field on each metric
+        for metric in self.metrics_collector.metrics:
+            if metric.metric_type == MetricType.TIMING and metric.phase is not None:
+                phase_key = metric.phase.value
+                if phase_key in phase_data:
+                    phase_data[phase_key]["total_time"] += metric.value
+                    phase_data[phase_key]["count"] += 1
 
         # Calculate success rates
         for phase_key in phase_data:

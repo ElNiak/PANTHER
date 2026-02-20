@@ -268,9 +268,9 @@ class AioquicServiceManager(IUTManagerEventMixin, PythonQUICServiceManager):
             # Create artifacts directory
             "mkdir -p /app/logs/artifacts;",
             # Copy any QUIC logs to artifacts (not root logs)
-            "find /tmp -name '*.qlog' -exec cp {} /app/logs/artifacts/ \\; 2>/dev/null || true;",
+            "find /tmp -name \"*.qlog\" -exec cp {} /app/logs/artifacts/ \\; 2>/dev/null || true;",
             # Copy general logs to artifacts
-            "find /tmp -name '*.log' -exec cp {} /app/logs/artifacts/ \\; 2>/dev/null || true;",
+            "find /tmp -name \"*.log\" -exec cp {} /app/logs/artifacts/ \\; 2>/dev/null || true;",
             # Copy examples directory to artifacts
             "cp -r /opt/aioquic/examples /app/logs/artifacts/ 2>/dev/null || true;",
         ]

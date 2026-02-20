@@ -137,6 +137,21 @@ class ExperimentSummary:
         return len([t for t in self.tests if t.status == TestStatus.SKIPPED])
 
     @property
+    def timeout_tests(self) -> int:
+        """Number of timed-out tests."""
+        return len([t for t in self.tests if t.status == TestStatus.TIMEOUT])
+
+    @property
+    def interrupted_tests(self) -> int:
+        """Number of interrupted tests."""
+        return len([t for t in self.tests if t.status == TestStatus.INTERRUPTED])
+
+    @property
+    def unknown_tests(self) -> int:
+        """Number of tests with unknown status."""
+        return len([t for t in self.tests if t.status == TestStatus.UNKNOWN])
+
+    @property
     def success_rate(self) -> float:
         """Success rate percentage."""
         if self.total_tests == 0:
@@ -159,6 +174,9 @@ class ExperimentSummary:
                 "passed": self.passed_tests,
                 "failed": self.failed_tests,
                 "skipped": self.skipped_tests,
+                "timeout": self.timeout_tests,
+                "interrupted": self.interrupted_tests,
+                "unknown": self.unknown_tests,
                 "success_rate": self.success_rate,
                 "results": [test.to_dict() for test in self.tests],
             },
@@ -196,6 +214,17 @@ class StatusCollector:
 
         # Collect test results
         test_results = self._collect_test_results()
+
+        # Aggregate test-level fast_fail into experiment-level
+        if not fast_fail_info.triggered:
+            for test in test_results:
+                if test.fast_fail_triggered:
+                    fast_fail_info.triggered = True
+                    fast_fail_info.reason = (
+                        fast_fail_info.reason
+                        or f"Fast-fail triggered by test: {test.name}"
+                    )
+                    break
 
         # Determine overall experiment status
         experiment_status = self._determine_experiment_status(
@@ -236,10 +265,13 @@ class StatusCollector:
 
                 # Extract configuration file
                 config_match = re.search(
-                    r"experiment_config\.yaml|Configuration.*?(\w+\.yaml)", content
+                    r"(?:Loading|Using|Config(?:uration)?)[:\s]+([^\s]+\.ya?ml)",
+                    content,
                 )
                 if config_match:
-                    info["config_file"] = config_match.group(0)
+                    info["config_file"] = config_match.group(1)
+                elif re.search(r"experiment_config\.yaml", content):
+                    info["config_file"] = "experiment_config.yaml"
 
                 # Extract end time (last log entry)
                 lines = content.strip().split("\n")
@@ -256,9 +288,31 @@ class StatusCollector:
                 # Calculate duration
                 if "start_time" in info and "end_time" in info:
                     info["duration"] = info["end_time"] - info["start_time"]
+                elif "start_time" in info:
+                    # Fallback: use file modification time as approximate end
+                    try:
+                        mtime = datetime.fromtimestamp(
+                            experiment_log.stat().st_mtime
+                        )
+                        info["end_time"] = mtime
+                        info["duration"] = mtime - info["start_time"]
+                    except OSError:
+                        pass
 
             except Exception as e:
                 self.logger.warning(f"Failed to parse experiment.log: {e}")
+
+        # Fallback: check if config file exists in experiment directory
+        if "config_file" not in info:
+            for name in [
+                "experiment_config.yaml",
+                "experiment_config.yml",
+                "config.yaml",
+            ]:
+                config_path = self.experiment_dir / name
+                if config_path.exists():
+                    info["config_file"] = str(config_path)
+                    break
 
         return info
 
@@ -342,22 +396,34 @@ class StatusCollector:
                             metrics_data = json.load(f)
 
                         # Extract memory usage if available
+                        # Try multiple formats: direct, resource_metrics, summary
+                        memory_mb = None
                         if "memory" in metrics_data:
                             memory_mb = metrics_data["memory"].get("peak_mb")
-                            if memory_mb and (
-                                not resources.peak_memory_mb
-                                or memory_mb > resources.peak_memory_mb
-                            ):
-                                resources.peak_memory_mb = memory_mb
+                        if not memory_mb and "resource_metrics" in metrics_data:
+                            rm = metrics_data["resource_metrics"]
+                            if isinstance(rm, dict):
+                                mem_usage = rm.get("memory_usage", {})
+                                memory_mb = mem_usage.get("peak")
+                        if memory_mb and (
+                            not resources.peak_memory_mb
+                            or memory_mb > resources.peak_memory_mb
+                        ):
+                            resources.peak_memory_mb = memory_mb
 
                         # Extract disk usage if available
+                        disk_mb = None
                         if "disk" in metrics_data:
                             disk_mb = metrics_data["disk"].get("used_mb")
-                            if disk_mb and (
-                                not resources.disk_usage_mb
-                                or disk_mb > resources.disk_usage_mb
-                            ):
-                                resources.disk_usage_mb = disk_mb
+                        if not disk_mb and "resource_metrics" in metrics_data:
+                            rm = metrics_data["resource_metrics"]
+                            if isinstance(rm, dict):
+                                disk_mb = rm.get("disk_usage_mb")
+                        if disk_mb and (
+                            not resources.disk_usage_mb
+                            or disk_mb > resources.disk_usage_mb
+                        ):
+                            resources.disk_usage_mb = disk_mb
 
                     except (json.JSONDecodeError, OSError) as e:
                         self.logger.debug(
@@ -427,9 +493,15 @@ class StatusCollector:
                 error_message = self._extract_error_message(content)
 
             # Check if fast-fail was triggered for this test
+            fast_fail_patterns = [
+                "fast-fail triggered",
+                "fast_fail(triggered=true",
+                "terminating experiment due to",
+                "fast-fail terminating",
+            ]
             fast_fail_triggered = any(
-                keyword in content.lower()
-                for keyword in ["fast-fail", "critical error", "terminating experiment"]
+                pattern in content.lower()
+                for pattern in fast_fail_patterns
             )
 
             return TestResult(
@@ -482,45 +554,75 @@ class StatusCollector:
         return start_time, end_time, duration
 
     def _determine_test_status(self, content: str, test_dir: Path) -> TestStatus:
-        """Determine test status from log content and directory structure."""
+        """Determine test status from analysis results, log content, and directory structure."""
+        # 1. Check analysis_results.json first (authoritative source)
+        analysis_file = test_dir / "analysis" / "analysis_results.json"
+        if analysis_file.exists():
+            try:
+                with open(analysis_file, "r", encoding="utf-8") as f:
+                    analysis = json.load(f)
+                has_any_result = False
+                for _tester_name, tester_data in analysis.items():
+                    results = tester_data if isinstance(tester_data, dict) else {}
+                    # Check nested "results" key or top-level
+                    result_data = results.get("results", results)
+                    if result_data.get("passed") is False:
+                        return TestStatus.FAILED
+                    elif result_data.get("passed") is True:
+                        has_any_result = True
+                # Only return PASSED if all testers passed (none returned False)
+                if has_any_result:
+                    return TestStatus.PASSED
+            except (json.JSONDecodeError, OSError, KeyError):
+                pass  # Fall through to keyword matching
+
+        # 2. Fall back to keyword matching with specific patterns
+        #    (Match log-level prefixed patterns, not bare words)
         content_lower = content.lower()
 
-        # Check for explicit failure indicators
         failure_indicators = [
-            "error",
-            "failed",
-            "exception",
-            "critical",
-            "timeout",
+            "- error -",
+            "- critical -",
+            "explicitly failed:",
             "docker build failed",
             "service start failed",
             "port conflict",
         ]
 
+        timeout_indicators = [
+            "timed out",
+            "timeout exceeded",
+            "timeout: failed to run",
+        ]
+
+        if any(indicator in content_lower for indicator in timeout_indicators):
+            return TestStatus.TIMEOUT
+
         if any(indicator in content_lower for indicator in failure_indicators):
-            # Check if it's specifically a timeout
-            if "timeout" in content_lower or "timed out" in content_lower:
-                return TestStatus.TIMEOUT
             return TestStatus.FAILED
 
         # Check for success indicators
         success_indicators = [
-            "test completed",
-            "execution completed",
-            "success",
-            "passed",
+            "test completed successfully",
+            "execution completed successfully",
+            "all tests passed",
         ]
 
         if any(indicator in content_lower for indicator in success_indicators):
             return TestStatus.PASSED
 
         # Check for interruption indicators
-        interruption_indicators = ["interrupted", "terminated", "killed", "aborted"]
+        interruption_indicators = [
+            "experiment interrupted",
+            "terminated by signal",
+            "killed by signal",
+            "aborted by user",
+        ]
 
         if any(indicator in content_lower for indicator in interruption_indicators):
             return TestStatus.INTERRUPTED
 
-        # Check directory structure for additional clues
+        # 3. Check directory structure for additional clues
         logs_dir = test_dir / "logs"
         if logs_dir.exists():
             # If logs directory exists but is empty, likely failed early
@@ -568,6 +670,26 @@ class StatusCollector:
             return ExperimentStatus.FAILED
 
         if not test_results:
+            # Check experiment log for plugin failure or early termination
+            experiment_log = self.experiment_dir / "experiment.log"
+            if experiment_log.exists():
+                try:
+                    with open(experiment_log, "r", encoding="utf-8") as f:
+                        content = f.read().lower()
+                    failure_indicators = [
+                        "plugin validation failed",
+                        "plugin loading failed",
+                        "docker build failed",
+                        "service start failed",
+                        "initialization failed",
+                        "critical error",
+                        "experiment failed",
+                        "finished_early",
+                    ]
+                    if any(ind in content for ind in failure_indicators):
+                        return ExperimentStatus.FAILED
+                except OSError:
+                    pass
             return ExperimentStatus.UNKNOWN
 
         failed_tests = [t for t in test_results if t.status == TestStatus.FAILED]

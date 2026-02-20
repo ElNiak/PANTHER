@@ -346,11 +346,11 @@ class MvfstServiceManager(
             # Copy binary to artifacts (not root logs)
             "cp /opt/mvfst/build/quic/samples/quic_sample /app/logs/artifacts/quic_sample 2>/dev/null || true;",
             # Copy any QUIC logs to artifacts
-            "find /tmp -name '*.qlog' -exec cp {} /app/logs/artifacts/ \\; 2>/dev/null || true;",
+            "find /tmp -name \"*.qlog\" -exec cp {} /app/logs/artifacts/ \\; 2>/dev/null || true;",
             # Copy MVFST-specific logs to artifacts
-            "find /tmp -name '*mvfst*.log' -exec cp {} /app/logs/artifacts/ \\; 2>/dev/null || true;",
+            "find /tmp -name \"*mvfst*.log\" -exec cp {} /app/logs/artifacts/ \\; 2>/dev/null || true;",
             # Copy SSL key logs to artifacts
-            "find /tmp -name '*keys.log' -exec cp {} /app/logs/artifacts/ \\; 2>/dev/null || true;",
+            "find /tmp -name \"*keys.log\" -exec cp {} /app/logs/artifacts/ \\; 2>/dev/null || true;",
         ]
 
     def generate_deployment_commands(self) -> str:

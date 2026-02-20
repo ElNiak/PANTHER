@@ -12,6 +12,7 @@ Key Features:
 - Thread-safe operations
 """
 
+import concurrent.futures
 import json
 import stat
 import threading
@@ -401,24 +402,45 @@ class DockerImageCache(LoggerMixin):
                     f"Refreshing image cache (attempt {attempt}/{self.retry_count})"
                 )
 
-                # Fetch current images from Docker
-                docker_images = self._docker_client.images.list()
+                # Use low-level API to avoid per-image inspect_image() calls that hang.
+                # self._docker_client.images.list() calls get() per image which does inspect.
+                # self._docker_client.api.images() returns raw dicts without inspect.
+                # NOTE: Do not use ThreadPoolExecutor as a context manager here.
+                # If future.result() times out, __exit__ calls shutdown(wait=True),
+                # which blocks indefinitely when Docker is hung.
+                executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+                future = executor.submit(
+                    self._docker_client.api.images, all=False
+                )
+                try:
+                    raw_images = future.result(timeout=30)
+                except concurrent.futures.TimeoutError:
+                    self.logger.error(
+                        "Docker image list timed out after 30 seconds"
+                    )
+                    executor.shutdown(wait=False, cancel_futures=True)
+                    break
+                finally:
+                    executor.shutdown(wait=False)
+
                 current_time = time.time()
 
                 with self._cache_lock:
                     # Clear existing cache
                     self._cache.clear()
 
-                    # Populate with current images
-                    for docker_image in docker_images:
+                    # Populate with current images from raw API response
+                    for raw_image in raw_images:
+                        image_id = raw_image.get("Id", "")
+                        tags = raw_image.get("RepoTags") or []
                         cached_image = CachedImage(
-                            id=docker_image.id,
-                            tags=docker_image.tags,
-                            size=docker_image.attrs.get("Size", 0),
-                            created=docker_image.attrs.get("Created", ""),
+                            id=image_id,
+                            tags=tags,
+                            size=raw_image.get("Size", 0),
+                            created=raw_image.get("Created", ""),
                             last_seen=current_time,
                         )
-                        self._cache[docker_image.id] = cached_image
+                        self._cache[image_id] = cached_image
 
                     self._last_refresh = current_time
 
@@ -467,32 +489,30 @@ class DockerImageCache(LoggerMixin):
 
     def image_exists_in_cache(self, image_tag: str) -> Optional[bool]:
         """
-        Check if an image exists in cache by tag.
+        Check if an image exists in the current in-memory cache.
+        Does NOT trigger a cache refresh — returns None when cache is stale.
 
         Args:
             image_tag: Docker image tag to check
 
         Returns:
-            True if found, False if not found, None if cache is stale/unavailable
+            True if found, False if not found in fresh cache,
+            None if cache is stale (caller should use Docker API directly)
         """
-        if not self._is_cache_fresh():
-            # Try to refresh, but don't fail if it doesn't work
-            self._refresh_cache_from_docker()
-
         with self._cache_lock:
             for image in self._cache.values():
                 if image_tag in image.tags:
                     self.logger.debug(f"Image '{image_tag}' found in cache")
                     return True
 
-        # If cache is fresh but image not found, it doesn't exist
+        # If cache is fresh and image not found, it definitively doesn't exist
         if self._is_cache_fresh():
             self.logger.debug(f"Image '{image_tag}' not found in fresh cache")
             return False
 
-        # Cache is stale and refresh failed - can't determine
-        self.logger.warning(
-            f"Cannot determine if image '{image_tag}' exists - cache stale"
+        # Cache stale — can't determine from cache alone
+        self.logger.debug(
+            f"Cache stale, cannot determine if image '{image_tag}' exists from cache"
         )
         return None
 
@@ -582,13 +602,13 @@ class DockerImageCache(LoggerMixin):
     def image_exists(self, image_tag: str, docker_client=None) -> bool:
         """
         Checks if a Docker image with the given tag exists locally.
-        Uses cached image list to reduce Docker API calls and handle connection failures gracefully.
+        Uses cache when fresh, falls back to fast targeted Docker API check.
 
         :param image_tag: Tag of the Docker image.
         :param docker_client: Docker client instance (optional, uses internal client if available).
         :return: True if exists, else False.
         """
-        # First, try to check from cache (fast and resilient)
+        # Quick check: is it already in our cache?
         cached_result = self.image_exists_in_cache(image_tag)
         if cached_result is not None:
             self.logger.debug(
@@ -596,7 +616,7 @@ class DockerImageCache(LoggerMixin):
             )
             return cached_result
 
-        # Use provided client or internal client
+        # Cache stale/miss — do a fast targeted Docker API check (O(1))
         client = docker_client or self._docker_client
         if client is None:
             self.logger.error(
@@ -604,44 +624,19 @@ class DockerImageCache(LoggerMixin):
             )
             return False
 
-        # Cache miss or stale - fall back to direct Docker API call
         self.logger.debug(
             f"Cache miss for image '{image_tag}', checking with Docker API"
         )
 
         try:
-            # Get cached images for debug logging (avoids direct images.list() call)
-            cached_images = self.get_cached_images()
-            cached_tags = []
-            for img in cached_images:
-                cached_tags.extend(img.tags)
-
-            self.logger.debug(
-                "Checking if image '%s' exists locally. (Cached images: %d total)",
-                image_tag,
-                len(cached_images),
-            )
-
-            # Direct Docker API call as fallback
             client.images.get(image_tag)
             self.logger.debug("Image '%s' found locally via Docker API.", image_tag)
-
-            # Invalidate cache since we found something not in cache
-            self.invalidate_cache()
             return True
-
         except NotFound:
             self.logger.debug("Image '%s' not found locally.", image_tag)
             return False
         except DockerException as e:
             self.logger.error("Error checking if image exists '%s': %s", image_tag, e)
-            # If Docker is unavailable but we have cache data, try cache again
-            cached_result = self.image_exists_in_cache(image_tag)
-            if cached_result is not None:
-                self.logger.warning(
-                    f"Docker API failed, using cached result for '{image_tag}': {cached_result}"
-                )
-                return cached_result
             return False
 
     def cleanup_unused_images(self, keep_tags: List[str], docker_client=None):

@@ -283,6 +283,7 @@ class MetricsCollector(LoggerMixin):
 
         # Initialize experiment start time
         self.experiment_start_time = time.time()
+        self._finalized = False
 
         # Create metrics output directory
         self.metrics_dir = output_dir / "metrics"
@@ -1115,7 +1116,13 @@ class MetricsCollector(LoggerMixin):
     def finalize(self) -> None:
         """
         Finalize metrics collection and record experiment completion.
+
+        Idempotent: calling finalize() multiple times has no additional effect.
         """
+        if self._finalized:
+            return
+        self._finalized = True
+
         # Stop the collection thread if running
         if self.collection_running:
             self.stop_collection_thread()
@@ -1137,6 +1144,16 @@ class MetricsCollector(LoggerMixin):
                 timer_context.name, timer_context.test_case, timer_context.component
             )
 
+        # Record total execution time as a timing metric so the exporter can find it
+        total_duration = time.time() - self.experiment_start_time
+        self.record_metric(
+            name="total_execution_time",
+            metric_type=MetricType.TIMING,
+            value=total_duration,
+            phase=Phase.EXPERIMENT_CLEANUP,
+            metadata={"experiment_name": self.experiment_name},
+        )
+
         # Record experiment completion
         self.record_metric(
             name="experiment_end",
@@ -1145,7 +1162,7 @@ class MetricsCollector(LoggerMixin):
             phase=Phase.EXPERIMENT_CLEANUP,
             metadata={
                 "experiment_name": self.experiment_name,
-                "total_duration": time.time() - self.experiment_start_time,
+                "total_duration": total_duration,
             },
         )
 

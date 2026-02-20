@@ -262,11 +262,14 @@ class ExperimentReporter:
                 f"- **Configuration**: {summary.configuration_file or 'Unknown'}",
                 "",
                 "## Test Results Summary",
+                "",
                 f"- **Total Tests**: {summary.total_tests}",
                 f"- **Passed**: {summary.passed_tests} ({summary.success_rate:.1f}%)",
                 f"- **Failed**: {summary.failed_tests}",
                 f"- **Skipped**: {summary.skipped_tests}",
-                "",
+                f"- **Timeout**: {summary.timeout_tests}",
+                f"- **Interrupted**: {summary.interrupted_tests}",
+                f"- **Unknown**: {summary.unknown_tests}",
                 "",
             ]
 

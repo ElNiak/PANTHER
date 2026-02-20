@@ -208,7 +208,11 @@ class TestExecutor:
                 progress_message=f"Waiting: {wait_time_remaining:.1f} seconds remaining",
             )
 
-            # Check for early termination
+            # Check for early termination — do NOT teardown here.
+            # Teardown is guaranteed by _perform_teardown() after output
+            # collection and analysis. Calling it here clears
+            # environment_plugin_manager before outputs can be collected,
+            # resulting in "0 environments" and empty analysis.
             for env_manager in self.test_case.environment_plugin_manager:
                 if (
                     hasattr(env_manager, "should_terminate_early")

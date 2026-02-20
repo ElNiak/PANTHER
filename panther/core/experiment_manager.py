@@ -42,6 +42,7 @@ from panther.core.exceptions.fast_fail import (
 from panther.core.experiment_analysis import ExperimentAnalysisMixin
 from panther.core.experiment_observer import ExperimentObserverMixin
 from panther.core.metrics.metrics_collector import MetricsCollector
+from panther.core.metrics.enums import Phase
 from panther.core.observer.factory import get_observer_factory
 from panther.core.observer.management.event_manager import EventManager
 from panther.core.observer.workflow import (  # pylint: disable=import-outside-toplevel
@@ -592,6 +593,12 @@ class ExperimentManager(
                 test_count=len(self.test_cases)
             )
 
+            # Track experiment start in metrics
+            if self.metrics_collector:
+                self.metrics_collector.increment_counter(
+                    "experiments_total", phase=Phase.TEST_EXECUTION
+                )
+
             # Experiment-level execution tracking is handled by experiment_emitter
             if self.dry_run:
                 self.logger.info(
@@ -691,6 +698,16 @@ class ExperimentManager(
                         # Check if test actually passed (returns None or True for success, False for failure)
                         if test_result is False:
                             failed_tests += 1
+                            try:
+                                if self.metrics_collector:
+                                    self.metrics_collector.increment_counter(
+                                        "test_cases_total", phase=Phase.TEST_EXECUTION
+                                    )
+                                    self.metrics_collector.increment_counter(
+                                        "test_cases_failed", phase=Phase.TEST_EXECUTION
+                                    )
+                            except Exception:  # pylint: disable=broad-exception-caught
+                                self.logger.debug("Failed to record test failure metrics")
                             if self.global_config.progress.show_test_status:
                                 emoji = (
                                     "❌ "
@@ -713,6 +730,16 @@ class ExperimentManager(
                             continue
 
                         successful_tests += 1
+                        try:
+                            if self.metrics_collector:
+                                self.metrics_collector.increment_counter(
+                                    "test_cases_total", phase=Phase.TEST_EXECUTION
+                                )
+                                self.metrics_collector.increment_counter(
+                                    "test_cases_successful", phase=Phase.TEST_EXECUTION
+                                )
+                        except Exception:  # pylint: disable=broad-exception-caught
+                            self.logger.debug("Failed to record test success metrics")
                         if self.global_config.progress.show_test_status:
                             emoji = (
                                 "✅ " if self.global_config.progress.use_emojis else ""
@@ -765,6 +792,16 @@ class ExperimentManager(
                     ) as test_error:
                         # Handle all expected error types with a single handler
                         failed_tests += 1
+                        try:
+                            if self.metrics_collector:
+                                self.metrics_collector.increment_counter(
+                                    "test_cases_total", phase=Phase.TEST_EXECUTION
+                                )
+                                self.metrics_collector.increment_counter(
+                                    "test_cases_failed", phase=Phase.TEST_EXECUTION
+                                )
+                        except Exception:  # pylint: disable=broad-exception-caught
+                            self.logger.debug("Failed to record test error metrics")
 
                         # Click progress bar handles iteration automatically
 
@@ -852,6 +889,17 @@ class ExperimentManager(
                             )
 
             self.logger.info("")  # Add final newline for clean output formatting
+
+            # Track experiment outcome in metrics
+            if self.metrics_collector:
+                if failed_tests == 0:
+                    self.metrics_collector.increment_counter(
+                        "experiments_successful", phase=Phase.TEST_EXECUTION
+                    )
+                else:
+                    self.metrics_collector.increment_counter(
+                        "experiments_failed", phase=Phase.TEST_EXECUTION
+                    )
 
             # Experiment-level summary is handled by experiment_emitter
             self.logger.info(
@@ -989,33 +1037,43 @@ class ExperimentManager(
         )
 
     def cleanup(self):
-        """Clean up resources including observers and event handlers."""
+        """Clean up resources including observers and event handlers.
+
+        Each cleanup step has its own error handling so that a failure in one
+        step does not prevent subsequent steps (e.g., metrics export) from running.
+        """
         self.logger.info("Starting experiment cleanup")
 
+        # Generate final log statistics report if enabled
         try:
-            # Generate final log statistics report if enabled
             self._generate_final_log_report()
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            self.logger.warning("Failed to generate final log report: %s", e)
 
-            # Stop log statistics display if running
+        # Stop log statistics display if running
+        try:
             if self.log_statistics_display and self.log_statistics_display.running:
                 self.log_statistics_display.stop_display()
                 self.logger.info("Stopped log statistics display")
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            self.logger.warning("Failed to stop log statistics display: %s", e)
 
-            # Clean up state observer
+        # Clean up state observer
+        try:
             if hasattr(self, "state_observer"):
                 self.event_manager.unregister_observer(self.state_observer)
                 self.logger.debug("Unregistered StateEventObserver")
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            self.logger.warning("Failed to unregister state observer: %s", e)
 
-            # Clean up other observers through factory
+        # Clean up other observers through factory
+        try:
             factory = get_observer_factory()
-
-            # List of observer names we created
             observer_names = [
                 "experiment_logger",
                 "experiment_metrics",
                 "experiment_observer",
             ]
-
             for observer_name in observer_names:
                 if factory.unregister_observer(observer_name):
                     self.logger.debug("Unregistered %s", observer_name)
@@ -1023,36 +1081,37 @@ class ExperimentManager(
                     self.logger.debug(
                         "%s was not registered or already removed", observer_name
                     )
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            self.logger.warning("Failed to unregister observers: %s", e)
 
-            # Clear workflow tracker states for this experiment
+        # Clear workflow tracker states for this experiment
+        try:
             if hasattr(self, "workflow_tracker"):
                 self.workflow_tracker.clear_workflow_state(self.experiment_name)
                 self.logger.debug("Cleared workflow state for experiment")
-
-            # Generate experiment report
-            try:
-                self._generate_experiment_report()
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                self.logger.warning("Failed to generate report: %s", e)
-
-            # Export metrics to disk if collector is present
-            if self.metrics_collector is not None:
-                try:
-                    from panther.core.metrics import MetricsExporter
-
-                    self.metrics_collector.finalize()
-                    exporter = MetricsExporter(self.metrics_collector)
-                    metrics_dir = self.experiment_dir / "metrics"
-                    metrics_dir.mkdir(parents=True, exist_ok=True)
-                    exporter.export_to_json(metrics_dir / "metrics.json")
-                    exporter.export_to_csv(metrics_dir)
-                    self.logger.info("Metrics exported to: %s", metrics_dir)
-                except Exception as e:  # pylint: disable=broad-exception-caught
-                    self.logger.warning("Failed to export metrics: %s", e)
-
         except Exception as e:  # pylint: disable=broad-exception-caught
-            self.logger.error("Error during cleanup: %s", e, exc_info=True)
-            # Don't raise - we want cleanup to be best-effort
+            self.logger.warning("Failed to clear workflow state: %s", e)
+
+        # Generate experiment report
+        try:
+            self._generate_experiment_report()
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            self.logger.warning("Failed to generate report: %s", e)
+
+        # Export metrics to disk if collector is present
+        if self.metrics_collector is not None:
+            try:
+                from panther.core.metrics import MetricsExporter
+
+                self.metrics_collector.finalize()
+                exporter = MetricsExporter(self.metrics_collector)
+                metrics_dir = self.experiment_dir / "metrics"
+                metrics_dir.mkdir(parents=True, exist_ok=True)
+                exporter.export_to_json(metrics_dir / "metrics.json")
+                exporter.export_to_csv(metrics_dir)
+                self.logger.info("Metrics exported to: %s", metrics_dir)
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                self.logger.warning("Failed to export metrics: %s", e)
 
     def __enter__(self):
         """Context manager entry - return self for use in with statements."""

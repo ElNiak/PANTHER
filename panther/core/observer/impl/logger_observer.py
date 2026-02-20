@@ -559,7 +559,7 @@ class LoggerObserver(ITypedObserver):
             "timestamp": datetime.now(),
             "event_type": event_type,
             "event_id": str(getattr(event, "event_id", "")),
-            "event_data": getattr(event, "entity_metadata", {}),
+            "event_data": getattr(event, "data", getattr(event, "entity_metadata", {})),
         }
 
         self.event_history.append(event_entry)

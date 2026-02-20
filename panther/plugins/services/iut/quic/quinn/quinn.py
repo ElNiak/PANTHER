@@ -304,9 +304,9 @@ class QuinnServiceManager(IUTManagerEventMixin, RustQUICServiceManager):
             # Create artifacts directory
             "mkdir -p /app/logs/artifacts;",
             # Copy any QUIC logs to artifacts (not root logs)
-            "find /tmp -name '*.qlog' -exec cp {} /app/logs/artifacts/ \\; 2>/dev/null || true;",
+            "find /tmp -name \"*.qlog\" -exec cp {} /app/logs/artifacts/ \\; 2>/dev/null || true;",
             # Copy key logs to artifacts
-            "find /tmp -name '*.keylog' -exec cp {} /app/logs/artifacts/ \\; 2>/dev/null || true;",
+            "find /tmp -name \"*.keylog\" -exec cp {} /app/logs/artifacts/ \\; 2>/dev/null || true;",
             # Copy Rust binaries to artifacts
             "cp -r /opt/quinn/target/release/examples /app/logs/artifacts/ 2>/dev/null || true;",
         ]
