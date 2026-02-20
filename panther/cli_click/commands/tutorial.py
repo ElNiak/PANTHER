@@ -117,6 +117,7 @@ def run(
     info_message(f"📖 Mode: {mode.title()} | Level: {level.title()}")
 
     if output_dir:
+        output_dir = Path(output_dir)  # click.Path() returns str
         output_dir.mkdir(parents=True, exist_ok=True)
         info_message(f"📁 Tutorial artifacts will be saved to: {output_dir}")
 
