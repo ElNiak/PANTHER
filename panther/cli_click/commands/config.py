@@ -802,6 +802,8 @@ def design(ctx, output, from_file, quick, non_interactive):
     click.echo("=" * 60)
     click.echo()
 
+    output = Path(output)  # click.Path() returns str, convert to Path
+
     # Check for file conflicts
     if output.exists():
         if not click.confirm(f"File {output} already exists. Overwrite?"):

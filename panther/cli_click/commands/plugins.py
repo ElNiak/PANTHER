@@ -700,6 +700,7 @@ def check_deps(ctx, plugin_path: Path, fix: bool, requirements_file: Optional[Pa
     ⚠️  Optional dependencies (recommended but not required)
     📦 Suggested installation commands
     """
+    plugin_path = Path(plugin_path)  # click.Path() returns str, convert to Path
     verbose = ctx.obj.get("verbose", False)
 
     if verbose:

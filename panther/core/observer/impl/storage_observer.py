@@ -249,7 +249,8 @@ class StorageObserver(ITypedObserver):
                 "test_id": getattr(
                     event, "test_id", getattr(event, "entity_id", "unknown")
                 ),
-                "failure_reason": getattr(event, "failure_reason", "Unknown"),
+                "failure_reason": getattr(event, "failure_reason", None)
+                or getattr(event, "data", {}).get("error_message", "Unknown"),
             },
             metadata={"original_event_id": str(getattr(event, "event_id", event.id))},
         )
@@ -804,9 +805,9 @@ class StorageObserver(ITypedObserver):
 
             # Add metadata
             metadata = ET.SubElement(root, "metadata")
-            ET.SubElement(
-                metadata, "export_timestamp"
-            ).text = datetime.now().isoformat()
+            ET.SubElement(metadata, "export_timestamp").text = (
+                datetime.now().isoformat()
+            )
             ET.SubElement(metadata, "storage_path").text = str(self.storage_path)
 
             # Add events

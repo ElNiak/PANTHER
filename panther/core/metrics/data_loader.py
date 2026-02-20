@@ -57,7 +57,7 @@ class MetricsDataLoader:
         for d in self.output_dir.iterdir():
             if d.is_dir():
                 metrics_dir = d / "metrics"
-                if metrics_dir.exists() and list(metrics_dir.glob("metrics*.json")):
+                if metrics_dir.exists() and (metrics_dir / "metrics.json").exists():
                     results.append(d)
 
         return sorted(results, key=lambda d: d.stat().st_mtime, reverse=True)
@@ -229,7 +229,7 @@ class MetricsDataLoader:
         phase = data.get("phase_metrics", {})
         if isinstance(phase, dict):
             for phase_name, phase_data in phase.items():
-                if isinstance(phase_data, dict) and name.lower() in phase_name.lower():
+                if isinstance(phase_data, dict) and phase_name.lower() == name.lower():
                     results.append({
                         "name": phase_name,
                         "timestamp": None,

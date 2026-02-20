@@ -501,6 +501,8 @@ class TestFailedEvent(TestEvent):
         )
         self.test_name = test_name or test_id
         self.test_id = test_id
+        self.failure_reason = error_message
+        self.error_message = error_message
 
 
 class TestResultEvent(TestEvent):

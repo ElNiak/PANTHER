@@ -219,6 +219,11 @@ class TestExecutor:
                     and callable(env_manager.should_terminate_early)
                     and env_manager.should_terminate_early()
                 ):
+                    self.logger.info(
+                        "Early termination triggered by %s. "
+                        "Stopping wait; teardown deferred until after output collection.",
+                        env_manager.__class__.__name__,
+                    )
                     return
 
     def _execute_http_request_step(self, config: Dict[str, Any]) -> None:
