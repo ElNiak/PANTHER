@@ -1089,6 +1089,21 @@ class ExperimentManager(
                 except Exception as e:  # pylint: disable=broad-exception-caught
                     self.logger.warning("Failed to export metrics: %s", e)
 
+            # Export metrics to disk if collector is present
+            if self.metrics_collector is not None:
+                try:
+                    from panther.core.metrics import MetricsExporter
+
+                    self.metrics_collector.finalize()
+                    exporter = MetricsExporter(self.metrics_collector)
+                    metrics_dir = self.experiment_dir / "metrics"
+                    metrics_dir.mkdir(parents=True, exist_ok=True)
+                    exporter.export_to_json(metrics_dir / "metrics.json")
+                    exporter.export_to_csv(metrics_dir)
+                    self.logger.info("Metrics exported to: %s", metrics_dir)
+                except Exception as e:  # pylint: disable=broad-exception-caught
+                    self.logger.warning("Failed to export metrics: %s", e)
+
         except Exception as e:  # pylint: disable=broad-exception-caught
             self.logger.error("Error during cleanup: %s", e, exc_info=True)
             # Don't raise - we want cleanup to be best-effort
