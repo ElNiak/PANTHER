@@ -682,6 +682,15 @@ else
   {% endif %}
 
   if [[ -n "$EXEC_ENV_WRAPPERS" ]]; then
+    # Validate wrapper binary exists before attempting to use it
+    WRAPPER_BINARY=$(echo "$EXEC_ENV_WRAPPERS" | awk '{print $1}')
+    if ! command -v "$WRAPPER_BINARY" >/dev/null 2>&1; then
+      log "WARNING: Wrapper binary '$WRAPPER_BINARY' not found. Falling back to direct execution."
+      EXEC_ENV_WRAPPERS=""
+    fi
+  fi
+
+  if [[ -n "$EXEC_ENV_WRAPPERS" ]]; then
     # Execute the strace setup first, then the wrapped command
     # Split the wrapper into setup and trace parts
     log "Running command with execution environment wrappers"
@@ -785,5 +794,9 @@ fi
 log "Executing post-run commands..."
 {{ execute_command_phase(structured_commands.get("post_run_cmds") if structured_commands else [], "POST_RUN") }}
 
-log "All commands executed successfully. Service '{{additional_param.service_name}}' entrypoint complete."
+if [[ $RUN_STATUS -eq 0 || $RUN_STATUS -eq -666 ]]; then
+  log "All commands executed successfully. Service '{{additional_param.service_name}}' entrypoint complete."
+else
+  log "Service '{{additional_param.service_name}}' entrypoint complete with errors (exit code: $RUN_STATUS)."
+fi
 exit $RUN_STATUS

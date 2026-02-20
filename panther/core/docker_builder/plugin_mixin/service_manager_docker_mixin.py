@@ -149,17 +149,32 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
             target_platform=docker_builder.get_target_platform(),
         )
 
+        force_build = False
         if (
-            docker_builder.image_exists(base_image_tag)
-            and not getattr(self, "global_config", None)
-            or not getattr(self.global_config, "docker", None)
-            or not getattr(self.global_config.docker, "force_build_docker_image", False)
+            hasattr(self, "global_config")
+            and self.global_config
+            and hasattr(self.global_config, "docker")
+            and self.global_config.docker
         ):
-            self.logger.info(
-                f"Base Docker image '{base_image_tag}'  already exists, skipping build"
+            force_build = getattr(
+                self.global_config.docker, "force_build_docker_image", False
             )
-            self._base_image_built = True
-            return
+
+        if docker_builder.image_exists(base_image_tag) and not force_build:
+            # Verify with direct Docker API (same as Fix 7)
+            try:
+                docker_builder.client.images.get(base_image_tag)
+                self.logger.info(
+                    f"Base Docker image verified and exists, skipping build: {base_image_tag}"
+                )
+                self._base_image_built = True
+                return
+            except Exception:
+                self.logger.warning(
+                    f"Cache reported base image exists but Docker API verification failed for "
+                    f"'{base_image_tag}', proceeding with build"
+                )
+                docker_builder.image_cache.invalidate_cache()
 
         self.logger.info(
             f"Building base Docker image with runtime_mode='{runtime_mode}' (once per experiment)"

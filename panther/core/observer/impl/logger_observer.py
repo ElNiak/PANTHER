@@ -509,7 +509,7 @@ class LoggerObserver(ITypedObserver):
         self.logger.error(
             "❌ TEST FAILED: %s - %s",
             getattr(event, "test_id", getattr(event, "entity_id", "unknown")),
-            getattr(event, "failure_reason", "Unknown reason"),
+            getattr(event, "failure_reason", None) or event.data.get("error_message", "Unknown reason"),
         )
         return True
 

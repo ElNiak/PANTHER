@@ -76,25 +76,32 @@ def _escape_single_line(cmd: str) -> str:
 
     # Handle commands with semicolons
     if ";" in cmd and not cmd.count('"') % 2 and not cmd.count("'") % 2:
-        # Split by semicolon, but not within quotes
+        # Split by semicolon, but not within quotes and not escaped semicolons (\;)
         parts = []
         current = []
         in_single_quote = False
         in_double_quote = False
+        prev_char = ""
 
         for char in cmd:
             if char == "'" and not in_double_quote:
                 in_single_quote = not in_single_quote
             elif char == '"' and not in_single_quote:
                 in_double_quote = not in_double_quote
-            elif char == ";" and not in_single_quote and not in_double_quote:
+            elif char == ";" and not in_single_quote and not in_double_quote and prev_char != "\\":
                 parts.append("".join(current).strip())
                 current = []
+                prev_char = char
                 continue
             current.append(char)
+            prev_char = char
 
         if current:
             parts.append("".join(current).strip())
+
+        # If only one part after splitting, the semicolons were all escaped - treat as simple command
+        if len(parts) <= 1:
+            return _escape_simple_command(parts[0] if parts else cmd)
 
         escaped_parts = [_escape_simple_command(part) for part in parts if part]
         return " ; ".join(escaped_parts)
@@ -344,11 +351,14 @@ def split_complex_command(cmd: str) -> List[str]:
                     current = []
                     i += 2
                     continue
-            if char in [";"]:
-                parts.append("".join(current).strip())
-                current = []
-                i += 1
-                continue
+            if char == ";":
+                # Skip escaped semicolons (\;) used by find -exec
+                prev_char = cmd[i - 1] if i > 0 else ""
+                if prev_char != "\\":
+                    parts.append("".join(current).strip())
+                    current = []
+                    i += 1
+                    continue
 
         current.append(char)
         i += 1
