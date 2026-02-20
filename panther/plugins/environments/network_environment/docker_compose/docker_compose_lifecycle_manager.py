@@ -255,7 +255,7 @@ class DockerComposeLifecycleManager:
             "SOURCE_DIR": "/opt",
             "ROOTPATH": "/opt",
             "MODEL_TYPE": "protocol",
-            "PYTHON_IVY_DIR": "/root/.pyenv/versions/3.10.12/lib/python3.10/site-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/",
+            "PYTHON_IVY_DIR": "/root/.pyenv/versions/3.10.12/lib/python3.10/site-packages/panther_ms_ivy-1.8.26-py3.10-linux-x86_64.egg/ivy/",
         }
 
         # Update working vars with base values if not already set
