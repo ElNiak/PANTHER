@@ -30,21 +30,16 @@ class TestTutorialRun:
 
     def test_run_success_exit_code(self, runner):
         """B1+B2: run_tutorial(type) returns 0 -> exit code 0."""
-        with patch(
-            "panther.tools.plugins.plugin_creator.run_tutorial", return_value=0
-        ):
+        with patch("panther.tools.plugins.plugin_creator.run_tutorial", return_value=0):
             result = runner.invoke(cli, ["tutorial", "run", "service"])
         assert result.exit_code == 0
 
     def test_run_failure_exit_code(self, runner):
         """B2: run_tutorial returns non-zero -> non-zero exit or error output."""
-        with patch(
-            "panther.tools.plugins.plugin_creator.run_tutorial", return_value=1
-        ):
+        with patch("panther.tools.plugins.plugin_creator.run_tutorial", return_value=1):
             result = runner.invoke(cli, ["tutorial", "run", "service"])
-        # handle_errors calls sys.exit(1) when the function returns 1,
-        # or the function returns 1 which Click translates
-        assert result.exit_code != 0 or "encountered issues" in (result.output or "")
+        # handle_errors calls sys.exit(1) when the function returns 1
+        assert result.exit_code != 0
 
     def test_run_import_error(self, runner):
         """Import error is caught and reported gracefully."""
@@ -61,9 +56,7 @@ class TestTutorialRun:
     )
     def test_run_all_valid_types(self, runner, tutorial_type):
         """All four tutorial types are accepted by the CLI."""
-        with patch(
-            "panther.tools.plugins.plugin_creator.run_tutorial", return_value=0
-        ):
+        with patch("panther.tools.plugins.plugin_creator.run_tutorial", return_value=0):
             result = runner.invoke(cli, ["tutorial", "run", tutorial_type])
         assert result.exit_code == 0
 
@@ -92,9 +85,7 @@ class TestTutorialRun:
 
     def test_run_zero_is_success(self, runner):
         """B2: Return value 0 is treated as success (exit code 0), not falsy."""
-        with patch(
-            "panther.tools.plugins.plugin_creator.run_tutorial", return_value=0
-        ):
+        with patch("panther.tools.plugins.plugin_creator.run_tutorial", return_value=0):
             result = runner.invoke(cli, ["tutorial", "run", "service"])
         assert result.exit_code == 0
 
@@ -192,27 +183,19 @@ class TestTutorialInteractive:
 
     def test_interactive_run_tutorial(self, runner):
         """Selecting a tutorial number invokes it, then user can quit."""
-        with patch(
-            "panther.tools.plugins.plugin_creator.run_tutorial", return_value=0
-        ):
+        with patch("panther.tools.plugins.plugin_creator.run_tutorial", return_value=0):
             # Select tutorial 1, then answer "no" to "try another" prompt
-            result = runner.invoke(
-                cli, ["tutorial", "interactive"], input="1\nn\n"
-            )
+            result = runner.invoke(cli, ["tutorial", "interactive"], input="1\nn\n")
         assert result.exit_code == 0
 
     def test_interactive_invalid_input(self, runner):
         """Invalid input doesn't crash, then user can quit."""
-        result = runner.invoke(
-            cli, ["tutorial", "interactive"], input="xyz\nq\n"
-        )
+        result = runner.invoke(cli, ["tutorial", "interactive"], input="xyz\nq\n")
         assert result.exit_code == 0
 
     def test_interactive_invalid_number(self, runner):
         """Out-of-range number doesn't crash, then user can quit."""
-        result = runner.invoke(
-            cli, ["tutorial", "interactive"], input="9\nq\n"
-        )
+        result = runner.invoke(cli, ["tutorial", "interactive"], input="9\nq\n")
         assert result.exit_code == 0
 
     def test_interactive_system_exit_recovery(self, runner):
@@ -222,9 +205,7 @@ class TestTutorialInteractive:
             side_effect=SystemExit(1),
         ):
             # Select tutorial 1, SystemExit caught, answer "no" to "select another"
-            result = runner.invoke(
-                cli, ["tutorial", "interactive"], input="1\nn\n"
-            )
+            result = runner.invoke(cli, ["tutorial", "interactive"], input="1\nn\n")
         # Interactive mode catches SystemExit; exit code should be 0 or 1 (not a crash)
         assert result.exit_code in (0, 1)
 
@@ -239,12 +220,8 @@ class TestTutorialInteractive:
 
     def test_interactive_prompt_wording(self, runner):
         """U4: After failure, prompt says 'select another' not 'try again'."""
-        with patch(
-            "panther.tools.plugins.plugin_creator.run_tutorial", return_value=1
-        ):
-            result = runner.invoke(
-                cli, ["tutorial", "interactive"], input="1\nn\n"
-            )
+        with patch("panther.tools.plugins.plugin_creator.run_tutorial", return_value=1):
+            result = runner.invoke(cli, ["tutorial", "interactive"], input="1\nn\n")
         assert "try again" not in result.output.lower()
 
 

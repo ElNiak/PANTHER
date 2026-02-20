@@ -19,6 +19,116 @@ from panther.cli_click.core.base import (
     warning_message,
 )
 
+# Single source of truth for tutorial metadata. Both `list_tutorials` and
+# `interactive` derive their data from this registry.
+TUTORIAL_REGISTRY: List[dict] = [
+    {
+        "name": "service",
+        "title": "Service Plugin Development",
+        "description": (
+            "Learn to create service plugins for protocol"
+            " implementations like QUIC, HTTP, and custom protocols"
+        ),
+        "duration": "15-20 minutes",
+        "difficulty": "beginner",
+        "category": "service",
+        "topics": [
+            "Plugin architecture",
+            "IUT integration",
+            "Configuration management",
+            "Testing strategies",
+        ],
+        "prerequisites": [
+            "Basic Python knowledge",
+            "Understanding of network protocols",
+        ],
+        "examples": [
+            "QUIC service implementation",
+            "HTTP/2 service plugin",
+            "Custom protocol wrapper",
+        ],
+    },
+    {
+        "name": "environment",
+        "title": "Environment Plugin Development",
+        "description": (
+            "Learn to create network and execution environment"
+            " plugins for complex testing scenarios"
+        ),
+        "duration": "20-25 minutes",
+        "difficulty": "intermediate",
+        "category": "environment",
+        "topics": [
+            "Network simulation",
+            "Container orchestration",
+            "Environment isolation",
+            "Resource management",
+        ],
+        "prerequisites": [
+            "Service plugin experience",
+            "Docker knowledge",
+            "Network fundamentals",
+        ],
+        "examples": [
+            "Multi-host network setup",
+            "Containerized test environment",
+            "Network latency simulation",
+        ],
+    },
+    {
+        "name": "protocol",
+        "title": "Protocol Plugin Development",
+        "description": (
+            "Learn to create protocol definition plugins"
+            " for testing and validation frameworks"
+        ),
+        "duration": "10-15 minutes",
+        "difficulty": "beginner",
+        "category": "protocol",
+        "topics": [
+            "Protocol specification",
+            "Test case generation",
+            "Validation rules",
+            "Coverage analysis",
+        ],
+        "prerequisites": [
+            "Basic networking concepts",
+            "Protocol specification understanding",
+        ],
+        "examples": [
+            "QUIC protocol testing",
+            "HTTP/3 validation",
+            "Custom protocol definitions",
+        ],
+    },
+    {
+        "name": "configuration",
+        "title": "Experiment Configuration Mastery",
+        "description": (
+            "Learn to write and structure experiment"
+            " configuration files for complex testing scenarios"
+        ),
+        "duration": "10-15 minutes",
+        "difficulty": "beginner",
+        "category": "configuration",
+        "topics": [
+            "YAML/JSON configuration",
+            "Template systems",
+            "Variable substitution",
+            "Validation schemas",
+        ],
+        "prerequisites": [
+            "Basic YAML/JSON knowledge",
+            "Understanding of experiment concepts",
+        ],
+        "examples": [
+            "Multi-protocol experiments",
+            "Parametric testing",
+            "Environment-specific configs",
+        ],
+    },
+]
+
 
 @click.group()
 def tutorial():
@@ -173,18 +283,18 @@ def run(
         else:
             error_message(f"Tutorial '{tutorial_type}' encountered issues")
             warning_message("Try running with --help for usage information")
-            return 1
+            ctx.exit(1)
 
     except ImportError as e:
         error_message(f"Tutorial system not available: {e}")
         warning_message("Ensure PANTHER tutorial plugins are properly installed")
-        return 1
+        ctx.exit(1)
     except Exception as e:
         error_message(f"Error running tutorial: {e}")
         # B5 fix: debug flag lives on ctx.obj, not on click params
         if ctx.obj.get("debug"):
             traceback.print_exc()
-        return 1
+        ctx.exit(1)
 
 
 @tutorial.command(name="list")
@@ -241,101 +351,7 @@ def list_tutorials(ctx, output_format: str, level: str, category: str):
     """
     info_message("Available PANTHER Tutorials")
 
-    tutorials = [
-        {
-            "name": "service",
-            "title": "Service Plugin Development",
-            "description": "Learn to create service plugins for protocol implementations like QUIC, HTTP, and custom protocols",
-            "duration": "15-20 minutes",
-            "difficulty": "beginner",
-            "category": "service",
-            "topics": [
-                "Plugin architecture",
-                "IUT integration",
-                "Configuration management",
-                "Testing strategies",
-            ],
-            "prerequisites": [
-                "Basic Python knowledge",
-                "Understanding of network protocols",
-            ],
-            "examples": [
-                "QUIC service implementation",
-                "HTTP/2 service plugin",
-                "Custom protocol wrapper",
-            ],
-        },
-        {
-            "name": "environment",
-            "title": "Environment Plugin Development",
-            "description": "Learn to create network and execution environment plugins for complex testing scenarios",
-            "duration": "20-25 minutes",
-            "difficulty": "intermediate",
-            "category": "environment",
-            "topics": [
-                "Network simulation",
-                "Container orchestration",
-                "Environment isolation",
-                "Resource management",
-            ],
-            "prerequisites": [
-                "Service plugin experience",
-                "Docker knowledge",
-                "Network fundamentals",
-            ],
-            "examples": [
-                "Multi-host network setup",
-                "Containerized test environment",
-                "Network latency simulation",
-            ],
-        },
-        {
-            "name": "protocol",
-            "title": "Protocol Plugin Development",
-            "description": "Learn to create protocol definition plugins for testing and validation frameworks",
-            "duration": "10-15 minutes",
-            "difficulty": "beginner",
-            "category": "protocol",
-            "topics": [
-                "Protocol specification",
-                "Test case generation",
-                "Validation rules",
-                "Coverage analysis",
-            ],
-            "prerequisites": [
-                "Basic networking concepts",
-                "Protocol specification understanding",
-            ],
-            "examples": [
-                "QUIC protocol testing",
-                "HTTP/3 validation",
-                "Custom protocol definitions",
-            ],
-        },
-        {
-            "name": "configuration",
-            "title": "Experiment Configuration Mastery",
-            "description": "Learn to write and structure experiment configuration files for complex testing scenarios",
-            "duration": "10-15 minutes",
-            "difficulty": "beginner",
-            "category": "configuration",
-            "topics": [
-                "YAML/JSON configuration",
-                "Template systems",
-                "Variable substitution",
-                "Validation schemas",
-            ],
-            "prerequisites": [
-                "Basic YAML/JSON knowledge",
-                "Understanding of experiment concepts",
-            ],
-            "examples": [
-                "Multi-protocol experiments",
-                "Parametric testing",
-                "Environment-specific configs",
-            ],
-        },
-    ]
+    tutorials = list(TUTORIAL_REGISTRY)
 
     # Apply filters
     if level != "all":
@@ -370,9 +386,7 @@ def list_tutorials(ctx, output_format: str, level: str, category: str):
         click.echo(colored("-" * 60, "white"))
 
         for t in tutorials:
-            title_text = (
-                t["title"][:22] + "..." if len(t["title"]) > 25 else t["title"]
-            )
+            title_text = t["title"][:22] + "..." if len(t["title"]) > 25 else t["title"]
             click.echo(
                 f"{colored(_padded(t['name'], 12), 'cyan')} "
                 f"{colored(_padded(title_text, 25), 'white')} "
@@ -459,11 +473,8 @@ def interactive(ctx, quick_start: bool):
         info_message("Choose tutorials based on your goals and experience level.")
         click.echo()
 
-    tutorials = [
-        ("service", "Learn to create service plugins", "beginner"),
-        ("environment", "Learn to create environment plugins", "intermediate"),
-        ("protocol", "Learn to create protocol plugins", "beginner"),
-        ("configuration", "Learn to write experiment configurations", "beginner"),
+    tutorials: List[Tuple[str, str, str]] = [
+        (t["name"], t["description"], t["difficulty"]) for t in TUTORIAL_REGISTRY
     ]
 
     while True:
@@ -546,15 +557,11 @@ def interactive(ctx, quick_start: bool):
                     if result == 0:
                         click.echo()
                         if click.confirm(
-                            colored(
-                                "Would you like to try another tutorial?", "green"
-                            )
+                            colored("Would you like to try another tutorial?", "green")
                         ):
                             continue
                         else:
-                            success_message(
-                                "Tutorial session completed successfully!"
-                            )
+                            success_message("Tutorial session completed successfully!")
                             return 0
                     else:
                         warning_message(
@@ -576,9 +583,7 @@ def interactive(ctx, quick_start: bool):
                     )
 
             except ValueError:
-                error_message(
-                    "Invalid input. Please enter a number, 'l', 'h', or 'q'."
-                )
+                error_message("Invalid input. Please enter a number, 'l', 'h', or 'q'.")
 
         except KeyboardInterrupt:
             click.echo()
