@@ -500,7 +500,7 @@ class LoggerObserver(ITypedObserver):
         self.logger.error(
             "🔴 EXPERIMENT FAILED: %s - %s",
             event.entity_id,
-            event.data.get("failure_reason", "Unknown reason"),
+            getattr(event, "data", {}).get("failure_reason", "Unknown reason"),
         )
         return True
 
@@ -509,7 +509,8 @@ class LoggerObserver(ITypedObserver):
         self.logger.error(
             "❌ TEST FAILED: %s - %s",
             getattr(event, "test_id", getattr(event, "entity_id", "unknown")),
-            getattr(event, "failure_reason", "Unknown reason"),
+            getattr(event, "failure_reason", None)
+            or getattr(event, "data", {}).get("error_message", "Unknown reason"),
         )
         return True
 
@@ -518,7 +519,7 @@ class LoggerObserver(ITypedObserver):
         self.logger.error(
             "⚠️  SERVICE ERROR: %s - %s",
             event.entity_id,
-            event.data.get("error_message", "Unknown error"),
+            getattr(event, "data", {}).get("error_message", "Unknown error"),
         )
         return True
 
@@ -527,7 +528,7 @@ class LoggerObserver(ITypedObserver):
         self.logger.error(
             "🔥 ENVIRONMENT ERROR: %s - %s",
             event.entity_id,
-            event.data.get("error_message", "Unknown error"),
+            getattr(event, "data", {}).get("error_message", "Unknown error"),
         )
         return True
 

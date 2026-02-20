@@ -32,13 +32,14 @@ class TestMainCLI:
 
     def test_cli_debug_flag(self, cli_runner):
         """Test debug flag enables debug mode."""
-        result = cli_runner.invoke(cli, ["--debug", "--help"])
+        # Use a subcommand so the group callback runs (--help alone is eager and skips it)
+        result = cli_runner.invoke(cli, ["--debug", "config", "--help"])
         assert result.exit_code == 0
         assert "🐛 Debug mode enabled" in result.output
 
     def test_cli_verbose_flag(self, cli_runner):
         """Test verbose flag enables verbose mode."""
-        result = cli_runner.invoke(cli, ["--verbose", "--help"])
+        result = cli_runner.invoke(cli, ["--verbose", "config", "--help"])
         assert result.exit_code == 0
         assert "🔍 Verbose mode enabled" in result.output
 
@@ -171,10 +172,10 @@ class TestCLIIntegration:
 
     def test_cli_with_debug_verbose(self, cli_runner):
         """Test CLI with both debug and verbose flags."""
-        result = cli_runner.invoke(cli, ["--debug", "--verbose", "--help"])
+        result = cli_runner.invoke(cli, ["--debug", "--verbose", "config", "--help"])
         assert result.exit_code == 0
         assert "🐛 Debug mode enabled" in result.output
-        # Verbose message may not appear if debug is enabled
+        assert "🔍 Verbose mode enabled" in result.output
 
     def test_cli_subcommand_help(self, cli_runner):
         """Test help for subcommands."""

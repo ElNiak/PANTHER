@@ -85,12 +85,7 @@ class TestConfigDesignPathType:
 
 @pytest.mark.unit
 class TestTutorialPathType:
-    """Verify tutorial.py has the Path conversion fix.
-
-    Note: tutorial run() has a pre-existing bug (missing ctx parameter
-    from @pass_context_and_setup_logging decorator) that prevents
-    end-to-end CLI testing. The Path fix is verified by source reading.
-    """
+    """Verify tutorial.py has the Path conversion fix."""
 
     def test_tutorial_source_has_path_conversion(self):
         """Verify tutorial.py converts output_dir str to Path before .mkdir()."""
@@ -101,7 +96,7 @@ class TestTutorialPathType:
         source = Path(tutorial_mod.__file__).read_text()
         # Verify Path conversion appears before .mkdir() call
         conversion_pos = source.find("Path(output_dir)")
-        mkdir_pos = source.find("output_dir.mkdir(")
+        mkdir_pos = source.find("output_path.mkdir(")
         assert conversion_pos != -1, "Path(output_dir) conversion missing"
-        assert mkdir_pos != -1, "output_dir.mkdir() call missing"
+        assert mkdir_pos != -1, "output_path.mkdir() call missing"
         assert conversion_pos < mkdir_pos, "Path conversion must come before .mkdir()"

@@ -2,20 +2,18 @@
 Test cases for base utilities and decorators.
 
 Tests common decorators, error handling, logging setup,
-message functions, and command adapters.
+and message functions.
 """
 
 import logging
 import subprocess
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import patch
 
 import click
 import pytest
 
 from panther.cli_click.core.base import (
-    ClickCommandAdapter,
     common_options,
-    create_command_adapter,
     error_message,
     handle_errors,
     info_message,
@@ -266,93 +264,6 @@ class TestMessageFunctions:
         result = cli_runner.invoke(test_command)
         assert result.exit_code == 0
         assert "❌ Test error" in result.output
-
-
-class TestClickCommandAdapter:
-    """Test the ClickCommandAdapter class."""
-
-    def test_adapter_initialization(self):
-        """Test adapter initialization."""
-        mock_command = Mock()
-        adapter = ClickCommandAdapter(mock_command)
-        assert adapter.argparse_command == mock_command
-
-    def test_convert_click_args_to_argparse(self):
-        """Test conversion of Click arguments to argparse format."""
-        mock_command = Mock()
-        adapter = ClickCommandAdapter(mock_command)
-
-        click_kwargs = {"config": "test.yaml", "verbose": True, "debug": False}
-
-        args = adapter.convert_click_args_to_argparse(**click_kwargs)
-        assert args.config == "test.yaml"
-        assert args.verbose is True
-        assert args.debug is False
-
-    def test_handle_with_conversion(self):
-        """Test handling commands with argument conversion."""
-        mock_command = Mock()
-        mock_command.handle.return_value = 0
-        adapter = ClickCommandAdapter(mock_command)
-
-        click_kwargs = {"config": "test.yaml", "verbose": True}
-
-        result = adapter.handle_with_conversion(**click_kwargs)
-        assert result == 0
-        mock_command.handle.assert_called_once()
-
-        # Check that the passed args have the expected attributes
-        call_args = mock_command.handle.call_args[0][0]
-        assert call_args.config == "test.yaml"
-        assert call_args.verbose is True
-
-    def test_create_command_adapter(self):
-        """Test the create_command_adapter factory function."""
-        mock_command = Mock()
-        adapter = create_command_adapter(mock_command)
-
-        assert isinstance(adapter, ClickCommandAdapter)
-        assert adapter.argparse_command == mock_command
-
-
-class TestClickCommandAdapterIntegration:
-    """Integration tests for ClickCommandAdapter."""
-
-    def test_adapter_with_real_command(self, cli_runner):
-        """Test adapter with a real Click command."""
-
-        # Create a mock argparse command class
-        class MockArgparseCommand:
-            @staticmethod
-            def handle(args):
-                # Simulate argparse command behavior
-                if hasattr(args, "config") and args.config:
-                    return 0  # Success
-                return 1  # Failure
-
-        # Create adapter
-        adapter = create_command_adapter(MockArgparseCommand)
-
-        # Test successful case
-        result = adapter.handle_with_conversion(config="test.yaml", verbose=True)
-        assert result == 0
-
-        # Test failure case
-        result = adapter.handle_with_conversion(config=None, verbose=False)
-        assert result == 1
-
-    def test_adapter_error_handling(self):
-        """Test adapter error handling."""
-
-        class FailingArgparseCommand:
-            @staticmethod
-            def handle(args):
-                raise RuntimeError("Command failed")
-
-        adapter = create_command_adapter(FailingArgparseCommand)
-
-        with pytest.raises(RuntimeError, match="Command failed"):
-            adapter.handle_with_conversion(config="test.yaml")
 
 
 class TestDecoratorsIntegration:
