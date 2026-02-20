@@ -172,27 +172,26 @@ class TestDockerImageCache:
 
     @pytest.fixture
     def mock_docker_client(self):
-        """Create mock Docker client."""
+        """Create mock Docker client with low-level API response format."""
         client = Mock()
 
-        # Mock images.list() return value
-        mock_image_1 = Mock()
-        mock_image_1.id = "sha256:abc123"
-        mock_image_1.tags = ["python:3.11", "python:latest"]
-        mock_image_1.attrs = {
-            "Size": 500 * 1024 * 1024,
-            "Created": "2025-06-24T10:00:00Z",
-        }
+        # Mock api.images() return value (raw dicts from low-level Docker API)
+        raw_images = [
+            {
+                "Id": "sha256:abc123",
+                "RepoTags": ["python:3.11", "python:latest"],
+                "Size": 500 * 1024 * 1024,
+                "Created": "2025-06-24T10:00:00Z",
+            },
+            {
+                "Id": "sha256:def456",
+                "RepoTags": ["alpine:3.18"],
+                "Size": 5 * 1024 * 1024,
+                "Created": "2025-06-24T09:00:00Z",
+            },
+        ]
 
-        mock_image_2 = Mock()
-        mock_image_2.id = "sha256:def456"
-        mock_image_2.tags = ["alpine:3.18"]
-        mock_image_2.attrs = {
-            "Size": 5 * 1024 * 1024,
-            "Created": "2025-06-24T09:00:00Z",
-        }
-
-        client.images.list.return_value = [mock_image_1, mock_image_2]
+        client.api.images.return_value = raw_images
         client.ping.return_value = True
 
         return client
@@ -218,8 +217,11 @@ class TestDockerImageCache:
 
         assert cache._docker_client == mock_docker_client
 
+    @pytest.mark.skipif(
+        not DOCKER_SYSTEM_AVAILABLE, reason="Requires real DockerImageCache"
+    )
     def test_cache_refresh_from_docker(self, temp_cache_file, mock_docker_client):
-        """Test cache refresh from Docker daemon."""
+        """Test cache refresh from Docker daemon via low-level API."""
         cache = DockerImageCache(cache_file=temp_cache_file)
         cache.set_docker_client(mock_docker_client)
 
@@ -231,18 +233,24 @@ class TestDockerImageCache:
         assert "sha256:abc123" in cache._cache
         assert "sha256:def456" in cache._cache
 
-        # Verify image data
+        # Verify image data parsed from raw API dict format
         python_image = cache._cache["sha256:abc123"]
         assert "python:3.11" in python_image.tags
         assert python_image.size == 500 * 1024 * 1024
 
+        # Verify the low-level API was used (not images.list)
+        mock_docker_client.api.images.assert_called_once_with(all=False)
+
+    @pytest.mark.skipif(
+        not DOCKER_SYSTEM_AVAILABLE, reason="Requires real DockerImageCache"
+    )
     def test_cache_refresh_docker_failure(self, temp_cache_file):
         """Test cache refresh when Docker is unavailable."""
         cache = DockerImageCache(cache_file=temp_cache_file, retry_count=1)
 
-        # Mock Docker client that fails
+        # Mock Docker client that fails on the low-level API
         mock_client = Mock()
-        mock_client.images.list.side_effect = DockerException("Connection refused")
+        mock_client.api.images.side_effect = DockerException("Connection refused")
         cache.set_docker_client(mock_client)
 
         # Refresh should fail but not raise exception
@@ -251,6 +259,9 @@ class TestDockerImageCache:
         assert result is False
         assert len(cache._cache) == 0
 
+    @pytest.mark.skipif(
+        not DOCKER_SYSTEM_AVAILABLE, reason="Requires real DockerImageCache"
+    )
     def test_get_cached_images_fresh_cache(self, temp_cache_file, mock_docker_client):
         """Test getting cached images with fresh cache."""
         cache = DockerImageCache(cache_file=temp_cache_file, cache_ttl=300)
@@ -260,15 +271,18 @@ class TestDockerImageCache:
         images = cache.get_cached_images()
 
         assert len(images) == 2
-        mock_docker_client.images.list.assert_called_once()
+        mock_docker_client.api.images.assert_called_once_with(all=False)
 
         # Second call should use cache (no additional Docker call)
-        mock_docker_client.images.list.reset_mock()
+        mock_docker_client.api.images.reset_mock()
         images = cache.get_cached_images()
 
         assert len(images) == 2
-        mock_docker_client.images.list.assert_not_called()
+        mock_docker_client.api.images.assert_not_called()
 
+    @pytest.mark.skipif(
+        not DOCKER_SYSTEM_AVAILABLE, reason="Requires real DockerImageCache"
+    )
     def test_get_cached_images_force_refresh(self, temp_cache_file, mock_docker_client):
         """Test forced cache refresh."""
         cache = DockerImageCache(cache_file=temp_cache_file)
@@ -276,14 +290,17 @@ class TestDockerImageCache:
 
         # Initial cache
         cache.get_cached_images()
-        mock_docker_client.images.list.reset_mock()
+        mock_docker_client.api.images.reset_mock()
 
         # Force refresh should call Docker API again
         images = cache.get_cached_images(force_refresh=True)
 
         assert len(images) == 2
-        mock_docker_client.images.list.assert_called_once()
+        mock_docker_client.api.images.assert_called_once_with(all=False)
 
+    @pytest.mark.skipif(
+        not DOCKER_SYSTEM_AVAILABLE, reason="Requires real DockerImageCache"
+    )
     def test_image_exists_in_cache(self, temp_cache_file, mock_docker_client):
         """Test image existence checking from cache."""
         cache = DockerImageCache(cache_file=temp_cache_file)
@@ -300,6 +317,9 @@ class TestDockerImageCache:
         # Test non-existing image
         assert cache.image_exists_in_cache("nonexistent:tag") is False
 
+    @pytest.mark.skipif(
+        not DOCKER_SYSTEM_AVAILABLE, reason="Requires real DockerImageCache"
+    )
     def test_cache_ttl_expiration(self, temp_cache_file, mock_docker_client):
         """Test cache TTL expiration behavior."""
         cache = DockerImageCache(
@@ -316,10 +336,13 @@ class TestDockerImageCache:
         assert cache._is_cache_fresh() is False
 
         # Next call should refresh cache
-        mock_docker_client.images.list.reset_mock()
+        mock_docker_client.api.images.reset_mock()
         cache.get_cached_images()
-        mock_docker_client.images.list.assert_called_once()
+        mock_docker_client.api.images.assert_called_once_with(all=False)
 
+    @pytest.mark.skipif(
+        not DOCKER_SYSTEM_AVAILABLE, reason="Requires real DockerImageCache"
+    )
     def test_cache_persistence(self, temp_cache_file, mock_docker_client):
         """Test cache persistence to file."""
         # Create cache and populate it
@@ -340,6 +363,9 @@ class TestDockerImageCache:
         assert "last_refresh" in data
         assert len(data["images"]) == 2
 
+    @pytest.mark.skipif(
+        not DOCKER_SYSTEM_AVAILABLE, reason="Requires real DockerImageCache"
+    )
     def test_cache_loading(self, temp_cache_file):
         """Test cache loading from persistent file."""
         # Create cache file manually
@@ -367,6 +393,9 @@ class TestDockerImageCache:
         assert "sha256:test123" in cache._cache
         assert cache._cache["sha256:test123"].tags == ["test:latest"]
 
+    @pytest.mark.skipif(
+        not DOCKER_SYSTEM_AVAILABLE, reason="Requires real DockerImageCache"
+    )
     def test_cache_loading_corrupted_file(self, temp_cache_file):
         """Test cache loading with corrupted file."""
         # Create corrupted cache file
@@ -379,6 +408,9 @@ class TestDockerImageCache:
         assert len(cache._cache) == 0
         assert cache._last_refresh == 0.0
 
+    @pytest.mark.skipif(
+        not DOCKER_SYSTEM_AVAILABLE, reason="Requires real DockerImageCache"
+    )
     def test_get_images_by_filter_dangling(self, temp_cache_file):
         """Test filtering dangling images."""
         cache = DockerImageCache(cache_file=temp_cache_file)
@@ -417,6 +449,9 @@ class TestDockerImageCache:
         assert len(normal_images) == 1
         assert normal_images[0].tags == ["python:3.11"]
 
+    @pytest.mark.skipif(
+        not DOCKER_SYSTEM_AVAILABLE, reason="Requires real DockerImageCache"
+    )
     def test_get_images_by_filter_tag_pattern(self, temp_cache_file):
         """Test filtering images by tag pattern."""
         cache = DockerImageCache(cache_file=temp_cache_file)
@@ -447,6 +482,9 @@ class TestDockerImageCache:
         assert len(alpine_images) == 1
         assert "alpine:3.18" in alpine_images[0].tags
 
+    @pytest.mark.skipif(
+        not DOCKER_SYSTEM_AVAILABLE, reason="Requires real DockerImageCache"
+    )
     def test_cache_invalidation(self, temp_cache_file, mock_docker_client):
         """Test cache invalidation."""
         cache = DockerImageCache(cache_file=temp_cache_file)
@@ -462,6 +500,9 @@ class TestDockerImageCache:
         assert len(cache._cache) == 0
         assert cache._last_refresh == 0.0
 
+    @pytest.mark.skipif(
+        not DOCKER_SYSTEM_AVAILABLE, reason="Requires real DockerImageCache"
+    )
     def test_get_cache_stats(self, temp_cache_file, mock_docker_client):
         """Test cache statistics."""
         cache = DockerImageCache(cache_file=temp_cache_file, cache_ttl=300)
@@ -483,6 +524,9 @@ class TestDockerImageCache:
         assert "last_refresh" in stats
 
 
+@pytest.mark.skipif(
+    not DOCKER_SYSTEM_AVAILABLE, reason="Requires real DockerImageCache"
+)
 class TestDockerImageCacheThreadSafety:
     """Test thread safety of DockerImageCache."""
 
@@ -664,6 +708,9 @@ class TestDockerBuilderCacheIntegration:
         assert status["fallback_mode"] is False
 
 
+@pytest.mark.skipif(
+    not DOCKER_SYSTEM_AVAILABLE, reason="Requires real DockerImageCache"
+)
 class TestDockerCacheErrorHandling:
     """Test error handling in Docker cache system."""
 
@@ -757,6 +804,9 @@ class TestDockerCachePerformance:
         # Should be very fast (under 10ms for 100 lookups)
         assert duration < 0.01
 
+    @pytest.mark.skipif(
+        not DOCKER_SYSTEM_AVAILABLE, reason="Requires real DockerImageCache"
+    )
     def test_cache_serialization_performance(self, tmp_path):
         """Test cache serialization performance."""
         cache_file = tmp_path / "serialize_cache.json"

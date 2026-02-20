@@ -39,8 +39,18 @@ def sample_metrics_json():
             "samples_count": 50,
         },
         "phase_metrics": {
-            "initialization": {"total_time": 2.1, "count": 1, "errors": 0, "success_rate": 1.0},
-            "execution": {"total_time": 38.0, "count": 3, "errors": 1, "success_rate": 0.67},
+            "initialization": {
+                "total_time": 2.1,
+                "count": 1,
+                "errors": 0,
+                "success_rate": 1.0,
+            },
+            "execution": {
+                "total_time": 38.0,
+                "count": 3,
+                "errors": 1,
+                "success_rate": 0.67,
+            },
         },
         "error_metrics": {
             "total_errors": 1,
@@ -61,8 +71,18 @@ def sample_metrics_json():
             "gauges": {"process_cpu_percent": 35.2},
             "histograms": {},
             "resource_metrics": [
-                {"name": "cpu_percent", "value": 35.2, "timestamp": 1705312100.0, "component": "resource_monitor"},
-                {"name": "cpu_percent", "value": 40.1, "timestamp": 1705312110.0, "component": "resource_monitor"},
+                {
+                    "name": "cpu_percent",
+                    "value": 35.2,
+                    "timestamp": 1705312100.0,
+                    "component": "resource_monitor",
+                },
+                {
+                    "name": "cpu_percent",
+                    "value": 40.1,
+                    "timestamp": 1705312110.0,
+                    "component": "resource_monitor",
+                },
             ],
             "errors": [
                 {
@@ -70,7 +90,10 @@ def sample_metrics_json():
                     "metric_type": "error",
                     "value": 1,
                     "timestamp": 1705312200.0,
-                    "metadata": {"error_type": "timeout", "error_message": "Connection timed out"},
+                    "metadata": {
+                        "error_type": "timeout",
+                        "error_message": "Connection timed out",
+                    },
                 }
             ],
         },
@@ -323,15 +346,17 @@ class TestGetMetricValues:
         values = loader.get_metric_values(sample_metrics_json, "nonexistent_metric")
         assert values == []
 
-    def test_no_false_positive_error_data_for_unrelated_metrics(self, sample_metrics_json):
+    def test_no_false_positive_error_data_for_unrelated_metrics(
+        self, sample_metrics_json
+    ):
         """Regression: 'name.lower() in "error"' matched substrings like 'e', 'or', 'r'."""
         loader = MetricsDataLoader()
         for name in ("e", "or", "r", "ro", "rr", "cpu_usage"):
             values = loader.get_metric_values(sample_metrics_json, name)
             error_sources = [v for v in values if v.get("source") == "error_metrics"]
-            assert error_sources == [], (
-                f"Metric '{name}' should not return error_metrics data"
-            )
+            assert (
+                error_sources == []
+            ), f"Metric '{name}' should not return error_metrics data"
 
 
 class TestGetSummary:
@@ -370,3 +395,154 @@ class TestGetSummary:
         # Empty input may still produce zero-value defaults from resource/error checks
         assert "export_timestamp" not in summary
         assert "total_experiments" not in summary
+
+
+class TestDataLoaderEdgeCases:
+    """Edge cases: partial data, empty files, malformed structures."""
+
+    def test_empty_json_object_loads_successfully(self, tmp_path):
+        """A metrics.json containing {} should load without error."""
+        exp_dir = tmp_path / "empty_json_exp"
+        metrics_dir = exp_dir / "metrics"
+        metrics_dir.mkdir(parents=True)
+        with open(metrics_dir / "metrics.json", "w") as f:
+            json.dump({}, f)
+
+        loader = MetricsDataLoader(output_dir=tmp_path)
+        data, path = loader.load_metrics(experiment_dir=exp_dir)
+        assert data is not None
+        assert data == {}
+        assert path == exp_dir
+
+    def test_empty_json_available_metrics(self):
+        """get_available_metrics with empty dict returns empty list."""
+        loader = MetricsDataLoader()
+        available = loader.get_available_metrics({})
+        assert available == []
+
+    def test_empty_json_get_summary(self):
+        """get_summary with empty dict returns empty/minimal summary."""
+        loader = MetricsDataLoader()
+        summary = loader.get_summary({})
+        assert isinstance(summary, dict)
+
+    def test_empty_json_get_metric_values(self):
+        """get_metric_values with empty dict returns empty list."""
+        loader = MetricsDataLoader()
+        values = loader.get_metric_values({}, "anything")
+        assert values == []
+
+    def test_partial_structure_missing_sections(self):
+        """Data with only some sections should not crash."""
+        loader = MetricsDataLoader()
+        partial = {
+            "timing_metrics": {"build": 5.0},
+            # No resource_metrics, error_metrics, etc.
+        }
+        available = loader.get_available_metrics(partial)
+        assert len(available) >= 1
+        names = [m["name"] for m in available]
+        assert "build" in names
+
+    def test_partial_structure_get_summary(self):
+        """get_summary with partial data should still produce valid output."""
+        loader = MetricsDataLoader()
+        partial = {
+            "summary": {
+                "total_experiments": 5,
+                "successful_experiments": 3,
+                "failed_experiments": 2,
+            },
+        }
+        summary = loader.get_summary(partial)
+        assert summary["total_experiments"] == 5
+
+    def test_metrics_dir_exists_but_no_json(self, tmp_path):
+        """Experiment dir with metrics/ folder but no metrics.json inside."""
+        exp_dir = tmp_path / "no_json_exp"
+        metrics_dir = exp_dir / "metrics"
+        metrics_dir.mkdir(parents=True)
+        # No metrics.json created
+
+        loader = MetricsDataLoader(output_dir=tmp_path)
+        data, path = loader.load_metrics(experiment_dir=exp_dir)
+        assert data is None
+        assert path == exp_dir
+
+    def test_metrics_json_is_empty_file(self, tmp_path):
+        """metrics.json that is a zero-byte file should return None."""
+        exp_dir = tmp_path / "empty_file_exp"
+        metrics_dir = exp_dir / "metrics"
+        metrics_dir.mkdir(parents=True)
+        (metrics_dir / "metrics.json").write_text("")
+
+        loader = MetricsDataLoader(output_dir=tmp_path)
+        data, path = loader.load_metrics(experiment_dir=exp_dir)
+        assert data is None
+        assert path == exp_dir
+
+    def test_metrics_json_is_array_not_object(self, tmp_path):
+        """metrics.json containing a JSON array instead of object."""
+        exp_dir = tmp_path / "array_exp"
+        metrics_dir = exp_dir / "metrics"
+        metrics_dir.mkdir(parents=True)
+        with open(metrics_dir / "metrics.json", "w") as f:
+            json.dump([1, 2, 3], f)
+
+        loader = MetricsDataLoader(output_dir=tmp_path)
+        data, path = loader.load_metrics(experiment_dir=exp_dir)
+        # Should load successfully (JSON is valid)
+        assert data is not None
+        assert path == exp_dir
+
+    def test_nonexistent_output_dir(self):
+        """Output dir that doesn't exist should return empty results."""
+        loader = MetricsDataLoader(output_dir="/nonexistent/path/to/outputs")
+        assert loader.find_latest_experiment() is None
+        assert loader.find_experiments_with_metrics() == []
+        data, path = loader.load_metrics()
+        assert data is None
+        assert path is None
+
+    def test_resource_metrics_with_none_values(self):
+        """Resource metrics containing None values should not crash."""
+        loader = MetricsDataLoader()
+        data = {
+            "resource_metrics": {
+                "cpu_usage": {"average": None, "peak": None, "min": None},
+                "memory_usage": None,
+                "samples_count": 0,
+            },
+        }
+        summary = loader.get_summary(data)
+        assert isinstance(summary, dict)
+
+    def test_raw_metrics_with_unexpected_types(self):
+        """raw_metrics sections with unexpected value types should not crash."""
+        loader = MetricsDataLoader()
+        data = {
+            "raw_metrics": {
+                "counters": {"test": "not_a_number"},
+                "gauges": {"gauge": None},
+                "histograms": {"hist": "invalid"},
+                "resource_metrics": "not_a_list",
+                "errors": "not_a_list",
+            },
+        }
+        available = loader.get_available_metrics(data)
+        assert isinstance(available, list)
+
+    def test_phase_metrics_with_non_dict_values(self):
+        """phase_metrics with non-dict phase entries should not crash."""
+        loader = MetricsDataLoader()
+        data = {
+            "phase_metrics": {
+                "setup": "invalid",
+                "execution": {"total_time": 10, "count": 2},
+            },
+        }
+        available = loader.get_available_metrics(data)
+        phase_items = [m for m in available if m["category"] == "phase"]
+        # Only "execution" should be included (count > 0)
+        assert len(phase_items) == 1
+        assert phase_items[0]["name"] == "execution"

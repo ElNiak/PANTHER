@@ -232,6 +232,11 @@ class StorageObserver(ITypedObserver):
         )
         self.results_manager.on_event(test_result_event)
         self._store_test_event(event, "test.completed")
+        # Flush after each test to ensure data is persisted
+        try:
+            self._flush_pending_events()
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            self.logger.warning("Failed to flush events after test completed: %s", e)
         return True
 
     def on_test_failed(self, event: TestFailedEvent) -> bool:
@@ -254,6 +259,11 @@ class StorageObserver(ITypedObserver):
         )
         self.results_manager.on_event(test_result_event)
         self._store_error_event(event, "test.failed")
+        # Flush after each test failure to ensure error data is persisted
+        try:
+            self._flush_pending_events()
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            self.logger.warning("Failed to flush events after test failed: %s", e)
         return True
 
     def on_experiment_execution_started(
@@ -354,7 +364,7 @@ class StorageObserver(ITypedObserver):
             "id": str(getattr(event, "id", "")),
             "type": event_type,
             "timestamp": getattr(event, "timestamp", datetime.now()).isoformat(),
-            "data": getattr(event, "data", {}),
+            "data": getattr(event, "data", getattr(event, "entity_metadata", {})),
             "metadata": {
                 "class": event.__class__.__name__,
                 "storage_timestamp": datetime.now().isoformat(),
@@ -384,7 +394,7 @@ class StorageObserver(ITypedObserver):
             "timestamp": event.timestamp.isoformat(),
             "test_id": getattr(event, "test_id", getattr(event, "entity_id", None)),
             "test_name": getattr(event, "test_name", None),
-            "data": getattr(event, "entity_metadata", {}),
+            "data": getattr(event, "data", getattr(event, "entity_metadata", {})),
         }
         self.pending_events.append(event_data)
         self.event_categories["test_results"].append(event_data)
@@ -395,7 +405,7 @@ class StorageObserver(ITypedObserver):
             "event_id": str(getattr(event, "event_id", event.id)),
             "event_type": event_type,
             "timestamp": event.timestamp.isoformat(),
-            "data": getattr(event, "entity_metadata", {}),
+            "data": getattr(event, "data", getattr(event, "entity_metadata", {})),
         }
         self.pending_events.append(event_data)
         self.event_categories["system_events"].append(event_data)
@@ -415,7 +425,7 @@ class StorageObserver(ITypedObserver):
             "timestamp": event.timestamp.isoformat(),
             "severity": self._determine_error_severity(event_type, {}),
             "error_message": error_message,
-            "data": getattr(event, "entity_metadata", {}),
+            "data": getattr(event, "data", getattr(event, "entity_metadata", {})),
         }
 
         # Write to error log immediately
@@ -432,7 +442,7 @@ class StorageObserver(ITypedObserver):
             "event_type": event_type,
             "timestamp": event.timestamp.isoformat(),
             "metrics": getattr(event, "metrics", {}),
-            "data": getattr(event, "entity_metadata", {}),
+            "data": getattr(event, "data", getattr(event, "entity_metadata", {})),
         }
 
         # Write to performance log

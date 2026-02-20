@@ -915,6 +915,10 @@ class PluginManager(LoggerMixin):
             global_config if global_config is not None else self.global_config
         )
 
+        # Update experiment_context for runtime_mode detection in downstream code
+        if experiment_context and not self.experiment_context:
+            self.set_experiment_context(experiment_context)
+
         return self.plugin_factory.create_service_manager(
             protocol=protocol,
             implementation=implementation,
@@ -924,6 +928,7 @@ class PluginManager(LoggerMixin):
             emitter_registry=emitter_registry,
             global_config=config_to_use,
             experiment_context=experiment_context,
+            test_case=experiment_context,
         )
 
     def create_environment_manager(

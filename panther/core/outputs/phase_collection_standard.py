@@ -35,7 +35,10 @@ class PhaseCollectionStandard:
         ("post_run_stderr", "post-run/stderr.log"),
         ("test_stdout", "test/stdout.log"),
         ("test_stderr", "test/stderr.log"),
+        # Compilation status
+        ("compilation_status", "compile/compilation_status.txt"),
         # Legacy compatibility
+        ("compilation_status_legacy", "compilation_status.txt"),
         ("stdout", "stdout.log"),
         ("stderr", "stderr.log"),
         ("logs", "{service_name}.log"),
@@ -76,6 +79,7 @@ class PhaseCollectionStandard:
     # Service type patterns
     SERVICE_TYPE_PATTERNS = {
         "tester": [
+            ("compilation_status", "compile/compilation_status.txt"),
             ("test_results", "test/test_results.json"),
             ("test_summary", "test/test_summary.log"),
             ("analysis_report", "artifacts/analysis_report.json"),

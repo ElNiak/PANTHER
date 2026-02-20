@@ -36,6 +36,10 @@ class StandardOutputCollectorMixin(IOutputCollector, ABC):
 
     def register_service_outputs(self, services_managers, get_log_directory_func):
         """Register outputs with service-specific and protocol-aware patterns."""
+        # Store for deferred discovery
+        self.services_managers = services_managers
+        self.get_log_directory_func = get_log_directory_func
+
         self.logger.debug(
             f"Starting register_service_outputs for {len(services_managers)} services"
         )
@@ -411,9 +415,13 @@ class StandardOutputCollectorMixin(IOutputCollector, ABC):
                 continue
 
             # Get expected log directory for this service
-            service_log_dir = self._get_service_log_directory_for_discovery(
-                service_name
-            )
+            # Prefer the stored get_log_directory_func (authoritative source)
+            if hasattr(self, "get_log_directory_func") and self.get_log_directory_func:
+                service_log_dir = str(self.get_log_directory_func(service_name))
+            else:
+                service_log_dir = self._get_service_log_directory_for_discovery(
+                    service_name
+                )
 
             if not os.path.exists(service_log_dir):
                 self.logger.debug(

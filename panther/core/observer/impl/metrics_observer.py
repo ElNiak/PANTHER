@@ -54,10 +54,7 @@ else:
 
 @dataclass
 class MetricsSnapshot:
-    """
-
-    from typing import Any, Dict, ListSnapshot of metrics at a specific point in time.
-    """
+    """Snapshot of metrics at a specific point in time."""
 
     timestamp: datetime
     cpu_percent: float
@@ -470,6 +467,9 @@ class MetricsObserver(ITypedObserver):
         self.last_publish_time = time.time()
         self.collection_timer = None
 
+        # Circuit breaker for lazy MetricsCollector creation
+        self._collector_creation_failed = False
+
         self.logger.info(
             "MetricsObserver initialized with publish_interval=%d seconds",
             self.publish_interval,
@@ -501,7 +501,7 @@ class MetricsObserver(ITypedObserver):
             from panther.core.metrics.metrics_collector import MetricsCollector
 
             self.metrics_collector = MetricsCollector(
-                experiment_name, output_dir, self.publish_interval
+                experiment_name, output_dir, self.metric_collection_interval
             )
 
         self.current_test_metrics = TestCaseMetrics(
@@ -536,7 +536,20 @@ class MetricsObserver(ITypedObserver):
 
     def on_test_failed(self, event: TestFailedEvent) -> bool:
         """Handle test failed event."""
-        # Same as completed but mark as failed
+        # Increment error count for the current test
+        if self.current_test_metrics:
+            self.current_test_metrics.errors_count += 1
+
+        # Record error in the metrics collector
+        if self._ensure_metrics_collector():
+            self.metrics_collector.record_error(
+                error_type="test_failure",
+                error_message=getattr(event, "failure_reason", "Test failed"),
+                phase=Phase.TEST_EXECUTION,
+                test_case=getattr(event, "test_name", None),
+            )
+
+        # Finalize test metrics same as completed
         return self.on_test_completed(event)
 
     def on_step_execution_started(self, event: StepExecutionStartedEvent) -> bool:
@@ -617,6 +630,15 @@ class MetricsObserver(ITypedObserver):
             self.logger.debug(
                 "Recorded custom metric: %s = %s", event.metric_name, event.metric_value
             )
+
+        # Also record in the metrics collector if available
+        if self._ensure_metrics_collector() and hasattr(event, "metric_name"):
+            self.metrics_collector.record_metric(
+                name=event.metric_name,
+                metric_type=MetricType.GAUGE,
+                value=getattr(event, "metric_value", 0),
+                component=getattr(event, "component", None),
+            )
         return True
 
     def is_interested(self, event_type: str) -> bool:
@@ -624,9 +646,39 @@ class MetricsObserver(ITypedObserver):
         # We're interested in all metrics events
         return event_type.startswith("metrics.")
 
+    def _ensure_metrics_collector(self) -> bool:
+        """Ensure a metrics collector is available, creating one lazily if needed.
+
+        Returns:
+            True if a collector is available, False otherwise.
+        """
+        if self.metrics_collector:
+            return True
+        if self._collector_creation_failed:
+            return False
+        try:
+            from panther.core.metrics.metrics_collector import MetricsCollector
+
+            self.metrics_collector = MetricsCollector(
+                self.experiment_name,
+                self.output_dir,
+                self.metric_collection_interval,
+            )
+            self.logger.info(
+                "Lazily created MetricsCollector for experiment: %s",
+                self.experiment_name,
+            )
+            return True
+        except Exception as e:
+            self._collector_creation_failed = True
+            self.logger.error(
+                "Failed to create MetricsCollector (will not retry): %s", e
+            )
+            return False
+
     def on_counter_metric(self, event: CounterMetricEvent) -> bool:
         """Handle counter metric event."""
-        if self.metrics_collector:
+        if self._ensure_metrics_collector():
             # Record the counter metric in the metrics collector
             self.metrics_collector.record_metric(
                 name=event.counter_name,
@@ -646,7 +698,7 @@ class MetricsObserver(ITypedObserver):
 
     def on_resource_metric(self, event: ResourceMetricEvent) -> bool:
         """Handle resource metric event."""
-        if self.metrics_collector:
+        if self._ensure_metrics_collector():
             # Record the resource metric in the metrics collector
             self.metrics_collector.record_metric(
                 name=f"resource.{event.resource_type}",
@@ -664,7 +716,7 @@ class MetricsObserver(ITypedObserver):
 
     def on_timing_metric(self, event: TimingMetricEvent) -> bool:
         """Handle timing metric event."""
-        if self.metrics_collector:
+        if self._ensure_metrics_collector():
             # Record the timing metric in the metrics collector
             self.metrics_collector.record_metric(
                 name=f"timing.{event.operation_name}",
