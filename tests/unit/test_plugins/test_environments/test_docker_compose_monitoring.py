@@ -9,8 +9,12 @@ import pytest
 
 from panther.plugins.environments.config_schema import EnvironmentConfig
 from panther.plugins.environments.network_environment.docker_compose.docker_compose import (
-    BackgroundServiceMonitor,
     DockerComposeEnvironment,
+)
+from panther.plugins.environments.network_environment.docker_compose.background_service_monitor import (
+    BackgroundServiceMonitor,
+)
+from panther.plugins.environments.network_environment.base_environment_monitor import (
     ServiceHealthState,
 )
 
@@ -23,8 +27,12 @@ class TestBackgroundServiceMonitor:
         """Create a mock DockerComposeEnvironment."""
         env = Mock(spec=DockerComposeEnvironment)
         env.logger = Mock()
-        env._is_service_ready = Mock(return_value=True)
+        env.env_name = "test-env"
         env.request_early_termination = Mock()
+        # Mock execute_docker_command used by _is_service_ready_with_timeout
+        mock_result = Mock()
+        mock_result.stdout = "container_id_123\n"
+        env.execute_docker_command = Mock(return_value=mock_result)
         return env
 
     @pytest.fixture
@@ -74,9 +82,8 @@ class TestBackgroundServiceMonitor:
         monitor.stop_monitoring()
 
         assert monitor.monitoring_active is False
-        # Give thread time to stop
-        time.sleep(0.2)
-        assert not monitor.monitor_thread.is_alive()
+        # stop_monitoring() sets monitor_thread to None after joining
+        assert monitor.monitor_thread is None
 
     def test_double_start_monitoring(self, monitor):
         """Test that starting monitoring twice doesn't create multiple threads."""
@@ -93,9 +100,10 @@ class TestBackgroundServiceMonitor:
 
     def test_service_health_check_all_healthy(self, monitor):
         """Test health checking when all services are healthy."""
-        monitor.docker_compose_env._is_service_ready.return_value = True
+        # Mock _is_service_ready_with_timeout to return True for all services
+        monitor._is_service_ready_with_timeout = Mock(return_value=True)
 
-        monitor._check_all_services()
+        monitor._check_health()
 
         # All services should be ready
         assert all(
@@ -111,45 +119,59 @@ class TestBackgroundServiceMonitor:
         """Test detection of service failures."""
 
         # Make service1 unhealthy
-        def mock_is_ready(service_name):
+        def mock_is_ready(service_name, timeout=10.0):
             return service_name != "service1"
 
-        monitor.docker_compose_env._is_service_ready.side_effect = mock_is_ready
+        monitor._is_service_ready_with_timeout = Mock(side_effect=mock_is_ready)
 
-        # First check - failure count increases
-        monitor._check_all_services()
+        # First check - per-service failure count increases
+        monitor._check_health()
         assert monitor.failure_counts["service1"] == 1
         assert monitor.service_states["service1"] == ServiceHealthState.FAILING
 
-        # Second check - reaches threshold
-        monitor._check_all_services()
+        # Second check - per-service count reaches threshold (2), state becomes FAILED,
+        # and _handle_failure is called once (global failure_count becomes 1)
+        monitor._check_health()
         assert monitor.failure_counts["service1"] == 2
         assert monitor.service_states["service1"] == ServiceHealthState.FAILED
 
-        # Early termination should be triggered
+        # Third check - _handle_failure called again (global failure_count reaches 2),
+        # which meets the threshold and triggers _should_terminate -> termination
+        monitor._check_health()
+
+        # Early termination should now be triggered via base class _trigger_early_termination
         monitor.docker_compose_env.request_early_termination.assert_called_once()
         args = monitor.docker_compose_env.request_early_termination.call_args[0]
+        # First arg is the reason string (contains monitor name and failure info)
         assert "service1" in args[0]
-        assert args[1]["failed_service"] == "service1"
+        # Second arg is the details dict from _get_termination_details
+        details = args[1]
+        assert "failed_services" in details
+        assert "service1" in details["failed_services"]
 
     def test_critical_service_failure(self, monitor):
-        """Test that critical service failure triggers immediate termination."""
+        """Test that critical service failure triggers termination."""
 
         # Make critical_service unhealthy
-        def mock_is_ready(service_name):
+        def mock_is_ready(service_name, timeout=10.0):
             return service_name != "critical_service"
 
-        monitor.docker_compose_env._is_service_ready.side_effect = mock_is_ready
+        monitor._is_service_ready_with_timeout = Mock(side_effect=mock_is_ready)
 
-        # Check services twice to reach threshold
-        monitor._check_all_services()
-        monitor._check_all_services()
-
-        # Should trigger termination
+        # First check: per-service failure count = 1 (below threshold)
+        monitor._check_health()
+        # Second check: per-service count reaches threshold (2), calls _handle_failure
+        # (global failure_count becomes 1, below global threshold of 2)
+        monitor._check_health()
         assert monitor.service_states["critical_service"] == ServiceHealthState.FAILED
+
+        # Third check: _handle_failure called again, global failure_count reaches 2,
+        # meets threshold -> _should_terminate -> termination
+        monitor._check_health()
+
         monitor.docker_compose_env.request_early_termination.assert_called_once()
 
-        # Verify it's because of critical service
+        # Verify the reason mentions the critical service
         args = monitor.docker_compose_env.request_early_termination.call_args[0]
         assert "critical_service" in args[0]
 
@@ -159,46 +181,54 @@ class TestBackgroundServiceMonitor:
         mock_config.critical_services = []
 
         # Make only one service fail
-        def mock_is_ready(service_name):
+        def mock_is_ready(service_name, timeout=10.0):
             return service_name != "service1"
 
-        monitor.docker_compose_env._is_service_ready.side_effect = mock_is_ready
+        monitor._is_service_ready_with_timeout = Mock(side_effect=mock_is_ready)
 
         # Check twice to reach threshold
-        monitor._check_all_services()
-        monitor._check_all_services()
+        monitor._check_health()
+        monitor._check_health()
 
-        # Should not terminate with only one failure
+        # _should_terminate returns False when allow_partial_deployment is True,
+        # no critical services, and fewer than half the services have failed.
+        # Since only 1 of 3 services failed, should not terminate.
         monitor.docker_compose_env.request_early_termination.assert_not_called()
 
-        # Make majority fail
-        def mock_is_ready_majority_fail(service_name):
+        # Now make majority fail (service2 and critical_service fail, only service1 healthy)
+        def mock_is_ready_majority_fail(service_name, timeout=10.0):
             return service_name == "service1"
 
-        monitor.docker_compose_env._is_service_ready.side_effect = (
-            mock_is_ready_majority_fail
+        monitor._is_service_ready_with_timeout = Mock(
+            side_effect=mock_is_ready_majority_fail
         )
 
-        # Check twice more
-        monitor._check_all_services()
-        monitor._check_all_services()
+        # Reset failure counts for service2 and critical_service so they start fresh
+        monitor.failure_counts["service2"] = 0
+        monitor.failure_counts["critical_service"] = 0
+        monitor.service_states["service2"] = ServiceHealthState.STARTING
+        monitor.service_states["critical_service"] = ServiceHealthState.STARTING
 
-        # Now should terminate (more than half failed)
+        # Check twice more to reach threshold for service2 and critical_service
+        monitor._check_health()
+        monitor._check_health()
+
+        # Now should terminate (more than half failed: service2 + critical_service = 2 out of 3)
         monitor.docker_compose_env.request_early_termination.assert_called_once()
 
     def test_service_recovery(self, monitor):
         """Test that services can recover from failing state."""
-        # Make service1 unhealthy initially
-        monitor.docker_compose_env._is_service_ready.return_value = False
+        # Make all services unhealthy initially
+        monitor._is_service_ready_with_timeout = Mock(return_value=False)
 
-        monitor._check_all_services()
+        monitor._check_health()
         assert monitor.failure_counts["service1"] == 1
         assert monitor.service_states["service1"] == ServiceHealthState.FAILING
 
         # Service recovers
-        monitor.docker_compose_env._is_service_ready.return_value = True
+        monitor._is_service_ready_with_timeout = Mock(return_value=True)
 
-        monitor._check_all_services()
+        monitor._check_health()
         assert monitor.failure_counts["service1"] == 0  # Reset
         assert monitor.service_states["service1"] == ServiceHealthState.READY
 
@@ -206,8 +236,8 @@ class TestBackgroundServiceMonitor:
         """Test that monitor thread handles exceptions gracefully."""
         mock_config.monitoring_interval_seconds = 0.01
 
-        # Make _check_all_services raise an exception
-        monitor._check_all_services = Mock(side_effect=Exception("Test exception"))
+        # Make _check_health raise an exception
+        monitor._check_health = Mock(side_effect=Exception("Test exception"))
 
         monitor.start_monitoring()
         time.sleep(0.1)  # Let it run a few iterations
@@ -221,11 +251,11 @@ class TestBackgroundServiceMonitor:
     def test_monitoring_stops_after_termination(self, monitor):
         """Test that monitoring stops after triggering termination."""
         # Make all services fail
-        monitor.docker_compose_env._is_service_ready.return_value = False
+        monitor._is_service_ready_with_timeout = Mock(return_value=False)
 
         # Check twice to trigger termination
-        monitor._check_all_services()
-        monitor._check_all_services()
+        monitor._check_health()
+        monitor._check_health()
 
         # Monitoring should be inactive after termination
         assert monitor.monitoring_active is False
@@ -280,14 +310,23 @@ class TestDockerComposeEnvironmentMonitoring:
 
     @pytest.fixture
     def docker_env(self, env_config, mock_event_manager, tmp_path):
-        """Create a DockerComposeEnvironment instance."""
-        env = DockerComposeEnvironment(
-            env_config_to_test=env_config,
-            output_dir=str(tmp_path),
-            env_type="network",
-            env_sub_type="docker_compose",
-            event_manager=mock_event_manager,
-        )
+        """Create a DockerComposeEnvironment instance with mocked internals."""
+        with patch(
+            "panther.plugins.environments.network_environment.docker_compose.docker_compose.TemplateRenderer"
+        ), patch(
+            "panther.plugins.environments.network_environment.docker_compose.docker_compose.DockerComposeNetworkResolver"
+        ), patch(
+            "panther.plugins.environments.network_environment.docker_compose.docker_compose.DockerComposePortManager"
+        ), patch(
+            "panther.plugins.environments.network_environment.docker_compose.docker_compose.DockerComposeOutputManager"
+        ):
+            env = DockerComposeEnvironment(
+                env_config_to_test=env_config,
+                output_dir=str(tmp_path),
+                env_type="network",
+                env_sub_type="docker_compose",
+                event_manager=mock_event_manager,
+            )
         # Mock Docker operations
         env.execute_with_logging = Mock()
         env.execute_command = Mock()
@@ -295,54 +334,36 @@ class TestDockerComposeEnvironmentMonitoring:
         env._is_service_ready = Mock(return_value=True)
         return env
 
-    def test_deploy_services_blocking_mode(self, docker_env, env_config):
-        """Test deploy_services in blocking mode."""
-        env_config.enable_background_monitoring = False
-
-        # Mock service managers
-        mock_service = Mock()
-        mock_service.service_name = "test_service"
-        docker_env.services_managers = [mock_service]
-
-        # Mock monitoring method
-        docker_env._monitor_single_service = Mock(return_value=True)
-
-        with patch("concurrent.futures.ThreadPoolExecutor"):
-            result = docker_env.deploy_services()
-
+    def test_deploy_services_monitoring_returns_true(self, docker_env, env_config):
+        """Test deploy_services_monitoring returns True."""
+        result = docker_env.deploy_services_monitoring()
         assert result is True
-        assert not hasattr(docker_env, "background_monitor")
 
-    def test_deploy_services_non_blocking_mode(self, docker_env, env_config):
-        """Test deploy_services in non-blocking mode."""
-        env_config.enable_background_monitoring = True
+    def test_remove_service_monitoring_stops_monitor(self, docker_env):
+        """Test remove_service_monitoring stops and clears background monitor."""
+        mock_monitor = Mock()
+        mock_monitor.stop_monitoring = Mock()
+        docker_env.background_monitor = mock_monitor
 
-        # Mock service managers
-        mock_service = Mock()
-        mock_service.service_name = "test_service"
-        docker_env.services_managers = [mock_service]
+        docker_env.remove_service_monitoring()
 
-        # Mock service ready check
-        docker_env._is_service_ready = Mock(return_value=False)
+        mock_monitor.stop_monitoring.assert_called_once()
+        assert docker_env.background_monitor is None
 
-        result = docker_env.deploy_services()
-
-        assert result is True
-        assert hasattr(docker_env, "background_monitor")
-        assert docker_env.background_monitor.monitoring_active is True
-
-        # Clean up
-        docker_env.background_monitor.stop_monitoring()
+    def test_remove_service_monitoring_noop_when_no_monitor(self, docker_env):
+        """Test remove_service_monitoring is a no-op when no monitor exists."""
+        # No background_monitor attribute set -- should not raise
+        docker_env.remove_service_monitoring()
 
     def test_teardown_stops_monitoring(self, docker_env):
-        """Test that teardown stops background monitoring."""
-        # Start monitoring
+        """Test that _teardown_environment stops background monitoring."""
         docker_env.background_monitor = Mock()
         docker_env.background_monitor.stop_monitoring = Mock()
 
-        # Mock other teardown operations
-        docker_env._register_all_service_outputs = Mock()
-        docker_env.collect_outputs = Mock(return_value={})
+        # Mock other teardown dependencies
+        docker_env.output_manager = Mock()
+        docker_env.services_managers = []
+        docker_env.rendered_services_network_config_file_path = "/nonexistent/path"
 
         docker_env._teardown_environment()
 
