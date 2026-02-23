@@ -72,7 +72,7 @@ class PantherSourceDiscovery:
             "iut_plugins": ["panther/plugins/services/iut"],
             "quic_iut_plugins": ["panther/plugins/services/iut/quic"],
             "tester_plugins": ["panther/plugins/services/testers"],
-            "documentation": ["dev/docs-gen", "panther/tools/docs-gen"],
+            "documentation": ["panther/tools/docs_gen"],
             "getting_started": ["QUICK_START.md", "INSTALL.md", "README.md"],
             "developer": ["CONTRIBUTING.md", "development.md"],
             "project_info": ["CHANGELOG.md", "LICENSE.md", "WORKFLOW.md"],
@@ -108,8 +108,80 @@ class PantherSourceDiscovery:
             readme_info = self._analyze_readme_file(readme_path, relative_path)
             readme_files.append(readme_info)
 
+        # Discover root-level documentation files (non-README)
+        root_doc_files = {
+            "INSTALL.md": ("getting_started", "docs/INSTALL.md", 2),
+            "QUICK_START.md": ("getting_started", "docs/QUICK_START.md", 2),
+            "CONTRIBUTING.md": ("developer", "docs/contributing.md", 70),
+            "CHANGELOG.md": ("project_info", "docs/changelog.md", 80),
+            "LICENSE.md": ("project_info", "docs/license.md", 80),
+            "workflow.md": ("project_info", "docs/workflow.md", 4),
+        }
+        for filename, (category, doc_name, priority) in root_doc_files.items():
+            file_path = self.project_root / filename
+            if file_path.exists():
+                try:
+                    content = file_path.read_text(encoding="utf-8")
+                except UnicodeDecodeError:
+                    content = file_path.read_text(encoding="latin-1")
+                content_preview = content[:200].replace("\n", " ").strip()
+                readme_files.append(
+                    ReadmeInfo(
+                        source_path=str(file_path),
+                        relative_path=filename,
+                        category=category,
+                        suggested_doc_name=doc_name,
+                        priority=priority,
+                        content_preview=content_preview,
+                    )
+                )
+
+        # Discover development.md files in plugin directories only
+        plugins_dir = self.project_root / "panther" / "plugins"
+        for dev_md_path in plugins_dir.rglob("development.md"):
+            if any(exclude in str(dev_md_path) for exclude in exclude_patterns):
+                continue
+            relative_path = str(dev_md_path.relative_to(self.project_root))
+            doc_name = self._generate_dev_doc_name(relative_path)
+            try:
+                content = dev_md_path.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                content = dev_md_path.read_text(encoding="latin-1")
+            content_preview = content[:200].replace("\n", " ").strip()
+            readme_files.append(
+                ReadmeInfo(
+                    source_path=str(dev_md_path),
+                    relative_path=relative_path,
+                    category="developer",
+                    suggested_doc_name=doc_name,
+                    priority=60,
+                    content_preview=content_preview,
+                )
+            )
+
+        # Discover plugins_inventory.md
+        inventory_path = (
+            self.project_root / "panther" / "plugins" / "plugins_inventory.md"
+        )
+        if inventory_path.exists():
+            try:
+                content = inventory_path.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                content = inventory_path.read_text(encoding="latin-1")
+            content_preview = content[:200].replace("\n", " ").strip()
+            readme_files.append(
+                ReadmeInfo(
+                    source_path=str(inventory_path),
+                    relative_path="panther/plugins/plugins_inventory.md",
+                    category="plugins_overview",
+                    suggested_doc_name="docs/plugins_inventory.md",
+                    priority=6,
+                    content_preview=content_preview,
+                )
+            )
+
         self.readme_files = sorted(readme_files, key=lambda x: x.priority)
-        print(f"✓ Discovered {len(readme_files)} README files")
+        print(f"  Discovered {len(readme_files)} documentation files")
         return readme_files
 
     def _analyze_readme_file(self, readme_path: Path, relative_path: str) -> ReadmeInfo:
@@ -118,9 +190,15 @@ class PantherSourceDiscovery:
         # Read content preview
         try:
             content = readme_path.read_text(encoding="utf-8")
-            content_preview = content[:200].replace("\n", " ").strip()
+        except UnicodeDecodeError:
+            content = readme_path.read_text(encoding="latin-1")
         except Exception as e:
-            content_preview = f"Error reading file: {e}"
+            content = ""
+        content_preview = (
+            content[:200].replace("\n", " ").strip()
+            if content
+            else f"Error reading file"
+        )
 
         # Determine category based on path patterns
         category = self._categorize_readme(relative_path)
@@ -277,6 +355,30 @@ class PantherSourceDiscovery:
         # Default: join all parts
         plugin_name = "_".join(plugin_parts)
         return f"docs/plugin_{plugin_name}.md"
+
+    def _generate_dev_doc_name(self, relative_path: str) -> str:
+        """Generate documentation name for development.md files."""
+        # Remove the filename to get the directory path
+        path = relative_path.rsplit("/development.md", 1)[0]
+        # Remove the panther/plugins/ prefix
+        if path == "panther/plugins":
+            path = ""
+        elif path.startswith("panther/plugins/"):
+            path = path[len("panther/plugins/") :]
+
+        mapping = {
+            "": "plugin_development",
+            "environments": "plugin_development_environment",
+            "environments/network_environment": "plugin_development_network",
+            "environments/execution_environment": "plugin_development_execution",
+            "protocols": "protocol_development",
+            "services": "service_development",
+            "services/iut": "iut_development",
+            "services/testers": "testers_development",
+        }
+
+        doc_name = mapping.get(path, path.replace("/", "_") + "_development")
+        return f"docs/{doc_name}.md"
 
     def _assign_priority(self, relative_path: str, category: str) -> int:
         """Assign priority for documentation order."""
@@ -494,7 +596,7 @@ def main():
 
         # Export detailed analysis
         output_file = (
-            project_root / "panther" / "tools" / "docs-gen" / "analysis_output.json"
+            project_root / "panther" / "tools" / "docs_gen" / "analysis_output.json"
         )
         discovery.export_analysis(output_file)
 
@@ -511,7 +613,7 @@ def main():
 
         # Save to file for integration
         output_file = (
-            project_root / "panther" / "tools" / "docs-gen" / "generated_build_dict.py"
+            project_root / "panther" / "tools" / "docs_gen" / "generated_build_dict.py"
         )
         output_file.write_text(f"# Generated build_dict\nbuild_dict = {{\n")
         for source, target in build_dict.items():

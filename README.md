@@ -36,10 +36,10 @@ PANTHER is a **plugin‑based, research‑grade test harness** that lets you des
 
 ---
 
-> [!WARNING]  
+> [!WARNING]
 > CLI and core being refactored, some deadcode and legacy or unimplemented code remains.
 
-> [!WARNING]  
+> [!WARNING]
 > ARM still need some works, Z3 generate maths errors and docker modules is being refactored in consequences (thus introducing potencial bugs)
 > This branch is more stable (but not supporting ARM at all) - [development-scp-refactor](https://github.com/ElNiak/PANTHER/tree/development-scp-refactor)
 
@@ -96,7 +96,7 @@ For detailed workflow documentation, see [workflow.md](workflow.md).
 `requirements.txt` is a frozen snapshot—**do not edit**.
 
 > [!NOTE]
->  (TODO) We propose to install [`slim`](https://github.com/slimtoolkit/slim) in our builder, fasten container size. 
+>  (TODO) We propose to install [`slim`](https://github.com/slimtoolkit/slim) in our builder, fasten container size.
 
 > [!WARNING]
 > I tried but it seems that it is not as straight forward as it seems, need more research before using that.
@@ -116,9 +116,8 @@ For detailed workflow documentation, see [workflow.md](workflow.md).
 
 ### System Features
 
-7. [Fast-Fail System](FAST_FAIL_SYSTEM.md) - Intelligent experiment termination and error handling
-8. [Experiment Reporting](EXPERIMENT_REPORTING.md) - Automatic generation of experiment reports and status summaries
-9. [Configuration Management](panther/config/README.md) - Advanced configuration validation, auto-fixing, and protocol-aware port management
+7. [Configuration Management](panther/config/README.md) - Advanced configuration validation, auto-fixing, and protocol-aware port management
+8. [Core Architecture](panther/core/README.md) - Experiment orchestration, fast-fail system, and reporting
 
 ### Plugins
 
