@@ -54,9 +54,11 @@ def test_quote_shell():
 def test_quote_yaml():
     """Test that the quote_yaml function correctly formats strings for YAML.
 
-    Note: quote_yaml uses yaml.safe_dump().strip() which appends a YAML
-    document-end marker ('\\n...') for plain scalars. Assertions below
-    match the current implementation behavior.
+    Note: quote_yaml currently uses yaml.safe_dump().strip(), which for plain
+    scalars appends a YAML document-end marker ('\\n...'). The assertions
+    below intentionally depend on this implementation detail. If
+    quote_yaml is refactored to strip or otherwise remove the document-end
+    marker, these tests should be updated accordingly.
     """
     # Basic strings -- yaml.safe_dump adds document-end marker for plain scalars
     assert quote_yaml("simple") == "simple\n..."
