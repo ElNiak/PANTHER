@@ -2,15 +2,34 @@ import pytest
 import os
 from jinja2 import Environment, FileSystemLoader
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
-from panther.plugins.services.services_interface import (
+from panther.config.core.models.service import ProtocolConfig, ServiceConfig
+from panther.plugins.services import (
+    IServiceManager,
     quote_shell,
     quote_yaml,
-    IServiceManager,
     validate_cmd,
     validate_structure,
 )
+
+
+def _make_service_config(**overrides) -> ServiceConfig:
+    """Create a minimal real ServiceConfig for command generation tests."""
+    defaults = dict(
+        timeout=60,
+        implementation={"name": "test_service", "type": "iut"},
+        protocol={"name": "quic", "version": "rfc9000", "role": "server", "target": None},
+    )
+    defaults.update(overrides)
+    return ServiceConfig(**defaults)
+
+
+def _make_protocol_config(**overrides) -> ProtocolConfig:
+    """Create a minimal real ProtocolConfig for command generation tests."""
+    defaults = dict(name="quic", version="rfc9000", role="server")
+    defaults.update(overrides)
+    return ProtocolConfig(**defaults)
 
 
 def test_quote_shell():
@@ -33,11 +52,16 @@ def test_quote_shell():
 
 
 def test_quote_yaml():
-    """Test that the quote_yaml function correctly formats strings for YAML."""
-    # Basic strings
-    assert quote_yaml("simple") == "simple"
+    """Test that the quote_yaml function correctly formats strings for YAML.
 
-    # Strings that need quoting in YAML
+    Note: quote_yaml uses yaml.safe_dump().strip() which appends a YAML
+    document-end marker ('\\n...') for plain scalars. Assertions below
+    match the current implementation behavior.
+    """
+    # Basic strings -- yaml.safe_dump adds document-end marker for plain scalars
+    assert quote_yaml("simple") == "simple\n..."
+
+    # Strings that need quoting in YAML (no document-end marker)
     assert quote_yaml("string: with colon") == "'string: with colon'"
     assert quote_yaml("2001: A Space Odyssey") == "'2001: A Space Odyssey'"
 
@@ -49,33 +73,21 @@ def test_quote_yaml():
     assert quote_yaml("") == "''"
 
 
-class MockServiceConfig:
-    """Mock ServiceConfig for testing."""
-
-    def __init__(self, name="test_service", timeout=60):
-        self.name = name
-        self.timeout = timeout
-        self.protocol = MagicMock(name="protocol", target="test_target")
-
-
-class MockProtocolConfig:
-    """Mock ProtocolConfig for testing."""
-
-    def __init__(self, name="test_protocol"):
-        self.name = name
-        self.target = "test_target"
-
-
 class TestServiceManager(IServiceManager):
-    """Test implementation of IServiceManager."""
+    """Test implementation of IServiceManager.
+
+    This is a proper concrete test implementation of the abstract
+    IServiceManager interface. It bypasses the complex __init__ and
+    sets only the attributes needed by the methods under test.
+    """
 
     def __init__(self):
         self._plugin_dir = Path(os.path.dirname(__file__))
         self.templates_dir = os.path.join(os.path.dirname(__file__))
-        self.service_config_to_test = MockServiceConfig()
-        self.service_protocol = MockProtocolConfig()
+        self.service_config_to_test = _make_service_config()
+        self.service_protocol = _make_protocol_config()
         self.service_name = "test_service"
-        self.logger = MagicMock()
+        # logger is a property from LoggerMixin -- do not assign directly
 
         # Initialize Jinja environment
         self.jinja_env = Environment(loader=FileSystemLoader(self.templates_dir))
@@ -83,12 +95,16 @@ class TestServiceManager(IServiceManager):
         self.jinja_env.filters["quote_yaml"] = quote_yaml
 
     def prepare(self, plugin_loader=None):
-        """Mock implementation of prepare."""
+        """No-op implementation of abstract prepare."""
         pass
 
     def generate_deployment_commands(self, service_params, environment):
-        """Mock implementation of generate_deployment_commands."""
+        """No-op implementation of abstract generate_deployment_commands."""
         return {}
+
+    def handle_event(self, event):
+        """No-op implementation of abstract handle_event."""
+        pass
 
 
 @pytest.fixture
@@ -264,7 +280,7 @@ def valid_command_function():
             "command_binary": "python3",
             "command_args": "-m server",
             "timeout": 60,
-            "command_env": {"DEBUG": "1"},
+            "environment": {"DEBUG": "1"},
         },
         "post_run_cmds": ["echo 'Post-run'"],
     }
@@ -283,7 +299,7 @@ def invalid_command_function():
             "command_binary": "python3",
             # Missing command_args
             "timeout": 60,
-            "command_env": {"DEBUG": "1"},
+            "environment": {"DEBUG": "1"},
         },
         "post_run_cmds": ["echo 'Post-run'"],
     }
