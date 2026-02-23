@@ -98,27 +98,12 @@ class StagedDockerMixin(DockerOperationsMixin, CommandEventMixin):
         """
         service_images = {}
         for service in services:
-            # Get the expected image tag for this service
-            implementation_name = getattr(
-                service, "implementation_name", service.__class__.__name__
-            )
-
-            # Get version from service protocol if available
-            version_name = "latest"
-            if hasattr(service, "service_protocol") and hasattr(
-                service.service_protocol, "version"
-            ):
-                version_obj = service.service_protocol.version
-                if hasattr(version_obj, "name"):
-                    version_name = version_obj.name
-                elif isinstance(version_obj, str):
-                    version_name = version_obj
-
-            # Create image tag - only add underscore if version_name is not "latest"
-            if version_name == "latest":
-                image_tag = f"{implementation_name}:latest"
-            else:
-                image_tag = f"{implementation_name}_{version_name}:latest"
+            image_tag = getattr(service, "docker_image_tag", "")
+            if not image_tag:
+                self.logger.warning(
+                    f"Service {getattr(service, 'service_name', 'unknown')} has no docker_image_tag set."
+                )
+                continue
 
             # Check if image exists
             check_cmd = ["docker", "images", "-q", image_tag]
