@@ -158,7 +158,7 @@ class DockerConfig(BaseUnifiedModel):
     no_docker_cache: bool = Field(
         False,
         description="Skip Docker build layer cache entirely (passes --no-cache to builds). "
-        "Overrides force_build_docker_image when True.",
+        "Used in conjunction with force_build_docker_image; effective when both are True.",
     )
 
 
