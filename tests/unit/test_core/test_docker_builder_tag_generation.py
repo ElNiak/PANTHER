@@ -15,68 +15,7 @@ Tests cover:
 - Integration with service manager
 """
 
-from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
-
 import pytest
-
-# Test imports with fallback to mocks
-try:
-    from panther.core.docker_builder.docker_builder import DockerBuilder
-
-    REAL_DOCKER_SYSTEM_AVAILABLE = True
-except ImportError:
-    REAL_DOCKER_SYSTEM_AVAILABLE = False
-
-    # Mock DockerBuilder for testing
-    class DockerBuilder:
-        MAX_TAG_LENGTH = 100
-
-        def __init__(self, base_path=None, logger=None):
-            self.base_path = Path(base_path) if base_path else Path.cwd()
-            self.logger = logger or Mock()
-
-        def generate_image_tag(
-            self,
-            impl_name,
-            version,
-            tag_version,
-            build_mode="",
-            runtime_mode="minimal",
-            target_platform="",
-            z3_source="",
-        ):
-            # Actual implementation for testing
-            build_suffix = f"-{build_mode}" if build_mode else ""
-            runtime_suffix = (
-                f"-{runtime_mode}" if runtime_mode and runtime_mode != "minimal" else ""
-            )
-            z3_suffix = f"-z3{z3_source}" if z3_source and z3_source != "local" else ""
-            platform_suffix = f"-{target_platform}" if target_platform else ""
-
-            base_name = f"{impl_name}-{version}" if version else impl_name
-            full_tag = f"{base_name}:{tag_version}{build_suffix}{runtime_suffix}{z3_suffix}{platform_suffix}"
-
-            return self._sanitize_docker_tag(full_tag)
-
-        def _sanitize_docker_tag(self, tag: str) -> str:
-            import re
-
-            sanitized = re.sub(r"[^a-z0-9._:-]", "-", tag.lower())
-            sanitized = re.sub(r"^[.-]+", "", sanitized)
-
-            if len(sanitized) > self.MAX_TAG_LENGTH:
-                parts = sanitized.split(":")
-                if len(parts) == 2:
-                    name_part, tag_part = parts
-                    max_name_length = self.MAX_TAG_LENGTH - len(tag_part) - 1
-                    if len(name_part) > max_name_length:
-                        name_part = name_part[:max_name_length]
-                    sanitized = f"{name_part}:{tag_part}"
-                else:
-                    sanitized = sanitized[: self.MAX_TAG_LENGTH]
-
-            return sanitized
 
 
 class TestDockerBuilderTagGeneration:
