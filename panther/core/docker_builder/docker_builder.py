@@ -1168,7 +1168,7 @@ class DockerBuilder(
             
             no_cache = getattr(self.global_config.docker, "no_docker_cache", False) if hasattr(self, "global_config") and self.global_config and hasattr(self.global_config, "docker") else False
             
-            if no_cache and not DockerBuilder.was_built_this_session(image_tag):
+            if force_build and no_cache and not DockerBuilder.was_built_this_session(image_tag):
                 buildx_cmd.append("--no-cache")
                 self.logger.info(
                     "no_cache: passing --no-cache for first build of %s", image_tag
