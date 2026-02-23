@@ -16,17 +16,54 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
-def _reset_docker_builder_singleton():
-    """Reset DockerBuilder singleton between tests.
+def _reset_all_singletons():
+    """Reset all singleton / global state between tests.
 
-    DockerBuilder uses a singleton pattern. Without reset, state leaks
-    between tests (cached client, image_cache, config, etc.).
+    Several PANTHER classes use singleton or module-level global patterns.
+    Without reset, state leaks between tests (cached clients, image caches,
+    observer registries, plugin registries, etc.).
+
+    Resets (in teardown order):
+    - DockerBuilder singleton
+    - EventManager singleton
+    - PluginManager singleton
+    - StorageObserver per-path instance registry
+    - ObserverFactory module-level global
     """
     yield
+    # DockerBuilder
     try:
         from panther.core.docker_builder.docker_builder import DockerBuilder
 
         DockerBuilder.reset_singleton()
+    except Exception:
+        pass
+    # EventManager
+    try:
+        from panther.core.observer.management.event_manager import EventManager
+
+        EventManager.reset_instance()
+    except Exception:
+        pass
+    # PluginManager
+    try:
+        from panther.plugins.plugin_manager import PluginManager
+
+        PluginManager.reset_singleton()
+    except Exception:
+        pass
+    # StorageObserver
+    try:
+        from panther.core.observer.impl.storage_observer import StorageObserver
+
+        StorageObserver.clear_instances()
+    except Exception:
+        pass
+    # ObserverFactory global
+    try:
+        import panther.core.observer.factory.observer_factory as _of_mod
+
+        _of_mod._observer_factory = None
     except Exception:
         pass
 
@@ -217,6 +254,287 @@ def real_event_manager():
     from panther.core.observer.management.event_manager import EventManager
 
     return EventManager()
+
+
+# ---------------------------------------------------------------------------
+# Fast-fail fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def real_fast_fail_handler():
+    """Create a real FastFailHandler with fast-fail enabled.
+
+    FastFailHandler is purely in-memory (no IO in init), so no mocking
+    is needed. The handler tracks error counts, cascade detection, and
+    circuit-breaker state.
+    """
+    from panther.core.exceptions.fast_fail import FastFailHandler
+
+    return FastFailHandler(enabled=True)
+
+
+# ---------------------------------------------------------------------------
+# Workflow / state tracking fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def real_workflow_tracker():
+    """Create a real WorkflowStateTracker instance.
+
+    Purely in-memory tracker for workflow state transitions.
+    No IO in __init__.
+    """
+    from panther.core.observer.workflow.workflow_tracker import WorkflowStateTracker
+
+    return WorkflowStateTracker()
+
+
+@pytest.fixture
+def real_state_observer(real_workflow_tracker):
+    """Create a real StateEventObserver wired to a real WorkflowStateTracker.
+
+    No IO in __init__. Observes state-related events and updates the
+    workflow tracker accordingly.
+    """
+    from panther.core.observer.impl.state_observer import StateEventObserver
+
+    return StateEventObserver(workflow_tracker=real_workflow_tracker)
+
+
+# ---------------------------------------------------------------------------
+# Observer implementation fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def real_metrics_observer(tmp_path):
+    """Create a real MetricsObserver with all heavyweight features disabled.
+
+    Disables metric publishing, system metric collection, and real-time
+    monitoring to keep unit tests fast and deterministic. Output is
+    directed to tmp_path so no filesystem pollution occurs.
+    """
+    from panther.core.observer.impl.metrics_observer import MetricsObserver
+
+    metrics_dir = tmp_path / "metrics"
+    metrics_dir.mkdir(parents=True, exist_ok=True)
+    return MetricsObserver(
+        publish_metrics=False,
+        collect_system_metrics=False,
+        enable_real_time_monitoring=False,
+        log_level="WARNING",
+        output_dir=str(metrics_dir),
+    )
+
+
+@pytest.fixture
+def real_storage_observer(tmp_path):
+    """Create a real StorageObserver with auto-backup disabled.
+
+    Uses tmp_path for storage so tests don't write to the real
+    filesystem. The per-path singleton cache is cleared by the
+    autouse ``_reset_all_singletons`` fixture.
+    """
+    from panther.core.observer.impl.storage_observer import StorageObserver
+
+    storage_dir = tmp_path / "storage"
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    return StorageObserver(
+        storage_path=str(storage_dir),
+        auto_backup=False,
+        log_level="WARNING",
+    )
+
+
+@pytest.fixture
+def real_command_audit_observer(tmp_path):
+    """Create a real CommandAuditObserver writing audit logs to tmp_path.
+
+    The observer tracks command generation events and writes audit
+    trails to the provided output directory.
+    """
+    from panther.core.observer.impl.command_audit_observer import (
+        CommandAuditObserver,
+    )
+
+    audit_dir = tmp_path / "audit"
+    audit_dir.mkdir(parents=True, exist_ok=True)
+    return CommandAuditObserver(output_dir=audit_dir)
+
+
+@pytest.fixture
+def real_experiment_observer(tmp_path):
+    """Create a real ExperimentObserver writing logs to tmp_path.
+
+    Tracks experiment lifecycle events (phase transitions, step
+    progress, service events) with timing and step tracking enabled.
+    """
+    from panther.core.observer.impl.experiment_observer import ExperimentObserver
+
+    experiment_log_dir = tmp_path / "experiment_logs"
+    experiment_log_dir.mkdir(parents=True, exist_ok=True)
+    return ExperimentObserver(
+        name="test_experiment_observer",
+        output_dir=str(experiment_log_dir),
+        log_level="WARNING",
+    )
+
+
+@pytest.fixture
+def real_logger_observer(tmp_path):
+    """Create a real LoggerObserver writing to a tmp_path log file.
+
+    Provides event-aware logging with correlation tracking.
+    Log level set to WARNING to reduce test output noise.
+    """
+    from panther.core.observer.impl.logger_observer import LoggerObserver
+
+    log_file = tmp_path / "events.log"
+    return LoggerObserver(
+        log_level="WARNING",
+        output_file=str(log_file),
+    )
+
+
+@pytest.fixture
+def real_plugin_observer(real_event_manager):
+    """Create a real PluginObserver connected to a real EventManager.
+
+    Tracks plugin registrations, event interest mappings, and
+    subscriber routing. No IO in __init__.
+    """
+    from panther.core.observer.impl.plugin_observer import PluginObserver
+
+    return PluginObserver(event_manager=real_event_manager)
+
+
+# ---------------------------------------------------------------------------
+# Observer factory and emitter registry fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def real_observer_factory(real_event_manager):
+    """Create a real ObserverFactory connected to a real EventManager.
+
+    Resets the module-level global ``_observer_factory`` before creating
+    a fresh instance to guarantee test isolation. The factory is
+    pre-loaded with default observer type registrations.
+    """
+    import panther.core.observer.factory.observer_factory as _of_mod
+    from panther.core.observer.factory.observer_factory import ObserverFactory
+
+    _of_mod._observer_factory = None
+    return ObserverFactory(event_manager=real_event_manager)
+
+
+@pytest.fixture
+def real_emitter_registry(real_event_manager):
+    """Create a real EmitterRegistry connected to a real EventManager.
+
+    Provides typed event emitters (experiment, service, environment,
+    step, plugin, assertion, metrics) and manages state managers for
+    each entity type. No IO in __init__.
+    """
+    from panther.core.events.emitter_registry import EmitterRegistry
+
+    return EmitterRegistry(event_manager=real_event_manager)
+
+
+# ---------------------------------------------------------------------------
+# PluginManager fixture
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def real_plugin_manager(
+    mock_docker_client, minimal_global_config, real_event_manager, real_fast_fail_handler
+):
+    """Create a real PluginManager with Docker daemon mocked.
+
+    The PluginManager singleton is reset before creation. Docker is
+    mocked at the IO boundary so that DockerBuilder initialization
+    succeeds without a running daemon. Plugin discovery runs against
+    the real plugin directories.
+
+    Caching is disabled (``enable_cache=False``) for test isolation.
+    """
+    from panther.core.docker_builder.docker_builder import DockerBuilder
+    from panther.plugins.plugin_manager import PluginManager
+
+    # Ensure clean singleton state
+    PluginManager.reset_singleton()
+    DockerBuilder.reset_singleton()
+
+    with patch("panther.core.docker_builder.docker_builder.docker") as mock_docker_mod:
+        mock_docker_mod.from_env.return_value = mock_docker_client
+        mock_docker_mod.errors = _make_docker_errors_module()
+
+        manager = PluginManager(
+            event_manager=real_event_manager,
+            global_config=minimal_global_config,
+            fast_fail_handler=real_fast_fail_handler,
+            enable_cache=False,
+        )
+
+    assert isinstance(manager, PluginManager)
+    return manager
+
+
+# ---------------------------------------------------------------------------
+# ExperimentManager fixture
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def real_experiment_manager(mock_docker_client, minimal_global_config, tmp_path):
+    """Create a real ExperimentManager with Docker and filesystem mocked.
+
+    This is the most complex fixture: ExperimentManager orchestrates
+    the full experiment lifecycle and touches many subsystems during
+    ``__init__``.
+
+    IO boundaries mocked:
+    - Docker daemon (via ``docker.from_env``)
+    - Output directory redirected to ``tmp_path``
+
+    The manager is created with ``dry_run=True`` so that no containers
+    are actually started if execution methods are called.
+    """
+    from panther.core.docker_builder.docker_builder import DockerBuilder
+    from panther.core.experiment_manager import ExperimentManager
+    from panther.core.observer.management.event_manager import EventManager
+    from panther.plugins.plugin_manager import PluginManager
+
+    import panther.core.observer.factory.observer_factory as _of_mod
+
+    # Reset all singletons that ExperimentManager __init__ touches
+    DockerBuilder.reset_singleton()
+    EventManager.reset_instance()
+    PluginManager.reset_singleton()
+    _of_mod._observer_factory = None
+
+    # Redirect output_dir to tmp_path
+    output_dir = tmp_path / "experiment_outputs"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    minimal_global_config = minimal_global_config.model_copy(
+        update={"paths": {"output_dir": str(output_dir), "log_dir": str(tmp_path / "logs")}},
+    )
+
+    with patch("panther.core.docker_builder.docker_builder.docker") as mock_docker_mod:
+        mock_docker_mod.from_env.return_value = mock_docker_client
+        mock_docker_mod.errors = _make_docker_errors_module()
+
+        manager = ExperimentManager(
+            global_config=minimal_global_config,
+            experiment_name="test_experiment",
+            dry_run=True,
+        )
+
+    assert isinstance(manager, ExperimentManager)
+    return manager
 
 
 # ---------------------------------------------------------------------------
