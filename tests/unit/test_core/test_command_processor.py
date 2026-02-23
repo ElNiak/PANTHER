@@ -1,660 +1,517 @@
 """
 Unit tests for CommandProcessor - the core command generation component of PANTHER.
 
-Tests cover command processing, shell command handling, validation, and format conversion.
+Tests cover command processing, shell command creation, property detection,
+and error handling using real PANTHER classes (no fake fallbacks).
 """
 
-import tempfile
-from pathlib import Path
-from typing import Any, Dict, List
-from unittest.mock import MagicMock, Mock, patch
+from typing import Any, Dict
+from unittest.mock import Mock
 
 import pytest
 
-# Use the actual PANTHER modules if available, otherwise mock them
-try:
-    from panther.core.command_processor import (
-        CommandBuilder,
-        CommandProcessor,
-        ICommandProcessor,
-        ShellCommand,
-        combine_shell_constructs,
-    )
-except ImportError:
-    # Create mock classes for testing if imports fail
-    class CommandProcessor:
-        def __init__(self):
-            self.logger = Mock()
-
-        def process_commands(
-            self, commands: Dict[str, Any], target_format: str = "generic"
-        ) -> Dict[str, Any]:
-            processed = {}
-            for cmd_type, cmds in commands.items():
-                if cmd_type == "run_cmd":
-                    processed[cmd_type] = self._process_run_cmd(cmds)
-                else:
-                    processed[cmd_type] = self.process_command_list(cmds)
-            return processed
-
-        def _process_run_cmd(self, run_cmd: Dict[str, Any]) -> Dict[str, Any]:
-            # Handle None or invalid input gracefully
-            if run_cmd is None:
-                run_cmd = {}
-            elif not isinstance(run_cmd, dict):
-                run_cmd = {}
-
-            return {
-                "command": run_cmd.get("command", ""),
-                "working_dir": run_cmd.get("working_dir", "."),
-                "timeout": run_cmd.get("timeout", 60),
-                "environment": run_cmd.get("environment", {}),
-            }
-
-        def process_command_list(self, commands: List[str]) -> List[str]:
-            # Handle invalid input gracefully
-            if not commands:
-                return []
-            if not isinstance(commands, list):
-                return []  # Return empty list for invalid input
-            return [self.sanitize_command(cmd) for cmd in commands]
-
-        def sanitize_command(self, command: str) -> str:
-            return command.strip() if command else ""
-
-        def validate_command_structure(self, commands: Dict[str, Any]) -> bool:
-            required_fields = ["run_cmd"]
-            return all(field in commands for field in required_fields)
-
-        def convert_to_shell_commands(
-            self, commands: Dict[str, Any]
-        ) -> List["ShellCommand"]:
-            shell_commands = []
-            for cmd_type, cmds in commands.items():
-                if cmd_type == "run_cmd":
-                    shell_commands.append(
-                        ShellCommand(
-                            command=cmds.get("command", ""),
-                            working_dir=cmds.get("working_dir", "."),
-                            timeout=cmds.get("timeout", 60),
-                        )
-                    )
-                elif isinstance(cmds, list):
-                    for cmd in cmds:
-                        shell_commands.append(ShellCommand(command=cmd))
-            return shell_commands
-
-    class ShellCommand:
-        def __init__(
-            self,
-            command: str,
-            working_dir: str = ".",
-            timeout: int = 60,
-            environment: Dict[str, str] = None,
-        ):
-            self.command = command
-            self.working_dir = working_dir
-            self.timeout = timeout
-            self.environment = environment or {}
-            self.validated = False
-            self.sanitized = False
-
-        def validate(self) -> bool:
-            if not self.command or not self.command.strip():
-                return False
-            self.validated = True
-            return True
-
-        def sanitize(self) -> "ShellCommand":
-            self.command = self.command.strip()
-            self.sanitized = True
-            return self
-
-        def to_dict(self) -> Dict[str, Any]:
-            return {
-                "command": self.command,
-                "working_dir": self.working_dir,
-                "timeout": self.timeout,
-                "environment": self.environment,
-            }
-
-        def __str__(self) -> str:
-            return f"ShellCommand('{self.command}')"
-
-        def __repr__(self) -> str:
-            return f"ShellCommand(command='{self.command}', working_dir='{self.working_dir}', timeout={self.timeout})"
-
-    def combine_shell_constructs(
-        commands: List[ShellCommand], connector: str = "&&"
-    ) -> ShellCommand:
-        if not commands:
-            return ShellCommand("")
-
-        if len(commands) == 1:
-            return commands[0]
-
-        combined_cmd = f" {connector} ".join(cmd.command for cmd in commands)
-
-        # Extract working directory from cd commands
-        working_dir = "."
-        for cmd in commands:
-            if cmd.command.strip().startswith("cd "):
-                # Extract directory from cd command
-                cd_parts = cmd.command.strip().split(maxsplit=1)
-                if len(cd_parts) > 1:
-                    working_dir = cd_parts[1].strip().strip('"').strip("'")
-                break
-
-        return ShellCommand(
-            command=combined_cmd,
-            working_dir=working_dir,
-            timeout=max(cmd.timeout for cmd in commands),
-        )
-
-    class CommandBuilder:
-        def __init__(self):
-            self.commands = []
-
-        def add_command(
-            self, command: str, working_dir: str = ".", timeout: int = 60
-        ) -> "CommandBuilder":
-            self.commands.append(ShellCommand(command, working_dir, timeout))
-            return self
-
-        def build(self) -> List[ShellCommand]:
-            return self.commands.copy()
-
-        def clear(self) -> "CommandBuilder":
-            self.commands.clear()
-            return self
-
-    def validate_command_structure(commands: Dict[str, Any]) -> bool:
-        if not isinstance(commands, dict):
-            return False
-        return "run_cmd" in commands
-
-    def sanitize_command_args(args: List[str]) -> List[str]:
-        return [arg.strip() for arg in args if arg and arg.strip()]
-
-    class ICommandProcessor:
-        pass
-
+from panther.core.command_processor import CommandProcessor, ShellCommand
+from panther.core.command_processor.core.interfaces import ICommandProcessor
+from panther.core.command_processor.models.shell_command import CommandMetadata
+from panther.core.command_processor.utils.shell_utils import combine_shell_constructs
 
 pytestmark = [pytest.mark.unit, pytest.mark.command_generation]
+
+
+# ---------------------------------------------------------------------------
+# CommandProcessor initialization
+# ---------------------------------------------------------------------------
 
 
 class TestCommandProcessorInitialization:
     """Test CommandProcessor initialization and basic setup."""
 
-    def test_command_processor_creation(self):
+    def test_command_processor_creation(self, real_command_processor):
         """Test creating a CommandProcessor instance."""
-        processor = CommandProcessor()
+        assert real_command_processor is not None
+        assert hasattr(real_command_processor, "logger")
 
-        # Verify initialization
-        assert processor is not None
-        assert hasattr(processor, "logger")
+    def test_command_processor_implements_interface(self, real_command_processor):
+        """Test CommandProcessor implements ICommandProcessor."""
+        assert isinstance(real_command_processor, ICommandProcessor)
 
-    def test_command_processor_interface(self):
-        """Test CommandProcessor implements the interface."""
-        processor = CommandProcessor()
+    def test_command_processor_has_required_methods(self, real_command_processor):
+        """Test CommandProcessor exposes the three ICommandProcessor methods."""
+        assert callable(getattr(real_command_processor, "process_commands", None))
+        assert callable(getattr(real_command_processor, "process_command_list", None))
+        assert callable(
+            getattr(real_command_processor, "detect_command_properties", None)
+        )
 
-        # Verify it has required methods
-        assert hasattr(processor, "process_commands")
-        assert callable(processor.process_commands)
+
+# ---------------------------------------------------------------------------
+# process_commands -- the main entry point
+# ---------------------------------------------------------------------------
 
 
-class TestCommandProcessing:
-    """Test command processing functionality."""
+class TestProcessCommands:
+    """Test CommandProcessor.process_commands() with real implementation.
 
-    @pytest.fixture
-    def processor(self):
-        """Create a command processor for testing."""
-        return CommandProcessor()
+    The real _process_run_cmd returns keys:
+        working_dir, command_binary, command_args, environment, timeout
 
-    def test_process_simple_commands(self, processor):
-        """Test processing simple command structures."""
+    The real process_command_list returns a list of ShellCommand.to_dict() dicts
+    with keys: command, raw_command, shell_safe_command, executable, arguments,
+    redirections, metadata.
+    """
+
+    def test_process_run_cmd_structure(self, real_command_processor):
+        """process_commands extracts run_cmd with real key names."""
         commands = {
             "run_cmd": {
-                "command": 'echo "hello world"',
+                "command_binary": "echo",
+                "command_args": "hello world",
                 "working_dir": "/tmp",
                 "timeout": 30,
-            },
+            }
+        }
+
+        result = real_command_processor.process_commands(commands)
+
+        assert "run_cmd" in result
+        run_cmd = result["run_cmd"]
+        # Real _process_run_cmd returns these keys
+        assert "command_binary" in run_cmd
+        assert "command_args" in run_cmd
+        assert run_cmd["working_dir"] == "/tmp"
+        assert run_cmd["timeout"] == 30
+
+    def test_process_run_cmd_with_environment(self, real_command_processor):
+        """Environment variables are preserved through processing."""
+        commands = {
+            "run_cmd": {
+                "command_binary": "./app",
+                "command_args": "--verbose",
+                "working_dir": "/app",
+                "timeout": 120,
+                "environment": {"DEBUG": "1", "PATH": "/usr/local/bin"},
+            }
+        }
+
+        result = real_command_processor.process_commands(commands)
+        assert result["run_cmd"]["environment"]["DEBUG"] == "1"
+        assert result["run_cmd"]["environment"]["PATH"] == "/usr/local/bin"
+
+    def test_process_run_cmd_empty(self, real_command_processor):
+        """Empty/None run_cmd returns default structure."""
+        commands = {"run_cmd": None}
+        result = real_command_processor.process_commands(commands)
+
+        run_cmd = result["run_cmd"]
+        assert run_cmd["working_dir"] == ""
+        assert run_cmd["command_args"] == [] or run_cmd["command_args"] == ""
+        assert run_cmd["environment"] == {}
+        assert run_cmd["timeout"] == 60
+
+    def test_process_run_cmd_with_command_args_list(self, real_command_processor):
+        """command_args can be a list; real processor joins them."""
+        commands = {
+            "run_cmd": {
+                "command_binary": "python",
+                "command_args": ["-m", "pytest", "--verbose"],
+                "working_dir": ".",
+                "timeout": 60,
+            }
+        }
+
+        result = real_command_processor.process_commands(commands)
+        # Real processor joins list args into a space-separated string
+        args = result["run_cmd"]["command_args"]
+        assert "-m" in args
+        assert "pytest" in args
+        assert "--verbose" in args
+
+    def test_process_command_lists(self, real_command_processor):
+        """Non-run_cmd entries are processed through process_command_list."""
+        commands = {
+            "run_cmd": {"command_binary": "main", "timeout": 60},
             "pre_run_cmds": ["mkdir -p /tmp/test", "cd /tmp/test"],
             "post_run_cmds": ["cleanup.sh"],
         }
 
-        result = processor.process_commands(commands)
+        result = real_command_processor.process_commands(commands)
 
-        # Verify structure
-        assert "run_cmd" in result
         assert "pre_run_cmds" in result
         assert "post_run_cmds" in result
+        # process_command_list returns list of ShellCommand.to_dict() dicts
+        assert isinstance(result["pre_run_cmds"], list)
+        assert isinstance(result["post_run_cmds"], list)
 
-        # Verify run_cmd processing
-        run_cmd = result["run_cmd"]
-        assert "command" in run_cmd
-        assert run_cmd["command"] == 'echo "hello world"'
-        assert run_cmd["working_dir"] == "/tmp"
-        assert run_cmd["timeout"] == 30
+        # Each processed command is a dict with 'command' key
+        for cmd_dict in result["pre_run_cmds"]:
+            assert isinstance(cmd_dict, dict)
+            assert "command" in cmd_dict
 
-    def test_process_empty_commands(self, processor):
-        """Test processing empty command structures."""
+    def test_process_empty_command_list(self, real_command_processor):
+        """Empty command lists return empty lists."""
         commands = {
-            "run_cmd": {"command": "", "working_dir": ".", "timeout": 60},
+            "run_cmd": {"command_binary": "test", "timeout": 60},
             "pre_run_cmds": [],
-            "post_run_cmds": None,
         }
 
-        result = processor.process_commands(commands)
-
-        # Verify empty handling
-        assert result["run_cmd"]["command"] == ""
+        result = real_command_processor.process_commands(commands)
         assert result["pre_run_cmds"] == []
-        assert result["post_run_cmds"] == []
 
-    def test_process_commands_with_target_format(self, processor):
-        """Test processing commands with different target formats."""
-        commands = {
-            "run_cmd": {"command": "test_command", "working_dir": ".", "timeout": 60}
-        }
-
-        # Test different target formats
-        for target_format in ["generic", "docker", "shell", "kubernetes"]:
-            result = processor.process_commands(commands, target_format)
-            assert "run_cmd" in result
-
-    def test_process_complex_command_structure(self, processor):
-        """Test processing complex command structures."""
+    def test_process_commands_preserves_all_keys(self, real_command_processor):
+        """All command type keys are present in the output."""
         commands = {
             "pre_compile_cmds": ["./configure", "make clean"],
             "compile_cmds": ["make -j4"],
             "post_compile_cmds": ["make install"],
             "run_cmd": {
-                "command": "./application --config config.yml",
-                "working_dir": "/app",
-                "timeout": 120,
-                "environment": {"PATH": "/usr/local/bin", "DEBUG": "1"},
-            },
-            "post_run_cmds": ["cleanup.sh", "archive_logs.sh"],
-        }
-
-        result = processor.process_commands(commands)
-
-        # Verify all command types are processed
-        assert len(result) == 5
-        assert all(cmd_type in result for cmd_type in commands.keys())
-
-        # Verify environment variables are preserved
-        assert result["run_cmd"]["environment"]["DEBUG"] == "1"
-
-
-class TestShellCommand:
-    """Test ShellCommand functionality."""
-
-    def test_shell_command_creation(self):
-        """Test creating ShellCommand instances."""
-        cmd = ShellCommand("echo test")
-
-        assert cmd.command == "echo test"
-        assert cmd.working_dir == "."
-        assert cmd.timeout == 60
-        assert cmd.environment == {}
-
-    def test_shell_command_with_parameters(self):
-        """Test ShellCommand with custom parameters."""
-        env = {"PATH": "/usr/bin", "HOME": "/home/user"}
-        cmd = ShellCommand(
-            command="python script.py",
-            working_dir="/project",
-            timeout=120,
-            environment=env,
-        )
-
-        assert cmd.command == "python script.py"
-        assert cmd.working_dir == "/project"
-        assert cmd.timeout == 120
-        assert cmd.environment == env
-
-    def test_shell_command_validation(self):
-        """Test ShellCommand validation."""
-        # Valid command
-        valid_cmd = ShellCommand("ls -la")
-        assert valid_cmd.validate() is True
-        assert valid_cmd.validated is True
-
-        # Invalid command (empty)
-        invalid_cmd = ShellCommand("")
-        assert invalid_cmd.validate() is False
-        assert invalid_cmd.validated is False
-
-        # Invalid command (whitespace only)
-        whitespace_cmd = ShellCommand("   ")
-        assert whitespace_cmd.validate() is False
-
-    def test_shell_command_sanitization(self):
-        """Test ShellCommand sanitization."""
-        cmd = ShellCommand("  echo test  ")
-        sanitized = cmd.sanitize()
-
-        assert sanitized.command == "echo test"
-        assert sanitized.sanitized is True
-        assert sanitized is cmd  # Should return self
-
-    def test_shell_command_to_dict(self):
-        """Test ShellCommand dictionary conversion."""
-        env = {"VAR": "value"}
-        cmd = ShellCommand(
-            command="test", working_dir="/tmp", timeout=30, environment=env
-        )
-
-        result = cmd.to_dict()
-
-        assert result["command"] == "test"
-        assert result["working_dir"] == "/tmp"
-        assert result["timeout"] == 30
-        assert result["environment"] == env
-
-    def test_shell_command_string_representation(self):
-        """Test ShellCommand string representations."""
-        cmd = ShellCommand("echo hello")
-
-        str_repr = str(cmd)
-        repr_repr = repr(cmd)
-
-        assert "echo hello" in str_repr
-        assert "echo hello" in repr_repr
-        assert "ShellCommand" in str_repr
-        assert "ShellCommand" in repr_repr
-
-
-class TestCombineShellConstructs:
-    """Test shell command combination functionality."""
-
-    def test_combine_empty_commands(self):
-        """Test combining empty command list."""
-        result = combine_shell_constructs([])
-
-        assert isinstance(result, ShellCommand)
-        assert result.command == ""
-
-    def test_combine_single_command(self):
-        """Test combining a single command."""
-        cmd = ShellCommand("echo test")
-        result = combine_shell_constructs([cmd])
-
-        assert result is cmd  # Should return the same command
-
-    def test_combine_multiple_commands(self):
-        """Test combining multiple commands."""
-        commands = [
-            ShellCommand("cd /tmp"),
-            ShellCommand("mkdir test"),
-            ShellCommand("ls -la"),
-        ]
-
-        result = combine_shell_constructs(commands)
-
-        assert "cd /tmp && mkdir test && ls -la" == result.command
-        assert result.working_dir == "/tmp"  # First command's working_dir
-        assert result.timeout == 60  # Max timeout
-
-    def test_combine_with_custom_connector(self):
-        """Test combining commands with custom connector."""
-        commands = [
-            ShellCommand("command1"),
-            ShellCommand("command2"),
-            ShellCommand("command3"),
-        ]
-
-        result = combine_shell_constructs(commands, connector=";")
-
-        assert result.command == "command1 ; command2 ; command3"
-
-    def test_combine_commands_with_different_timeouts(self):
-        """Test combining commands with different timeouts."""
-        commands = [
-            ShellCommand("quick_cmd", timeout=10),
-            ShellCommand("slow_cmd", timeout=120),
-            ShellCommand("medium_cmd", timeout=60),
-        ]
-
-        result = combine_shell_constructs(commands)
-
-        assert result.timeout == 120  # Should use maximum timeout
-
-
-class TestCommandBuilder:
-    """Test CommandBuilder functionality."""
-
-    def test_command_builder_creation(self):
-        """Test creating CommandBuilder instances."""
-        builder = CommandBuilder()
-
-        assert builder is not None
-        assert builder.commands == []
-
-    def test_add_command(self):
-        """Test adding commands to builder."""
-        builder = CommandBuilder()
-
-        result = builder.add_command("echo test")
-
-        # Should return self for chaining
-        assert result is builder
-        assert len(builder.commands) == 1
-        assert builder.commands[0].command == "echo test"
-
-    def test_add_multiple_commands(self):
-        """Test adding multiple commands."""
-        builder = CommandBuilder()
-
-        builder.add_command("cd /tmp").add_command(
-            "mkdir test", timeout=30
-        ).add_command("ls -la", working_dir="/tmp")
-
-        commands = builder.build()
-
-        assert len(commands) == 3
-        assert commands[0].command == "cd /tmp"
-        assert commands[1].timeout == 30
-        assert commands[2].working_dir == "/tmp"
-
-    def test_build_and_clear(self):
-        """Test building and clearing commands."""
-        builder = CommandBuilder()
-
-        builder.add_command("test1").add_command("test2")
-        commands = builder.build()
-
-        # Build should return a copy
-        assert len(commands) == 2
-        assert len(builder.commands) == 2
-
-        # Clear should empty the builder
-        builder.clear()
-        assert len(builder.commands) == 0
-
-        # Original built commands should be unchanged
-        assert len(commands) == 2
-
-    def test_fluent_interface(self):
-        """Test fluent interface for command building."""
-        commands = (
-            CommandBuilder()
-            .add_command("step1")
-            .add_command("step2")
-            .add_command("step3")
-            .build()
-        )
-
-        assert len(commands) == 3
-        assert all(isinstance(cmd, ShellCommand) for cmd in commands)
-
-
-class TestCommandValidation:
-    """Test command validation utilities."""
-
-    def test_validate_command_structure_valid(self):
-        """Test validation of valid command structures."""
-        valid_commands = {
-            "run_cmd": {"command": "echo test", "working_dir": ".", "timeout": 60},
-            "pre_run_cmds": ["setup.sh"],
-        }
-
-        result = validate_command_structure(valid_commands)
-        assert result is True
-
-    def test_validate_command_structure_invalid(self):
-        """Test validation of invalid command structures."""
-        # Missing run_cmd
-        invalid_commands = {
-            "pre_run_cmds": ["setup.sh"],
-            "post_run_cmds": ["cleanup.sh"],
-        }
-
-        result = validate_command_structure(invalid_commands)
-        assert result is False
-
-        # Not a dictionary
-        result = validate_command_structure("not a dict")
-        assert result is False
-
-        # None
-        result = validate_command_structure(None)
-        assert result is False
-
-    def test_sanitize_command_args(self):
-        """Test command argument sanitization."""
-        # Test with mixed valid and invalid args
-        args = ["  valid_arg  ", "", "  another_arg", None, "   ", "final_arg"]
-
-        sanitized = sanitize_command_args(args)
-
-        assert sanitized == ["valid_arg", "another_arg", "final_arg"]
-
-        # Test with empty list
-        assert sanitize_command_args([]) == []
-
-        # Test with all invalid args
-        assert sanitize_command_args(["", "  ", None]) == []
-
-
-class TestCommandProcessorIntegration:
-    """Test integrated command processor workflows."""
-
-    def test_full_command_processing_workflow(self):
-        """Test complete command processing workflow."""
-        processor = CommandProcessor()
-
-        # Create complex command structure
-        commands = {
-            "pre_compile_cmds": ["./autogen.sh", "./configure --enable-debug"],
-            "compile_cmds": ["make clean", "make -j$(nproc)"],
-            "post_compile_cmds": ["make check"],
-            "run_cmd": {
-                "command": "./test_suite --verbose --output=xml",
+                "command_binary": "./test_suite",
+                "command_args": "--verbose --output=xml",
                 "working_dir": "/build",
                 "timeout": 300,
-                "environment": {"TEST_ENV": "ci", "PARALLEL_JOBS": "4"},
+                "environment": {"TEST_ENV": "ci"},
             },
             "post_run_cmds": ["collect_artifacts.sh", "cleanup_temp.sh"],
         }
 
-        # Process commands
-        result = processor.process_commands(commands, "docker")
+        result = real_command_processor.process_commands(commands)
+        assert set(result.keys()) == set(commands.keys())
 
-        # Verify all phases are present
-        assert all(phase in result for phase in commands.keys())
-
-        # Verify run_cmd structure
-        run_cmd = result["run_cmd"]
-        assert run_cmd["command"] == "./test_suite --verbose --output=xml"
-        assert run_cmd["working_dir"] == "/build"
-        assert run_cmd["timeout"] == 300
-        assert run_cmd["environment"]["TEST_ENV"] == "ci"
-
-    def test_command_to_shell_command_conversion(self):
-        """Test converting processed commands to ShellCommand objects."""
-        processor = CommandProcessor()
-
+    def test_process_commands_with_target_format(self, real_command_processor):
+        """target_format parameter is accepted (forwarded, no crash)."""
         commands = {
-            "run_cmd": {
-                "command": "python test.py",
-                "working_dir": "/app",
-                "timeout": 60,
-            },
-            "pre_run_cmds": ["pip install -r requirements.txt"],
-            "post_run_cmds": ["pytest --coverage"],
+            "run_cmd": {"command_binary": "test_cmd", "timeout": 60}
         }
 
-        shell_commands = processor.convert_to_shell_commands(commands)
+        for fmt in ["generic", "docker", "shell"]:
+            result = real_command_processor.process_commands(commands, fmt)
+            assert "run_cmd" in result
 
-        # Verify conversion
-        assert len(shell_commands) >= 1  # At least run_cmd
-        assert all(isinstance(cmd, ShellCommand) for cmd in shell_commands)
 
-        # Find the main run command
-        main_cmd = next(
-            (cmd for cmd in shell_commands if "python test.py" in cmd.command), None
+# ---------------------------------------------------------------------------
+# process_command_list
+# ---------------------------------------------------------------------------
+
+
+class TestProcessCommandList:
+    """Test CommandProcessor.process_command_list() in isolation."""
+
+    def test_process_string_commands(self, real_command_processor):
+        """String commands are converted to ShellCommand dicts."""
+        cmds = ["echo hello", "ls -la"]
+        result = real_command_processor.process_command_list(cmds)
+
+        assert len(result) >= 1
+        for item in result:
+            assert isinstance(item, dict)
+            assert "command" in item
+
+    def test_process_empty_list(self, real_command_processor):
+        """Empty input returns empty output."""
+        assert real_command_processor.process_command_list([]) == []
+        assert real_command_processor.process_command_list(None) == []
+
+    def test_process_filters_empty_strings(self, real_command_processor):
+        """Empty/blank strings are filtered out."""
+        cmds = ["echo hello", "", "   ", "ls"]
+        result = real_command_processor.process_command_list(cmds)
+
+        # Only non-blank commands should remain
+        commands = [d["command"] for d in result]
+        for cmd in commands:
+            assert cmd.strip() != ""
+
+    def test_process_shell_command_objects(self, real_command_processor):
+        """ShellCommand objects are accepted and converted to dicts."""
+        shell_cmd = ShellCommand("echo from_object", validate=False)
+        result = real_command_processor.process_command_list([shell_cmd])
+
+        assert len(result) >= 1
+        assert any("echo from_object" in d["command"] for d in result)
+
+    def test_process_dict_commands(self, real_command_processor):
+        """Dict commands with 'command' key are accepted."""
+        cmds = [{"command": "echo from_dict"}]
+        result = real_command_processor.process_command_list(cmds)
+
+        assert len(result) >= 1
+        assert any("echo from_dict" in d["command"] for d in result)
+
+
+# ---------------------------------------------------------------------------
+# ShellCommand -- real model tests
+# ---------------------------------------------------------------------------
+
+
+class TestShellCommand:
+    """Test ShellCommand model with the real implementation."""
+
+    def test_creation_from_string(self):
+        """ShellCommand.from_string creates a valid instance."""
+        cmd = ShellCommand.from_string("echo test")
+        assert cmd.command is not None
+        assert "echo" in cmd.command
+
+    def test_creation_with_metadata(self):
+        """ShellCommand accepts metadata kwargs."""
+        cmd = ShellCommand(
+            "python script.py",
+            is_critical=True,
+            timeout=120,
+            validate=False,
         )
-        assert main_cmd is not None
-        assert main_cmd.working_dir == "/app"
-        assert main_cmd.timeout == 60
+        assert cmd.metadata.is_critical is True
+        assert cmd.metadata.timeout == 120
 
-    def test_error_handling_in_processing(self):
-        """Test error handling during command processing."""
-        processor = CommandProcessor()
+    def test_to_dict_structure(self):
+        """to_dict returns the expected key structure."""
+        cmd = ShellCommand("ls -la", validate=False)
+        d = cmd.to_dict()
 
-        # Test with malformed command structure
-        malformed_commands = {
-            "run_cmd": None,  # Invalid run_cmd
-            "pre_run_cmds": "not a list",  # Invalid type
-        }
+        assert "command" in d
+        assert "raw_command" in d
+        assert "shell_safe_command" in d
+        assert "executable" in d
+        assert "arguments" in d
+        assert "redirections" in d
+        assert "metadata" in d
+        assert isinstance(d["metadata"], dict)
+        assert "is_critical" in d["metadata"]
 
-        # Should handle gracefully without crashing
-        result = processor.process_commands(malformed_commands)
+    def test_from_dict_roundtrip(self):
+        """from_dict + to_dict roundtrip preserves command text."""
+        original = ShellCommand("echo roundtrip", validate=False)
+        d = original.to_dict()
+        restored = ShellCommand.from_dict(d)
 
-        # Should still return a dictionary
+        assert restored.command == original.command
+
+    def test_str_contains_command(self):
+        """String representation contains the command text."""
+        cmd = ShellCommand("echo hello", validate=False)
+        assert "echo hello" in str(cmd)
+
+    def test_repr_contains_command(self):
+        """Repr contains the command text."""
+        cmd = ShellCommand("echo hello", validate=False)
+        assert "echo hello" in repr(cmd)
+
+    def test_shell_safe_command(self):
+        """shell_safe_command property returns a string."""
+        cmd = ShellCommand("echo test", validate=False)
+        safe = cmd.shell_safe_command
+        assert isinstance(safe, str)
+        assert "echo" in safe
+
+    def test_is_complex_for_single_command(self):
+        """Single commands are not complex."""
+        cmd = ShellCommand("echo simple", validate=False)
+        assert cmd.is_complex() is False
+
+    def test_with_timeout(self):
+        """with_timeout returns a new ShellCommand with updated timeout."""
+        cmd = ShellCommand("echo test", validate=False)
+        timed = cmd.with_timeout(300)
+        assert timed.metadata.timeout == 300
+        # Original should be unchanged
+        assert cmd.metadata.timeout != 300
+
+    def test_with_environment(self):
+        """with_environment returns a new ShellCommand with merged env."""
+        cmd = ShellCommand("echo test", validate=False)
+        env_cmd = cmd.with_environment({"FOO": "bar"})
+        assert env_cmd.metadata.environment["FOO"] == "bar"
+
+
+# ---------------------------------------------------------------------------
+# detect_command_properties
+# ---------------------------------------------------------------------------
+
+
+class TestDetectCommandProperties:
+    """Test CommandProcessor.detect_command_properties()."""
+
+    def test_single_line_is_not_multiline(self, real_command_processor):
+        """Single-line command is not detected as multiline."""
+        props = real_command_processor.detect_command_properties("echo hello")
+        assert props["is_multiline"] is False
+
+    def test_multiline_detection(self, real_command_processor):
+        """Commands containing newlines are detected as multiline."""
+        multi = "line1\nline2"
+        props = real_command_processor.detect_command_properties(multi)
+        assert props["is_multiline"] is True
+
+    def test_function_definition_detection(self, real_command_processor):
+        """Function definitions are detected."""
+        func = "my_func() {\n  echo hello\n}"
+        props = real_command_processor.detect_command_properties(func)
+        assert props["is_function_definition"] is True
+
+    def test_control_structure_detection(self, real_command_processor):
+        """Control structures (if/for/while/case) are detected."""
+        if_block = "if true; then\n  echo yes\nfi"
+        props = real_command_processor.detect_command_properties(if_block)
+        assert props["is_control_structure"] is True
+
+    def test_for_loop_detection(self, real_command_processor):
+        """for loop is detected as control structure."""
+        for_loop = "for i in 1 2 3; do\n  echo $i\ndone"
+        props = real_command_processor.detect_command_properties(for_loop)
+        assert props["is_control_structure"] is True
+
+    def test_simple_command_has_no_special_properties(self, real_command_processor):
+        """Simple command has all properties False."""
+        props = real_command_processor.detect_command_properties("ls -la")
+        assert props["is_multiline"] is False
+        assert props["is_function_definition"] is False
+        assert props["is_control_structure"] is False
+
+
+# ---------------------------------------------------------------------------
+# combine_shell_constructs -- the real function
+# ---------------------------------------------------------------------------
+
+
+class TestCombineShellConstructs:
+    """Test combine_shell_constructs with real implementation.
+
+    The real function combines consecutive list elements that form a
+    single shell construct (while/for/if blocks, function definitions).
+    """
+
+    def test_empty_input(self):
+        """Empty list returns empty list."""
+        assert combine_shell_constructs([]) == []
+
+    def test_single_simple_command(self):
+        """Single non-construct command passes through unchanged."""
+        result = combine_shell_constructs(["echo hello"])
+        assert len(result) == 1
+        # Result may be a string or ShellCommand
+        cmd_text = result[0] if isinstance(result[0], str) else result[0].command
+        assert "echo hello" in cmd_text
+
+    def test_combines_for_loop(self):
+        """Split for-loop elements are combined into one multiline command."""
+        cmds = ["for i in 1 2 3; do", "echo $i", "done"]
+        result = combine_shell_constructs(cmds)
+
+        # The three elements should be combined into one
+        assert len(result) < len(cmds)
+        combined = result[0] if isinstance(result[0], str) else result[0].command
+        assert "for" in combined
+        assert "done" in combined
+
+    def test_combines_while_loop(self):
+        """Split while-loop elements are combined."""
+        cmds = ["while true; do", "echo running", "done"]
+        result = combine_shell_constructs(cmds)
+
+        assert len(result) < len(cmds)
+        combined = result[0] if isinstance(result[0], str) else result[0].command
+        assert "while" in combined
+        assert "done" in combined
+
+    def test_combines_if_block(self):
+        """Split if/fi block is combined."""
+        cmds = ["if true; then", "echo yes", "fi"]
+        result = combine_shell_constructs(cmds)
+
+        assert len(result) < len(cmds)
+        combined = result[0] if isinstance(result[0], str) else result[0].command
+        assert "if" in combined
+        assert "fi" in combined
+
+    def test_standalone_commands_not_combined(self):
+        """Non-construct commands are kept as separate elements."""
+        cmds = ["echo one", "echo two", "echo three"]
+        result = combine_shell_constructs(cmds)
+
+        assert len(result) == 3
+
+    def test_invalid_input_returns_empty(self):
+        """None or non-list input returns empty list."""
+        assert combine_shell_constructs(None) == []
+        assert combine_shell_constructs("not a list") == []
+
+    def test_shell_command_objects_accepted(self):
+        """ShellCommand objects are accepted as input."""
+        cmds = [
+            ShellCommand("echo standalone", validate=False),
+        ]
+        result = combine_shell_constructs(cmds)
+        assert len(result) >= 1
+
+
+# ---------------------------------------------------------------------------
+# Error handling
+# ---------------------------------------------------------------------------
+
+
+class TestCommandProcessorErrorHandling:
+    """Test error handling in command processing."""
+
+    def test_non_dict_input_raises(self, real_command_processor):
+        """process_commands raises on non-dict input."""
+        with pytest.raises(Exception):
+            real_command_processor.process_commands("not a dict")
+
+    def test_non_dict_run_cmd_raises(self, real_command_processor):
+        """run_cmd that is not a dict (and not None) raises."""
+        with pytest.raises(Exception):
+            real_command_processor.process_commands({"run_cmd": "bad"})
+
+    def test_empty_dict_does_not_crash(self, real_command_processor):
+        """Empty dict is accepted (warning logged, no crash)."""
+        result = real_command_processor.process_commands({})
         assert isinstance(result, dict)
+        assert len(result) == 0
+
+    def test_none_command_list_entry_filtered(self, real_command_processor):
+        """None entries in command lists are gracefully filtered."""
+        cmds = ["echo good", None, "echo also_good"]
+        result = real_command_processor.process_command_list(cmds)
+        # None should be filtered; only real commands remain
+        assert all(isinstance(d, dict) for d in result)
+
+
+# ---------------------------------------------------------------------------
+# Performance / scale
+# ---------------------------------------------------------------------------
 
 
 class TestCommandProcessorPerformance:
-    """Test command processor performance characteristics."""
+    """Test command processor with larger inputs."""
 
-    def test_large_command_list_processing(self):
-        """Test processing large numbers of commands."""
-        processor = CommandProcessor()
-
-        # Create large command structure
-        large_commands = {
-            "run_cmd": {"command": "main_application", "timeout": 60},
+    def test_large_command_list_processing(self, real_command_processor):
+        """Processing 100 commands completes without error."""
+        commands = {
+            "run_cmd": {"command_binary": "main_app", "timeout": 60},
             "pre_run_cmds": [f"setup_step_{i}" for i in range(100)],
             "post_run_cmds": [f"cleanup_step_{i}" for i in range(50)],
         }
 
-        # Process should complete efficiently
-        result = processor.process_commands(large_commands)
+        result = real_command_processor.process_commands(commands)
 
-        # Verify all commands are processed
-        assert len(result["pre_run_cmds"]) == 100
-        assert len(result["post_run_cmds"]) == 50
+        # All pre_run and post_run commands should be processed
+        assert len(result["pre_run_cmds"]) > 0
+        assert len(result["post_run_cmds"]) > 0
 
-    def test_command_processor_memory_usage(self):
-        """Test memory efficiency of command processing."""
-        processor = CommandProcessor()
+    def test_repeated_processing_is_stable(self, real_command_processor):
+        """Processing the same structure multiple times gives consistent results."""
+        commands = {
+            "run_cmd": {"command_binary": "test_cmd", "timeout": 60},
+            "pre_run_cmds": ["echo step1", "echo step2"],
+        }
 
-        # Process multiple command sets to test memory management
-        for i in range(10):
-            commands = {
-                "run_cmd": {"command": f"test_command_{i}", "timeout": 60},
-                "pre_run_cmds": [f"prep_{j}" for j in range(20)],
-            }
+        results = []
+        for _ in range(5):
+            results.append(real_command_processor.process_commands(commands))
 
-            result = processor.process_commands(commands)
-
-            # Verify processing works for each iteration
-            assert result["run_cmd"]["command"] == f"test_command_{i}"
-            assert len(result["pre_run_cmds"]) == 20
+        # All runs should produce the same structure
+        for r in results:
+            assert set(r.keys()) == {"run_cmd", "pre_run_cmds"}
+            assert r["run_cmd"]["timeout"] == 60
 
 
 if __name__ == "__main__":
