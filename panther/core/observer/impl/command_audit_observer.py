@@ -46,7 +46,8 @@ class CommandAuditObserver(ITypedObserver):
             output_dir: Directory to store audit logs
             observer_id: Unique identifier for this observer
         """
-        super().__init__(observer_id)
+        super().__init__()
+        self.observer_id = observer_id
         self.logger = logging.getLogger(self.__class__.__name__)
         self.output_dir = Path(output_dir)
         self.audit_file = self.output_dir / "command_audit.json"
