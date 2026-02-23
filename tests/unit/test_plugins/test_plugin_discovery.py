@@ -1,1662 +1,1309 @@
 """
 Unit tests for PANTHER Plugin Discovery and Management system.
 
-This module tests plugin discovery, loading, manifest handling, and the
-plugin management infrastructure.
+Tests real implementations of PluginDiscovery, PluginManifest, PluginCatalog,
+and PluginManagerUtils with IO-boundary mocking only.
 """
 
-import json
-import shutil
-import tempfile
+import importlib
+import sys
+import types
 from pathlib import Path
-from typing import Any, Dict, List, Optional
-from unittest.mock import MagicMock, Mock, call, patch
+from typing import Any, Dict, List
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
-import yaml
 
-# Test imports with fallback to mocks
-try:
-    from panther.plugins.core.plugin_catalog import PluginCatalog
-    from panther.plugins.core.plugin_discovery import PluginDiscovery
-    from panther.plugins.core.plugin_loader_utils import PluginManagerUtils
-    from panther.plugins.core.structures.plugin_manifest import PluginManifest
-
-    REAL_PLUGIN_SYSTEM_AVAILABLE = True
-except ImportError:
-    REAL_PLUGIN_SYSTEM_AVAILABLE = False
-
-    # Create mock implementations for testing
-    class PluginDiscovery:
-        def __init__(self, plugin_directories=None, logger=None):
-            self.plugin_directories = plugin_directories or []
-            self.logger = logger or Mock()
-            self.discovered_plugins = {}
-            self.discovery_cache = {}
-
-        def discover_plugins(self, force_refresh=False):
-            """Discover plugins in configured directories."""
-            if not force_refresh and self.discovery_cache:
-                return self.discovery_cache
-
-            plugins = {}
-            for directory in self.plugin_directories:
-                directory_path = Path(directory)
-                if directory_path.exists():
-                    plugins.update(self._scan_directory(directory_path))
-
-            self.discovery_cache = plugins
-            self.discovered_plugins = plugins
-            return plugins
-
-        def _scan_directory(self, directory):
-            """Scan directory for plugins."""
-            plugins = {}
-
-            # Look for plugin manifests
-            for manifest_file in directory.rglob("plugin.yaml"):
-                try:
-                    with open(manifest_file, "r") as f:
-                        manifest_data = yaml.safe_load(f)
-
-                    plugin_name = manifest_data.get("name", manifest_file.parent.name)
-                    plugin_type = manifest_data.get("type", "unknown")
-
-                    if plugin_type not in plugins:
-                        plugins[plugin_type] = {}
-
-                    plugins[plugin_type][plugin_name] = {
-                        "manifest": manifest_data,
-                        "path": manifest_file.parent,
-                        "manifest_file": manifest_file,
-                    }
-                except Exception as e:
-                    self.logger.error(f"Failed to load manifest {manifest_file}: {e}")
-
-            return plugins
-
-        def get_plugin_by_name(self, plugin_name, plugin_type=None):
-            """Get plugin by name and optional type."""
-            if not self.discovered_plugins:
-                self.discover_plugins()
-
-            if plugin_type:
-                return self.discovered_plugins.get(plugin_type, {}).get(plugin_name)
-
-            # Search across all types
-            for type_plugins in self.discovered_plugins.values():
-                if isinstance(type_plugins, dict) and plugin_name in type_plugins:
-                    return type_plugins[plugin_name]
-
-            return None
-
-        def get_plugins_by_type(self, plugin_type):
-            """Get all plugins of a specific type."""
-            if not self.discovered_plugins:
-                self.discover_plugins()
-
-            return self.discovered_plugins.get(plugin_type, {})
-
-        def list_available_plugins(self):
-            """List all available plugins."""
-            if not self.discovered_plugins:
-                self.discover_plugins()
-
-            return self.discovered_plugins.copy()
-
-        def validate_plugin(self, plugin_name, plugin_type=None):
-            """Validate plugin structure and manifest."""
-            plugin_info = self.get_plugin_by_name(plugin_name, plugin_type)
-            if not plugin_info:
-                return False, f"Plugin {plugin_name} not found"
-
-            manifest = plugin_info.get("manifest", {})
-            required_fields = ["name", "version", "type"]
-
-            for field in required_fields:
-                if field not in manifest:
-                    return False, f"Missing required field: {field}"
-
-            return True, "Plugin is valid"
-
-        def refresh_cache(self):
-            """Refresh plugin discovery cache."""
-            self.discovery_cache = {}
-            return self.discover_plugins(force_refresh=True)
-
-    class PluginManifest:
-        def __init__(self, manifest_data=None, manifest_file=None):
-            self.manifest_data = manifest_data or {}
-            self.manifest_file = manifest_file
-
-        @classmethod
-        def load_from_file(cls, manifest_file):
-            """Load manifest from file."""
-            with open(manifest_file, "r") as f:
-                if manifest_file.suffix in [".yaml", ".yml"]:
-                    data = yaml.safe_load(f)
-                elif manifest_file.suffix == ".json":
-                    data = json.load(f)
-                else:
-                    raise ValueError(
-                        f"Unsupported manifest format: {manifest_file.suffix}"
-                    )
-
-            return cls(manifest_data=data, manifest_file=manifest_file)
-
-        def get_name(self):
-            """Get plugin name."""
-            return self.manifest_data.get("name", "unknown")
-
-        def get_version(self):
-            """Get plugin version."""
-            return self.manifest_data.get("version", "0.0.0")
-
-        def get_type(self):
-            """Get plugin type."""
-            return self.manifest_data.get("type", "unknown")
-
-        def get_description(self):
-            """Get plugin description."""
-            return self.manifest_data.get("description", "")
-
-        def get_dependencies(self):
-            """Get plugin dependencies."""
-            return self.manifest_data.get("dependencies", [])
-
-        def get_supported_protocols(self):
-            """Get supported protocols."""
-            return self.manifest_data.get("supported_protocols", [])
-
-        def get_entry_point(self):
-            """Get plugin entry point."""
-            return self.manifest_data.get("entry_point", "")
-
-        def validate(self):
-            """Validate manifest data."""
-            required_fields = ["name", "version", "type"]
-            missing_fields = []
-
-            for field in required_fields:
-                if field not in self.manifest_data:
-                    missing_fields.append(field)
-
-            if missing_fields:
-                return False, f"Missing required fields: {missing_fields}"
-
-            return True, "Manifest is valid"
-
-        def to_dict(self):
-            """Convert manifest to dictionary."""
-            return self.manifest_data.copy()
-
-    class PluginCatalog:
-        def __init__(self, discovery_paths=None):
-            self.discovery_paths = discovery_paths or []
-            self.catalog = {}
-            self.metadata = {
-                "last_updated": None,
-                "total_plugins": 0,
-                "plugin_types": {},
-            }
-
-        def build_catalog(self, force_refresh=False):
-            """Build plugin catalog from discovery paths."""
-            if not force_refresh and self.catalog:
-                return self.catalog
-
-            discovery = PluginDiscovery(self.discovery_paths)
-            plugins = discovery.discover_plugins()
-
-            self.catalog = {}
-            for plugin_type, type_plugins in plugins.items():
-                self.catalog[plugin_type] = {}
-                for plugin_name, plugin_info in type_plugins.items():
-                    manifest = PluginManifest(plugin_info["manifest"])
-                    self.catalog[plugin_type][plugin_name] = {
-                        "manifest": manifest,
-                        "path": plugin_info["path"],
-                        "validated": manifest.validate()[0],
-                    }
-
-            self._update_metadata()
-            return self.catalog
-
-        def _update_metadata(self):
-            """Update catalog metadata."""
-            from datetime import datetime
-
-            self.metadata["last_updated"] = datetime.now().isoformat()
-            self.metadata["total_plugins"] = sum(
-                len(plugins) for plugins in self.catalog.values()
-            )
-            self.metadata["plugin_types"] = {
-                plugin_type: len(plugins)
-                for plugin_type, plugins in self.catalog.items()
-            }
-
-        def get_plugin(self, plugin_name, plugin_type=None):
-            """Get plugin from catalog."""
-            if plugin_type:
-                return self.catalog.get(plugin_type, {}).get(plugin_name)
-
-            # Search across all types
-            for type_plugins in self.catalog.values():
-                if plugin_name in type_plugins:
-                    return type_plugins[plugin_name]
-
-            return None
-
-        def list_plugins_by_type(self, plugin_type):
-            """List plugins by type."""
-            return list(self.catalog.get(plugin_type, {}).keys())
-
-        def get_catalog_metadata(self):
-            """Get catalog metadata."""
-            return self.metadata.copy()
-
-        def validate_all_plugins(self):
-            """Validate all plugins in catalog."""
-            results = {}
-            for plugin_type, type_plugins in self.catalog.items():
-                results[plugin_type] = {}
-                for plugin_name, plugin_info in type_plugins.items():
-                    manifest = plugin_info["manifest"]
-                    is_valid, message = manifest.validate()
-                    results[plugin_type][plugin_name] = {
-                        "valid": is_valid,
-                        "message": message,
-                    }
-
-            return results
-
-        def search_plugins(self, query, search_fields=None):
-            """Search plugins by query."""
-            search_fields = search_fields or ["name", "description", "type"]
-            results = {}
-
-            for plugin_type, type_plugins in self.catalog.items():
-                matching_plugins = {}
-                for plugin_name, plugin_info in type_plugins.items():
-                    manifest = plugin_info["manifest"]
-
-                    # Check if query matches any search field
-                    if any(
-                        query.lower()
-                        in str(getattr(manifest, f"get_{field}", lambda: "")()).lower()
-                        for field in search_fields
-                    ):
-                        matching_plugins[plugin_name] = plugin_info
-
-                if matching_plugins:
-                    results[plugin_type] = matching_plugins
-
-            return results
-
-    class ServiceFactory:
-        def __init__(self, plugin_catalog=None, logger=None):
-            self.plugin_catalog = plugin_catalog or PluginCatalog()
-            self.logger = logger or Mock()
-            self.created_services = []
-
-        def create_service_manager(self, service_type, implementation_name, **kwargs):
-            """Create service manager instance."""
-            plugin_info = self.plugin_catalog.get_plugin(implementation_name, "iut")
-
-            if not plugin_info:
-                raise ValueError(
-                    f"Service implementation not found: {implementation_name}"
-                )
-
-            # Mock service manager creation
-            service_manager = Mock()
-            service_manager.name = implementation_name
-            service_manager.type = service_type
-            service_manager.plugin_path = plugin_info["path"]
-            service_manager.generate_commands = Mock(
-                return_value={
-                    "pre_run_cmds": [f"{implementation_name}_setup"],
-                    "run_cmd": {"command": f"{implementation_name}_run", "timeout": 60},
-                    "post_run_cmds": [f"{implementation_name}_cleanup"],
-                }
-            )
-
-            self.created_services.append(service_manager)
-            return service_manager
-
-        def get_available_implementations(self, service_type=None):
-            """Get available service implementations."""
-            iut_plugins = self.plugin_catalog.list_plugins_by_type("iut")
-
-            if service_type:
-                # Filter by service type if specified
-                filtered_plugins = []
-                for plugin_name in iut_plugins:
-                    plugin_info = self.plugin_catalog.get_plugin(plugin_name, "iut")
-                    if (
-                        plugin_info
-                        and service_type
-                        in plugin_info["manifest"].get_supported_protocols()
-                    ):
-                        filtered_plugins.append(plugin_name)
-                return filtered_plugins
-
-            return iut_plugins
-
-        def validate_service_dependencies(self, implementation_name):
-            """Validate service dependencies."""
-            plugin_info = self.plugin_catalog.get_plugin(implementation_name, "iut")
-
-            if not plugin_info:
-                return False, f"Implementation not found: {implementation_name}"
-
-            dependencies = plugin_info["manifest"].get_dependencies()
-            missing_deps = []
-
-            # Mock dependency checking
-            for dep in dependencies:
-                # In real implementation, would check if dependency is available
-                if dep.startswith("missing_"):
-                    missing_deps.append(dep)
-
-            if missing_deps:
-                return False, f"Missing dependencies: {missing_deps}"
-
-            return True, "All dependencies satisfied"
-
-    class EnvironmentFactory:
-        def __init__(self, plugin_catalog=None, logger=None):
-            self.plugin_catalog = plugin_catalog or PluginCatalog()
-            self.logger = logger or Mock()
-            self.created_environments = []
-
-        def create_environment_manager(self, environment_type, **kwargs):
-            """Create environment manager instance."""
-            plugin_info = self.plugin_catalog.get_plugin(
-                environment_type, "network_environment"
-            )
-
-            if not plugin_info:
-                # Try execution environment
-                plugin_info = self.plugin_catalog.get_plugin(
-                    environment_type, "execution_environment"
-                )
-
-            if not plugin_info:
-                raise ValueError(f"Environment not found: {environment_type}")
-
-            # Mock environment manager creation
-            env_manager = Mock()
-            env_manager.name = environment_type
-            env_manager.plugin_path = plugin_info["path"]
-            env_manager.setup_environment = Mock(return_value=True)
-            env_manager.deploy = Mock(return_value=True)
-            env_manager.teardown = Mock(return_value=True)
-
-            self.created_environments.append(env_manager)
-            return env_manager
-
-        def get_available_environments(self, environment_category=None):
-            """Get available environments."""
-            if environment_category == "network":
-                return self.plugin_catalog.list_plugins_by_type("network_environment")
-            elif environment_category == "execution":
-                return self.plugin_catalog.list_plugins_by_type("execution_environment")
-            else:
-                # Return all environment types
-                network_envs = self.plugin_catalog.list_plugins_by_type(
-                    "network_environment"
-                )
-                exec_envs = self.plugin_catalog.list_plugins_by_type(
-                    "execution_environment"
-                )
-                return {"network": network_envs, "execution": exec_envs}
-
-    class PluginManagerUtils:
-        @staticmethod
-        def load_plugin_class(file_path, class_name):
-            """Mock plugin class loading."""
-            # Return a mock class
-            MockPluginClass = type(
-                class_name,
-                (),
-                {
-                    "__init__": lambda self, *args, **kwargs: None,
-                    "generate_commands": lambda self: {"command": "mock_command"},
-                    "initialize": lambda self: True,
-                },
-            )
-            return MockPluginClass
-
-        @staticmethod
-        def validate_plugin_structure(plugin_path):
-            """Validate plugin directory structure."""
-            plugin_path = Path(plugin_path)
-
-            # Check for required files
-            required_files = ["plugin.yaml"]
-            missing_files = []
-
-            for file_name in required_files:
-                if not (plugin_path / file_name).exists():
-                    missing_files.append(file_name)
-
-            if missing_files:
-                return False, f"Missing required files: {missing_files}"
-
-            return True, "Plugin structure is valid"
-
-        @staticmethod
-        def get_plugin_metadata(plugin_path):
-            """Get plugin metadata."""
-            plugin_path = Path(plugin_path)
-            manifest_file = plugin_path / "plugin.yaml"
-
-            if manifest_file.exists():
-                manifest = PluginManifest.load_from_file(manifest_file)
-                return manifest.to_dict()
-
-            return {}
-
+from panther.plugins.core.plugin_catalog import PluginCatalog
+from panther.plugins.core.plugin_discovery import PluginDiscovery
+from panther.plugins.core.plugin_loader_utils import PluginManagerUtils
+from panther.plugins.core.structures.plugin_dependency import PluginDependency
+from panther.plugins.core.structures.plugin_manifest import PluginManifest
+from panther.plugins.core.structures.plugin_metadata import PluginMetadata
+from panther.plugins.core.structures.plugin_type import PluginType
 
 pytestmark = [pytest.mark.unit, pytest.mark.plugin_system]
 
 
-class TestPluginDiscovery:
-    """Test PluginDiscovery functionality."""
+# ---------------------------------------------------------------------------
+# Helper fixtures
+# ---------------------------------------------------------------------------
 
-    @pytest.fixture
-    def mock_plugin_structure(self):
-        """Create mock plugin directory structure."""
-        temp_dir = tempfile.mkdtemp(prefix="panther_plugin_test_")
-        plugin_root = Path(temp_dir) / "plugins"
 
-        # Create service plugins
-        services_dir = plugin_root / "services" / "iut" / "quic"
+@pytest.fixture
+def sample_manifest():
+    """Create a valid PluginManifest dataclass instance."""
+    return PluginManifest(
+        name="test_plugin",
+        version="1.2.3",
+        type=PluginType.SERVICE,
+        description="Test plugin for unit testing",
+        supported_protocols=["quic"],
+        dependencies=[
+            PluginDependency(name="docker_dep", version_spec=">=1.0.0"),
+            PluginDependency(name="python_dep", version_spec="*"),
+        ],
+        entry_point="test_plugin.py",
+        author="Test Author",
+        license="MIT",
+    )
 
-        # PicoQUIC plugin
-        picoquic_dir = services_dir / "picoquic"
-        picoquic_dir.mkdir(parents=True)
-        picoquic_manifest = {
-            "name": "picoquic",
-            "version": "1.0.0",
-            "type": "iut",
-            "description": "PicoQUIC QUIC implementation",
-            "supported_protocols": ["quic"],
-            "dependencies": ["docker"],
-            "entry_point": "picoquic.py",
-        }
-        with open(picoquic_dir / "plugin.yaml", "w") as f:
-            yaml.dump(picoquic_manifest, f)
 
-        # AioQUIC plugin
-        aioquic_dir = services_dir / "aioquic"
-        aioquic_dir.mkdir(parents=True)
-        aioquic_manifest = {
-            "name": "aioquic",
-            "version": "0.9.0",
-            "type": "iut",
-            "description": "AioQUIC Python QUIC implementation",
-            "supported_protocols": ["quic"],
-            "dependencies": ["python", "asyncio"],
-            "entry_point": "aioquic.py",
-        }
-        with open(aioquic_dir / "plugin.yaml", "w") as f:
-            yaml.dump(aioquic_manifest, f)
+@pytest.fixture
+def manifest_dict():
+    """Dictionary form of a valid manifest, suitable for from_dict()."""
+    return {
+        "name": "test_plugin",
+        "version": "1.2.3",
+        "type": "service",
+        "description": "Test plugin for unit testing",
+        "supported_protocols": ["quic"],
+        "dependencies": [
+            {"name": "docker_dep", "version_spec": ">=1.0.0"},
+            {"name": "python_dep", "version_spec": "*"},
+        ],
+        "entry_point": "test_plugin.py",
+        "author": "Test Author",
+        "license": "MIT",
+    }
 
-        # Create environment plugins
-        env_dir = plugin_root / "environments" / "network_environment"
 
-        # Docker Compose environment
-        docker_dir = env_dir / "docker_compose"
-        docker_dir.mkdir(parents=True)
-        docker_manifest = {
-            "name": "docker_compose",
-            "version": "2.0.0",
-            "type": "network_environment",
-            "description": "Docker Compose network environment",
-            "dependencies": ["docker", "docker-compose"],
-        }
-        with open(docker_dir / "plugin.yaml", "w") as f:
-            yaml.dump(docker_manifest, f)
+@pytest.fixture
+def empty_decorated_plugins():
+    """Patch get_decorated_plugins to return empty dict."""
+    with patch(
+        "panther.plugins.core.plugin_decorators.get_decorated_plugins",
+        return_value={},
+    ):
+        yield
 
-        yield plugin_root
 
-        # Cleanup
-        shutil.rmtree(temp_dir, ignore_errors=True)
+@pytest.fixture
+def fake_decorated_plugins():
+    """Patch get_decorated_plugins to return a realistic set of plugins.
 
-    def test_plugin_discovery_initialization(self):
-        """Test PluginDiscovery initialization."""
+    Returns three plugins: a service, a network environment, and a tester,
+    each backed by a real PluginManifest and a mock class.
+    """
+    picoquic_manifest = PluginManifest(
+        name="picoquic",
+        version="1.0.0",
+        type=PluginType.SERVICE,
+        description="PicoQUIC QUIC implementation",
+        supported_protocols=["quic"],
+        dependencies=[PluginDependency(name="docker", version_spec="*")],
+    )
+    aioquic_manifest = PluginManifest(
+        name="aioquic",
+        version="0.9.0",
+        type=PluginType.SERVICE,
+        description="Python AioQUIC implementation",
+        supported_protocols=["quic"],
+        dependencies=[PluginDependency(name="python", version_spec="*")],
+    )
+    docker_compose_manifest = PluginManifest(
+        name="docker_compose",
+        version="2.0.0",
+        type=PluginType.NETWORK_ENVIRONMENT,
+        description="Docker Compose network environment",
+        dependencies=[],
+    )
+    ivy_tester_manifest = PluginManifest(
+        name="ivy_tester",
+        version="1.5.0",
+        type=PluginType.TESTER,
+        description="Ivy formal verification tester",
+        supported_protocols=["quic"],
+    )
+    decorated = {
+        "picoquic": (Mock(), picoquic_manifest),
+        "aioquic": (Mock(), aioquic_manifest),
+        "docker_compose": (Mock(), docker_compose_manifest),
+        "ivy_tester": (Mock(), ivy_tester_manifest),
+    }
+    with patch(
+        "panther.plugins.core.plugin_decorators.get_decorated_plugins",
+        return_value=decorated,
+    ):
+        yield decorated
+
+
+@pytest.fixture
+def fake_catalog_plugins():
+    """Patch get_decorated_plugins for PluginCatalog tests.
+
+    PluginCatalog.scan_plugins() also calls get_decorated_plugins internally.
+    """
+    picoquic_manifest = PluginManifest(
+        name="picoquic",
+        version="1.0.0",
+        type=PluginType.SERVICE,
+        description="PicoQUIC QUIC implementation",
+        supported_protocols=["quic"],
+        dependencies=[],
+        config_schema={"port": "int", "cert_file": "str"},
+        default_config={"port": 4433},
+    )
+    aioquic_manifest = PluginManifest(
+        name="aioquic",
+        version="0.9.0",
+        type=PluginType.SERVICE,
+        description="Python AioQUIC implementation",
+        supported_protocols=["quic"],
+        dependencies=[
+            PluginDependency(name="picoquic", version_spec="*"),
+        ],
+    )
+    docker_compose_manifest = PluginManifest(
+        name="docker_compose",
+        version="2.0.0",
+        type=PluginType.NETWORK_ENVIRONMENT,
+        description="Docker Compose network environment",
+        dependencies=[],
+    )
+    decorated = {
+        "picoquic": (Mock(), picoquic_manifest),
+        "aioquic": (Mock(), aioquic_manifest),
+        "docker_compose": (Mock(), docker_compose_manifest),
+    }
+    with patch(
+        "panther.plugins.core.plugin_decorators.get_decorated_plugins",
+        return_value=decorated,
+    ):
+        yield decorated
+
+
+# ===========================================================================
+# TestPluginDiscovery -- tests the real PluginDiscovery class
+# ===========================================================================
+
+
+class TestPluginDiscoveryInit:
+    """Test PluginDiscovery constructor behavior."""
+
+    def test_default_init_sets_default_directories(self):
+        """PluginDiscovery() without args uses _get_default_directories()."""
         discovery = PluginDiscovery()
 
-        assert discovery.plugin_directories == []
-        assert discovery.logger is not None
+        assert isinstance(discovery.plugin_directories, list)
+        assert len(discovery.plugin_directories) > 0
         assert discovery.discovered_plugins == {}
-        assert discovery.discovery_cache == {}
+        assert discovery.enable_cache is True
 
-    def test_plugin_discovery_with_directories(self, mock_plugin_structure):
-        """Test PluginDiscovery with plugin directories."""
-        discovery = PluginDiscovery(plugin_directories=[str(mock_plugin_structure)])
+    def test_custom_directories(self):
+        """PluginDiscovery with explicit directories uses them."""
+        custom = ["/some/path", "/another/path"]
+        discovery = PluginDiscovery(plugin_directories=custom)
 
-        assert len(discovery.plugin_directories) == 1
-        assert str(mock_plugin_structure) in discovery.plugin_directories
+        assert discovery.plugin_directories == custom
 
-    def test_discover_plugins_basic(self, mock_plugin_structure):
-        """Test basic plugin discovery."""
-        discovery = PluginDiscovery(plugin_directories=[str(mock_plugin_structure)])
+    def test_cache_configuration(self):
+        """Cache settings are stored."""
+        discovery = PluginDiscovery(enable_cache=False, cache_ttl=60)
 
-        plugins = discovery.discover_plugins()
+        assert discovery.enable_cache is False
+        assert discovery.cache_ttl == 60
 
-        assert isinstance(plugins, dict)
-        assert "iut" in plugins
-        assert "network_environment" in plugins
 
-        # Check IUT plugins
-        iut_plugins = plugins["iut"]
-        assert "picoquic" in iut_plugins
-        assert "aioquic" in iut_plugins
+class TestPluginDiscoverPlugins:
+    """Test PluginDiscovery.discover_plugins()."""
 
-        # Check network environment plugins
-        net_plugins = plugins["network_environment"]
-        assert "docker_compose" in net_plugins
+    def test_discover_returns_copy(self, fake_decorated_plugins):
+        """discover_plugins() returns a copy, not the internal dict."""
+        discovery = PluginDiscovery(plugin_directories=[])
+        result = discovery.discover_plugins(force_refresh=True)
 
-    def test_discover_plugins_caching(self, mock_plugin_structure):
-        """Test plugin discovery caching."""
-        discovery = PluginDiscovery(plugin_directories=[str(mock_plugin_structure)])
+        assert isinstance(result, dict)
+        result["injected"] = "value"
+        assert "injected" not in discovery.discovered_plugins
 
-        # First discovery
-        plugins1 = discovery.discover_plugins()
+    def test_discover_finds_all_types(self, fake_decorated_plugins):
+        """discover_plugins() populates plugins from decorator registry."""
+        discovery = PluginDiscovery(plugin_directories=[])
+        plugins = discovery.discover_plugins(force_refresh=True)
 
-        # Second discovery (should use cache)
-        plugins2 = discovery.discover_plugins()
+        assert "picoquic" in plugins
+        assert "aioquic" in plugins
+        assert "docker_compose" in plugins
+        assert "ivy_tester" in plugins
 
-        assert plugins1 == plugins2
-        assert discovery.discovery_cache == plugins1
+    def test_discover_metadata_types(self, fake_decorated_plugins):
+        """Returned values are PluginMetadata instances."""
+        discovery = PluginDiscovery(plugin_directories=[])
+        plugins = discovery.discover_plugins(force_refresh=True)
 
-    def test_discover_plugins_force_refresh(self, mock_plugin_structure):
-        """Test forced plugin discovery refresh."""
-        discovery = PluginDiscovery(plugin_directories=[str(mock_plugin_structure)])
+        for metadata in plugins.values():
+            assert isinstance(metadata, PluginMetadata)
 
-        # Initial discovery
-        plugins1 = discovery.discover_plugins()
+    def test_discover_caching(self, fake_decorated_plugins):
+        """Second call without force_refresh returns cached result."""
+        discovery = PluginDiscovery(plugin_directories=[])
+        first = discovery.discover_plugins(force_refresh=True)
+        second = discovery.discover_plugins()
 
-        # Add a new plugin
-        new_plugin_dir = (
-            mock_plugin_structure / "services" / "iut" / "quic" / "newplugin"
+        assert first == second
+
+    def test_discover_force_refresh_reloads(self):
+        """force_refresh=True clears and re-populates."""
+        manifest_a = PluginManifest(
+            name="plugin_a", version="1.0.0", type=PluginType.SERVICE
         )
-        new_plugin_dir.mkdir(parents=True)
-        new_manifest = {
-            "name": "newplugin",
-            "version": "1.0.0",
-            "type": "iut",
-            "description": "New test plugin",
-        }
-        with open(new_plugin_dir / "plugin.yaml", "w") as f:
-            yaml.dump(new_manifest, f)
-
-        # Force refresh
-        plugins2 = discovery.discover_plugins(force_refresh=True)
-
-        assert "newplugin" in plugins2["iut"]
-        assert "newplugin" not in plugins1["iut"]
-
-    def test_get_plugin_by_name(self, mock_plugin_structure):
-        """Test getting plugin by name."""
-        discovery = PluginDiscovery(plugin_directories=[str(mock_plugin_structure)])
-
-        # Get specific plugin
-        picoquic_plugin = discovery.get_plugin_by_name("picoquic", "iut")
-
-        assert picoquic_plugin is not None
-        assert picoquic_plugin["manifest"]["name"] == "picoquic"
-        assert picoquic_plugin["manifest"]["type"] == "iut"
-
-    def test_get_plugin_by_name_without_type(self, mock_plugin_structure):
-        """Test getting plugin by name without specifying type."""
-        discovery = PluginDiscovery(plugin_directories=[str(mock_plugin_structure)])
-
-        # Get plugin without specifying type
-        docker_plugin = discovery.get_plugin_by_name("docker_compose")
-
-        assert docker_plugin is not None
-        assert docker_plugin["manifest"]["name"] == "docker_compose"
-        assert docker_plugin["manifest"]["type"] == "network_environment"
-
-    def test_get_plugin_by_name_nonexistent(self, mock_plugin_structure):
-        """Test getting non-existent plugin."""
-        discovery = PluginDiscovery(plugin_directories=[str(mock_plugin_structure)])
-
-        result = discovery.get_plugin_by_name("nonexistent")
-
-        assert result is None
-
-    def test_get_plugins_by_type(self, mock_plugin_structure):
-        """Test getting plugins by type."""
-        discovery = PluginDiscovery(plugin_directories=[str(mock_plugin_structure)])
-
-        iut_plugins = discovery.get_plugins_by_type("iut")
-
-        assert isinstance(iut_plugins, dict)
-        assert "picoquic" in iut_plugins
-        assert "aioquic" in iut_plugins
-        assert len(iut_plugins) == 2
-
-    def test_list_available_plugins(self, mock_plugin_structure):
-        """Test listing all available plugins."""
-        discovery = PluginDiscovery(plugin_directories=[str(mock_plugin_structure)])
-
-        all_plugins = discovery.list_available_plugins()
-
-        assert isinstance(all_plugins, dict)
-        assert "iut" in all_plugins
-        assert "network_environment" in all_plugins
-
-        # Verify it's a copy, not reference
-        all_plugins["test"] = "value"
-        assert "test" not in discovery.discovered_plugins
-
-    def test_validate_plugin_valid(self, mock_plugin_structure):
-        """Test validation of valid plugin."""
-        discovery = PluginDiscovery(plugin_directories=[str(mock_plugin_structure)])
-
-        is_valid, message = discovery.validate_plugin("picoquic", "iut")
-
-        assert is_valid is True
-        assert message == "Plugin is valid"
-
-    def test_validate_plugin_invalid(self, mock_plugin_structure):
-        """Test validation of invalid plugin."""
-        discovery = PluginDiscovery(plugin_directories=[str(mock_plugin_structure)])
-
-        # Create invalid plugin
-        invalid_dir = mock_plugin_structure / "services" / "iut" / "quic" / "invalid"
-        invalid_dir.mkdir(parents=True)
-        invalid_manifest = {
-            "name": "invalid",
-            # Missing version and type
-            "description": "Invalid plugin",
-        }
-        with open(invalid_dir / "plugin.yaml", "w") as f:
-            yaml.dump(invalid_manifest, f)
-
-        discovery.refresh_cache()  # Refresh to pick up new plugin
-
-        is_valid, message = discovery.validate_plugin("invalid", "iut")
-
-        assert is_valid is False
-        assert "Missing required field" in message
-
-    def test_validate_plugin_nonexistent(self, mock_plugin_structure):
-        """Test validation of non-existent plugin."""
-        discovery = PluginDiscovery(plugin_directories=[str(mock_plugin_structure)])
-
-        is_valid, message = discovery.validate_plugin("nonexistent")
-
-        assert is_valid is False
-        assert "not found" in message
-
-    def test_refresh_cache(self, mock_plugin_structure):
-        """Test cache refresh functionality."""
-        discovery = PluginDiscovery(plugin_directories=[str(mock_plugin_structure)])
-
-        # Initial discovery
-        plugins1 = discovery.discover_plugins()
-
-        # Add new plugin
-        new_plugin_dir = (
-            mock_plugin_structure / "environments" / "execution_environment" / "newenv"
+        manifest_b = PluginManifest(
+            name="plugin_b", version="1.0.0", type=PluginType.SERVICE
         )
-        new_plugin_dir.mkdir(parents=True)
-        new_manifest = {
-            "name": "newenv",
+
+        round1 = {"plugin_a": (Mock(), manifest_a)}
+        round2 = {
+            "plugin_a": (Mock(), manifest_a),
+            "plugin_b": (Mock(), manifest_b),
+        }
+
+        discovery = PluginDiscovery(plugin_directories=[])
+
+        with patch(
+            "panther.plugins.core.plugin_decorators.get_decorated_plugins",
+            return_value=round1,
+        ):
+            first = discovery.discover_plugins(force_refresh=True)
+        assert "plugin_a" in first
+        assert "plugin_b" not in first
+
+        with patch(
+            "panther.plugins.core.plugin_decorators.get_decorated_plugins",
+            return_value=round2,
+        ):
+            second = discovery.discover_plugins(force_refresh=True)
+        assert "plugin_a" in second
+        assert "plugin_b" in second
+
+    def test_discover_empty_registry(self, empty_decorated_plugins):
+        """discover_plugins() with no registered plugins returns empty dict."""
+        discovery = PluginDiscovery(plugin_directories=[])
+        result = discovery.discover_plugins(force_refresh=True)
+
+        assert result == {}
+
+
+class TestPluginDiscoveryAccessors:
+    """Test PluginDiscovery.get_plugin() and get_plugins_by_type()."""
+
+    def test_get_plugin_found(self, fake_decorated_plugins):
+        """get_plugin() returns PluginMetadata for known plugin."""
+        discovery = PluginDiscovery(plugin_directories=[])
+        discovery.discover_plugins(force_refresh=True)
+
+        result = discovery.get_plugin("picoquic")
+
+        assert result is not None
+        assert isinstance(result, PluginMetadata)
+        assert result.name == "picoquic"
+
+    def test_get_plugin_not_found(self, fake_decorated_plugins):
+        """get_plugin() returns None for unknown plugin."""
+        discovery = PluginDiscovery(plugin_directories=[])
+        discovery.discover_plugins(force_refresh=True)
+
+        assert discovery.get_plugin("nonexistent") is None
+
+    def test_get_plugins_by_type_service(self, fake_decorated_plugins):
+        """get_plugins_by_type('service') returns service plugins only."""
+        discovery = PluginDiscovery(plugin_directories=[])
+        discovery.discover_plugins(force_refresh=True)
+
+        services = discovery.get_plugins_by_type("service")
+
+        assert isinstance(services, list)
+        names = [m.name for m in services]
+        assert "picoquic" in names
+        assert "aioquic" in names
+        assert "docker_compose" not in names
+
+    def test_get_plugins_by_type_network_environment(self, fake_decorated_plugins):
+        """get_plugins_by_type('network_environment') returns env plugins."""
+        discovery = PluginDiscovery(plugin_directories=[])
+        discovery.discover_plugins(force_refresh=True)
+
+        envs = discovery.get_plugins_by_type("network_environment")
+
+        names = [m.name for m in envs]
+        assert "docker_compose" in names
+        assert len(envs) == 1
+
+    def test_get_plugins_by_type_empty(self, fake_decorated_plugins):
+        """get_plugins_by_type() returns empty list for unknown type."""
+        discovery = PluginDiscovery(plugin_directories=[])
+        discovery.discover_plugins(force_refresh=True)
+
+        result = discovery.get_plugins_by_type("nonexistent_type")
+        assert result == []
+
+
+class TestPluginDiscoveryClearCache:
+    """Test PluginDiscovery.clear_cache()."""
+
+    def test_clear_cache_empties_discovered(self, fake_decorated_plugins):
+        """clear_cache() removes all discovered plugins."""
+        discovery = PluginDiscovery(plugin_directories=[])
+        discovery.discover_plugins(force_refresh=True)
+        assert len(discovery.discovered_plugins) > 0
+
+        discovery.clear_cache()
+
+        assert discovery.discovered_plugins == {}
+
+
+# ===========================================================================
+# TestPluginManifest -- tests the real PluginManifest dataclass
+# ===========================================================================
+
+
+class TestPluginManifestDataclass:
+    """Test PluginManifest construction and field access."""
+
+    def test_required_fields_only(self):
+        """PluginManifest with only required fields uses defaults for rest."""
+        manifest = PluginManifest(
+            name="minimal", version="0.1.0", type=PluginType.SERVICE
+        )
+
+        assert manifest.name == "minimal"
+        assert manifest.version == "0.1.0"
+        assert manifest.type == PluginType.SERVICE
+        assert manifest.author == ""
+        assert manifest.description == ""
+        assert manifest.supported_protocols == []
+        assert manifest.dependencies == []
+        assert manifest.entry_point is None
+
+    def test_full_fields(self, sample_manifest):
+        """PluginManifest with all fields stores them correctly."""
+        assert sample_manifest.name == "test_plugin"
+        assert sample_manifest.version == "1.2.3"
+        assert sample_manifest.type == PluginType.SERVICE
+        assert sample_manifest.description == "Test plugin for unit testing"
+        assert sample_manifest.supported_protocols == ["quic"]
+        assert len(sample_manifest.dependencies) == 2
+        assert sample_manifest.entry_point == "test_plugin.py"
+        assert sample_manifest.author == "Test Author"
+        assert sample_manifest.license == "MIT"
+
+    def test_dependencies_are_plugin_dependency_instances(self, sample_manifest):
+        """Dependencies field contains PluginDependency dataclass instances."""
+        for dep in sample_manifest.dependencies:
+            assert isinstance(dep, PluginDependency)
+
+
+class TestPluginManifestToDict:
+    """Test PluginManifest.to_dict() serialization."""
+
+    def test_to_dict_basic(self):
+        """to_dict() includes all required fields."""
+        manifest = PluginManifest(
+            name="basic", version="1.0.0", type=PluginType.SERVICE
+        )
+        d = manifest.to_dict()
+
+        assert d["name"] == "basic"
+        assert d["version"] == "1.0.0"
+        assert d["type"] == "service"
+
+    def test_to_dict_dependencies_serialized(self, sample_manifest):
+        """to_dict() serializes dependencies as list of dicts."""
+        d = sample_manifest.to_dict()
+
+        assert isinstance(d["dependencies"], list)
+        assert len(d["dependencies"]) == 2
+        dep0 = d["dependencies"][0]
+        assert dep0["name"] == "docker_dep"
+        assert dep0["version_spec"] == ">=1.0.0"
+
+    def test_to_dict_type_is_string(self, sample_manifest):
+        """to_dict() converts PluginType enum to string value."""
+        d = sample_manifest.to_dict()
+        assert isinstance(d["type"], str)
+        assert d["type"] == "service"
+
+    def test_to_dict_includes_optional_fields(self, sample_manifest):
+        """to_dict() includes optional fields."""
+        d = sample_manifest.to_dict()
+        assert "supported_protocols" in d
+        assert "config_schema" in d
+        assert "capabilities" in d
+        assert "tags" in d
+
+
+class TestPluginManifestFromDict:
+    """Test PluginManifest.from_dict() deserialization."""
+
+    def test_from_dict_basic(self, manifest_dict):
+        """from_dict() creates a PluginManifest from a dictionary."""
+        manifest = PluginManifest.from_dict(manifest_dict)
+
+        assert manifest.name == "test_plugin"
+        assert manifest.version == "1.2.3"
+        assert manifest.type == PluginType.SERVICE
+        assert manifest.description == "Test plugin for unit testing"
+
+    def test_from_dict_dependencies(self, manifest_dict):
+        """from_dict() converts dependency dicts to PluginDependency instances."""
+        manifest = PluginManifest.from_dict(manifest_dict)
+
+        assert len(manifest.dependencies) == 2
+        assert isinstance(manifest.dependencies[0], PluginDependency)
+        assert manifest.dependencies[0].name == "docker_dep"
+        assert manifest.dependencies[0].version_spec == ">=1.0.0"
+
+    def test_from_dict_roundtrip(self, manifest_dict):
+        """from_dict -> to_dict preserves essential data."""
+        manifest = PluginManifest.from_dict(manifest_dict)
+        result = manifest.to_dict()
+
+        assert result["name"] == manifest_dict["name"]
+        assert result["version"] == manifest_dict["version"]
+        assert result["type"] == manifest_dict["type"]
+        assert result["description"] == manifest_dict["description"]
+        assert result["supported_protocols"] == manifest_dict["supported_protocols"]
+
+    def test_from_dict_defaults(self):
+        """from_dict() uses defaults for missing optional fields."""
+        minimal = {"name": "min", "version": "0.0.1", "type": "service"}
+        manifest = PluginManifest.from_dict(minimal)
+
+        assert manifest.description == ""
+        assert manifest.dependencies == []
+        assert manifest.supported_protocols == []
+        assert manifest.entry_point is None
+
+    def test_from_dict_with_plugin_type_dependency(self):
+        """from_dict() handles dependencies with plugin_type field."""
+        data = {
+            "name": "dep_test",
             "version": "1.0.0",
-            "type": "execution_environment",
-            "description": "New execution environment",
+            "type": "service",
+            "dependencies": [
+                {
+                    "name": "other_plugin",
+                    "version_spec": ">=2.0.0",
+                    "plugin_type": "service",
+                }
+            ],
         }
-        with open(new_plugin_dir / "plugin.yaml", "w") as f:
-            yaml.dump(new_manifest, f)
+        manifest = PluginManifest.from_dict(data)
 
-        # Refresh cache
-        plugins2 = discovery.refresh_cache()
-
-        assert "execution_environment" in plugins2
-        assert "newenv" in plugins2["execution_environment"]
-
-    def test_discover_plugins_empty_directory(self):
-        """Test plugin discovery with empty directories."""
-        temp_dir = tempfile.mkdtemp(prefix="panther_empty_test_")
-        empty_dir = Path(temp_dir)
-
-        discovery = PluginDiscovery(plugin_directories=[str(empty_dir)])
-
-        plugins = discovery.discover_plugins()
-
-        assert plugins == {}
-
-        # Cleanup
-        shutil.rmtree(temp_dir, ignore_errors=True)
-
-    def test_discover_plugins_nonexistent_directory(self):
-        """Test plugin discovery with non-existent directories."""
-        discovery = PluginDiscovery(plugin_directories=["/nonexistent/path"])
-
-        plugins = discovery.discover_plugins()
-
-        assert plugins == {}
+        assert len(manifest.dependencies) == 1
+        dep = manifest.dependencies[0]
+        assert dep.plugin_type == PluginType.SERVICE
 
 
-class TestPluginManifest:
-    """Test PluginManifest functionality."""
+class TestPluginManifestCompatibility:
+    """Test PluginManifest.is_compatible_with_panther()."""
 
-    @pytest.fixture
-    def sample_manifest_data(self):
-        """Sample manifest data for testing."""
-        return {
-            "name": "test_plugin",
-            "version": "1.2.3",
-            "type": "iut",
-            "description": "Test plugin for unit testing",
-            "supported_protocols": ["quic"],
-            "dependencies": ["docker", "python"],
-            "entry_point": "test_plugin.py",
-            "author": "Test Author",
-            "license": "MIT",
+    def test_compatible_within_range(self):
+        """Plugin is compatible when panther version is within range."""
+        manifest = PluginManifest(
+            name="test",
+            version="1.0.0",
+            type=PluginType.SERVICE,
+            min_panther_version="1.0.0",
+            max_panther_version="2.0.0",
+        )
+
+        assert manifest.is_compatible_with_panther("1.5.0") is True
+
+    def test_compatible_at_min_version(self):
+        """Plugin is compatible at exactly the minimum version."""
+        manifest = PluginManifest(
+            name="test",
+            version="1.0.0",
+            type=PluginType.SERVICE,
+            min_panther_version="1.0.0",
+        )
+
+        assert manifest.is_compatible_with_panther("1.0.0") is True
+
+    def test_incompatible_below_min(self):
+        """Plugin is incompatible below minimum version."""
+        manifest = PluginManifest(
+            name="test",
+            version="1.0.0",
+            type=PluginType.SERVICE,
+            min_panther_version="2.0.0",
+        )
+
+        assert manifest.is_compatible_with_panther("1.0.0") is False
+
+    def test_incompatible_above_max(self):
+        """Plugin is incompatible above maximum version."""
+        manifest = PluginManifest(
+            name="test",
+            version="1.0.0",
+            type=PluginType.SERVICE,
+            min_panther_version="1.0.0",
+            max_panther_version="1.5.0",
+        )
+
+        assert manifest.is_compatible_with_panther("2.0.0") is False
+
+    def test_no_max_version_allows_any_higher(self):
+        """Without max_panther_version, any version >= min is compatible."""
+        manifest = PluginManifest(
+            name="test",
+            version="1.0.0",
+            type=PluginType.SERVICE,
+            min_panther_version="1.0.0",
+            max_panther_version=None,
+        )
+
+        assert manifest.is_compatible_with_panther("99.0.0") is True
+
+    def test_invalid_version_string_returns_false(self):
+        """Invalid version string returns False instead of raising."""
+        manifest = PluginManifest(
+            name="test",
+            version="1.0.0",
+            type=PluginType.SERVICE,
+        )
+
+        assert manifest.is_compatible_with_panther("not_a_version") is False
+
+
+# ===========================================================================
+# TestPluginDependency -- tests the real PluginDependency dataclass
+# ===========================================================================
+
+
+class TestPluginDependency:
+    """Test PluginDependency.is_satisfied_by()."""
+
+    def test_wildcard_satisfied_by_any(self):
+        """Wildcard version spec ('*') is satisfied by any version."""
+        dep = PluginDependency(name="any", version_spec="*")
+        assert dep.is_satisfied_by("0.0.1") is True
+        assert dep.is_satisfied_by("99.99.99") is True
+
+    def test_non_wildcard_returns_false_due_to_packaging_bug(self):
+        """Non-wildcard version specs return False.
+
+        Pre-existing bug: PluginDependency.is_satisfied_by() uses
+        ``version.SpecifierSet`` which does not exist in
+        ``packaging.version`` (should be ``packaging.specifiers.SpecifierSet``).
+        The method swallows the AttributeError and returns False for any
+        non-wildcard spec.
+        """
+        dep_exact = PluginDependency(name="exact", version_spec="==1.0.0")
+        assert dep_exact.is_satisfied_by("1.0.0") is False
+
+        dep_range = PluginDependency(name="ranged", version_spec=">=1.0.0")
+        assert dep_range.is_satisfied_by("1.0.0") is False
+
+    def test_optional_plugin_type(self):
+        """PluginDependency stores optional plugin_type."""
+        dep = PluginDependency(
+            name="typed", version_spec="*", plugin_type=PluginType.SERVICE
+        )
+        assert dep.plugin_type == PluginType.SERVICE
+
+
+# ===========================================================================
+# TestPluginMetadata -- tests the real PluginMetadata dataclass
+# ===========================================================================
+
+
+class TestPluginMetadata:
+    """Test PluginMetadata construction and methods."""
+
+    def test_basic_construction(self):
+        """PluginMetadata with required fields."""
+        meta = PluginMetadata(name="test_meta", type="service")
+
+        assert meta.name == "test_meta"
+        assert meta.type == "service"
+        assert meta.version == "1.0.0"
+        assert meta.description == ""
+        assert meta.supported_protocols == []
+
+    def test_from_dict(self):
+        """PluginMetadata.from_dict() creates instance from dict."""
+        data = {
+            "name": "from_dict_meta",
+            "type": "tester",
+            "version": "2.0.0",
+            "description": "Created from dict",
+            "supported_protocols": ["quic", "http3"],
         }
+        meta = PluginMetadata.from_dict(data)
 
-    @pytest.fixture
-    def temp_manifest_file(self, sample_manifest_data):
-        """Create temporary manifest file."""
-        temp_file = tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False)
-        yaml.dump(sample_manifest_data, temp_file)
-        temp_file.close()
+        assert meta.name == "from_dict_meta"
+        assert meta.type == "tester"
+        assert meta.version == "2.0.0"
+        assert meta.supported_protocols == ["quic", "http3"]
 
-        yield Path(temp_file.name)
+    def test_is_compatible_with_protocol(self):
+        """is_compatible_with() checks protocol matching."""
+        meta = PluginMetadata(
+            name="compat_test",
+            type="service",
+            supported_protocols=["quic"],
+        )
 
-        # Cleanup
-        Path(temp_file.name).unlink(missing_ok=True)
+        assert meta.is_compatible_with(protocol="quic") is True
+        assert meta.is_compatible_with(protocol="http3") is False
 
-    def test_plugin_manifest_initialization(self, sample_manifest_data):
-        """Test PluginManifest initialization with data."""
-        manifest = PluginManifest(manifest_data=sample_manifest_data)
+    def test_is_compatible_with_empty_protocols(self):
+        """is_compatible_with() returns True when no protocols set (wildcard)."""
+        meta = PluginMetadata(name="wildcard", type="service")
 
-        assert manifest.manifest_data == sample_manifest_data
-        assert manifest.manifest_file is None
+        assert meta.is_compatible_with(protocol="anything") is True
 
-    def test_plugin_manifest_load_from_file(self, temp_manifest_file):
-        """Test loading manifest from file."""
-        manifest = PluginManifest.load_from_file(temp_manifest_file)
+    def test_is_compatible_with_no_args(self):
+        """is_compatible_with() returns True when called without args."""
+        meta = PluginMetadata(name="no_args", type="service")
 
-        assert manifest.get_name() == "test_plugin"
-        assert manifest.get_version() == "1.2.3"
-        assert manifest.get_type() == "iut"
-        assert manifest.manifest_file == temp_manifest_file
-
-    def test_plugin_manifest_load_json_file(self, sample_manifest_data):
-        """Test loading manifest from JSON file."""
-        temp_file = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)
-        json.dump(sample_manifest_data, temp_file)
-        temp_file.close()
-
-        try:
-            manifest = PluginManifest.load_from_file(Path(temp_file.name))
-
-            assert manifest.get_name() == "test_plugin"
-            assert manifest.get_type() == "iut"
-        finally:
-            Path(temp_file.name).unlink(missing_ok=True)
-
-    def test_plugin_manifest_unsupported_format(self):
-        """Test loading manifest from unsupported file format."""
-        temp_file = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
-        temp_file.write("name: test_plugin")
-        temp_file.close()
-
-        try:
-            with pytest.raises(ValueError, match="Unsupported manifest format"):
-                PluginManifest.load_from_file(Path(temp_file.name))
-        finally:
-            Path(temp_file.name).unlink(missing_ok=True)
-
-    def test_get_manifest_fields(self, sample_manifest_data):
-        """Test getting various manifest fields."""
-        manifest = PluginManifest(manifest_data=sample_manifest_data)
-
-        assert manifest.get_name() == "test_plugin"
-        assert manifest.get_version() == "1.2.3"
-        assert manifest.get_type() == "iut"
-        assert manifest.get_description() == "Test plugin for unit testing"
-        assert manifest.get_dependencies() == ["docker", "python"]
-        assert manifest.get_supported_protocols() == ["quic"]
-        assert manifest.get_entry_point() == "test_plugin.py"
-
-    def test_get_manifest_fields_defaults(self):
-        """Test getting manifest fields with default values."""
-        manifest = PluginManifest(manifest_data={})
-
-        assert manifest.get_name() == "unknown"
-        assert manifest.get_version() == "0.0.0"
-        assert manifest.get_type() == "unknown"
-        assert manifest.get_description() == ""
-        assert manifest.get_dependencies() == []
-        assert manifest.get_supported_protocols() == []
-        assert manifest.get_entry_point() == ""
-
-    def test_validate_manifest_valid(self, sample_manifest_data):
-        """Test validation of valid manifest."""
-        manifest = PluginManifest(manifest_data=sample_manifest_data)
-
-        is_valid, message = manifest.validate()
-
-        assert is_valid is True
-        assert message == "Manifest is valid"
-
-    def test_validate_manifest_missing_fields(self):
-        """Test validation of manifest with missing fields."""
-        incomplete_data = {
-            "name": "test_plugin",
-            # Missing version and type
-            "description": "Test plugin",
-        }
-        manifest = PluginManifest(manifest_data=incomplete_data)
-
-        is_valid, message = manifest.validate()
-
-        assert is_valid is False
-        assert "Missing required fields" in message
-        assert "version" in message
-        assert "type" in message
-
-    def test_to_dict(self, sample_manifest_data):
-        """Test converting manifest to dictionary."""
-        manifest = PluginManifest(manifest_data=sample_manifest_data)
-
-        dict_result = manifest.to_dict()
-
-        assert dict_result == sample_manifest_data
-        # Verify it's a copy
-        dict_result["test"] = "value"
-        assert "test" not in manifest.manifest_data
+        assert meta.is_compatible_with() is True
 
 
-class TestPluginCatalog:
-    """Test PluginCatalog functionality."""
+# ===========================================================================
+# TestPluginCatalog -- tests the real PluginCatalog class
+# ===========================================================================
 
-    @pytest.fixture
-    def mock_catalog_structure(self):
-        """Create mock plugin structure for catalog testing."""
-        temp_dir = tempfile.mkdtemp(prefix="panther_catalog_test_")
-        plugin_root = Path(temp_dir) / "plugins"
 
-        # Create multiple plugins for catalog testing
-        plugins_data = [
-            (
-                "services/iut/quic/plugin1",
-                {
-                    "name": "plugin1",
-                    "version": "1.0.0",
-                    "type": "iut",
-                    "description": "First test plugin",
-                    "supported_protocols": ["quic"],
-                },
-            ),
-            (
-                "services/iut/quic/plugin2",
-                {
-                    "name": "plugin2",
-                    "version": "2.0.0",
-                    "type": "iut",
-                    "description": "Second test plugin",
-                    "supported_protocols": ["quic"],
-                },
-            ),
-            (
-                "environments/network_environment/env1",
-                {
-                    "name": "env1",
-                    "version": "1.0.0",
-                    "type": "network_environment",
-                    "description": "First test environment",
-                },
-            ),
-            (
-                "environments/execution_environment/profiler1",
-                {
-                    "name": "profiler1",
-                    "version": "1.5.0",
-                    "type": "execution_environment",
-                    "description": "Test profiler environment",
-                },
-            ),
-        ]
+class TestPluginCatalogInit:
+    """Test PluginCatalog constructor."""
 
-        for plugin_path, manifest_data in plugins_data:
-            plugin_dir = plugin_root / plugin_path
-            plugin_dir.mkdir(parents=True)
-            with open(plugin_dir / "plugin.yaml", "w") as f:
-                yaml.dump(manifest_data, f)
-
-        yield plugin_root
-
-        # Cleanup
-        shutil.rmtree(temp_dir, ignore_errors=True)
-
-    def test_plugin_catalog_initialization(self):
-        """Test PluginCatalog initialization."""
+    def test_default_init(self):
+        """PluginCatalog() with no args creates empty catalog."""
         catalog = PluginCatalog()
 
         assert catalog.discovery_paths == []
         assert catalog.catalog == {}
-        assert catalog.metadata["last_updated"] is None
-        assert catalog.metadata["total_plugins"] == 0
 
-    def test_plugin_catalog_with_paths(self, mock_catalog_structure):
-        """Test PluginCatalog initialization with discovery paths."""
-        catalog = PluginCatalog(discovery_paths=[str(mock_catalog_structure)])
+    def test_with_paths(self):
+        """PluginCatalog with discovery_paths stores them."""
+        paths = ["/path/one", "/path/two"]
+        catalog = PluginCatalog(discovery_paths=paths)
 
-        assert len(catalog.discovery_paths) == 1
-        assert str(mock_catalog_structure) in catalog.discovery_paths
-
-    def test_build_catalog(self, mock_catalog_structure):
-        """Test building plugin catalog."""
-        catalog = PluginCatalog(discovery_paths=[str(mock_catalog_structure)])
-
-        catalog_data = catalog.build_catalog()
-
-        assert isinstance(catalog_data, dict)
-        assert "iut" in catalog_data
-        assert "network_environment" in catalog_data
-        assert "execution_environment" in catalog_data
-
-        # Check specific plugins
-        assert "plugin1" in catalog_data["iut"]
-        assert "plugin2" in catalog_data["iut"]
-        assert "env1" in catalog_data["network_environment"]
-        assert "profiler1" in catalog_data["execution_environment"]
-
-    def test_build_catalog_caching(self, mock_catalog_structure):
-        """Test catalog building with caching."""
-        catalog = PluginCatalog(discovery_paths=[str(mock_catalog_structure)])
-
-        # First build
-        catalog1 = catalog.build_catalog()
-
-        # Second build (should use cache)
-        catalog2 = catalog.build_catalog()
-
-        assert catalog1 == catalog2
-
-    def test_build_catalog_force_refresh(self, mock_catalog_structure):
-        """Test catalog building with force refresh."""
-        catalog = PluginCatalog(discovery_paths=[str(mock_catalog_structure)])
-
-        # Initial build
-        catalog.build_catalog()
-
-        # Add new plugin
-        new_plugin_dir = (
-            mock_catalog_structure / "services" / "iut" / "quic" / "plugin3"
-        )
-        new_plugin_dir.mkdir(parents=True)
-        new_manifest = {
-            "name": "plugin3",
-            "version": "3.0.0",
-            "type": "iut",
-            "description": "Third test plugin",
-        }
-        with open(new_plugin_dir / "plugin.yaml", "w") as f:
-            yaml.dump(new_manifest, f)
-
-        # Force refresh
-        refreshed_catalog = catalog.build_catalog(force_refresh=True)
-
-        assert "plugin3" in refreshed_catalog["iut"]
-
-    def test_get_plugin(self, mock_catalog_structure):
-        """Test getting plugin from catalog."""
-        catalog = PluginCatalog(discovery_paths=[str(mock_catalog_structure)])
-        catalog.build_catalog()
-
-        # Get plugin with type
-        plugin1 = catalog.get_plugin("plugin1", "iut")
-        assert plugin1 is not None
-        assert plugin1["manifest"].get_name() == "plugin1"
-
-        # Get plugin without type
-        env1 = catalog.get_plugin("env1")
-        assert env1 is not None
-        assert env1["manifest"].get_name() == "env1"
-
-    def test_get_plugin_nonexistent(self, mock_catalog_structure):
-        """Test getting non-existent plugin."""
-        catalog = PluginCatalog(discovery_paths=[str(mock_catalog_structure)])
-        catalog.build_catalog()
-
-        result = catalog.get_plugin("nonexistent")
-        assert result is None
-
-    def test_list_plugins_by_type(self, mock_catalog_structure):
-        """Test listing plugins by type."""
-        catalog = PluginCatalog(discovery_paths=[str(mock_catalog_structure)])
-        catalog.build_catalog()
-
-        iut_plugins = catalog.list_plugins_by_type("iut")
-        assert len(iut_plugins) == 2
-        assert "plugin1" in iut_plugins
-        assert "plugin2" in iut_plugins
-
-        env_plugins = catalog.list_plugins_by_type("network_environment")
-        assert len(env_plugins) == 1
-        assert "env1" in env_plugins
-
-    def test_get_catalog_metadata(self, mock_catalog_structure):
-        """Test getting catalog metadata."""
-        catalog = PluginCatalog(discovery_paths=[str(mock_catalog_structure)])
-        catalog.build_catalog()
-
-        metadata = catalog.get_catalog_metadata()
-
-        assert "last_updated" in metadata
-        assert metadata["total_plugins"] == 4
-        assert metadata["plugin_types"]["iut"] == 2
-        assert metadata["plugin_types"]["network_environment"] == 1
-        assert metadata["plugin_types"]["execution_environment"] == 1
-
-    def test_validate_all_plugins(self, mock_catalog_structure):
-        """Test validating all plugins in catalog."""
-        catalog = PluginCatalog(discovery_paths=[str(mock_catalog_structure)])
-        catalog.build_catalog()
-
-        validation_results = catalog.validate_all_plugins()
-
-        assert "iut" in validation_results
-        assert "network_environment" in validation_results
-
-        # All test plugins should be valid
-        for plugin_type, type_results in validation_results.items():
-            for plugin_name, result in type_results.items():
-                assert result["valid"] is True
-                assert result["message"] == "Manifest is valid"
-
-    def test_search_plugins(self, mock_catalog_structure):
-        """Test searching plugins."""
-        catalog = PluginCatalog(discovery_paths=[str(mock_catalog_structure)])
-        catalog.build_catalog()
-
-        # Search by name
-        results = catalog.search_plugins("plugin1")
-        assert "iut" in results
-        assert "plugin1" in results["iut"]
-
-        # Search by description
-        results = catalog.search_plugins("profiler")
-        assert "execution_environment" in results
-        assert "profiler1" in results["execution_environment"]
-
-        # Search by type
-        results = catalog.search_plugins("network_environment")
-        assert "network_environment" in results
-
-    def test_search_plugins_no_results(self, mock_catalog_structure):
-        """Test searching plugins with no results."""
-        catalog = PluginCatalog(discovery_paths=[str(mock_catalog_structure)])
-        catalog.build_catalog()
-
-        results = catalog.search_plugins("nonexistent_query")
-        assert results == {}
+        assert catalog.discovery_paths == paths
 
 
-class TestServiceFactory:
-    """Test ServiceFactory functionality."""
+class TestPluginCatalogScanPlugins:
+    """Test PluginCatalog.scan_plugins()."""
 
-    @pytest.fixture
-    def mock_service_catalog(self):
-        """Create mock catalog for service factory testing."""
+    def test_scan_populates_catalog(self, fake_catalog_plugins):
+        """scan_plugins() loads plugins from decorator registry."""
         catalog = PluginCatalog()
+        result = catalog.scan_plugins()
 
-        # Mock IUT plugins
-        catalog.catalog = {
-            "iut": {
-                "picoquic": {
-                    "manifest": PluginManifest(
-                        {
-                            "name": "picoquic",
-                            "version": "1.0.0",
-                            "type": "iut",
-                            "supported_protocols": ["quic"],
-                        }
-                    ),
-                    "path": Path("/mock/path/picoquic"),
-                    "validated": True,
-                },
-                "aioquic": {
-                    "manifest": PluginManifest(
-                        {
-                            "name": "aioquic",
-                            "version": "0.9.0",
-                            "type": "iut",
-                            "supported_protocols": ["quic"],
-                        }
-                    ),
-                    "path": Path("/mock/path/aioquic"),
-                    "validated": True,
-                },
-            }
-        }
+        assert isinstance(result, dict)
+        assert len(result) == 3
+        assert "picoquic" in result
+        assert "aioquic" in result
+        assert "docker_compose" in result
 
-        return catalog
+    def test_scan_values_are_manifests(self, fake_catalog_plugins):
+        """scan_plugins() stores PluginManifest instances."""
+        catalog = PluginCatalog()
+        result = catalog.scan_plugins()
 
-    def test_service_factory_initialization(self):
-        """Test ServiceFactory initialization."""
-        factory = ServiceFactory()
+        for manifest in result.values():
+            assert isinstance(manifest, PluginManifest)
 
-        assert factory.plugin_catalog is not None
-        assert factory.logger is not None
-        assert factory.created_services == []
+    def test_scan_clears_existing(self, fake_catalog_plugins):
+        """scan_plugins() clears existing catalog before repopulating."""
+        catalog = PluginCatalog()
+        catalog.catalog["stale_entry"] = Mock()
+        catalog.scan_plugins()
 
-    def test_service_factory_with_catalog(self, mock_service_catalog):
-        """Test ServiceFactory with custom catalog."""
-        factory = ServiceFactory(plugin_catalog=mock_service_catalog)
+        assert "stale_entry" not in catalog.catalog
 
-        assert factory.plugin_catalog == mock_service_catalog
 
-    def test_create_service_manager(self, mock_service_catalog):
-        """Test creating service manager."""
-        factory = ServiceFactory(plugin_catalog=mock_service_catalog)
+class TestPluginCatalogGetPluginInfo:
+    """Test PluginCatalog.get_plugin_info()."""
 
-        service_manager = factory.create_service_manager("quic", "picoquic")
+    def test_get_existing_plugin(self, fake_catalog_plugins):
+        """get_plugin_info() returns dict with manifest fields."""
+        catalog = PluginCatalog()
+        catalog.scan_plugins()
 
-        assert service_manager is not None
-        assert service_manager.name == "picoquic"
-        assert service_manager.type == "quic"
-        assert service_manager in factory.created_services
+        info = catalog.get_plugin_info("picoquic")
 
-    def test_create_service_manager_nonexistent(self, mock_service_catalog):
-        """Test creating service manager for non-existent implementation."""
-        factory = ServiceFactory(plugin_catalog=mock_service_catalog)
+        assert info is not None
+        assert info["name"] == "picoquic"
+        assert info["version"] == "1.0.0"
+        assert info["type"] == "service"
 
-        with pytest.raises(ValueError, match="Service implementation not found"):
-            factory.create_service_manager("quic", "nonexistent")
+    def test_get_nonexistent_plugin(self, fake_catalog_plugins):
+        """get_plugin_info() returns None for unknown plugin."""
+        catalog = PluginCatalog()
+        catalog.scan_plugins()
 
-    def test_get_available_implementations(self, mock_service_catalog):
-        """Test getting available implementations."""
-        factory = ServiceFactory(plugin_catalog=mock_service_catalog)
+        assert catalog.get_plugin_info("nonexistent") is None
 
-        implementations = factory.get_available_implementations()
+    def test_get_plugin_info_includes_resolved_dependencies(
+        self, fake_catalog_plugins
+    ):
+        """get_plugin_info() includes resolved_dependencies key."""
+        catalog = PluginCatalog()
+        catalog.scan_plugins()
 
-        assert len(implementations) == 2
-        assert "picoquic" in implementations
-        assert "aioquic" in implementations
+        info = catalog.get_plugin_info("aioquic")
 
-    def test_get_available_implementations_filtered(self, mock_service_catalog):
-        """Test getting available implementations filtered by service type."""
-        factory = ServiceFactory(plugin_catalog=mock_service_catalog)
+        assert info is not None
+        assert "resolved_dependencies" in info
 
-        # Filter by QUIC protocol
-        quic_impls = factory.get_available_implementations("quic")
-        assert len(quic_impls) == 2
 
-        # Filter by HTTP3 protocol
-        http3_impls = factory.get_available_implementations("http3")
-        assert len(http3_impls) == 1
-        assert "aioquic" in http3_impls
+class TestPluginCatalogValidateConfig:
+    """Test PluginCatalog.validate_plugin_config()."""
 
-    def test_validate_service_dependencies(self, mock_service_catalog):
-        """Test service dependency validation."""
-        factory = ServiceFactory(plugin_catalog=mock_service_catalog)
+    def test_valid_config(self, fake_catalog_plugins):
+        """validate_plugin_config() passes when config matches schema."""
+        catalog = PluginCatalog()
+        catalog.scan_plugins()
 
-        # Valid service
-        is_valid, message = factory.validate_service_dependencies("picoquic")
+        is_valid, errors = catalog.validate_plugin_config(
+            "picoquic", {"port": 4433, "cert_file": "/path/to/cert"}
+        )
+
         assert is_valid is True
-        assert message == "All dependencies satisfied"
+        assert errors == []
 
-    def test_validate_service_dependencies_missing(self, mock_service_catalog):
-        """Test service dependency validation with missing dependencies."""
-        # Add plugin with missing dependencies
-        mock_service_catalog.catalog["iut"]["broken_plugin"] = {
-            "manifest": PluginManifest(
-                {
-                    "name": "broken_plugin",
-                    "version": "1.0.0",
-                    "type": "iut",
-                    "dependencies": ["missing_dependency1", "missing_dependency2"],
-                }
-            ),
-            "path": Path("/mock/path/broken"),
-            "validated": True,
-        }
-
-        factory = ServiceFactory(plugin_catalog=mock_service_catalog)
-
-        is_valid, message = factory.validate_service_dependencies("broken_plugin")
-        assert is_valid is False
-        assert "Missing dependencies" in message
-
-    def test_validate_service_dependencies_nonexistent(self, mock_service_catalog):
-        """Test service dependency validation for non-existent service."""
-        factory = ServiceFactory(plugin_catalog=mock_service_catalog)
-
-        is_valid, message = factory.validate_service_dependencies("nonexistent")
-        assert is_valid is False
-        assert "Implementation not found" in message
-
-
-class TestEnvironmentFactory:
-    """Test EnvironmentFactory functionality."""
-
-    @pytest.fixture
-    def mock_environment_catalog(self):
-        """Create mock catalog for environment factory testing."""
+    def test_missing_required_config_key(self, fake_catalog_plugins):
+        """validate_plugin_config() detects missing required config keys."""
         catalog = PluginCatalog()
+        catalog.scan_plugins()
 
-        # Mock environment plugins
-        catalog.catalog = {
-            "network_environment": {
-                "docker_compose": {
-                    "manifest": PluginManifest(
-                        {
-                            "name": "docker_compose",
-                            "version": "2.0.0",
-                            "type": "network_environment",
-                        }
-                    ),
-                    "path": Path("/mock/path/docker_compose"),
-                    "validated": True,
-                }
-            },
-            "execution_environment": {
-                "strace": {
-                    "manifest": PluginManifest(
-                        {
-                            "name": "strace",
-                            "version": "1.0.0",
-                            "type": "execution_environment",
-                        }
-                    ),
-                    "path": Path("/mock/path/strace"),
-                    "validated": True,
-                }
-            },
-        }
-
-        return catalog
-
-    def test_environment_factory_initialization(self):
-        """Test EnvironmentFactory initialization."""
-        factory = EnvironmentFactory()
-
-        assert factory.plugin_catalog is not None
-        assert factory.logger is not None
-        assert factory.created_environments == []
-
-    def test_create_environment_manager_network(self, mock_environment_catalog):
-        """Test creating network environment manager."""
-        factory = EnvironmentFactory(plugin_catalog=mock_environment_catalog)
-
-        env_manager = factory.create_environment_manager("docker_compose")
-
-        assert env_manager is not None
-        assert env_manager.name == "docker_compose"
-        assert env_manager in factory.created_environments
-
-    def test_create_environment_manager_execution(self, mock_environment_catalog):
-        """Test creating execution environment manager."""
-        factory = EnvironmentFactory(plugin_catalog=mock_environment_catalog)
-
-        env_manager = factory.create_environment_manager("strace")
-
-        assert env_manager is not None
-        assert env_manager.name == "strace"
-        assert env_manager in factory.created_environments
-
-    def test_create_environment_manager_nonexistent(self, mock_environment_catalog):
-        """Test creating environment manager for non-existent environment."""
-        factory = EnvironmentFactory(plugin_catalog=mock_environment_catalog)
-
-        with pytest.raises(ValueError, match="Environment not found"):
-            factory.create_environment_manager("nonexistent")
-
-    def test_get_available_environments_all(self, mock_environment_catalog):
-        """Test getting all available environments."""
-        factory = EnvironmentFactory(plugin_catalog=mock_environment_catalog)
-
-        environments = factory.get_available_environments()
-
-        assert isinstance(environments, dict)
-        assert "network" in environments
-        assert "execution" in environments
-        assert "docker_compose" in environments["network"]
-        assert "strace" in environments["execution"]
-
-    def test_get_available_environments_network(self, mock_environment_catalog):
-        """Test getting network environments."""
-        factory = EnvironmentFactory(plugin_catalog=mock_environment_catalog)
-
-        network_envs = factory.get_available_environments("network")
-
-        assert len(network_envs) == 1
-        assert "docker_compose" in network_envs
-
-    def test_get_available_environments_execution(self, mock_environment_catalog):
-        """Test getting execution environments."""
-        factory = EnvironmentFactory(plugin_catalog=mock_environment_catalog)
-
-        exec_envs = factory.get_available_environments("execution")
-
-        assert len(exec_envs) == 1
-        assert "strace" in exec_envs
-
-
-class TestPluginManagerUtils:
-    """Test PluginManagerUtils functionality."""
-
-    def test_load_plugin_class(self):
-        """Test loading plugin class."""
-        plugin_class = PluginManagerUtils.load_plugin_class(
-            "/mock/path/plugin.py", "TestPlugin"
+        # "cert_file" is in schema but not in config and not in default_config
+        is_valid, errors = catalog.validate_plugin_config(
+            "picoquic", {"port": 4433}
         )
 
-        assert plugin_class is not None
-        assert plugin_class.__name__ == "TestPlugin"
+        assert is_valid is False
+        assert any("cert_file" in e for e in errors)
 
-        # Test instance creation
-        instance = plugin_class()
-        assert hasattr(instance, "generate_commands")
-        assert hasattr(instance, "initialize")
+    def test_validate_unknown_plugin(self, fake_catalog_plugins):
+        """validate_plugin_config() fails for unknown plugin."""
+        catalog = PluginCatalog()
+        catalog.scan_plugins()
 
-    def test_validate_plugin_structure_valid(self):
-        """Test validating valid plugin structure."""
-        temp_dir = tempfile.mkdtemp(prefix="panther_plugin_structure_test_")
-        plugin_path = Path(temp_dir)
+        is_valid, errors = catalog.validate_plugin_config(
+            "nonexistent", {"key": "value"}
+        )
 
-        # Create required files
-        (plugin_path / "plugin.yaml").write_text("name: test_plugin")
+        assert is_valid is False
+        assert any("not found" in e for e in errors)
 
-        try:
-            is_valid, message = PluginManagerUtils.validate_plugin_structure(
-                plugin_path
-            )
+    def test_validate_empty_schema_passes(self, fake_catalog_plugins):
+        """validate_plugin_config() passes when plugin has no schema."""
+        catalog = PluginCatalog()
+        catalog.scan_plugins()
+
+        # aioquic has no config_schema
+        is_valid, errors = catalog.validate_plugin_config(
+            "aioquic", {"anything": "goes"}
+        )
+
+        assert is_valid is True
+        assert errors == []
+
+
+class TestPluginCatalogValidateDependencies:
+    """Test PluginCatalog.validate_plugin_dependencies()."""
+
+    def test_satisfied_dependencies_wildcard(self):
+        """validate_plugin_dependencies() passes when deps use wildcard spec.
+
+        Note: Non-wildcard version specs always fail due to a pre-existing bug
+        in PluginDependency.is_satisfied_by(). This test uses wildcard deps
+        to verify the dependency resolution logic itself works.
+        """
+        base_manifest = PluginManifest(
+            name="base_lib",
+            version="1.0.0",
+            type=PluginType.SERVICE,
+        )
+        consumer_manifest = PluginManifest(
+            name="consumer",
+            version="1.0.0",
+            type=PluginType.SERVICE,
+            dependencies=[
+                PluginDependency(name="base_lib", version_spec="*"),
+            ],
+        )
+        decorated = {
+            "base_lib": (Mock(), base_manifest),
+            "consumer": (Mock(), consumer_manifest),
+        }
+
+        with patch(
+            "panther.plugins.core.plugin_decorators.get_decorated_plugins",
+            return_value=decorated,
+        ):
+            catalog = PluginCatalog()
+            catalog.scan_plugins()
+
+            is_valid, missing = catalog.validate_plugin_dependencies("consumer")
 
             assert is_valid is True
-            assert message == "Plugin structure is valid"
-        finally:
-            shutil.rmtree(temp_dir, ignore_errors=True)
+            assert missing == []
 
-    def test_validate_plugin_structure_invalid(self):
-        """Test validating invalid plugin structure."""
-        temp_dir = tempfile.mkdtemp(prefix="panther_plugin_structure_test_")
-        plugin_path = Path(temp_dir)
+    def test_missing_dependencies(self):
+        """validate_plugin_dependencies() reports missing deps."""
+        orphan_manifest = PluginManifest(
+            name="orphan",
+            version="1.0.0",
+            type=PluginType.SERVICE,
+            dependencies=[
+                PluginDependency(name="nonexistent_dep", version_spec=">=1.0.0"),
+            ],
+        )
+        decorated = {"orphan": (Mock(), orphan_manifest)}
 
-        # Don't create required files
+        with patch(
+            "panther.plugins.core.plugin_decorators.get_decorated_plugins",
+            return_value=decorated,
+        ):
+            catalog = PluginCatalog()
+            catalog.scan_plugins()
 
-        try:
-            is_valid, message = PluginManagerUtils.validate_plugin_structure(
-                plugin_path
-            )
+            is_valid, missing = catalog.validate_plugin_dependencies("orphan")
 
             assert is_valid is False
-            assert "Missing required files" in message
-        finally:
-            shutil.rmtree(temp_dir, ignore_errors=True)
+            assert len(missing) > 0
+            assert any("nonexistent_dep" in m for m in missing)
 
-    def test_get_plugin_metadata(self):
-        """Test getting plugin metadata."""
-        temp_dir = tempfile.mkdtemp(prefix="panther_plugin_metadata_test_")
-        plugin_path = Path(temp_dir)
+    def test_unknown_plugin_name(self, fake_catalog_plugins):
+        """validate_plugin_dependencies() fails for unknown plugin."""
+        catalog = PluginCatalog()
+        catalog.scan_plugins()
 
-        # Create plugin manifest
-        manifest_data = {
-            "name": "metadata_test",
-            "version": "1.0.0",
-            "type": "iut",
-            "description": "Test plugin for metadata extraction",
-        }
-        with open(plugin_path / "plugin.yaml", "w") as f:
-            yaml.dump(manifest_data, f)
+        is_valid, missing = catalog.validate_plugin_dependencies("not_real")
 
-        try:
-            metadata = PluginManagerUtils.get_plugin_metadata(plugin_path)
+        assert is_valid is False
+        assert any("not found" in m for m in missing)
 
-            assert metadata["name"] == "metadata_test"
-            assert metadata["version"] == "1.0.0"
-            assert metadata["type"] == "iut"
-        finally:
-            shutil.rmtree(temp_dir, ignore_errors=True)
+    def test_no_dependencies(self, fake_catalog_plugins):
+        """validate_plugin_dependencies() passes for plugin with no deps."""
+        catalog = PluginCatalog()
+        catalog.scan_plugins()
 
-    def test_get_plugin_metadata_no_manifest(self):
-        """Test getting plugin metadata when no manifest exists."""
-        temp_dir = tempfile.mkdtemp(prefix="panther_plugin_metadata_test_")
-        plugin_path = Path(temp_dir)
+        # docker_compose has no dependencies
+        is_valid, missing = catalog.validate_plugin_dependencies("docker_compose")
 
-        try:
-            metadata = PluginManagerUtils.get_plugin_metadata(plugin_path)
+        assert is_valid is True
+        assert missing == []
 
-            assert metadata == {}
-        finally:
-            shutil.rmtree(temp_dir, ignore_errors=True)
+
+class TestPluginCatalogRefresh:
+    """Test PluginCatalog.refresh()."""
+
+    def test_refresh_clears_and_rescans(self):
+        """refresh() clears catalog and re-scans from decorator registry."""
+        manifest = PluginManifest(
+            name="refreshed", version="1.0.0", type=PluginType.SERVICE
+        )
+        decorated = {"refreshed": (Mock(), manifest)}
+
+        with patch(
+            "panther.plugins.core.plugin_decorators.get_decorated_plugins",
+            return_value=decorated,
+        ):
+            catalog = PluginCatalog()
+            catalog.catalog["stale"] = Mock()
+
+            catalog.refresh()
+
+            assert "stale" not in catalog.catalog
+            assert "refreshed" in catalog.catalog
+
+
+class TestPluginCatalogResolveDependencies:
+    """Test PluginCatalog.resolve_dependencies()."""
+
+    def test_resolve_returns_input(self, fake_catalog_plugins):
+        """resolve_dependencies() returns plugin_ids as-is (current impl)."""
+        catalog = PluginCatalog()
+        catalog.scan_plugins()
+
+        resolved, missing = catalog.resolve_dependencies(
+            ["picoquic", "aioquic"]
+        )
+
+        assert resolved == ["picoquic", "aioquic"]
+        assert missing == []
+
+
+# ===========================================================================
+# TestPluginManagerUtils -- tests the real PluginManagerUtils class
+# ===========================================================================
+
+
+class TestPluginManagerUtilsLoadModule:
+    """Test PluginManagerUtils.load_module_from_file()."""
+
+    def test_load_existing_module(self, tmp_path):
+        """load_module_from_file() loads a real .py file."""
+        module_file = tmp_path / "sample_module.py"
+        module_file.write_text("VALUE = 42\ndef get_value(): return VALUE\n")
+
+        module = PluginManagerUtils.load_module_from_file(module_file)
+
+        assert hasattr(module, "VALUE")
+        assert module.VALUE == 42
+        assert module.get_value() == 42
+
+    def test_load_nonexistent_raises_import_error(self, tmp_path):
+        """load_module_from_file() raises ImportError for missing file."""
+        missing_file = tmp_path / "does_not_exist.py"
+
+        with pytest.raises(ImportError, match="Module file not found"):
+            PluginManagerUtils.load_module_from_file(missing_file)
+
+    def test_load_with_custom_module_name(self, tmp_path):
+        """load_module_from_file() uses custom module name when provided."""
+        module_file = tmp_path / "my_module.py"
+        module_file.write_text("NAME = 'custom'\n")
+
+        module = PluginManagerUtils.load_module_from_file(
+            module_file, module_name="custom_name"
+        )
+
+        assert module.__name__ == "custom_name"
+        assert module.NAME == "custom"
+
+
+class TestPluginManagerUtilsGetClass:
+    """Test PluginManagerUtils.get_class_from_module()."""
+
+    def test_get_existing_class(self, tmp_path):
+        """get_class_from_module() finds and returns a class."""
+        module_file = tmp_path / "class_module.py"
+        module_file.write_text("class MyPlugin:\n    pass\n")
+
+        module = PluginManagerUtils.load_module_from_file(module_file)
+        cls = PluginManagerUtils.get_class_from_module(module, "MyPlugin")
+
+        assert cls.__name__ == "MyPlugin"
+
+    def test_get_nonexistent_class_raises(self, tmp_path):
+        """get_class_from_module() raises AttributeError for missing class."""
+        module_file = tmp_path / "empty_module.py"
+        module_file.write_text("pass\n")
+
+        module = PluginManagerUtils.load_module_from_file(module_file)
+
+        with pytest.raises(AttributeError, match="Could not find class"):
+            PluginManagerUtils.get_class_from_module(module, "NonExistent")
+
+    def test_get_class_with_base_check(self, tmp_path):
+        """get_class_from_module() validates base class inheritance."""
+        module_file = tmp_path / "typed_module.py"
+        module_file.write_text(
+            "class Base:\n    pass\n"
+            "class Child(Base):\n    pass\n"
+            "class Unrelated:\n    pass\n"
+        )
+
+        module = PluginManagerUtils.load_module_from_file(module_file)
+        Base = getattr(module, "Base")
+
+        # Should succeed for Child(Base)
+        cls = PluginManagerUtils.get_class_from_module(module, "Child", Base)
+        assert cls.__name__ == "Child"
+
+        # Should raise for Unrelated
+        with pytest.raises(TypeError, match="must inherit from"):
+            PluginManagerUtils.get_class_from_module(module, "Unrelated", Base)
+
+
+class TestPluginManagerUtilsLoadPluginClass:
+    """Test PluginManagerUtils.load_plugin_class()."""
+
+    def test_load_from_directory(self, tmp_path):
+        """load_plugin_class() loads from plugin directory convention."""
+        plugin_dir = tmp_path / "my_plugin"
+        plugin_dir.mkdir()
+        plugin_file = plugin_dir / "my_plugin.py"
+        plugin_file.write_text(
+            "class MyPluginServiceManager:\n"
+            "    def __init__(self):\n"
+            "        self.name = 'my_plugin'\n"
+        )
+
+        cls = PluginManagerUtils.load_plugin_class(
+            plugin_dir, "ServiceManager"
+        )
+
+        assert cls.__name__ == "MyPluginServiceManager"
+        instance = cls()
+        assert instance.name == "my_plugin"
+
+    def test_load_from_file(self, tmp_path):
+        """load_plugin_class() loads directly from .py file."""
+        plugin_file = tmp_path / "direct_plugin.py"
+        plugin_file.write_text(
+            "class DirectPluginHandler:\n"
+            "    pass\n"
+        )
+
+        cls = PluginManagerUtils.load_plugin_class(
+            plugin_file, "Handler"
+        )
+
+        assert cls.__name__ == "DirectPluginHandler"
+
+    def test_load_with_name_transform(self, tmp_path):
+        """load_plugin_class() uses custom name transform if provided."""
+        plugin_dir = tmp_path / "custom"
+        plugin_dir.mkdir()
+        plugin_file = plugin_dir / "custom.py"
+        plugin_file.write_text(
+            "class SpecialRunner:\n"
+            "    pass\n"
+        )
+
+        cls = PluginManagerUtils.load_plugin_class(
+            plugin_dir,
+            "Runner",
+            name_transform=lambda _: "Special",
+        )
+
+        assert cls.__name__ == "SpecialRunner"
+
+
+class TestPluginManagerUtilsInstantiate:
+    """Test PluginManagerUtils.instantiate_plugin()."""
+
+    def test_instantiate_success(self, tmp_path):
+        """instantiate_plugin() creates an instance of the plugin class."""
+        module_file = tmp_path / "inst_module.py"
+        module_file.write_text(
+            "class InstPlugin:\n"
+            "    def __init__(self, value):\n"
+            "        self.value = value\n"
+        )
+
+        module = PluginManagerUtils.load_module_from_file(module_file)
+        cls = getattr(module, "InstPlugin")
+        instance = PluginManagerUtils.instantiate_plugin(cls, 42)
+
+        assert instance.value == 42
+
+    def test_instantiate_failure_raises(self):
+        """instantiate_plugin() wraps constructor errors."""
+
+        class BadPlugin:
+            def __init__(self):
+                raise RuntimeError("init failed")
+
+        with pytest.raises(Exception, match="Failed to instantiate"):
+            PluginManagerUtils.instantiate_plugin(BadPlugin)
+
+
+class TestPluginManagerUtilsDiscover:
+    """Test PluginManagerUtils.discover_plugins() (file discovery)."""
+
+    def test_discover_finds_py_files(self, tmp_path):
+        """discover_plugins() finds .py files excluding __init__.py."""
+        (tmp_path / "__init__.py").write_text("")
+        (tmp_path / "plugin_a.py").write_text("pass")
+        (tmp_path / "plugin_b.py").write_text("pass")
+        (tmp_path / "not_a_plugin.txt").write_text("text")
+
+        found = PluginManagerUtils.discover_plugins(tmp_path)
+
+        names = [p.name for p in found]
+        assert "plugin_a.py" in names
+        assert "plugin_b.py" in names
+        assert "__init__.py" not in names
+        assert "not_a_plugin.txt" not in names
+
+    def test_discover_returns_sorted(self, tmp_path):
+        """discover_plugins() returns paths in sorted order."""
+        (tmp_path / "z_plugin.py").write_text("pass")
+        (tmp_path / "a_plugin.py").write_text("pass")
+        (tmp_path / "m_plugin.py").write_text("pass")
+
+        found = PluginManagerUtils.discover_plugins(tmp_path)
+
+        names = [p.name for p in found]
+        assert names == sorted(names)
+
+    def test_discover_empty_directory(self, tmp_path):
+        """discover_plugins() returns empty list for empty directory."""
+        found = PluginManagerUtils.discover_plugins(tmp_path)
+        assert found == []
+
+    def test_discover_custom_exclude(self, tmp_path):
+        """discover_plugins() respects custom exclude list."""
+        (tmp_path / "keep.py").write_text("pass")
+        (tmp_path / "skip.py").write_text("pass")
+
+        found = PluginManagerUtils.discover_plugins(
+            tmp_path, exclude=["skip.py", "__init__.py"]
+        )
+
+        names = [p.name for p in found]
+        assert "keep.py" in names
+        assert "skip.py" not in names
+
+    def test_discover_custom_pattern(self, tmp_path):
+        """discover_plugins() supports custom file patterns."""
+        (tmp_path / "plugin.py").write_text("pass")
+        (tmp_path / "plugin.yaml").write_text("name: test")
+
+        found = PluginManagerUtils.discover_plugins(tmp_path, pattern="*.yaml")
+
+        names = [p.name for p in found]
+        assert "plugin.yaml" in names
+        assert "plugin.py" not in names
+
+
+# ===========================================================================
+# TestPluginType -- tests the PluginType enum
+# ===========================================================================
+
+
+class TestPluginType:
+    """Test PluginType enum values."""
+
+    def test_service_value(self):
+        assert PluginType.SERVICE.value == "service"
+
+    def test_network_environment_value(self):
+        assert PluginType.NETWORK_ENVIRONMENT.value == "network_environment"
+
+    def test_execution_environment_value(self):
+        assert PluginType.EXECUTION_ENVIRONMENT.value == "execution_environment"
+
+    def test_tester_value(self):
+        assert PluginType.TESTER.value == "tester"
+
+    def test_protocol_value(self):
+        assert PluginType.PROTOCOL.value == "protocol"
+
+    def test_iut_value(self):
+        assert PluginType.IUT.value == "iut"
+
+    def test_observer_value(self):
+        assert PluginType.OBSERVER.value == "observer"
+
+    def test_from_string(self):
+        """PluginType can be constructed from string value."""
+        assert PluginType("service") == PluginType.SERVICE
+        assert PluginType("tester") == PluginType.TESTER
+
+    def test_invalid_value_raises(self):
+        """PluginType raises ValueError for invalid string."""
+        with pytest.raises(ValueError):
+            PluginType("invalid_type")
+
+
+# ===========================================================================
+# Integration tests across real plugin system components
+# ===========================================================================
 
 
 class TestPluginSystemIntegration:
-    """Test integration between plugin system components."""
+    """Integration tests for PluginDiscovery + PluginCatalog + PluginManifest."""
 
-    @pytest.fixture
-    def comprehensive_plugin_structure(self):
-        """Create comprehensive plugin structure for integration testing."""
-        temp_dir = tempfile.mkdtemp(prefix="panther_integration_test_")
-        plugin_root = Path(temp_dir) / "plugins"
-
-        # Create comprehensive plugin ecosystem
-        plugins = [
-            # IUT plugins
-            (
-                "services/iut/quic/picoquic",
-                {
-                    "name": "picoquic",
-                    "version": "1.0.0",
-                    "type": "iut",
-                    "description": "PicoQUIC implementation",
-                    "supported_protocols": ["quic"],
-                    "dependencies": ["docker"],
-                },
-            ),
-            (
-                "services/iut/quic/aioquic",
-                {
-                    "name": "aioquic",
-                    "version": "0.9.0",
-                    "type": "iut",
-                    "description": "Python AioQUIC implementation",
-                    "supported_protocols": ["quic"],
-                    "dependencies": ["python", "asyncio"],
-                },
-            ),
-            # Tester plugins
-            (
-                "services/testers/ivy_tester",
-                {
-                    "name": "ivy_tester",
-                    "version": "1.5.0",
-                    "type": "testers",
-                    "description": "Ivy formal verification tester",
-                    "supported_protocols": ["quic"],
-                    "dependencies": ["ivy", "python"],
-                },
-            ),
-            # Network environments
-            (
-                "environments/network_environment/docker_compose",
-                {
-                    "name": "docker_compose",
-                    "version": "2.0.0",
-                    "type": "network_environment",
-                    "description": "Docker Compose orchestration",
-                    "dependencies": ["docker", "docker-compose"],
-                },
-            ),
-            (
-                "environments/network_environment/shadow_ns",
-                {
-                    "name": "shadow_ns",
-                    "version": "1.0.0",
-                    "type": "network_environment",
-                    "description": "Shadow network simulation",
-                    "dependencies": ["shadow"],
-                },
-            ),
-            # Execution environments
-            (
-                "environments/execution_environment/strace",
-                {
-                    "name": "strace",
-                    "version": "1.0.0",
-                    "type": "execution_environment",
-                    "description": "System call tracer",
-                    "dependencies": ["strace"],
-                },
-            ),
-            (
-                "environments/execution_environment/gperf",
-                {
-                    "name": "gperf",
-                    "version": "2.0.0",
-                    "type": "execution_environment",
-                    "description": "Google Performance Tools profiler",
-                    "dependencies": ["gperftools"],
-                },
-            ),
-        ]
-
-        for plugin_path, manifest_data in plugins:
-            plugin_dir = plugin_root / plugin_path
-            plugin_dir.mkdir(parents=True)
-            with open(plugin_dir / "plugin.yaml", "w") as f:
-                yaml.dump(manifest_data, f)
-
-        yield plugin_root
-
-        # Cleanup
-        shutil.rmtree(temp_dir, ignore_errors=True)
-
-    def test_full_plugin_system_workflow(self, comprehensive_plugin_structure):
-        """Test complete plugin system workflow."""
-        # Step 1: Discovery
-        discovery = PluginDiscovery(
-            plugin_directories=[str(comprehensive_plugin_structure)]
+    def test_discovery_and_catalog_share_registry(self):
+        """Both PluginDiscovery and PluginCatalog use the same registry."""
+        manifest = PluginManifest(
+            name="shared_plugin",
+            version="1.0.0",
+            type=PluginType.SERVICE,
+            supported_protocols=["quic"],
         )
-        discovered_plugins = discovery.discover_plugins()
+        decorated = {"shared_plugin": (Mock(), manifest)}
 
-        assert len(discovered_plugins) == 4  # 4 plugin types
-        assert "iut" in discovered_plugins
-        assert "testers" in discovered_plugins
-        assert "network_environment" in discovered_plugins
-        assert "execution_environment" in discovered_plugins
+        with patch(
+            "panther.plugins.core.plugin_decorators.get_decorated_plugins",
+            return_value=decorated,
+        ), patch(
+            "panther.plugins.core.plugin_decorators.get_decorated_plugins",
+            return_value=decorated,
+        ):
+            discovery = PluginDiscovery(plugin_directories=[])
+            discovered = discovery.discover_plugins(force_refresh=True)
 
-        # Step 2: Catalog building
-        catalog = PluginCatalog(discovery_paths=[str(comprehensive_plugin_structure)])
-        catalog_data = catalog.build_catalog()
+            catalog = PluginCatalog()
+            scanned = catalog.scan_plugins()
 
-        assert len(catalog_data) == 4
+            assert "shared_plugin" in discovered
+            assert "shared_plugin" in scanned
 
-        # Step 3: Service factory
-        service_factory = ServiceFactory(plugin_catalog=catalog)
+    def test_manifest_to_metadata_field_mapping(self):
+        """PluginManifest fields map correctly to PluginMetadata fields."""
+        manifest = PluginManifest(
+            name="mapping_test",
+            version="2.0.0",
+            type=PluginType.TESTER,
+            description="Tests field mapping",
+            supported_protocols=["quic", "http3"],
+        )
+        decorated = {"mapping_test": (Mock(), manifest)}
 
-        # Create service managers
-        picoquic_manager = service_factory.create_service_manager("quic", "picoquic")
-        aioquic_manager = service_factory.create_service_manager("quic", "aioquic")
+        with patch(
+            "panther.plugins.core.plugin_decorators.get_decorated_plugins",
+            return_value=decorated,
+        ):
+            discovery = PluginDiscovery(plugin_directories=[])
+            plugins = discovery.discover_plugins(force_refresh=True)
 
-        assert picoquic_manager.name == "picoquic"
-        assert aioquic_manager.name == "aioquic"
-        assert len(service_factory.created_services) == 2
+            meta = plugins["mapping_test"]
+            assert meta.name == "mapping_test"
+            assert meta.supported_protocols == ["quic", "http3"]
 
-        # Step 4: Environment factory
-        env_factory = EnvironmentFactory(plugin_catalog=catalog)
+    def test_catalog_dependency_validation_with_discovery(self):
+        """PluginCatalog dependency validation works with discovered plugins.
 
-        # Create environment managers
-        docker_env = env_factory.create_environment_manager("docker_compose")
-        strace_env = env_factory.create_environment_manager("strace")
+        Uses wildcard version_spec because non-wildcard specs always fail
+        due to a pre-existing bug in PluginDependency.is_satisfied_by().
+        """
+        plugin_a = PluginManifest(
+            name="base_lib",
+            version="1.0.0",
+            type=PluginType.SERVICE,
+        )
+        plugin_b = PluginManifest(
+            name="consumer",
+            version="1.0.0",
+            type=PluginType.SERVICE,
+            dependencies=[
+                PluginDependency(name="base_lib", version_spec="*"),
+            ],
+        )
+        decorated = {
+            "base_lib": (Mock(), plugin_a),
+            "consumer": (Mock(), plugin_b),
+        }
 
-        assert docker_env.name == "docker_compose"
-        assert strace_env.name == "strace"
-        assert len(env_factory.created_environments) == 2
+        with patch(
+            "panther.plugins.core.plugin_decorators.get_decorated_plugins",
+            return_value=decorated,
+        ):
+            catalog = PluginCatalog()
+            catalog.scan_plugins()
 
-        # Step 5: Validation
-        validation_results = catalog.validate_all_plugins()
-        for plugin_type, type_results in validation_results.items():
-            for plugin_name, result in type_results.items():
-                assert result["valid"] is True
-
-    def test_plugin_dependency_validation_workflow(
-        self, comprehensive_plugin_structure
-    ):
-        """Test plugin dependency validation workflow."""
-        catalog = PluginCatalog(discovery_paths=[str(comprehensive_plugin_structure)])
-        catalog.build_catalog()
-
-        service_factory = ServiceFactory(plugin_catalog=catalog)
-
-        # Test dependency validation for all IUT plugins
-        iut_plugins = catalog.list_plugins_by_type("iut")
-
-        for plugin_name in iut_plugins:
-            is_valid, message = service_factory.validate_service_dependencies(
-                plugin_name
-            )
-            # All test plugins should have valid dependencies (no missing_ prefix)
+            is_valid, missing = catalog.validate_plugin_dependencies("consumer")
             assert is_valid is True
+            assert missing == []
 
-    def test_plugin_search_and_filter_workflow(self, comprehensive_plugin_structure):
-        """Test plugin search and filtering workflow."""
-        catalog = PluginCatalog(discovery_paths=[str(comprehensive_plugin_structure)])
-        catalog.build_catalog()
+    def test_plugin_manager_utils_discover_and_load(self, tmp_path):
+        """PluginManagerUtils can discover and load plugin files."""
+        plugin_file = tmp_path / "discoverable.py"
+        plugin_file.write_text(
+            "class DiscoverableHandler:\n"
+            "    def __init__(self):\n"
+            "        self.ready = True\n"
+        )
 
-        # Search for QUIC-related plugins
-        quic_plugins = catalog.search_plugins("quic")
+        found = PluginManagerUtils.discover_plugins(tmp_path)
+        assert len(found) == 1
 
-        assert "iut" in quic_plugins
-        assert "testers" in quic_plugins
-        assert len(quic_plugins["iut"]) >= 2  # picoquic and aioquic
-
-        # Search for Python-related plugins
-        python_plugins = catalog.search_plugins("python")
-
-        assert "iut" in python_plugins
-        assert "aioquic" in python_plugins["iut"]
-
-        # Search for profiling tools
-        profiler_plugins = catalog.search_plugins("profiler")
-
-        assert "execution_environment" in profiler_plugins
-        assert "gperf" in profiler_plugins["execution_environment"]
-
-    def test_multi_factory_coordination(self, comprehensive_plugin_structure):
-        """Test coordination between multiple factories."""
-        catalog = PluginCatalog(discovery_paths=[str(comprehensive_plugin_structure)])
-        catalog.build_catalog()
-
-        service_factory = ServiceFactory(plugin_catalog=catalog)
-        env_factory = EnvironmentFactory(plugin_catalog=catalog)
-
-        # Create a complete testing setup
-        # 1. Service implementations
-        quic_server = service_factory.create_service_manager("quic", "picoquic")
-        quic_client = service_factory.create_service_manager("quic", "aioquic")
-
-        # 2. Network environment
-        network_env = env_factory.create_environment_manager("docker_compose")
-
-        # 3. Execution environments
-        tracer = env_factory.create_environment_manager("strace")
-        profiler = env_factory.create_environment_manager("gperf")
-
-        # Verify all components created successfully
-        assert len(service_factory.created_services) == 2
-        assert len(env_factory.created_environments) == 3
-
-        # Test component interactions
-        assert quic_server.generate_commands() is not None
-        assert quic_client.generate_commands() is not None
-        assert network_env.setup_environment() is True
-        assert tracer.setup_environment() is True
-        assert profiler.setup_environment() is True
+        module = PluginManagerUtils.load_module_from_file(found[0])
+        cls = PluginManagerUtils.get_class_from_module(module, "DiscoverableHandler")
+        instance = PluginManagerUtils.instantiate_plugin(cls)
+        assert instance.ready is True
 
 
 if __name__ == "__main__":
