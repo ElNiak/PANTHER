@@ -539,8 +539,8 @@ def real_experiment_manager(mock_docker_client, minimal_global_config, tmp_path)
             dry_run=True,
         )
 
-    assert isinstance(manager, ExperimentManager)
-    return manager
+        assert isinstance(manager, ExperimentManager)
+        yield manager
 
 
 # ---------------------------------------------------------------------------
