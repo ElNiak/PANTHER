@@ -602,20 +602,46 @@ class PluginFactory(LoggerMixin):
                 "Determined environment type: %s, sub-type: %s", env_type, env_sub_type
             )
 
-            # Use the plugin's actual path from metadata
-            env_file_path = Path(plugin_metadata.path)
+            # Use the plugin's actual path from metadata, with fallback to decorator registry
+            env_manager_class = None
+            if plugin_metadata.path:
+                env_file_path = Path(plugin_metadata.path)
 
-            self.logger.debug("Loading environment module from %s", env_file_path)
-            self.logger.debug("Environment file exists: %s", env_file_path.exists())
+                self.logger.debug("Loading environment module from %s", env_file_path)
+                self.logger.debug(
+                    "Environment file exists: %s", env_file_path.exists()
+                )
 
-            # Use PluginManagerUtils to load the plugin class (matching EnvironmentFactory)
-            from panther.plugins.core.plugin_loader_utils import PluginManagerUtils
+                from panther.plugins.core.plugin_loader_utils import PluginManagerUtils
 
-            env_manager_class = PluginManagerUtils.load_plugin_class(
-                plugin_path=env_file_path,
-                class_suffix="Environment",
-                # Use default name transform which properly handles snake_case to PascalCase
-            )
+                env_manager_class = PluginManagerUtils.load_plugin_class(
+                    plugin_path=env_file_path,
+                    class_suffix="Environment",
+                )
+            else:
+                # Fallback: resolve from decorator registry (class already loaded)
+                from panther.plugins.core.plugin_decorators import get_plugin_by_name
+
+                plugin_info = get_plugin_by_name(
+                    environment, plugin_type="network_environment"
+                )
+                if not plugin_info:
+                    plugin_info = get_plugin_by_name(
+                        environment, plugin_type="execution_environment"
+                    )
+                if plugin_info:
+                    env_manager_class, _ = plugin_info
+                    self.logger.debug(
+                        "Loaded environment class from decorator registry: %s",
+                        env_manager_class.__name__,
+                    )
+                else:
+                    raise PluginLoadException(
+                        f"Cannot load environment plugin '{environment}': "
+                        f"path is None and plugin not found in decorator registry",
+                        environment,
+                        "environment",
+                    )
 
             self.logger.debug(
                 "Successfully loaded environment class: %s", env_manager_class.__name__
