@@ -516,11 +516,17 @@ def real_experiment_manager(mock_docker_client, minimal_global_config, tmp_path)
     PluginManager.reset_singleton()
     _of_mod._observer_factory = None
 
-    # Redirect output_dir to tmp_path
+    # Redirect output_dir to tmp_path using a proper PathsConfig object
+    from panther.config.core.models.global_config import PathsConfig
+
     output_dir = tmp_path / "experiment_outputs"
     output_dir.mkdir(parents=True, exist_ok=True)
+    paths_obj = PathsConfig(
+        output_dir=str(output_dir),
+        log_dir=str(tmp_path / "logs"),
+    )
     minimal_global_config = minimal_global_config.model_copy(
-        update={"paths": {"output_dir": str(output_dir), "log_dir": str(tmp_path / "logs")}},
+        update={"paths": paths_obj},
     )
 
     with patch("panther.core.docker_builder.docker_builder.docker") as mock_docker_mod:

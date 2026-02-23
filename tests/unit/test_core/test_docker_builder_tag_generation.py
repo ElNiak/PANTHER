@@ -21,90 +21,86 @@ import pytest
 class TestDockerBuilderTagGeneration:
     """Test suite for Docker Builder tag generation functionality."""
 
-    def setup_method(self):
-        """Set up test environment for each test method."""
-        self.builder = DockerBuilder()
-
-    def test_generate_image_tag_basic(self):
+    def test_generate_image_tag_basic(self, real_docker_builder):
         """Test basic tag generation without modes."""
-        tag = self.builder.generate_image_tag("picoquic", "v1.0", "latest")
+        tag = real_docker_builder.generate_image_tag("picoquic", "v1.0", "latest")
         assert tag == "picoquic-v1.0:latest"
 
-    def test_generate_image_tag_no_version(self):
+    def test_generate_image_tag_no_version(self, real_docker_builder):
         """Test tag generation without version."""
-        tag = self.builder.generate_image_tag("picoquic", "", "latest")
+        tag = real_docker_builder.generate_image_tag("picoquic", "", "latest")
         assert tag == "picoquic:latest"
 
-    def test_generate_image_tag_with_build_mode_debug_asan(self):
+    def test_generate_image_tag_with_build_mode_debug_asan(self, real_docker_builder):
         """Test tag generation with debug-asan build mode."""
-        tag = self.builder.generate_image_tag(
+        tag = real_docker_builder.generate_image_tag(
             "picoquic", "v1.0", "latest", "debug-asan"
         )
         assert tag == "picoquic-v1.0:latest-debug-asan"
 
-    def test_generate_image_tag_with_build_mode_rel_lto(self):
+    def test_generate_image_tag_with_build_mode_rel_lto(self, real_docker_builder):
         """Test tag generation with rel-lto build mode."""
-        tag = self.builder.generate_image_tag("picoquic", "v1.0", "latest", "rel-lto")
+        tag = real_docker_builder.generate_image_tag("picoquic", "v1.0", "latest", "rel-lto")
         assert tag == "picoquic-v1.0:latest-rel-lto"
 
-    def test_generate_image_tag_with_build_mode_release_static_pgo(self):
+    def test_generate_image_tag_with_build_mode_release_static_pgo(self, real_docker_builder):
         """Test tag generation with release-static-pgo build mode."""
-        tag = self.builder.generate_image_tag(
+        tag = real_docker_builder.generate_image_tag(
             "picoquic", "v1.0", "latest", "release-static-pgo"
         )
         assert tag == "picoquic-v1.0:latest-release-static-pgo"
 
-    def test_generate_image_tag_with_runtime_mode_debug(self):
+    def test_generate_image_tag_with_runtime_mode_debug(self, real_docker_builder):
         """Test tag generation with debug runtime mode."""
-        tag = self.builder.generate_image_tag("picoquic", "v1.0", "latest", "", "debug")
+        tag = real_docker_builder.generate_image_tag("picoquic", "v1.0", "latest", "", "debug")
         assert tag == "picoquic-v1.0:latest-debug"
 
-    def test_generate_image_tag_with_runtime_mode_profile(self):
+    def test_generate_image_tag_with_runtime_mode_profile(self, real_docker_builder):
         """Test tag generation with profile runtime mode."""
-        tag = self.builder.generate_image_tag(
+        tag = real_docker_builder.generate_image_tag(
             "picoquic", "v1.0", "latest", "", "profile"
         )
         assert tag == "picoquic-v1.0:latest-profile"
 
-    def test_generate_image_tag_minimal_runtime_omitted(self):
+    def test_generate_image_tag_minimal_runtime_omitted(self, real_docker_builder):
         """Test that minimal runtime mode is omitted from tag."""
-        tag = self.builder.generate_image_tag(
+        tag = real_docker_builder.generate_image_tag(
             "picoquic", "v1.0", "latest", "debug-asan", "minimal"
         )
         assert tag == "picoquic-v1.0:latest-debug-asan"
 
-    def test_generate_image_tag_both_modes(self):
+    def test_generate_image_tag_both_modes(self, real_docker_builder):
         """Test tag generation with both build and runtime modes."""
-        tag = self.builder.generate_image_tag(
+        tag = real_docker_builder.generate_image_tag(
             "picoquic", "v1.0", "latest", "rel-lto", "profile"
         )
         assert tag == "picoquic-v1.0:latest-rel-lto-profile"
 
-    def test_generate_image_tag_z3_source_local(self):
+    def test_generate_image_tag_z3_source_local(self, real_docker_builder):
         """Test that z3_source='local' (default) produces no suffix."""
-        tag_local = self.builder.generate_image_tag(
+        tag_local = real_docker_builder.generate_image_tag(
             "panther_ivy", "rfc9000", "latest", z3_source="local"
         )
-        tag_empty = self.builder.generate_image_tag(
+        tag_empty = real_docker_builder.generate_image_tag(
             "panther_ivy", "rfc9000", "latest", z3_source=""
         )
-        tag_default = self.builder.generate_image_tag(
+        tag_default = real_docker_builder.generate_image_tag(
             "panther_ivy", "rfc9000", "latest"
         )
         # All three should produce the same tag (no z3 suffix)
         assert tag_local == tag_empty == tag_default
         assert "z3" not in tag_local
 
-    def test_generate_image_tag_z3_source_pip(self):
+    def test_generate_image_tag_z3_source_pip(self, real_docker_builder):
         """Test that z3_source='pip' adds -z3pip suffix."""
-        tag = self.builder.generate_image_tag(
+        tag = real_docker_builder.generate_image_tag(
             "panther_ivy", "rfc9000", "latest", z3_source="pip"
         )
         assert tag == "panther_ivy-rfc9000:latest-z3pip"
 
-    def test_generate_image_tag_z3_source_with_all_modes(self):
+    def test_generate_image_tag_z3_source_with_all_modes(self, real_docker_builder):
         """Test z3_source combined with build_mode, runtime_mode, and platform."""
-        tag = self.builder.generate_image_tag(
+        tag = real_docker_builder.generate_image_tag(
             "panther_ivy",
             "rfc9000",
             "latest",
@@ -116,90 +112,88 @@ class TestDockerBuilderTagGeneration:
         # Order: build_suffix, runtime_suffix, z3_suffix, platform_suffix
         assert "-debug-asan-debug-z3pip-linux" in tag
 
-    def test_generate_image_tag_all_modes_and_platform(self):
+    def test_generate_image_tag_all_modes_and_platform(self, real_docker_builder):
         """Test tag generation with build mode, runtime mode, and platform."""
-        tag = self.builder.generate_image_tag(
+        tag = real_docker_builder.generate_image_tag(
             "picoquic", "v1.0", "latest", "debug-asan", "debug", "linux/amd64"
         )
-        assert tag == "picoquic-v1.0:latest-debug-asan-debug-linux/amd64"
+        assert tag == "picoquic-v1.0:latest-debug-asan-debug-linux-amd64"
 
-    def test_generate_image_tag_platform_only(self):
+    def test_generate_image_tag_platform_only(self, real_docker_builder):
         """Test tag generation with platform but no modes."""
-        tag = self.builder.generate_image_tag(
+        tag = real_docker_builder.generate_image_tag(
             "picoquic", "v1.0", "latest", "", "minimal", "linux/arm64"
         )
-        assert tag == "picoquic-v1.0:latest-linux/arm64"
+        assert tag == "picoquic-v1.0:latest-linux-arm64"
 
-    def test_generate_image_tag_complex_implementation_name(self):
+    def test_generate_image_tag_complex_implementation_name(self, real_docker_builder):
         """Test tag generation with complex implementation names."""
-        tag = self.builder.generate_image_tag(
+        tag = real_docker_builder.generate_image_tag(
             "aioquic-client", "v2.1.0", "stable", "debug-asan", "debug"
         )
         assert tag == "aioquic-client-v2.1.0:stable-debug-asan-debug"
 
-    def test_tag_sanitization_uppercase(self):
+    def test_tag_sanitization_uppercase(self, real_docker_builder):
         """Test tag sanitization converts uppercase to lowercase."""
-        tag = self.builder.generate_image_tag(
+        tag = real_docker_builder.generate_image_tag(
             "PICOQUIC", "V1.0", "LATEST", "DEBUG-ASAN", "DEBUG"
         )
         assert tag == "picoquic-v1.0:latest-debug-asan-debug"
 
-    def test_tag_sanitization_invalid_characters(self):
+    def test_tag_sanitization_invalid_characters(self, real_docker_builder):
         """Test tag sanitization replaces invalid characters."""
-        tag = self.builder.generate_image_tag(
+        tag = real_docker_builder.generate_image_tag(
             "test@impl", "v1.0!", "latest", "mode$test", "debug%mode"
         )
         assert tag == "test-impl-v1.0-:latest-mode-test-debug-mode"
 
-    def test_tag_sanitization_leading_invalid_chars(self):
+    def test_tag_sanitization_leading_invalid_chars(self, real_docker_builder):
         """Test tag sanitization removes leading periods and dashes."""
-        builder = DockerBuilder()
-        sanitized = builder._sanitize_docker_tag(".-invalid-tag:latest")
+        sanitized = real_docker_builder._sanitize_docker_tag(".-invalid-tag:latest")
         assert sanitized == "invalid-tag:latest"
 
-    def test_tag_length_limit_with_tag_preservation(self):
+    def test_tag_length_limit_with_tag_preservation(self, real_docker_builder):
         """Test tag length limit preserves tag version part."""
         # Create a very long implementation name that exceeds limits
         long_impl_name = "very_long_implementation_name_that_definitely_exceeds_normal_docker_tag_limits_and_should_be_truncated"
-        tag = self.builder.generate_image_tag(
+        tag = real_docker_builder.generate_image_tag(
             long_impl_name, "v1.0", "latest", "release-static-pgo", "profile"
         )
 
         # Should be truncated but still valid
-        assert len(tag) <= self.builder.MAX_TAG_LENGTH
-        assert tag.endswith(":latest")
-        assert "release-static-pgo" in tag or len(tag) == self.builder.MAX_TAG_LENGTH
+        assert len(tag) <= real_docker_builder.MAX_TAG_LENGTH
+        assert ":latest" in tag
+        assert "release-static-pgo" in tag or len(tag) == real_docker_builder.MAX_TAG_LENGTH
 
-    def test_tag_length_limit_without_colon(self):
+    def test_tag_length_limit_without_colon(self, real_docker_builder):
         """Test tag length limit handling when no colon separator exists."""
         # This shouldn't happen in normal usage, but test the edge case
-        builder = DockerBuilder()
-        long_tag = "a" * (builder.MAX_TAG_LENGTH + 10)
-        sanitized = builder._sanitize_docker_tag(long_tag)
-        assert len(sanitized) <= builder.MAX_TAG_LENGTH
+        long_tag = "a" * (real_docker_builder.MAX_TAG_LENGTH + 10)
+        sanitized = real_docker_builder._sanitize_docker_tag(long_tag)
+        assert len(sanitized) <= real_docker_builder.MAX_TAG_LENGTH
 
-    def test_cache_differentiation_scenarios(self):
+    def test_cache_differentiation_scenarios(self, real_docker_builder):
         """Test that different mode combinations produce different tags for cache isolation."""
         base_params = ("picoquic", "v1.0", "latest")
 
         # Different build modes should produce different tags
-        tag1 = self.builder.generate_image_tag(*base_params, "debug-asan", "minimal")
-        tag2 = self.builder.generate_image_tag(*base_params, "rel-lto", "minimal")
+        tag1 = real_docker_builder.generate_image_tag(*base_params, "debug-asan", "minimal")
+        tag2 = real_docker_builder.generate_image_tag(*base_params, "rel-lto", "minimal")
         assert tag1 != tag2
         assert "debug-asan" in tag1
         assert "rel-lto" in tag2
 
         # Different runtime modes should produce different tags
-        tag3 = self.builder.generate_image_tag(*base_params, "", "minimal")
-        tag4 = self.builder.generate_image_tag(*base_params, "", "debug")
+        tag3 = real_docker_builder.generate_image_tag(*base_params, "", "minimal")
+        tag4 = real_docker_builder.generate_image_tag(*base_params, "", "debug")
         assert tag3 != tag4
         assert "debug" in tag4 and "debug" not in tag3
 
         # Same minimal runtime should be consistent
-        tag5 = self.builder.generate_image_tag(*base_params, "", "minimal")
+        tag5 = real_docker_builder.generate_image_tag(*base_params, "", "minimal")
         assert tag3 == tag5
 
-    def test_real_world_scenarios(self):
+    def test_real_world_scenarios(self, real_docker_builder):
         """Test realistic tag generation scenarios."""
         scenarios = [
             # (impl_name, version, tag_version, build_mode, runtime_mode, expected_suffix)
@@ -239,7 +233,7 @@ class TestDockerBuilderTagGeneration:
             runtime_mode,
             expected_suffix,
         ) in scenarios:
-            tag = self.builder.generate_image_tag(
+            tag = real_docker_builder.generate_image_tag(
                 impl_name, version, tag_version, build_mode, runtime_mode
             )
             assert tag.endswith(
@@ -254,23 +248,19 @@ class TestDockerBuilderTagGeneration:
 class TestDockerBuilderTagSanitization:
     """Test suite specifically for Docker tag sanitization functionality."""
 
-    def setup_method(self):
-        """Set up test environment for each test method."""
-        self.builder = DockerBuilder()
-
-    def test_sanitize_valid_tag(self):
+    def test_sanitize_valid_tag(self, real_docker_builder):
         """Test that valid tags pass through unchanged."""
         valid_tag = "picoquic-v1.0:latest-debug-asan"
-        sanitized = self.builder._sanitize_docker_tag(valid_tag)
+        sanitized = real_docker_builder._sanitize_docker_tag(valid_tag)
         assert sanitized == valid_tag
 
-    def test_sanitize_uppercase_conversion(self):
+    def test_sanitize_uppercase_conversion(self, real_docker_builder):
         """Test uppercase to lowercase conversion."""
         tag = "PICOQUIC-V1.0:LATEST"
-        sanitized = self.builder._sanitize_docker_tag(tag)
+        sanitized = real_docker_builder._sanitize_docker_tag(tag)
         assert sanitized == "picoquic-v1.0:latest"
 
-    def test_sanitize_invalid_character_replacement(self):
+    def test_sanitize_invalid_character_replacement(self, real_docker_builder):
         """Test invalid character replacement."""
         test_cases = [
             ("test@image:latest", "test-image:latest"),
@@ -281,10 +271,10 @@ class TestDockerBuilderTagSanitization:
         ]
 
         for input_tag, expected in test_cases:
-            sanitized = self.builder._sanitize_docker_tag(input_tag)
+            sanitized = real_docker_builder._sanitize_docker_tag(input_tag)
             assert sanitized == expected
 
-    def test_sanitize_leading_invalid_characters(self):
+    def test_sanitize_leading_invalid_characters(self, real_docker_builder):
         """Test removal of leading periods and dashes."""
         test_cases = [
             (".-test:latest", "test:latest"),
@@ -294,16 +284,16 @@ class TestDockerBuilderTagSanitization:
         ]
 
         for input_tag, expected in test_cases:
-            sanitized = self.builder._sanitize_docker_tag(input_tag)
+            sanitized = real_docker_builder._sanitize_docker_tag(input_tag)
             assert sanitized == expected
 
-    def test_sanitize_preserve_valid_separators(self):
+    def test_sanitize_preserve_valid_separators(self, real_docker_builder):
         """Test that valid separators (colon, underscore, period, dash) are preserved."""
         tag = "test_image.v1-0:latest"
-        sanitized = self.builder._sanitize_docker_tag(tag)
+        sanitized = real_docker_builder._sanitize_docker_tag(tag)
         assert sanitized == tag  # Should be unchanged
 
-    def test_sanitize_complex_scenarios(self):
+    def test_sanitize_complex_scenarios(self, real_docker_builder):
         """Test complex sanitization scenarios."""
         test_cases = [
             # (input, expected)
@@ -316,16 +306,12 @@ class TestDockerBuilderTagSanitization:
         ]
 
         for input_tag, expected in test_cases:
-            sanitized = self.builder._sanitize_docker_tag(input_tag)
+            sanitized = real_docker_builder._sanitize_docker_tag(input_tag)
             assert sanitized == expected
 
 
 class TestDockerBuilderIntegration:
     """Integration tests for Docker Builder tag generation with service manager."""
-
-    def setup_method(self):
-        """Set up test environment for each test method."""
-        self.builder = DockerBuilder()
 
     @pytest.mark.parametrize(
         "build_mode,runtime_mode,expected_includes",
@@ -337,16 +323,16 @@ class TestDockerBuilderIntegration:
             ("release-static-pgo", "debug", ["-release-static-pgo", "-debug"]),
         ],
     )
-    def test_mode_inclusion_in_tags(self, build_mode, runtime_mode, expected_includes):
+    def test_mode_inclusion_in_tags(self, real_docker_builder, build_mode, runtime_mode, expected_includes):
         """Test that modes are correctly included in generated tags."""
-        tag = self.builder.generate_image_tag(
+        tag = real_docker_builder.generate_image_tag(
             "test", "v1.0", "latest", build_mode, runtime_mode
         )
 
         for expected in expected_includes:
             assert expected in tag, f"Expected '{expected}' in tag '{tag}'"
 
-    def test_config_extraction_simulation(self):
+    def test_config_extraction_simulation(self, real_docker_builder):
         """Test simulation of config extraction as done in build_image method."""
         config = {
             "build_mode": "debug-asan",
@@ -358,7 +344,7 @@ class TestDockerBuilderIntegration:
         build_mode = config.get("build_mode", "")
         runtime_mode = config.get("runtime_mode", "minimal")
 
-        tag = self.builder.generate_image_tag(
+        tag = real_docker_builder.generate_image_tag(
             impl_name="test_impl",
             version=config["version"],
             tag_version="latest",
@@ -368,19 +354,19 @@ class TestDockerBuilderIntegration:
 
         assert "test_impl-v1.0:latest-debug-asan-debug" == tag
 
-    def test_backward_compatibility_tags(self):
+    def test_backward_compatibility_tags(self, real_docker_builder):
         """Test backward compatibility with existing tag patterns."""
         # Old style: just implementation and version
-        old_style_tag = self.builder.generate_image_tag("picoquic", "v1.0", "latest")
+        old_style_tag = real_docker_builder.generate_image_tag("picoquic", "v1.0", "latest")
         assert old_style_tag == "picoquic-v1.0:latest"
 
         # With minimal runtime (should be same as old style)
-        minimal_runtime_tag = self.builder.generate_image_tag(
+        minimal_runtime_tag = real_docker_builder.generate_image_tag(
             "picoquic", "v1.0", "latest", "", "minimal"
         )
         assert minimal_runtime_tag == old_style_tag
 
-    def test_cache_isolation_validation(self):
+    def test_cache_isolation_validation(self, real_docker_builder):
         """Test that cache isolation actually works with different modes."""
         # These should all be different to ensure proper cache isolation
         tags = []
@@ -393,7 +379,7 @@ class TestDockerBuilderIntegration:
         ]
 
         for build_mode, runtime_mode in modes:
-            tag = self.builder.generate_image_tag(
+            tag = real_docker_builder.generate_image_tag(
                 "test", "v1.0", "latest", build_mode, runtime_mode
             )
             tags.append(tag)
