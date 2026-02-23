@@ -105,6 +105,26 @@ class DockerUserMappingConfig(BaseUnifiedModel):
     )
 
 
+class ServiceDockerOverrideConfig(BaseUnifiedModel):
+    """Per-service Docker build overrides. None = inherit from global DockerConfig."""
+
+    force_build_docker_image: Optional[bool] = Field(
+        None, description="Override global force_build for this service"
+    )
+    no_docker_cache: Optional[bool] = Field(
+        None, description="Override global no_docker_cache for this service"
+    )
+    use_buildx: Optional[bool] = Field(
+        None, description="Override global use_buildx for this service"
+    )
+    target_platform: Optional[str] = Field(
+        None, description="Override global target_platform for this service"
+    )
+    build_args: Optional[Dict[str, str]] = Field(
+        None, description="Additional build args (merged over global build_args)"
+    )
+
+
 class DockerConfig(BaseUnifiedModel):
     """Docker configuration."""
 
@@ -135,6 +155,48 @@ class DockerConfig(BaseUnifiedModel):
     multi_platform: bool = Field(
         False, description="Enable multi-platform image building"
     )
+    no_docker_cache: bool = Field(
+        False,
+        description="Skip Docker build layer cache entirely (passes --no-cache to builds). "
+        "Overrides force_build_docker_image when True.",
+    )
+
+
+def resolve_docker_build_config(
+    global_docker: DockerConfig,
+    service_docker: Optional[ServiceDockerOverrideConfig] = None,
+) -> Dict[str, Any]:
+    """Resolve per-service Docker overrides over global defaults.
+
+    Returns a flat dict with resolved values for use in build_image().
+    For build_args: service values are merged OVER global values (service wins on key collision).
+    For all other fields: service value used if not None, else global value.
+    """
+    resolved = {
+        "force_build_docker_image": global_docker.force_build_docker_image,
+        "no_docker_cache": global_docker.no_docker_cache,
+        "use_buildx": global_docker.use_buildx,
+        "target_platform": global_docker.target_platform,
+        "build_args": dict(global_docker.build_args),
+    }
+
+    if service_docker is None:
+        return resolved
+
+    for field in (
+        "force_build_docker_image",
+        "no_docker_cache",
+        "use_buildx",
+        "target_platform",
+    ):
+        val = getattr(service_docker, field)
+        if val is not None:
+            resolved[field] = val
+
+    if service_docker.build_args is not None:
+        resolved["build_args"].update(service_docker.build_args)
+
+    return resolved
 
 
 class ProgressConfig(BaseUnifiedModel):

@@ -18,6 +18,8 @@ from .global_config import (
     MetricsConfig,
     PathsConfig,
     ProgressConfig,
+    ServiceDockerOverrideConfig,
+    resolve_docker_build_config,
 )
 from .observer import (
     BaseObserverConfig,
@@ -60,6 +62,8 @@ __all__ = [
     'PathsConfig',
     'DockerConfig',
     'DockerUserMappingConfig',
+    'ServiceDockerOverrideConfig',
+    'resolve_docker_build_config',
     'ProgressConfig',
     'FastFailConfig',
     'MetricsConfig',

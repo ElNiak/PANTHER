@@ -115,6 +115,17 @@ from panther.cli_click.core.base import (
     default="panther",
     help="Username for custom user creation (default: panther)",
 )
+@click.option(
+    "--force-build/--no-force-build",
+    default=None,
+    help="Force rebuild Docker images without cache (overrides YAML force_build_docker_image)",
+)
+@click.option(
+    "--no-docker-cache",
+    is_flag=True,
+    default=False,
+    help="Alias for --force-build: skip Docker build cache entirely",
+)
 @handle_errors
 @pass_context_and_setup_logging
 def run(
@@ -138,6 +149,8 @@ def run(
     docker_user_id,
     docker_group_id,
     docker_user_name,
+    force_build,
+    no_docker_cache,
 ):
     """
     Execute PANTHER experiments with specified configuration.
@@ -318,7 +331,15 @@ def run(
                     "force_build_docker_image": yaml_docker_config.get("force_build_docker_image", False),
                     "log_docker_image_build": yaml_docker_config.get("log_docker_image_build", False),
                     "use_buildx": yaml_docker_config.get("use_buildx", True),  # Default True for backwards compat
+                    "no_docker_cache": yaml_docker_config.get("no_docker_cache", False),
                 }
+
+                # CLI --force-build or --no-docker-cache overrides YAML
+                force_build_source = ctx.get_parameter_source("force_build")
+                if force_build_source == click.core.ParameterSource.COMMANDLINE:
+                    docker_config["force_build_docker_image"] = force_build
+                elif no_docker_cache:
+                    docker_config["no_docker_cache"] = True
                 # Add other docker config keys if present
                 for key in ["user_mapping", "build_args", "network_mode", "buildx_builder", "multi_platform", "target_platform"]:
                     if key in yaml_docker_config:

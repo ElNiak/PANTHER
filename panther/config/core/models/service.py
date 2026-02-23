@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from ..validators import implementation_type_validator, protocol_role_validator
 from .base_model import BaseUnifiedModel
+from .global_config import ServiceDockerOverrideConfig
 from .plugin import BasePluginConfig
 
 
@@ -199,6 +200,11 @@ class ServiceConfig(BaseUnifiedModel):
         default_factory=list, description="Service dependencies"
     )
     restart_policy: str = Field("no", description="Restart policy")
+
+    docker: Optional[ServiceDockerOverrideConfig] = Field(
+        None,
+        description="Per-service Docker build overrides (inherits from global if absent)",
+    )
 
     plugin_config: Optional[Dict[str, Any]] = Field(
         default_factory=dict, description="Plugin-specific configuration"

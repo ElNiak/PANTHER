@@ -734,6 +734,7 @@ class PluginManager(LoggerMixin):
         version: str = None,
         build_mode: str = None,
         runtime_mode: str = "minimal",
+        z3_source: str = "",
     ) -> bool:
         """Validate that Docker images referenced by plugin are still available.
 
@@ -742,6 +743,7 @@ class PluginManager(LoggerMixin):
             version: Optional version (e.g., 'rfc9000') to include in image name
             build_mode: Optional build mode (e.g., 'rel-lto') to include in image name
             runtime_mode: Optional runtime mode (e.g., 'debug', 'profile') to include in image name
+            z3_source: Optional Z3 source ('local', 'pip') to include in image name
         """
         if not self.docker_builder:
             self.logger.debug("No Docker builder available, skipping image validation")
@@ -763,6 +765,7 @@ class PluginManager(LoggerMixin):
             build_mode=build_mode or "",
             runtime_mode=runtime_mode,
             target_platform=target_platform,
+            z3_source=z3_source,
         )
 
         try:

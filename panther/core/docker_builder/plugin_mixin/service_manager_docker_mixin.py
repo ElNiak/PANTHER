@@ -259,6 +259,12 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
                 "No get_build_mode method found, using default build_mode: 'default'"
             )
 
+        # Extract z3_source for Z3 build strategy (local submodule vs pip)
+        z3_source = "local"  # Default: build from submodule
+        if hasattr(self, "get_z3_source"):
+            z3_source = self.get_z3_source()
+            self.logger.debug(f"Using z3_source from get_z3_source: '{z3_source}'")
+
         # Extract runtime_mode for 3-stage architecture support
         # First try to get from execution environment plugin
         runtime_mode = self._determine_runtime_mode_from_execution_environment(
@@ -307,6 +313,18 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
         
         gc = getattr(self, "global_config", None)
 
+        # Resolve per-service docker overrides
+        from panther.config.core.models.global_config import resolve_docker_build_config
+
+        service_docker_override = getattr(
+            self.service_config_to_test, "docker", None
+        )
+        resolved_docker = None
+        if gc and hasattr(gc, "docker") and gc.docker:
+            resolved_docker = resolve_docker_build_config(
+                gc.docker, service_docker_override
+            )
+
         self.logger.debug(
             f"Preparing service {self.implementation_name} with version {base_version} (build_mode: '{build_mode}', runtime_mode: '{runtime_mode}' and global config: '{gc}' )"
         )
@@ -326,12 +344,14 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
             build_mode=build_mode,
             runtime_mode=runtime_mode,
             target_platform=docker_builder.get_target_platform(),
+            z3_source=z3_source,
         )
 
-        # Check if we should force build
-        # TODO: We should consider moving this logic to DockerBuilder
+        # Check if we should force build (use resolved per-service config if available)
         force_build = False
-        if (
+        if resolved_docker is not None:
+            force_build = resolved_docker.get("force_build_docker_image", False)
+        elif (
             hasattr(self, "global_config")
             and self.global_config
             and (hasattr(self.global_config, "docker") and self.global_config.docker)
@@ -379,13 +399,18 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
                     "commit": commit,
                     "build_mode": build_mode,
                     "runtime_mode": runtime_mode,
+                    "z3_source": z3_source,
                 }
             else:
                 version_dict = {
                     "version": base_version,
                     "build_mode": build_mode,
                     "runtime_mode": runtime_mode,
+                    "z3_source": z3_source,
                 }
+            # Pass resolved per-service docker overrides to build_image()
+            if resolved_docker is not None:
+                version_dict["resolved_docker"] = resolved_docker
             self.runtime_mode = runtime_mode
             self.build_mode = self.docker_builder.validate_build_mode_for_architecture(
                 build_mode
