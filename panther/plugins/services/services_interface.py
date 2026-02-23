@@ -242,6 +242,7 @@ class IServiceManager(IPlugin, CommandEventMixin):
 
         self.build_mode = ""
         self.runtime_mode = "minimal"
+        self.z3_source = "local"
 
     def set_test_context(self, test_name: str) -> None:
         """

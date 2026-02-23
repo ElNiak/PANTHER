@@ -376,6 +376,7 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
                 self.build_mode = docker_builder.validate_build_mode_for_architecture(
                     build_mode
                 )
+                self.z3_source = z3_source
                 self.emit_docker_build_completed(expected_image_tag, True)
                 return
             except Exception as e:
@@ -415,6 +416,7 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
             self.build_mode = self.docker_builder.validate_build_mode_for_architecture(
                 build_mode
             )
+            self.z3_source = z3_source
             self.logger.debug(
                 f"Using version configuration for Docker build: {version_dict}"
             )
