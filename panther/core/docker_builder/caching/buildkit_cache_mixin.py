@@ -44,8 +44,9 @@ class BuildKitCacheMixin(LoggerMixin):
         2. Dockerfile.buildkit (BuildKit optimization with pyenv Python install)
         3. Dockerfile (standard Docker build)
 
-        Note: Dockerfile.multistage is intentionally excluded as it relies on
-        deadsnakes PPA which is broken on Ubuntu 20.04 for Python 3.10.
+        Note:
+            Dockerfile.multistage is intentionally excluded as it relies on
+            deadsnakes PPA which is broken on Ubuntu 20.04 for Python 3.10.
 
         Args:
             base_dockerfile_path: Original Dockerfile path

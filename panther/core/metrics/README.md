@@ -162,14 +162,14 @@ event_manager.emit_event("test_started", {
     "test_name": "QUIC_handshake",
     "timestamp": time.time()
 })
-# ’ Automatically records timing metric
+# -> Automatically records timing metric
 
 event_manager.emit_event("test_completed", {
     "test_name": "QUIC_handshake", 
     "success": True,
     "duration": 45.2
 })
-# ’ Records completion metric and success status
+# -> Records completion metric and success status
 ```
 
 ### Observer Pattern

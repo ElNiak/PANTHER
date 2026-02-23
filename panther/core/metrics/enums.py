@@ -18,6 +18,7 @@ class MetricType(Enum):
     RESOURCE = "resource"
     ARTIFACT = "artifact"
     ERROR = "error"
+    PERFORMANCE = "performance"
 
 
 class Phase(Enum):

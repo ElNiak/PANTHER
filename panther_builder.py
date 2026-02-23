@@ -20,11 +20,39 @@ Commands:
 """
 
 import argparse
+import os
 import shutil
+import stat
 import subprocess
 import sys
 import time
 from pathlib import Path
+
+
+def _rmtree_onerror(func, path, exc_info):
+    """Handle permission errors during shutil.rmtree (e.g. macOS extended attributes)."""
+    try:
+        os.chmod(path, stat.S_IRWXU)
+        func(path)
+    except PermissionError:
+        # On macOS, com.apple.provenance xattr can block deletion.
+        # Strip extended attributes and retry.
+        import subprocess as _sp
+
+        _sp.run(["xattr", "-c", path], capture_output=True)
+        os.chmod(path, stat.S_IRWXU)
+        func(path)
+
+
+def _copy_md_as_utf8(src, dst):
+    """Copy a markdown file, re-encoding to UTF-8 if needed."""
+    raw = src.read_bytes()
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        text = raw.decode("latin-1")
+    dst.write_text(text, encoding="utf-8")
+
 
 try:
     import docker
@@ -281,33 +309,37 @@ class BuildManager:
             dir_path = self.project_root / dir_name
             if dir_path.exists():
                 print(f"Removing {dir_path}")
-                shutil.rmtree(dir_path)
+                shutil.rmtree(dir_path, onerror=_rmtree_onerror)
 
         for dir_name in self.tests_gen_dir:
             dir_path = self.project_root / dir_name
             if dir_path.exists():
                 print(f"Removing {dir_path}")
-                shutil.rmtree(dir_path)
+                shutil.rmtree(dir_path, onerror=_rmtree_onerror)
 
         # Remove build directories
         for dir_name in self.build_dirs:
             dir_path = self.project_root / dir_name
             if dir_path.exists():
                 print(f"Removing {dir_path}")
-                shutil.rmtree(dir_path)
+                shutil.rmtree(dir_path, onerror=_rmtree_onerror)
 
         # Remove egg-info directories
         for egg_info in self.project_root.glob("*.egg-info"):
             print(f"Removing {egg_info}")
-            shutil.rmtree(egg_info)
+            shutil.rmtree(egg_info, onerror=_rmtree_onerror)
 
-        # Remove __pycache__ directories
+        # Remove __pycache__ directories (skip .git and submodule paths)
         for pycache in self.project_root.rglob("__pycache__"):
+            if ".git" in pycache.parts:
+                continue
             print(f"Removing {pycache}")
-            shutil.rmtree(pycache)
+            shutil.rmtree(pycache, onerror=_rmtree_onerror)
 
-        # Remove .pyc files
+        # Remove .pyc files (skip .git and submodule paths)
         for pyc_file in self.project_root.rglob("*.pyc"):
+            if ".git" in pyc_file.parts:
+                continue
             print(f"Removing {pyc_file}")
             pyc_file.unlink()
 
@@ -501,16 +533,13 @@ class BuildManager:
                 }
                 print(f"📋 Using {len(build_dict)} emergency mappings")
 
-            self.clean()  # Clean before building docs
-
-            # Clean documentation build artifacts
+            # Clean only docs-related build artifacts (not wheel/dist)
             print("Cleaning documentation build artifacts...")
-            doc_artifacts = ["site"]  # MkDocs default output directory
-            for artifact in doc_artifacts:
-                artifact_path = self.project_root / artifact
-                if artifact_path.exists():
-                    print(f"Removing {artifact_path}")
-                    shutil.rmtree(artifact_path)
+            for dir_name in ["docs", "site"]:
+                dir_path = self.project_root / dir_name
+                if dir_path.exists():
+                    print(f"Removing {dir_path}")
+                    shutil.rmtree(dir_path, onerror=_rmtree_onerror)
 
             # Install documentation dependencies
             print("Installing documentation dependencies...")
@@ -584,7 +613,7 @@ class BuildManager:
 
                 if source_path.exists():
                     print(f"Copying {source} -> {destination}")
-                    shutil.copy2(source_path, dest_path)
+                    _copy_md_as_utf8(source_path, dest_path)
                 else:
                     print(
                         f"Warning: Source file {source} not found, creating placeholder"
@@ -606,7 +635,7 @@ class BuildManager:
                     dest_path = panther_docs_dir / relative_path
                     dest_path.parent.mkdir(parents=True, exist_ok=True)
                     print(f"Copying {md_file} to {dest_path}")
-                    shutil.copy2(md_file, dest_path)
+                    _copy_md_as_utf8(md_file, dest_path)
 
             # Build documentation with MkDocs
             print("Building documentation with MkDocs...")
