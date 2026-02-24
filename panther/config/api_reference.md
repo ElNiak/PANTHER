@@ -93,19 +93,18 @@ config_dict = config.to_dict()
 json.dump(config_dict, file)
 ```
 
-##### `merge_with(other: BaseConfig, strategy: str = "deep") -> BaseConfig`
-Merge with another configuration instance.
+##### `merge(other: Union[BaseConfig, Dict, DictConfig]) -> BaseConfig`
+Deep merge with another configuration.
 
 **Args:**
-- `other (BaseConfig)`: Configuration to merge with
-- `strategy (str)`: Merge strategy ("deep", "replace", "append")
+- `other (Union[BaseConfig, Dict, DictConfig])`: Configuration to merge with
 
 **Returns:**
 - `BaseConfig`: New merged configuration instance
 
 **Example:**
 ```python
-merged = base_config.merge_with(override_config, strategy="deep")
+merged = base_config.merge(override_config)
 ```
 
 ##### `get_field(path: str, default: Any = None) -> Any`
@@ -124,24 +123,27 @@ host = config.get_field("database.host", "localhost")
 port = config.get_field("database.port", 5432)
 ```
 
-##### `set_field(path: str, value: Any) -> None`
-Set field value using dot notation path.
+##### `update_field(field_path: str, value: Any) -> BaseConfig`
+Update a nested field using dot notation.
 
 **Args:**
-- `path (str)`: Dot-notation field path
-- `value (Any)`: Value to set
+- `field_path (str)`: Dot-separated field path (e.g., `'logging.level'`)
+- `value (Any)`: New value for the field
+
+**Returns:**
+- `BaseConfig`: New instance with updated field
 
 **Example:**
 ```python
-config.set_field("database.host", "production-db")
-config.set_field("logging.level", "DEBUG")
+config = config.update_field("database.host", "production-db")
+config = config.update_field("logging.level", "DEBUG")
 ```
 
-##### `to_yaml(file_path: Optional[str] = None) -> str`
-Serialize configuration to YAML format.
+##### `to_yaml(resolve: bool = True) -> str`
+Convert configuration to YAML string.
 
 **Args:**
-- `file_path (Optional[str])`: File path to save YAML (optional)
+- `resolve (bool)`: Whether to resolve OmegaConf interpolations (default: True)
 
 **Returns:**
 - `str`: YAML string representation
@@ -149,27 +151,25 @@ Serialize configuration to YAML format.
 **Example:**
 ```python
 yaml_str = config.to_yaml()
-config.to_yaml("output.yaml")  # Save to file
+yaml_str_unresolved = config.to_yaml(resolve=False)  # Keep ${...} interpolations
 ```
 
-##### `from_yaml(yaml_str: str) -> T`
-Create configuration from YAML string.
+##### `load(path: Union[str, Path]) -> T` *(classmethod)*
+Load configuration from a YAML or JSON file.
 
 **Args:**
-- `yaml_str (str)`: YAML configuration string
+- `path (Union[str, Path])`: File path to load from (`.yaml`, `.yml`, or `.json`)
 
 **Returns:**
-- `T`: New configuration instance
+- `T`: New instance loaded from file
+
+**Raises:**
+- `ValueError`: If file type is unsupported
 
 **Example:**
 ```python
-yaml_content = """
-name: test-service
-port: 8080
-database:
-  host: ${DB_HOST:localhost}
-"""
-config = MyConfig.from_yaml(yaml_content)
+config = MyConfig.load("config.yaml")
+config = MyConfig.load(Path("config.json"))
 ```
 
 ---
@@ -194,30 +194,21 @@ Primary configuration manager orchestrating all configuration operations through
 
 ### Core Methods
 
-##### `load_and_validate_config(source: Union[str, Dict, Path], auto_fix: bool = False) -> ExperimentConfig`
-Load and validate configuration from various sources.
-
-**Args:**
-- `source (Union[str, Dict, Path])`: Configuration source (file path, dict, or Path object)
-- `auto_fix (bool)`: Enable automatic fixing of common issues (default: False)
+##### `load_and_validate_experiment_config() -> ExperimentConfig`
+Load and validate experiment configuration from the manager's configured experiment file.
 
 **Returns:**
 - `ExperimentConfig`: Validated configuration instance
 
 **Raises:**
-- `ConfigurationError`: If loading or validation fails
-- `FileNotFoundError`: If configuration file not found
+- `ValueError`: If no experiment configuration file specified
+- `ValidationError`: If validation fails
 
 **Example:**
 ```python
 manager = ConfigurationManager()
-
-# Load from file with auto-fix
-config = manager.load_and_validate_config("experiment.yaml", auto_fix=True)
-
-# Load from dictionary
-config_dict = {"tests": [...]}
-config = manager.load_and_validate_config(config_dict)
+manager.experiment_file = "experiment.yaml"
+config = manager.load_and_validate_experiment_config()
 ```
 
 ##### `load_from_file(file_path: Union[str, Path], enable_cache: bool = True) -> Dict[str, Any]`

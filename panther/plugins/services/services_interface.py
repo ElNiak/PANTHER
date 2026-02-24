@@ -797,8 +797,8 @@ class IServiceManager(IPlugin, CommandEventMixin):
                 )
                 self.logger.debug("Emitted service preparation started event")
 
-            # Perform preparation
-            result = self._do_prepare(plugin_manager)
+            # Subclasses override _do_prepare entirely for actual preparation logic
+            result = None
 
             # Also emit service started event with defensive check
             if hasattr(self, "event_emitter") and self.event_emitter:

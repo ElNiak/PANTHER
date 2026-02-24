@@ -169,12 +169,14 @@ class TesterServiceManagerMixin(
         )
 
         if include_protocol_in_template and protocol:
-            protocol_name = protocol.name
+            protocol_name = getattr(protocol, "name", None)
             if protocol_name:
                 self.template_renderer = ServiceTemplateRenderer(
                     plugin_dir, protocol_name
                 )
+            else:
+                raise ValueError(
+                    "Protocol name not found in the provided protocol configuration."
+                )
         else:
-            raise ValueError(
-                "Protocol name not found in the provided protocol configuration."
-            )
+            self.template_renderer = ServiceTemplateRenderer(plugin_dir)

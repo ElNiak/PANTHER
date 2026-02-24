@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 PANTHER (Protocol Analysis and Testing Harness for Extensible Research) is a plugin-based, research-grade test harness for designing, reproducing, and analyzing network protocol experiments. It uses Docker-based isolation, event-driven architecture, and a four-phase execution model.
 
-**Current Status**: Active refactoring - CLI migrating from argparse (`panther/cli/`) to Click (`panther/cli_click/`). Dead code and legacy features remain. ARM support incomplete.
+**Current Status**: Active development. CLI uses Click (`panther/cli_click/`). Dead code and legacy features remain. ARM support incomplete.
 
 ## Essential Commands
 
@@ -124,8 +124,7 @@ ls -la  # View generated reports and logs
 ### Key Components
 ```
 panther/
-├── cli_click/          # NEW Click-based CLI (use this)
-├── cli/                # OLD argparse CLI (deprecated)
+├── cli_click/          # Click-based CLI
 ├── core/
 │   ├── experiment_manager.py    # Central orchestrator
 │   ├── test_cases/              # Test execution (mixin-based)
@@ -143,7 +142,7 @@ panther/
 ```
 
 ### Plugin System
-- Decorator-based registration (`@service_plugin`, `@protocol_plugin`)
+- Decorator-based registration (`@register_plugin()`, `@register_protocol()`)
 - Inheritance-based with template method pattern
 - Each plugin contributes config schema via `config_schema.py`
 
