@@ -331,7 +331,7 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
         resolved_docker = None
         if gc and hasattr(gc, "docker") and gc.docker:
             resolved_docker = resolve_docker_build_config(
-                gc.docker, service_docker_override
+                gc.docker, service_docker_override, logger=self.logger
             )
             self.logger.debug(
                 f"Resolved Docker build config for service {self.implementation_name}: {resolved_docker}"

@@ -25,6 +25,7 @@ import os
 import platform
 import re
 import subprocess
+import threading
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Union
@@ -113,6 +114,7 @@ class DockerBuilder(
     _initialized = False
     MAX_TAG_LENGTH = 100  # Maximum Docker tag length (leave room for registry prefix)
     _session_built_tags: Set[str] = set()
+    _session_built_tags_lock = threading.Lock()
 
     def __new__(cls, *args, **kwargs):
         """
@@ -1012,6 +1014,15 @@ class DockerBuilder(
             # Extract build and runtime modes from config
             build_mode = config.get("build_mode", "")
             runtime_mode = config.get("runtime_mode", "minimal")
+            z3_source = config.get("z3_source", "")
+            _valid_z3_sources = {"local", "pip", ""}
+            if z3_source and z3_source not in _valid_z3_sources:
+                self.logger.warning(
+                    "Unknown z3_source value '%s', falling back to 'local'. "
+                    "Valid values: local, pip",
+                    z3_source,
+                )
+                z3_source = "local"
 
             # Construct image tag with mode information
             image_tag = self.generate_image_tag(
@@ -1021,7 +1032,7 @@ class DockerBuilder(
                 build_mode=build_mode,
                 runtime_mode=runtime_mode,
                 target_platform=self.get_effective_build_platform(),
-                z3_source=config.get("z3_source", ""),
+                z3_source=z3_source,
             )
             self.logger.info(
                 "Building Docker image '%s' with buildx for platform '%s'",
@@ -1068,7 +1079,7 @@ class DockerBuilder(
                 "DEPENDENCIES": dependencies_json,
                 "BUILD_MODE": build_mode,
                 "RUNTIME_MODE": config.get("runtime_mode", "minimal"),
-                "Z3_SOURCE": config.get("z3_source", "local"),
+                "Z3_SOURCE": z3_source or "local",
                 "BASE_IMAGE": self.generate_image_tag(
                     impl_name="panther_base_service",
                     version="",
@@ -1272,19 +1283,24 @@ class DockerBuilder(
 
             # Use existing docker logger for consistency
             log_f = None
-            if self.build_log_file:
-                buildx_tag = image_tag.replace(":", "_").replace("/", "_") + "_buildx"
-                log_filename = self._get_build_log_path(buildx_tag)
-                self.logger.debug("Opening buildx log file at: %s", log_filename)
-                self.logger.debug("Current working directory: %s", os.getcwd())
-                log_f = open(log_filename, "w")
+            try:
+                if self.build_log_file:
+                    buildx_tag = (
+                        image_tag.replace(":", "_").replace("/", "_") + "_buildx"
+                    )
+                    log_filename = self._get_build_log_path(buildx_tag)
+                    self.logger.debug("Opening buildx log file at: %s", log_filename)
+                    self.logger.debug("Current working directory: %s", os.getcwd())
+                    log_f = open(log_filename, "w")
 
-            self.docker_logger.log_docker_output(
-                build_logs, f"Building Docker image '{image_tag}' with buildx", log_f
-            )
-
-            if log_f:
-                log_f.close()
+                self.docker_logger.log_docker_output(
+                    build_logs,
+                    f"Building Docker image '{image_tag}' with buildx",
+                    log_f,
+                )
+            finally:
+                if log_f:
+                    log_f.close()
 
             # Check if build succeeded
             if result.returncode != 0:
@@ -1460,6 +1476,15 @@ class DockerBuilder(
                 config.get("build_mode", "")
             )
             runtime_mode = config.get("runtime_mode", "minimal")
+            z3_source = config.get("z3_source", "")
+            _valid_z3_sources = {"local", "pip", ""}
+            if z3_source and z3_source not in _valid_z3_sources:
+                self.logger.warning(
+                    "Unknown z3_source value '%s', falling back to 'local'. "
+                    "Valid values: local, pip",
+                    z3_source,
+                )
+                z3_source = "local"
 
             # Construct image tag with mode information
             image_tag = self.generate_image_tag(
@@ -1469,7 +1494,7 @@ class DockerBuilder(
                 build_mode=build_mode,
                 runtime_mode=runtime_mode,
                 target_platform=self.get_effective_build_platform(),
-                z3_source=config.get("z3_source", ""),
+                z3_source=z3_source,
             )
 
             # Check build cache first
@@ -1510,7 +1535,7 @@ class DockerBuilder(
                 "DEPENDENCIES": json.dumps(dependencies) if dependencies else "[]",
                 "BUILD_MODE": build_mode,
                 "RUNTIME_MODE": config.get("runtime_mode", "minimal"),
-                "Z3_SOURCE": config.get("z3_source", "local"),
+                "Z3_SOURCE": z3_source or "local",
                 "TARGETPLATFORM": target_platform,
                 "BASE_IMAGE": self.generate_image_tag(
                     impl_name="panther_base_service",
@@ -1587,10 +1612,6 @@ class DockerBuilder(
                     return cached_result
 
             log_f = None
-            # Open the build log file if specified
-            if self.build_log_file:
-                log_filename = self._get_build_log_path(image_tag)
-                log_f = open(log_filename, "w")
 
             # Calculate relative path from context to dockerfile for Docker API
             # Only prefer Dockerfile.buildkit if use_buildx is enabled in config
@@ -1665,23 +1686,29 @@ class DockerBuilder(
                 image_tag,
                 effective_platform,
             )
-            image, build_logs = self.client.images.build(
-                path=str(context_path),
-                dockerfile=str(relative_dockerfile_path),
-                tag=image_tag,
-                network_mode="host",
-                buildargs=build_args,
-                platform=effective_platform,  # Use effective platform (host when buildx disabled)
-                nocache=no_cache,  # Only skip layer cache when no_docker_cache is set
-                # squash=True,  # Squash layers to reduce image size (experimental)
-                # pull=True,  # Always pull latest base images
-            )
 
-            self.docker_logger.log_docker_output(
-                build_logs, f"Building Docker image '{image_tag}'", log_f
-            )
-            if log_f:
-                log_f.close()
+            # Open the build log file if specified
+            if self.build_log_file:
+                log_filename = self._get_build_log_path(image_tag)
+                log_f = open(log_filename, "w")
+
+            try:
+                image, build_logs = self.client.images.build(
+                    path=str(context_path),
+                    dockerfile=str(relative_dockerfile_path),
+                    tag=image_tag,
+                    network_mode="host",
+                    buildargs=build_args,
+                    platform=effective_platform,  # Use effective platform (host when buildx disabled)
+                    nocache=no_cache,  # Only skip layer cache when no_docker_cache is set
+                )
+
+                self.docker_logger.log_docker_output(
+                    build_logs, f"Building Docker image '{image_tag}'", log_f
+                )
+            finally:
+                if log_f:
+                    log_f.close()
 
             # Register the build in cache
             build_time = (
@@ -1830,13 +1857,18 @@ class DockerBuilder(
         - Cannot start with period or dash
         - Max 128 characters
         """
-        import re
-
         # Convert to lowercase and replace invalid characters (allow colon for tag separator)
         sanitized = re.sub(r"[^a-z0-9._:-]", "-", tag.lower())
 
         # Ensure doesn't start with period or dash
         sanitized = re.sub(r"^[.-]+", "", sanitized)
+
+        if not sanitized:
+            self.logger.warning(
+                "Docker tag '%s' became empty after sanitization, using 'unknown'",
+                tag,
+            )
+            sanitized = "unknown"
 
         # Truncate if too long (leave room for registry prefix)
         if len(sanitized) > self.MAX_TAG_LENGTH:
@@ -2130,13 +2162,15 @@ class DockerBuilder(
 
     @classmethod
     def mark_session_built(cls, image_tag: str) -> None:
-        """Record that an image was freshly built in this session."""
-        cls._session_built_tags.add(image_tag)
+        """Record that an image was freshly built in this session (thread-safe)."""
+        with cls._session_built_tags_lock:
+            cls._session_built_tags.add(image_tag)
 
     @classmethod
     def was_built_this_session(cls, image_tag: str) -> bool:
-        """Check if an image was already freshly built in this session."""
-        return image_tag in cls._session_built_tags
+        """Check if an image was already freshly built in this session (thread-safe)."""
+        with cls._session_built_tags_lock:
+            return image_tag in cls._session_built_tags
 
     @classmethod
     def get_instance(

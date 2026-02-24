@@ -711,9 +711,7 @@ class DockerComposeEnvironment(
         # are present, since debug images are significantly larger and slower
         # to start, especially under platform emulation (e.g. amd64 on ARM).
         if self.execution_environment:
-            multiplier = getattr(
-                plugin_config, "deploy_timeout_debug_multiplier", 2.0
-            )
+            multiplier = getattr(plugin_config, "deploy_timeout_debug_multiplier", 2.0)
             if multiplier != 1.0:
                 original_timeout = self.timeout
                 self.timeout = int(self.timeout * multiplier)
@@ -736,10 +734,26 @@ class DockerComposeEnvironment(
         sanitized_name = re.sub(r"^[^a-z0-9]+", "", sanitized_name)
         sanitized_name = re.sub(r"-+", "-", sanitized_name).rstrip("-")
         if sanitized_name:
+            _reserved = {"default", "host", "bridge", "none"}
+            if sanitized_name in _reserved:
+                sanitized_name = f"panther-{sanitized_name}"
+                self.logger.warning(
+                    "Network name was Docker-reserved, prefixed: '%s'",
+                    sanitized_name,
+                )
+            _max_len = 64
+            if len(sanitized_name) > _max_len:
+                sanitized_name = sanitized_name[:_max_len].rstrip("-")
+                self.logger.warning(
+                    "Network name truncated to %d chars: '%s'",
+                    _max_len,
+                    sanitized_name,
+                )
             self.network_name = sanitized_name
             self.logger.debug(
-                f"Docker Compose project name set to '{self.network_name}' "
-                f"(from output dir: {experiment_name})"
+                "Docker Compose project name set to '%s' (from output dir: %s)",
+                self.network_name,
+                experiment_name,
             )
 
         # Initialize lifecycle manager now that all required variables are set

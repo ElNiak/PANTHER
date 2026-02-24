@@ -1,5 +1,6 @@
 """Global configuration models."""
 
+import logging
 from enum import Enum
 from typing import Any, Dict, Optional
 
@@ -162,9 +163,13 @@ class DockerConfig(BaseUnifiedModel):
     )
 
 
+_resolve_logger = logging.getLogger(__name__)
+
+
 def resolve_docker_build_config(
     global_docker: DockerConfig,
     service_docker: Optional[ServiceDockerOverrideConfig] = None,
+    logger: Optional[logging.Logger] = None,
 ) -> Dict[str, Any]:
     """Resolve per-service Docker overrides over global defaults.
 
@@ -172,6 +177,7 @@ def resolve_docker_build_config(
     For build_args: service values are merged OVER global values (service wins on key collision).
     For all other fields: service value used if not None, else global value.
     """
+    _log = logger or _resolve_logger
     resolved = {
         "force_build_docker_image": global_docker.force_build_docker_image,
         "no_docker_cache": global_docker.no_docker_cache,
@@ -191,9 +197,20 @@ def resolve_docker_build_config(
     ):
         val = getattr(service_docker, field)
         if val is not None:
+            old_val = resolved[field]
+            if old_val != val:
+                _log.debug("Service override: %s = %s (was %s)", field, val, old_val)
             resolved[field] = val
 
     if service_docker.build_args is not None:
+        overridden = set(service_docker.build_args) & set(resolved["build_args"])
+        for key in overridden:
+            _log.debug(
+                "Service build_args override: %s = %s (was %s)",
+                key,
+                service_docker.build_args[key],
+                resolved["build_args"][key],
+            )
         resolved["build_args"].update(service_docker.build_args)
 
     return resolved

@@ -284,7 +284,7 @@ class DockerComposeLifecycleManager:
                         value in ["${UID}", "${GID}"]
                         or value.startswith("$LD_LIBRARY_PATH:")
                         or value.startswith("$IVY_INCLUDE_PATH:")
-                        or value.startswith("$PATH:")      
+                        or value.startswith("$PATH:")
                         or value.startswith("$PYTHONPATH:")
                     ):
                         continue
@@ -369,9 +369,14 @@ class DockerComposeLifecycleManager:
             )
             self.logger.info("Pre-launch cleanup completed")
         except Exception as e:
-            self.logger.debug(
-                f"Pre-launch cleanup (expected if no previous run): {e}"
-            )
+            error_str = str(e).lower()
+            if "not found" in error_str or "no such" in error_str:
+                self.logger.debug("Pre-launch cleanup (no previous run): %s", e)
+            else:
+                self.logger.warning(
+                    "Pre-launch cleanup error (may cause resource conflicts): %s",
+                    e,
+                )
 
     def launch_services(self) -> None:
         """Launch Docker Compose services with extracted environment variables."""
@@ -493,9 +498,7 @@ class DockerComposeLifecycleManager:
                     f"Docker Compose kill (expected if no containers running): {e}"
                 )
             except Exception as e:
-                self.logger.warning(
-                    f"Unexpected error during Docker Compose kill: {e}"
-                )
+                self.logger.warning(f"Unexpected error during Docker Compose kill: {e}")
 
             # Then clean removal of containers, networks, and volumes
             compose_args = [

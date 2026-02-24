@@ -59,7 +59,6 @@ from panther.plugins.core.structures.plugin_manifest import PluginManifest
 
 # Import plugins core components
 from panther.plugins.core.structures.plugin_metadata import PluginMetadata, PluginType
-
 from panther.plugins.environments.environment_interface import IEnvironmentPlugin
 from panther.plugins.services.services_interface import IServiceManager
 
@@ -143,7 +142,7 @@ class PluginManager(LoggerMixin):
         fast_fail_handler: Optional[FastFailHandler] = None,
         enable_cache: bool = True,
         cache_ttl: int = 3600,  # 1 hour TODO add parameters
-        experiment_context=None,
+        experiment_context: Optional[Any] = None,
     ):
         """
         Initialize the unified plugin manager.
@@ -155,6 +154,8 @@ class PluginManager(LoggerMixin):
             fast_fail_handler: Fast fail handler for critical error management
             enable_cache: Enable plugin metadata caching
             cache_ttl: Cache time-to-live in seconds
+            experiment_context: Reference to the ExperimentManager instance for
+                lifecycle coordination. Creates a circular reference by design.
 
         Note: Configuration parameters can be updated on subsequent calls.
         """
