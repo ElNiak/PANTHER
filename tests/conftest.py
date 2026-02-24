@@ -605,14 +605,6 @@ def experiment_config_file(temp_config_dir, sample_experiment_config_data):
     return config_file
 
 
-@pytest.fixture
-def config_loader_instance(temp_config_dir):
-    """Provide configured ConfigLoader instance."""
-    from panther.config.config_manager import ConfigLoader
-
-    return ConfigLoader(config_dir=temp_config_dir)
-
-
 # ===== CORE FIXTURES =====
 
 
