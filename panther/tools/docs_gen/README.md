@@ -1,129 +1,120 @@
 # PANTHER Documentation Generator Tools
 
-!!! info "Documentation Automation"
-    This directory contains automated tools for generating, validating, and maintaining PANTHER's comprehensive documentation ecosystem. These tools ensure documentation stays synchronized with code changes.
-
-This directory contains tools for generating, validating, and maintaining documentation for the PANTHER project.
-
-## Documentation Structure
-
-The documentation is organized into the following main sections:
-
-- **Getting Started** - Quick start guides, installation, and basic concepts
-- **User Guide** - Configuration, workflows, and common use cases
-- **Developer Guide** - Contributing guidelines and plugin development
-- **Reference** - API references, plugin documentation, and configuration details
-- **Project Information** - Changelog, license, and roadmap
-
-## Key Tools
-
-| Tool | Description |
-|------|-------------|
-| `scripts/collect_docs.py` | Main script for collecting, refining, and organizing documentation |
-| `scripts/check_docs.py` | Validates documentation structure and links |
-| `verify_links.py` | Verifies and fixes links in Markdown files |
-| `add_cross_references.py` | Adds cross-references between related documents |
-| `update_mkdocs_nav.py` | Updates the MkDocs navigation structure |
-| `enhance_mkdocs_config.py` | Adds link checking plugins to MkDocs |
-| `pre_commit_docs.py` | Pre-commit hook for documentation checks |
-| `mkdocs/docs_structure.py` | Organizes documentation files |
-| `mkdocs/mkdocs.yml.j2` | Jinja2 template for MkDocs configuration |
-
-## How to Rebuild and Audit Docs Locally
-
-!!! tip "Quick Documentation Update"
-    Use `make docs` for a complete documentation rebuild, or individual scripts for targeted updates. Always run `docs-verify` after making documentation changes to catch broken links.
-
-For a complete documentation update:
-
-```bash
-make docs
-```
-
-This single command:
-
-1. Collects and refines documentation from across the repository (`docs-collect`)
-2. Generates the documentation inventory (`docs-inventory`)
-3. Verifies links and references (`docs-verify`)
-4. Builds the MkDocs site and starts a local server (`mkdocs`)
-
-### Individual Steps
-
-You can run individual steps of the documentation process:
-
-1. **Collect and refine documentation**:
-
-   ```bash
-   make docs-collect
-   ```
-
-   This runs `scripts/collect_docs.py` which:
-   - Discovers all Markdown files in the repository
-   - Organizes them into the correct structure in `docs/`
-   - Refines content (fixes headings, code blocks, links, etc.)
-   - Updates the MkDocs navigation template
-
-2. **Generate plugin inventory**:
-
-   ```bash
-   make docs-inventory
-   ```
-
-3. **Verify documentation**:
-
-   ```bash
-   make docs-verify
-   ```
-
-4. **Build MkDocs site**:
-
-   ```bash
-   make mkdocs
-   ```
-
-### Documentation Refinements
-
-The `collect_docs.py` script performs several refinements:
-
-- Ensures each file has a proper top-level heading matching the filename
-- Adds language identifiers to code blocks
-- Replaces vague time references with specific dates
-- Fixes internal links to work in the new structure
-- Verifies anchor links in Markdown files
-- Normalizes formatting and style
-
-### Documentation Workflow
-
-1. **Collection**: Source markdown files are discovered and mapped to the docs structure
-2. **Refinement**: Content is improved by fixing headings, links, and code blocks
-3. **Organization**: Files are copied to their proper location in the docs/ directory
-4. **Navigation**: MkDocs navigation is generated from the organized structure
-5. **Validation**: Links, anchors, and references are verified
-6. **Building**: MkDocs builds the final site
-
-## Documentation Guides
-
-- [Documentation Workflow](documentation_WORKFLOW.md): Step-by-step guide for updating documentation
-- [Documentation Integration](documentation_integration.md): How all the documentation tools work together
+This directory contains the automated tools for generating, building, and maintaining PANTHER's MkDocs-based documentation site. The tooling replaces manual build-dictionary maintenance with automated README discovery and mapping.
 
 ## Directory Structure
 
-- `mkdocs/` - Scripts for MkDocs integration and API documentation generation
-- `graph/` - Diagrams and visual documentation
-- `readme-res/` - Resources for README files
-
-## Pre-commit Integration
-
-To automatically check documentation when committing changes:
-
-```bash
-pre-commit install
+```
+docs_gen/
+    __init__.py                  # Package init; exports PantherSourceDiscovery, get_build_dict
+    discover_sources.py          # Automated README discovery and build_dict generation
+    generate_build_mapping.py    # Integration module for panther_builder.py
+    generated_build_dict.py      # Auto-generated source-to-docs path mapping (do not edit)
+    mkdocs.yml.bak               # Backup of MkDocs configuration
+    INTEGRATION_INSTRUCTIONS.md  # Integration guide for panther_builder.py
+    mkdocs/
+        __init__.py              # Subpackage init; re-exports mkdocs tool modules
+        automate_mkdocs.py       # MkDocs automation (nav generation, formatting, linting)
+        docs_structure.py        # Documentation directory structure manager
+        fix_encoding.py          # Detect and fix encoding issues in Markdown files
+        fix_markdown_links.py    # Convert absolute links to project-root-relative links
+        gen_ref_pages.py         # Auto-generate API reference pages (mkdocstrings recipe)
+        generate_plugin_docs.py  # Extract plugin docs from README files into structured output
+        mkdocs_all_import.py     # Import cleanup helper for mkdocs generation
+        prepare_docs.py          # Create symlinks/copies of Markdown files into docs/
+        template/
+            index_template.md    # Jinja2 template for the docs index page
 ```
 
-## Continuous Integration
+## How to Build Documentation
 
-Documentation is automatically checked in CI using the configuration in `documentation-ci.yml`.
+The primary entry point is `panther_builder.py`:
 
-## For More Information
+```bash
+# Build the full documentation site
+python panther_builder.py docs
 
-See the [Documentation Workflow](documentation_WORKFLOW.md) guide for detailed instructions on maintaining documentation.
+# Serve documentation locally
+python panther_builder.py serve-docs
+
+# Deploy documentation
+python panther_builder.py deploy-docs
+```
+
+## Root-Level Tools
+
+### `discover_sources.py`
+
+Automatically discovers `README.md` files across the repository and generates `build_dict` mappings that map source Markdown paths to their documentation output locations. Replaces manual maintenance of 85+ path entries.
+
+```bash
+python panther/tools/docs_gen/discover_sources.py --generate-build-dict
+python panther/tools/docs_gen/discover_sources.py --analyze-structure
+python panther/tools/docs_gen/discover_sources.py --validate-mappings
+```
+
+Key class: `PantherSourceDiscovery` -- performs AST-based Python module analysis, README categorization, and intelligent mapping generation.
+
+### `generate_build_mapping.py`
+
+Integration module that `panther_builder.py` calls to obtain the automated `build_dict`. Provides `get_build_dict()` and `get_automated_build_dict()` as the public API.
+
+```python
+from panther.tools.docs_gen.generate_build_mapping import get_build_dict
+
+build_dict = get_build_dict()  # Returns Dict[str, str]
+```
+
+### `generated_build_dict.py`
+
+Auto-generated dictionary mapping source file paths to their documentation output paths. This file is produced by `discover_sources.py` and should not be edited manually.
+
+## MkDocs Tools (`mkdocs/`)
+
+### `automate_mkdocs.py`
+
+Automates MkDocs configuration: parses the project's Python modules, generates navigation structures, and manages formatting and linting integration.
+
+### `docs_structure.py`
+
+Manages the documentation directory layout. Creates and organizes the `docs/` directory hierarchy so that files end up in the correct MkDocs sections.
+
+### `fix_encoding.py`
+
+Scans Markdown files for encoding issues using `chardet` and converts them to UTF-8.
+
+### `fix_markdown_links.py`
+
+Rewrites links in Markdown files under `panther/` so that absolute paths (starting with `/`) become project-root-relative paths compatible with the MkDocs build.
+
+### `gen_ref_pages.py`
+
+Generates automatic API code-reference pages using the `mkdocstrings` recipe pattern. Integrates with `mkdocs_gen_files` to produce reference navigation.
+
+### `generate_plugin_docs.py`
+
+Extracts plugin documentation from `README.md` files across the plugin directories and organizes them into a coherent documentation structure suitable for MkDocs.
+
+### `prepare_docs.py`
+
+Prepares the `docs/` build directory by creating symlinks (or copies, on platforms without symlink support) from source Markdown files into the expected documentation tree.
+
+### `mkdocs_all_import.py`
+
+Helper for managing Python imports during MkDocs generation. Imports are removed before generation and restored afterward to avoid resolution issues.
+
+## Documentation Workflow
+
+1. **Discovery** -- `discover_sources.py` scans the repository for README files and produces `generated_build_dict.py`.
+2. **Mapping** -- `generate_build_mapping.py` provides the build dict to `panther_builder.py`.
+3. **Preparation** -- `prepare_docs.py` symlinks/copies source files into the `docs/` directory.
+4. **Structure** -- `docs_structure.py` ensures the directory layout matches MkDocs expectations.
+5. **Link Fixing** -- `fix_markdown_links.py` and `fix_encoding.py` normalize content.
+6. **Reference Generation** -- `gen_ref_pages.py` and `generate_plugin_docs.py` produce API and plugin reference pages.
+7. **Build** -- `automate_mkdocs.py` generates the final MkDocs configuration and the site is built.
+
+Run the full pipeline with:
+
+```bash
+python panther_builder.py docs
+```

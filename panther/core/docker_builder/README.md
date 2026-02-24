@@ -29,6 +29,13 @@ docker_builder/
 ├── README.md                   # Module documentation (this file)
 ├── __init__.py                 # Module exports
 ├── docker_builder.py          # Core DockerBuilder singleton class
+├── base_images/                # Base image selection subsystem (Strategy pattern)
+│   ├── __init__.py                     # Subsystem exports
+│   ├── interfaces.py                   # Abstract interfaces (BaseImageStrategy, BaseImageBuilder, BaseImageCache, PluginRequirementsExtractor)
+│   ├── strategies.py                   # Concrete strategies (TieredBaseImageStrategy, PlatformAwareStrategy, PluginAwareStrategy)
+│   ├── manager.py                      # BaseImageManager facade coordinating strategies, cache, and building
+│   ├── plugin_extractor.py             # PantherPluginRequirementsExtractor (integrates with plugin decorators)
+│   └── docker_builder_integration.py   # BaseImageManagerMixin for DockerBuilder composition
 ├── caching/                    # Build caching subsystem
 │   ├── buildkit_cache_mixin.py     # BuildKit cache management
 │   ├── docker_build_cache_mixin.py # Build cache coordination
@@ -39,6 +46,8 @@ docker_builder/
 │   ├── environment_manager_docker_mixing.py  # Environment management
 │   └── service_manager_docker_mixin.py       # Service lifecycle
 └── utils/                     # Utility functions
+    ├── context_helper.py           # Docker context/host helpers for BuildX and multi-platform builds
+    ├── docker_network_mixin.py     # Docker network utilities
     ├── docker_output_parser.py     # Build log parsing
     └── docker_plateform_mixin.py   # Platform detection
 ```
@@ -66,7 +75,46 @@ docker_builder/
 **Utilities** (utils/): Supporting functionality including:
 - Docker build output parsing and log management
 - Platform detection and architecture validation
+- Docker context and host reconciliation for BuildX (context_helper.py)
+- Docker network utilities
 - Build log organization and experiment tracking
+
+### Base Images Subsystem
+
+<!-- src: base_images/interfaces.py, base_images/strategies.py, base_images/manager.py -->
+
+The `base_images/` subsystem uses the **Strategy pattern** combined with **Interface Segregation** to select, build, and cache base Docker images for PANTHER services. All components follow SOLID principles and composition over inheritance.
+
+#### Interfaces (`interfaces.py`)
+
+Four focused abstract interfaces prevent clients from depending on methods they do not use:
+
+| Interface | Responsibility |
+|-----------|---------------|
+| `BaseImageStrategy` | Selects the optimal base image given a requirements dict. Methods: `select_base_image()`, `get_supported_images()`, `validate_requirements()`. |
+| `BaseImageBuilder` | Builds base images from Dockerfiles with platform support. Methods: `build_base_image()`, `ensure_base_images_exist()`. |
+| `BaseImageCache` | Caches and retrieves base images. Methods: `get_cached_image()`, `cache_image()`, `invalidate_cache()`. |
+| `PluginRequirementsExtractor` | Extracts Docker requirements from plugin configuration. Methods: `extract_docker_requirements()`, `get_plugin_capabilities()`, `analyze_dependencies()`. |
+
+A shared `BaseImageMetadata` dataclass carries image metadata (name, size, packages, capabilities, platform support, security features).
+
+#### Strategies (`strategies.py`)
+
+Three concrete `BaseImageStrategy` implementations, composable via delegation:
+
+| Strategy | Selection Logic | Design Notes |
+|----------|----------------|--------------|
+| `TieredBaseImageStrategy` | 4-tier hierarchy: `panther-runtime-base` (150 MB) -> `panther-dev-base` (300 MB) -> `panther-build-base` (800 MB) -> `panther-builder` (1200 MB). Walks tiers from minimal to largest, returning the first that satisfies capability, size, and platform constraints. Falls back to `panther-builder`. | Core strategy, usable standalone. |
+| `PlatformAwareStrategy` | Platform-specific image tag selection (e.g., `:amd64`, `:arm64`, `:armv7`). Maps platform + tier to a tagged image. | Wraps a fallback `BaseImageStrategy` via composition (Dependency Inversion). |
+| `PluginAwareStrategy` | Augments requirements with plugin-specific capabilities (e.g., `ivy` needs `python` + `debugging` + `compilation`; `picoquic` needs `networking` + `compilation` + `cmake`). Delegates augmented requirements to a base strategy. | Wraps a `BaseImageStrategy` via composition. Caches plugin capability lookups. |
+
+Typical composition chain: `PluginAwareStrategy` wrapping `PlatformAwareStrategy` wrapping `TieredBaseImageStrategy`.
+
+#### Manager (`manager.py`) and Integration (`docker_builder_integration.py`)
+
+- **`BaseImageManager`**: Facade that coordinates strategy-based image selection, caching, plugin requirements extraction, and image building. Accepts all four interfaces via constructor injection (Dependency Inversion).
+- **`BaseImageManagerMixin`**: Mixin that adds base image management to `DockerBuilder` via composition. Initializes the strategy chain and provides base image operations without modifying the core `DockerBuilder` class.
+- **`PantherPluginRequirementsExtractor`** (`plugin_extractor.py`): Concrete `PluginRequirementsExtractor` that integrates with PANTHER's `@register_plugin` decorator system to extract Docker requirements from plugin metadata.
 
 ## Build Strategy Logic
 
