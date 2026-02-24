@@ -608,9 +608,7 @@ class PluginFactory(LoggerMixin):
                 env_file_path = Path(plugin_metadata.path)
 
                 self.logger.debug("Loading environment module from %s", env_file_path)
-                self.logger.debug(
-                    "Environment file exists: %s", env_file_path.exists()
-                )
+                self.logger.debug("Environment file exists: %s", env_file_path.exists())
 
                 from panther.plugins.core.plugin_loader_utils import PluginManagerUtils
 

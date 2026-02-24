@@ -642,7 +642,7 @@ class IServiceManager(IPlugin, CommandEventMixin):
     @property
     def role(self) -> str:
         """Get the service role (client/server)."""
-        return self._role 
+        return self._role
 
     @role.setter
     def role(self, value) -> None:

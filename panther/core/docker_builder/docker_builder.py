@@ -144,7 +144,8 @@ class DockerBuilder(
             build_log_file: Enable Docker build log file creation. Logs saved to
                 experiment-specific directories when experiment_context provided.
             enable_cache: Enable Docker build caching for faster rebuilds. Disabled
-                automatically when global_config.docker.force_build_docker_image=True.
+                automatically when global_config.docker.force_build_docker_image=True
+                or global_config.docker.no_docker_cache=True.
             global_config: Global configuration object containing Docker settings
                 including buildx preferences, platform targets, and build modes.
             experiment_context: Experiment context for organizing build logs in
@@ -1182,7 +1183,7 @@ class DockerBuilder(
             # no_cache = "should we also skip Docker layer cache" (passes --no-cache)
             if resolved_docker is not None:
                 force_build = bool(
-                    resolved_docker.get("force_build_docker_image", True)
+                    resolved_docker.get("force_build_docker_image", False)
                     or resolved_docker.get("no_docker_cache", False)
                 )
                 no_cache = bool(resolved_docker.get("no_docker_cache", False))
@@ -1192,7 +1193,9 @@ class DockerBuilder(
                 and hasattr(self.global_config, "docker")
             ):
                 force_build = bool(
-                    getattr(self.global_config.docker, "force_build_docker_image", True)
+                    getattr(
+                        self.global_config.docker, "force_build_docker_image", False
+                    )
                     or getattr(self.global_config.docker, "no_docker_cache", False)
                 )
                 no_cache = bool(
@@ -1571,7 +1574,7 @@ class DockerBuilder(
             # no_cache = "should we also skip Docker layer cache" (passes nocache=True)
             if resolved_docker is not None:
                 force_build = bool(
-                    resolved_docker.get("force_build_docker_image", True)
+                    resolved_docker.get("force_build_docker_image", False)
                     or resolved_docker.get("no_docker_cache", False)
                 )
                 no_cache = bool(resolved_docker.get("no_docker_cache", False))
@@ -1581,7 +1584,9 @@ class DockerBuilder(
                 and hasattr(self.global_config, "docker")
             ):
                 force_build = bool(
-                    getattr(self.global_config.docker, "force_build_docker_image", True)
+                    getattr(
+                        self.global_config.docker, "force_build_docker_image", False
+                    )
                     or getattr(self.global_config.docker, "no_docker_cache", False)
                 )
                 no_cache = bool(
@@ -1700,7 +1705,8 @@ class DockerBuilder(
                     network_mode="host",
                     buildargs=build_args,
                     platform=effective_platform,  # Use effective platform (host when buildx disabled)
-                    nocache=no_cache,  # Only skip layer cache when no_docker_cache is set
+                    nocache=no_cache
+                    and not DockerBuilder.was_built_this_session(image_tag),
                 )
 
                 self.docker_logger.log_docker_output(
