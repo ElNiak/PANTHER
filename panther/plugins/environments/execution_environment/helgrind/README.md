@@ -24,23 +24,58 @@ The Helgrind Execution Environment plugin integrates Valgrind's Helgrind tool in
 
 ## Configuration Options
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `enabled` | Boolean | `true` | Enable/disable the Helgrind environment |
-| `history_level` | String | `"full"` | Level of history tracking (`none`, `approx`, or `full`) |
-| `trace_children` | Boolean | `true` | Whether to trace child processes |
+<!-- src: config_schema.py -->
+
+### Inherited Fields (from BasePluginConfig / ExecutionEnvironmentPluginConfig)
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | `bool` | `True` | Whether the plugin is enabled |
+| `version` | `Optional[str]` | `None` | Plugin version |
+| `priority` | `int` | `100` | Plugin execution priority |
+| `collect_metrics` | `bool` | `True` | Whether to collect metrics |
+
+### Helgrind-Specific Fields
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `type` | `str` | `"helgrind"` | Execution environment type |
+| `valgrind_binary` | `str` | `"/usr/bin/valgrind"` | Absolute path to the Valgrind binary. Override if Valgrind is installed in a non-standard location. |
+| `output_format` | `str` | `"text"` | Output format for Helgrind reports. Options: `text` (human-readable), `xml` (machine-parseable). |
+| `history_level` | `str` | `"full"` | Level of detail for race-detection history. Options: `none` (fastest, no history), `approx` (approximate, moderate overhead), `full` (complete history, slowest but most accurate). |
+| `conflict_cache_size` | `int` | `1000000` | Number of entries in the conflict cache. Larger values may detect more races at the cost of higher memory usage. |
+| `track_lockorders` | `bool` | `True` | Track lock acquisition order to detect potential deadlocks caused by inconsistent locking. |
+| `check_stack_refs` | `bool` | `True` | Check for data races on stack-allocated variables. May produce false positives for thread-local storage patterns. |
+| `ignore_thread_creation` | `bool` | `False` | Ignore potential races during thread creation and initialization. Reduces false positives in programs with safe initialization patterns. |
+| `free_is_write` | `bool` | `False` | Treat heap deallocation (free) as a write operation for race-detection purposes. Finds more races but increases false positives. |
+| `cache_size` | `int` | `32` | Size of the internal cache in MB. Larger values may improve performance for programs with many memory accesses. |
+| `suppression_file` | `Optional[str]` | `None` | Path to a Valgrind suppression file (.supp) to filter known threading issues. Suppression entries are Helgrind-specific and not interchangeable with Memcheck suppressions. |
+| `show_below_main` | `bool` | `False` | Show stack frames below main() in stack traces. Usually not needed unless debugging runtime startup code. |
+| `track_fds` | `bool` | `False` | Track file descriptor operations and report leaks at exit. Useful for detecting resource leaks alongside threading errors. |
+| `time_stamp` | `bool` | `True` | Add wall-clock timestamps to Valgrind log entries. Helpful for correlating errors with external events. |
+| `additional_parameters` | `List[str]` | `[]` | Additional command-line parameters passed verbatim to `valgrind --tool=helgrind`. Example: `['--fair-sched=yes', '--read-var-info=yes']`. |
+| `verbosity` | `int` | `1` | Valgrind verbosity level. Range: 0 (minimal) to 3 (maximum detail including internal debugging). |
+
+### Background Monitoring Fields
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enable_background_monitoring` | `bool` | `True` | Enable background monitoring for non-blocking service health checks. |
+| `monitoring_interval_seconds` | `int` | `5` | Health-check polling interval in seconds. |
+| `failure_threshold_count` | `int` | `3` | Number of consecutive health-check failures before the service is marked unhealthy. |
+| `allow_partial_deployment` | `bool` | `False` | Allow experiment deployment to proceed even if some non-critical services fail to start. |
+| `critical_services` | `List[str]` | `[]` | List of service names that must be running for the deployment to be considered successful. |
 
 ## Usage Example
 
 ```yaml
-environments:
-  - name: "helgrind_env"
-    type: "execution_environment"
-    implementation: "helgrind"
-    config:
-      enabled: true
-      history_level: "full"
-      trace_children: true
+execution_environments:
+  - type: helgrind
+    history_level: full
+    track_lockorders: true
+    check_stack_refs: true
+    suppression_file: /path/to/helgrind.supp
+    output_format: xml
 ```
 
 ## Integration
