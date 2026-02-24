@@ -3,11 +3,31 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from panther.core.events.experiment.events import ExperimentEvent
-from panther.core.events.service.events import ServiceEvent
-from panther.core.events.test.events import TestEvent
+from panther.core.events.experiment.events import (
+    ExperimentEvent,
+    ExperimentEventType,
+    ExperimentExecutionStartedEvent,
+)
+from panther.core.events.service.events import (
+    ServiceDeploymentCompletedEvent,
+    ServiceEvent,
+    ServiceEventType,
+)
+from panther.core.events.test.events import TestCompletedEvent, TestEvent, TestEventType
 
 pytestmark = [pytest.mark.unit, pytest.mark.event_system]
+
+
+@pytest.fixture
+def mock_event_manager():
+    """Create a mock EventManager for testing."""
+    return Mock()
+
+
+@pytest.fixture
+def mock_command_processor():
+    """Create a mock CommandProcessor for testing."""
+    return Mock()
 
 
 class TestEventSystemIntegration:
@@ -15,29 +35,39 @@ class TestEventSystemIntegration:
 
     def test_experiment_event_creation(self, mock_event_manager):
         """Test that experiment events are created correctly."""
-        event = ExperimentEvent.create_started("test_experiment")
+        event = ExperimentExecutionStartedEvent(experiment_id="test_experiment")
 
-        assert event.event_type == "experiment.started"
-        assert event.data["experiment_name"] == "test_experiment"
-        assert "timestamp" in event.data
-        assert "uuid" in event.data
+        assert event.event_type == ExperimentEventType.EXECUTION_STARTED
+        assert event.entity_id == "test_experiment"
+        assert event.get_type() == "experiment.execution_started"
+        assert hasattr(event, "timestamp")
+        assert hasattr(event, "id")
 
     def test_service_event_creation(self, mock_event_manager):
         """Test that service events are created correctly."""
-        event = ServiceEvent.create_deployed("test_service", {"config": "test"})
+        event = ServiceDeploymentCompletedEvent(
+            service_id="test_service",
+            service_name="test_service",
+            environment="docker",
+        )
 
-        assert event.event_type == "service.deployed"
+        assert event.event_type == ServiceEventType.DEPLOYMENT_COMPLETED
+        assert event.entity_id == "test_service"
         assert event.data["service_name"] == "test_service"
-        assert event.data["metadata"]["config"] == "test"
+        assert event.data["environment"] == "docker"
 
     def test_test_event_creation(self, mock_event_manager):
         """Test that test events are created correctly."""
-        event = TestEvent.create_completed("test_case", True, {"result": "success"})
+        event = TestCompletedEvent(
+            test_id="test_case",
+            test_name="test_case",
+            summary={"result": "success"},
+        )
 
-        assert event.event_type == "test.completed"
+        assert event.event_type == TestEventType.COMPLETED
+        assert event.entity_id == "test_case"
         assert event.data["test_name"] == "test_case"
-        assert event.data["success"] is True
-        assert event.data["result_data"]["result"] == "success"
+        assert event.data["summary"]["result"] == "success"
 
     @patch("panther.core.observer.management.event_manager.EventManager")
     def test_event_propagation(self, mock_manager_class):
@@ -46,7 +76,7 @@ class TestEventSystemIntegration:
         mock_manager_class.return_value = mock_manager
 
         # Simulate event emission
-        event = ExperimentEvent.create_started("test_experiment")
+        event = ExperimentExecutionStartedEvent(experiment_id="test_experiment")
         mock_manager.emit_event(event)
 
         # Verify the event was emitted
@@ -62,7 +92,11 @@ class TestEventSystemIntegration:
         mock_event_manager.add_observer(mock_metrics_observer)
 
         # Create and emit an event
-        event = ServiceEvent.create_deployed("test_service", {})
+        event = ServiceDeploymentCompletedEvent(
+            service_id="test_service",
+            service_name="test_service",
+            environment="docker",
+        )
         mock_event_manager.emit_event(event)
 
         # Verify observers were notified

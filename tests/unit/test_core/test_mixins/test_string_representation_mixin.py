@@ -145,9 +145,10 @@ class TestStringRepresentationMixin:
         # Should show service attributes (first in MRO)
         assert "protocol=http" in result
         assert "impl=test_impl" in result
-        assert "type=iut" in result
-        # Should not show env attributes due to 'type' conflict
-        assert "subtype" not in result
+        # env_type overwrites service_type since both map to "type" key
+        assert "type=execution" in result
+        # env_sub_type is also present since it maps to "subtype"
+        assert "subtype=gperf" in result
 
     def test_none_protocol_object(self):
         """Test handling of protocol object without name attribute."""

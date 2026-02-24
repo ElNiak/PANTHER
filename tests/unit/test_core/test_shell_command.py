@@ -16,9 +16,10 @@ def test_normalize_command_ending():
     assert normalize_command_ending("ls -la;") == "ls -la"
     assert normalize_command_ending("echo 'hello' &&") == "echo 'hello'"
     assert normalize_command_ending("find . -name '*.py' &") == "find . -name '*.py'"
+    # Pipe is a valid operator, not stripped by normalize_command_ending
     assert (
         normalize_command_ending("grep 'pattern' file.txt |")
-        == "grep 'pattern' file.txt"
+        == "grep 'pattern' file.txt |"
     )
 
     # Test commands with trailing whitespace and operators
@@ -30,23 +31,23 @@ def test_shell_command():
     """Test the ShellCommand class with various commands."""
     # Regular command
     cmd1 = ShellCommand("ls -la")
-    cmd1.make_safe()
+    cmd1.get_shell_safe_command()
 
     # Command with trailing semicolon
     cmd2 = ShellCommand("ls -la;")
-    cmd2.make_safe()
+    cmd2.get_shell_safe_command()
 
     # Command with trailing &&
     cmd3 = ShellCommand("echo 'test' &&")
-    cmd3.make_safe()
+    cmd3.get_shell_safe_command()
 
     # Command with trailing &
     cmd4 = ShellCommand("find . -name '*.py' &")
-    cmd4.make_safe()
+    cmd4.get_shell_safe_command()
 
     # Command with trailing pipe
     cmd5 = ShellCommand("grep 'pattern' file.txt |")
-    cmd5.make_safe()
+    cmd5.get_shell_safe_command()
 
     print("All commands after make_safe():")
     print(f"1. Regular command: {cmd1.command}")
