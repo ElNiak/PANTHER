@@ -104,9 +104,7 @@ def _make_config_generated_event(
 
 def _make_observer(tmp_path: Path):
     """Create a real CommandAuditObserver pointing at tmp_path."""
-    from panther.core.observer.impl.command_audit_observer import (
-        CommandAuditObserver,
-    )
+    from panther.core.observer.impl.command_audit_observer import CommandAuditObserver
 
     audit_dir = tmp_path / "audit"
     audit_dir.mkdir(parents=True, exist_ok=True)
@@ -134,23 +132,9 @@ class TestCommandAuditObserverInit:
         assert observer.output_dir == audit_dir
 
     def test_default_observer_id(self, tmp_path):
-        """Observer uses 'command_audit' as default observer_id."""
+        """Observer initializes successfully and creates output directory."""
         observer = _make_observer(tmp_path)
-        # ITypedObserver stores nothing public for observer_id, but the
-        # constructor accepted it without error.
         assert observer.output_dir.exists()
-
-    def test_custom_observer_id(self, tmp_path):
-        """Observer accepts a custom observer_id."""
-        from panther.core.observer.impl.command_audit_observer import (
-            CommandAuditObserver,
-        )
-
-        audit_dir = tmp_path / "audit"
-        observer = CommandAuditObserver(
-            output_dir=audit_dir, observer_id="custom_audit"
-        )
-        assert observer.output_dir == audit_dir
 
     def test_empty_initial_state(self, tmp_path):
         """Observer starts with empty command_history and generation_in_progress."""
@@ -225,9 +209,7 @@ class TestHandleCommandGenerationStarted:
 
     def test_records_generation_in_progress(self, real_command_audit_observer):
         """Event is recorded in generation_in_progress dict."""
-        event = _make_cmd_gen_started_event(
-            service_name="picoquic", phase="run"
-        )
+        event = _make_cmd_gen_started_event(service_name="picoquic", phase="run")
         real_command_audit_observer.handle_command_generation_started(event)
 
         key = "picoquic_run"
@@ -357,9 +339,7 @@ class TestHandleCommandGenerated:
 class TestHandleCommandModified:
     """Test handling of CommandModifiedEvent."""
 
-    def test_appends_modification_to_latest_record(
-        self, real_command_audit_observer
-    ):
+    def test_appends_modification_to_latest_record(self, real_command_audit_observer):
         """Modification is appended to the modifications list of the latest record."""
         obs = real_command_audit_observer
         gen = _make_cmd_generated_event(
@@ -424,14 +404,10 @@ class TestHandleCommandModified:
         record = obs.command_history["pico_run"][0]
         assert record["modifications"][0]["modification_details"] == details
 
-    def test_modification_for_unknown_service_logged(
-        self, real_command_audit_observer
-    ):
+    def test_modification_for_unknown_service_logged(self, real_command_audit_observer):
         """Modifying a service with no history logs a warning but does not crash."""
         obs = real_command_audit_observer
-        mod = _make_cmd_modified_event(
-            service_name="nonexistent", phase="run"
-        )
+        mod = _make_cmd_modified_event(service_name="nonexistent", phase="run")
         # Should not raise
         obs.handle_command_modified(mod)
         assert obs.command_history == {}
@@ -603,9 +579,7 @@ class TestCalculateStatistics:
             )
         )
         obs.handle_command_modified(
-            _make_cmd_modified_event(
-                service_name="pico", phase="run", modifier="gperf"
-            )
+            _make_cmd_modified_event(service_name="pico", phase="run", modifier="gperf")
         )
 
         stats = obs._calculate_statistics()
@@ -628,9 +602,7 @@ class TestCalculateStatistics:
             )
         )
         obs.handle_command_modified(
-            _make_cmd_modified_event(
-                service_name="pico", phase="run", modifier="gperf"
-            )
+            _make_cmd_modified_event(service_name="pico", phase="run", modifier="gperf")
         )
 
         stats = obs._calculate_statistics()
@@ -803,9 +775,7 @@ class TestOnEventRouting:
         from panther.core.events.service.events import ServiceStartedEvent
 
         obs = real_command_audit_observer
-        event = ServiceStartedEvent(
-            service_id="svc-1", service_name="pico"
-        )
+        event = ServiceStartedEvent(service_id="svc-1", service_name="pico")
         result = obs.on_event(event)
         # Base handler for ServiceStartedEvent returns True
         assert result is True
@@ -878,9 +848,7 @@ class TestFullWorkflow:
                 _make_cmd_gen_started_event(service_name=svc, phase=phase)
             )
             obs.handle_command_generated(
-                _make_cmd_generated_event(
-                    service_name=svc, phase=phase, command=cmd
-                )
+                _make_cmd_generated_event(service_name=svc, phase=phase, command=cmd)
             )
 
         assert len(obs.command_history) == 4
@@ -970,20 +938,16 @@ class TestEdgeCases:
     def test_empty_service_name_in_event(self, real_command_audit_observer):
         """Events with empty service_name are handled (key becomes '_phase')."""
         obs = real_command_audit_observer
-        event = _make_cmd_generated_event(
-            service_name="", phase="run", command="echo"
-        )
+        event = _make_cmd_generated_event(service_name="", phase="run", command="echo")
         obs.handle_command_generated(event)
         assert "_run" in obs.command_history
 
     def test_special_characters_in_command(self, real_command_audit_observer):
         """Commands with special characters are stored correctly."""
         obs = real_command_audit_observer
-        cmd = 'bash -c "echo \'hello world\' && exit 0"'
+        cmd = "bash -c \"echo 'hello world' && exit 0\""
         obs.handle_command_generated(
-            _make_cmd_generated_event(
-                service_name="pico", phase="run", command=cmd
-            )
+            _make_cmd_generated_event(service_name="pico", phase="run", command=cmd)
         )
         assert obs.command_history["pico_run"][0]["command"] == cmd
 

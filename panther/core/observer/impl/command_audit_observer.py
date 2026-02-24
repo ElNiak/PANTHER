@@ -38,15 +38,14 @@ class CommandAuditObserver(ITypedObserver):
     - Reproducing exact command sequences
     """
 
-    def __init__(self, output_dir: Path, observer_id: str = "command_audit"):
+    def __init__(self, output_dir: Path):
         """
         Initialize the command audit observer.
 
         Args:
             output_dir: Directory to store audit logs
-            observer_id: Unique identifier for this observer
         """
-        super().__init__(observer_id)
+        super().__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
         self.output_dir = Path(output_dir)
         self.audit_file = self.output_dir / "command_audit.json"
