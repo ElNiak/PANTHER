@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-PANTHER (Protocol Analysis and Testing for Heterogeneous Execution and Research) is a comprehensive CLI tool for network protocol testing, formal verification, and automated analysis. This report provides detailed documentation of all CLI commands, their arguments, options, and execution traces.
+PANTHER (Protocol Analysis and Testing Harness for Extensible Research) is a comprehensive CLI tool for network protocol testing, formal verification, and automated analysis. This report provides detailed documentation of all CLI commands, their arguments, options, and execution traces.
 
 **CLI Framework**: Click-based (migrated from argparse)
 **Version**: 1.1.3
@@ -51,8 +51,7 @@ python -m panther [OPTIONS] COMMAND [ARGS]...
 ```
 Usage: python -m panther [OPTIONS] COMMAND [ARGS]...
 
-  PANTHER - Protocol Analysis and Testing for Heterogeneous Execution and
-  Research
+  PANTHER - Protocol Analysis and Testing Harness for Extensible Research
 
   Modern CLI for network protocol testing, formal verification, and automated
   analysis of protocol implementations across multiple environments.
@@ -618,8 +617,7 @@ panther, version 1.1.3
 $ python -m panther --help
 Usage: python -m panther [OPTIONS] COMMAND [ARGS]...
 
-  PANTHER - Protocol Analysis and Testing for Heterogeneous Execution and
-  Research
+  PANTHER - Protocol Analysis and Testing Harness for Extensible Research
 
   Modern CLI for network protocol testing, formal verification, and automated
   analysis of protocol implementations across multiple environments.

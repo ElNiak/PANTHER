@@ -15,7 +15,7 @@ class ServiceManagerEventMixin:
     """
     Mixin providing standardized event emission methods for service managers.
 
-    This class extends IServiceManager with helper methods to emit standard events.
+    Standalone mixin providing helper methods for service managers to emit standard events.
     It supports the event-driven architecture by providing consistent event emission patterns.
     """
 

@@ -1,4 +1,4 @@
-# Configuration Guide — Writing & Validating PANTHER YAML 📜
+# Configuration Guide — Writing & Validating PANTHER YAML
 
 A **PANTHER configuration** is a single YAML file that defines what to run, where to run it, and how to instrument it. This guide covers the complete configuration system, from basic setups to advanced plugin-specific options.
 
