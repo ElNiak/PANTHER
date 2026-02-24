@@ -100,8 +100,11 @@ class StagedDockerMixin(DockerOperationsMixin, CommandEventMixin):
         for service in services:
             image_tag = getattr(service, "docker_image_tag", "")
             if not image_tag:
-                self.logger.warning(
-                    f"Service {getattr(service, 'service_name', 'unknown')} has no docker_image_tag set."
+                service_name = getattr(service, "service_name", "unknown")
+                self.logger.error(
+                    "Service %s has no docker_image_tag set. "
+                    "The experiment cannot proceed without all service images.",
+                    service_name,
                 )
                 continue
 

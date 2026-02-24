@@ -594,8 +594,13 @@ class StatusCollector:
                 # Only return PASSED if all testers passed (none returned False)
                 if has_any_result:
                     return TestStatus.PASSED
-            except (json.JSONDecodeError, OSError, KeyError):
-                pass  # Fall through to keyword matching
+            except (json.JSONDecodeError, OSError, KeyError) as e:
+                self.logger.warning(
+                    "analysis_results.json at %s failed to parse: %s. "
+                    "Falling back to keyword-based status detection.",
+                    analysis_file,
+                    e,
+                )
 
         # 2. Fall back to keyword matching with specific patterns
         #    (Match log-level prefixed patterns, not bare words)

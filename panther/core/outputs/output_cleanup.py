@@ -40,17 +40,22 @@ def remove_empty_directories(root: Path) -> int:
             d.rmdir()
             removed += 1
             logger.debug("Removed empty directory: %s", d)
-        except OSError:
-            # Directory not empty or permission issue - skip
-            pass
+        except OSError as e:
+            import errno
+
+            if e.errno not in (errno.ENOTEMPTY, errno.EEXIST):
+                logger.warning("Cannot remove directory %s: %s", d, e)
 
     # Try root itself
     try:
         root.rmdir()
         removed += 1
         logger.debug("Removed empty root directory: %s", root)
-    except OSError:
-        pass
+    except OSError as e:
+        import errno
+
+        if e.errno not in (errno.ENOTEMPTY, errno.EEXIST):
+            logger.warning("Cannot remove root directory %s: %s", root, e)
 
     if removed > 0:
         logger.info("Removed %d empty directories under %s", removed, root)

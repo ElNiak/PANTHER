@@ -635,7 +635,7 @@ class IServiceManager(IPlugin, CommandEventMixin):
 
     def is_tester(self):
         """
-        Returns True if the plugin is a network service.
+        Returns True if this service is a tester (as opposed to an IUT implementation).
         """
         return self.service_type_normalized == "TESTERS"
 
@@ -797,7 +797,8 @@ class IServiceManager(IPlugin, CommandEventMixin):
                 )
                 self.logger.debug("Emitted service preparation started event")
 
-            # Subclasses override _do_prepare entirely for actual preparation logic
+            # Note: Preparation logic is handled by ServiceManagerDockerMixin.prepare() via MRO.
+            # The _do_prepare() hook is no longer called from this base class.
             result = None
 
             # Also emit service started event with defensive check

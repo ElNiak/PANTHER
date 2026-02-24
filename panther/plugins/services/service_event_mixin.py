@@ -618,7 +618,7 @@ class ServiceManagerEventMixin:
                 )
 
     def emit_test_starting(
-        self, test_id: str, test_type: str, details: Dict[str, Any] = None
+        self, test_id: str, test_type: str, details: Optional[Dict[str, Any]] = None
     ) -> None:
         """
         Emit an event indicating that a test is starting.
@@ -628,20 +628,22 @@ class ServiceManagerEventMixin:
             test_type: Type of test being started
             details: Additional details about the test
         """
-        if hasattr(self, "event_emitter") and self.event_emitter:
-            event = TestExecutionStartedEvent(
-                test_id=test_id,
-                steps=details.get("steps", []) if details else [],
-            )
-            self.event_emitter.emit_event(event)
+        if not (hasattr(self, "event_emitter") and self.event_emitter):
+            self.logger.debug("Skipping event emission: no event_emitter configured")
+            return
+        event = TestExecutionStartedEvent(
+            test_id=test_id,
+            steps=details.get("steps", []) if details else [],
+        )
+        self.event_emitter.emit_event(event)
 
     def emit_test_completed(
         self,
         test_id: str,
         success: bool,
-        result: Dict[str, Any] = None,
+        result: Optional[Dict[str, Any]] = None,
         error_message: Optional[str] = None,
-        details: Dict[str, Any] = None,
+        details: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit an event indicating that a test has completed.
@@ -653,20 +655,22 @@ class ServiceManagerEventMixin:
             error_message: Error message if test was unsuccessful
             details: Additional details about the test completion
         """
-        if hasattr(self, "event_emitter") and self.event_emitter:
-            if success:
-                summary = {"result": result or {}, "details": details or {}}
-                event = TestCompletedEvent(
-                    test_id=test_id,
-                    summary=summary,
-                )
-            else:
-                event = TestFailedEvent(
-                    test_id=test_id,
-                    error_message=error_message or "Test failed",
-                    summary={"result": result or {}, "details": details or {}},
-                )
-            self.event_emitter.emit_event(event)
+        if not (hasattr(self, "event_emitter") and self.event_emitter):
+            self.logger.debug("Skipping event emission: no event_emitter configured")
+            return
+        if success:
+            summary = {"result": result or {}, "details": details or {}}
+            event = TestCompletedEvent(
+                test_id=test_id,
+                summary=summary,
+            )
+        else:
+            event = TestFailedEvent(
+                test_id=test_id,
+                error_message=error_message or "Test failed",
+                summary={"result": result or {}, "details": details or {}},
+            )
+        self.event_emitter.emit_event(event)
 
     def handle_event(self, event: "BaseEvent") -> None:
         """

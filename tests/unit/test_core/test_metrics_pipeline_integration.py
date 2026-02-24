@@ -11,6 +11,8 @@ from panther.core.metrics.enums import MetricType, Phase
 from panther.core.metrics.metrics_collector import MetricsCollector
 from panther.core.metrics.metrics_exporter import MetricsExporter
 
+pytestmark = [pytest.mark.unit]
+
 
 @pytest.fixture
 def pipeline_collector(tmp_path):
@@ -53,15 +55,9 @@ def pipeline_collector(tmp_path):
     c.record_gauge("total_artifact_size_mb", 15.7)
 
     # Resource metrics (simulated samples)
-    c.record_metric(
-        "cpu_percent", MetricType.GAUGE, 30.0, component="resource_monitor"
-    )
-    c.record_metric(
-        "cpu_percent", MetricType.GAUGE, 60.0, component="resource_monitor"
-    )
-    c.record_metric(
-        "cpu_percent", MetricType.GAUGE, 45.0, component="resource_monitor"
-    )
+    c.record_metric("cpu_percent", MetricType.GAUGE, 30.0, component="resource_monitor")
+    c.record_metric("cpu_percent", MetricType.GAUGE, 60.0, component="resource_monitor")
+    c.record_metric("cpu_percent", MetricType.GAUGE, 45.0, component="resource_monitor")
     c.record_metric(
         "memory_percent", MetricType.GAUGE, 50.0, component="resource_monitor"
     )
@@ -106,9 +102,7 @@ class TestFullPipelineRoundtrip:
         assert data is not None
         return data, loader
 
-    def test_summary_counters_match_recorded_values(
-        self, tmp_path, pipeline_collector
-    ):
+    def test_summary_counters_match_recorded_values(self, tmp_path, pipeline_collector):
         data, _ = self._export_and_load(tmp_path, pipeline_collector)
         summary = data["summary"]
 

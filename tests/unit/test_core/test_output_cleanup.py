@@ -4,6 +4,8 @@ import pytest
 
 from panther.core.outputs.output_cleanup import remove_empty_directories
 
+pytestmark = [pytest.mark.unit]
+
 
 class TestRemoveEmptyDirectories:
     """Tests for remove_empty_directories utility."""

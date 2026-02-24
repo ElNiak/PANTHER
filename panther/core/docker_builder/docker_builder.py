@@ -193,7 +193,8 @@ class DockerBuilder(
         # Initialize with docker_operations feature for specialized logging
         self.__init_logger__("docker_operations")
         self.__class__._initialized = True
-        DockerBuilder._session_built_tags = set()
+        with DockerBuilder._session_built_tags_lock:
+            DockerBuilder._session_built_tags = set()
         self.logger.info("Initializing DockerBuilder singleton instance")
 
         self.plugins_dir = None
@@ -2161,7 +2162,8 @@ class DockerBuilder(
         """
         cls._instance = None
         cls._initialized = False
-        cls._session_built_tags = set()
+        with cls._session_built_tags_lock:
+            cls._session_built_tags = set()
 
     @classmethod
     def mark_session_built(cls, image_tag: str) -> None:

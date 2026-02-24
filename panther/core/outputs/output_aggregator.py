@@ -12,9 +12,6 @@ import os
 import time
 from pathlib import Path
 
-if TYPE_CHECKING:
-    pass
-
 from panther.core.events.environment.emitter import EnvironmentEventEmitter
 from panther.core.outputs.output_collector import IOutputCollector
 
@@ -144,14 +141,14 @@ class OutputAggregator:
 
         for env in environments:
             env_type = env.__class__.__name__
-            self.logger.info(f"Checking environment: {env_type}")
-            self.logger.info(
+            self.logger.debug(f"Checking environment: {env_type}")
+            self.logger.debug(
                 f"  - isinstance(env, IOutputCollector): {isinstance(env, IOutputCollector)}"
             )
-            self.logger.info(
+            self.logger.debug(
                 f"  - hasattr(env, 'collect_outputs'): {hasattr(env, 'collect_outputs')}"
             )
-            self.logger.info(
+            self.logger.debug(
                 f"  - env.__class__.__mro__: {[cls.__name__ for cls in env.__class__.__mro__]}"
             )
 

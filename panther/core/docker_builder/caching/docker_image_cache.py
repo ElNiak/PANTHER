@@ -415,7 +415,7 @@ class DockerImageCache(LoggerMixin):
                 except concurrent.futures.TimeoutError:
                     self.logger.error("Docker image list timed out after 30 seconds")
                     executor.shutdown(wait=False, cancel_futures=True)
-                    break
+                    continue
                 finally:
                     executor.shutdown(wait=False)
 

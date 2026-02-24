@@ -11,6 +11,8 @@ from panther.core.outputs.service_health_analyzer import (
     ServiceHealthAnalyzer,
 )
 
+pytestmark = [pytest.mark.unit]
+
 
 @pytest.fixture
 def analyzer():

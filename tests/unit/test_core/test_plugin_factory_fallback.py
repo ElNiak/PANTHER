@@ -14,6 +14,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+pytestmark = [pytest.mark.unit]
+
 
 class TestPluginFactoryFallback:
     """Verify the plugin_metadata.path=None fallback in create_service_manager."""

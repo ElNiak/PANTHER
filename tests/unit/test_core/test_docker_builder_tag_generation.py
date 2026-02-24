@@ -17,6 +17,8 @@ Tests cover:
 
 import pytest
 
+pytestmark = [pytest.mark.unit]
+
 
 class TestDockerBuilderTagGeneration:
     """Test suite for Docker Builder tag generation functionality."""

@@ -13,6 +13,8 @@ import pytest
 from panther.core.metrics.enums import MetricType, Phase
 from panther.core.metrics.metrics_collector import MetricsCollector
 
+pytestmark = [pytest.mark.unit]
+
 
 @pytest.fixture
 def collector(tmp_path):
@@ -53,9 +55,7 @@ class TestConcurrentMetricRecording:
             thread.join(timeout=30)
 
         # Count user-recorded metrics (exclude the experiment_start metric)
-        user_metrics = [
-            m for m in collector.metrics if m.name != "experiment_start"
-        ]
+        user_metrics = [m for m in collector.metrics if m.name != "experiment_start"]
         expected = num_threads * metrics_per_thread
         assert len(user_metrics) == expected
 
@@ -71,9 +71,7 @@ class TestConcurrentMetricRecording:
                 collector.increment_counter("shared_counter")
 
         with ThreadPoolExecutor(max_workers=num_threads) as executor:
-            futures = [
-                executor.submit(increment_batch, t) for t in range(num_threads)
-            ]
+            futures = [executor.submit(increment_batch, t) for t in range(num_threads)]
             for f in as_completed(futures):
                 f.result()  # Raise any exceptions
 
@@ -284,7 +282,9 @@ class TestConcurrentMixedOperations:
         for thread in threads:
             thread.join(timeout=30)
 
-        assert len(read_errors) == 0, f"Read errors during concurrent access: {read_errors}"
+        assert (
+            len(read_errors) == 0
+        ), f"Read errors during concurrent access: {read_errors}"
 
 
 class TestConcurrentFinalization:
@@ -298,9 +298,7 @@ class TestConcurrentFinalization:
         def slow_recorder():
             barrier.wait()
             for i in range(50):
-                collector.record_metric(
-                    f"late_metric_{i}", MetricType.COUNTER, 1
-                )
+                collector.record_metric(f"late_metric_{i}", MetricType.COUNTER, 1)
                 time.sleep(0.001)
             recording_done.set()
 

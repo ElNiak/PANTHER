@@ -47,7 +47,7 @@ if protocol.version:  # e.g., "rfc9000", "draft-29"
         service_config.implementation.version_config = version_config
 ```
 
-**Thread Safety**: All factory operations are thread-safe for concurrent plugin creation
+**Thread Safety**: Not thread-safe. Designed for single-threaded use during initialization phase.
 **Memory Management**: Automatic cleanup of cached classes and dependency references
 """
 
@@ -126,8 +126,8 @@ class PluginFactory(LoggerMixin):
     )
     ```
 
-    **Thread Safety**: All factory operations are designed for concurrent access with proper
-    synchronization around shared resources like the class cache and plugin metadata.
+    **Thread Safety**: Not thread-safe. Assumes single-threaded initialization.
+    If concurrent access is needed, external synchronization must be provided.
     """
 
     def __init__(

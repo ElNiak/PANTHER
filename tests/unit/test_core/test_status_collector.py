@@ -12,6 +12,8 @@ import json
 
 import pytest
 
+pytestmark = [pytest.mark.unit]
+
 from panther.core.reporting.status_collector import (
     ExperimentStatus,
     ExperimentSummary,
@@ -22,10 +24,10 @@ from panther.core.reporting.status_collector import (
     TestStatus,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _write_test_log(test_dir, content):
     """Write a test.log file inside a test directory."""
@@ -42,12 +44,15 @@ def _make_collector(tmp_path):
 # TestDetermineTestStatus
 # ---------------------------------------------------------------------------
 
+
 class TestDetermineTestStatus:
     """Verify _determine_test_status correctly classifies log content."""
 
     def test_timeout_from_timed_out(self, tmp_path):
         test_dir = tmp_path / "test1"
-        _write_test_log(test_dir, "2024-01-01 00:00:00 Service timed out waiting for port")
+        _write_test_log(
+            test_dir, "2024-01-01 00:00:00 Service timed out waiting for port"
+        )
         collector = _make_collector(tmp_path)
         status = collector._determine_test_status(
             (test_dir / "test.log").read_text(), test_dir
@@ -83,7 +88,9 @@ class TestDetermineTestStatus:
 
     def test_unknown_when_no_indicators(self, tmp_path):
         test_dir = tmp_path / "test1"
-        _write_test_log(test_dir, "2024-01-01 00:00:00 - INFO - Nothing special happened")
+        _write_test_log(
+            test_dir, "2024-01-01 00:00:00 - INFO - Nothing special happened"
+        )
         collector = _make_collector(tmp_path)
         status = collector._determine_test_status(
             (test_dir / "test.log").read_text(), test_dir
@@ -145,6 +152,7 @@ class TestDetermineTestStatus:
 # TestDetermineExperimentStatus
 # ---------------------------------------------------------------------------
 
+
 class TestDetermineExperimentStatus:
     """Verify _determine_experiment_status aggregation logic."""
 
@@ -155,7 +163,10 @@ class TestDetermineExperimentStatus:
         collector = _make_collector(tmp_path)
         results = [self._make_test_result(TestStatus.PASSED) for _ in range(3)]
         ff = FastFailInfo(enabled=False)
-        assert collector._determine_experiment_status(results, ff) == ExperimentStatus.COMPLETED
+        assert (
+            collector._determine_experiment_status(results, ff)
+            == ExperimentStatus.COMPLETED
+        )
 
     def test_failed_when_any_failed(self, tmp_path):
         collector = _make_collector(tmp_path)
@@ -164,7 +175,10 @@ class TestDetermineExperimentStatus:
             self._make_test_result(TestStatus.FAILED),
         ]
         ff = FastFailInfo(enabled=False)
-        assert collector._determine_experiment_status(results, ff) == ExperimentStatus.FAILED
+        assert (
+            collector._determine_experiment_status(results, ff)
+            == ExperimentStatus.FAILED
+        )
 
     def test_timeout_when_timeout_tests_exist(self, tmp_path):
         collector = _make_collector(tmp_path)
@@ -173,7 +187,10 @@ class TestDetermineExperimentStatus:
             self._make_test_result(TestStatus.TIMEOUT),
         ]
         ff = FastFailInfo(enabled=False)
-        assert collector._determine_experiment_status(results, ff) == ExperimentStatus.TIMEOUT
+        assert (
+            collector._determine_experiment_status(results, ff)
+            == ExperimentStatus.TIMEOUT
+        )
 
     def test_interrupted_when_interrupted_tests(self, tmp_path):
         collector = _make_collector(tmp_path)
@@ -182,23 +199,32 @@ class TestDetermineExperimentStatus:
             self._make_test_result(TestStatus.INTERRUPTED),
         ]
         ff = FastFailInfo(enabled=False)
-        assert collector._determine_experiment_status(results, ff) == ExperimentStatus.INTERRUPTED
+        assert (
+            collector._determine_experiment_status(results, ff)
+            == ExperimentStatus.INTERRUPTED
+        )
 
     def test_unknown_when_no_tests(self, tmp_path):
         collector = _make_collector(tmp_path)
         ff = FastFailInfo(enabled=False)
-        assert collector._determine_experiment_status([], ff) == ExperimentStatus.UNKNOWN
+        assert (
+            collector._determine_experiment_status([], ff) == ExperimentStatus.UNKNOWN
+        )
 
     def test_fast_fail_overrides_experiment_status(self, tmp_path):
         collector = _make_collector(tmp_path)
         results = [self._make_test_result(TestStatus.PASSED)]
         ff = FastFailInfo(enabled=True, triggered=True, reason="Critical error")
-        assert collector._determine_experiment_status(results, ff) == ExperimentStatus.FAILED
+        assert (
+            collector._determine_experiment_status(results, ff)
+            == ExperimentStatus.FAILED
+        )
 
 
 # ---------------------------------------------------------------------------
 # TestFastFailDetection
 # ---------------------------------------------------------------------------
+
 
 class TestFastFailDetection:
     """Verify _extract_fast_fail_info parses fast-fail patterns from logs."""
@@ -243,6 +269,7 @@ class TestFastFailDetection:
 # TestResourceUsageExtraction
 # ---------------------------------------------------------------------------
 
+
 class TestResourceUsageExtraction:
     """Verify _extract_resource_usage parses metrics JSON and counts files."""
 
@@ -277,6 +304,7 @@ class TestResourceUsageExtraction:
 # ---------------------------------------------------------------------------
 # TestExperimentSummary
 # ---------------------------------------------------------------------------
+
 
 class TestExperimentSummary:
     """Verify ExperimentSummary computed properties."""

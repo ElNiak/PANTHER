@@ -93,7 +93,7 @@ class Metric:
     metric collections.
 
     **Design Features**:
-    - **Immutable Structure**: Dataclass with post-init validation
+    - **Mutable Structure**: Dataclass storing metric observations. No post-construction validation.
     - **Rich Context**: Test case, component, and phase attribution
     - **Flexible Metadata**: Extensible key-value metadata storage
     - **Temporal Ordering**: High-precision timestamp for chronological analysis

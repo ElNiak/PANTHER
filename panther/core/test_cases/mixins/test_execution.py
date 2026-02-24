@@ -158,7 +158,7 @@ class TestExecutionMixin:
                 all_passed = False
                 break
 
-            if passed := results.get("passed", False):
+            if results.get("passed", False):
                 self.logger.info(
                     f"Tester {tester_name} passed: {results.get('analysis_summary', 'No summary')}"
                 )

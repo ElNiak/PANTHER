@@ -698,21 +698,7 @@ class ExperimentManager(
                         # Check if test actually passed (returns None or True for success, False for failure)
                         if test_result is False:
                             failed_tests += 1
-                            try:
-                                if self.metrics_collector:
-                                    self.metrics_collector.increment_counter(
-                                        "test_cases_total", phase=Phase.TEST_EXECUTION
-                                    )
-                                    self.metrics_collector.increment_counter(
-                                        "test_cases_failed", phase=Phase.TEST_EXECUTION
-                                    )
-                            except (
-                                Exception
-                            ) as metrics_err:  # pylint: disable=broad-exception-caught
-                                self.logger.warning(
-                                    "Failed to record test failure metrics: %s",
-                                    metrics_err,
-                                )
+                            self._record_test_metric("failed")
                             if self.global_config.progress.show_test_status:
                                 emoji = (
                                     "❌ "
@@ -735,21 +721,7 @@ class ExperimentManager(
                             continue
 
                         successful_tests += 1
-                        try:
-                            if self.metrics_collector:
-                                self.metrics_collector.increment_counter(
-                                    "test_cases_total", phase=Phase.TEST_EXECUTION
-                                )
-                                self.metrics_collector.increment_counter(
-                                    "test_cases_successful", phase=Phase.TEST_EXECUTION
-                                )
-                        except (
-                            Exception
-                        ) as metrics_err:  # pylint: disable=broad-exception-caught
-                            self.logger.warning(
-                                "Failed to record test success metrics: %s",
-                                metrics_err,
-                            )
+                        self._record_test_metric("successful")
                         if self.global_config.progress.show_test_status:
                             emoji = (
                                 "✅ " if self.global_config.progress.use_emojis else ""
@@ -802,21 +774,7 @@ class ExperimentManager(
                     ) as test_error:
                         # Handle all expected error types with a single handler
                         failed_tests += 1
-                        try:
-                            if self.metrics_collector:
-                                self.metrics_collector.increment_counter(
-                                    "test_cases_total", phase=Phase.TEST_EXECUTION
-                                )
-                                self.metrics_collector.increment_counter(
-                                    "test_cases_failed", phase=Phase.TEST_EXECUTION
-                                )
-                        except (
-                            Exception
-                        ) as metrics_err:  # pylint: disable=broad-exception-caught
-                            self.logger.warning(
-                                "Failed to record test error metrics: %s",
-                                metrics_err,
-                            )
+                        self._record_test_metric("failed")
 
                         # Click progress bar handles iteration automatically
 
@@ -1144,7 +1102,28 @@ class ExperimentManager(
                     "Cleaned %d empty directories from experiment output", removed
                 )
         except Exception as e:  # pylint: disable=broad-exception-caught
-            self.logger.debug("Empty directory cleanup skipped: %s", e)
+            self.logger.warning("Empty directory cleanup failed: %s", e, exc_info=True)
+
+    def _record_test_metric(self, outcome: str) -> None:
+        """Record test outcome metrics (total + outcome-specific counter).
+
+        Args:
+            outcome: The test outcome to record (e.g., "failed", "successful").
+        """
+        try:
+            if self.metrics_collector:
+                self.metrics_collector.increment_counter(
+                    "test_cases_total", phase=Phase.TEST_EXECUTION
+                )
+                self.metrics_collector.increment_counter(
+                    f"test_cases_{outcome}", phase=Phase.TEST_EXECUTION
+                )
+        except Exception as metrics_err:  # pylint: disable=broad-exception-caught
+            self.logger.warning(
+                "Failed to record test %s metrics: %s",
+                outcome,
+                metrics_err,
+            )
 
     def __enter__(self):
         """Context manager entry - return self for use in with statements."""

@@ -5,9 +5,11 @@ import json
 import pytest
 
 from panther.core.metrics.data_loader import MetricsDataLoader
-from panther.core.metrics.metrics_collector import MetricsCollector, MetricType
 from panther.core.metrics.enums import Phase
+from panther.core.metrics.metrics_collector import MetricsCollector, MetricType
 from panther.core.metrics.metrics_exporter import MetricsExporter
+
+pytestmark = [pytest.mark.unit]
 
 
 @pytest.fixture
@@ -19,8 +21,12 @@ def collector(tmp_path):
         collection_interval=60.0,
     )
     # Record various metric types
-    c.record_metric("test_op_duration", MetricType.TIMING, 1.5, phase=Phase.TEST_EXECUTION)
-    c.record_metric("test_op_duration", MetricType.TIMING, 2.3, phase=Phase.TEST_EXECUTION)
+    c.record_metric(
+        "test_op_duration", MetricType.TIMING, 1.5, phase=Phase.TEST_EXECUTION
+    )
+    c.record_metric(
+        "test_op_duration", MetricType.TIMING, 2.3, phase=Phase.TEST_EXECUTION
+    )
     c.increment_counter("tests_passed", test_case="basic_quic")
     c.increment_counter("tests_failed", test_case="stress_test")
     c.record_gauge("process_cpu_percent", 45.2)
@@ -106,7 +112,10 @@ class TestMetricsExportLifecycle:
 
         names = [m["name"] for m in available]
         # At least the error metric should be present
-        assert any("error" in n.lower() for n in names) or data.get("error_metrics", {}).get("total_errors", 0) > 0
+        assert (
+            any("error" in n.lower() for n in names)
+            or data.get("error_metrics", {}).get("total_errors", 0) > 0
+        )
 
     def test_summary_from_exported_data(self, tmp_path, collector):
         """DataLoader summary works with freshly exported data."""
@@ -166,6 +175,7 @@ class TestExperimentManagerCleanupMetricsExport:
 
         # Use a real logger so log calls don't fail
         import logging
+
         manager.logger = logging.getLogger("test_cleanup")
 
         # Make log_statistics_display falsy so it's skipped
@@ -190,9 +200,9 @@ class TestExperimentManagerCleanupMetricsExport:
 
         # Assert that metrics.json was written to experiment_dir/metrics/
         metrics_json = manager.experiment_dir / "metrics" / "metrics.json"
-        assert metrics_json.exists(), (
-            f"Expected {metrics_json} to exist after cleanup()"
-        )
+        assert (
+            metrics_json.exists()
+        ), f"Expected {metrics_json} to exist after cleanup()"
 
         # Verify the file contains valid JSON with expected structure
         data = json.load(open(metrics_json, "r", encoding="utf-8"))
@@ -234,11 +244,17 @@ class TestPhaseMetricsFix:
         phase_data = exporter._get_phase_metrics()
 
         # These should now be non-zero thanks to .phase field filtering
-        assert phase_data[Phase.ENVIRONMENT_SETUP.value]["total_time"] == pytest.approx(5.0)
+        assert phase_data[Phase.ENVIRONMENT_SETUP.value]["total_time"] == pytest.approx(
+            5.0
+        )
         assert phase_data[Phase.ENVIRONMENT_SETUP.value]["count"] == 1
-        assert phase_data[Phase.TEST_EXECUTION.value]["total_time"] == pytest.approx(12.5)
+        assert phase_data[Phase.TEST_EXECUTION.value]["total_time"] == pytest.approx(
+            12.5
+        )
         assert phase_data[Phase.TEST_EXECUTION.value]["count"] == 1
-        assert phase_data[Phase.ENVIRONMENT_TEARDOWN.value]["total_time"] == pytest.approx(3.2)
+        assert phase_data[Phase.ENVIRONMENT_TEARDOWN.value][
+            "total_time"
+        ] == pytest.approx(3.2)
         assert phase_data[Phase.ENVIRONMENT_TEARDOWN.value]["count"] == 1
 
     def test_summary_nonzero_after_counter_increments(self, tmp_path):
@@ -277,9 +293,15 @@ class TestResourceMonitorGaugeFix:
             collection_interval=60.0,
         )
         # Simulate what resource_monitor now does (GAUGE for cumulative totals)
-        c.record_metric("disk_read_mb_total", MetricType.GAUGE, 100.0, component="resource_monitor")
-        c.record_metric("disk_read_mb_total", MetricType.GAUGE, 200.0, component="resource_monitor")
-        c.record_metric("disk_read_mb_total", MetricType.GAUGE, 300.0, component="resource_monitor")
+        c.record_metric(
+            "disk_read_mb_total", MetricType.GAUGE, 100.0, component="resource_monitor"
+        )
+        c.record_metric(
+            "disk_read_mb_total", MetricType.GAUGE, 200.0, component="resource_monitor"
+        )
+        c.record_metric(
+            "disk_read_mb_total", MetricType.GAUGE, 300.0, component="resource_monitor"
+        )
 
         # GAUGE takes latest value, not sum
         gauges = c.gauges
