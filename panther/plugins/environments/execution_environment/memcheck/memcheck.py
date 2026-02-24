@@ -48,6 +48,8 @@ class MemcheckEnvironment(BaseExecutionEnvironment):
     code duplication while providing comprehensive memory error detection.
     """
 
+    _config_class = MemcheckConfig
+
     def __init__(
         self,
         env_config_to_test: MemcheckConfig,
@@ -62,40 +64,7 @@ class MemcheckEnvironment(BaseExecutionEnvironment):
             env_config_to_test, output_dir, env_type, env_sub_type, event_manager
         )
 
-        # Initialize plugin config cache
-        self._plugin_config = None
         self.target_platform = target_platform
-
-    def _get_plugin_config(self) -> MemcheckConfig:
-        """Get plugin config with caching and fallback."""
-        if self._plugin_config is None:
-            try:
-                self._plugin_config = self.env_config_to_test.get_plugin_config(
-                    MemcheckConfig
-                )
-            except Exception as e:
-                self.logger.debug(f"Could not get plugin config, using defaults: {e}")
-                self._plugin_config = MemcheckConfig()
-        return self._plugin_config
-
-    def _get_config_value(self, field_name: str, default=None):
-        """Helper method to get config value using dual approach."""
-        # First try plugin_config dict
-        value = None
-        if (
-            hasattr(self.env_config_to_test, "plugin_config")
-            and self.env_config_to_test.plugin_config
-        ):
-            value = self.env_config_to_test.plugin_config.get(field_name)
-
-        # Second try typed config
-        if value is None:
-            plugin_config = self._get_plugin_config()
-            if hasattr(plugin_config, field_name):
-                value = getattr(plugin_config, field_name)
-
-        # Return value or default
-        return value if value is not None else default
 
     def _setup_plugin_specific_environment(
         self, services_managers: List[IServiceManager], timestamp: str
@@ -166,36 +135,16 @@ class MemcheckEnvironment(BaseExecutionEnvironment):
         Returns:
             str: Complete Memcheck command
         """
-        plugin_config = self._get_plugin_config()
         command_parts = ["valgrind", "--tool=memcheck"]
 
         # Add output file
         command_parts.extend([f"--log-file={output_file}"])
 
-        # Set output format using dual approach
-        output_format = None
-        if (
-            hasattr(self.env_config_to_test, "plugin_config")
-            and self.env_config_to_test.plugin_config
-        ):
-            output_format = self.env_config_to_test.plugin_config.get("output_format")
-        if output_format is None and hasattr(plugin_config, "output_format"):
-            output_format = plugin_config.output_format
-
+        # Set output format
+        output_format = self._get_config_value("output_format")
         if output_format == "xml":
             command_parts.extend(("--xml=yes", f"--xml-file={output_file}.xml"))
-            # Get xml_user_comment using dual approach
-            xml_user_comment = None
-            if (
-                hasattr(self.env_config_to_test, "plugin_config")
-                and self.env_config_to_test.plugin_config
-            ):
-                xml_user_comment = self.env_config_to_test.plugin_config.get(
-                    "xml_user_comment"
-                )
-            if xml_user_comment is None and hasattr(plugin_config, "xml_user_comment"):
-                xml_user_comment = plugin_config.xml_user_comment
-
+            xml_user_comment = self._get_config_value("xml_user_comment")
             if xml_user_comment:
                 command_parts.append(f"--xml-user-comment={xml_user_comment}")
 

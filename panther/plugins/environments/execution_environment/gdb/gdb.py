@@ -47,6 +47,8 @@ class GdbEnvironment(BaseExecutionEnvironment):
     - Comprehensive crash reporting
     """
 
+    _config_class = GdbConfig
+
     def __init__(
         self,
         env_config_to_test: GdbConfig,
@@ -61,21 +63,7 @@ class GdbEnvironment(BaseExecutionEnvironment):
             env_config_to_test, output_dir, env_type, env_sub_type, event_manager
         )
 
-        # Initialize plugin config cache
-        self._plugin_config = None
         self.target_platform = target_platform
-
-    def _get_plugin_config(self) -> GdbConfig:
-        """Get plugin config with caching and fallback."""
-        if self._plugin_config is None:
-            try:
-                self._plugin_config = self.env_config_to_test.get_plugin_config(
-                    GdbConfig
-                )
-            except Exception as e:
-                self.logger.debug(f"Could not get plugin config, using defaults: {e}")
-                self._plugin_config = GdbConfig()
-        return self._plugin_config
 
     def _setup_plugin_specific_environment(
         self, services_managers: List[IServiceManager], timestamp: str

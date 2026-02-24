@@ -205,6 +205,8 @@ class StraceEnvironment(BaseExecutionEnvironment):
         to_command(): Generate strace command for standalone execution
     """
 
+    _config_class = StraceConfig
+
     def __init__(
         self,
         env_config_to_test: StraceConfig,
@@ -219,22 +221,7 @@ class StraceEnvironment(BaseExecutionEnvironment):
             env_config_to_test, output_dir, env_type, env_sub_type, event_manager
         )
 
-        # Initialize plugin config cache
-        self._plugin_config = None
         self.target_platform = target_platform
-
-    def _get_plugin_config(self) -> StraceConfig:
-        """Get plugin config with caching and fallback."""
-        if self._plugin_config is None:
-            try:
-                self.logger.debug("Fetching strace plugin config")
-                self._plugin_config = self.env_config_to_test.get_plugin_config(
-                    StraceConfig
-                )
-            except Exception as e:
-                self.logger.debug(f"Could not get plugin config, using defaults: {e}")
-                self._plugin_config = StraceConfig()
-        return self._plugin_config
 
     def get_output_patterns(self) -> List[Tuple[str, str]]:
         """
@@ -373,77 +360,33 @@ class StraceEnvironment(BaseExecutionEnvironment):
         output_dir = "/".join(output_file.split("/")[:-1])
         mkdir_cmd = f"mkdir -p {output_dir}; touch {output_file};"
 
-        # Get plugin config
-        plugin_config = self._get_plugin_config()
-
-        # Get strace binary using dual approach
-        strace_binary = None
-        if (
-            hasattr(self.env_config_to_test, "plugin_config")
-            and self.env_config_to_test.plugin_config
-        ):
-            strace_binary = self.env_config_to_test.plugin_config.get("strace_binary")
-        if strace_binary is None:
-            strace_binary = plugin_config.strace_binary
+        # Get strace binary
+        strace_binary = self._get_config_value("strace_binary", "strace")
 
         command_parts = [strace_binary]  # "sudo",
 
         # Add output file
         command_parts.extend(["-o", output_file])
 
-        # Include kernel stack if enabled using dual approach
-        include_kernel_stack = None
-        if (
-            hasattr(self.env_config_to_test, "plugin_config")
-            and self.env_config_to_test.plugin_config
-        ):
-            include_kernel_stack = self.env_config_to_test.plugin_config.get(
-                "include_kernel_stack"
-            )
-        if include_kernel_stack is None:
-            include_kernel_stack = plugin_config.include_kernel_stack
+        # Include kernel stack if enabled
+        include_kernel_stack = self._get_config_value("include_kernel_stack")
         if include_kernel_stack:
             machine = platform.machine().lower()
             command_parts.append("-k") if machine in ["x86_64", "i386", "i686"] else ""
 
-        command_parts.extend(("-tt", "-yy", "-f", "-yy"))  # "-e verbose=all" # TODO
-        # Exclude specified syscalls using dual approach
-        excluded_syscalls = None
-        if (
-            hasattr(self.env_config_to_test, "plugin_config")
-            and self.env_config_to_test.plugin_config
-        ):
-            excluded_syscalls = self.env_config_to_test.plugin_config.get(
-                "excluded_syscalls"
-            )
-        if excluded_syscalls is None:
-            excluded_syscalls = plugin_config.excluded_syscalls
+        command_parts.extend(("-tt", "-yy", "-f", "-yy"))  # "-e verbose=all"
+        # Exclude specified syscalls
+        excluded_syscalls = self._get_config_value("excluded_syscalls")
         if excluded_syscalls:
             excluded = ",".join(excluded_syscalls)
             command_parts.extend(["-e", f"trace=!{excluded}"])
 
-        # Focus on network syscalls if enabled using dual approach
-        if (
-            hasattr(plugin_config, "trace_all_syscalls")
-            and plugin_config.trace_all_syscalls
-            or (
-                hasattr(self.env_config_to_test, "plugin_config")
-                and self.env_config_to_test.plugin_config
-                and self.env_config_to_test.plugin_config.get("trace_all_syscalls")
-            )
-        ):
+        # Focus on network syscalls if enabled
+        trace_all_syscalls = self._get_config_value("trace_all_syscalls")
+        if trace_all_syscalls:
             command_parts.append("-e trace=all")
         else:
-            trace_network_syscalls = None
-            if (
-                hasattr(self.env_config_to_test, "plugin_config")
-                and self.env_config_to_test.plugin_config
-            ):
-                trace_network_syscalls = self.env_config_to_test.plugin_config.get(
-                    "trace_network_syscalls"
-                )
-            if trace_network_syscalls is None:
-                trace_network_syscalls = plugin_config.trace_network_syscalls
+            trace_network_syscalls = self._get_config_value("trace_network_syscalls")
             if trace_network_syscalls:
                 network_syscalls = (
                     "network,read,write,send,recv,connect,bind,listen,accept"
@@ -452,32 +395,13 @@ class StraceEnvironment(BaseExecutionEnvironment):
 
         strace_cmd = " ".join(command_parts)
 
-        # Add timeout if specified using dual approach
-        # DISABLED: Let service-level timeout handle process lifecycle instead of strace wrapper timeout
-        # This allows strace to capture the full execution without being artificially terminated
-        timeout = None
-        if (
-            hasattr(self.env_config_to_test, "plugin_config")
-            and self.env_config_to_test.plugin_config
-        ):
-            timeout = self.env_config_to_test.plugin_config.get("timeout")
-        if timeout is None:
-            timeout = plugin_config.timeout
+        # Timeout (DISABLED: Let service-level timeout handle process lifecycle)
+        # timeout = self._get_config_value("timeout")
         # if timeout:
-        #     # Note: strace doesn't have built-in timeout, use timeout command
         #     strace_cmd = f"timeout {timeout} {strace_cmd}"
 
-        # Add any additional parameters using dual approach
-        additional_parameters = None
-        if (
-            hasattr(self.env_config_to_test, "plugin_config")
-            and self.env_config_to_test.plugin_config
-        ):
-            additional_parameters = self.env_config_to_test.plugin_config.get(
-                "additional_parameters"
-            )
-        if additional_parameters is None:
-            additional_parameters = plugin_config.additional_parameters
+        # Add any additional parameters
+        additional_parameters = self._get_config_value("additional_parameters")
         if additional_parameters:
             additional = " ".join(additional_parameters)
             strace_cmd = f"{strace_cmd} {additional}"
@@ -517,8 +441,7 @@ class StraceEnvironment(BaseExecutionEnvironment):
             setup_commands.append(mkdir_cmd)
 
         # Add strace availability check
-        plugin_config = self._get_plugin_config()
-        strace_binary = plugin_config.strace_binary
+        strace_binary = self._get_config_value("strace_binary", "strace")
         availability_check = f"""
 ulimit -c unlimited;                 # allow core files
 echo '/tmp/core.%e.%p' | sudo tee /proc/sys/kernel/core_pattern;
@@ -623,20 +546,10 @@ echo "Analysis complete" >> {summary_file}
             file_type="strace_summary",
         )
 
-        # Add optional detailed analysis if configured using dual approach
-        plugin_config = self._get_plugin_config()
-        generate_detailed_analysis = None
-        if (
-            hasattr(self.env_config_to_test, "plugin_config")
-            and self.env_config_to_test.plugin_config
-        ):
-            generate_detailed_analysis = self.env_config_to_test.plugin_config.get(
-                "generate_detailed_analysis"
-            )
-        if generate_detailed_analysis is None and hasattr(
-            plugin_config, "generate_detailed_analysis"
-        ):
-            generate_detailed_analysis = plugin_config.generate_detailed_analysis
+        # Add optional detailed analysis if configured
+        generate_detailed_analysis = self._get_config_value(
+            "generate_detailed_analysis"
+        )
 
         if generate_detailed_analysis:
             detailed_file = command_builder.register_output_file(
@@ -687,19 +600,7 @@ fi
             str: Command string for strace wrapper
         """
         if output_file is None:
-            # Get output file using dual approach
-            plugin_config = self._get_plugin_config()
-            output_file_value = None
-            if (
-                hasattr(self.env_config_to_test, "plugin_config")
-                and self.env_config_to_test.plugin_config
-            ):
-                output_file_value = self.env_config_to_test.plugin_config.get(
-                    "output_file"
-                )
-            if output_file_value is None:
-                output_file_value = plugin_config.output_file
-            output_file = output_file_value or "/tmp/strace.log"
+            output_file = self._get_config_value("output_file", "/tmp/strace.log")
 
         # Use the same command building logic as the wrapper
         return self._build_strace_command(output_file)
