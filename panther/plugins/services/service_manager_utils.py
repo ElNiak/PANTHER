@@ -12,7 +12,10 @@ logger = logging.getLogger(__name__)
 
 
 class ServiceManagerUtilities:
-    """Common utility methods for service managers."""
+    """Common utility methods for service managers.
+
+    MRO: Utility class (not in MRO chain). Used by service managers for shared utilities.
+    """
 
     @staticmethod
     def standardize_initialization_logging(

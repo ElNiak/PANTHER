@@ -20,6 +20,8 @@ class PluginDirectoryMixin:
     managers inherit from this mixin to avoid code duplication while
     maintaining their specialized behaviors (template rendering, role
     management, test parameters, etc.) in separate classes.
+
+    MRO: Shared directory mixin. Used by: IUTServiceManagerMixin, TesterServiceManagerMixin
     """
 
     _plugin_dir: Path | None

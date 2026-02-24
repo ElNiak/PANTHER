@@ -18,6 +18,8 @@ class TesterServiceManagerMixin(
 
     Plugin directory detection, Docker image naming, and Docker attribute
     setup are inherited from PluginDirectoryMixin.
+
+    MRO: TesterServiceManagerMixin -> PluginDirectoryMixin -> ServiceManagerMixin -> LoggerMixin -> ITesterManager
     """
 
     def __init__(self, *args, global_config=None, **kwargs):

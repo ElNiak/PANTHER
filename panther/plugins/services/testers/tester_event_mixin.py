@@ -12,6 +12,8 @@ class TesterManagerEventMixin(ServiceManagerEventMixin):
     All event methods are inherited from ServiceManagerEventMixin.
     This facade exists so tester consumers can import from a semantically
     meaningful location without breaking existing import paths.
+
+    MRO: TesterManagerEventMixin -> ServiceManagerEventMixin
     """
 
     pass

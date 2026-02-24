@@ -12,6 +12,8 @@ class IUTManagerEventMixin(ServiceManagerEventMixin):
     All event methods are inherited from ServiceManagerEventMixin.
     This facade exists so IUT consumers can import from a semantically
     meaningful location without breaking existing import paths.
+
+    MRO: IUTManagerEventMixin -> ServiceManagerEventMixin
     """
 
     pass

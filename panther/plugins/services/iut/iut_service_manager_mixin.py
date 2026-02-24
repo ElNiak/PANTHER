@@ -17,6 +17,8 @@ class IUTServiceManagerMixin(
 
     Plugin directory detection, Docker image naming, and Docker attribute
     setup are inherited from PluginDirectoryMixin.
+
+    MRO: IUTServiceManagerMixin -> PluginDirectoryMixin -> ServiceManagerMixin -> LoggerMixin -> IImplementationManager
     """
 
     def __init__(self, *args, global_config=None, **kwargs):
