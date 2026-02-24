@@ -1397,9 +1397,6 @@ class DockerBuilder(
         and configuration. Supports intelligent caching, build mode validation, and
         comprehensive error handling with graceful fallbacks.
 
-        # Update cache platform for multi-platform builds
-        self._update_cache_platform()
-
         Args:
             impl_name: Implementation name for image tagging (e.g., 'my_service')
             version: Version string for image tagging (e.g., 'v1.0', 'latest')

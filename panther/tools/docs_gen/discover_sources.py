@@ -84,17 +84,20 @@ class PantherSourceDiscovery:
 
         readme_files = []
 
-        # Find all README.md files, excluding virtual environments and build artifacts
+        # Find all README.md files, excluding virtual environments, build artifacts,
+        # and the docs/ output directory (to avoid self-referencing entries)
         exclude_patterns = {
             ".venv",
             "venv",
             "__pycache__",
             ".pytest_cache",
+            ".pre-commit-cache",
             "build",
             "dist",
             ".git",
             "site",
             "node_modules",
+            "docs",
         }
 
         for readme_path in self.project_root.rglob("README.md"):

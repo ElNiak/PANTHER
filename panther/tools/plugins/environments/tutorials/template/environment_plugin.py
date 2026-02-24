@@ -5,10 +5,10 @@ PANTHER Environment Plugin Template
 This is a basic template for creating an environment plugin in the PANTHER framework.
 """
 
-from panther.plugins.plugin_interface import EnvironmentPlugin
+from panther.plugins.plugin_interface import IPlugin
 
 
-class TemplateEnvironmentPlugin(EnvironmentPlugin):
+class TemplateEnvironmentPlugin(IPlugin):
     """
     Template implementation of an environment plugin for PANTHER.
 
@@ -22,6 +22,15 @@ class TemplateEnvironmentPlugin(EnvironmentPlugin):
         self.name = "template_environment"
         self.description = "Template environment plugin for PANTHER"
 
+    def handle_event(self, event):
+        """
+        Handle an event sent to this plugin.
+
+        Args:
+            event: The event to handle
+        """
+        pass
+
     def setup(self, config=None):
         """
         Set up the environment.
@@ -30,16 +39,13 @@ class TemplateEnvironmentPlugin(EnvironmentPlugin):
             config: Configuration parameters for the environment
         """
         print(f"Setting up {self.name} environment...")
-        # Implementation for setting up the environment
         return True
 
     def teardown(self):
         """Tear down the environment."""
         print(f"Tearing down {self.name} environment...")
-        # Implementation for tearing down the environment
         return True
 
     def status(self):
         """Get the status of the environment."""
-        # Implementation for checking environment status
         return {"status": "ready", "details": {"info": "Environment is operational"}}

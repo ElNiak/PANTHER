@@ -5,10 +5,10 @@ PANTHER Protocol Plugin Template
 This is a basic template for creating a protocol plugin in the PANTHER framework.
 """
 
-from panther.plugins.plugin_interface import ProtocolPlugin
+from panther.plugins.plugin_interface import IPlugin
 
 
-class TemplateProtocolPlugin(ProtocolPlugin):
+class TemplateProtocolPlugin(IPlugin):
     """
     Template implementation of a protocol plugin for PANTHER.
 
@@ -22,7 +22,16 @@ class TemplateProtocolPlugin(ProtocolPlugin):
         self.name = "template_protocol"
         self.description = "Template protocol plugin for PANTHER"
 
-    def initialize(self, config=None):
+    def handle_event(self, event):
+        """
+        Handle an event sent to this plugin.
+
+        Args:
+            event: The event to handle
+        """
+        pass
+
+    def start(self, config=None):
         """
         Initialize the protocol.
 
@@ -30,16 +39,13 @@ class TemplateProtocolPlugin(ProtocolPlugin):
             config: Configuration parameters for the protocol
         """
         print(f"Initializing {self.name} protocol...")
-        # Implementation for initializing the protocol
         return True
 
     def terminate(self):
         """Terminate the protocol."""
         print(f"Terminating {self.name} protocol...")
-        # Implementation for terminating the protocol
         return True
 
     def status(self):
         """Get the status of the protocol."""
-        # Implementation for checking protocol status
         return {"status": "active", "details": {"info": "Protocol is operational"}}
