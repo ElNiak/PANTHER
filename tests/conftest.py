@@ -377,10 +377,6 @@ def temp_experiment_directory(temp_dir, sample_experiment_config):
     logs_dir = exp_dir / "logs"
     logs_dir.mkdir()
 
-    # Create outputs directory
-    outputs_dir = exp_dir / "outputs"
-    outputs_dir.mkdir()
-
     yield exp_dir
 
 

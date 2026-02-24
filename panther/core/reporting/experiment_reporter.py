@@ -56,6 +56,7 @@ except ImportError:
 from .status_collector import (
     ExperimentStatus,
     ExperimentSummary,
+    ServiceHealthSummary,
     StatusCollector,
     TestStatus,
 )
@@ -304,6 +305,39 @@ class ExperimentReporter:
                         if test.fast_fail_triggered:
                             lines.append("  - ⚡ Fast-fail triggered")
                     lines.append("")
+
+            # Service health summary (if available)
+            if summary.services:
+                lines.extend(["## Service Health Summary", ""])
+                iut_svcs = [s for s in summary.services if s.service_type == "iut"]
+                tester_svcs = [
+                    s for s in summary.services if s.service_type == "tester"
+                ]
+
+                for label, svcs in [
+                    ("IUT Services", iut_svcs),
+                    ("Tester Services", tester_svcs),
+                ]:
+                    if svcs:
+                        lines.append(f"### {label} ({len(svcs)})")
+                        lines.append(
+                            "| Service | Status | Compilation | Exit Code | Errors |"
+                        )
+                        lines.append(
+                            "|---------|--------|-------------|-----------|--------|"
+                        )
+                        for svc in svcs:
+                            comp = "OK" if svc.compilation_succeeded else "FAIL"
+                            ec = (
+                                str(svc.exit_code)
+                                if svc.exit_code is not None
+                                else "N/A"
+                            )
+                            err = svc.error_summary or "None"
+                            lines.append(
+                                f"| {svc.service_name} | {svc.status} | {comp} | {ec} | {err} |"
+                            )
+                        lines.append("")
 
             # Fast-fail analysis
             lines.extend(

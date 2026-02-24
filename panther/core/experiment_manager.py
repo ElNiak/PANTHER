@@ -1134,6 +1134,18 @@ class ExperimentManager(
             except Exception as e:  # pylint: disable=broad-exception-caught
                 self.logger.warning("Failed to export metrics: %s", e)
 
+        # Clean up empty directories from the experiment output tree
+        try:
+            from panther.core.outputs.output_cleanup import remove_empty_directories
+
+            removed = remove_empty_directories(self.experiment_dir)
+            if removed:
+                self.logger.info(
+                    "Cleaned %d empty directories from experiment output", removed
+                )
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            self.logger.debug("Empty directory cleanup skipped: %s", e)
+
     def __enter__(self):
         """Context manager entry - return self for use in with statements."""
         return self

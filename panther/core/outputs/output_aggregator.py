@@ -101,9 +101,12 @@ class OutputAggregator:
         self.environment_emitter = environment_emitter
         self.logger = logging.getLogger(__name__)
 
-        # Create outputs directory
         self.outputs_dir = self.experiment_dir / "outputs"
+
+    def ensure_outputs_dir(self) -> Path:
+        """Create outputs directory on demand and return its path."""
         self.outputs_dir.mkdir(parents=True, exist_ok=True)
+        return self.outputs_dir
 
     def collect_from_environments(
         self, environments: list
