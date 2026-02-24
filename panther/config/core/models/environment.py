@@ -79,9 +79,11 @@ class EnvironmentConfig(BaseUnifiedModel):
                 # Try to find the expected config class
                 expected_class = resolver.resolve_environment_config_class(
                     environment_type=self.type,
-                    category="network"
-                    if isinstance(self, NetworkEnvironmentConfig)
-                    else "execution",
+                    category=(
+                        "network"
+                        if isinstance(self, NetworkEnvironmentConfig)
+                        else "execution"
+                    ),
                 )
 
                 if expected_class and expected_class != config_class:

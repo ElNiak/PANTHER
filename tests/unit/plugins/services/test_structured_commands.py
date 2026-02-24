@@ -1,8 +1,10 @@
-import pytest
 import os
-from unittest.mock import patch, MagicMock
-from panther.plugins.services.iut.quic.quiche.quiche import QuicheServiceManager
+from unittest.mock import MagicMock, patch
+
+import pytest
+
 from panther.config.core.models import ProtocolRole
+from panther.plugins.services.iut.quic.quiche.quiche import QuicheServiceManager
 
 
 @pytest.fixture
@@ -21,7 +23,9 @@ def mock_service_config():
         "key_param": "--key",
         "key_file": "/path/to/key.pem",
     }
-    config.implementation.version.client.protocol = {"additional_parameters": "--no-verify"}
+    config.implementation.version.client.protocol = {
+        "additional_parameters": "--no-verify"
+    }
     config.implementation.version.client.network = {
         "port": 4433,
         "interface": {"param": "--interface", "value": "eth0"},
@@ -49,12 +53,12 @@ def test_structured_command_generation(mock_service_config, mock_protocol_config
     """Test that structured command generation properly escapes special characters."""
     # Create a service manager with paths that contain special characters
     service_config = mock_service_config
-    service_config.implementation.version.client.certificates["cert_file"] = (
-        "/path/with spaces/cert$.pem"
-    )
-    service_config.implementation.version.client.certificates["key_file"] = (
-        "/path/with'quote/key~.pem"
-    )
+    service_config.implementation.version.client.certificates[
+        "cert_file"
+    ] = "/path/with spaces/cert$.pem"
+    service_config.implementation.version.client.certificates[
+        "key_file"
+    ] = "/path/with'quote/key~.pem"
 
     # Create the service manager
     with patch("subprocess.run"):
@@ -76,8 +80,14 @@ def test_structured_command_generation(mock_service_config, mock_protocol_config
     command = manager.generate_deployment_commands()
 
     # Verify that special characters are properly escaped
-    assert "'/path/with spaces/cert$.pem'" in command or '"/path/with spaces/cert$.pem"' in command
-    assert "'/path/with'\\''quote/key~.pem'" in command or '"/path/with\'quote/key~.pem"' in command
+    assert (
+        "'/path/with spaces/cert$.pem'" in command
+        or '"/path/with spaces/cert$.pem"' in command
+    )
+    assert (
+        "'/path/with'\\''quote/key~.pem'" in command
+        or '"/path/with\'quote/key~.pem"' in command
+    )
 
 
 def test_structured_command_fallback(mock_service_config, mock_protocol_config):
@@ -92,7 +102,9 @@ def test_structured_command_fallback(mock_service_config, mock_protocol_config):
 
     # Mock the render_template_with_structured_args method to raise an exception
     with patch.object(
-        manager, "render_template_with_structured_args", side_effect=Exception("Test error")
+        manager,
+        "render_template_with_structured_args",
+        side_effect=Exception("Test error"),
     ):
         # Also mock the render_commands method to return a known value
         with patch.object(manager, "render_commands", return_value="fallback_command"):

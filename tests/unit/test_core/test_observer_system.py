@@ -58,7 +58,9 @@ class TestMetricsObserver:
         assert obs.publish_metrics is True
         assert obs.publish_interval == 60
 
-    def test_on_test_execution_started_creates_test_metrics(self, real_metrics_observer):
+    def test_on_test_execution_started_creates_test_metrics(
+        self, real_metrics_observer
+    ):
         """on_test_execution_started creates a TestCaseMetrics for the current test."""
         from panther.core.events.test.events import TestExecutionStartedEvent
 
@@ -312,17 +314,14 @@ class TestStateEventObserver:
             )
         )
         assert (
-            real_workflow_tracker.get_workflow_state(exp_id)
-            == WorkflowState.DEPLOYING
+            real_workflow_tracker.get_workflow_state(exp_id) == WorkflowState.DEPLOYING
         )
 
         # Running
         real_state_observer.on_test_execution_started(
             TestExecutionStartedEvent(test_id="t-1")
         )
-        assert (
-            real_workflow_tracker.get_workflow_state(exp_id) == WorkflowState.RUNNING
-        )
+        assert real_workflow_tracker.get_workflow_state(exp_id) == WorkflowState.RUNNING
 
         # Collecting outputs
         real_state_observer.on_output_collection_started(
@@ -1093,9 +1092,7 @@ class TestEventManager:
 
         mock_observer = MagicMock()
         mock_observer.is_interested.return_value = True
-        real_event_manager.register_observer(
-            mock_observer, ["test.execution_started"]
-        )
+        real_event_manager.register_observer(mock_observer, ["test.execution_started"])
         real_event_manager.unregister_observer(
             mock_observer, ["test.execution_started"]
         )
@@ -1234,7 +1231,11 @@ class TestObserverSystemIntegration:
     """Integration tests for observer system components working together."""
 
     def test_event_manager_notifies_real_observers(
-        self, real_event_manager, real_storage_observer, real_state_observer, real_workflow_tracker
+        self,
+        real_event_manager,
+        real_storage_observer,
+        real_state_observer,
+        real_workflow_tracker,
     ):
         """EventManager distributes events to registered real observers.
 
@@ -1255,12 +1256,20 @@ class TestObserverSystemIntegration:
         # Initialize experiment so state observer has context
         init_event = ExperimentInitializedEvent(experiment_id="int-001")
         real_event_manager.notify(init_event)
-        assert real_workflow_tracker.get_workflow_state("int-001") == WorkflowState.CREATED
+        assert (
+            real_workflow_tracker.get_workflow_state("int-001") == WorkflowState.CREATED
+        )
 
         # Advance to DEPLOYING so test_execution_started can transition to RUNNING
-        real_workflow_tracker.set_workflow_state("int-001", WorkflowState.LOADING_PLUGINS)
-        real_workflow_tracker.set_workflow_state("int-001", WorkflowState.GENERATING_COMMANDS)
-        real_workflow_tracker.set_workflow_state("int-001", WorkflowState.BUILDING_DOCKER)
+        real_workflow_tracker.set_workflow_state(
+            "int-001", WorkflowState.LOADING_PLUGINS
+        )
+        real_workflow_tracker.set_workflow_state(
+            "int-001", WorkflowState.GENERATING_COMMANDS
+        )
+        real_workflow_tracker.set_workflow_state(
+            "int-001", WorkflowState.BUILDING_DOCKER
+        )
         real_workflow_tracker.set_workflow_state("int-001", WorkflowState.DEPLOYING)
 
         # Send a test event that both observers explicitly handle
@@ -1269,7 +1278,9 @@ class TestObserverSystemIntegration:
         real_event_manager.notify(test_event)
 
         # StateEventObserver should have advanced to RUNNING
-        assert real_workflow_tracker.get_workflow_state("int-001") == WorkflowState.RUNNING
+        assert (
+            real_workflow_tracker.get_workflow_state("int-001") == WorkflowState.RUNNING
+        )
 
         # StorageObserver should have stored the test event
         assert len(real_storage_observer.pending_events) >= 1
@@ -1392,9 +1403,7 @@ class TestWorkflowStateTracker:
 
     def test_initialization(self, real_workflow_tracker):
         """WorkflowStateTracker initializes with empty state."""
-        from panther.core.observer.workflow.workflow_tracker import (
-            WorkflowStateTracker,
-        )
+        from panther.core.observer.workflow.workflow_tracker import WorkflowStateTracker
 
         assert isinstance(real_workflow_tracker, WorkflowStateTracker)
         assert real_workflow_tracker.get_all_workflow_states() == {}
@@ -1456,9 +1465,7 @@ class TestWorkflowStateTracker:
         real_workflow_tracker.set_workflow_state("exp-5", WorkflowState.CREATED)
         result = real_workflow_tracker.force_fail_workflow("exp-5", "test failure")
         assert result is True
-        assert (
-            real_workflow_tracker.get_workflow_state("exp-5") == WorkflowState.FAILED
-        )
+        assert real_workflow_tracker.get_workflow_state("exp-5") == WorkflowState.FAILED
 
     def test_terminal_state_check(self, real_workflow_tracker):
         """is_workflow_in_terminal_state detects COMPLETED and FAILED."""
@@ -1475,9 +1482,7 @@ class TestWorkflowStateTracker:
         from panther.core.observer.workflow import WorkflowState
 
         real_workflow_tracker.set_workflow_state("exp-7", WorkflowState.CREATED)
-        real_workflow_tracker.set_workflow_state(
-            "exp-7", WorkflowState.LOADING_PLUGINS
-        )
+        real_workflow_tracker.set_workflow_state("exp-7", WorkflowState.LOADING_PLUGINS)
 
         history = real_workflow_tracker.get_state_history("exp-7")
         assert len(history) == 2

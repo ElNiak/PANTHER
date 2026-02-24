@@ -43,13 +43,12 @@ class TestExperimentManagerInitialization:
         self, mock_docker_client, minimal_global_config, tmp_path
     ):
         """Test that special characters in experiment_name are sanitized to underscores."""
+        import panther.core.observer.factory.observer_factory as _of_mod
         from panther.config.core.models.global_config import PathsConfig
         from panther.core.docker_builder.docker_builder import DockerBuilder
         from panther.core.experiment_manager import ExperimentManager
         from panther.core.observer.management.event_manager import EventManager
         from panther.plugins.plugin_manager import PluginManager
-
-        import panther.core.observer.factory.observer_factory as _of_mod
 
         DockerBuilder.reset_singleton()
         EventManager.reset_instance()
@@ -130,9 +129,7 @@ class TestExperimentManagerComponents:
 
     def test_workflow_tracker_initialized(self, real_experiment_manager):
         """Test that workflow_tracker is set during __init__."""
-        from panther.core.observer.workflow.workflow_tracker import (
-            WorkflowStateTracker,
-        )
+        from panther.core.observer.workflow.workflow_tracker import WorkflowStateTracker
 
         assert isinstance(
             real_experiment_manager.workflow_tracker, WorkflowStateTracker
@@ -223,22 +220,19 @@ class TestExperimentManagerContextManager:
 
     def test_exit_does_not_suppress_exceptions(self, real_experiment_manager):
         """Test that __exit__ returns False (does not suppress exceptions)."""
-        result = real_experiment_manager.__exit__(
-            ValueError, ValueError("test"), None
-        )
+        result = real_experiment_manager.__exit__(ValueError, ValueError("test"), None)
         assert result is False
 
     def test_with_statement_integration(
         self, mock_docker_client, minimal_global_config, tmp_path
     ):
         """Test using ExperimentManager in a with statement."""
+        import panther.core.observer.factory.observer_factory as _of_mod
         from panther.config.core.models.global_config import PathsConfig
         from panther.core.docker_builder.docker_builder import DockerBuilder
         from panther.core.experiment_manager import ExperimentManager
         from panther.core.observer.management.event_manager import EventManager
         from panther.plugins.plugin_manager import PluginManager
-
-        import panther.core.observer.factory.observer_factory as _of_mod
 
         DockerBuilder.reset_singleton()
         EventManager.reset_instance()
@@ -385,9 +379,7 @@ class TestWorkflowStateTrackerIntegration:
         completed_transitions = tracker.get_allowed_transitions(
             WorkflowState.COMPLETED.value
         )
-        failed_transitions = tracker.get_allowed_transitions(
-            WorkflowState.FAILED.value
-        )
+        failed_transitions = tracker.get_allowed_transitions(WorkflowState.FAILED.value)
 
         assert completed_transitions == []
         assert failed_transitions == []

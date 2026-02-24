@@ -128,7 +128,14 @@ class TestTutorialCommand:
         output_dir = temp_dir / "service_tutorial"
         result = cli_runner.invoke(
             cli,
-            ["tutorial", "run", "service", "--no-interactive", "--output-dir", str(output_dir)],
+            [
+                "tutorial",
+                "run",
+                "service",
+                "--no-interactive",
+                "--output-dir",
+                str(output_dir),
+            ],
         )
         # Exit code 0 (success) or 1 (runtime error from run_tutorial) are both acceptable.
         # Exit code 2 would mean Click failed to parse the command (e.g. wrong parameter binding).
@@ -289,7 +296,11 @@ class TestMetricsCommand:
             "resource_metrics": {},
             "phase_metrics": {},
             "error_metrics": {"total_errors": 0},
-            "raw_metrics": {"counters": {"tests_run": 3}, "gauges": {}, "histograms": {}},
+            "raw_metrics": {
+                "counters": {"tests_run": 3},
+                "gauges": {},
+                "histograms": {},
+            },
         }
         with open(exp_dir / "metrics.json", "w") as f:
             json.dump(metrics_data, f)
@@ -442,7 +453,11 @@ class TestMetricsCommand:
             "resource_metrics": {},
             "phase_metrics": {},
             "error_metrics": {"total_errors": 1},
-            "raw_metrics": {"counters": {"tests_run": 5}, "gauges": {}, "histograms": {}},
+            "raw_metrics": {
+                "counters": {"tests_run": 5},
+                "gauges": {},
+                "histograms": {},
+            },
         }
         with open(metrics_dir / "metrics.json", "w") as f:
             json.dump(metrics_data, f)
@@ -630,7 +645,9 @@ class TestMetricsCommand:
         assert result.exit_code == 0
         assert "No metrics data found" in result.output
 
-    def test_metrics_list_multiple_experiments_selects_latest(self, cli_runner, temp_dir):
+    def test_metrics_list_multiple_experiments_selects_latest(
+        self, cli_runner, temp_dir
+    ):
         """Test that metrics list auto-selects the latest experiment by mtime."""
         import json
         import os
@@ -826,7 +843,10 @@ class TestCommandArgumentValidation:
         # Invalid export format
         result = cli_runner.invoke(cli, ["metrics", "export", "--format", "invalid"])
         assert result.exit_code != 0
-        assert "invalid" in result.output.lower() or "invalid choice" in result.output.lower()
+        assert (
+            "invalid" in result.output.lower()
+            or "invalid choice" in result.output.lower()
+        )
 
     def test_tools_argument_validation(self, cli_runner):
         """Test tools command argument validation."""
@@ -861,7 +881,13 @@ class TestCommandOutputFormats:
         assert result.exit_code is not None
 
     @pytest.mark.parametrize(
-        "command,subcommand", [("admin", "status",)]
+        "command,subcommand",
+        [
+            (
+                "admin",
+                "status",
+            )
+        ],
     )
     def test_yaml_output_format(self, cli_runner, command, subcommand):
         """Test YAML output format for various commands."""

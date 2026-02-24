@@ -62,15 +62,13 @@ class TestExperimentManagerLogging:
     @pytest.fixture
     def mock_dependencies(self):
         """Mock ExperimentManager external dependencies to isolate logging tests."""
-        with patch("panther.core.experiment_manager.PluginManager") as mock_pm, patch(
-            "panther.core.experiment_manager.EventManager"
-        ) as mock_em, patch(
-            "panther.core.experiment_manager.get_observer_factory"
-        ) as mock_of, patch(
-            "panther.core.experiment_manager.WorkflowStateTracker"
-        ) as mock_wst, patch(
-            "panther.core.experiment_manager.EmitterRegistry"
-        ) as mock_er:
+        with (
+            patch("panther.core.experiment_manager.PluginManager") as mock_pm,
+            patch("panther.core.experiment_manager.EventManager") as mock_em,
+            patch("panther.core.experiment_manager.get_observer_factory") as mock_of,
+            patch("panther.core.experiment_manager.WorkflowStateTracker") as mock_wst,
+            patch("panther.core.experiment_manager.EmitterRegistry") as mock_er,
+        ):
             # Setup EventManager mock
             mock_em_instance = MagicMock()
             mock_em.get_instance.return_value = mock_em_instance

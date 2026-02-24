@@ -238,9 +238,11 @@ class ShadowNsEnvironment(
             elif isinstance(finalized_commands, (list, str)):
                 # Handle simple command formats by wrapping in dict
                 wrapped_commands = {
-                    "main": finalized_commands
-                    if isinstance(finalized_commands, list)
-                    else [finalized_commands]
+                    "main": (
+                        finalized_commands
+                        if isinstance(finalized_commands, list)
+                        else [finalized_commands]
+                    )
                 }
                 resolved_commands = self._resolve_network_placeholders_in_commands(
                     wrapped_commands, service
@@ -636,18 +638,26 @@ class ShadowNsEnvironment(
             shadow_config = {
                 "duration": plugin_config.general.stop_time,
                 "topology": "simple",  # Default value since not in config
-                "general": plugin_config.general.model_dump()
-                if hasattr(plugin_config.general, "model_dump")
-                else plugin_config.general.dict(),
-                "experimental": plugin_config.experimental.model_dump()
-                if hasattr(plugin_config.experimental, "model_dump")
-                else plugin_config.experimental.dict(),
-                "network": plugin_config.network.model_dump()
-                if hasattr(plugin_config.network, "model_dump")
-                else plugin_config.network.dict(),
-                "hosts": plugin_config.hosts.model_dump()
-                if hasattr(plugin_config.hosts, "model_dump")
-                else plugin_config.hosts.dict(),
+                "general": (
+                    plugin_config.general.model_dump()
+                    if hasattr(plugin_config.general, "model_dump")
+                    else plugin_config.general.dict()
+                ),
+                "experimental": (
+                    plugin_config.experimental.model_dump()
+                    if hasattr(plugin_config.experimental, "model_dump")
+                    else plugin_config.experimental.dict()
+                ),
+                "network": (
+                    plugin_config.network.model_dump()
+                    if hasattr(plugin_config.network, "model_dump")
+                    else plugin_config.network.dict()
+                ),
+                "hosts": (
+                    plugin_config.hosts.model_dump()
+                    if hasattr(plugin_config.hosts, "model_dump")
+                    else plugin_config.hosts.dict()
+                ),
             }
 
         return shadow_config if shadow_config else {}

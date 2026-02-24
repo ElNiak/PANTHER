@@ -334,9 +334,11 @@ def mock_docker_unavailable():
 @pytest.fixture
 def mock_network_calls():
     """Mock all network-related calls."""
-    with patch("requests.get") as mock_get, patch("requests.post") as mock_post, patch(
-        "socket.socket"
-    ) as mock_socket:
+    with (
+        patch("requests.get") as mock_get,
+        patch("requests.post") as mock_post,
+        patch("socket.socket") as mock_socket,
+    ):
         # Mock successful HTTP responses
         mock_response = Mock()
         mock_response.status_code = 200
@@ -383,15 +385,14 @@ def temp_experiment_directory(temp_dir, sample_experiment_config):
 @pytest.fixture
 def mock_file_system():
     """Mock file system operations for builder tests."""
-    with patch("pathlib.Path.exists", return_value=True), patch(
-        "pathlib.Path.is_dir", return_value=True
-    ), patch("pathlib.Path.is_file", return_value=True), patch(
-        "pathlib.Path.glob"
-    ) as mock_glob, patch(
-        "pathlib.Path.unlink"
-    ) as mock_unlink, patch(
-        "pathlib.Path.rmdir"
-    ) as mock_rmdir:
+    with (
+        patch("pathlib.Path.exists", return_value=True),
+        patch("pathlib.Path.is_dir", return_value=True),
+        patch("pathlib.Path.is_file", return_value=True),
+        patch("pathlib.Path.glob") as mock_glob,
+        patch("pathlib.Path.unlink") as mock_unlink,
+        patch("pathlib.Path.rmdir") as mock_rmdir,
+    ):
         mock_glob.return_value = []
         yield {"glob": mock_glob, "unlink": mock_unlink, "rmdir": mock_rmdir}
 

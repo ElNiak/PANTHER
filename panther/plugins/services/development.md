@@ -56,33 +56,33 @@ from panther.plugins.services.base.quic_service_base import BaseQUICServiceManag
 
 class MyQuicServiceManager(BaseQUICServiceManager):
     """Modern QUIC service manager using inheritance architecture."""
-    
+
     def _get_implementation_name(self) -> str:
         return "my_quic"
-    
+
     def _get_binary_name(self) -> str:
         return "my_quic_server"
-    
+
     def _get_server_specific_args(self, **kwargs) -> List[str]:
         port = kwargs.get("port", 4443)
         cert = kwargs.get("cert_file", "")
         return ["-p", str(port), "-c", cert] if cert else ["-p", str(port)]
-    
+
     def _get_client_specific_args(self, **kwargs) -> List[str]:
         host = kwargs.get("host", "localhost")
         port = kwargs.get("port", 4443)
         return [host, str(port)]
-    
+
     def generate_deployment_commands(self) -> str:
         return f"{self._get_binary_name()} -p 4443"
-    
+
     def _do_prepare(self, plugin_manager=None):
         # Implementation-specific preparation logic
         pass
-    
+
     # All common functionality inherited automatically:
     # - generate_run_command()
-    # - _extract_common_params() 
+    # - _extract_common_params()
     # - _build_server_args() / _build_client_args()
     # - Event emission and error handling
     # - Docker integration and template rendering
@@ -190,7 +190,7 @@ from panther.plugins.services.base.python_quic_base import PythonQUICServiceMana
 class AioquicServiceManager(PythonQUICServiceManager):
     def _get_python_module(self) -> str:
         return "aioquic.quic.server"
-    
+
     def _get_async_patterns(self) -> Dict[str, str]:
         return {"event_loop": "asyncio", "concurrency": "async/await"}
 
@@ -200,7 +200,7 @@ from panther.plugins.services.base.rust_quic_base import RustQUICServiceManager
 class QuicheServiceManager(RustQUICServiceManager):
     def _get_cargo_features(self) -> List[str]:
         return ["boring-sys", "ffi"]
-    
+
     def _get_rust_patterns(self) -> Dict[str, str]:
         return {"async_runtime": "tokio", "memory_safety": "strict"}
 
@@ -210,7 +210,7 @@ from panther.plugins.services.base.quic_service_base import BaseQUICServiceManag
 class PicoquicServiceManager(BaseQUICServiceManager):
     def _get_implementation_name(self) -> str:
         return "picoquic"
-    
+
     def _get_binary_name(self) -> str:
         return "picoquicdemo"
 ```
@@ -227,10 +227,10 @@ class ModernServiceManager(BaseQUICServiceManager):
             service_name=self._get_implementation_name(),
             preparation_type="custom_setup"
         ))
-        
+
         # Custom preparation logic
         self._setup_custom_configuration()
-        
+
         # Emit completion event
         self.emit_event(ServiceReadyEvent(
             service_name=self._get_implementation_name()
@@ -249,55 +249,55 @@ from panther.plugins.services.base.quic_service_base import BaseQUICServiceManag
 
 class TestQuicServiceManager(BaseQUICServiceManager):
     """Test implementation for unit testing."""
-    
+
     def _get_implementation_name(self) -> str:
         return "test_quic"
-    
+
     def _get_binary_name(self) -> str:
         return "test_binary"
-    
+
     def _get_server_specific_args(self, **kwargs) -> List[str]:
         return ["-p", str(kwargs.get("port", 4443))]
-    
+
     def _get_client_specific_args(self, **kwargs) -> List[str]:
         return [kwargs.get("host", "localhost"), str(kwargs.get("port", 4443))]
-    
+
     def generate_deployment_commands(self) -> str:
         return "test_binary -p 4443"
-    
+
     def _do_prepare(self, plugin_manager=None):
         pass
 
 class TestBaseQUICServiceManager:
-    
+
     def test_command_generation_inheritance(self):
         """Test that base class provides command generation."""
         manager = TestQuicServiceManager()
-        
+
         # Test that inherited method works
         command = manager.generate_run_command(role="server", port=8443)
         assert "test_binary" in command
         assert "8443" in command
-    
+
     def test_event_emission_inheritance(self):
         """Test that base class provides event emission."""
         manager = TestQuicServiceManager()
-        
+
         with patch.object(manager, 'emit_event') as mock_emit:
             manager.generate_run_command(role="server")
             # Verify events were emitted
             mock_emit.assert_called()
-    
+
     def test_parameter_extraction_inheritance(self):
         """Test that base class provides parameter extraction."""
         manager = TestQuicServiceManager()
-        
+
         params = manager._extract_common_params(
-            port=9443, 
+            port=9443,
             cert_file="/certs/test.crt",
             host="testhost"
         )
-        
+
         assert params["port"] == 9443
         assert params["cert_file"] == "/certs/test.crt"
         assert params["host"] == "testhost"
@@ -305,7 +305,7 @@ class TestBaseQUICServiceManager:
     def test_docker_integration_inheritance(self):
         """Test that Docker integration is provided by base class."""
         manager = TestQuicServiceManager()
-        
+
         # Test that Docker methods are available
         assert hasattr(manager, 'generate_dockerfile_content')
         assert callable(manager.generate_dockerfile_content)
@@ -320,49 +320,49 @@ from panther.plugins.services.base.quic_service_base import BaseQUICServiceManag
 from panther.core.events.service.events import ServiceInitializationEvent
 
 class TestInheritanceIntegration:
-    
+
     @pytest.mark.integration
     def test_full_service_lifecycle_with_inheritance(self):
         """Test complete service lifecycle using inheritance."""
-        
+
         class IntegrationTestManager(BaseQUICServiceManager):
             def _get_implementation_name(self) -> str:
                 return "integration_test"
-            
+
             def _get_binary_name(self) -> str:
                 return "echo"  # Use echo for testing
-            
+
             def _get_server_specific_args(self, **kwargs) -> List[str]:
                 return ["server_test"]
-            
+
             def _get_client_specific_args(self, **kwargs) -> List[str]:
                 return ["client_test"]
-            
+
             def generate_deployment_commands(self) -> str:
                 return "echo deployment"
-            
+
             def _do_prepare(self, plugin_manager=None):
                 pass
-        
+
         manager = IntegrationTestManager()
         events_captured = []
-        
+
         def capture_event(event):
             events_captured.append(event)
-        
+
         # Mock event emission
         manager.emit_event = capture_event
-        
+
         # Test command generation
         server_cmd = manager.generate_run_command(role="server", port=4443)
         client_cmd = manager.generate_run_command(role="client", host="localhost", port=4443)
-        
+
         # Verify commands were generated
         assert "echo" in server_cmd
         assert "server_test" in server_cmd
         assert "echo" in client_cmd
         assert "client_test" in client_cmd
-        
+
         # Verify events were emitted
         assert len(events_captured) > 0
 
@@ -370,23 +370,23 @@ class TestInheritanceIntegration:
     def test_specialized_base_class_integration(self):
         """Test that specialized base classes work correctly."""
         from panther.plugins.services.base.python_quic_base import PythonQUICServiceManager
-        
+
         class PythonTestManager(PythonQUICServiceManager):
             def _get_implementation_name(self) -> str:
                 return "python_test"
-            
+
             def _get_binary_name(self) -> str:
                 return "python"
-            
+
             def _get_python_module(self) -> str:
                 return "test_module"
-        
+
         manager = PythonTestManager()
-        
+
         # Test that Python-specific functionality is available
         command = manager.generate_run_command(role="server")
         assert "python" in command
-        
+
         # Test that base QUIC functionality is inherited
         assert hasattr(manager, '_extract_common_params')
         assert callable(manager._extract_common_params)

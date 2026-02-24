@@ -405,9 +405,11 @@ class ServiceManagerMixin(LoggerMixin):
                 cmd_str = (
                     cmd
                     if isinstance(cmd, str)
-                    else str(cmd.get("command", cmd))
-                    if hasattr(cmd, "get")
-                    else str(cmd)
+                    else (
+                        str(cmd.get("command", cmd))
+                        if hasattr(cmd, "get")
+                        else str(cmd)
+                    )
                 )
                 existing_commands.add(cmd_str)
 
@@ -417,9 +419,11 @@ class ServiceManagerMixin(LoggerMixin):
                 cmd_str = (
                     cmd
                     if isinstance(cmd, str)
-                    else str(cmd.get("command", cmd))
-                    if hasattr(cmd, "get")
-                    else str(cmd)
+                    else (
+                        str(cmd.get("command", cmd))
+                        if hasattr(cmd, "get")
+                        else str(cmd)
+                    )
                 )
                 if cmd_str not in existing_commands:
                     unique_new.append(cmd)

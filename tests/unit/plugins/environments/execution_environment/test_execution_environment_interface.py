@@ -3,6 +3,7 @@ Unit tests for IExecutionEnvironment interface.
 
 Tests the interface contract and abstract methods that all execution environments must implement.
 """
+
 from abc import ABC, abstractmethod
 
 import pytest

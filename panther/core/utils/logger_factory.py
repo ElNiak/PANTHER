@@ -53,7 +53,6 @@ Feature Categories:
 - **Handler Coordination**: Separate console and file handler level management
 """
 
-
 import contextlib
 import logging
 import sys

@@ -3,7 +3,9 @@ Step Event Emitter
 
 This module provides a type-safe event emitter for step-related events.
 """
+
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
 if TYPE_CHECKING:
     from panther.core.observer.management.event_manager import EventManager
 

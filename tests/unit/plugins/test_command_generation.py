@@ -1,8 +1,9 @@
-import pytest
 import os
-from jinja2 import Environment, FileSystemLoader
 from pathlib import Path
 from unittest.mock import patch
+
+import pytest
+from jinja2 import Environment, FileSystemLoader
 
 from panther.config.core.models.service import ProtocolConfig, ServiceConfig
 from panther.plugins.services import (
@@ -19,7 +20,12 @@ def _make_service_config(**overrides) -> ServiceConfig:
     defaults = dict(
         timeout=60,
         implementation={"name": "test_service", "type": "iut"},
-        protocol={"name": "quic", "version": "rfc9000", "role": "server", "target": None},
+        protocol={
+            "name": "quic",
+            "version": "rfc9000",
+            "role": "server",
+            "target": None,
+        },
     )
     defaults.update(overrides)
     return ServiceConfig(**defaults)
@@ -118,10 +124,17 @@ def service_manager():
 def test_build_command_args(service_manager):
     """Test that build_command_args correctly processes string and list inputs."""
     # String input
-    assert service_manager.build_command_args("command arg1 arg2") == ["command", "arg1", "arg2"]
+    assert service_manager.build_command_args("command arg1 arg2") == [
+        "command",
+        "arg1",
+        "arg2",
+    ]
 
     # String with quotes
-    assert service_manager.build_command_args('echo "hello world"') == ["echo", "hello world"]
+    assert service_manager.build_command_args('echo "hello world"') == [
+        "echo",
+        "hello world",
+    ]
 
     # List input
     assert service_manager.build_command_args(["command", "arg1", "arg2"]) == [
@@ -185,7 +198,9 @@ def test_render_template_with_structured_args(service_manager, tmp_path):
     # Mock the render_commands method
     with patch.object(service_manager, "render_commands") as mock_render:
         # Set up the mock to return the rendered content
-        def side_effect(params, template_name, cmd_args=None, env_vars=None, extra_fields=None):
+        def side_effect(
+            params, template_name, cmd_args=None, env_vars=None, extra_fields=None
+        ):
             return f"RENDERED: template={template_name}, args={cmd_args}, env={env_vars}, extra={extra_fields}"
 
         mock_render.side_effect = side_effect
@@ -213,7 +228,9 @@ def test_render_template_with_structured_args(service_manager, tmp_path):
         assert "template=test_template.jinja" in result
 
         # Test with minimal parameters
-        result = service_manager.render_template_with_structured_args("test_template.jinja")
+        result = service_manager.render_template_with_structured_args(
+            "test_template.jinja"
+        )
         assert "RENDERED" in result
         assert "args=None" in result
         assert "env=None" in result

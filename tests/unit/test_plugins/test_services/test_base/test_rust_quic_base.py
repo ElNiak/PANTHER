@@ -121,9 +121,7 @@ def server_manager(server_protocol: ProtocolConfig) -> ConcreteRustQuicManager:
 @pytest.fixture()
 def client_manager(client_protocol: ProtocolConfig) -> ConcreteRustQuicManager:
     """Create a ConcreteRustQuicManager configured as client."""
-    sc = _make_service_config(
-        protocol=client_protocol, service_name="rust_client"
-    )
+    sc = _make_service_config(protocol=client_protocol, service_name="rust_client")
     with patch("os.path.isdir", return_value=False):
         return ConcreteRustQuicManager(
             service_config_to_test=sc,
@@ -141,22 +139,16 @@ def client_manager(client_protocol: ProtocolConfig) -> ConcreteRustQuicManager:
 class TestRustQUICInitialization:
     """Test RustQUICServiceManager initialization and inheritance."""
 
-    def test_isinstance_checks(
-        self, server_manager: ConcreteRustQuicManager
-    ) -> None:
+    def test_isinstance_checks(self, server_manager: ConcreteRustQuicManager) -> None:
         """Manager is an instance of the full class hierarchy."""
         assert isinstance(server_manager, RustQUICServiceManager)
         assert isinstance(server_manager, BaseQUICServiceManager)
 
-    def test_implementation_name(
-        self, server_manager: ConcreteRustQuicManager
-    ) -> None:
+    def test_implementation_name(self, server_manager: ConcreteRustQuicManager) -> None:
         """Implementation name is set from _get_implementation_name()."""
         assert server_manager.implementation_name == "test_rust_impl"
 
-    def test_protocol_name(
-        self, server_manager: ConcreteRustQuicManager
-    ) -> None:
+    def test_protocol_name(self, server_manager: ConcreteRustQuicManager) -> None:
         """Protocol name is set to 'quic'."""
         assert server_manager.protocol_name == "quic"
 
@@ -166,15 +158,11 @@ class TestRustQUICInitialization:
         """Service name comes from service_config_to_test.name."""
         assert server_manager.service_name == "rust_server"
 
-    def test_role_from_protocol(
-        self, server_manager: ConcreteRustQuicManager
-    ) -> None:
+    def test_role_from_protocol(self, server_manager: ConcreteRustQuicManager) -> None:
         """Role is derived from protocol config."""
         assert server_manager.role == "server"
 
-    def test_client_role(
-        self, client_manager: ConcreteRustQuicManager
-    ) -> None:
+    def test_client_role(self, client_manager: ConcreteRustQuicManager) -> None:
         """Client role is set correctly."""
         assert client_manager.role == "client"
 
@@ -183,10 +171,7 @@ class TestRustQUICInitialization:
     ) -> None:
         """_get_binary_name() delegates to _get_cargo_bin_name()."""
         assert server_manager._get_binary_name() == "rust-quic-bin"
-        assert (
-            server_manager._get_binary_name()
-            == server_manager._get_cargo_bin_name()
-        )
+        assert server_manager._get_binary_name() == server_manager._get_cargo_bin_name()
 
     def test_binary_path_without_working_dir(
         self, server_manager: ConcreteRustQuicManager
@@ -251,9 +236,7 @@ class TestRustQUICInitialization:
 class TestRustExtractCommonParams:
     """Test Rust-specific parameter extraction."""
 
-    def test_default_params(
-        self, server_manager: ConcreteRustQuicManager
-    ) -> None:
+    def test_default_params(self, server_manager: ConcreteRustQuicManager) -> None:
         """Default params include both base QUIC and Rust-specific keys."""
         params = server_manager._extract_common_params()
         # Base keys
@@ -265,9 +248,7 @@ class TestRustExtractCommonParams:
         assert params["rust_log"] == "info"
         assert params["rust_backtrace"] == "1"
 
-    def test_custom_params(
-        self, server_manager: ConcreteRustQuicManager
-    ) -> None:
+    def test_custom_params(self, server_manager: ConcreteRustQuicManager) -> None:
         """Custom kwargs override defaults."""
         params = server_manager._extract_common_params(
             host="192.168.1.1",
@@ -280,9 +261,7 @@ class TestRustExtractCommonParams:
         assert params["rust_log"] == "debug"
         assert params["rust_backtrace"] == "0"
 
-    def test_cert_params(
-        self, server_manager: ConcreteRustQuicManager
-    ) -> None:
+    def test_cert_params(self, server_manager: ConcreteRustQuicManager) -> None:
         """Certificate-related params are extracted."""
         params = server_manager._extract_common_params(
             cert_file="/certs/server.crt",
@@ -300,25 +279,19 @@ class TestRustExtractCommonParams:
 class TestBuildRustEnvVars:
     """Test Rust-specific environment variable generation."""
 
-    def test_default_env_vars(
-        self, server_manager: ConcreteRustQuicManager
-    ) -> None:
+    def test_default_env_vars(self, server_manager: ConcreteRustQuicManager) -> None:
         """Default env vars include RUST_LOG and RUST_BACKTRACE."""
         params = server_manager._extract_common_params()
         env = server_manager._build_rust_env_vars(params)
         assert env == {"RUST_LOG": "info", "RUST_BACKTRACE": "1"}
 
-    def test_custom_rust_log(
-        self, server_manager: ConcreteRustQuicManager
-    ) -> None:
+    def test_custom_rust_log(self, server_manager: ConcreteRustQuicManager) -> None:
         """Custom rust_log is reflected in env vars."""
         params = server_manager._extract_common_params(rust_log="debug")
         env = server_manager._build_rust_env_vars(params)
         assert env["RUST_LOG"] == "debug"
 
-    def test_custom_backtrace(
-        self, server_manager: ConcreteRustQuicManager
-    ) -> None:
+    def test_custom_backtrace(self, server_manager: ConcreteRustQuicManager) -> None:
         """Custom rust_backtrace is reflected in env vars."""
         params = server_manager._extract_common_params(rust_backtrace="full")
         env = server_manager._build_rust_env_vars(params)
@@ -340,17 +313,13 @@ class TestRustCompileCommand:
         cmd = server_manager.generate_compile_command()
         assert "cargo build --release" in cmd
 
-    def test_debug_build(
-        self, server_manager: ConcreteRustQuicManager
-    ) -> None:
+    def test_debug_build(self, server_manager: ConcreteRustQuicManager) -> None:
         """Debug build omits --release flag."""
         cmd = server_manager.generate_compile_command(build_type="debug")
         assert "cargo build" in cmd
         assert "--release" not in cmd
 
-    def test_jobs_flag(
-        self, server_manager: ConcreteRustQuicManager
-    ) -> None:
+    def test_jobs_flag(self, server_manager: ConcreteRustQuicManager) -> None:
         """Custom jobs value is included."""
         cmd = server_manager.generate_compile_command(jobs="4")
         assert "--jobs 4" in cmd
@@ -463,9 +432,7 @@ class TestRustRunCommandGeneration:
         cmd = server_manager.generate_run_command(role="server")
         assert isinstance(cmd, str)
 
-    def test_server_log_file(
-        self, server_manager: ConcreteRustQuicManager
-    ) -> None:
+    def test_server_log_file(self, server_manager: ConcreteRustQuicManager) -> None:
         """Server command includes -l flag when log_file is specified."""
         cmd = server_manager.generate_run_command(
             role="server", log_file="/logs/server.log"
@@ -473,9 +440,7 @@ class TestRustRunCommandGeneration:
         assert "-l" in cmd
         assert "/logs/server.log" in cmd
 
-    def test_client_log_file(
-        self, client_manager: ConcreteRustQuicManager
-    ) -> None:
+    def test_client_log_file(self, client_manager: ConcreteRustQuicManager) -> None:
         """Client command includes -l flag when log_file is specified."""
         cmd = client_manager.generate_run_command(
             role="client",
@@ -531,63 +496,45 @@ class TestRustSupportedFeatures:
 class TestRustConfigValidation:
     """Test configuration validation inherited from BaseQUICServiceManager."""
 
-    def test_valid_server_config(
-        self, server_manager: ConcreteRustQuicManager
-    ) -> None:
+    def test_valid_server_config(self, server_manager: ConcreteRustQuicManager) -> None:
         """Valid server configuration returns no errors."""
         errors = server_manager.validate_configuration(
             role="server", port=4443, version="rfc9000"
         )
         assert errors == []
 
-    def test_valid_client_config(
-        self, server_manager: ConcreteRustQuicManager
-    ) -> None:
+    def test_valid_client_config(self, server_manager: ConcreteRustQuicManager) -> None:
         """Valid client configuration returns no errors."""
         errors = server_manager.validate_configuration(
             role="client", port=443, version="rfc9000"
         )
         assert errors == []
 
-    def test_invalid_role(
-        self, server_manager: ConcreteRustQuicManager
-    ) -> None:
+    def test_invalid_role(self, server_manager: ConcreteRustQuicManager) -> None:
         """Invalid role produces an error."""
-        errors = server_manager.validate_configuration(
-            role="invalid", port=4443
-        )
+        errors = server_manager.validate_configuration(role="invalid", port=4443)
         assert any("Invalid role" in e for e in errors)
 
     def test_invalid_port_too_high(
         self, server_manager: ConcreteRustQuicManager
     ) -> None:
         """Port > 65535 produces an error."""
-        errors = server_manager.validate_configuration(
-            role="server", port=99999
-        )
+        errors = server_manager.validate_configuration(role="server", port=99999)
         assert any("Invalid port" in e for e in errors)
 
-    def test_invalid_port_zero(
-        self, server_manager: ConcreteRustQuicManager
-    ) -> None:
+    def test_invalid_port_zero(self, server_manager: ConcreteRustQuicManager) -> None:
         """Port 0 produces an error."""
-        errors = server_manager.validate_configuration(
-            role="server", port=0
-        )
+        errors = server_manager.validate_configuration(role="server", port=0)
         assert any("Invalid port" in e for e in errors)
 
-    def test_unsupported_version(
-        self, server_manager: ConcreteRustQuicManager
-    ) -> None:
+    def test_unsupported_version(self, server_manager: ConcreteRustQuicManager) -> None:
         """Unsupported version produces an error."""
         errors = server_manager.validate_configuration(
             role="server", port=4443, version="draft99"
         )
         assert any("Unsupported version" in e for e in errors)
 
-    def test_multiple_errors(
-        self, server_manager: ConcreteRustQuicManager
-    ) -> None:
+    def test_multiple_errors(self, server_manager: ConcreteRustQuicManager) -> None:
         """Multiple validation errors can be returned at once."""
         errors = server_manager.validate_configuration(
             role="peer", port=-1, version="unknown"
@@ -603,9 +550,7 @@ class TestRustConfigValidation:
 class TestVersionMapping:
     """Test _map_version used during client command generation."""
 
-    def test_rfc9000_maps_to_1(
-        self, server_manager: ConcreteRustQuicManager
-    ) -> None:
+    def test_rfc9000_maps_to_1(self, server_manager: ConcreteRustQuicManager) -> None:
         """rfc9000 maps to version string '1'."""
         assert server_manager._map_version("rfc9000") == "1"
 
@@ -636,9 +581,7 @@ class TestVersionMapping:
 class TestRustCommandHooks:
     """Test various command generation hooks."""
 
-    def test_deployment_commands(
-        self, server_manager: ConcreteRustQuicManager
-    ) -> None:
+    def test_deployment_commands(self, server_manager: ConcreteRustQuicManager) -> None:
         """generate_deployment_commands returns the expected string."""
         cmd = server_manager.generate_deployment_commands()
         assert "rust-quic-bin" in cmd
@@ -914,9 +857,7 @@ class TestStringRepresentation:
         s = str(server_manager)
         assert "test_rust_impl" in s
 
-    def test_repr_matches_str(
-        self, server_manager: ConcreteRustQuicManager
-    ) -> None:
+    def test_repr_matches_str(self, server_manager: ConcreteRustQuicManager) -> None:
         """repr() and str() return the same value."""
         assert repr(server_manager) == str(server_manager)
 

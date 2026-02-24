@@ -738,9 +738,7 @@ class TestPluginCatalogGetPluginInfo:
 
         assert catalog.get_plugin_info("nonexistent") is None
 
-    def test_get_plugin_info_includes_resolved_dependencies(
-        self, fake_catalog_plugins
-    ):
+    def test_get_plugin_info_includes_resolved_dependencies(self, fake_catalog_plugins):
         """get_plugin_info() includes resolved_dependencies key."""
         catalog = PluginCatalog()
         catalog.scan_plugins()
@@ -772,9 +770,7 @@ class TestPluginCatalogValidateConfig:
         catalog.scan_plugins()
 
         # "cert_file" is in schema but not in config and not in default_config
-        is_valid, errors = catalog.validate_plugin_config(
-            "picoquic", {"port": 4433}
-        )
+        is_valid, errors = catalog.validate_plugin_config("picoquic", {"port": 4433})
 
         assert is_valid is False
         assert any("cert_file" in e for e in errors)
@@ -923,9 +919,7 @@ class TestPluginCatalogResolveDependencies:
         catalog = PluginCatalog()
         catalog.scan_plugins()
 
-        resolved, missing = catalog.resolve_dependencies(
-            ["picoquic", "aioquic"]
-        )
+        resolved, missing = catalog.resolve_dependencies(["picoquic", "aioquic"])
 
         assert resolved == ["picoquic", "aioquic"]
         assert missing == []
@@ -1028,9 +1022,7 @@ class TestPluginManagerUtilsLoadPluginClass:
             "        self.name = 'my_plugin'\n"
         )
 
-        cls = PluginManagerUtils.load_plugin_class(
-            plugin_dir, "ServiceManager"
-        )
+        cls = PluginManagerUtils.load_plugin_class(plugin_dir, "ServiceManager")
 
         assert cls.__name__ == "MyPluginServiceManager"
         instance = cls()
@@ -1039,14 +1031,9 @@ class TestPluginManagerUtilsLoadPluginClass:
     def test_load_from_file(self, tmp_path):
         """load_plugin_class() loads directly from .py file."""
         plugin_file = tmp_path / "direct_plugin.py"
-        plugin_file.write_text(
-            "class DirectPluginHandler:\n"
-            "    pass\n"
-        )
+        plugin_file.write_text("class DirectPluginHandler:\n" "    pass\n")
 
-        cls = PluginManagerUtils.load_plugin_class(
-            plugin_file, "Handler"
-        )
+        cls = PluginManagerUtils.load_plugin_class(plugin_file, "Handler")
 
         assert cls.__name__ == "DirectPluginHandler"
 
@@ -1055,10 +1042,7 @@ class TestPluginManagerUtilsLoadPluginClass:
         plugin_dir = tmp_path / "custom"
         plugin_dir.mkdir()
         plugin_file = plugin_dir / "custom.py"
-        plugin_file.write_text(
-            "class SpecialRunner:\n"
-            "    pass\n"
-        )
+        plugin_file.write_text("class SpecialRunner:\n" "    pass\n")
 
         cls = PluginManagerUtils.load_plugin_class(
             plugin_dir,
@@ -1215,12 +1199,15 @@ class TestPluginSystemIntegration:
         )
         decorated = {"shared_plugin": (Mock(), manifest)}
 
-        with patch(
-            "panther.plugins.core.plugin_decorators.get_decorated_plugins",
-            return_value=decorated,
-        ), patch(
-            "panther.plugins.core.plugin_decorators.get_decorated_plugins",
-            return_value=decorated,
+        with (
+            patch(
+                "panther.plugins.core.plugin_decorators.get_decorated_plugins",
+                return_value=decorated,
+            ),
+            patch(
+                "panther.plugins.core.plugin_decorators.get_decorated_plugins",
+                return_value=decorated,
+            ),
         ):
             discovery = PluginDiscovery(plugin_directories=[])
             discovered = discovery.discover_plugins(force_refresh=True)

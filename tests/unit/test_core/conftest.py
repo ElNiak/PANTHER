@@ -9,7 +9,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # DockerBuilder fixtures
 # ---------------------------------------------------------------------------
@@ -175,7 +174,10 @@ def minimal_global_config():
 
     return GlobalConfig(
         logging={"level": "INFO", "format": "%(levelname)s - %(message)s"},
-        paths={"output_dir": "/tmp/panther_test/outputs", "log_dir": "/tmp/panther_test/logs"},
+        paths={
+            "output_dir": "/tmp/panther_test/outputs",
+            "log_dir": "/tmp/panther_test/logs",
+        },
         docker={
             "build_docker_image": True,
             "force_build_docker_image": False,
@@ -355,9 +357,7 @@ def real_command_audit_observer(tmp_path):
     The observer tracks command generation events and writes audit
     trails to the provided output directory.
     """
-    from panther.core.observer.impl.command_audit_observer import (
-        CommandAuditObserver,
-    )
+    from panther.core.observer.impl.command_audit_observer import CommandAuditObserver
 
     audit_dir = tmp_path / "audit"
     audit_dir.mkdir(parents=True, exist_ok=True)
@@ -450,7 +450,10 @@ def real_emitter_registry(real_event_manager):
 
 @pytest.fixture
 def real_plugin_manager(
-    mock_docker_client, minimal_global_config, real_event_manager, real_fast_fail_handler
+    mock_docker_client,
+    minimal_global_config,
+    real_event_manager,
+    real_fast_fail_handler,
 ):
     """Create a real PluginManager with Docker daemon mocked.
 
@@ -503,12 +506,11 @@ def real_experiment_manager(mock_docker_client, minimal_global_config, tmp_path)
     The manager is created with ``dry_run=True`` so that no containers
     are actually started if execution methods are called.
     """
+    import panther.core.observer.factory.observer_factory as _of_mod
     from panther.core.docker_builder.docker_builder import DockerBuilder
     from panther.core.experiment_manager import ExperimentManager
     from panther.core.observer.management.event_manager import EventManager
     from panther.plugins.plugin_manager import PluginManager
-
-    import panther.core.observer.factory.observer_factory as _of_mod
 
     # Reset all singletons that ExperimentManager __init__ touches
     DockerBuilder.reset_singleton()

@@ -31,11 +31,11 @@ from panther.core.metrics.enums import MetricType, Phase
 collector = MetricsCollector()
 
 # Record timing metric
-collector.record_timing("test_execution", 45.2, 
+collector.record_timing("test_execution", 45.2,
                        phase=Phase.TEST_EXECUTION,
                        test_case="QUIC_handshake")
 
-# Record resource usage  
+# Record resource usage
 collector.record_resource("cpu_usage", 85.5,
                          component="picoquic_server")
 
@@ -101,7 +101,7 @@ exporter.export_dashboard_format("outputs/metrics/dashboard.json")
 #### Export Formats
 
 - **JSON** - Complete metrics data with metadata
-- **CSV** - Tabular data for spreadsheet analysis  
+- **CSV** - Tabular data for spreadsheet analysis
 - **Summary** - Human-readable performance report
 - **Dashboard** - Formatted for monitoring dashboards
 
@@ -117,7 +117,7 @@ reporter = MetricsReporter(metrics_collector)
 # Generate performance analysis
 performance_report = reporter.generate_performance_analysis()
 
-# Generate resource utilization report  
+# Generate resource utilization report
 resource_report = reporter.generate_resource_analysis()
 
 # Generate test success summary
@@ -165,7 +165,7 @@ event_manager.emit_event("test_started", {
 # -> Automatically records timing metric
 
 event_manager.emit_event("test_completed", {
-    "test_name": "QUIC_handshake", 
+    "test_name": "QUIC_handshake",
     "success": True,
     "duration": 45.2
 })
@@ -194,7 +194,7 @@ observers:
     collect_system_metrics: true  # Requires psutil
     publish_interval: 30         # Seconds between resource samples
     log_level: INFO
-    
+
 # Metrics are automatically saved to output directory
 paths:
   output_dir: "outputs"         # Metrics saved to outputs/metrics/
@@ -226,23 +226,23 @@ experiment_manager.run_tests()
 
 ```python
 class CustomServiceManager(BaseQUICServiceManager):
-    
+
     def generate_run_command(self, **kwargs):
         start_time = time.time()
-        
+
         # Your custom logic here
         command = super().generate_run_command(**kwargs)
-        
+
         # Record custom metric
         if hasattr(self, 'metrics_collector'):
             duration = time.time() - start_time
             self.metrics_collector.record_timing(
-                "command_generation", 
+                "command_generation",
                 duration,
                 component=self.get_implementation_name(),
                 metadata={"command_length": len(command)}
             )
-        
+
         return command
 ```
 
@@ -262,7 +262,7 @@ tests:
         timeout: 300  # 5 minutes
     steps:
       wait: 240
-      
+
 # Resource monitoring runs automatically during test
 # Results saved to outputs/metrics/resource_monitoring.csv
 ```
@@ -369,7 +369,7 @@ python -c "
 import json
 with open('outputs/metrics/metrics_complete.json') as f:
     data = json.load(f)
-    
+
 # Filter to test execution only
 test_metrics = [m for m in data if m['phase'] == 'test_execution']
 with open('test_only_metrics.json', 'w') as f:
@@ -382,7 +382,7 @@ with open('test_only_metrics.json', 'w') as f:
 The metrics system exports data compatible with:
 
 - **Pandas/NumPy** - CSV exports for data analysis
-- **Grafana/Prometheus** - Dashboard format exports  
+- **Grafana/Prometheus** - Dashboard format exports
 - **Excel/Sheets** - CSV exports for spreadsheet analysis
 - **R/MATLAB** - JSON exports for statistical analysis
 - **Custom Tools** - Structured JSON format for any analysis tool

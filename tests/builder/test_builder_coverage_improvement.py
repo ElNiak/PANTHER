@@ -3,8 +3,9 @@ Additional unit tests to improve coverage for panther_builder.py
 Targeting specific uncovered lines and code paths.
 """
 
-import pytest
 from unittest.mock import Mock, patch
+
+import pytest
 
 
 class TestBuildManagerCoverageImprovement:

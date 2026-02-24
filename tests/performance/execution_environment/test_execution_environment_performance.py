@@ -10,6 +10,7 @@ Provides metrics for:
 - File registration throughput
 - Configuration processing speed
 """
+
 import gc
 import multiprocessing
 import shutil
@@ -294,9 +295,11 @@ class TestExecutionEnvironmentSetupPerformance:
             "commands_generated": operations["commands_generated"],
             "memory_increase_mb": memory_metrics["increase_mb"],
             "time_per_service_ms": (timer.duration / service_count) * 1000,
-            "memory_per_service_mb": memory_metrics["increase_mb"] / service_count
-            if service_count > 0
-            else 0,
+            "memory_per_service_mb": (
+                memory_metrics["increase_mb"] / service_count
+                if service_count > 0
+                else 0
+            ),
         }
 
         # Performance thresholds (environment-specific)

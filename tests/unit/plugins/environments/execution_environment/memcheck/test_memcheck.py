@@ -3,6 +3,7 @@ Comprehensive unit tests for MemcheckEnvironment.
 
 Tests memory error detection functionality, configuration handling, and command generation.
 """
+
 from pathlib import Path
 from typing import List
 from unittest.mock import MagicMock, Mock, call, patch

@@ -1,14 +1,15 @@
-import pytest
 from unittest.mock import MagicMock, patch
 
-from panther.plugins.services.services_interface import quote_shell, quote_yaml
+import pytest
+
 from panther.config.core.models import ProtocolConfig, ProtocolRole
 
 # Import the service implementations to test
 from panther.plugins.services.iut.quic.aioquic.aioquic import AioquicServiceManager
 from panther.plugins.services.iut.quic.aioquic.config_schema import AioquicConfig
-from panther.plugins.services.iut.quic.lsquic.lsquic import LsquicServiceManager
 from panther.plugins.services.iut.quic.lsquic.config_schema import LsquicConfig
+from panther.plugins.services.iut.quic.lsquic.lsquic import LsquicServiceManager
+from panther.plugins.services.services_interface import quote_shell, quote_yaml
 
 
 @pytest.fixture
@@ -43,7 +44,10 @@ def mock_aioquic_service_config(mock_protocol_config):
             "alpn": {"param": "--alpn", "value": "h3-29"},
             "additional_parameters": "--host 0.0.0.0 --quic-log /app/logs/quic-log",
         },
-        "network": {"port": 4433, "interface": {"param": "--interface", "value": "0.0.0.0"}},
+        "network": {
+            "port": 4433,
+            "interface": {"param": "--interface", "value": "0.0.0.0"},
+        },
         "logging": {
             "log_path": "/app/logs/aioquic_server.log",
             "err_path": "/app/logs/aioquic_server_error.log",
@@ -91,7 +95,10 @@ class TestStructuredCommandGenerationQuicIUT:
     def test_aioquic_structured_commands_server(self, mock_aioquic_service_config):
         """Test structured command generation for the aioquic server."""
         service_manager = AioquicServiceManager(
-            mock_aioquic_service_config, "iut", mock_aioquic_service_config.protocol, "aioquic"
+            mock_aioquic_service_config,
+            "iut",
+            mock_aioquic_service_config.protocol,
+            "aioquic",
         )
 
         # Test command argument generation
@@ -119,10 +126,15 @@ class TestStructuredCommandGenerationQuicIUT:
         assert "PYTHONPATH" in run_cmd["command_env"]
 
     @patch("subprocess.run")
-    def test_lsquic_structured_commands_server(self, mock_subprocess, mock_lsquic_service_config):
+    def test_lsquic_structured_commands_server(
+        self, mock_subprocess, mock_lsquic_service_config
+    ):
         """Test structured command generation for the lsquic server."""
         service_manager = LsquicServiceManager(
-            mock_lsquic_service_config, "iut", mock_lsquic_service_config.protocol, "lsquic"
+            mock_lsquic_service_config,
+            "iut",
+            mock_lsquic_service_config.protocol,
+            "lsquic",
         )
 
         # Test command argument generation
@@ -171,7 +183,10 @@ class TestStructuredCommandGenerationQuicIUT:
     def test_build_command_args_with_special_chars(self, mock_aioquic_service_config):
         """Test build_command_args with strings containing special characters."""
         service_manager = AioquicServiceManager(
-            mock_aioquic_service_config, "iut", mock_aioquic_service_config.protocol, "aioquic"
+            mock_aioquic_service_config,
+            "iut",
+            mock_aioquic_service_config.protocol,
+            "aioquic",
         )
 
         # Test with string containing spaces and special characters
@@ -182,6 +197,6 @@ class TestStructuredCommandGenerationQuicIUT:
         # Check that the string was properly split
         assert len(args_list) > 1
         # Check that quoted parts stay together
-        assert '"value with spaces"' in " ".join(args_list) or "'value with spaces'" in " ".join(
+        assert '"value with spaces"' in " ".join(
             args_list
-        )
+        ) or "'value with spaces'" in " ".join(args_list)

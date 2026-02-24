@@ -548,8 +548,6 @@ class TestDockerBuilderCacheIntegration:
         with patch(
             "panther.core.docker_builder.docker_builder.docker"
         ) as mock_docker_mod:
-
-
             mock_docker_mod.from_env.return_value = mock_docker_client
             mock_docker_mod.errors = _make_docker_errors_module()
 
@@ -602,8 +600,6 @@ class TestDockerBuilderCacheIntegration:
         with patch(
             "panther.core.docker_builder.docker_builder.docker"
         ) as mock_docker_mod:
-
-
             mock_client = Mock()
             mock_client.ping.side_effect = DockerException("Connection refused")
             mock_docker_mod.from_env.return_value = mock_client

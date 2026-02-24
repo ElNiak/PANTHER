@@ -84,13 +84,15 @@ class PantherPluginRequirementsExtractor(PluginRequirementsExtractor):
     def _extract_from_manifest(self, manifest) -> Dict[str, Any]:
         """Extract requirements from plugin manifest."""
         requirements = {
-            "capabilities": list(manifest.capabilities)
-            if manifest.capabilities
-            else [],
+            "capabilities": (
+                list(manifest.capabilities) if manifest.capabilities else []
+            ),
             "packages": [],
-            "external_dependencies": list(manifest.external_dependencies)
-            if manifest.external_dependencies
-            else [],
+            "external_dependencies": (
+                list(manifest.external_dependencies)
+                if manifest.external_dependencies
+                else []
+            ),
             "runtime_mode": manifest.runtime_mode or "minimal",
             "build_mode": "",
             "max_size_mb": self._get_size_constraint_for_plugin_type(manifest.type),

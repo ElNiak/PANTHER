@@ -509,9 +509,11 @@ class IServiceManager(IPlugin, CommandEventMixin):
                     )
                 elif isinstance(cmd_dict["run_cmd"]["command_args"], list):
                     cmd_dict["run_cmd"]["command_args"] = [
-                        self._resolve_environment_variables(arg)
-                        if isinstance(arg, str)
-                        else arg
+                        (
+                            self._resolve_environment_variables(arg)
+                            if isinstance(arg, str)
+                            else arg
+                        )
                         for arg in cmd_dict["run_cmd"]["command_args"]
                     ]
 

@@ -1,9 +1,10 @@
 import os
-import pytest
 import shlex
+from pathlib import Path
+
+import pytest
 import yaml
 from jinja2 import Environment, FileSystemLoader
-from pathlib import Path
 
 
 # Helper function to get the template directory path for picoquic
@@ -12,12 +13,21 @@ def get_template_path():
     plugin_dir = Path(
         os.path.dirname(
             os.path.dirname(
-                os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                os.path.dirname(
+                    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                )
             )
         )
     )
     return os.path.join(
-        plugin_dir, "panther", "plugins", "services", "iut", "quic", "picoquic", "templates"
+        plugin_dir,
+        "panther",
+        "plugins",
+        "services",
+        "iut",
+        "quic",
+        "picoquic",
+        "templates",
     )
 
 
@@ -87,7 +97,9 @@ def env():
         ),
     ],
 )
-def test_picoquic_structured_templates(env, template_name, cmd_args, env_vars, expected_snippet):
+def test_picoquic_structured_templates(
+    env, template_name, cmd_args, env_vars, expected_snippet
+):
     """Test that the Picoquic structured templates correctly render commands with proper escaping"""
     try:
         template = env.get_template(template_name)
@@ -124,7 +136,9 @@ def test_picoquic_structured_templates(env, template_name, cmd_args, env_vars, e
         # For environment variables with special characters, ensure they're properly quoted
         for key, value in env_vars.items():
             # Check that the variable name is in the output
-            assert key in rendered, f"Environment variable '{key}' not found in rendered template"
+            assert (
+                key in rendered
+            ), f"Environment variable '{key}' not found in rendered template"
 
             # Check quotes and special characters in variable values
             if isinstance(value, str) and any(c in value for c in "'\"`:;\\"):

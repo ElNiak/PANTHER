@@ -485,9 +485,9 @@ class PantherSourceDiscovery:
             classes=classes,
             functions=functions,
             has_readme=has_readme,
-            readme_path=str(readme_path.relative_to(self.project_root))
-            if has_readme
-            else None,
+            readme_path=(
+                str(readme_path.relative_to(self.project_root)) if has_readme else None
+            ),
         )
 
     def generate_build_dict(self) -> Dict[str, str]:

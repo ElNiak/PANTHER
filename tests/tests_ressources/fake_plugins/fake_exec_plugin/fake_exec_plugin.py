@@ -1,22 +1,23 @@
-from omegaconf import OmegaConf
-
-from panther.core.observer.management.event_manager import EventManager
-from panther.config.core.models.experiment import TestConfig
 from typing import List
 
+from omegaconf import OmegaConf
+
+from panther.config.core.models.experiment import TestConfig
 from panther.config.core.models.global_config import GlobalConfig
-from panther.plugins.environments.execution_environment.gperf_cpu.config_schema import (
-    GperfCpuConfig,
-)
+from panther.core.observer.management.event_manager import EventManager
 from panther.plugins.environments.execution_environment.execution_environment_interface import (
     IExecutionEnvironment,
+)
+from panther.plugins.environments.execution_environment.gperf_cpu.config_schema import (
+    GperfCpuConfig,
 )
 from panther.plugins.plugin_loader import PluginLoader
 from panther.plugins.services.services_interface import IServiceManager
 
+
 class GperfCommandBuilder:
     """Helper class to build gperf commands and reduce duplication."""
-    
+
     @staticmethod
     def build_command(config: GperfCpuConfig) -> str:
         """Generate the gperf command based on the configuration."""
@@ -56,16 +57,21 @@ class GperfCommandBuilder:
         command.extend(config.other_flags)
 
         return " ".join(command)
-    
+
     @staticmethod
     def configure_service_for_gperf(service: IServiceManager) -> None:
         """Configure a service manager for gperf profiling."""
         service.environments["GPERF"] = True
-        service.run_cmd["run_cmd"]["command_env"]["LD_PRELOAD"] = "/usr/local/lib/libprofiler.so"
-        service.run_cmd["run_cmd"]["command_env"]["CPUPROFILE"] = f"/app/logs/{service.service_name}_cpu.prof"
+        service.run_cmd["run_cmd"]["command_env"][
+            "LD_PRELOAD"
+        ] = "/usr/local/lib/libprofiler.so"
+        service.run_cmd["run_cmd"]["command_env"][
+            "CPUPROFILE"
+        ] = f"/app/logs/{service.service_name}_cpu.prof"
         service.run_cmd["post_run_cmds"] = service.run_cmd["post_run_cmds"] + [
             f"pprof --pdf /app/logs/{service.service_name}_cpu.prof > /app/logs/{service.service_name}_cpu.pdf"
         ]
+
 
 class GperfCpuEnvironment(IExecutionEnvironment):
     def __init__(
@@ -74,8 +80,11 @@ class GperfCpuEnvironment(IExecutionEnvironment):
         output_dir: str,
         env_type: str,
         env_sub_type: str,
-        event_manager: EventManager):
-        super().__init__(env_config_to_test, output_dir, env_type, env_sub_type, event_manager)
+        event_manager: EventManager,
+    ):
+        super().__init__(
+            env_config_to_test, output_dir, env_type, env_sub_type, event_manager
+        )
         self.env_config_to_test = env_config_to_test
 
     def setup_environment(
@@ -84,7 +93,8 @@ class GperfCpuEnvironment(IExecutionEnvironment):
         test_config: TestConfig,
         global_config: GlobalConfig,
         timestamp: str,
-        plugin_loader: PluginLoader):
+        plugin_loader: PluginLoader,
+    ):
         """
         Sets up the Docker Compose environment by generating the docker-compose.yml file with deployment commands.
 
@@ -99,7 +109,7 @@ class GperfCpuEnvironment(IExecutionEnvironment):
         self.global_config = global_config
         self.logger.debug("Setup environment with:")
         self.logger.debug(f"Services config: {self.env_config_to_test}")
-        
+
         for service in self.services_managers:
             self.logger.debug(f"Service cmds: {service.run_cmd}")
             if service.service_config_to_test.implementation.gperf_compatible:
@@ -110,6 +120,7 @@ class GperfCpuEnvironment(IExecutionEnvironment):
 
         # Log configuration for debugging using summarizer
         from panther.core.utils import log_omega_config_summary
+
         log_omega_config_summary(self.logger, "Test Config", self.test_config)
         log_omega_config_summary(self.logger, "Global Config", self.global_config)
 

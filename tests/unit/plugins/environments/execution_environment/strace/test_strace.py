@@ -3,6 +3,7 @@ Comprehensive unit tests for StraceEnvironment.
 
 Tests system call tracing functionality, configuration handling, and command generation.
 """
+
 from pathlib import Path
 from typing import List
 from unittest.mock import MagicMock, Mock, call, patch

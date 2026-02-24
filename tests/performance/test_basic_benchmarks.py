@@ -8,8 +8,10 @@ import time
 
 import pytest
 
-from panther.plugins.services.services_interface import RUN_CMD_SCHEMA, validate_structure
-
+from panther.plugins.services.services_interface import (
+    RUN_CMD_SCHEMA,
+    validate_structure,
+)
 
 # Upper bounds (seconds) for regression detection.
 # These are generous limits - they should only trip on severe regressions.
@@ -78,6 +80,6 @@ def test_import_regression_guard():
 
     elapsed = time.monotonic() - start
 
-    assert elapsed < IMPORT_MAX_SECONDS, (
-        f"Import time {elapsed:.4f}s exceeds threshold {IMPORT_MAX_SECONDS}s"
-    )
+    assert (
+        elapsed < IMPORT_MAX_SECONDS
+    ), f"Import time {elapsed:.4f}s exceeds threshold {IMPORT_MAX_SECONDS}s"

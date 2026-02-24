@@ -1,7 +1,8 @@
 import tempfile
-import pytest
-from unittest.mock import MagicMock, patch
 from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from panther.plugins.environments.network_environment.docker_compose.docker_compose import (
     DockerComposeEnvironment,
@@ -25,7 +26,10 @@ class MockServiceManager(IServiceManager):
 
         # Set up run_cmd with complex values
         self.run_cmd = {
-            "pre_compile_cmds": ["echo 'Starting pre-compile'", "export VAR='value with spaces'"],
+            "pre_compile_cmds": [
+                "echo 'Starting pre-compile'",
+                "export VAR='value with spaces'",
+            ],
             "compile_cmds": ["make", "cc -o output file.c"],
             "post_compile_cmds": ["echo 'Compile complete'"],
             "pre_run_cmds": ["cd /app"],
@@ -153,8 +157,14 @@ def test_docker_compose_env_with_complex_commands(docker_compose_env):
 
     # Add complex commands with special characters
     service.run_cmd["pre_compile_cmds"].append("echo 'Value with & and ; characters'")
-    service.run_cmd["run_cmd"]["command_args"] = ["python3", "-c", "print('Hello & Goodbye')"]
-    service.run_cmd["run_cmd"]["command_env"]["PATH_WITH_COLON"] = "/usr/bin:/usr/local/bin"
+    service.run_cmd["run_cmd"]["command_args"] = [
+        "python3",
+        "-c",
+        "print('Hello & Goodbye')",
+    ]
+    service.run_cmd["run_cmd"]["command_env"][
+        "PATH_WITH_COLON"
+    ] = "/usr/bin:/usr/local/bin"
 
     paths = {"base_log_dir": "/tmp/logs"}
     timestamp = "20250602_120000"
@@ -184,7 +194,10 @@ def test_docker_compose_env_with_complex_commands(docker_compose_env):
     ]
 
     # Check environment variables with special characters
-    assert structured_cmds["run_cmd"]["env_vars"]["PATH_WITH_COLON"] == "/usr/bin:/usr/local/bin"
+    assert (
+        structured_cmds["run_cmd"]["env_vars"]["PATH_WITH_COLON"]
+        == "/usr/bin:/usr/local/bin"
+    )
 
     # Check special characters in pre_compile_cmds
     special_cmd = "echo 'Value with & and ; characters'"

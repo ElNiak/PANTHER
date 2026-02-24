@@ -12,12 +12,10 @@ Jinja2 template loading, logging).
 from __future__ import annotations
 
 from typing import Any, Dict, List
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from panther.plugins.services.base.python_quic_base import PythonQUICServiceManager
-from panther.plugins.services.base.quic_service_base import BaseQUICServiceManager
 from panther.config.core.models.service import (
     ImplementationConfig,
     ImplementationType,
@@ -25,6 +23,8 @@ from panther.config.core.models.service import (
     ProtocolRole,
     ServiceConfig,
 )
+from panther.plugins.services.base.python_quic_base import PythonQUICServiceManager
+from panther.plugins.services.base.quic_service_base import BaseQUICServiceManager
 
 pytestmark = [pytest.mark.unit, pytest.mark.python_quic]
 
@@ -133,20 +133,22 @@ def python_quic_manager(service_config, protocol_config):
     Mocks the filesystem checks and Jinja2 template loading that happen
     during IServiceManager.__init__, but leaves all QUIC/Python logic real.
     """
-    with patch("os.path.isdir", return_value=True), \
-         patch("os.listdir", return_value=[]), \
-         patch(
-             "panther.plugins.services.services_interface.Environment",
-             return_value=MagicMock(),
-         ), \
-         patch(
-             "panther.plugins.services.services_interface.FileSystemLoader",
-             return_value=MagicMock(),
-         ), \
-         patch(
-             "panther.plugins.services.services_interface.select_autoescape",
-             return_value=[],
-         ):
+    with (
+        patch("os.path.isdir", return_value=True),
+        patch("os.listdir", return_value=[]),
+        patch(
+            "panther.plugins.services.services_interface.Environment",
+            return_value=MagicMock(),
+        ),
+        patch(
+            "panther.plugins.services.services_interface.FileSystemLoader",
+            return_value=MagicMock(),
+        ),
+        patch(
+            "panther.plugins.services.services_interface.select_autoescape",
+            return_value=[],
+        ),
+    ):
         manager = ConcretePythonQUIC(
             service_config_to_test=service_config,
             service_type=ImplementationType.IUT,
@@ -160,20 +162,22 @@ def python_quic_manager(service_config, protocol_config):
 def client_manager(client_service_config):
     """Create a ConcretePythonQUIC with client role."""
     protocol = _make_protocol_config(role="client", target="server")
-    with patch("os.path.isdir", return_value=True), \
-         patch("os.listdir", return_value=[]), \
-         patch(
-             "panther.plugins.services.services_interface.Environment",
-             return_value=MagicMock(),
-         ), \
-         patch(
-             "panther.plugins.services.services_interface.FileSystemLoader",
-             return_value=MagicMock(),
-         ), \
-         patch(
-             "panther.plugins.services.services_interface.select_autoescape",
-             return_value=[],
-         ):
+    with (
+        patch("os.path.isdir", return_value=True),
+        patch("os.listdir", return_value=[]),
+        patch(
+            "panther.plugins.services.services_interface.Environment",
+            return_value=MagicMock(),
+        ),
+        patch(
+            "panther.plugins.services.services_interface.FileSystemLoader",
+            return_value=MagicMock(),
+        ),
+        patch(
+            "panther.plugins.services.services_interface.select_autoescape",
+            return_value=[],
+        ),
+    ):
         manager = ConcretePythonQUIC(
             service_config_to_test=client_service_config,
             service_type=ImplementationType.IUT,
@@ -303,9 +307,7 @@ class TestBuildServerArgs:
         assert "4443" in args
 
     def test_with_log_file(self, python_quic_manager):
-        params = python_quic_manager._extract_common_params(
-            log_file="/logs/server.log"
-        )
+        params = python_quic_manager._extract_common_params(log_file="/logs/server.log")
         args = python_quic_manager._build_server_args(params)
         assert "-l" in args
         assert "/logs/server.log" in args
@@ -343,9 +345,7 @@ class TestBuildClientArgs:
         assert "443" in args
 
     def test_with_log_file(self, python_quic_manager):
-        params = python_quic_manager._extract_common_params(
-            log_file="/logs/client.log"
-        )
+        params = python_quic_manager._extract_common_params(log_file="/logs/client.log")
         args = python_quic_manager._build_client_args(params)
         assert "-l" in args
         assert "/logs/client.log" in args
@@ -487,9 +487,7 @@ class TestBuildPythonEnvVars:
         assert env["PYTHONASYNCIODEBUG"] == "1"
 
     def test_custom_python_path(self, python_quic_manager):
-        params = python_quic_manager._extract_common_params(
-            python_path="/custom/lib"
-        )
+        params = python_quic_manager._extract_common_params(python_path="/custom/lib")
         env = python_quic_manager._build_python_env_vars(params)
         assert env["PYTHONPATH"] == "/custom/lib"
 
@@ -585,21 +583,15 @@ class TestValidateConfiguration:
         assert errors == []
 
     def test_invalid_role(self, python_quic_manager):
-        errors = python_quic_manager.validate_configuration(
-            role="observer", port=4443
-        )
+        errors = python_quic_manager.validate_configuration(role="observer", port=4443)
         assert any("Invalid role" in e for e in errors)
 
     def test_invalid_port_zero(self, python_quic_manager):
-        errors = python_quic_manager.validate_configuration(
-            role="server", port=0
-        )
+        errors = python_quic_manager.validate_configuration(role="server", port=0)
         assert any("Invalid port" in e for e in errors)
 
     def test_invalid_port_too_high(self, python_quic_manager):
-        errors = python_quic_manager.validate_configuration(
-            role="server", port=70000
-        )
+        errors = python_quic_manager.validate_configuration(role="server", port=70000)
         assert any("Invalid port" in e for e in errors)
 
     def test_unsupported_version(self, python_quic_manager):
@@ -709,9 +701,7 @@ class TestIntegrationScenarios:
         )
         assert errors == []
 
-        cmd = python_quic_manager.generate_run_command(
-            role="server", port=4443
-        )
+        cmd = python_quic_manager.generate_run_command(role="server", port=4443)
         assert isinstance(cmd, str)
         assert "4443" in cmd
 
@@ -736,20 +726,22 @@ class TestConstructorVariations:
         )
         stype = kwargs.pop("service_type", ImplementationType.IUT)
         impl = kwargs.pop("implementation_name", "test_python_quic")
-        with patch("os.path.isdir", return_value=True), \
-             patch("os.listdir", return_value=[]), \
-             patch(
-                 "panther.plugins.services.services_interface.Environment",
-                 return_value=MagicMock(),
-             ), \
-             patch(
-                 "panther.plugins.services.services_interface.FileSystemLoader",
-                 return_value=MagicMock(),
-             ), \
-             patch(
-                 "panther.plugins.services.services_interface.select_autoescape",
-                 return_value=[],
-             ):
+        with (
+            patch("os.path.isdir", return_value=True),
+            patch("os.listdir", return_value=[]),
+            patch(
+                "panther.plugins.services.services_interface.Environment",
+                return_value=MagicMock(),
+            ),
+            patch(
+                "panther.plugins.services.services_interface.FileSystemLoader",
+                return_value=MagicMock(),
+            ),
+            patch(
+                "panther.plugins.services.services_interface.select_autoescape",
+                return_value=[],
+            ),
+        ):
             return ConcretePythonQUIC(
                 service_config_to_test=svc,
                 service_type=stype,

@@ -187,12 +187,14 @@ class TestExperimentManagerCleanupMetricsExport:
         # Call the real cleanup method, but patch out the parts we don't need
         from panther.core.experiment_manager import ExperimentManager
 
-        with patch.object(
-            ExperimentManager, "_generate_final_log_report", return_value=None
-        ), patch.object(
-            ExperimentManager, "_generate_experiment_report", return_value=None
-        ), patch.object(
-            ExperimentManager, "_setup_observers", return_value=None
+        with (
+            patch.object(
+                ExperimentManager, "_generate_final_log_report", return_value=None
+            ),
+            patch.object(
+                ExperimentManager, "_generate_experiment_report", return_value=None
+            ),
+            patch.object(ExperimentManager, "_setup_observers", return_value=None),
         ):
             # Call the real cleanup code by invoking the unbound method on
             # our mock, binding it manually.

@@ -5,11 +5,12 @@ This module provides comprehensive white-box unit tests for the BuildManager cla
 covering all public methods with mocked dependencies to ensure deterministic behavior.
 """
 
-import pytest
-import sys
 import subprocess
+import sys
 from pathlib import Path
-from unittest.mock import Mock, patch, call
+from unittest.mock import Mock, call, patch
+
+import pytest
 
 from panther_builder import BuildManager
 

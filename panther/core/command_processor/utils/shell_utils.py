@@ -88,7 +88,12 @@ def _escape_single_line(cmd: str) -> str:
                 in_single_quote = not in_single_quote
             elif char == '"' and not in_single_quote:
                 in_double_quote = not in_double_quote
-            elif char == ";" and not in_single_quote and not in_double_quote and prev_char != "\\":
+            elif (
+                char == ";"
+                and not in_single_quote
+                and not in_double_quote
+                and prev_char != "\\"
+            ):
                 parts.append("".join(current).strip())
                 current = []
                 prev_char = char

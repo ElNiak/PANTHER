@@ -4,7 +4,6 @@ This module contains the ExperimentManager class which manages the lifecycle
 of experiments including initialization, configuration, and execution.
 """
 
-
 import contextlib
 import logging
 import re

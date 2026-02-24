@@ -1,6 +1,5 @@
 """Service configuration models."""
 
-
 import contextlib
 import logging
 from enum import Enum

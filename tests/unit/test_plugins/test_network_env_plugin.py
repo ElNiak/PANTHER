@@ -1,10 +1,12 @@
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
+
+from panther.core.observer.management.event_manager import EventManager
+from panther.plugins.environments.config_schema import EnvironmentConfig
 from panther.plugins.environments.network_environment.network_environment_interface import (
     INetworkEnvironment,
 )
-from panther.plugins.environments.config_schema import EnvironmentConfig
-from panther.core.observer.management.event_manager import EventManager
 
 
 class MockNetworkEnvironment(INetworkEnvironment):

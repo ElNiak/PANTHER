@@ -178,9 +178,7 @@ class TestProcessCommands:
 
     def test_process_commands_with_target_format(self, real_command_processor):
         """target_format parameter is accepted (forwarded, no crash)."""
-        commands = {
-            "run_cmd": {"command_binary": "test_cmd", "timeout": 60}
-        }
+        commands = {"run_cmd": {"command_binary": "test_cmd", "timeout": 60}}
 
         for fmt in ["generic", "docker", "shell"]:
             result = real_command_processor.process_commands(commands, fmt)

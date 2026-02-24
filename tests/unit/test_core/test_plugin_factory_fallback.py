@@ -55,11 +55,14 @@ class TestPluginFactoryFallback:
         service_config = MagicMock()
         service_config.implementation = impl
 
-        with patch.object(
-            factory, "_find_plugin_file", return_value=Path("/fake/test_plugin.py")
-        ) as mock_find, patch(
-            "panther.plugins.core.plugin_loader_utils.PluginManagerUtils"
-        ) as mock_utils:
+        with (
+            patch.object(
+                factory, "_find_plugin_file", return_value=Path("/fake/test_plugin.py")
+            ) as mock_find,
+            patch(
+                "panther.plugins.core.plugin_loader_utils.PluginManagerUtils"
+            ) as mock_utils,
+        ):
             mock_utils.load_plugin_class.return_value = mock_service_class
             factory.create_service_manager(
                 protocol=protocol,
@@ -92,9 +95,12 @@ class TestPluginFactoryFallback:
         service_config = MagicMock()
         service_config.implementation = impl
 
-        with patch.object(factory, "_find_plugin_file") as mock_find, patch(
-            "panther.plugins.core.plugin_loader_utils.PluginManagerUtils"
-        ) as mock_utils:
+        with (
+            patch.object(factory, "_find_plugin_file") as mock_find,
+            patch(
+                "panther.plugins.core.plugin_loader_utils.PluginManagerUtils"
+            ) as mock_utils,
+        ):
             mock_utils.load_plugin_class.return_value = mock_service_class
             factory.create_service_manager(
                 protocol=protocol,
@@ -128,9 +134,12 @@ class TestPluginFactoryFallback:
         service_config = MagicMock()
         service_config.implementation = impl
 
-        with patch.object(factory, "_find_plugin_file") as mock_find, patch(
-            "panther.plugins.core.plugin_loader_utils.PluginManagerUtils"
-        ) as mock_utils:
+        with (
+            patch.object(factory, "_find_plugin_file") as mock_find,
+            patch(
+                "panther.plugins.core.plugin_loader_utils.PluginManagerUtils"
+            ) as mock_utils,
+        ):
             mock_utils.load_plugin_class.return_value = mock_service_class
             factory.create_service_manager(
                 protocol=protocol,

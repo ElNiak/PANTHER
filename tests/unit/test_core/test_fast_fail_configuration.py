@@ -12,10 +12,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from panther.config.core.models.global_config import (
-    FastFailConfig,
-    GlobalConfig,
-)
+from panther.config.core.models.global_config import FastFailConfig, GlobalConfig
 from panther.core.exceptions.fast_fail import (
     DockerBuildException,
     ErrorCategory,
@@ -76,6 +73,7 @@ class TestFastFailConfiguration:
 
         assert global_config.fast_fail.enabled is False
         assert global_config.fast_fail.critical_only is True
+
 
 class TestConfigurationDrivenBehavior:
     """Test fast-fail behavior based on configuration."""

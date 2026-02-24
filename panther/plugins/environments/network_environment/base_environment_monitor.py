@@ -267,9 +267,9 @@ class BaseEnvironmentMonitor(ABC):
                 "failure_count": self.failure_count,
                 "elapsed_time": time.time() - self.start_time if self.start_time else 0,
                 "monitor_name": self._get_monitor_name(),
-                "thread_alive": self.monitor_thread.is_alive()
-                if self.monitor_thread
-                else False,
+                "thread_alive": (
+                    self.monitor_thread.is_alive() if self.monitor_thread else False
+                ),
             }
 
     # Abstract methods that subclasses must implement

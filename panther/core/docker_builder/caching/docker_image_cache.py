@@ -603,9 +603,11 @@ class DockerImageCache(LoggerMixin):
                 "total_size_mb": total_size / (1024 * 1024),
                 "cache_file": str(self.cache_file),
                 "cache_secure": security_valid,
-                "last_refresh": datetime.fromtimestamp(self._last_refresh).isoformat()
-                if self._last_refresh
-                else "never",
+                "last_refresh": (
+                    datetime.fromtimestamp(self._last_refresh).isoformat()
+                    if self._last_refresh
+                    else "never"
+                ),
             }
 
     def image_exists(self, image_tag: str, docker_client=None) -> bool:

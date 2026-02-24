@@ -1,4 +1,5 @@
 """Tests for the new event-driven architecture integration."""
+
 from unittest.mock import Mock, patch
 
 import pytest

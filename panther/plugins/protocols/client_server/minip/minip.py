@@ -3,6 +3,7 @@ MiniP Protocol Manager
 This class manages the MiniP protocol configurations and provides
 version-specific parameters for MiniP implementations.
 """
+
 import logging
 
 from panther.plugins.core.plugin_decorators import register_protocol

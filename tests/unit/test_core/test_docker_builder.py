@@ -43,7 +43,9 @@ class TestDockerBuilder:
         assert call_kwargs[1]["name"] == "test-net"
         assert call_kwargs[1]["driver"] == "bridge"
 
-    def test_network_creation_custom_driver(self, real_docker_builder, mock_docker_client):
+    def test_network_creation_custom_driver(
+        self, real_docker_builder, mock_docker_client
+    ):
         """Test Docker network creation with a custom driver."""
         mock_docker_client.networks.get.side_effect = NotFound("not found")
 
@@ -66,7 +68,9 @@ class TestDockerBuilder:
 
         assert result is True
 
-    def test_docker_availability_failure_handling(self, real_docker_builder, mock_docker_client):
+    def test_docker_availability_failure_handling(
+        self, real_docker_builder, mock_docker_client
+    ):
         """Test is_docker_available returns False when Docker daemon is unreachable."""
         mock_docker_client.ping.side_effect = DockerException("Connection refused")
 
@@ -92,7 +96,9 @@ class TestDockerBuilder:
         """Test that DockerBuilder enforces singleton pattern."""
         DockerBuilder.reset_singleton()
 
-        with patch("panther.core.docker_builder.docker_builder.docker") as mock_docker_mod:
+        with patch(
+            "panther.core.docker_builder.docker_builder.docker"
+        ) as mock_docker_mod:
             mock_docker_mod.from_env.return_value = mock_docker_client
             errors = MagicMock()
             errors.DockerException = type("DockerException", (Exception,), {})
@@ -115,7 +121,9 @@ class TestDockerSystemIntegration:
         """Test that get_instance always returns the same singleton."""
         DockerBuilder.reset_singleton()
 
-        with patch("panther.core.docker_builder.docker_builder.docker") as mock_docker_mod:
+        with patch(
+            "panther.core.docker_builder.docker_builder.docker"
+        ) as mock_docker_mod:
             mock_docker_mod.from_env.return_value = mock_docker_client
             errors = MagicMock()
             errors.DockerException = type("DockerException", (Exception,), {})
@@ -148,13 +156,17 @@ class TestDockerSystemErrorHandling:
                 config={"build_mode": ""},
             )
 
-    def test_docker_availability_failure_handling(self, real_docker_builder, mock_docker_client):
+    def test_docker_availability_failure_handling(
+        self, real_docker_builder, mock_docker_client
+    ):
         """Test handling of Docker unavailability."""
         mock_docker_client.ping.side_effect = DockerException("refused")
 
         assert real_docker_builder.is_docker_available() is False
 
-    def test_network_creation_when_already_exists(self, real_docker_builder, mock_docker_client):
+    def test_network_creation_when_already_exists(
+        self, real_docker_builder, mock_docker_client
+    ):
         """Test create_network returns True when network already exists."""
         # Clear the side_effect from conftest so return_value takes effect
         mock_docker_client.networks.get.side_effect = None
@@ -336,7 +348,9 @@ class TestDockerBuilderCacheIntegration:
         # Reset and create first instance
         DockerBuilder.reset_singleton()
 
-        with patch("panther.core.docker_builder.docker_builder.docker") as mock_docker_mod:
+        with patch(
+            "panther.core.docker_builder.docker_builder.docker"
+        ) as mock_docker_mod:
             mock_client = MagicMock()
             mock_client.ping.return_value = True
             mock_docker_mod.from_env.return_value = mock_client

@@ -8,10 +8,10 @@ import unittest
 from unittest.mock import MagicMock
 
 from panther.core.observer.management.event_manager import EventManager
+from panther.plugins.environments.config_schema import EnvironmentConfig
 from panther.plugins.environments.network_environment.docker_compose.docker_compose import (
     DockerComposeEnvironment,
 )
-from panther.plugins.environments.config_schema import EnvironmentConfig
 
 
 class TestNonCriticalCommandCreation(unittest.TestCase):

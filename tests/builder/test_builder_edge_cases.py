@@ -5,10 +5,11 @@ This module tests unusual scenarios, boundary conditions, and error handling
 in the BuildManager class to ensure robust behavior.
 """
 
-import pytest
 import sys
 from pathlib import Path
 from unittest.mock import Mock, patch
+
+import pytest
 
 from panther_builder import BuildManager
 

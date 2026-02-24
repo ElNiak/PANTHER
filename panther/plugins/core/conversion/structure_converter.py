@@ -366,12 +366,12 @@ class PluginStructureConverter:
                 "common": len(common_fields),
             },
             "coverage": {
-                "manifest_coverage": len(common_fields) / len(manifest_fields)
-                if manifest_fields
-                else 0,
-                "metadata_coverage": len(common_fields) / len(metadata_fields)
-                if metadata_fields
-                else 0,
+                "manifest_coverage": (
+                    len(common_fields) / len(manifest_fields) if manifest_fields else 0
+                ),
+                "metadata_coverage": (
+                    len(common_fields) / len(metadata_fields) if metadata_fields else 0
+                ),
             },
         }
 

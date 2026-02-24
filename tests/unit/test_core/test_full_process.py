@@ -2,14 +2,15 @@
 """
 Test script to debug how results from _combine_shell_constructs are processed in generate_entrypoint_with_structured_args.
 """
-import os
 import logging
-from panther.plugins.environments.network_environment.docker_compose.docker_compose import (
-    DockerComposeEnvironment,
-)
+import os
+
 from panther.core.observer.management.event_manager import EventManager
 from panther.plugins.environments.network_environment.docker_compose.config_schema import (
     DockerComposeConfig,
+)
+from panther.plugins.environments.network_environment.docker_compose.docker_compose import (
+    DockerComposeEnvironment,
 )
 
 # Configure logging
@@ -26,7 +27,10 @@ class MockServiceManager:
         self.service_config_to_test = type(
             "obj",
             (object,),
-            {"implementation": type("obj", (object,), {"use_system_models": True}), "timeout": 60},
+            {
+                "implementation": type("obj", (object,), {"use_system_models": True}),
+                "timeout": 60,
+            },
         )
         self.protocol = type("obj", (object,), {"name": "mock-protocol"})
 
@@ -128,10 +132,14 @@ def run_test():
                 continue
 
             combined_cmds = env._combine_shell_constructs(valid_cmds)
-            logger.info(f"Combined {len(valid_cmds)} commands into {len(combined_cmds)} constructs")
+            logger.info(
+                f"Combined {len(valid_cmds)} commands into {len(combined_cmds)} constructs"
+            )
 
             if not combined_cmds:
-                logger.warning("Warning: _combine_shell_constructs returned an empty list!")
+                logger.warning(
+                    "Warning: _combine_shell_constructs returned an empty list!"
+                )
                 processed_commands[cmd_type] = []
                 continue
 

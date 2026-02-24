@@ -1,5 +1,5 @@
-import subprocess
 import os
+import subprocess
 
 env = os.environ.copy()
 env["COVERAGE_PROCESS_START"] = ".coveragerc"
@@ -108,6 +108,8 @@ def test_cli_create_experiment_invalid():
 
 
 def test_cli_invalid_command():
-    result = subprocess.run(["panther", "invalid-command"], capture_output=True, text=True, env=env)
+    result = subprocess.run(
+        ["panther", "invalid-command"], capture_output=True, text=True, env=env
+    )
     assert result.returncode != 0
     # assert "unrecognized arguments" in result.stderr

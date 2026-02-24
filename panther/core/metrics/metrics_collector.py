@@ -67,6 +67,7 @@ collector.start_collection_thread(interval=1.0)
 ```
 
 """
+
 import logging
 import os
 import threading

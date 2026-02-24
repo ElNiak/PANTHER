@@ -4,6 +4,7 @@ Refactored strace execution environment using shared command generation utilitie
 This demonstrates how the shared utilities work with different command patterns
 while maintaining the specific functionality of strace.
 """
+
 import platform
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
 

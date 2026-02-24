@@ -36,7 +36,9 @@ class TestDockerImageExistenceValidation:
     with mock Docker client responses to control image_exists behavior.
     """
 
-    def test_image_exists_validation_success(self, real_docker_builder, mock_docker_client):
+    def test_image_exists_validation_success(
+        self, real_docker_builder, mock_docker_client
+    ):
         """Test successful image existence validation."""
         # Configure mock client so images.get returns a mock image (i.e. found)
         mock_docker_client.images.get.side_effect = None
@@ -46,7 +48,9 @@ class TestDockerImageExistenceValidation:
         assert real_docker_builder.image_exists("alpine:latest") is True
         assert real_docker_builder.image_exists("nginx:1.21") is True
 
-    def test_image_exists_validation_failure(self, real_docker_builder, mock_docker_client):
+    def test_image_exists_validation_failure(
+        self, real_docker_builder, mock_docker_client
+    ):
         """Test image existence validation for non-existent images."""
         # images.get raising Exception means image not found.
         # The real DockerImageCache.image_exists catches docker.errors.NotFound
@@ -78,7 +82,9 @@ class TestDockerImageExistenceValidation:
         assert real_docker_builder.image_exists("sha256:abc123def456") is False
         assert real_docker_builder.image_exists("temp:abcd-1234-efgh-5678") is False
 
-    def test_image_exists_with_build_tags(self, real_docker_builder, mock_docker_client):
+    def test_image_exists_with_build_tags(
+        self, real_docker_builder, mock_docker_client
+    ):
         """Test image existence validation with common build tag patterns."""
         # Configure mock to return images for specific tags
         known_tags = {

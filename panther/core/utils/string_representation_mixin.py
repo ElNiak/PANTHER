@@ -55,9 +55,9 @@ class StringRepresentationMixin:
         if hasattr(self, "env_sub_type"):
             attrs["subtype"] = self.env_sub_type
 
-        if hasattr(self,"role"):
+        if hasattr(self, "role"):
             attrs["role"] = self.role
-            
+
         if hasattr(self, "protocol_version"):
             attrs["_protocol_version"] = self.protocol_version
 

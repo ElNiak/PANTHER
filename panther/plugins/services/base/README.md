@@ -19,7 +19,7 @@ IServiceManager (Interface)
     ↓
 ├─→ BaseQUICServiceManager (Abstract Base)
 │   ├─→ PythonQUICServiceManager (Python implementations)
-│   ├─→ RustQUICServiceManager (Rust implementations)  
+│   ├─→ RustQUICServiceManager (Rust implementations)
 │   └─→ [Direct inheritance] (C/Go implementations)
 │
 ├─→ BaseHTTPServiceManager (Abstract Base)
@@ -54,28 +54,28 @@ The foundational base class for all QUIC implementations providing:
 from panther.plugins.services.base.quic_service_base import BaseQUICServiceManager
 
 class MyQuicServiceManager(BaseQUICServiceManager):
-    
+
     # Required implementations
     def _get_implementation_name(self) -> str:
         return "my_quic_impl"
-    
+
     def _get_binary_name(self) -> str:
         return "my_quic_binary"
-    
+
     def _get_server_specific_args(self, **kwargs) -> List[str]:
         # Implementation-specific server arguments
         return ["-p", str(kwargs.get("port", 4443))]
-    
+
     def _get_client_specific_args(self, **kwargs) -> List[str]:
         # Implementation-specific client arguments
         host = kwargs.get("host", "localhost")
         port = kwargs.get("port", 4443)
         return [f"{host}:{port}"]
-    
+
     def generate_deployment_commands(self) -> str:
         # Deployment-specific commands
         return f"{self._get_binary_name()} -p 4443"
-    
+
     def _do_prepare(self, plugin_manager=None):
         # Preparation logic (Docker builds, dependencies)
         pass
@@ -112,13 +112,13 @@ Specialized base class for Python implementations (e.g., AioQUIC):
 from panther.plugins.services.base.python_quic_base import PythonQUICServiceManager
 
 class AioquicServiceManager(PythonQUICServiceManager):
-    
+
     def _get_implementation_name(self) -> str:
         return "aioquic"
-    
+
     def _get_binary_name(self) -> str:
         return "python3"
-    
+
     # Python-specific compile command automatically provided
     # Returns: pip install -r requirements.txt (if exists)
 ```
@@ -147,13 +147,13 @@ Specialized base class for Rust implementations (e.g., Quiche, Quinn):
 from panther.plugins.services.base.rust_quic_base import RustQUICServiceManager
 
 class QuicheServiceManager(RustQUICServiceManager):
-    
+
     def _get_implementation_name(self) -> str:
         return "quiche"
-    
+
     def _get_binary_name(self) -> str:
         return "quiche-server"  # or quiche-client based on role
-    
+
     # Rust-specific compile command automatically provided
     # Returns: cargo build --release --jobs $(nproc)
 ```
@@ -184,24 +184,24 @@ Base class for HTTP protocol implementations. Currently provides the foundation 
 from panther.plugins.services.base.http_service_base import BaseHTTPServiceManager
 
 class HttpServiceManager(BaseHTTPServiceManager):
-    
+
     def _get_implementation_name(self) -> str:
         return "basic_http"
-    
+
     def _get_binary_name(self) -> str:
         return "http_server"
-    
+
     def _get_server_specific_args(self, **kwargs) -> List[str]:
         # Implementation-specific server arguments
         return ["--daemon"]
-    
+
     def _get_client_specific_args(self, **kwargs) -> List[str]:
         # Implementation-specific client arguments
         return ["--user-agent", "PANTHER-HTTP-Client"]
-    
+
     def generate_deployment_commands(self) -> str:
         return f"{self._get_binary_name()} --start"
-    
+
     def _do_prepare(self, plugin_manager=None):
         # HTTP-specific preparation
         pass
@@ -247,24 +247,24 @@ Base class for MINIP (Minimal Internet Protocol) implementations. PANTHER curren
 from panther.plugins.services.base.minip_service_base import BaseMinipServiceManager
 
 class MinipServiceManager(BaseMinipServiceManager):
-    
+
     def _get_implementation_name(self) -> str:
         return "basic_minip"
-    
+
     def _get_binary_name(self) -> str:
         return "minip_binary"
-    
+
     def _get_server_specific_args(self, **kwargs) -> List[str]:
         # Implementation-specific server arguments
         return ["--listen"]
-    
+
     def _get_client_specific_args(self, **kwargs) -> List[str]:
         # Implementation-specific client arguments
         return ["--send"]
-    
+
     def generate_deployment_commands(self) -> str:
         return f"{self._get_binary_name()} --start"
-    
+
     def _do_prepare(self, plugin_manager=None):
         # MINIP-specific preparation
         pass
@@ -321,10 +321,10 @@ Provides standardized Docker build patterns to eliminate Dockerfile duplication:
 from panther.plugins.services.base.docker_build_base import BaseDockerBuilder
 
 class CustomDockerBuilder(BaseDockerBuilder):
-    
+
     def __init__(self, implementation_name: str):
         super().__init__(implementation_name, "panther_base_service:latest")
-    
+
     def generate_implementation_specific_steps(self) -> List[str]:
         return [
             "RUN git clone https://github.com/example/my-impl.git",
@@ -392,17 +392,17 @@ full_command = builder.combine_args([cert_args, protocol_args, custom_args])
 **Before (Legacy Implementation)**:
 ```python
 class PicoquicServiceManager(IImplementationManager):
-    
+
     def generate_run_command(self, **kwargs):
         # 200+ lines of duplicated command generation
         command = []
-        
+
         # Certificate handling (duplicated across all implementations)
         if kwargs.get("cert_file"):
             command.extend(["--cert", kwargs["cert_file"]])
         if kwargs.get("key_file"):
             command.extend(["--key", kwargs["key_file"]])
-            
+
         # Protocol arguments (duplicated across all implementations)
         if kwargs.get("role") == "server":
             command.extend(["-p", str(kwargs.get("port", 4443))])
@@ -410,36 +410,36 @@ class PicoquicServiceManager(IImplementationManager):
             host = kwargs.get("host", "localhost")
             port = kwargs.get("port", 4443)
             command.append(f"{host}:{port}")
-            
+
         # ... 180+ more lines of duplicated logic
-        
+
         return " ".join(command)
 ```
 
 **After (Base Class Implementation)**:
 ```python
 class PicoquicServiceManager(BaseQUICServiceManager):
-    
+
     def _get_implementation_name(self) -> str:
         return "picoquic"
-    
+
     def _get_binary_name(self) -> str:
         return "picoquicdemo"
-    
+
     def _get_server_specific_args(self, **kwargs) -> List[str]:
         return ["-p", str(kwargs.get("port", 4443))]
-    
+
     def _get_client_specific_args(self, **kwargs) -> List[str]:
         host = kwargs.get("host", "localhost")
         port = kwargs.get("port", 4443)
         return [f"{host}:{port}"]
-    
+
     def generate_deployment_commands(self) -> str:
         return f"{self._get_binary_name()} -p 4443"
-    
+
     def _do_prepare(self, plugin_manager=None):
         pass
-    
+
     # All certificate, protocol, and common logic inherited!
     # ~40 lines instead of 200+
 ```
@@ -467,30 +467,30 @@ class PicoquicServiceManager(BaseQUICServiceManager):
 
 1. **Choose Base Class**:
    - Python implementation → `PythonQUICServiceManager`
-   - Rust implementation → `RustQUICServiceManager` 
+   - Rust implementation → `RustQUICServiceManager`
    - C/Go implementation → `BaseQUICServiceManager`
 
 2. **Implement Required Methods**:
    ```python
    class NewQuicServiceManager(BaseQUICServiceManager):
-       
+
        def _get_implementation_name(self) -> str:
            return "new_quic"
-       
+
        def _get_binary_name(self) -> str:
            return "new_quic_binary"
-       
+
        def _get_server_specific_args(self, **kwargs) -> List[str]:
            # Only implementation-specific server arguments
            return ["-listen", f"0.0.0.0:{kwargs.get('port', 4443)}"]
-       
+
        def _get_client_specific_args(self, **kwargs) -> List[str]:
            # Only implementation-specific client arguments
            return ["-connect", f"{kwargs.get('host')}:{kwargs.get('port')}"]
-       
+
        def generate_deployment_commands(self) -> str:
            return f"cd /app && {self._get_binary_name()}"
-       
+
        def _do_prepare(self, plugin_manager=None):
            # Build Docker image, install dependencies, etc.
            pass
@@ -501,24 +501,24 @@ class PicoquicServiceManager(BaseQUICServiceManager):
 1. **Inherit from BaseHTTPServiceManager**:
    ```python
    from panther.plugins.services.base.http_service_base import BaseHTTPServiceManager
-   
+
    class MyHttpServiceManager(BaseHTTPServiceManager):
-       
+
        def _get_implementation_name(self) -> str:
            return "my_http"
-       
+
        def _get_binary_name(self) -> str:
            return "my_http_server"
-       
+
        def _get_server_specific_args(self, **kwargs) -> List[str]:
            return ["--foreground"]
-       
+
        def _get_client_specific_args(self, **kwargs) -> List[str]:
            return ["--output", "/dev/null"]
-       
+
        def generate_deployment_commands(self) -> str:
            return f"{self._get_binary_name()}"
-       
+
        def _do_prepare(self, plugin_manager=None):
            pass
    ```
@@ -528,24 +528,24 @@ class PicoquicServiceManager(BaseQUICServiceManager):
 1. **Inherit from BaseMinipServiceManager**:
    ```python
    from panther.plugins.services.base.minip_service_base import BaseMinipServiceManager
-   
+
    class MyMinipServiceManager(BaseMinipServiceManager):
-       
+
        def _get_implementation_name(self) -> str:
            return "my_minip"
-       
+
        def _get_binary_name(self) -> str:
            return "my_minip_binary"
-       
+
        def _get_server_specific_args(self, **kwargs) -> List[str]:
            return ["--server-mode"]
-       
+
        def _get_client_specific_args(self, **kwargs) -> List[str]:
            return ["--client-mode"]
-       
+
        def generate_deployment_commands(self) -> str:
            return f"{self._get_binary_name()}"
-       
+
        def _do_prepare(self, plugin_manager=None):
            pass
    ```
@@ -560,27 +560,27 @@ class PicoquicServiceManager(BaseQUICServiceManager):
 
 ```python
 class EnhancedQuicServiceManager(BaseQUICServiceManager):
-    
+
     def _extract_common_params(self, **kwargs) -> Dict[str, Any]:
         """Add custom parameters."""
         params = super()._extract_common_params(**kwargs)
-        
+
         # Add implementation-specific parameters
         params["custom_option"] = kwargs.get("custom_option", "default")
         params["performance_mode"] = kwargs.get("performance_mode", False)
-        
+
         return params
-    
+
     def _build_server_args(self, params: Dict[str, Any]) -> List[str]:
         """Customize server argument building."""
         args = super()._build_server_args(params)
-        
+
         # Add custom arguments
         if params.get("performance_mode"):
             args.extend(["--performance", "--no-debug"])
-        
+
         return args
-    
+
     def get_supported_features(self) -> List[str]:
         """Specify implementation capabilities."""
         return ["rfc9000", "0rtt", "connection_migration", "multipath"]
@@ -597,7 +597,7 @@ import unittest
 from panther.plugins.services.base.quic_service_base import BaseQUICServiceManager
 
 class TestBaseQUICServiceManager(unittest.TestCase):
-    
+
     def setUp(self):
         # Create test implementation
         class TestQuicManager(BaseQUICServiceManager):
@@ -606,14 +606,14 @@ class TestBaseQUICServiceManager(unittest.TestCase):
             def _get_binary_name(self) -> str:
                 return "test_binary"
             # ... implement other abstract methods
-        
+
         self.manager = TestQuicManager(
             service_config_to_test=mock_config,
             service_type="iut",
             protocol=mock_protocol,
             implementation_name="test_quic"
         )
-    
+
     def test_command_generation(self):
         command = self.manager.generate_run_command(
             role="server",
@@ -631,7 +631,7 @@ import unittest
 from panther.plugins.services.base.http_service_base import BaseHTTPServiceManager
 
 class TestBaseHTTPServiceManager(unittest.TestCase):
-    
+
     def setUp(self):
         class TestHTTPManager(BaseHTTPServiceManager):
             def _get_implementation_name(self) -> str:
@@ -646,14 +646,14 @@ class TestBaseHTTPServiceManager(unittest.TestCase):
                 return "test_httpd"
             def _do_prepare(self, plugin_manager=None):
                 pass
-        
+
         self.manager = TestHTTPManager(
             service_config_to_test=mock_config,
             service_type="iut",
             protocol=mock_protocol,
             implementation_name="test_http"
         )
-    
+
     def test_http_command_generation(self):
         command = self.manager.generate_run_command(
             role="server",
@@ -662,7 +662,7 @@ class TestBaseHTTPServiceManager(unittest.TestCase):
         )
         self.assertIn("--server", command)
         self.assertIn("80", command)
-    
+
     def test_http_feature_detection(self):
         features = self.manager.get_supported_features()
         self.assertTrue(features["http_1_1"])
@@ -676,7 +676,7 @@ import unittest
 from panther.plugins.services.base.minip_service_base import BaseMinipServiceManager
 
 class TestBaseMinipServiceManager(unittest.TestCase):
-    
+
     def setUp(self):
         class TestMinipManager(BaseMinipServiceManager):
             def _get_implementation_name(self) -> str:
@@ -691,14 +691,14 @@ class TestBaseMinipServiceManager(unittest.TestCase):
                 return "test_minip_binary --daemon"
             def _do_prepare(self, plugin_manager=None):
                 pass
-        
+
         self.manager = TestMinipManager(
             service_config_to_test=mock_config,
             service_type="iut",
             protocol=mock_protocol,
             implementation_name="test_minip"
         )
-    
+
     def test_minip_command_generation(self):
         command = self.manager.generate_run_command(
             role="server",
@@ -707,12 +707,12 @@ class TestBaseMinipServiceManager(unittest.TestCase):
         )
         self.assertIn("--server", command)
         self.assertIn("8000", command)
-    
+
     def test_minip_utilities(self):
         msg = self.manager.generate_test_message(100)
         self.assertTrue(self.manager.validate_message_format(msg))
         self.assertLessEqual(len(msg), 100)
-        
+
         overhead = self.manager.calculate_message_overhead(1000)
         self.assertGreater(overhead, 0)
 ```
@@ -822,7 +822,7 @@ def get_supported_features(self) -> Dict[str, bool]:
 The base class architecture enables:
 
 1. **Easy Extension** - Add new protocol support with minimal code
-2. **Feature Consistency** - New features automatically available to all implementations  
+2. **Feature Consistency** - New features automatically available to all implementations
 3. **Maintenance Efficiency** - Single point for bug fixes and improvements
 4. **Performance Optimization** - Optimize base classes to benefit all implementations
 5. **Protocol Expansion** - HTTP and MINIP base classes ready for new implementations

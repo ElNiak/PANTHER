@@ -166,9 +166,11 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
         )
         self.emit_docker_build_started(
             "panther/plugins/services/Dockerfile",
-            f"panther_base_service_{runtime_mode}"
-            if runtime_mode != "minimal"
-            else "panther_base_service",
+            (
+                f"panther_base_service_{runtime_mode}"
+                if runtime_mode != "minimal"
+                else "panther_base_service"
+            ),
         )
 
         # Select appropriate Dockerfile based on BuildKit availability

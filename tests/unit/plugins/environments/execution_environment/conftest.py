@@ -1,6 +1,7 @@
 """
 Shared fixtures and utilities for execution environment tests.
 """
+
 import os
 import shutil
 import tempfile

@@ -6,19 +6,19 @@ This test creates a simple environment with an Ivy service and a client service
 that has a non-critical command to wait for Ivy to be ready.
 """
 
-import os
-import tempfile
-import shutil
 import argparse
 import logging
+import os
+import shutil
+import tempfile
 from pathlib import Path
 
 from panther.core.observer.management.event_manager import EventManager
+from panther.plugins.environments.config_schema import EnvironmentConfig
 from panther.plugins.environments.network_environment.docker_compose.docker_compose import (
     DockerComposeEnvironment,
 )
 from panther.plugins.services.services_interface import IServiceManager
-from panther.plugins.environments.config_schema import EnvironmentConfig
 
 
 class MockServiceManager(IServiceManager):
@@ -60,7 +60,9 @@ class MockServiceManager(IServiceManager):
         if is_ivy:
             # Add special command for Ivy service to signal readiness
             self.run_cmd["post_compile_cmds"].append("mkdir -p /app/sync_logs")
-            self.run_cmd["post_compile_cmds"].append("touch /app/sync_logs/ivy_ready.log")
+            self.run_cmd["post_compile_cmds"].append(
+                "touch /app/sync_logs/ivy_ready.log"
+            )
         else:
             # Client service just runs normally
             pass
@@ -131,7 +133,9 @@ def run_non_critical_test():
                         "done;",
                         f'echo "Ivy testers is ready, starting {other_service.service_name}..." >> /app/logs/tester_ready.log;',
                     ]
-                    non_critical_cmd = docker_env.create_non_critical_command(command_lines)
+                    non_critical_cmd = docker_env.create_non_critical_command(
+                        command_lines
+                    )
 
                     # Add to post-compile commands
                     other_service.run_cmd["post_compile_cmds"].append(non_critical_cmd)
@@ -141,7 +145,9 @@ def run_non_critical_test():
         warning_log = os.path.join(logs_dir, "test_client_POST_COMPILE_warning.log")
         with open(warning_log, "w") as f:
             f.write("Non-critical command 'wait for ivy' failed with exit code 1\n")
-            f.write("Execution continuing despite error at Wed Jun 01 09:45:18 CEST 2025\n")
+            f.write(
+                "Execution continuing despite error at Wed Jun 01 09:45:18 CEST 2025\n"
+            )
 
         # Set some test status information
         client_service.execution_status = {
@@ -179,7 +185,9 @@ def run_non_critical_test():
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    )
 
     parser = argparse.ArgumentParser(description="Test non-critical command handling")
     parser.add_argument(

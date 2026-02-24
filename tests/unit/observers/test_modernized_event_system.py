@@ -5,15 +5,15 @@ This module contains tests for the new observer configuration system
 and metrics integration features.
 """
 
-import unittest
-import tempfile
 import shutil
+import tempfile
+import unittest
 from pathlib import Path
 
-from panther.core.observer.management.event_manager import EventManager
+from panther.core.metrics.metrics_collector import MetricsCollector
 from panther.core.observer.factory.observer_factory import ObserverFactory
 from panther.core.observer.impl.metrics_observer import MetricsObserver
-from panther.core.metrics.metrics_collector import MetricsCollector
+from panther.core.observer.management.event_manager import EventManager
 
 
 class TestObserverConfig(unittest.TestCase):
@@ -31,19 +31,33 @@ class TestObserverConfig(unittest.TestCase):
 
     def test_create_logger_observer(self):
         """Test creating a logger observer through factory."""
-        config = {"logger": {"enabled": True, "log_level": "DEBUG", "correlation_tracking": True}}
+        config = {
+            "logger": {
+                "enabled": True,
+                "log_level": "DEBUG",
+                "correlation_tracking": True,
+            }
+        }
 
-        observer = self.factory.create_observer("logger", self.event_manager, config["logger"])
+        observer = self.factory.create_observer(
+            "logger", self.event_manager, config["logger"]
+        )
         self.assertIsNotNone(observer)
         self.assertEqual(observer.__class__.__name__, "LoggerObserver")
 
     def test_create_metrics_observer(self):
         """Test creating a metrics observer through factory."""
         config = {
-            "metrics": {"enabled": True, "collect_system_metrics": True, "publish_interval": 30}
+            "metrics": {
+                "enabled": True,
+                "collect_system_metrics": True,
+                "publish_interval": 30,
+            }
         }
 
-        observer = self.factory.create_observer("metrics", self.event_manager, config["metrics"])
+        observer = self.factory.create_observer(
+            "metrics", self.event_manager, config["metrics"]
+        )
         self.assertIsNotNone(observer)
         self.assertEqual(observer.__class__.__name__, "MetricsObserver")
 
@@ -68,7 +82,9 @@ class MockMetricsCollector(MetricsCollector):
 
     def record_metric(self, name, metric_type, value, **kwargs):
         """Record a metric."""
-        self.recorded_metrics.append({"name": name, "type": metric_type, "value": value, **kwargs})
+        self.recorded_metrics.append(
+            {"name": name, "type": metric_type, "value": value, **kwargs}
+        )
 
 
 class TestMetricsIntegration(unittest.TestCase):

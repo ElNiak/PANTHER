@@ -29,7 +29,9 @@ class TestPluginManagerSingleton:
         second = PluginManager.get_instance()
         assert second is real_plugin_manager
 
-    def test_reset_singleton_allows_new_instance(self, real_plugin_manager, mock_docker_client):
+    def test_reset_singleton_allows_new_instance(
+        self, real_plugin_manager, mock_docker_client
+    ):
         """After reset_singleton(), next creation yields a different object."""
         from panther.core.docker_builder.docker_builder import DockerBuilder
         from panther.plugins.plugin_manager import PluginManager
@@ -39,7 +41,9 @@ class TestPluginManagerSingleton:
         PluginManager.reset_singleton()
         DockerBuilder.reset_singleton()
 
-        with patch("panther.core.docker_builder.docker_builder.docker") as mock_docker_mod:
+        with patch(
+            "panther.core.docker_builder.docker_builder.docker"
+        ) as mock_docker_mod:
             mock_docker_mod.from_env.return_value = mock_docker_client
             errors = MagicMock()
             errors.DockerException = type("DockerException", (Exception,), {})
@@ -270,7 +274,9 @@ class TestPluginFiltering:
         for p in quic_plugins:
             assert p.is_compatible_with(protocol="quic")
 
-    def test_get_plugins_by_protocol_unknown_includes_wildcard(self, real_plugin_manager):
+    def test_get_plugins_by_protocol_unknown_includes_wildcard(
+        self, real_plugin_manager
+    ):
         """Plugins with empty supported_protocols are treated as universally compatible.
 
         is_compatible_with() returns True when supported_protocols is empty,
@@ -282,7 +288,10 @@ class TestPluginFiltering:
         # Every returned plugin either has empty supported_protocols
         # (wildcard) or explicitly lists the protocol
         for p in result:
-            assert p.supported_protocols == [] or "__no_such_protocol__" in p.supported_protocols
+            assert (
+                p.supported_protocols == []
+                or "__no_such_protocol__" in p.supported_protocols
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -386,14 +395,9 @@ class TestExperimentValidation:
         assert isinstance(is_valid, bool)
         assert isinstance(errors, list)
 
-    def test_validate_experiment_plugins_with_known_service(
-        self, real_plugin_manager
-    ):
+    def test_validate_experiment_plugins_with_known_service(self, real_plugin_manager):
         """Validation succeeds when the experiment references discovered plugins."""
-        from panther.config.core.models.experiment import (
-            ExperimentConfig,
-            TestConfig,
-        )
+        from panther.config.core.models.experiment import ExperimentConfig, TestConfig
 
         test_config = TestConfig(
             name="validation_test",
@@ -403,7 +407,11 @@ class TestExperimentValidation:
                 "server": {
                     "timeout": 60,
                     "implementation": {"name": "picoquic", "type": "iut"},
-                    "protocol": {"name": "quic", "version": "rfc9000", "role": "server"},
+                    "protocol": {
+                        "name": "quic",
+                        "version": "rfc9000",
+                        "role": "server",
+                    },
                 }
             },
         )
@@ -551,10 +559,16 @@ class TestPluginManagerErrorHandling:
         PluginManager.reset_singleton()
         DockerBuilder.reset_singleton()
 
-        with patch("panther.core.docker_builder.docker_builder.docker") as mock_docker_mod:
-            mock_docker_mod.from_env.side_effect = Exception("Docker daemon not running")
+        with patch(
+            "panther.core.docker_builder.docker_builder.docker"
+        ) as mock_docker_mod:
+            mock_docker_mod.from_env.side_effect = Exception(
+                "Docker daemon not running"
+            )
 
-            with pytest.raises(RuntimeError, match="DockerBuilder initialization failed"):
+            with pytest.raises(
+                RuntimeError, match="DockerBuilder initialization failed"
+            ):
                 PluginManager(
                     event_manager=real_event_manager,
                     fast_fail_handler=real_fast_fail_handler,

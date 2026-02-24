@@ -206,9 +206,11 @@ class PluginFactory(LoggerMixin):
             raise PluginLoadException(
                 error,
                 plugin_name,
-                plugin_type.value
-                if hasattr(plugin_type, "value")
-                else str(plugin_type),
+                (
+                    plugin_type.value
+                    if hasattr(plugin_type, "value")
+                    else str(plugin_type)
+                ),
             )
 
         # Validate plugin type matches - handle both enum and string types
@@ -256,9 +258,11 @@ class PluginFactory(LoggerMixin):
             raise PluginLoadException(
                 error,
                 plugin_name,
-                plugin_type.value
-                if hasattr(plugin_type, "value")
-                else str(plugin_type),
+                (
+                    plugin_type.value
+                    if hasattr(plugin_type, "value")
+                    else str(plugin_type)
+                ),
             ) from e
 
     def _find_plugin_file(self, plugin_name: str, plugin_type: str) -> Path:

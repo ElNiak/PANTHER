@@ -17,6 +17,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("EventArchitectureTest")
 
+
 # Define basic classes needed for the test
 class Event:
     """Simplified Event class for testing."""
@@ -31,6 +32,7 @@ class Event:
     def __str__(self):
         return f"Event(name={self.name}, data={self.data})"
 
+
 class EventManager:
     """Simplified EventManager for testing."""
 
@@ -42,11 +44,14 @@ class EventManager:
 
     def notify(self, event: Event):
         for observer in self.observers:
-            if hasattr(observer, "is_interested") and callable(getattr(observer, "is_interested")):
+            if hasattr(observer, "is_interested") and callable(
+                getattr(observer, "is_interested")
+            ):
                 if observer.is_interested(event.get_type()):
                     observer.on_event(event)
             else:
                 observer.on_event(event)
+
 
 class EventEmitter:
     """Simplified EventEmitter for testing."""
@@ -59,6 +64,7 @@ class EventEmitter:
 
     def emit_service_event(self, name: str, data: Dict[str, Any] = None):
         self.emit_event(Event(name=name, data=data or {}))
+
 
 class IPantherPlugin:
     """Simplified Plugin interface for testing."""
@@ -83,6 +89,7 @@ class IPantherPlugin:
 
     def shutdown(self) -> bool:
         return True
+
 
 class PluginObserver:
     """Simplified PluginObserver for testing."""
@@ -152,6 +159,7 @@ class PluginObserver:
                 except Exception as e:
                     self.logger.error(f"Error in plugin '{plugin.name}': {e}")
 
+
 class EventMonitorPlugin(IPantherPlugin):
     """
     Sample plugin that monitors events and logs them.
@@ -187,6 +195,7 @@ class EventMonitorPlugin(IPantherPlugin):
     def get_event_count(self):
         """Return the number of events received."""
         return len(self.received_events)
+
 
 class ServiceInteractorPlugin(IPantherPlugin):
     """
@@ -244,6 +253,7 @@ class ServiceInteractorPlugin(IPantherPlugin):
         """Return the number of active services."""
         return len(self.active_services)
 
+
 def test_event_architecture():
     """
     Test the event-driven plugin architecture.
@@ -292,7 +302,9 @@ def test_event_architecture():
         time.sleep(0.1)  # Allow event processing
 
         # Verify both plugins received the event
-        assert monitor_plugin.get_event_count() > 0, "Monitor plugin didn't receive the event"
+        assert (
+            monitor_plugin.get_event_count() > 0
+        ), "Monitor plugin didn't receive the event"
         assert (
             interactor_plugin.get_active_service_count() > 0
         ), "Interactor plugin didn't track the service"
@@ -315,7 +327,11 @@ def test_event_architecture():
         logger.info("TEST 3: Emitting service stopped event")
         service_stopped_event = Event(
             name="service.test_service.stopped",
-            data={"service_name": "test_service", "success": True, "reason": "test completed"},
+            data={
+                "service_name": "test_service",
+                "success": True,
+                "reason": "test completed",
+            },
         )
         event_emitter.emit_event(service_stopped_event)
         time.sleep(0.1)  # Allow event processing
@@ -331,6 +347,7 @@ def test_event_architecture():
     except Exception as e:
         logger.error(f"Test failed: {str(e)}", exc_info=True)
         return False
+
 
 if __name__ == "__main__":
     success = test_event_architecture()

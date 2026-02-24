@@ -1,4 +1,5 @@
 """Property-based tests for robust configuration validation using Hypothesis."""
+
 import json
 import string
 from pathlib import Path

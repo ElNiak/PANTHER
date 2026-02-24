@@ -853,44 +853,40 @@ class ServiceEventEmitter(EventEmitterBase):
         )
         self.event_manager.notify(event)
 
-    def emit_service_teardown_started(
-        self,
-        service_event,
-        **kwargs
-    ):
+    def emit_service_teardown_started(self, service_event, **kwargs):
         """Emit service teardown started event."""
         # For backward compatibility, handle both old and new style calls
-        if hasattr(service_event, 'test_name'):
+        if hasattr(service_event, "test_name"):
             # New style with ServiceEvent object
-            self.emit_service_event("service_teardown_started", service_event.test_name, **kwargs)
+            self.emit_service_event(
+                "service_teardown_started", service_event.test_name, **kwargs
+            )
         else:
             # Old style with direct parameters
             self.emit_service_event("service_teardown_started", service_event, **kwargs)
 
-    def emit_service_teardown_completed(
-        self,
-        service_event,
-        **kwargs
-    ):
+    def emit_service_teardown_completed(self, service_event, **kwargs):
         """Emit service teardown completed event."""
         # For backward compatibility, handle both old and new style calls
-        if hasattr(service_event, 'test_name'):
+        if hasattr(service_event, "test_name"):
             # New style with ServiceEvent object
-            self.emit_service_event("service_teardown_completed", service_event.test_name, **kwargs)
+            self.emit_service_event(
+                "service_teardown_completed", service_event.test_name, **kwargs
+            )
         else:
             # Old style with direct parameters
-            self.emit_service_event("service_teardown_completed", service_event, **kwargs)
+            self.emit_service_event(
+                "service_teardown_completed", service_event, **kwargs
+            )
 
-    def emit_service_teardown_failed(
-        self,
-        service_event,
-        **kwargs
-    ):
+    def emit_service_teardown_failed(self, service_event, **kwargs):
         """Emit service teardown failed event."""
         # For backward compatibility, handle both old and new style calls
-        if hasattr(service_event, 'test_name'):
+        if hasattr(service_event, "test_name"):
             # New style with ServiceEvent object
-            self.emit_service_event("service_teardown_failed", service_event.test_name, **kwargs)
+            self.emit_service_event(
+                "service_teardown_failed", service_event.test_name, **kwargs
+            )
         else:
             # Old style with direct parameters
             self.emit_service_event("service_teardown_failed", service_event, **kwargs)

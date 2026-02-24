@@ -95,7 +95,7 @@ class EventEmitter:
             else:
                 name = event_type
             entity_type = entity_type or "test"
-            
+
         event = MockBaseEvent(
             name=name,
             entity_type=entity_type,

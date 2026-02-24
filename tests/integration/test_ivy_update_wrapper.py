@@ -6,30 +6,28 @@ This test creates a minimal experiment configuration to validate that:
 2. The function definitions are properly formatted and positioned in the script
 3. The script can be generated without errors
 """
-import os
-import sys
-import unittest
-import tempfile
-import shutil
-from pathlib import Path
 import logging
+import os
+import shutil
+import sys
+import tempfile
+import unittest
+from pathlib import Path
 
 # Add the parent directory to the Python path
 parent_dir = str(Path(__file__).resolve().parent.parent.parent)
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
+from panther.config.core.models import ProtocolConfig, ProtocolRole
+from panther.plugins.services.config_schema import ServiceConfig
+from panther.plugins.services.iut.config_schema import ImplementationType
+from panther.plugins.services.testers.panther_ivy.config_schema import PantherIvyConfig
+
 # Import modules
 from panther.plugins.services.testers.panther_ivy.panther_ivy import (
     PantherIvyServiceManager,
 )
-from panther.plugins.services.testers.panther_ivy.config_schema import PantherIvyConfig
-from panther.config.core.models import (
-    ProtocolConfig,
-    ProtocolRole,
-)
-from panther.plugins.services.iut.config_schema import ImplementationType
-from panther.plugins.services.config_schema import ServiceConfig
 
 
 class TestIvyUpdateWrapperIntegration(unittest.TestCase):
@@ -64,9 +62,9 @@ class TestIvyUpdateWrapperIntegration(unittest.TestCase):
 
         # Configure implementation details for PantherIvy
         from panther.plugins.services.testers.panther_ivy.config_schema import (
-            ParametersConfig,
-            Parameter,
             PantherIvyVersion,
+            Parameter,
+            ParametersConfig,
         )
 
         # Create a valid PantherIvyConfig
@@ -86,8 +84,12 @@ class TestIvyUpdateWrapperIntegration(unittest.TestCase):
         # Create version info
         version = PantherIvyVersion()
         version.name = "latest"
-        version.client = {"tests": {"quic_client_test_max": {"description": "QUIC client test"}}}
-        version.server = {"tests": {"quic_server_test_max": {"description": "QUIC server test"}}}
+        version.client = {
+            "tests": {"quic_client_test_max": {"description": "QUIC client test"}}
+        }
+        version.server = {
+            "tests": {"quic_server_test_max": {"description": "QUIC server test"}}
+        }
         version.parameters = {"tests_dir": {"value": "tests/"}}
         version.env = {}
 
@@ -98,8 +100,12 @@ class TestIvyUpdateWrapperIntegration(unittest.TestCase):
         # Set version information
         self.implementation_config.version = {
             "name": "latest",
-            "client": {"tests": {"quic_client_test_max": {"description": "QUIC client test"}}},
-            "server": {"tests": {"quic_server_test_max": {"description": "QUIC server test"}}},
+            "client": {
+                "tests": {"quic_client_test_max": {"description": "QUIC client test"}}
+            },
+            "server": {
+                "tests": {"quic_server_test_max": {"description": "QUIC server test"}}
+            },
             "env": {},
             "parameters": {"tests_dir": {"value": "tests/"}},
         }
@@ -147,8 +153,12 @@ class TestIvyUpdateWrapperIntegration(unittest.TestCase):
         self.logger.info("Structured commands:")
         for phase, cmds in structured_commands.items():
             self.logger.info(f"  {phase}: {len(cmds)} commands")
-            functions = [cmd for cmd in cmds if cmd.get("is_function_definition", False)]
-            calls = [cmd for cmd in cmds if not cmd.get("is_function_definition", False)]
+            functions = [
+                cmd for cmd in cmds if cmd.get("is_function_definition", False)
+            ]
+            calls = [
+                cmd for cmd in cmds if not cmd.get("is_function_definition", False)
+            ]
             self.logger.info(f"    Functions: {len(functions)}, Calls: {len(calls)}")
 
         # Generate the entrypoint script directly
@@ -229,7 +239,9 @@ class TestIvyUpdateWrapperIntegration(unittest.TestCase):
 
         # Check the generated script
         self.logger.info(f"Generated entrypoint script at: {entrypoint_path}")
-        self.assertTrue(os.path.exists(entrypoint_path), "Entrypoint script should exist")
+        self.assertTrue(
+            os.path.exists(entrypoint_path), "Entrypoint script should exist"
+        )
 
         # Read the script content
         with open(entrypoint_path) as f:
@@ -237,7 +249,9 @@ class TestIvyUpdateWrapperIntegration(unittest.TestCase):
 
         # Check for key function definitions
         self.logger.info("Checking for key function definitions...")
-        self.assertIn("update_ivy_tool()", content, "Missing update_ivy_tool function definition")
+        self.assertIn(
+            "update_ivy_tool()", content, "Missing update_ivy_tool function definition"
+        )
         self.assertIn(
             "update_ivy_wrapper()",
             content,
@@ -248,7 +262,9 @@ class TestIvyUpdateWrapperIntegration(unittest.TestCase):
         self.logger.info("Checking for function calls...")
         lines = content.splitlines()
         call_lines = [
-            line for line in lines if not line.startswith("#") and "update_ivy_wrapper" in line
+            line
+            for line in lines
+            if not line.startswith("#") and "update_ivy_wrapper" in line
         ]
         self.assertTrue(any(call_lines), "No update_ivy_wrapper function call found")
 

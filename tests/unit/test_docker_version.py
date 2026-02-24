@@ -2,7 +2,7 @@
 """Test script to demonstrate Docker version checking."""
 
 import sys
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 # Add current directory to path to import panther_builder
 sys.path.insert(0, ".")
@@ -34,6 +34,7 @@ def test_docker_version_check():
         try:
             # Reload the module to test with mocked Docker
             import importlib
+
             import panther_builder
 
             importlib.reload(panther_builder)
@@ -48,6 +49,7 @@ def test_docker_version_check():
     with patch("docker.from_env", side_effect=Exception("Docker not available")):
         try:
             import importlib
+
             import panther_builder
 
             importlib.reload(panther_builder)

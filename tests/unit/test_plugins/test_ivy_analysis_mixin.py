@@ -59,9 +59,7 @@ class TestParseOutputKey:
         assert otype == "compile_status"
 
     def test_infix_compilation_status(self, analyzer):
-        service, otype = analyzer._parse_output_key(
-            "ivy_compilation_status_ivy_server"
-        )
+        service, otype = analyzer._parse_output_key("ivy_compilation_status_ivy_server")
         assert service == "ivy_server"
         assert otype == "compile_status"
 
@@ -94,7 +92,7 @@ class TestDetermineIvyVerdict:
     def test_multiple_assumption_failures(self, analyzer):
         stdout = (
             'assumption_failed("quic_packet.ivy: line 597")\n'
-            '> quic_packet\n'
+            "> quic_packet\n"
             'assumption_failed("quic_packet.ivy: line 602")\n'
         )
         result = analyzer._determine_ivy_verdict(stdout, "")
@@ -109,9 +107,7 @@ class TestDetermineIvyVerdict:
 
     def test_assumption_failed_overrides_test_completed(self, analyzer):
         """If both markers present, assumption_failed takes priority."""
-        stdout = (
-            'assumption_failed("quic_packet.ivy: line 100")\n' "test_completed\n"
-        )
+        stdout = 'assumption_failed("quic_packet.ivy: line 100")\n' "test_completed\n"
         result = analyzer._determine_ivy_verdict(stdout, "")
         assert result["verdict"] == "NON_COMPLIANT"
 
@@ -139,7 +135,9 @@ class TestDetermineIvyVerdict:
         assert result["assumption_failures"] == []
         assert any("Protocol activity" in d for d in result["details"])
 
-    def test_protocol_activity_with_assumption_failed_returns_non_compliant(self, analyzer):
+    def test_protocol_activity_with_assumption_failed_returns_non_compliant(
+        self, analyzer
+    ):
         """assumption_failed takes priority over protocol activity."""
         stdout = (
             "< show_socket_debug_event\n"
@@ -232,9 +230,7 @@ class TestAnalyzeOutputsIntegration:
         outputs = {}
         temp_files = []
         for key, content in file_contents.items():
-            tf = tempfile.NamedTemporaryFile(
-                mode="w", suffix=".txt", delete=False
-            )
+            tf = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
             tf.write(content)
             tf.close()
             temp_files.append(tf.name)
@@ -261,8 +257,7 @@ class TestAnalyzeOutputsIntegration:
             assert ivy_result["compilation_succeeded"] is True
             assert ivy_result["test_executed"] is True
             assert any(
-                "assumption_failed" in msg
-                for msg in ivy_result["error_messages"]
+                "assumption_failed" in msg for msg in ivy_result["error_messages"]
             )
         finally:
             for f in temp_files:
@@ -447,9 +442,7 @@ class TestStatusCollector:
         import json
 
         analysis_results = {
-            "ivy_tester": {
-                "results": {"passed": True, "verdict": "NO_VIOLATION_FOUND"}
-            }
+            "ivy_tester": {"results": {"passed": True, "verdict": "NO_VIOLATION_FOUND"}}
         }
         (analysis_dir / "analysis_results.json").write_text(
             json.dumps(analysis_results)
@@ -482,17 +475,13 @@ class TestStatusCollector:
         import json
 
         analysis_results = {
-            "ivy_tester": {
-                "results": {"passed": False, "verdict": "NON_COMPLIANT"}
-            }
+            "ivy_tester": {"results": {"passed": False, "verdict": "NON_COMPLIANT"}}
         }
         (analysis_dir / "analysis_results.json").write_text(
             json.dumps(analysis_results)
         )
 
-        (test_dir / "test.log").write_text(
-            "2026-02-17 18:02:05 INFO Starting test\n"
-        )
+        (test_dir / "test.log").write_text("2026-02-17 18:02:05 INFO Starting test\n")
 
         collector = StatusCollector(experiment_dir)
         content = (test_dir / "test.log").read_text()
@@ -574,9 +563,7 @@ class TestCompilationFailurePreventsPass:
         outputs = {}
         temp_files = []
         for key, content in file_contents.items():
-            tf = tempfile.NamedTemporaryFile(
-                mode="w", suffix=".txt", delete=False
-            )
+            tf = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
             tf.write(content)
             tf.close()
             temp_files.append(tf.name)
@@ -604,12 +591,8 @@ class TestCompilationFailurePreventsPass:
         """NO_VIOLATION_FOUND + compilation succeeded -> passed=True."""
         file_contents = {
             "compilation_status_ivy_server": "Compilation succeeded\n",
-            "runtime_stdout_ivy_server": (
-                "> quic_connected\ntest_completed\n"
-            ),
-            "runtime_stderr_ivy_server": (
-                "starting runtime phase\ncall_generating\n"
-            ),
+            "runtime_stdout_ivy_server": ("> quic_connected\ntest_completed\n"),
+            "runtime_stderr_ivy_server": ("starting runtime phase\ncall_generating\n"),
         }
         outputs, temp_files = self._make_outputs_with_files(file_contents)
         try:
@@ -661,9 +644,7 @@ class TestFailureDeduplication:
         outputs = {}
         temp_files = []
         for key, content in file_contents.items():
-            tf = tempfile.NamedTemporaryFile(
-                mode="w", suffix=".txt", delete=False
-            )
+            tf = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
             tf.write(content)
             tf.close()
             temp_files.append(tf.name)
@@ -699,8 +680,8 @@ class TestStatusCounting:
     def test_timeout_tests_counted(self, tmp_path):
         """TIMEOUT tests should be counted separately."""
         from panther.core.reporting.status_collector import (
-            ExperimentSummary,
             ExperimentStatus,
+            ExperimentSummary,
             FastFailInfo,
             ResourceUsage,
             TestResult,
@@ -733,8 +714,8 @@ class TestStatusCounting:
     def test_to_dict_includes_all_counters(self):
         """to_dict() must include timeout, interrupted, unknown counts."""
         from panther.core.reporting.status_collector import (
-            ExperimentSummary,
             ExperimentStatus,
+            ExperimentSummary,
             FastFailInfo,
             ResourceUsage,
             TestResult,

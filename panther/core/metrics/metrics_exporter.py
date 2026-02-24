@@ -344,6 +344,7 @@ class MetricsExporter:
         """Get PANTHER version dynamically from package metadata."""
         try:
             from panther import __version__
+
             return __version__
         except Exception:
             return "unknown"

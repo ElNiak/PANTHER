@@ -15,10 +15,10 @@ import pytest
 
 from panther.core.events.base.event_base import BaseEvent, EventType
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_storage_observer(tmp_path, **kwargs):
     """Create a StorageObserver pointing at tmp_path.
@@ -64,6 +64,7 @@ def cleanup_singletons():
 # TestStorageObserverConvertEvent
 # ---------------------------------------------------------------------------
 
+
 class TestStorageObserverConvertEvent:
     """Verify _convert_event_to_dict uses the data attribute."""
 
@@ -101,6 +102,7 @@ class TestStorageObserverConvertEvent:
 # ---------------------------------------------------------------------------
 # TestStorageObserverFlush
 # ---------------------------------------------------------------------------
+
 
 class TestStorageObserverFlush:
     """Verify flush behavior on test completed/failed."""

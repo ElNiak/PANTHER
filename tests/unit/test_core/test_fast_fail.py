@@ -225,7 +225,9 @@ class TestHandleError:
 
     def test_low_severity_continues(self, real_fast_fail_handler):
         """LOW severity errors return True (continue execution)."""
-        err = PantherException("minor", ErrorSeverity.LOW, ErrorCategory.COMMAND_EXECUTION)
+        err = PantherException(
+            "minor", ErrorSeverity.LOW, ErrorCategory.COMMAND_EXECUTION
+        )
         result = real_fast_fail_handler.handle_error(err)
         assert result is True
         assert real_fast_fail_handler.error_count == 1
@@ -263,7 +265,9 @@ class TestHandleError:
     def test_disabled_handler_always_continues(self):
         """When disabled, handle_error always returns True regardless of severity."""
         handler = FastFailHandler(enabled=False)
-        critical = PantherException("fatal", ErrorSeverity.CRITICAL, ErrorCategory.RESOURCE)
+        critical = PantherException(
+            "fatal", ErrorSeverity.CRITICAL, ErrorCategory.RESOURCE
+        )
         result = handler.handle_error(critical, raise_on_critical=False)
         # When disabled, returns True (continue) for everything
         assert result is True
@@ -339,15 +343,19 @@ class TestCascadeDetection:
     def test_cascade_only_same_category(self, real_fast_fail_handler):
         """Cascade detection only counts errors of the same category."""
         timeout_err = PantherException("t", ErrorSeverity.MEDIUM, ErrorCategory.TIMEOUT)
-        docker_err = PantherException("d", ErrorSeverity.MEDIUM, ErrorCategory.DOCKER_RUNTIME)
+        docker_err = PantherException(
+            "d", ErrorSeverity.MEDIUM, ErrorCategory.DOCKER_RUNTIME
+        )
         # Mix categories: 2 timeout + 2 docker (both below their thresholds)
         now = datetime.now()
-        real_fast_fail_handler.error_history.extend([
-            (now, timeout_err),
-            (now, docker_err),
-            (now, timeout_err),
-            (now, docker_err),
-        ])
+        real_fast_fail_handler.error_history.extend(
+            [
+                (now, timeout_err),
+                (now, docker_err),
+                (now, timeout_err),
+                (now, docker_err),
+            ]
+        )
         # TIMEOUT threshold=3, only 2 timeout errors => no cascade
         assert real_fast_fail_handler.detect_cascade(timeout_err) is None
         # DOCKER_RUNTIME threshold=2, exactly 2 docker errors => cascade
@@ -356,7 +364,9 @@ class TestCascadeDetection:
     def test_cascade_respects_time_window(self, real_fast_fail_handler):
         """Old errors outside the time window are not counted."""
         err = PantherException("t", ErrorSeverity.MEDIUM, ErrorCategory.TIMEOUT)
-        old_time = datetime.now() - timedelta(seconds=real_fast_fail_handler.cascade_time_window + 60)
+        old_time = datetime.now() - timedelta(
+            seconds=real_fast_fail_handler.cascade_time_window + 60
+        )
         # Add 3 old errors (outside window)
         for _ in range(3):
             real_fast_fail_handler.error_history.append((old_time, err))
@@ -444,11 +454,16 @@ class TestGetErrorPatterns:
         """Patterns are grouped per category."""
         now = datetime.now()
         t_err = PantherException("t", ErrorSeverity.MEDIUM, ErrorCategory.TIMEOUT)
-        d_err = PantherException("d", ErrorSeverity.MEDIUM, ErrorCategory.DOCKER_RUNTIME)
-        real_fast_fail_handler.error_history.extend([
-            (now, t_err), (now, t_err),
-            (now, d_err),
-        ])
+        d_err = PantherException(
+            "d", ErrorSeverity.MEDIUM, ErrorCategory.DOCKER_RUNTIME
+        )
+        real_fast_fail_handler.error_history.extend(
+            [
+                (now, t_err),
+                (now, t_err),
+                (now, d_err),
+            ]
+        )
         patterns = real_fast_fail_handler.get_error_patterns()
         assert ErrorCategory.TIMEOUT in patterns
         assert ErrorCategory.DOCKER_RUNTIME in patterns
@@ -471,7 +486,9 @@ class TestGetErrorSummary:
 
     def test_summary_after_errors(self, real_fast_fail_handler):
         """Summary reflects errors that were handled."""
-        err_low = PantherException("lo", ErrorSeverity.LOW, ErrorCategory.COMMAND_EXECUTION)
+        err_low = PantherException(
+            "lo", ErrorSeverity.LOW, ErrorCategory.COMMAND_EXECUTION
+        )
         err_med = PantherException("med", ErrorSeverity.MEDIUM, ErrorCategory.TIMEOUT)
         real_fast_fail_handler.handle_error(err_low)
         real_fast_fail_handler.handle_error(err_med)
@@ -494,7 +511,9 @@ class TestGetErrorSummary:
     def test_summary_recent_errors_capped_at_10(self, real_fast_fail_handler):
         """Recent errors list shows at most 10 entries."""
         for i in range(15):
-            err = PantherException(f"e{i}", ErrorSeverity.LOW, ErrorCategory.COMMAND_EXECUTION)
+            err = PantherException(
+                f"e{i}", ErrorSeverity.LOW, ErrorCategory.COMMAND_EXECUTION
+            )
             real_fast_fail_handler.handle_error(err)
         summary = real_fast_fail_handler.get_error_summary()
         assert len(summary["recent_errors"]) == 10
@@ -600,10 +619,14 @@ class TestFastFailIntegration:
         h = real_fast_fail_handler
         # Several timeouts
         for _ in range(4):
-            err = PantherException("timeout", ErrorSeverity.MEDIUM, ErrorCategory.TIMEOUT)
+            err = PantherException(
+                "timeout", ErrorSeverity.MEDIUM, ErrorCategory.TIMEOUT
+            )
             h.handle_error(err)
         # A docker error
-        docker_err = PantherException("docker", ErrorSeverity.HIGH, ErrorCategory.DOCKER_RUNTIME)
+        docker_err = PantherException(
+            "docker", ErrorSeverity.HIGH, ErrorCategory.DOCKER_RUNTIME
+        )
         h.handle_error(docker_err, raise_on_critical=False)
 
         summary = h.get_error_summary()
