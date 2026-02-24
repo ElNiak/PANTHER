@@ -5,14 +5,12 @@ This module provides Docker Compose-specific implementation of network
 placeholder resolution using Docker DNS and runtime hostname resolution.
 """
 
-import socket
 from typing import Dict
 
 from panther.config.core.models.network_resolution import (
     NetworkAttribute,
     NetworkFormat,
     NetworkResolutionContext,
-    NetworkResolutionResult,
     NetworkServiceInfo,
     PlaceholderInfo,
 )
@@ -31,22 +29,6 @@ class DockerComposeNetworkResolver(BaseNetworkResolver):
         """Docker Compose specific initialization."""
         # Docker Compose doesn't need additional initialization beyond base class
         pass
-
-    def _resolve_single_placeholder(
-        self, placeholder: PlaceholderInfo, context: NetworkResolutionContext
-    ) -> NetworkResolutionResult:
-        """Resolve a single placeholder for Docker Compose environment."""
-        # Validate placeholder format
-        self._validate_placeholder(placeholder)
-
-        # Ensure service info exists in context
-        service_info = self._ensure_service_info(placeholder, context)
-
-        # Generate Docker Compose specific resolved value
-        resolved_value = self._generate_resolved_value(placeholder, service_info)
-
-        # Create standardized result
-        return self._create_resolution_result(placeholder, resolved_value, service_info)
 
     def _generate_resolved_value(
         self, placeholder: PlaceholderInfo, service_info: NetworkServiceInfo

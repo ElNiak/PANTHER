@@ -47,10 +47,14 @@ class BaseNetworkResolver(INetworkResolver, ABC):
     5. Consistent result formatting and validation
 
     Subclasses only need to implement environment-specific methods:
-    - _resolve_single_placeholder(): Environment-specific resolution logic
     - _get_environment_name(): Environment identifier for exceptions
     - _generate_resolved_value(): Environment-specific value generation
     - _get_resolution_method(): Environment-specific resolution strategy name
+    - _create_default_service_info(): Environment-specific default service info
+
+    The _resolve_single_placeholder() method is now a concrete template method
+    that orchestrates the common 4-step resolution pattern. Override it only if
+    the entire resolution pattern differs from the standard flow.
     """
 
     def __init__(self):
@@ -197,28 +201,29 @@ class BaseNetworkResolver(INetworkResolver, ABC):
                 "Missing attribute",
             )
 
-    # Abstract methods that subclasses must implement
+    # Template method for the standard resolution pattern
 
-    @abstractmethod
     def _resolve_single_placeholder(
         self, placeholder: PlaceholderInfo, context: NetworkResolutionContext
     ) -> NetworkResolutionResult:
         """
-        Resolve a single placeholder using environment-specific logic.
+        Resolve a single placeholder using the standard 4-step pattern.
 
-        This is where the main differences between environments lie:
-        - Docker Compose: Uses runtime resolution via $(resolve_hostname)
-        - Localhost: Uses calculated ports and localhost IP
-        - Shadow NS: Uses static IP assignment (11.0.0.1/11.0.0.2)
+        This template method calls environment-specific hooks:
+        1. _validate_placeholder() - Validate format (common, overridable)
+        2. _ensure_service_info() - Get/create service info (common, overridable)
+        3. _generate_resolved_value() - Generate value (abstract, environment-specific)
+        4. _create_resolution_result() - Create result (common)
 
-        Args:
-            placeholder: Placeholder information to resolve
-            context: Network resolution context
-
-        Returns:
-            Environment-specific resolution result
+        Subclasses should override _generate_resolved_value() for custom resolution.
+        Override this method only if the entire resolution pattern differs.
         """
-        pass
+        self._validate_placeholder(placeholder)
+        service_info = self._ensure_service_info(placeholder, context)
+        resolved_value = self._generate_resolved_value(placeholder, service_info)
+        return self._create_resolution_result(placeholder, resolved_value, service_info)
+
+    # Abstract methods that subclasses must implement
 
     @abstractmethod
     def _get_environment_name(self) -> str:
