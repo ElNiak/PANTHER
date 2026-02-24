@@ -1,7 +1,61 @@
 """Core configuration system for PANTHER.
 
-This module provides the primary configuration management system using
+This package provides the primary configuration management system using
 Pydantic models and OmegaConf for advanced configuration handling.
+
+Architecture at a Glance
+========================
+
+Dual Validator System
+---------------------
+PANTHER has two ``universal_validators`` modules with complementary roles:
+
+``config.core.components.universal_validators``
+    **Standalone validation functions** called directly in imperative code.
+    Each function accepts ``(value, field_name)`` and returns a coerced
+    result or raises ``ValueError``.  Example: ``validate_integer_field()``,
+    ``validate_time_field()``, ``validate_enum_field()``,
+    ``validate_boolean_field()``.
+
+``config.core.validators.universal_validators``
+    **Pydantic validator factory functions** that return closures compatible
+    with ``@field_validator`` / ``@validator`` decorators.  Example:
+    ``create_enum_validator()``, ``create_time_string_validator()``, and
+    pre-configured helpers like ``protocol_role_validator``.
+
+Mixin-Based ConfigurationManager
+---------------------------------
+``ConfigurationManager`` (in ``manager.py``) is composed from eight mixins
+plus ``ErrorHandlerMixin``, each owning a single concern.  See
+``config.core.mixins.__init__`` for the canonical composition order and
+MRO constraints.
+
+Key mixins: ``ConfigLoadingMixin``, ``EnvironmentHandlingMixin``,
+``ValidationOperationsMixin``, ``ConfigOperationsMixin``, ``CachingMixin``,
+``LoggingFeaturesMixin``, ``PluginManagementMixin``, ``StateManagementMixin``.
+
+Configuration Merge System
+--------------------------
+Two levels of merge support exist:
+
+1. **Component level** -- ``components.merger.UnifiedMerger`` with five
+   ``MergeStrategy`` values and four ``ConflictResolution`` values, plus
+   ``MergeContext`` for audit trails.
+2. **Mixin level** -- ``mixins.config_operations.ConfigOperationsMixin`` with
+   a smaller ``MergeStrategy`` / ``ConflictResolution`` enum set that
+   delegates to OmegaConf directly.
+
+Both share the same conceptual model (strategy + conflict resolution) but
+the component variant is richer and produces auditable merge contexts.
+
+Key Entry Points
+----------------
+- ``panther.config.core.manager.ConfigurationManager`` -- primary API
+- ``panther.config.core.base.BaseConfig`` -- Pydantic + OmegaConf hybrid base
+- ``panther.config.core.components`` -- loaders, validators, builders, merger
+- ``panther.config.core.models`` -- typed Pydantic configuration models
+- ``panther.config.core.validators`` -- multi-layer validation framework
+- ``panther.config.core.mixins`` -- composable manager capabilities
 """
 
 # pylint: disable-next=undefined-variable  # Variables defined dynamically via __getattr__

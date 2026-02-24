@@ -157,3 +157,68 @@ Comprehensive error handling with context-aware messages:
 - **Loading Errors**: File parsing errors with line/column information
 - **Plugin Errors**: Graceful fallback when plugins fail to load
 - **Auto-Fix Suggestions**: Intelligent suggestions for common issues
+
+## Dual Validator Architecture
+
+PANTHER ships two `universal_validators.py` modules with complementary roles:
+
+| Module | Location | Purpose | Signature Style |
+|--------|----------|---------|-----------------|
+| **Standalone functions** | `components/universal_validators.py` | Imperative validation in non-Pydantic code | `validate_X(value, field_name) -> T` |
+| **Pydantic factories** | `validators/universal_validators.py` | Declarative field validators on Pydantic models | `create_X_validator(...) -> Callable[[cls, Any], T]` |
+
+### When to use which
+
+- **Building a Pydantic model?** Use the factory functions from `validators/`:
+  ```python
+  from panther.config.core.validators.universal_validators import create_enum_validator
+
+  _validate_role = field_validator("role", mode="before")(
+      create_enum_validator(ProtocolRole, str.lower)
+  )
+  ```
+
+- **Validating a raw value outside a model?** Use the standalone functions from `components/`:
+  ```python
+  from panther.config.core.components.universal_validators import validate_integer_field
+
+  port = validate_integer_field(raw_port, "port")
+  ```
+
+## Mixin Composition Order
+
+`ConfigurationManager` (in `manager.py`) composes nine mixins. The inheritance order matters for Python's MRO:
+
+```
+ConfigLoadingMixin          # 1. Core file/dict/env loading
+EnvironmentHandlingMixin    # 2. ${VAR} interpolation & env mappings
+ValidationOperationsMixin   # 3. Multi-stage validation pipeline
+ConfigOperationsMixin       # 4. Merging, field ops, MergeStrategy
+CachingMixin                # 5. TTL-based caching & cache stats
+LoggingFeaturesMixin        # 6. Feature-level log configuration
+PluginManagementMixin       # 7. Plugin directory/tester management
+StateManagementMixin        # 8. Health checks & state persistence
+ErrorHandlerMixin           # 9. Error handling (from panther.core)
+```
+
+Key ordering constraints:
+- Loading before environment handling (raw YAML must exist before interpolation).
+- Validation after loading/environment (operates on fully resolved configs).
+- Caching before state management (cache stats feed into health checks).
+- Error handling last (catch-all boundary for all other mixins).
+
+See `mixins/README.md` for detailed mixin documentation.
+
+## Merge Strategy System
+
+Two levels of merge support exist with overlapping but not identical enum sets:
+
+### Component Level (`components/merger.py`)
+
+`UnifiedMerger` offers five `MergeStrategy` values (`DEEP_MERGE`, `SHALLOW_MERGE`, `REPLACE`, `APPEND_LISTS`, `UNION_LISTS`) and four `ConflictResolution` values (`USE_FIRST`, `USE_SECOND`, `ERROR`, `COMBINE`), plus `MergeContext` for auditing merge operations.
+
+### Mixin Level (`mixins/config_operations.py`)
+
+`ConfigOperationsMixin.merge_configurations()` offers three `MergeStrategy` values (`DEEP_MERGE`, `SHALLOW_MERGE`, `REPLACE`) and four `ConflictResolution` values (`USE_FIRST`, `USE_SECOND`, `ERROR`, `COMBINE_LISTS`). It delegates directly to OmegaConf without producing a `MergeContext`.
+
+Use the component-level merger when you need auditable merge results or list-specific strategies. Use the mixin-level merger through `ConfigurationManager` for standard deep-merge operations.
