@@ -451,6 +451,6 @@ def handle_my_plugin_command(args):
 
 **Related Documentation:**
 
-- [Configuration System](panther/config/README.md) — How CLI loads and validates configurations
-- [Experiment Engine](panther/core/EXPERIMENT_ENGINE.md) — How CLI coordinates experiment execution
-- [Plugin Development](panther/plugins/development.md) — Creating CLI-integrated plugins
+- [Configuration System](config/README.md) — How CLI loads and validates configurations
+- [Experiment Engine](core/README.md) — How CLI coordinates experiment execution
+- [Plugin Development](plugins/development.md) — Creating CLI-integrated plugins

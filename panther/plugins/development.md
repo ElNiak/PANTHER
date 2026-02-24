@@ -3,16 +3,16 @@
 This guide provides detailed instructions for creating new plugins for the PANTHER framework across all plugin types.
 
 !!! warning "Development Prerequisites"
-    Before starting plugin development, ensure you understand PANTHER's architecture by reading the [WORKFLOW.md](../../WORKFLOW.md) and have a working PANTHER installation following the [INSTALL.md](../../INSTALL.md) guide.
+    Before starting plugin development, ensure you understand PANTHER's architecture by reading the [workflow.md](../../workflow.md) and have a working PANTHER installation following the [INSTALL.md](../../INSTALL.md) guide.
 
 ## Development Guides
 
 Comprehensive development documentation for each plugin category:
 
-- **[Service Plugin Development](panther/plugins/services/development.md)**: Creating IUT and tester plugins
-- **[Protocol Plugin Development](panther/plugins/protocols/development.md)**: Adding protocol support
-- **[Environment Plugin Development](panther/plugins/environments/development.md)**: Environment management plugins
-- **[General Plugin Development](panther/plugins/development.md)**: Common plugin development patterns
+- **[Service Plugin Development](services/development.md)**: Creating IUT and tester plugins
+- **[Protocol Plugin Development](protocols/development.md)**: Adding protocol support
+- **[Environment Plugin Development](environments/development.md)**: Environment management plugins
+- **[General Plugin Development](development.md)**: Common plugin development patterns
 
 ## Modern Inheritance-Based Architecture (2024)
 
@@ -564,7 +564,7 @@ def test_plugin_execution():
 
 ### 7. Document Your Plugin
 
-Create a `README.md` file using the [plugin template](panther/plugins/plugin_template.md) that includes:
+Create a `README.md` file using the [plugin template](plugin_template.md) that includes:
 
 - Purpose and overview
 - Requirements and dependencies

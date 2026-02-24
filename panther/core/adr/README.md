@@ -8,30 +8,30 @@ This directory contains Architecture Decision Records for the PANTHER Core frame
 
 | ADR | Title | Status | Module |
 |-----|-------|--------|---------|
-| [0001](utils/adr/0001-feature-aware-logging-architecture.md) | Feature-Aware Logging Architecture | Accepted | Core Utils |
-| [0002](utils/adr/0002-centralized-statistics-collection.md) | Centralized Statistics Collection | Accepted | Core Utils |
+| [0001](../utils/adr/0001-feature-aware-logging-architecture.md) | Feature-Aware Logging Architecture | Accepted | Core Utils |
+| [0002](../utils/adr/0002-centralized-statistics-collection.md) | Centralized Statistics Collection | Accepted | Core Utils |
 
 ### Command Line Interface
 
 | ADR | Title | Status | Module |
 |-----|-------|--------|---------|
-| [0001](../cli/adr/0001-command-pattern-architecture.md) | Command Pattern Architecture | Accepted | CLI |
-| [0002](../cli/adr/0002-error-handling-exit-codes.md) | Error Handling Exit Codes | Accepted | CLI |
-| [0003](../cli/adr/0003-interactive-component-architecture.md) | Interactive Component Architecture | Accepted | CLI |
+| 0001 | Command Pattern Architecture | Accepted | CLI |
+| 0002 | Error Handling Exit Codes | Accepted | CLI |
+| 0003 | Interactive Component Architecture | Accepted | CLI |
 
 ### Command Processor
 
 | ADR | Title | Status | Module |
 |-----|-------|--------|---------|
-| [0001](command_processor/adr/0001-fast-fail-validation.md) | Fast-Fail Validation | Accepted | Command Processor |
-| [0002](command_processor/adr/0002-high-entropy-logging.md) | High-Entropy Logging | Accepted | Command Processor |
-| [0003](command_processor/adr/0003-command-combining-optimization.md) | Command Combining Optimization | Accepted | Command Processor |
+| [0001](../command_processor/adr/0001-fast-fail-validation.md) | Fast-Fail Validation | Accepted | Command Processor |
+| [0002](../command_processor/adr/0002-high-entropy-logging.md) | High-Entropy Logging | Accepted | Command Processor |
+| [0003](../command_processor/adr/0003-command-combining-optimization.md) | Command Combining Optimization | Accepted | Command Processor |
 
 ### Configuration System
 
 | ADR | Title | Status | Module |
 |-----|-------|--------|---------|
-| [0001](../config/adr/0001-hybrid-pydantic-omegaconf-architecture.md) | Hybrid Pydantic-OmegaConf Architecture | Accepted | Configuration |
+| 0001 | Hybrid Pydantic-OmegaConf Architecture | Accepted | Configuration |
 
 ## ADR Status Definitions
 

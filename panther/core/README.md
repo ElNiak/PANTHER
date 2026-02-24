@@ -44,15 +44,15 @@ PANTHER's core is organized into focused functional groups, each with comprehens
 
 | Functional Group | Purpose | Documentation |
 |------------------|---------|---------------|
-| **[Experiment Engine](panther/core/EXPERIMENT_ENGINE.md)** | Test execution orchestration and lifecycle management | Core experiment coordination |
-| **[Configuration System](panther/config/README.md)** | Schema-driven configuration loading and validation | Type-safe YAML configuration |
-| **[Event System](panther/core/events/README.md)** | Event-driven architecture with typed events | Entity-specific event management |
-| **[Observer Pattern](panther/core/observer/README.md)** | Event-driven component communication | Decoupled architecture |
-| **[Metrics System](panther/core/metrics/README.md)** | Performance monitoring and data collection | Comprehensive experiment analysis |
-| **[Command Processor](panther/core/command_processor/README.md)** | Structured command generation and processing | Safe command execution |
-| **[Reporting System](../../EXPERIMENT_REPORTING.md)** | Automatic experiment report generation | Status summaries and failure analysis |
+| **Experiment Engine** | Test execution orchestration and lifecycle management | Core experiment coordination |
+| **[Configuration System](../config/README.md)** | Schema-driven configuration loading and validation | Type-safe YAML configuration |
+| **[Event System](events/README.md)** | Event-driven architecture with typed events | Entity-specific event management |
+| **[Observer Pattern](observer/README.md)** | Event-driven component communication | Decoupled architecture |
+| **[Metrics System](metrics/README.md)** | Performance monitoring and data collection | Comprehensive experiment analysis |
+| **[Command Processor](command_processor/README.md)** | Structured command generation and processing | Safe command execution |
+| **Reporting System** | Automatic experiment report generation | Status summaries and failure analysis |
 | **[Configuration Validation](../config/README.md)** | Advanced configuration validation and auto-fixing | Protocol-aware port management |
-| **[CLI Interface](panther/README.md)** | Command-line operations and user interaction | Primary user interface |
+| **[CLI Interface](../README.md)** | Command-line operations and user interaction | Primary user interface |
 
 ---
 
@@ -217,6 +217,6 @@ panther --list-plugin-params quiche
 
 **Related Documentation:**
 
-- [Configuration Guide](panther/config/README.md) — Complete YAML configuration reference
-- [Plugin Development](panther/plugins/development.md) — Creating framework extensions
-- [Quick Start](QUICK_START.md) — Getting started with PANTHER
+- [Configuration Guide](../config/README.md) — Complete YAML configuration reference
+- [Plugin Development](../plugins/development.md) — Creating framework extensions
+- [Quick Start](../../QUICK_START.md) — Getting started with PANTHER
