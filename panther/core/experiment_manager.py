@@ -41,8 +41,8 @@ from panther.core.exceptions.fast_fail import (
 )
 from panther.core.experiment_analysis import ExperimentAnalysisMixin
 from panther.core.experiment_observer import ExperimentObserverMixin
-from panther.core.metrics.metrics_collector import MetricsCollector
 from panther.core.metrics.enums import Phase
+from panther.core.metrics.metrics_collector import MetricsCollector
 from panther.core.observer.factory import get_observer_factory
 from panther.core.observer.management.event_manager import EventManager
 from panther.core.observer.workflow import (  # pylint: disable=import-outside-toplevel
@@ -487,7 +487,7 @@ class ExperimentManager(
         try:
             test_count = len(self.experiment_config.tests)
             test_names = [test.name for test in self.experiment_config.tests]
-            
+
             test_index = 0
 
             for test_config in self.experiment_config.tests:
@@ -706,8 +706,13 @@ class ExperimentManager(
                                     self.metrics_collector.increment_counter(
                                         "test_cases_failed", phase=Phase.TEST_EXECUTION
                                     )
-                            except Exception:  # pylint: disable=broad-exception-caught
-                                self.logger.debug("Failed to record test failure metrics")
+                            except (
+                                Exception
+                            ) as metrics_err:  # pylint: disable=broad-exception-caught
+                                self.logger.warning(
+                                    "Failed to record test failure metrics: %s",
+                                    metrics_err,
+                                )
                             if self.global_config.progress.show_test_status:
                                 emoji = (
                                     "❌ "
@@ -738,8 +743,13 @@ class ExperimentManager(
                                 self.metrics_collector.increment_counter(
                                     "test_cases_successful", phase=Phase.TEST_EXECUTION
                                 )
-                        except Exception:  # pylint: disable=broad-exception-caught
-                            self.logger.debug("Failed to record test success metrics")
+                        except (
+                            Exception
+                        ) as metrics_err:  # pylint: disable=broad-exception-caught
+                            self.logger.warning(
+                                "Failed to record test success metrics: %s",
+                                metrics_err,
+                            )
                         if self.global_config.progress.show_test_status:
                             emoji = (
                                 "✅ " if self.global_config.progress.use_emojis else ""
@@ -800,8 +810,13 @@ class ExperimentManager(
                                 self.metrics_collector.increment_counter(
                                     "test_cases_failed", phase=Phase.TEST_EXECUTION
                                 )
-                        except Exception:  # pylint: disable=broad-exception-caught
-                            self.logger.debug("Failed to record test error metrics")
+                        except (
+                            Exception
+                        ) as metrics_err:  # pylint: disable=broad-exception-caught
+                            self.logger.warning(
+                                "Failed to record test error metrics: %s",
+                                metrics_err,
+                            )
 
                         # Click progress bar handles iteration automatically
 
@@ -891,15 +906,21 @@ class ExperimentManager(
             self.logger.info("")  # Add final newline for clean output formatting
 
             # Track experiment outcome in metrics
-            if self.metrics_collector:
-                if failed_tests == 0:
-                    self.metrics_collector.increment_counter(
-                        "experiments_successful", phase=Phase.TEST_EXECUTION
-                    )
-                else:
-                    self.metrics_collector.increment_counter(
-                        "experiments_failed", phase=Phase.TEST_EXECUTION
-                    )
+            try:
+                if self.metrics_collector:
+                    if failed_tests == 0:
+                        self.metrics_collector.increment_counter(
+                            "experiments_successful", phase=Phase.TEST_EXECUTION
+                        )
+                    else:
+                        self.metrics_collector.increment_counter(
+                            "experiments_failed", phase=Phase.TEST_EXECUTION
+                        )
+            except Exception as metrics_err:  # pylint: disable=broad-exception-caught
+                self.logger.warning(
+                    "Failed to record experiment outcome metrics: %s",
+                    metrics_err,
+                )
 
             # Experiment-level summary is handled by experiment_emitter
             self.logger.info(

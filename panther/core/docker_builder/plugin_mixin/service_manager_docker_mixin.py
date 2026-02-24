@@ -3,6 +3,8 @@ import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, List, Optional
 
+from docker.errors import DockerException
+from docker.errors import NotFound as DockerNotFound
 from omegaconf import OmegaConf
 
 from panther.core.command_processor.mixins import CommandEventMixin
@@ -171,12 +173,21 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
                 )
                 self._base_image_built = True
                 return
-            except Exception:
+            except DockerNotFound:
                 self.logger.warning(
-                    f"Cache reported base image exists but Docker API verification failed for "
-                    f"'{base_image_tag}', proceeding with build"
+                    "Cache reported base image '%s' exists but Docker daemon "
+                    "reports not found. Invalidating cache entry and rebuilding.",
+                    base_image_tag,
                 )
-                docker_builder.image_cache.invalidate_cache()
+                docker_builder.image_cache.remove_image(base_image_tag)
+            except (DockerException, Exception) as e:
+                self.logger.warning(
+                    "Docker API verification failed for base image '%s': %s. "
+                    "Invalidating cache entry and proceeding with build.",
+                    base_image_tag,
+                    e,
+                )
+                docker_builder.image_cache.remove_image(base_image_tag)
 
         self.logger.info(
             f"Building base Docker image with runtime_mode='{runtime_mode}' (once per experiment)"
@@ -381,13 +392,21 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
                 self.docker_image_tag = expected_image_tag
                 self.emit_docker_build_completed(expected_image_tag, True)
                 return
-            except Exception as e:
+            except DockerNotFound:
                 self.logger.warning(
-                    f"Cache reported image exists but Docker API verification failed for "
-                    f"'{expected_image_tag}', proceeding with build: {e}",
-                    exc_info=True,
+                    "Cache reported service image '%s' exists but Docker daemon "
+                    "reports not found. Invalidating cache entry and rebuilding.",
+                    expected_image_tag,
                 )
-                docker_builder.image_cache.invalidate_cache()
+                docker_builder.image_cache.remove_image(expected_image_tag)
+            except (DockerException, Exception) as e:
+                self.logger.warning(
+                    "Docker API verification failed for service image '%s': %s. "
+                    "Invalidating cache entry and proceeding with build.",
+                    expected_image_tag,
+                    e,
+                )
+                docker_builder.image_cache.remove_image(expected_image_tag)
 
         self.logger.info(f"Building service Docker image: {expected_image_tag}")
 
@@ -466,6 +485,8 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
             raise
 
     def load_version_config(self):
+        commit = ""
+        dependencies = []
         try:
             # Use direct access to service_config_to_test
             self.logger.debug(
@@ -485,10 +506,15 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
                         "Found version_config in service_config",
                         version_config,
                     )
-                    commit = version_config.get("commit", "master")
+                    commit = version_config.get("commit", "")
                     dependencies = version_config.get("dependencies", [])
                     self.logger.debug(f"Extracted commit: {commit}")
                     self.logger.debug(f"Extracted dependencies: {dependencies}")
+                else:
+                    self.logger.warning(
+                        "version_config is empty for %s, using defaults",
+                        self.implementation_name,
+                    )
             else:
                 self.logger.warning(
                     f"No version_config found in service_config_to_test for {self.implementation_name}"
@@ -498,7 +524,10 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
                 )
         except Exception as e:
             self.logger.warning(
-                f"Failed to load version config for {self.implementation_name}: {e}"
+                "Failed to load version config for %s: %s. "
+                "Using defaults (commit='', dependencies=[]).",
+                self.implementation_name,
+                e,
             )
 
         return commit, dependencies

@@ -1053,7 +1053,17 @@ class DockerBuilder(
                 build_platform.split("/")[0] if "/" in build_platform else "linux"
             )
 
-            build_args = {
+            # Start with per-service user build_args (lowest priority)
+            resolved_docker = config.get("resolved_docker", None)
+            user_build_args = {}
+            if resolved_docker is not None:
+                user_build_args = resolved_docker.get("build_args", {})
+                self.logger.debug(
+                    "Using per-service resolved Docker configuration for buildx build arguments"
+                )
+
+            # Framework args take precedence over user-supplied build_args
+            framework_build_args = {
                 "VERSION": config.get("commit", "master"),
                 "DEPENDENCIES": dependencies_json,
                 "BUILD_MODE": build_mode,
@@ -1074,6 +1084,8 @@ class DockerBuilder(
                 "BUILDARCH": build_arch,
                 "BUILDOS": build_os,
             }
+            # Merge: framework build_args override user-supplied build_args on key collision
+            build_args = {**user_build_args, **framework_build_args}
 
             # Calculate relative path from context to dockerfile
             # For buildx, prefer Dockerfile.buildkit if it exists
@@ -1154,33 +1166,39 @@ class DockerBuilder(
             # Add network mode
             buildx_cmd.extend(["--network", "host"])
 
-            # Force rebuild if configured - pass --no-cache to buildx only on first
-            # build of each tag to prevent stale layer cache
-            force_build = (
-                getattr(self.global_config.docker, "force_build_docker_image", False)
-                or getattr(self.global_config.docker, "no_docker_cache", False)
-                if hasattr(self, "global_config")
+            # Resolve force_build and no_cache from per-service overrides or global config.
+            # force_build = "should we rebuild even if image exists" (skip image-level cache)
+            # no_cache = "should we also skip Docker layer cache" (passes --no-cache)
+            if resolved_docker is not None:
+                force_build = bool(
+                    resolved_docker.get("force_build_docker_image", True)
+                    or resolved_docker.get("no_docker_cache", False)
+                )
+                no_cache = bool(resolved_docker.get("no_docker_cache", False))
+            elif (
+                hasattr(self, "global_config")
                 and self.global_config
                 and hasattr(self.global_config, "docker")
-                else False
-            )
-
-            no_cache = (
-                getattr(self.global_config.docker, "no_docker_cache", False)
-                if hasattr(self, "global_config")
-                and self.global_config
-                and hasattr(self.global_config, "docker")
-                else False
-            )
-
-            if (
-                force_build
-                and no_cache
-                and not DockerBuilder.was_built_this_session(image_tag)
             ):
+                force_build = bool(
+                    getattr(self.global_config.docker, "force_build_docker_image", True)
+                    or getattr(self.global_config.docker, "no_docker_cache", False)
+                )
+                no_cache = bool(
+                    getattr(self.global_config.docker, "no_docker_cache", False)
+                )
+            else:
+                force_build = True
+                no_cache = False
+
+            # Pass --no-cache only when no_docker_cache is set and only on the
+            # first build of each tag to prevent stale layer cache while avoiding
+            # redundant full rebuilds in the same session.
+            if no_cache and not DockerBuilder.was_built_this_session(image_tag):
                 buildx_cmd.append("--no-cache")
                 self.logger.info(
-                    "no_cache: passing --no-cache for first build of %s", image_tag
+                    "no_docker_cache: passing --no-cache for first build of %s",
+                    image_tag,
                 )
 
             self.logger.debug("Executing buildx command: %s", " ".join(buildx_cmd))
@@ -1523,21 +1541,30 @@ class DockerBuilder(
                 self._get_host_platform(),
             )
 
-            # Check cache and handle cache logic
-            # Use per-service resolved docker config if available, else fall back to global
+            # Resolve force_build and no_cache from per-service overrides or global config.
+            # force_build = "should we rebuild even if image exists" (skip image-level cache)
+            # no_cache = "should we also skip Docker layer cache" (passes nocache=True)
             if resolved_docker is not None:
-                force_build = resolved_docker.get(
-                    "force_build_docker_image", True
-                ) or resolved_docker.get("no_docker_cache", False)
-            else:
-                force_build = (
+                force_build = bool(
+                    resolved_docker.get("force_build_docker_image", True)
+                    or resolved_docker.get("no_docker_cache", False)
+                )
+                no_cache = bool(resolved_docker.get("no_docker_cache", False))
+            elif (
+                hasattr(self, "global_config")
+                and self.global_config
+                and hasattr(self.global_config, "docker")
+            ):
+                force_build = bool(
                     getattr(self.global_config.docker, "force_build_docker_image", True)
                     or getattr(self.global_config.docker, "no_docker_cache", False)
-                    if hasattr(self, "global_config")
-                    and self.global_config
-                    and hasattr(self.global_config, "docker")
-                    else True
                 )
+                no_cache = bool(
+                    getattr(self.global_config.docker, "no_docker_cache", False)
+                )
+            else:
+                force_build = True
+                no_cache = False
 
             if not force_build:
                 self.logger.debug(
@@ -1645,7 +1672,7 @@ class DockerBuilder(
                 network_mode="host",
                 buildargs=build_args,
                 platform=effective_platform,  # Use effective platform (host when buildx disabled)
-                nocache=force_build,  # Force build if specified
+                nocache=no_cache,  # Only skip layer cache when no_docker_cache is set
                 # squash=True,  # Squash layers to reduce image size (experimental)
                 # pull=True,  # Always pull latest base images
             )
