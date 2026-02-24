@@ -36,39 +36,46 @@ Services being profiled must be compatible with GPerf heap profiling:
 
 ## Configuration Options
 
-The GPerf Heap environment accepts the following configuration parameters:
+<!-- Source: config_schema.py -->
 
 ```yaml
 execution_environment:
-  - name: "gperf_heap"
-    type: "execution_environment"
-    implementation: "gperf_heap"
-    config:
-      input_file: null       # Input file for gperf (optional)
-      output_file: null      # Output file for gperf (optional)
-      language: "C"          # Language of the output (C, C++, etc.)
-      keyword_only: false    # Generate keyword-only lookup
-      readonly_tables: false # Generate read-only tables
-      includes: []           # List of includes to add
-      other_flags: []        # Additional gperf flags
+  - type: "gperf_heap"
+    heap_profile_allocation_interval: 524288
+    heap_check_type: normal
+    enable_leak_check: true
+    generate_pdf: true
+    output_format: heap
 ```
 
-<!-- src: /panther/plugins/environments/execution_environment/gperf_heap/config_schema.py -->
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `type` | str | "gperf_heap" | Execution environment type |
+| `tcmalloc_library` | Optional[str] | None | Absolute path to libtcmalloc.so. When None, the system default location is used. |
+| `heap_profile_allocation_interval` | Optional[int] | None | Number of bytes allocated between heap profile snapshots. When None, gperftools uses its built-in default of 524288 (512 KB). |
+| `heap_profile_inuse_interval` | Optional[int] | None | Number of bytes of in-use memory change that triggers a new snapshot. |
+| `heap_profile_time_interval` | Optional[int] | None | Interval in seconds between automatic heap profile snapshots. |
+| `heap_check_type` | Optional[str] | None | Type of heap checking: 'normal', 'strict', or 'draconian'. |
+| `output_format` | str | "heap" | Output format for the heap profile. Options: 'heap', 'text', 'pdf'. |
+| `generate_pdf` | bool | True | Generate a PDF allocation-graph visualization from the profile data using pprof. |
+| `generate_text_report` | bool | False | Generate an additional human-readable text report from the heap profile. |
+| `enable_leak_check` | bool | False | Enable tcmalloc-based memory leak checking. |
+| `leak_check_at_exit` | bool | True | Perform a leak check when the profiled program exits. Only effective when enable_leak_check is True. |
+| `profile_mmap` | bool | False | Include mmap()-based allocations in the heap profile. |
+| `only_mmap_profile` | bool | False | Profile only mmap() allocations, ignoring malloc/free. |
+| `deep_heap_profile` | int | 0 | Deep heap profiling level. Range: 0 (disabled) to 9 (maximum detail). |
+| `exclude_functions` | List[str] | [] | List of function names (or patterns) to exclude from profiling output. |
+| `include_only_functions` | List[str] | [] | List of function names (or patterns) to include exclusively in profiling output. |
+| `pprof_options` | List[str] | [] | Additional command-line options passed to the pprof tool during post-processing. |
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `name` | string | Yes | - | Name for this execution environment |
-| `type` | string | Yes | - | Must be "execution_environment" |
-| `implementation` | string | Yes | - | Must be "gperf_heap" |
-| `config.input_file` | string | No | null | Input file for gperf |
-| `config.output_file` | string | No | null | Output file for gperf |
-| `config.language` | string | No | "C" | Output language (C, C++) |
-| `config.keyword_only` | boolean | No | false | Generate keyword-only lookup |
-| `config.readonly_tables` | boolean | No | false | Generate read-only tables |
-| `config.switch` | boolean | No | false | Generate switch statements |
-| `config.compare_strncmp` | boolean | No | false | Use strncmp for comparisons |
-| `config.includes` | list | No | [] | List of include files |
-| `config.other_flags` | list | No | [] | Additional flags for gperf |
+Inherited from `ExecutionEnvironmentPluginConfig` / `BasePluginConfig`:
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `enabled` | bool | True | Whether the plugin is enabled |
+| `collect_metrics` | bool | True | Whether to collect metrics |
+| `version` | Optional[str] | None | Plugin version |
+| `priority` | int | 100 | Plugin execution priority |
 
 ## Usage Examples
 
@@ -78,16 +85,14 @@ execution_environment:
 tests:
   - name: "Memory Profiling Test"
     execution_environment:
-      - name: "heap_profiler"
-        type: "execution_environment"
-        implementation: "gperf_heap"
+      - type: "gperf_heap"
+        generate_pdf: true
     services:
       server:
         name: "quic_server"
         implementation:
           name: "picoquic"
           type: "iut"
-          gperf_compatible: true  # Must be set for profiling
 ```
 
 ### Advanced Configuration with Custom Settings
@@ -96,26 +101,25 @@ tests:
 tests:
   - name: "Advanced Memory Profiling"
     execution_environment:
-      - name: "custom_heap_profiler"
-        type: "execution_environment"
-        implementation: "gperf_heap"
-        config:
-          language: "C++"
-          readonly_tables: true
-          other_flags: ["--debug", "--verbose"]
+      - type: "gperf_heap"
+        heap_profile_allocation_interval: 262144
+        heap_check_type: "normal"
+        enable_leak_check: true
+        generate_pdf: true
+        generate_text_report: true
+        deep_heap_profile: 3
+        pprof_options: ["--nodecount=50", "--inuse_space"]
     services:
       server:
         name: "http_server"
         implementation:
-          name: "nginx"
+          name: "picoquic"
           type: "iut"
-          gperf_compatible: true
       client:
         name: "http_client"
         implementation:
-          name: "curl"
-          type: "tester"
-          gperf_compatible: true
+          name: "aioquic"
+          type: "iut"
 ```
 
 ## Extension Points
@@ -186,30 +190,19 @@ To test the GPerf Heap environment plugin:
 #### Incomplete Profiling Data
 
 **Problem**: Profiling data is incomplete or missing allocations
-**Solution**: The service might be using non-standard memory allocation functions. Set environment variables to capture all allocation types:
+**Solution**: The service might be using non-standard memory allocation functions. Enable mmap profiling and increase snapshot frequency:
 
 ```yaml
 execution_environment:
-  - name: "heap_profiler"
-    type: "execution_environment"
-    implementation: "gperf_heap"
-    config:
-      other_flags: ["--trace-all"]
+  - type: "gperf_heap"
+    profile_mmap: true
+    heap_profile_allocation_interval: 131072
 ```
 
 #### PDF Generation Errors
 
 **Problem**: PDF visualization fails to generate
-**Solution**: Ensure that pprof and graphviz are properly installed in the environment:
-
-```yaml
-services:
-  server:
-    name: "server"
-    implementation:
-      pre_run_cmds:
-        - "apt-get update && apt-get install -y graphviz"
-```
+**Solution**: Ensure that pprof and graphviz are properly installed in the Docker environment. The container should include graphviz for PDF generation to work.
 
 ### Debugging Tips
 

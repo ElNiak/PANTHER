@@ -39,23 +39,23 @@ from panther.plugins.services.base.quic_service_base import BaseQUICServiceManag
 
 class QuicGoServiceManager(BaseQUICServiceManager):
     """QUIC-Go implementation with inheritance-based architecture."""
-    
+
     def _get_implementation_name(self) -> str:
         return "quic_go"
-    
+
     def _get_binary_name(self) -> str:
         return "go"  # Go runtime
-    
+
     # Customize only what's unique to QUIC-Go
     def _get_server_specific_args(self, **kwargs) -> List[str]:
         port = kwargs.get("port", 4443)
         return ["run", "server.go", "-addr", f":{port}"]
-    
+
     def _get_client_specific_args(self, **kwargs) -> List[str]:
         host = kwargs.get("host", "localhost")
         port = kwargs.get("port", 4443)
         return ["run", "client.go", "-addr", f"{host}:{port}"]
-    
+
     # All common QUIC functionality inherited from BaseQUICServiceManager!
 ```
 
@@ -105,63 +105,35 @@ Docker-based deployment includes Go runtime and all dependencies.
 
 ## Configuration Options
 
-### Version Configuration
+<!-- Source: config_schema.py -->
+
+### QuicGoConfig Fields
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `version` | String | "" | quic-go library version |
-| `commit` | String | "" | Specific commit hash |
-| `dependencies` | List | [] | Additional Go module dependencies |
+| `name` | str | "quic-go" | Implementation name |
+| `type` | ImplementationType | IUT | Implementation type |
+| `version` | QuicGoVersion | (loaded from YAML) | Version configuration |
 
-### Server Configuration
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `role` | String | "server" | Service role: "server" or "client" |
-| `addr` | String | "0.0.0.0:4433" | Server bind address and port |
-| `cert_file` | String | "" | TLS certificate file path |
-| `key_file` | String | "" | TLS private key file path |
-| `alpn_protocols` | List | ["h3"] | ALPN protocol list |
-
-### Client Configuration
+### QuicGoVersion Fields
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `server_addr` | String | "" | Target server address |
-| `insecure_skip_verify` | Boolean | false | Skip certificate verification |
-| `ca_file` | String | "" | Custom CA certificate file |
-| `timeout` | String | "30s" | Connection timeout duration |
+| `version` | str | "" | Version string |
+| `commit` | str | "" | Git commit hash |
+| `dependencies` | List[Dict[str, str]] | [] | Dependencies list |
+| `client` | Optional[dict] | {} | Client configuration |
+| `server` | Optional[dict] | {} | Server configuration |
 
-### Protocol Parameters
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `quic_versions` | List | ["1"] | Supported QUIC versions |
-| `max_incoming_streams` | Integer | 1000 | Maximum incoming streams |
-| `max_incoming_uni_streams` | Integer | 1000 | Maximum incoming unidirectional streams |
-| `initial_stream_receive_window` | Integer | 1048576 | Initial stream receive window |
-| `initial_conn_receive_window` | Integer | 15728640 | Initial connection receive window |
-| `keep_alive_period` | String | "0s" | Keep-alive period (0 = disabled) |
-
-### Performance Configuration
+Inherited from `ServicePluginConfig` / `BasePluginConfig`:
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `max_idle_timeout` | String | "30s" | Maximum idle timeout |
-| `handshake_idle_timeout` | String | "5s" | Handshake completion timeout |
-| `disable_path_mtu_discovery` | Boolean | false | Disable path MTU discovery |
-| `enable_datagram` | Boolean | false | Enable QUIC datagrams |
-| `max_token_age` | String | "24h" | Maximum token age for 0-RTT |
-
-### Logging and Debug
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `log_level` | String | "info" | Logging level |
-| `qlog_enabled` | Boolean | false | Enable qlog tracing |
-| `qlog_dir` | String | "" | qlog output directory |
-| `keylog_file` | String | "" | TLS keylog file path |
-| `tracer_enabled` | Boolean | false | Enable connection tracing |
+| `enabled` | bool | True | Whether the plugin is enabled |
+| `priority` | int | 100 | Plugin execution priority |
+| `docker_image` | Optional[str] | None | Docker image name |
+| `build_from_source` | bool | True | Build from source |
+| `source_repository` | Optional[str] | None | Source repository URL |
 
 ## Usage Examples
 

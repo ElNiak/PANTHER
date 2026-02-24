@@ -36,26 +36,26 @@ from panther.plugins.services.base.python_quic_base import PythonQUICServiceMana
 
 class AioquicServiceManager(PythonQUICServiceManager):
     """Aioquic QUIC implementation with Python-specific inheritance."""
-    
+
     def _get_implementation_name(self) -> str:
         return "aioquic"
-    
+
     def _get_binary_name(self) -> str:
         return "python"
-    
+
     def _get_python_module(self) -> str:
         return "aioquic.quic.server"  # Python module path
-    
+
     # Customize Python-specific aspects
     def _get_server_specific_args(self, **kwargs) -> List[str]:
         port = kwargs.get("port", 4433)
         return ["-m", self._get_python_module(), "--port", str(port)]
-    
+
     def _get_client_specific_args(self, **kwargs) -> List[str]:
         host = kwargs.get("host", "localhost")
         port = kwargs.get("port", 4433)
         return ["-m", "aioquic.quic.client", f"{host}:{port}"]
-    
+
     # Python async/await integration handled by PythonQUICServiceManager
 ```
 
@@ -120,35 +120,37 @@ Docker-based deployment handles dependency installation automatically through th
 
 ## Configuration Options
 
-### Version Configuration
+<!-- Source: config_schema.py -->
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `name` | str | "aioquic" | Implementation name |
+| `server_root` | str | "/var/www" | Document root for serving files |
+| `server_certificate` | Optional[str] | "/certs/cert.pem" | Server certificate path |
+| `server_private_key` | Optional[str] | "/certs/key.pem" | Server private key path |
+| `session_ticket_store` | Optional[str] | None | Session ticket store path |
+| `client_output_dir` | str | "/app/logs/artifacts" | Client output directory |
+| `client_insecure` | bool | True | Skip certificate verification |
+| `client_legacy_http` | bool | False | Enable legacy HTTP support |
+| `verbose` | bool | False | Enable verbose logging |
+| `secrets_log` | Optional[str] | None | Path to secrets log file |
+| `python_path` | str | "/opt/aioquic" | Python path for aioquic |
+| `examples_dir` | str | "/opt/aioquic/examples" | Examples directory |
+| `enable_http3` | bool | True | Enable HTTP/3 support |
+| `enable_websockets` | bool | True | Enable WebSocket support |
+| `enable_priority` | bool | True | Enable stream priority |
+| `enable_push` | bool | True | Enable server push |
+| `enable_datagram` | bool | True | Enable datagram support |
+
+Inherited from `ServicePluginConfig` / `BasePluginConfig`:
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `version` | String | "" | aioquic library version to use |
-| `commit` | String | "" | Specific commit hash if building from source |
-| `dependencies` | List | [] | Additional Python package dependencies |
-
-### Runtime Configuration
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `role` | String | "server" | Service role: "server" or "client" |
-| `port` | Integer | 4433 | Port number for QUIC connections |
-| `host` | String | "0.0.0.0" | Host address to bind (server) or connect (client) |
-| `certificate` | String | "" | Path to TLS certificate file |
-| `private_key` | String | "" | Path to TLS private key file |
-| `alpn_protocols` | List | ["h3"] | Application Layer Protocol Negotiation protocols |
-| `keylog_file` | String | "" | Path to TLS key log file for debugging |
-
-### Advanced Configuration
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `http3_enabled` | Boolean | true | Enable HTTP/3 over QUIC |
-| `max_stream_data` | Integer | 1048576 | Maximum data per stream (bytes) |
-| `max_data` | Integer | 10485760 | Maximum connection data (bytes) |
-| `idle_timeout` | Integer | 60 | Connection idle timeout (seconds) |
-| `logging_level` | String | "INFO" | Python logging level |
+| `enabled` | bool | True | Whether the plugin is enabled |
+| `version` | Optional[str] | None | Plugin version |
+| `priority` | int | 100 | Plugin execution priority |
+| `docker_image` | Optional[str] | None | Docker image name |
+| `build_from_source` | bool | True | Build from source |
+| `source_repository` | Optional[str] | None | Source repository URL |
 
 ## Usage Examples
 

@@ -35,23 +35,23 @@ from panther.plugins.services.base.quic_service_base import BaseQUICServiceManag
 
 class PicoquicServiceManager(BaseQUICServiceManager):
     """Picoquic QUIC implementation with inheritance-based architecture."""
-    
+
     def _get_implementation_name(self) -> str:
         return "picoquic"
-    
+
     def _get_binary_name(self) -> str:
         return "picoquicdemo"
-    
+
     # Customize only what's unique to Picoquic
     def _get_server_specific_args(self, **kwargs) -> List[str]:
         port = kwargs.get("port", 4443)
         return ["-p", str(port)]
-    
+
     def _get_client_specific_args(self, **kwargs) -> List[str]:
         host = kwargs.get("host", "localhost")
         port = kwargs.get("port", 4443)
         return [f"{host}", str(port)]
-    
+
     # All common QUIC functionality inherited from BaseQUICServiceManager!
 ```
 
@@ -113,7 +113,7 @@ services:
       version: rfc9000     # QUIC standard version
       role: server         # This service acts as server
     timeout: 100           # Optional: service timeout in seconds
-    
+
   client:
     implementation:
       name: picoquic
@@ -126,17 +126,41 @@ services:
     timeout: 100
 ```
 
-### Optional Configuration Parameters
+### Configuration Options
 
-PicoQUIC supports additional configuration options:
+<!-- Source: config_schema.py -->
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `timeout` | 100 | Service timeout in seconds |
-| `ports` | auto | Custom port mapping (e.g., `["4443:4443"]`) |
-| `generate_new_certificates` | true | Auto-generate TLS certificates |
+#### PicoquicConfig Fields
 
-<!-- TLS certificates are automatically generated and managed by PANTHER -->
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `name` | str | "picoquic" | Implementation name |
+| `type` | ImplementationType | IUT | Implementation type |
+| `version` | PicoquicVersion | (loaded from YAML) | Version configuration |
+| `alpn` | Optional[str] | None | ALPN protocol identifier |
+| `initial_rtt` | Optional[int] | None | Initial RTT in milliseconds |
+| `max_stream_data` | Optional[int] | None | Maximum stream data in bytes |
+| `max_data` | Optional[int] | None | Maximum connection data in bytes |
+
+#### PicoquicVersion Fields
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `version` | str | "" | Version string |
+| `commit` | str | "" | Git commit hash |
+| `dependencies` | List[Dict[str, str]] | [] | List of dependencies |
+| `client` | Optional[dict] | {} | Client-specific configuration |
+| `server` | Optional[dict] | {} | Server-specific configuration |
+
+Inherited from `ServicePluginConfig` / `BasePluginConfig`:
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `enabled` | bool | True | Whether the plugin is enabled |
+| `priority` | int | 100 | Plugin execution priority |
+| `docker_image` | Optional[str] | None | Docker image name |
+| `build_from_source` | bool | True | Build from source |
+| `source_repository` | Optional[str] | None | Source repository URL |
 
 ## Usage Examples
 
@@ -239,7 +263,7 @@ tests:
 
 **Strengths:**
 - **Mature and stable** - Extensively tested and RFC-compliant
-- **Excellent interoperability** - Works well with other QUIC implementations  
+- **Excellent interoperability** - Works well with other QUIC implementations
 - **Good performance** - Optimized C implementation
 - **Well-documented** - Clear command-line interface and logging
 - **Active development** - Regularly updated by Christian Huitema

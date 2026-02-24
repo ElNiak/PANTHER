@@ -36,23 +36,23 @@ from panther.plugins.services.base.quic_service_base import BaseQUICServiceManag
 
 class QuantServiceManager(BaseQUICServiceManager):
     """Quant QUIC implementation with inheritance-based architecture."""
-    
+
     def _get_implementation_name(self) -> str:
         return "quant"
-    
+
     def _get_binary_name(self) -> str:
         return "client"  # or server
-    
+
     # Customize only what's unique to Quant
     def _get_server_specific_args(self, **kwargs) -> List[str]:
         port = kwargs.get("port", 4433)
         return ["-p", str(port)]
-    
+
     def _get_client_specific_args(self, **kwargs) -> List[str]:
         host = kwargs.get("host", "localhost")
         port = kwargs.get("port", 4433)
         return ["-h", host, "-p", str(port)]
-    
+
     # All common QUIC functionality inherited from BaseQUICServiceManager!
 ```
 
@@ -99,55 +99,35 @@ Docker-based deployment includes all necessary dependencies and build environmen
 
 ## Configuration Options
 
-### Version Configuration
+<!-- Source: config_schema.py -->
+
+### QuantConfig Fields
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `version` | String | "" | Quant library version/branch |
-| `commit` | String | "" | Specific git commit hash |
-| `dependencies` | List | [] | Additional library dependencies |
+| `name` | str | "quant" | Implementation name |
+| `type` | ImplementationType | IUT | Implementation type |
+| `version` | QuantVersion | (loaded from YAML) | Version configuration |
 
-### Basic Configuration
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `role` | String | "server" | Service role: "server" or "client" |
-| `port` | Integer | 4433 | QUIC port number |
-| `bind_addr` | String | "0.0.0.0" | Address to bind (server mode) |
-| `server_addr` | String | "" | Server address (client mode) |
-| `cert_file` | String | "" | X.509 certificate file path |
-| `key_file` | String | "" | Private key file path |
-
-### Protocol Parameters
+### QuantVersion Fields
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `quic_version` | String | "1" | QUIC version to use |
-| `alpn_protocols` | List | ["hq-interop"] | ALPN protocol negotiation list |
-| `initial_max_data` | Integer | 1048576 | Initial connection data limit |
-| `initial_max_stream_data` | Integer | 262144 | Initial stream data limit |
-| `max_streams_bidi` | Integer | 100 | Maximum bidirectional streams |
-| `max_streams_uni` | Integer | 100 | Maximum unidirectional streams |
+| `version` | str | "" | Version string |
+| `commit` | str | "" | Git commit hash |
+| `dependencies` | List[Dict[str, str]] | [] | Dependencies list |
+| `client` | Optional[dict] | {} | Client configuration |
+| `server` | Optional[dict] | {} | Server configuration |
 
-### Research and Debug Options
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `debug_level` | Integer | 0 | Debug verbosity (0-5) |
-| `qlog_enabled` | Boolean | false | Enable qlog tracing |
-| `qlog_file` | String | "" | qlog output file path |
-| `keylog_file` | String | "" | TLS keylog file for analysis |
-| `packet_trace` | Boolean | false | Enable packet-level tracing |
-
-### Experimental Features
+Inherited from `ServicePluginConfig` / `BasePluginConfig`:
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `enable_0rtt` | Boolean | false | Enable 0-RTT connection establishment |
-| `connection_migration` | Boolean | false | Enable connection migration |
-| `multipath` | Boolean | false | Enable multipath QUIC (experimental) |
-| `spin_bit` | Boolean | false | Enable spin bit for latency measurement |
-| `loss_detection_algo` | String | "rfc" | Loss detection algorithm variant |
+| `enabled` | bool | True | Whether the plugin is enabled |
+| `priority` | int | 100 | Plugin execution priority |
+| `docker_image` | Optional[str] | None | Docker image name |
+| `build_from_source` | bool | True | Build from source |
+| `source_repository` | Optional[str] | None | Source repository URL |
 
 ## Usage Examples
 

@@ -36,23 +36,23 @@ from panther.plugins.services.base.quic_service_base import BaseQUICServiceManag
 
 class LsquicServiceManager(BaseQUICServiceManager):
     """LiteSpeed QUIC implementation with inheritance-based architecture."""
-    
+
     def _get_implementation_name(self) -> str:
         return "lsquic"
-    
+
     def _get_binary_name(self) -> str:
         return "http_server"  # or http_client
-    
+
     # Customize only what's unique to lsquic
     def _get_server_specific_args(self, **kwargs) -> List[str]:
         port = kwargs.get("port", 4443)
         return ["-s", f"0.0.0.0:{port}"]
-    
+
     def _get_client_specific_args(self, **kwargs) -> List[str]:
         host = kwargs.get("host", "localhost")
         port = kwargs.get("port", 4443)
         return ["-H", f"{host}:{port}"]
-    
+
     # All common QUIC functionality inherited from BaseQUICServiceManager!
 ```
 
@@ -99,54 +99,38 @@ Docker-based deployment includes pre-built binaries and dependencies.
 
 ## Configuration Options
 
-### Version Configuration
+<!-- Source: config_schema.py -->
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `name` | str | "lsquic" | Implementation name |
+| `doc_root` | str | "/var/www" | Document root for serving files |
+| `enable_push` | bool | True | Enable HTTP/3 PUSH |
+| `max_conns` | Optional[int] | None | Maximum number of connections |
+| `request_path` | str | "/" | Request path |
+| `method` | str | "GET" | HTTP method |
+| `headers` | Optional[Dict[str, str]] | {} | Request headers |
+| `output_file` | Optional[str] | None | Output file path |
+| `library_path` | str | "/opt/lsquic/lib" | LSQUIC library path |
+| `logs_dir` | str | "/app/logs/artifacts" | Logs directory |
+| `max_packet_size` | Optional[int] | None | Maximum packet size |
+| `initial_max_data` | Optional[int] | None | Initial max data limit |
+| `initial_max_stream_data` | Optional[int] | None | Initial max stream data |
+| `quic_version` | Optional[str] | None | QUIC version to use |
+| `handshake_timeout` | Optional[int] | None | Handshake timeout in seconds |
+| `idle_timeout` | Optional[int] | None | Idle timeout in seconds |
+| `verbose` | bool | False | Enable verbose logging |
+| `debug_level` | Optional[int] | None | Debug logging level |
+
+Inherited from `ServicePluginConfig` / `BasePluginConfig`:
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `version` | String | "" | lsquic library version to use |
-| `commit` | String | "" | Specific commit hash for builds |
-| `dependencies` | List | [] | Additional library dependencies |
-
-### Server Configuration
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `role` | String | "server" | Service role: "server" or "client" |
-| `port` | Integer | 4433 | QUIC port number |
-| `interface` | String | "0.0.0.0" | Network interface to bind |
-| `cert_file` | String | "" | Path to X.509 certificate |
-| `key_file` | String | "" | Path to private key |
-| `ca_file` | String | "" | Path to certificate authority file |
-
-### Protocol Configuration
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `alpn_protocols` | List | ["h3"] | ALPN protocol list |
-| `versions` | List | ["h3-29","h3"] | Supported QUIC versions |
-| `max_connections` | Integer | 1000 | Maximum concurrent connections |
-| `max_streams_per_conn` | Integer | 100 | Maximum streams per connection |
-| `idle_timeout` | Integer | 60 | Connection idle timeout (seconds) |
-
-### Performance Tuning
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `max_packet_size` | Integer | 1452 | Maximum UDP packet size |
-| `initial_max_data` | Integer | 10485760 | Initial connection flow control limit |
-| `initial_max_stream_data` | Integer | 1048576 | Initial stream flow control limit |
-| `cc_algo` | String | "cubic" | Congestion control algorithm |
-| `pacing` | Boolean | true | Enable packet pacing |
-
-### Advanced Options
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `keylog_file` | String | "" | TLS key log file for debugging |
-| `qlog_dir` | String | "" | Directory for qlog trace files |
-| `log_level` | String | "info" | Logging verbosity level |
-| `delayed_acks` | Boolean | true | Enable delayed ACK optimization |
-| `ecn` | Boolean | false | Enable Explicit Congestion Notification |
+| `enabled` | bool | True | Whether the plugin is enabled |
+| `version` | Optional[str] | None | Plugin version |
+| `priority` | int | 100 | Plugin execution priority |
+| `docker_image` | Optional[str] | None | Docker image name |
+| `build_from_source` | bool | True | Build from source |
+| `source_repository` | Optional[str] | None | Source repository URL |
 
 ## Usage Examples
 

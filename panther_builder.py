@@ -573,12 +573,6 @@ class BuildManager:
             else:
                 print(f"Warning: MkDocs automation script not found at {mkdocs_script}")
 
-            # Run gendocs with the mkgendocs.yml config
-            print("Running gendocs with custom configuration...")
-            result = self.run_command(["gendocs", "--config", "mkgendocs.yml"])
-            if result != 0:
-                print("Warning: gendocs command failed")
-
             # Generate plugin inventory
             print("Generating plugin inventory...")
             inventory_script = (

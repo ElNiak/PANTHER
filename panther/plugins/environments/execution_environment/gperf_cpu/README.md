@@ -30,35 +30,39 @@ sudo apt-get install google-perftools libgoogle-perftools-dev graphviz
 
 ## Configuration Options
 
-The GPerf CPU environment accepts the following configuration parameters:
+<!-- Source: config_schema.py -->
 
 ```yaml
 execution_environment:
   - type: "gperf_cpu"
-    input_file: "input.txt"        # Optional input for the profiled application
-    output_file: "cpu.profile"     # Output profile file name
-    language: "C++"                # Programming language
-    readonly_tables: true          # Generate read-only tables
-    includes: ["<string>", "<vector>"] # Include files
-    other_flags: ["-v", "--debug"] # Additional gperf flags
+    sampling_frequency: 200
+    generate_pdf: true
+    profile_children: true
+    output_format: prof
 ```
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `type` | string | Yes | - | Must be "gperf_cpu" |
-| `input_file` | string | No | None | Input file for the profiled application |
-| `output_file` | string | No | None | Name of the output profile file |
-| `language` | string | No | "C" | Programming language of the application |
-| `keyword_only` | boolean | No | false | Generate keyword-only lookup |
-| `readonly_tables` | boolean | No | false | Generate read-only tables |
-| `switch` | boolean | No | false | Generate switch statements |
-| `compare_strncmp` | boolean | No | false | Use strncmp for comparisons |
-| `hash_function` | string | No | None | Hash function to use |
-| `compare_function` | string | No | None | Comparison function to use |
-| `includes` | list | No | [] | List of includes to add |
-| `other_flags` | list | No | [] | Additional gperf command flags |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `type` | str | "gperf_cpu" | Execution environment type |
+| `profiler_library` | Optional[str] | None | Absolute path to libprofiler.so. When None, the system default location is used. |
+| `sampling_frequency` | Optional[int] | None | CPU profiling sampling frequency in Hz. When None, gperftools uses its built-in default of 100 Hz. |
+| `use_realtime_signal` | bool | False | Use a POSIX realtime signal instead of SIGPROF for sampling. |
+| `output_format` | str | "prof" | Output format for the CPU profile. Options: 'prof', 'text', 'pdf'. |
+| `generate_pdf` | bool | True | Generate a PDF call-graph visualization from the profile data using pprof. |
+| `profile_children` | bool | True | Also profile child processes forked by the main service. |
+| `start_profiling_delay` | int | 0 | Delay in seconds before starting CPU profiling. |
+| `exclude_functions` | List[str] | [] | List of function names (or patterns) to exclude from profiling output. |
+| `include_only_functions` | List[str] | [] | List of function names (or patterns) to include exclusively in profiling output. |
+| `pprof_options` | List[str] | [] | Additional command-line options passed to the pprof tool during post-processing. |
 
-<!-- src: /panther/plugins/environments/execution_environment/gperf_cpu/config_schema.py -->
+Inherited from `ExecutionEnvironmentPluginConfig` / `BasePluginConfig`:
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `enabled` | bool | True | Whether the plugin is enabled |
+| `collect_metrics` | bool | True | Whether to collect metrics |
+| `version` | Optional[str] | None | Plugin version |
+| `priority` | int | 100 | Plugin execution priority |
 
 ## Usage Examples
 
@@ -69,7 +73,7 @@ tests:
   - name: "Basic CPU Profiling"
     execution_environment:
       - type: "gperf_cpu"
-        output_file: "cpu_profile.out"
+        generate_pdf: true
     services:
       server:
         name: "http_server"
@@ -85,11 +89,12 @@ tests:
   - name: "Advanced CPU Profiling"
     execution_environment:
       - type: "gperf_cpu"
-        output_file: "cpu_profile.out"
-        language: "C++"
-        readonly_tables: true
-        includes: ["<string>", "<vector>"]
-        other_flags: ["-v", "--debug"]
+        sampling_frequency: 200
+        generate_pdf: true
+        profile_children: true
+        start_profiling_delay: 5
+        exclude_functions: ["__libc_start_main"]
+        pprof_options: ["--nodecount=50", "--focus=quic_"]
     services:
       server:
         name: "quic_server"
