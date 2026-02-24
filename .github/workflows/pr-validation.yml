@@ -14,23 +14,23 @@ jobs:
     name: PR Quick Validation
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    
+
     steps:
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0
-    
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
-    
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -e .
         pip install pytest black isort flake8
-    
+
     - name: Get changed files
       id: changed-files
       uses: tj-actions/changed-files@v44
@@ -38,12 +38,12 @@ jobs:
         files: |
           tests/**/*.py
           panther/**/*.py
-    
+
     - name: Quick lint check on changed files
       if: steps.changed-files.outputs.any_changed == 'true'
       run: |
         echo "Changed files: ${{ steps.changed-files.outputs.all_changed_files }}"
-        
+
         # Check formatting on changed Python files
         for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
           if [[ $file == *.py ]]; then
@@ -53,7 +53,7 @@ jobs:
             flake8 "$file" --max-line-length=88 || echo "::warning file=$file::Linting issues found"
           fi
         done
-    
+
     - name: Run tests for changed test files
       if: steps.changed-files.outputs.any_changed == 'true'
       run: |
@@ -72,7 +72,7 @@ jobs:
             }
           fi
         done
-    
+
     - name: Run related unit tests for changed source files
       if: steps.changed-files.outputs.any_changed == 'true'
       run: |
@@ -82,20 +82,20 @@ jobs:
             # Convert source file path to potential test file path
             test_file="tests/unit/test_${file#panther/}"
             test_file="${test_file%.py}_test.py"
-            
+
             if [[ -f "$test_file" ]]; then
               echo "Running related tests for $file -> $test_file..."
               pytest "$test_file" -v --tb=short -p no:panther_metrics || true
             fi
           fi
         done
-    
+
     - name: Quick smoke test
       run: |
         # Always run a basic smoke test
         pytest tests/unit/test_plugins/test_command_generation_validator_decorator.py \
           -v --tb=short -p no:panther_metrics
-    
+
     - name: Comment on PR with validation status
       if: failure()
       uses: actions/github-script@v6
@@ -103,38 +103,38 @@ jobs:
         script: |
           const { owner, repo } = context.repo;
           const issue_number = context.payload.pull_request.number;
-          
+
           const comment = `❌ **PR Validation Failed**
-          
+
           Your changes have validation issues. Please check the following:
-          
+
           1. **Code Formatting**: Run \`black tests/ panther/\` to fix formatting
-          2. **Import Sorting**: Run \`isort tests/ panther/\` to fix imports  
+          2. **Import Sorting**: Run \`isort tests/ panther/\` to fix imports
           3. **Linting**: Run \`flake8 tests/ panther/ --max-line-length=88\` to check for issues
           4. **Tests**: Ensure all tests pass with \`pytest tests/unit/ -m "not slow" -p no:panther_metrics\`
-          
+
           You can run the quick validation locally with:
           \`\`\`bash
           # Install dependencies
           pip install -e .
           pip install pytest black isort flake8
-          
+
           # Run validation
           black --check tests/ panther/
-          isort --check-only tests/ panther/  
+          isort --check-only tests/ panther/
           flake8 tests/ panther/ --max-line-length=88
           pytest tests/unit/ -m "not slow" -p no:panther_metrics
           \`\`\`
-          
+
           Please fix these issues and push again. The CI will automatically re-run.`;
-          
+
           await github.rest.issues.createComment({
             owner,
             repo,
             issue_number,
             body: comment
           });
-    
+
     - name: Comment on PR with success status
       if: success()
       uses: actions/github-script@v6
@@ -142,18 +142,18 @@ jobs:
         script: |
           const { owner, repo } = context.repo;
           const issue_number = context.payload.pull_request.number;
-          
+
           const comment = `✅ **PR Validation Passed**
-          
+
           Your changes look good! The quick validation checks have passed:
-          
+
           - ✅ Code formatting (Black)
           - ✅ Import sorting (isort)
           - ✅ Linting (flake8)
           - ✅ Basic tests
-          
+
           The full CI pipeline will run when this PR is merged or when targeting the main branches.`;
-          
+
           await github.rest.issues.createComment({
             owner,
             repo,
@@ -165,10 +165,10 @@ jobs:
     name: PR Security Check
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
       with:
@@ -176,19 +176,20 @@ jobs:
         scan-ref: '.'
         format: 'sarif'
         output: 'trivy-results.sarif'
-    
+        trivyignores: '.trivyignore'
+
     - name: Upload Trivy scan results
       uses: github/codeql-action/upload-sarif@v3
       with:
         sarif_file: 'trivy-results.sarif'
-    
+
     - name: Check for high/critical vulnerabilities
       run: |
         # Basic check for high/critical issues in Trivy results
         if [ -f trivy-results.sarif ]; then
           # Count high/critical severity issues
-          high_critical_count=$(grep -o '"level": *"error"' trivy-results.sarif | wc -l || echo "0")
-          
+          high_critical_count=$(jq '[.runs[].results[] | select(.level == "error")] | length' trivy-results.sarif 2>/dev/null || echo "0")
+
           if [ "$high_critical_count" -gt 0 ]; then
             echo "::error::Found $high_critical_count high/critical security issues"
             echo "Please review the security scan results and address critical vulnerabilities"
