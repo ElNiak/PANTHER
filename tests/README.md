@@ -20,11 +20,13 @@ This document provides comprehensive documentation for all test suites in the PA
 |----------|---------|---------------|
 | **Unit** | Individual component validation | Function logic, input validation |
 | **Integration** | Component interaction testing | Service communication, data flow |
-| **Performance** | Performance and scalability | Latency, throughput, memory usage |
-| **Security** | Security and isolation | Privilege escalation, injection prevention |
-| **Boundary** | Edge cases and limits | Resource exhaustion, invalid inputs |
-| **Chaos** | Failure resilience | Random failures, network partitions |
-| **Stress** | High-load scenarios | Large datasets, concurrent operations |
+| **E2E** | Full workflow end-to-end tests | Complete experiment run, CLI pipelines |
+| **Property** | Property-based tests using Hypothesis | Automated edge case generation |
+| **Requires Docker** | Tests that need a running Docker daemon | Container builds, network setup |
+| **Requires Network** | Tests that need network access | Remote registry, API calls |
+| **Requires Ivy** | Tests that need the Ivy tester | Formal verification workflows |
+| **Slow** | Tests taking more than 10 seconds | Large builds, long-running scenarios |
+| **Critical** | Must-pass critical functionality | Core orchestration, config parsing |
 
 ## Test Suite Documentation
 
@@ -395,20 +397,29 @@ python -m pytest tests/test_docker_security.py -v -m "not requires_docker"
 # Unit tests only
 python -m pytest -m "unit" -v
 
-# Performance tests
-python -m pytest -m "performance" -v
-
-# Security tests
-python -m pytest -m "security" -v
-
 # Integration tests
 python -m pytest -m "integration" -v
 
-# Chaos engineering tests
-python -m pytest -m "chaos" -v
+# End-to-end tests
+python -m pytest -m "e2e" -v
 
-# Boundary condition tests
-python -m pytest -m "boundary" -v
+# Property-based tests (Hypothesis)
+python -m pytest -m "property" -v
+
+# Critical functionality tests
+python -m pytest -m "critical" -v
+
+# Slow tests (>10 seconds)
+python -m pytest -m "slow" -v
+
+# Tests requiring Docker
+python -m pytest -m "requires_docker" -v
+
+# Tests requiring network access
+python -m pytest -m "requires_network" -v
+
+# Tests requiring Ivy tester
+python -m pytest -m "requires_ivy" -v
 ```
 
 ### Running with Coverage Analysis
@@ -423,30 +434,17 @@ python -m pytest tests/test_*network_environment* \
     --cov=panther.plugins.environments.network_environment
 ```
 
-### Performance Testing
+### Performance and Slow Tests
 
 ```bash
-# Run performance benchmarks
-python -m pytest -m "performance" -v --tb=short
+# Run slow tests (benchmarks, large-scale scenarios)
+python -m pytest -m "slow" -v --tb=short
 
 # Memory profiling tests
 python -m pytest tests/test_network_environment_performance.py::TestMemoryPerformance -v
 
 # Latency benchmarks
 python -m pytest tests/test_network_environment_performance.py::TestLatencyBenchmarks -v
-```
-
-### Chaos Engineering
-
-```bash
-# Run chaos engineering tests
-python -m pytest -m "chaos" -v
-
-# Stress testing
-python -m pytest -m "stress" -v
-
-# Boundary testing
-python -m pytest -m "boundary" -v
 ```
 
 ## Test Infrastructure
@@ -468,15 +466,16 @@ python -m pytest -m "boundary" -v
 
 ### Test Configuration
 
-**pytest.ini markers**:
-- `unit` - Fast, isolated unit tests
-- `integration` - Component interaction tests
-- `performance` - Performance and benchmark tests
-- `security` - Security validation tests
-- `boundary` - Edge case and boundary tests
-- `chaos` - Chaos engineering tests
-- `stress` - High-load stress tests
-- `requires_docker` - Tests requiring Docker daemon
+**pytest.ini markers** (defined in `pyproject.toml`):
+- `unit` - Unit tests (fast, no external dependencies)
+- `integration` - Integration tests (may require Docker)
+- `e2e` - End-to-end tests (full workflow tests)
+- `property` - Property-based tests using Hypothesis
+- `requires_docker` - Tests that require Docker to be running
+- `requires_network` - Tests that require network access
+- `requires_ivy` - Tests that require Ivy tester
+- `slow` - Tests that take more than 10 seconds
+- `critical` - Critical functionality tests that must pass
 
 ### Helper Utilities
 
