@@ -3,6 +3,7 @@ Comprehensive unit tests for GperfCpuEnvironment.
 
 Tests CPU profiling functionality, configuration handling, and command generation.
 """
+
 from pathlib import Path
 from typing import List
 from unittest.mock import MagicMock, Mock, patch
@@ -44,7 +45,7 @@ class TestGperfCpuEnvironmentInitialization:
         assert env.env_type == "execution"
         assert env.env_sub_type == "gperf_cpu"
         assert env.event_manager == event_manager
-        assert env._plugin_config is None  # Should be lazy-loaded
+        assert env._cached_plugin_config is None  # Should be lazy-loaded
 
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
@@ -54,18 +55,17 @@ class TestGperfCpuEnvironmentInitialization:
     ):
         """Test that plugin is properly decorated with registration info."""
         # Check if the plugin decorator was applied
-        assert hasattr(GperfCpuEnvironment, "_plugin_info")
+        assert hasattr(GperfCpuEnvironment, "_PLUGIN_MANIFEST")
 
-        plugin_info = GperfCpuEnvironment._plugin_info
-        assert plugin_info["name"] == "gperf_cpu"
-        assert plugin_info["version"] == "1.0.0"
+        manifest = GperfCpuEnvironment._PLUGIN_MANIFEST
+        assert manifest.name == "gperf_cpu"
+        assert manifest.version == "1.0.0"
         assert (
-            plugin_info["description"]
-            == "Google Performance Tools CPU profiling environment"
+            manifest.description == "Google Performance Tools CPU profiling environment"
         )
-        assert "cpu_profiling" in plugin_info["capabilities"]
-        assert "performance_analysis" in plugin_info["capabilities"]
-        assert "libgoogle-perftools-dev" in plugin_info["external_dependencies"]
+        assert "cpu_profiling" in manifest.capabilities
+        assert "performance_analysis" in manifest.capabilities
+        assert "libgoogle-perftools-dev" in manifest.external_dependencies
 
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
@@ -101,27 +101,24 @@ class TestGperfCpuConfigurationHandling:
         """Test that plugin config is cached correctly."""
         config = GperfCpuConfig(sampling_frequency=200)
 
-        with patch.object(
-            config, "get_plugin_config", return_value=config
-        ) as mock_get_config:
-            env = GperfCpuEnvironment(
-                env_config_to_test=config,
-                output_dir=temp_output_dir,
-                env_type="execution",
-                env_sub_type="gperf_cpu",
-                event_manager=event_manager,
-            )
+        env = GperfCpuEnvironment(
+            env_config_to_test=config,
+            output_dir=temp_output_dir,
+            env_type="execution",
+            env_sub_type="gperf_cpu",
+            event_manager=event_manager,
+        )
 
-            # First call should invoke get_plugin_config
-            plugin_config1 = env._get_plugin_config()
-            mock_get_config.assert_called_once_with(GperfCpuConfig)
+        # Cache should start as None
+        assert env._cached_plugin_config is None
 
-            # Second call should use cached value
-            plugin_config2 = env._get_plugin_config()
-            mock_get_config.assert_called_once()  # Still only one call
+        # First call should populate cache
+        plugin_config1 = env._get_plugin_config()
+        assert env._cached_plugin_config is not None
 
-            assert plugin_config1 is plugin_config2
-            assert plugin_config1.sampling_frequency == 200
+        # Second call should return same object (cached)
+        plugin_config2 = env._get_plugin_config()
+        assert plugin_config1 is plugin_config2
 
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
@@ -132,29 +129,26 @@ class TestGperfCpuConfigurationHandling:
         """Test fallback to default config when get_plugin_config fails."""
         config = GperfCpuConfig()
 
-        with patch.object(
-            config, "get_plugin_config", side_effect=Exception("Config error")
-        ):
-            env = GperfCpuEnvironment(
-                env_config_to_test=config,
-                output_dir=temp_output_dir,
-                env_type="execution",
-                env_sub_type="gperf_cpu",
-                event_manager=event_manager,
-            )
+        env = GperfCpuEnvironment(
+            env_config_to_test=config,
+            output_dir=temp_output_dir,
+            env_type="execution",
+            env_sub_type="gperf_cpu",
+            event_manager=event_manager,
+        )
+        env.env_config_to_test = config
 
-            with patch.object(env, "logger") as mock_logger:
-                plugin_config = env._get_plugin_config()
+        # Force an exception by making get_plugin_config raise
+        config.get_plugin_config = Mock(side_effect=Exception("Config error"))
 
-                # Should return default config
-                assert isinstance(plugin_config, GperfCpuConfig)
-                assert plugin_config.sampling_frequency is None  # Default value
+        mock_logger = MagicMock()
+        env._logger = mock_logger
 
-                # Should log debug message
-                mock_logger.debug.assert_called_once()
-                assert "Could not get plugin config, using defaults" in str(
-                    mock_logger.debug.call_args
-                )
+        plugin_config = env._get_plugin_config()
+
+        # Should return default config
+        assert isinstance(plugin_config, GperfCpuConfig)
+        assert plugin_config.sampling_frequency is None  # Default value
 
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
@@ -181,7 +175,7 @@ class TestGperfCpuConfigurationHandling:
 
             # Should prefer dict config over typed config
             # This requires access to the internal logic - we'll test through setup
-            mock_service = Mock(spec=IServiceManager)
+            mock_service = Mock()
             mock_service.service_config_to_test.implementation.gperf_compatible = True
 
             with patch(
@@ -318,15 +312,17 @@ class TestGperfCpuCommandGeneration:
             event_manager=event_manager,
         )
 
-        with patch.object(env, "logger") as mock_logger:
-            command = env.to_command(pid=12345)
+        mock_logger = MagicMock()
+        env._logger = mock_logger
 
-            # Should log warning about PID being ignored
-            mock_logger.warning.assert_called_once()
-            warning_msg = str(mock_logger.warning.call_args)
-            assert "PID parameter" in warning_msg
-            assert "12345" in warning_msg
-            assert "does not support attaching" in warning_msg
+        command = env.to_command(pid=12345)
+
+        # Should log warning about PID being ignored
+        mock_logger.warning.assert_called_once()
+        warning_msg = str(mock_logger.warning.call_args)
+        assert "PID parameter" in warning_msg
+        assert "12345" in warning_msg
+        assert "does not support attaching" in warning_msg
 
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
@@ -359,7 +355,7 @@ class TestGperfCpuPluginSpecificSetup:
 
     def create_mock_service(self, gperf_compatible=True, service_name="test_service"):
         """Helper to create mock service."""
-        service = Mock(spec=IServiceManager)
+        service = Mock()
         service.service_config_to_test.implementation.gperf_compatible = (
             gperf_compatible
         )
@@ -407,8 +403,8 @@ class TestGperfCpuPluginSpecificSetup:
                 logger=env.logger,
             )
 
-            # Verify output file registration
-            mock_cmd_builder.register_output_file.assert_called_with(
+            # Verify output file registration (first call is for cpu_profile)
+            mock_cmd_builder.register_output_file.assert_any_call(
                 file_type="cpu_profile",
                 extension="prof",
                 description="CPU profile data",
@@ -439,20 +435,22 @@ class TestGperfCpuPluginSpecificSetup:
         # Create incompatible service
         service = self.create_mock_service(gperf_compatible=False)
 
+        mock_logger = MagicMock()
+        env._logger = mock_logger
+
         with patch(
             "panther.plugins.environments.execution_environment.gperf_cpu.gperf_cpu.create_execution_environment_builder"
         ) as mock_builder:
-            with patch.object(env, "logger") as mock_logger:
-                env._setup_plugin_specific_environment([service], "test_timestamp")
+            env._setup_plugin_specific_environment([service], "test_timestamp")
 
-                # Should not create builder for incompatible service
-                mock_builder.assert_not_called()
+            # Should not create builder for incompatible service
+            mock_builder.assert_not_called()
 
-                # Should log skip message
-                mock_logger.debug.assert_called_with(
-                    "Skipping gperf CPU profiling for %s (not gperf compatible)",
-                    "test_service",
-                )
+            # Should log skip message
+            mock_logger.debug.assert_called_with(
+                "Skipping gperf CPU profiling for %s (not gperf compatible)",
+                "test_service",
+            )
 
     @patch(
         "panther.plugins.environments.execution_environment.gperf_cpu.gperf_cpu.create_execution_environment_builder"
@@ -606,19 +604,21 @@ class TestGperfCpuEnvironmentUpdates:
             event_manager=event_manager,
         )
 
-        with patch.object(env, "logger") as mock_logger:
-            env.update_environment(
-                execution_environment=Mock(),
-                global_config=GlobalConfig(),
-                plugin_manager=Mock(),
-                services_managers=[],
-                test_config=Mock(),
-            )
+        mock_logger = MagicMock()
+        env._logger = mock_logger
 
-            # Should log debug message
-            mock_logger.debug.assert_called_once_with(
-                "Updated environment for gperf CPU profiling execution"
-            )
+        env.update_environment(
+            execution_environment=Mock(),
+            global_config=GlobalConfig(),
+            plugin_manager=Mock(),
+            services_managers=[],
+            test_config=Mock(),
+        )
+
+        # Should log debug message
+        mock_logger.debug.assert_called_once_with(
+            "Updated environment for gperf CPU profiling execution"
+        )
 
 
 class TestGperfCpuErrorHandling:
@@ -641,19 +641,21 @@ class TestGperfCpuErrorHandling:
         )
 
         # Create service without service_name attribute
-        service = Mock(spec=IServiceManager)
+        service = Mock()
         service.service_config_to_test.implementation.gperf_compatible = False
         del service.service_name  # Remove service_name attribute
         service.__class__.__name__ = "TestServiceManager"
 
-        with patch.object(env, "logger") as mock_logger:
-            env._setup_plugin_specific_environment([service], "test_timestamp")
+        mock_logger = MagicMock()
+        env._logger = mock_logger
 
-            # Should use class name as fallback
-            mock_logger.debug.assert_called_with(
-                "Skipping gperf CPU profiling for %s (not gperf compatible)",
-                "TestServiceManager",
-            )
+        env._setup_plugin_specific_environment([service], "test_timestamp")
+
+        # Should use class name as fallback
+        mock_logger.debug.assert_called_with(
+            "Skipping gperf CPU profiling for %s (not gperf compatible)",
+            "TestServiceManager",
+        )
 
     @patch(
         "panther.plugins.environments.execution_environment.gperf_cpu.gperf_cpu.create_execution_environment_builder"

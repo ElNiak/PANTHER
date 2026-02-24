@@ -130,7 +130,7 @@ results to `outputs/`.
 >  "Alternative Test Configuration"
 > You can also test with built-in examples:
 > ```bash
-> panther run --config experiment-config/experiment_config_example.yaml 
+> panther run --config experiment-config/experiment_config_example.yaml
 > ```
 
 ---

@@ -64,7 +64,6 @@ def handle_errors(func: Callable) -> Callable:
         try:
             return func(*args, **kwargs)
         except KeyboardInterrupt:
-            # BEHAVIORAL EQUIVALENCE: Preserve legacy exit code 130 for Ctrl+C
             click.echo(colored("⚠️  Operation cancelled by user", "yellow"), err=True)
             sys.exit(130)
         except subprocess.CalledProcessError as e:
@@ -77,7 +76,6 @@ def handle_errors(func: Callable) -> Callable:
             click.echo(colored(f"❌ Permission denied: {e}", "red"), err=True)
             sys.exit(1)
         except Exception as e:
-            # BEHAVIORAL EQUIVALENCE: Use legacy logging approach
             ctx = click.get_current_context(silent=True)
             debug = ctx.obj.get("debug", False) if ctx and ctx.obj else False
 
@@ -96,14 +94,12 @@ def setup_logging(debug: bool = False, verbose: bool = False) -> None:
     """
     Configure logging based on debug and verbose flags.
 
-    BEHAVIORAL EQUIVALENCE: Attempts to use LoggerFactory when available
-    to preserve legacy logging behavior, falls back to basic logging.
+    Uses LoggerFactory when available, falls back to basic logging.
 
     Args:
         debug: Enable debug-level logging
         verbose: Enable info-level logging
     """
-    # BEHAVIORAL EQUIVALENCE: Try to use legacy LoggerFactory if available
     try:
         from panther.core.utils.logger_factory import LoggerFactory
 
@@ -175,7 +171,7 @@ def pass_context_and_setup_logging(func: Callable) -> Callable:
 def success_message(message: str) -> None:
     """Print a success message with green checkmark.
 
-    BEHAVIORAL EQUIVALENCE: Uses LoggerFactory when available to match legacy behavior.
+    Uses LoggerFactory when available, falls back to standard logging.
     """
     try:
         from panther.core.utils.logger_factory import LoggerFactory
@@ -195,7 +191,7 @@ def success_message(message: str) -> None:
 def info_message(message: str) -> None:
     """Print an info message with blue icon.
 
-    BEHAVIORAL EQUIVALENCE: Uses LoggerFactory when available to match legacy behavior.
+    Uses LoggerFactory when available, falls back to standard logging.
     """
     try:
         from panther.core.utils.logger_factory import LoggerFactory
@@ -215,7 +211,7 @@ def info_message(message: str) -> None:
 def warning_message(message: str) -> None:
     """Print a warning message with yellow icon.
 
-    BEHAVIORAL EQUIVALENCE: Uses LoggerFactory when available to match legacy behavior.
+    Uses LoggerFactory when available, falls back to standard logging.
     """
     try:
         from panther.core.utils.logger_factory import LoggerFactory
@@ -235,7 +231,7 @@ def warning_message(message: str) -> None:
 def error_message(message: str) -> None:
     """Print an error message with red icon.
 
-    BEHAVIORAL EQUIVALENCE: Uses LoggerFactory when available to match legacy behavior.
+    Uses LoggerFactory when available, falls back to standard logging.
     """
     try:
         from panther.core.utils.logger_factory import LoggerFactory

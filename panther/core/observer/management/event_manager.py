@@ -92,16 +92,16 @@ class EventManager(LoggerMixin):
 
     def __new__(cls):
         """Ensure only one instance of EventManager exists (singleton pattern)."""
-        if cls._instance is None:
-            with cls._lock:
-                if cls._instance is None:
-                    cls._instance = super().__new__(cls)
-                    cls._instance._initialized = False
-        return cls._instance
+        if EventManager._instance is None:
+            with EventManager._lock:
+                if EventManager._instance is None:
+                    EventManager._instance = super().__new__(cls)
+                    EventManager._instance._initialized = False
+        return EventManager._instance
 
     def __init__(self):
         """Initialize a new EventManager."""
-        if EventManager._instance._initialized:
+        if EventManager._instance is not None and EventManager._instance._initialized:
             return
         # Prevent re-initialization of the singleton
         # Map of event types to prioritized observers
@@ -154,17 +154,17 @@ class EventManager(LoggerMixin):
     @classmethod
     def get_instance(cls):
         """Get the singleton instance of EventManager."""
-        if cls._instance is None:
-            cls._instance = cls()
-        return cls._instance
+        if EventManager._instance is None:
+            EventManager._instance = cls()
+        return EventManager._instance
 
     @classmethod
     def reset_instance(cls):
         """Reset the singleton instance (mainly for testing)."""
-        with cls._lock:
-            if cls._instance:
-                cls._instance._initialized = False
-            cls._instance = None
+        with EventManager._lock:
+            if EventManager._instance:
+                EventManager._instance._initialized = False
+            EventManager._instance = None
 
     def _get_event_type_safely(self, event: BaseEvent) -> str:
         """
@@ -622,20 +622,13 @@ class EventManager(LoggerMixin):
 
                 observer.on_event(event)
 
-            except (AttributeError, ValueError, TypeError) as e:
+            except Exception as e:
                 self.logger.error(
                     "Error notifying observer '%s' about event '%s': %s",
                     observer.__class__.__name__ if observer else "None",
                     event_type,
                     str(e),
-                )
-                self.metrics["errors"] += 1
-            except RuntimeError as e:
-                self.logger.error(
-                    "Runtime error in observer '%s' processing event '%s': %s",
-                    observer.__class__.__name__ if observer else "None",
-                    event_type,
-                    str(e),
+                    exc_info=True,
                 )
                 self.metrics["errors"] += 1
 

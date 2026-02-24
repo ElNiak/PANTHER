@@ -1,4 +1,4 @@
-"""Aioquic plugin configuration schema."""
+"""Aioquic QUIC plugin configuration schema."""
 
 from typing import Optional
 
@@ -8,19 +8,36 @@ from panther.config.core.models.plugin import ServicePluginConfig
 
 
 class AioquicConfig(ServicePluginConfig):
-    """Configuration for aioquic service plugin.
+    """Aioquic QUIC implementation configuration.
 
-    This configuration supports the dual approach pattern where plugin-specific
-    fields can be accessed either through the typed config or the plugin_config dict.
+    Aioquic is a pure-Python QUIC and HTTP/3 implementation built on
+    asyncio. It provides a complete QUIC stack without native dependencies,
+    making it highly portable and easy to debug. Aioquic supports HTTP/3,
+    WebSockets over HTTP/3, server push, datagrams, and stream priority.
+
+    Language: Python (asyncio) | Source: https://github.com/aiortc/aioquic
+    Build time: ~2 min | Docker image: ~150MB
+
+    Inherited from ServicePluginConfig / BasePluginConfig:
+        enabled (bool): Whether the plugin is enabled. Default: True.
+        version (Optional[str]): Plugin version. Default: None.
+        priority (int): Plugin execution priority. Default: 100.
+        docker_image (Optional[str]): Docker image name. Default: None.
+        build_from_source (bool): Build from source. Default: True.
+        source_repository (Optional[str]): Source repository URL.
+
+    Example YAML::
+
+        services:
+          client:
+            implementation:
+              name: aioquic
+              type: iut
+            protocol:
+              name: quic
+              version: rfc9000
+              role: client
     """
-
-    # Standard plugin fields (inherited from ServicePluginConfig)
-    # - enabled: bool
-    # - version: Optional[str]
-    # - priority: int
-    # - docker_image: Optional[str]
-    # - build_from_source: bool
-    # - source_repository: Optional[str]
 
     # Aioquic-specific fields
     name: str = Field(default="aioquic", description="Implementation name")

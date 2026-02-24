@@ -1,9 +1,10 @@
 import os
-import pytest
 import shlex
+from pathlib import Path
+
+import pytest
 import yaml
 from jinja2 import Environment, FileSystemLoader
-from pathlib import Path
 
 
 # Helper function to get the template directory path
@@ -12,12 +13,20 @@ def get_template_path():
     plugin_dir = Path(
         os.path.dirname(
             os.path.dirname(
-                os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                os.path.dirname(
+                    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                )
             )
         )
     )
     return os.path.join(
-        plugin_dir, "panther", "plugins", "services", "testers", "panther_ivy", "templates"
+        plugin_dir,
+        "panther",
+        "plugins",
+        "services",
+        "testers",
+        "panther_ivy",
+        "templates",
     )
 
 
@@ -79,10 +88,17 @@ def env():
             True,
         ),
         # Test command that should NOT contain unquoted special characters
-        (["/bin/sh", "-c", 'echo "This & that" > /tmp/file'], {}, "echo This & that", False),
+        (
+            ["/bin/sh", "-c", 'echo "This & that" > /tmp/file'],
+            {},
+            "echo This & that",
+            False,
+        ),
     ],
 )
-def test_command_template_rendering(env, cmd_args, env_vars, expected_snippet, should_contain):
+def test_command_template_rendering(
+    env, cmd_args, env_vars, expected_snippet, should_contain
+):
     """Test that command templates render with proper escaping"""
     # Since PantherIvy doesn't have command templates like other plugins,
     # we'll test the general quoting functionality

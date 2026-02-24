@@ -334,9 +334,11 @@ def mock_docker_unavailable():
 @pytest.fixture
 def mock_network_calls():
     """Mock all network-related calls."""
-    with patch("requests.get") as mock_get, patch("requests.post") as mock_post, patch(
-        "socket.socket"
-    ) as mock_socket:
+    with (
+        patch("requests.get") as mock_get,
+        patch("requests.post") as mock_post,
+        patch("socket.socket") as mock_socket,
+    ):
         # Mock successful HTTP responses
         mock_response = Mock()
         mock_response.status_code = 200
@@ -377,25 +379,20 @@ def temp_experiment_directory(temp_dir, sample_experiment_config):
     logs_dir = exp_dir / "logs"
     logs_dir.mkdir()
 
-    # Create outputs directory
-    outputs_dir = exp_dir / "outputs"
-    outputs_dir.mkdir()
-
     yield exp_dir
 
 
 @pytest.fixture
 def mock_file_system():
     """Mock file system operations for builder tests."""
-    with patch("pathlib.Path.exists", return_value=True), patch(
-        "pathlib.Path.is_dir", return_value=True
-    ), patch("pathlib.Path.is_file", return_value=True), patch(
-        "pathlib.Path.glob"
-    ) as mock_glob, patch(
-        "pathlib.Path.unlink"
-    ) as mock_unlink, patch(
-        "pathlib.Path.rmdir"
-    ) as mock_rmdir:
+    with (
+        patch("pathlib.Path.exists", return_value=True),
+        patch("pathlib.Path.is_dir", return_value=True),
+        patch("pathlib.Path.is_file", return_value=True),
+        patch("pathlib.Path.glob") as mock_glob,
+        patch("pathlib.Path.unlink") as mock_unlink,
+        patch("pathlib.Path.rmdir") as mock_rmdir,
+    ):
         mock_glob.return_value = []
         yield {"glob": mock_glob, "unlink": mock_unlink, "rmdir": mock_rmdir}
 
@@ -607,14 +604,6 @@ def experiment_config_file(temp_config_dir, sample_experiment_config_data):
     with open(config_file, "w") as f:
         yaml.dump(sample_experiment_config_data, f)
     return config_file
-
-
-@pytest.fixture
-def config_loader_instance(temp_config_dir):
-    """Provide configured ConfigLoader instance."""
-    from panther.config.config_manager import ConfigLoader
-
-    return ConfigLoader(config_dir=temp_config_dir)
 
 
 # ===== CORE FIXTURES =====
@@ -972,7 +961,25 @@ def sample_test_config():
         name="test_case",
         description="Test case description",
         network_environment={"type": "docker_compose"},
-        services={},
+        services={
+            "test_server": {
+                "implementation": {"name": "test_impl", "type": "iut"},
+                "protocol": {
+                    "name": "test_protocol",
+                    "version": "1.0",
+                    "role": "server",
+                },
+            },
+            "test_client": {
+                "implementation": {"name": "test_impl", "type": "iut"},
+                "protocol": {
+                    "name": "test_protocol",
+                    "version": "1.0",
+                    "role": "client",
+                    "target": "test_server",
+                },
+            },
+        },
     )
 
 

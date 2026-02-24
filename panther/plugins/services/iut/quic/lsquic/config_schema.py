@@ -1,4 +1,4 @@
-"""LSQUIC plugin configuration schema."""
+"""LSQUIC QUIC plugin configuration schema."""
 
 from typing import Dict, Optional
 
@@ -8,19 +8,37 @@ from panther.config.core.models.plugin import ServicePluginConfig
 
 
 class LsquicConfig(ServicePluginConfig):
-    """Configuration for LSQUIC service plugin.
+    """LSQUIC QUIC implementation configuration.
 
-    This configuration supports the dual approach pattern where plugin-specific
-    fields can be accessed either through the typed config or the plugin_config dict.
+    LSQUIC (LiteSpeed QUIC) is a high-performance C implementation of
+    QUIC and HTTP/3 developed by LiteSpeed Technologies. It powers the
+    LiteSpeed Web Server and is optimized for production workloads with
+    fine-grained control over connection limits, packet sizes, and
+    protocol timeouts.
+
+    Language: C | Source: https://github.com/litespeedtech/lsquic
+    Build time: ~8 min | Docker image: ~250MB
+
+    Inherited from ServicePluginConfig / BasePluginConfig:
+        enabled (bool): Whether the plugin is enabled. Default: True.
+        version (Optional[str]): Plugin version. Default: None.
+        priority (int): Plugin execution priority. Default: 100.
+        docker_image (Optional[str]): Docker image name. Default: None.
+        build_from_source (bool): Build from source. Default: True.
+        source_repository (Optional[str]): Source repository URL.
+
+    Example YAML::
+
+        services:
+          server:
+            implementation:
+              name: lsquic
+              type: iut
+            protocol:
+              name: quic
+              version: rfc9000
+              role: server
     """
-
-    # Standard plugin fields (inherited from ServicePluginConfig)
-    # - enabled: bool
-    # - version: Optional[str]
-    # - priority: int
-    # - docker_image: Optional[str]
-    # - build_from_source: bool
-    # - source_repository: Optional[str]
 
     # LSQUIC-specific fields
     name: str = Field(default="lsquic", description="Implementation name")

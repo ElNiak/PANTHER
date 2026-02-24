@@ -461,9 +461,9 @@ Before submitting your plugin:
 
 For detailed API documentation:
 
-- **[Protocol Interface](panther/plugins/protocol_interface.py)**: Base interface requirements
-- **[Configuration Schema](panther/plugins/config_schema.py)**: Base configuration structure
-- **[Plugin Loader](panther/plugins/plugin_loader.py)**: Plugin discovery and loading
+- **Protocol Interface**: Base interface requirements
+- **Configuration Schema**: Base configuration structure
+- **Plugin Loader**: Plugin discovery and loading
 - **[Test Examples](test_scenarios/)**: Example test implementations
 
 ## Creating a New Protocol Plugin
@@ -574,7 +574,7 @@ def test_protocol_execution():
 
 ### 7. Document Your Protocol
 
-Create a README.md file using the [plugin template](panther/plugins/plugin_template.md) that includes:
+Create a README.md file using the [plugin template](../plugin_template.md) that includes:
 
 - Protocol purpose and specifications
 - Supported versions and features

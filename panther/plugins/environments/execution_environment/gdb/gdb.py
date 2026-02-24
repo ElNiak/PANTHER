@@ -47,6 +47,8 @@ class GdbEnvironment(BaseExecutionEnvironment):
     - Comprehensive crash reporting
     """
 
+    _config_class = GdbConfig
+
     def __init__(
         self,
         env_config_to_test: GdbConfig,
@@ -61,21 +63,7 @@ class GdbEnvironment(BaseExecutionEnvironment):
             env_config_to_test, output_dir, env_type, env_sub_type, event_manager
         )
 
-        # Initialize plugin config cache
-        self._plugin_config = None
         self.target_platform = target_platform
-
-    def _get_plugin_config(self) -> GdbConfig:
-        """Get plugin config with caching and fallback."""
-        if self._plugin_config is None:
-            try:
-                self._plugin_config = self.env_config_to_test.get_plugin_config(
-                    GdbConfig
-                )
-            except Exception as e:
-                self.logger.debug(f"Could not get plugin config, using defaults: {e}")
-                self._plugin_config = GdbConfig()
-        return self._plugin_config
 
     def _setup_plugin_specific_environment(
         self, services_managers: List[IServiceManager], timestamp: str
@@ -170,15 +158,9 @@ class GdbEnvironment(BaseExecutionEnvironment):
             )
 
             # Get configuration values with dual approach
-            gdb_binary = self._get_config_value(
-                "gdb_binary", plugin_config.gdb_binary, "/usr/bin/gdb"
-            )
-            enable_core_dumps = self._get_config_value(
-                "enable_core_dumps", plugin_config.enable_core_dumps, True
-            )
-            auto_backtrace = self._get_config_value(
-                "auto_backtrace", plugin_config.auto_backtrace, True
-            )
+            gdb_binary = self._get_config_value("gdb_binary", "/usr/bin/gdb")
+            enable_core_dumps = self._get_config_value("enable_core_dumps", True)
+            auto_backtrace = self._get_config_value("auto_backtrace", True)
 
             # Create GDB script for automated debugging
             gdb_script = self._create_gdb_script(
@@ -239,24 +221,6 @@ class GdbEnvironment(BaseExecutionEnvironment):
             )
             self.logger.debug("Applied modifications: %s", results)
 
-    def _get_config_value(self, key: str, typed_value, default_value):
-        """Get configuration value using dual approach (dict then typed config)."""
-        # First try plugin_config dict
-        if (
-            hasattr(self.env_config_to_test, "plugin_config")
-            and self.env_config_to_test.plugin_config
-        ):
-            dict_value = self.env_config_to_test.plugin_config.get(key)
-            if dict_value is not None:
-                return dict_value
-
-        # Second try typed config
-        if typed_value is not None:
-            return typed_value
-
-        # Finally use default
-        return default_value
-
     def _build_gdb_command(
         self, gdb_binary: str, gdb_script_file: str, log_file: str
     ) -> str:
@@ -271,8 +235,7 @@ class GdbEnvironment(BaseExecutionEnvironment):
         Returns:
             str: Complete GDB command
         """
-        plugin_config = self._get_plugin_config()
-        execution_timeout = None  # self._get_config_value("execution_timeout", plugin_config.execution_timeout, 300)
+        execution_timeout = self._get_config_value("execution_timeout")
 
         # Basic GDB command structure
         gdb_cmd_parts = [
@@ -310,10 +273,7 @@ class GdbEnvironment(BaseExecutionEnvironment):
         Returns:
             Tuple of (setup_commands_list, main_command_wrapper)
         """
-        plugin_config = self._get_plugin_config()
-        gdb_binary = self._get_config_value(
-            "gdb_binary", plugin_config.gdb_binary, "/usr/bin/gdb"
-        )
+        gdb_binary = self._get_config_value("gdb_binary", "/usr/bin/gdb")
 
         setup_commands = []
 
@@ -408,21 +368,17 @@ class GdbEnvironment(BaseExecutionEnvironment):
         env_vars = {}
 
         # Core dump setup
-        if self._get_config_value("enable_core_dumps", config.enable_core_dumps, True):
+        if self._get_config_value("enable_core_dumps", True):
             env_vars["CORE_DUMP_FILE"] = core_dump_file
 
         # AddressSanitizer if enabled
-        if self._get_config_value("enable_asan", config.enable_asan, False):
-            asan_options = self._get_config_value(
-                "asan_options", config.asan_options, []
-            )
+        if self._get_config_value("enable_asan", False):
+            asan_options = self._get_config_value("asan_options", [])
             if asan_options:
                 env_vars["ASAN_OPTIONS"] = ":".join(asan_options)
 
         # Debug environment variables
-        debug_env_vars = self._get_config_value(
-            "debug_env_vars", config.debug_env_vars, {}
-        )
+        debug_env_vars = self._get_config_value("debug_env_vars", {})
         env_vars.update({k: str(v) for k, v in debug_env_vars.items()})
 
         return env_vars
@@ -531,7 +487,6 @@ class GdbEnvironment(BaseExecutionEnvironment):
         # Add signal handling with strace-like comprehensiveness
         break_signals = self._get_config_value(
             "break_on_signals",
-            config.break_on_signals,
             ["SIGSEGV", "SIGABRT", "SIGFPE"],
         )
         script_lines.extend(
@@ -553,9 +508,7 @@ class GdbEnvironment(BaseExecutionEnvironment):
             script_lines.append("handle " + signal + " stop print")
 
         # Add exception handling for C++
-        if self._get_config_value(
-            "break_on_exceptions", config.break_on_exceptions, True
-        ):
+        if self._get_config_value("break_on_exceptions", True):
             script_lines.extend(
                 [
                     "",
@@ -597,9 +550,7 @@ class GdbEnvironment(BaseExecutionEnvironment):
         )
 
         # Add initialization commands
-        init_commands = self._get_config_value(
-            "init_commands", config.init_commands, []
-        )
+        init_commands = self._get_config_value("init_commands", [])
         if init_commands:
             script_lines.extend(
                 [
@@ -611,12 +562,8 @@ class GdbEnvironment(BaseExecutionEnvironment):
 
         # Define comprehensive error analysis function (enhanced strace-like output)
         if auto_backtrace:
-            max_depth = self._get_config_value(
-                "max_backtrace_depth", config.max_backtrace_depth, 50
-            )
-            backtrace_full = self._get_config_value(
-                "backtrace_full", config.backtrace_full, True
-            )
+            max_depth = self._get_config_value("max_backtrace_depth", 50)
+            backtrace_full = self._get_config_value("backtrace_full", True)
 
             script_lines.extend(
                 [
@@ -658,9 +605,7 @@ class GdbEnvironment(BaseExecutionEnvironment):
                 )
 
             # Add post-crash commands with strace-like syscall analysis
-            post_crash_commands = self._get_config_value(
-                "post_crash_commands", config.post_crash_commands, []
-            )
+            post_crash_commands = self._get_config_value("post_crash_commands", [])
             enhanced_commands = [
                 "info locals",
                 "info args",
@@ -758,7 +703,7 @@ class GdbEnvironment(BaseExecutionEnvironment):
         )
 
         # Add run command with enhanced monitoring
-        run_command = self._get_config_value("run_command", config.run_command, "run")
+        run_command = self._get_config_value("run_command", "run")
         script_lines.extend(
             [
                 "# === EXECUTION START ===",
@@ -786,10 +731,7 @@ class GdbEnvironment(BaseExecutionEnvironment):
         Returns:
             str: Command string for GDB debugging
         """
-        plugin_config = self._get_plugin_config()
-        gdb_binary = self._get_config_value(
-            "gdb_binary", plugin_config.gdb_binary, "/usr/bin/gdb"
-        )
+        gdb_binary = self._get_config_value("gdb_binary", "/usr/bin/gdb")
 
         if output_file is None:
             output_file = "/tmp/gdb_session.log"

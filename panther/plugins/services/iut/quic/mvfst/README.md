@@ -5,7 +5,7 @@
 
 > **Plugin Type**: Service (Implementation Under Test)
 
-> **Parent Plugin**: [QUIC IUT](panther/plugins/services/iut/quic/README.md)
+> **Parent Plugin**: [QUIC IUT](../README.md)
 
 > **Source Location**: `plugins/services/iut/quic/mvfst/`
 
@@ -38,23 +38,23 @@ from panther.plugins.services.base.quic_service_base import BaseQUICServiceManag
 
 class MvfstServiceManager(BaseQUICServiceManager):
     """Meta's mvfst QUIC implementation with inheritance-based architecture."""
-    
+
     def _get_implementation_name(self) -> str:
         return "mvfst"
-    
+
     def _get_binary_name(self) -> str:
         return "echo"  # Meta's echo server/client
-    
+
     # Customize only what's unique to mvfst
     def _get_server_specific_args(self, **kwargs) -> List[str]:
         port = kwargs.get("port", 6666)
         return ["--mode=server", f"--port={port}"]
-    
+
     def _get_client_specific_args(self, **kwargs) -> List[str]:
         host = kwargs.get("host", "localhost")
         port = kwargs.get("port", 6666)
         return ["--mode=client", f"--host={host}", f"--port={port}"]
-    
+
     # All common QUIC functionality inherited from BaseQUICServiceManager!
 ```
 
@@ -103,42 +103,35 @@ Docker-based deployment installs all necessary dependencies automatically.
 
 ## Configuration Options
 
-<!-- src: /panther/plugins/services/iut/quic/mvfst/config_schema.py -->
+<!-- Source: config_schema.py -->
 
-```yaml
-services:
-  - name: "mvfst_implementation"
-    implementation:
-      name: "quic/mvfst"
-      type: "iut"
-      version: "rfc9000"  # rfc9000, draft29, draft27-vuln1, draft27-vuln2
-    protocol:
-      name: "quic"
-      type: "protocol"
-      role: "server"
-    config:
-      server_port: 6666
-      certificate_file: "cert.pem"
-      private_key_file: "key.pem"
-      congestion_control: "cubic"  # cubic, bbr, copa, newreno
-      max_data: 104857600  # 100MB
-      transport_params:
-        max_idle_timeout: 30000  # milliseconds
-        max_udp_payload_size: 1200
-```
+### MvfstConfig Fields
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `server_port` | integer | No | 6666 | QUIC server listening port |
-| `certificate_file` | string | No | "cert.pem" | TLS certificate file path |
-| `private_key_file` | string | No | "key.pem" | TLS private key file path |
-| `congestion_control` | enum | No | "cubic" | Congestion control algorithm |
-| `max_data` | integer | No | 104857600 | Maximum connection data |
-| `max_stream_data` | integer | No | 10485760 | Maximum stream data |
-| `max_streams_bidi` | integer | No | 1000 | Maximum bidirectional streams |
-| `max_streams_uni` | integer | No | 1000 | Maximum unidirectional streams |
-| `transport_params.max_idle_timeout` | integer | No | 30000 | Connection idle timeout (ms) |
-| `transport_params.max_udp_payload_size` | integer | No | 1200 | Maximum UDP payload size |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `name` | str | "mvfst" | Implementation name |
+| `type` | ImplementationType | IUT | Implementation type |
+| `version` | MvfstVersion | (loaded from YAML) | Version configuration |
+
+### MvfstVersion Fields
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `version` | str | "" | Git tag or release version string |
+| `commit` | str | "" | Git commit hash for reproducible builds |
+| `dependencies` | List[Dict[str, str]] | [] | Build-time dependency specifications |
+| `client` | Optional[dict] | {} | Client-specific configuration |
+| `server` | Optional[dict] | {} | Server-specific configuration |
+
+Inherited from `ServicePluginConfig` / `BasePluginConfig`:
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `enabled` | bool | True | Whether the plugin is enabled |
+| `priority` | int | 100 | Plugin execution priority |
+| `docker_image` | Optional[str] | None | Docker image name |
+| `build_from_source` | bool | True | Build from source |
+| `source_repository` | Optional[str] | None | Source repository URL |
 
 ## Version Support
 
@@ -265,7 +258,7 @@ The mvfst implementation provides:
 
 ### File Structure
 
-```
+```text
 mvfst/
 ├── README.md                 # This documentation
 ├── __init__.py              # Plugin initialization
@@ -439,8 +432,8 @@ config:
 
 ## See Also
 
-- [QUIC IUT Plugin](panther/plugins/services/iut/quic/README.md) - Parent plugin documentation
-- [QUIC Protocol Plugin](panther/plugins/services/protocols/client_server/quic/README.md) - QUIC protocol implementation
-- [Picoquic Plugin](panther/plugins/services/iut/quic/picoquic/README.md) - Alternative QUIC implementation
-- [Quiche Plugin](panther/plugins/services/iut/quic/quiche/README.md) - Rust-based QUIC implementation
-- [Service Plugin Development Guide](panther/plugins/services/iut/development.md) - General development guidelines
+- [QUIC IUT Plugin](../README.md) - Parent plugin documentation
+- [QUIC Protocol Plugin](../../../../protocols/client_server/quic/README.md) - QUIC protocol implementation
+- [Picoquic Plugin](../picoquic/README.md) - Alternative QUIC implementation
+- [Quiche Plugin](../quiche/README.md) - Rust-based QUIC implementation
+- [Service Plugin Development Guide](../../development.md) - General development guidelines

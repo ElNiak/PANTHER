@@ -3,6 +3,7 @@
 ## Core Interfaces
 
 ### IObserver
+<!-- src: panther/core/observer/base/observer_interface.py -->
 
 ```python
 class IObserver(ABC)
@@ -12,393 +13,305 @@ Core interface for all observer implementations in PANTHER.
 
 **Description:** Defines the contract for event processing with deduplication protection and interest-based filtering.
 
+**Constructor:** `IObserver()` - initializes `processed_events_uuids` list.
+
 **Attributes:**
 - `processed_events_uuids: List[str]` - UUIDs of previously processed events
 
 **Methods:**
 
-#### `on_event(event: BaseEvent) -> None`
-Handle an incoming event.
-
-**Args:**
-- `event: BaseEvent` - Event to process
-
-**Requires:**
-- Event must have valid UUID and timestamp
-- Implementation must handle exceptions gracefully
-
-**Ensures:**
-- Event processing is idempotent
-- No side effects on other observers
-- Thread-safe execution
-
-**Example:**
-```python
-class MyObserver(IObserver):
-    def on_event(self, event: BaseEvent):
-        if event.uuid in self.processed_events_uuids:
-            return  # Skip duplicate
-
-        # Process event
-        self.process_event(event)
-        self.processed_events_uuids.append(event.uuid)
-```
+#### `on_event(event: BaseEvent) -> None` (abstract)
+Handle an incoming event. Must be implemented by subclasses.
 
 #### `is_interested(event_type: str) -> bool`
-Check if observer should process events of given type.
+Check if this observer should process events of the given type. Default returns `True` (interested in all events).
 
-**Args:**
-- `event_type: str` - Event type to check interest for
+#### `get_priority() -> int`
+Get the priority for this observer. Higher values mean higher priority. Default returns `0`.
 
-**Returns:**
-- `bool` - True if observer handles this event type
-
-**Default Implementation:** Returns True (interested in all events)
-
-**Example:**
-```python
-def is_interested(self, event_type: str) -> bool:
-    return event_type.startswith("test.") or event_type.startswith("metrics.")
-```
-
-**Complexity:** O(1) for simple filters, O(n) for complex pattern matching.
+#### `_setup_logging(logger_name, log_level, enable_colors=True, output_file=None, structured_output=False)`
+Set up logging for an observer using `LoggerFactory`. Supports lazy file handler creation (files are only created when content is first written).
 
 ---
 
 ### ITypedObserver
+<!-- src: panther/core/observer/base/typed_observer_interface.py -->
 
 ```python
-class ITypedObserver(IObserver, Generic[TEvent])
+class ITypedObserver(IObserver)
 ```
 
-Type-safe observer interface for specific event types.
+Enhanced observer interface with typed event handlers for automatic event routing.
 
-**Description:** Provides compile-time type checking for event handling with generic type parameters.
+**Description:** Extends IObserver to provide specific `on_*` handler methods for each event type. The `on_event()` method automatically routes events to their typed handler based on `type(event)`. Observers can override only the handlers they need.
 
-**Type Parameters:**
-- `TEvent` - Specific event type this observer handles
+**Constructor:** `ITypedObserver()` - initializes `_event_handlers` dict mapping event classes to handler methods.
 
 **Methods:**
 
-#### `on_event(event: TEvent) -> None`
-Handle typed event with compile-time safety.
+#### `on_event(event: BaseEvent)`
+Main event handler that routes to specific typed handlers by looking up `type(event)` in `_event_handlers`. Falls back to `on_unknown_event()` for unregistered event types. Catches exceptions per handler to prevent cascading failures.
 
-**Args:**
-- `event: TEvent` - Typed event to process
+#### `on_unknown_event(event: BaseEvent) -> bool`
+Handle unknown event types. Default logs a debug warning and returns True.
 
-**Ensures:**
-- Type safety at compile time
-- IDE autocomplete support
-- Runtime type validation
+#### `is_interested(event_type: str) -> bool`
+Checks if any handler class name contains the event_type string (partial string matching). Returns True if a match is found.
 
-**Example:**
-```python
-class TestObserver(ITypedObserver[TestEvent]):
-    def on_event(self, event: TestEvent):
-        # event is guaranteed to be TestEvent type
-        print(f"Test {event.test_name} status: {event.event_type}")
-```
+**Typed Handler Methods (all return `bool`, default `True`):**
+
+Experiment: `on_experiment_initialized`, `on_experiment_plugin_loading_started`, `on_experiment_plugin_loading_completed`, `on_experiment_plugin_loading_failed`, `on_experiment_test_cases_initialized`, `on_experiment_execution_started`, `on_experiment_execution_completed`, `on_experiment_execution_failed`, `on_experiment_finished_early`, `on_experiment_completed`, `on_experiment_failed`
+
+Test: `on_test_created`, `on_test_setup_started`, `on_test_setup_completed`, `on_test_setup_failed`, `on_test_environment_setup_started`, `on_test_environment_setup_completed`, `on_test_environment_setup_failed`, `on_test_deployment_started`, `on_test_deployment_completed`, `on_test_deployment_failed`, `on_test_execution_started`, `on_test_step_started`, `on_test_step_completed`, `on_test_step_failed`, `on_test_assertions_started`, `on_test_assertion_checked`, `on_test_assertions_completed`, `on_test_assertions_failed`, `on_test_execution_completed`, `on_test_execution_failed`, `on_test_teardown_started`, `on_test_teardown_completed`, `on_test_completed`, `on_test_failed`
+
+Service: `on_service_created`, `on_service_preparation_started`, `on_service_preparation_completed`, `on_service_preparation_failed`, `on_service_deployment_started`, `on_service_deployment_completed`, `on_service_deployment_failed`, `on_service_started`, `on_service_ready`, `on_service_health_check_passed`, `on_service_health_check_failed`, `on_service_stopped`, `on_service_error`, `on_service_destroyed`, `on_service_test_results`, `on_command_generation_started`, `on_command_generated`, `on_docker_build_started`, `on_docker_build_completed`, `on_tester_analysis_started`, `on_tester_analysis_completed`
+
+Environment: `on_environment_created`, `on_environment_setup_started`, `on_environment_setup_completed`, `on_environment_setup_failed`, `on_environment_teardown_started`, `on_environment_teardown_completed`, `on_environment_error`, `on_network_setup_started`, `on_network_setup_completed`, `on_network_setup_failed`, `on_network_teardown_started`, `on_network_teardown_completed`, `on_execution_environment_setup_started`, `on_execution_environment_setup_completed`, `on_execution_environment_resource_monitoring`, `on_execution_environment_limit_exceeded`
+
+Step: `on_step_execution_started`, `on_step_execution_completed`, `on_step_execution_failed`, `on_step_progress`, `on_step_unsupported`, `on_step_skipped`
+
+Assertion: `on_assertions_validation_started`, `on_assertions_validation_completed`, `on_assertion_progress`, `on_assertion_result`, `on_assertion_error`, `on_assertion_unknown`
+
+Metrics: `on_metric_collected`, `on_resource_metric`, `on_timing_metric`, `on_counter_metric`, `on_metrics_summary`
+
+Plugin: `on_plugin_loading_started`, `on_plugin_loading_completed`, `on_plugin_loading_failed`, `on_plugin_initialized`, `on_plugin_started`, `on_plugin_stopped`, `on_plugin_error`, `on_plugin_service_created`, `on_plugin_service_started`, `on_plugin_service_stopped`
 
 ---
 
 ### IPluginObserver
+<!-- src: panther/core/observer/base/observer_plugin_interface.py -->
 
 ```python
 class IPluginObserver(IObserver)
 ```
 
-Interface for plugin-based observers that can be loaded dynamically.
+Interface for plugin-based observers with bidirectional event-plugin mapping.
 
-**Description:** Extends IObserver with plugin lifecycle support and dynamic loading capabilities.
+**Constructor:** `IPluginObserver()` - initializes `plugin_events` and `event_plugins` defaultdicts.
 
-**Methods:**
+**Attributes:**
+- `plugin_events: Dict[str, Set[str]]` - Maps plugin IDs to their interested event types
+- `event_plugins: Dict[str, Set[str]]` - Maps event types to interested plugin IDs
 
-#### `get_supported_events() -> List[str]`
-Return list of event types this plugin observer supports.
+**Abstract Methods:**
 
-**Returns:**
-- `List[str]` - Event type strings
+#### `register_plugin_events(plugin_id: str, event_types: List[str]) -> None`
+Register event types that a plugin is interested in.
 
-**Example:**
+#### `unregister_plugin(plugin_id: str) -> None`
+Unregister a plugin and its event interests.
+
+#### `get_plugin_events(plugin_id: str) -> List[str]`
+Get the event types a plugin is interested in.
+
+#### `get_plugins_for_event(event_type: str) -> List[str]`
+Get plugins interested in a specific event type.
+
+### PluginObserver (concrete implementation)
+<!-- src: panther/core/observer/base/observer_plugin_interface.py -->
+
 ```python
-def get_supported_events(self) -> List[str]:
-    return [
-        "plugin.loaded",
-        "plugin.started",
-        "plugin.stopped",
-        "plugin.error"
-    ]
+class PluginObserver(IPluginObserver)
 ```
 
-#### `initialize_plugin(config: Dict[str, Any]) -> None`
-Initialize plugin observer with configuration.
+Concrete implementation of plugin-based observer. Implements all abstract methods.
 
-**Args:**
-- `config: Dict[str, Any]` - Plugin configuration
+**Additional Methods:**
 
-**Requires:**
-- Valid configuration schema
-- Required dependencies available
+#### `on_event(event: Event) -> None`
+Handle an event by notifying interested plugins via `_notify_plugins()`.
 
-**Ensures:**
-- Plugin ready to process events
-- Resources allocated and initialized
+#### `_notify_plugins(event: Event, plugin_ids: List[str]) -> None`
+Notify specific plugins about an event. Default implementation logs notifications.
+
+#### `get_registered_plugins() -> List[str]`
+Get a list of all registered plugin IDs.
+
+#### `get_event_types() -> List[str]`
+Get a list of all event types that have interested plugins.
 
 ---
 
-## Built-in Observer Implementations
+## Management Classes
 
-### LoggerObserver
+### EventManager
+<!-- src: panther/core/observer/management/event_manager.py -->
 
 ```python
-class LoggerObserver(IObserver)
+class EventManager(LoggerMixin)
 ```
 
-Event logging observer with color-coded output and severity indicators.
+Central event coordination system. Implements singleton pattern.
 
-**Description:** Provides structured event logging with terminal capability detection, color schemes, and integration with TQDM progress bars.
+**Constructor:** `EventManager()` - initializes observer registry, event history, metrics, and deduplication systems. Guarded by `_initialized` flag to prevent re-initialization.
 
 **Attributes:**
-- `logger: logging.Logger` - Python logger instance
-- `colored: bool` - Enable color output
-- `level: str` - Logging level (DEBUG, INFO, WARN, ERROR)
-- `format: str` - Log format template
+- `observers: Dict[str, List[Tuple[int, IObserver]]]` - Map of event types to prioritized observers
+- `global_observers: List[Tuple[int, IObserver]]` - Global observers that receive all events
+- `event_history: List[Tuple[datetime, BaseEvent]]` - Recent events for debugging (max 1000)
+- `metrics: Dict` - Processing metrics (`processed`, `errors`, `by_type`)
+- `duplicate_detection_enabled: bool` - Content-based duplicate detection flag (default True)
 
-**Methods:**
+**Class Methods:**
 
-#### `__init__(config: Dict[str, Any] = None)`
-Initialize logger observer with configuration.
+#### `get_instance() -> EventManager`
+Get the singleton instance.
 
-**Args:**
-- `config: Dict[str, Any]` - Logger configuration
+#### `ensure_instance() -> EventManager`
+Alias for `get_instance()` with a clearer name.
 
-**Configuration Options:**
-- `level: str` - Log level (default: "INFO")
-- `colored: bool` - Color output (default: True if terminal capable)
-- `format: str` - Log format (default: "detailed")
-- `file_output: str` - Optional file output path
+#### `reset_instance() -> None`
+Reset the singleton instance (for testing).
 
-**Example:**
+**Public Methods:**
+
+#### `register_observer(observer: IObserver, event_types: List[str] = None, priority: int = 0) -> None`
+Register an observer. If `event_types` is None, registers as a global observer. Higher priority (larger number) observers are notified first. Skips duplicate registrations.
+
+#### `register_observer_once(observer, observer_id, scope="global", event_types=None, priority=0)`
+Register an observer only if not already registered, with scope tracking. Returns the observer (existing or new).
+
+#### `unregister_observer(observer: IObserver, event_types: List[str] = None) -> None`
+Unregister an observer from specific or all event types.
+
+#### `notify(event: BaseEvent) -> bool`
+Main event distribution method. Performs content-based and time-based duplicate detection, validates the event, records it in history, and notifies matching observers. Returns True if event was processed.
+
+#### `get_event_history(event_type: str = None, limit: int = None) -> List[Tuple[datetime, BaseEvent]]`
+Get recent events, optionally filtered by type.
+
+#### `get_metrics() -> Dict[str, Any]`
+Get event processing metrics.
+
+#### `cleanup_scoped_observers(scope: str) -> None`
+Remove all observers from a specific scope.
+
+#### `get_scoped_observer_count(scope: str = None) -> Dict[str, int]`
+Get count of observers by scope.
+
+#### `has_observer(observer_id: str) -> bool`
+Check if an observer with the given ID is already registered.
+
+#### `get_registered_observer(observer_id: str) -> Optional[Tuple[IObserver, str]]`
+Get a registered observer by its ID. Returns `(observer, scope)` or None.
+
+#### `get_observer_by_type(observer_type) -> Optional[IObserver]`
+Find and return an observer by its class type. Searches global and event-specific observers.
+
+#### `enable_duplicate_detection(enabled: bool = True) -> None`
+Enable or disable content-based duplicate detection.
+
+#### `clear_signature_cache() -> None`
+Clear the content signature cache for duplicate detection.
+
+#### `set_event_context(context_id: str, context_data: Dict[str, Any]) -> None`
+Set context data for event correlation.
+
+#### `clear_event_context(context_id: str) -> None`
+Clear context data.
+
+#### `get_event_context(context_id: str) -> Dict[str, Any]`
+Get context data for event correlation.
+
+#### `cleanup_none_observers() -> int`
+Remove any None observers from all observer lists. Returns count of cleaned observers.
+
+**Module-Level Convenience Function:**
+
 ```python
-observer = LoggerObserver({
-    'level': 'DEBUG',
-    'colored': True,
-    'format': 'detailed',
-    'file_output': '/logs/panther.log'
-})
+def get_event_manager() -> EventManager
 ```
 
-#### `format_event(event: BaseEvent) -> str`
-Format event for logging output.
-
-**Args:**
-- `event: BaseEvent` - Event to format
-
-**Returns:**
-- `str` - Formatted log message
-
-**Features:**
-- Color coding by event severity
-- Timestamp formatting
-- Entity information display
-- Error details inclusion
+Get the EventManager singleton instance.
 
 ---
 
-### MetricsObserver
+### ResultsManager
+<!-- src: panther/core/observer/management/results_manager.py -->
 
 ```python
-class MetricsObserver(IObserver)
+class ResultsManager(IObserver)
 ```
 
-Performance metrics collection and aggregation observer.
+Comprehensive manager for test results. Combines result collection, aggregation, and export.
 
-**Description:** Collects system metrics, test performance data, and resource utilization with configurable collection intervals and storage backends.
+**Constructor:** `ResultsManager(output_dir: str = None)` - creates output directory if needed.
 
 **Attributes:**
-- `collector: IMetricsCollector` - Metrics collection backend
-- `aggregator: MetricsAggregator` - Data aggregation engine
-- `collection_interval: float` - Metrics collection frequency
+- `aggregator: ResultAggregator` - Result aggregation engine
+- `exporter: ResultsExporter` - Export functionality
 
 **Methods:**
 
-#### `__init__(config: Dict[str, Any] = None)`
-Initialize metrics observer with configuration.
+#### `on_event(event: Event) -> None`
+Handle events, specifically looking for `TestResultEvent` and `EnhancedResultEvent` types.
 
-**Configuration Options:**
-- `interval: float` - Collection interval in seconds (default: 1.0)
-- `metrics: List[str]` - Metrics to collect (default: ["cpu", "memory", "network"])
-- `storage: str` - Storage backend ("memory", "file", "database")
-- `aggregation: str` - Aggregation method ("sum", "avg", "max")
+#### `is_interested(event_type: str) -> bool`
+Returns True for `test.result`, `test.case.result`, `test.suite.result`, `enhanced.result` types and prefixes.
 
-#### `collect_metrics() -> MetricsSnapshot`
-Collect current system metrics.
+#### `get_priority() -> int`
+Returns 10 for early result processing.
 
-**Returns:**
-- `MetricsSnapshot` - Current metrics data
+#### `register_callback(event_type: str, callback: Callable) -> None`
+Register a callback for a specific result event type. Use `"*"` for wildcard.
 
-**Collected Metrics:**
-- CPU usage percentage
-- Memory utilization
-- Network I/O statistics
-- Disk usage
-- Test execution timings
+#### `export_results(format_type: str, filename: str = None) -> str`
+Export collected results to a file. Supports `"json"`, `"csv"`, `"html"`, `"md"`. Returns path or empty string.
 
-**Example:**
-```python
-observer = MetricsObserver({
-    'interval': 0.5,
-    'metrics': ['cpu', 'memory'],
-    'storage': 'file'
-})
+#### `export_all_formats(basename: str = None) -> Dict[str, str]`
+Export results to all supported formats. Returns map of format types to file paths.
 
-snapshot = observer.collect_metrics()
-print(f"CPU: {snapshot.cpu_percent}%")
-```
+#### `clear_results() -> None`
+Clear all collected results.
 
-#### `get_aggregated_metrics(time_range: TimeRange) -> Dict[str, Any]`
-Get aggregated metrics for time period.
+#### `get_summary() -> Dict[str, Any]`
+Get result summary: `total_tests`, `successful`, `failed`, `success_rate`, `start_time`, `end_time`, `duration`, `tests`.
 
-**Args:**
-- `time_range: TimeRange` - Time period for aggregation
+#### `get_all_results() -> List[Dict[str, Any]]`
+Get all collected test results.
 
-**Returns:**
-- `Dict[str, Any]` - Aggregated metrics data
+#### `get_results_by_category(category: str) -> List[Dict[str, Any]]`
+Get results filtered by category.
 
----
+#### `get_results_by_tag(tag: str) -> List[Dict[str, Any]]`
+Get results that contain a specific tag.
 
-### StorageObserver
+#### `get_category_stats() -> Dict[str, Dict[str, int]]`
+Get statistics by category (`{category: {"success": n, "failure": n}}`).
+
+#### `get_tag_stats() -> Dict[str, Dict[str, int]]`
+Get statistics by tag (`{tag: {"success": n, "failure": n}}`).
+
+### ResultAggregator
+<!-- src: panther/core/observer/management/results_manager.py -->
 
 ```python
-class StorageObserver(IObserver)
+class ResultAggregator
 ```
 
-Event persistence observer for audit trails and analytics.
+Aggregates test results from multiple test runs with thread safety.
 
-**Description:** Persists events to various storage backends with compression, retention policies, and query capabilities.
+**Methods:** `add_result(result)`, `get_summary()`, `get_results_by_test(test_name)`, `get_all_results()`, `clear()`.
 
-**Attributes:**
-- `storage_backend: str` - Storage type ("file", "database", "cloud")
-- `compression: bool` - Enable data compression
-- `retention_days: int` - Data retention period
-
-**Methods:**
-
-#### `__init__(config: Dict[str, Any] = None)`
-Initialize storage observer with backend configuration.
-
-**Configuration Options:**
-- `backend: str` - Storage backend type
-- `connection_string: str` - Backend connection details
-- `compression: bool` - Enable compression (default: True)
-- `retention_days: int` - Retention period (default: 30)
-- `batch_size: int` - Batch insert size (default: 100)
-
-#### `store_event(event: BaseEvent) -> None`
-Store event to configured backend.
-
-**Args:**
-- `event: BaseEvent` - Event to store
-
-**Ensures:**
-- Event persisted durably
-- Compression applied if enabled
-- Batch processing for efficiency
-
-#### `query_events(criteria: QueryCriteria) -> List[BaseEvent]`
-Query stored events by criteria.
-
-**Args:**
-- `criteria: QueryCriteria` - Search criteria
-
-**Returns:**
-- `List[BaseEvent]` - Matching events
-
-**Query Options:**
-- Event type filtering
-- Time range selection
-- Entity filtering
-- Custom field matching
-
-**Example:**
-```python
-criteria = QueryCriteria(
-    event_types=["test.started", "test.completed"],
-    time_range=TimeRange(start=yesterday, end=today),
-    entity_filter={"entity_type": "test"}
-)
-events = observer.query_events(criteria)
-```
-
----
-
-### StateObserver
+### ResultsExporter
+<!-- src: panther/core/observer/management/results_manager.py -->
 
 ```python
-class StateObserver(IObserver)
+class ResultsExporter
 ```
 
-Entity state tracking and workflow coordination observer.
+Exports test results in various formats.
 
-**Description:** Monitors entity state changes, validates transitions, and coordinates multi-step workflows with error recovery.
+**Supported Formats:** `json`, `csv`, `html`, `md`
 
-**Attributes:**
-- `state_managers: Dict[str, StateManager]` - State managers by entity
-- `workflow_tracker: WorkflowTracker` - Multi-step workflow coordination
-- `transition_rules: Dict[str, Dict]` - State transition rules
-
-**Methods:**
-
-#### `track_entity_state(entity_id: str, initial_state: Any) -> None`
-Begin tracking state for entity.
-
-**Args:**
-- `entity_id: str` - Entity to track
-- `initial_state: Any` - Starting state
-
-**Ensures:**
-- State manager created for entity
-- Transition rules applied
-- Workflow tracking enabled
-
-#### `get_entity_state(entity_id: str) -> Any`
-Get current state for entity.
-
-**Args:**
-- `entity_id: str` - Entity identifier
-
-**Returns:**
-- Current state value
-
-**Raises:**
-- `KeyError` if entity not tracked
-
-#### `validate_transition(entity_id: str, new_state: Any) -> bool`
-Validate if state transition is allowed.
-
-**Args:**
-- `entity_id: str` - Entity identifier
-- `new_state: Any` - Target state
-
-**Returns:**
-- `bool` - True if transition valid
-
-**Example:**
-```python
-observer = StateObserver()
-observer.track_entity_state("test-123", TestState.CREATED)
-
-# Later, when processing test started event
-valid = observer.validate_transition("test-123", TestState.RUNNING)
-if valid:
-    print("Transition allowed")
-```
+**Methods:** `export(format_type, output_path)`, `export_to_json(output_path, pretty=True)`, `export_to_csv(output_path)`, `export_to_html(output_path)`, `export_to_markdown(output_path)`.
 
 ---
 
 ## Factory System
 
 ### ObserverFactory
+<!-- src: panther/core/observer/factory/observer_factory.py -->
 
 ```python
 class ObserverFactory
@@ -406,159 +319,123 @@ class ObserverFactory
 
 Factory for creating and configuring observer instances.
 
-**Description:** Provides standardized observer creation with configuration validation and dependency injection.
+**Constructor:**
+
+```python
+ObserverFactory(
+    event_manager: Optional[EventManager] = None,
+    observer_config: Optional[BaseObserverConfig] = None,
+)
+```
+
+Registers default observer types: `"logger"` (LoggerObserver), `"event_logger"` (LoggerObserver), `"metrics"` (MetricsObserver), `"storage"` (StorageObserver), `"experiment"` (ExperimentObserver).
 
 **Methods:**
 
-#### `create_observer(observer_type: str, config: Dict[str, Any] = None) -> IObserver`
-Create observer instance of specified type.
+#### `create_observer(observer_type, name=None, auto_register=False, event_types=None, priority=0, **kwargs) -> IObserver`
+Create an observer instance of the specified type. Raises `ValueError` for unknown types. Optionally auto-registers with the event manager.
 
-**Args:**
-- `observer_type: str` - Type of observer to create
-- `config: Dict[str, Any]` - Observer configuration
+#### `register_observer_type(name: str, observer_class: type[IObserver]) -> None`
+Register a custom observer type.
 
-**Returns:**
-- `IObserver` - Configured observer instance
+#### `register_observer(name: str, observer: IObserver) -> None`
+Register an existing observer instance with a name.
 
-**Supported Types:**
-- "logger" - LoggerObserver
-- "metrics" - MetricsObserver
-- "storage" - StorageObserver
-- "state" - StateObserver
-- "experiment" - ExperimentObserver
+#### `unregister_observer(name: str) -> bool`
+Unregister a named observer. Returns True if found and removed.
 
-**Example:**
+#### `get_observer(name: str) -> Optional[IObserver]`
+Get a registered observer by name.
+
+#### `get_all_observers() -> Dict[str, IObserver]`
+Get all registered observers.
+
+#### `get_available_types() -> List[str]`
+Get list of available observer types.
+
+#### `configure_observer_type(observer_type: str, config: Dict[str, Any]) -> None`
+Configure default parameters for an observer type.
+
+#### `set_event_manager(event_manager: EventManager) -> None`
+Set the event manager for this factory.
+
+#### `register_with_event_manager(observer, event_types=None, priority=0) -> None`
+Register an observer with the event manager. Raises `RuntimeError` if no event manager set.
+
+#### `unregister_from_event_manager(observer: IObserver) -> None`
+Unregister an observer from the event manager. Raises `RuntimeError` if no event manager set.
+
+#### `set_observer_config(observer_config: BaseObserverConfig) -> None`
+Set the observer configuration for this factory.
+
+#### `batch_register_with_event_manager(observers: list[tuple]) -> None`
+Register multiple observers with the event manager. Tuples contain `(observer, event_types, priority)`.
+
+**Module-Level Convenience Functions:**
+
 ```python
-factory = ObserverFactory()
-observer = factory.create_observer("logger", {
-    'level': 'DEBUG',
-    'colored': True
-})
+def get_observer_factory(global_config=None) -> ObserverFactory
+def create_observer(observer_type: str, **kwargs) -> IObserver
+def create_default_observers(config: Dict[str, Any]) -> List[IObserver]
 ```
-
-#### `register_observer_type(name: str, class_type: Type[IObserver], schema: Dict = None) -> None`
-Register custom observer type with factory.
-
-**Args:**
-- `name: str` - Type name for factory
-- `class_type: Type[IObserver]` - Observer class
-- `schema: Dict` - Configuration schema
-
-**Ensures:**
-- Custom observer available via create_observer
-- Configuration validation applied
-- Type registered globally
-
-#### `create_default_observers() -> List[IObserver]`
-Create standard set of observers for typical usage.
-
-**Returns:**
-- `List[IObserver]` - Default observer instances
-
-**Default Set:**
-- LoggerObserver with INFO level
-- MetricsObserver with 1-second interval
-- StateObserver with workflow tracking
 
 ---
 
-## Management Classes
+## Workflow System
 
-### EventManager
+### WorkflowStateTracker
+<!-- src: panther/core/observer/workflow/workflow_tracker.py -->
 
 ```python
-class EventManager
+class WorkflowStateTracker(LoggerMixin)
 ```
 
-Central coordinator for event distribution to observers.
+Lightweight tracker for experiment workflow states with validated transitions.
 
-**Description:** Manages observer registration, event routing, and performance optimization with interest-based filtering.
-
-**Attributes:**
-- `observers: List[IObserver]` - Registered observers
-- `event_queue: Queue` - Event processing queue
-- `filtering_enabled: bool` - Interest-based filtering
+**Constructor:** `WorkflowStateTracker()` - initializes empty state and history tracking.
 
 **Methods:**
 
-#### `register_observer(observer: IObserver) -> None`
-Register observer for event notifications.
+#### `set_workflow_state(experiment_id: str, state: WorkflowState) -> bool`
+Set the workflow state for an experiment. Validates transitions against `WORKFLOW_TRANSITIONS`. New experiments must start with `CREATED`. Returns True if successful.
 
-**Args:**
-- `observer: IObserver` - Observer to register
+#### `get_workflow_state(experiment_id: str) -> Optional[WorkflowState]`
+Get the current workflow state for an experiment.
 
-**Ensures:**
-- Observer receives future events if interested
-- Observer added to routing table
-- Thread-safe registration
+#### `force_fail_workflow(experiment_id: str, reason: str = "Forced failure") -> bool`
+Force a workflow to FAILED state regardless of current state. Used for error recovery.
 
-#### `emit_event(event: BaseEvent) -> None`
-Distribute event to interested observers.
+#### `clear_workflow_state(experiment_id: str) -> None`
+Clear the state for a specific workflow.
 
-**Args:**
-- `event: BaseEvent` - Event to distribute
+#### `is_workflow_in_terminal_state(experiment_id: str) -> bool`
+Check if a workflow is in a terminal state (COMPLETED or FAILED).
 
-**Process:**
-1. Filter observers by interest
-2. Distribute to interested observers
-3. Handle observer errors gracefully
-4. Log distribution metrics
+#### `get_all_workflow_states() -> Dict[str, str]`
+Get all current workflow states as `{experiment_id: state_value}`.
 
-**Performance:** O(n) where n is number of interested observers.
+#### `get_allowed_transitions(current_state_str: str) -> List[str]`
+Get list of allowed state transitions from the given state string.
 
-#### `get_registered_observers() -> List[IObserver]`
-Get list of currently registered observers.
+#### `get_state_history(experiment_id: str = None) -> List[dict]`
+Get state transition history, optionally filtered by experiment ID.
 
-**Returns:**
-- `List[IObserver]` - Registered observers
-
----
-
-### ResultsManager
+### WorkflowState Enum
+<!-- src: panther/core/observer/workflow/workflow_tracker.py -->
 
 ```python
-class ResultsManager
-```
-
-Aggregates and exports results from observer processing.
-
-**Description:** Collects processed data from observers and provides export capabilities for CI/CD integration and analytics.
-
-**Methods:**
-
-#### `collect_results(observers: List[IObserver]) -> Dict[str, Any]`
-Collect aggregated results from observers.
-
-**Args:**
-- `observers: List[IObserver]` - Observers to collect from
-
-**Returns:**
-- `Dict[str, Any]` - Aggregated results
-
-**Collected Data:**
-- Event processing statistics
-- Performance metrics
-- Error summaries
-- State transition reports
-
-#### `export_results(format: str, output_path: str) -> None`
-Export collected results to file.
-
-**Args:**
-- `format: str` - Export format ("json", "xml", "csv")
-- `output_path: str` - Output file path
-
-**Supported Formats:**
-- JSON - Structured data export
-- XML - Enterprise integration
-- CSV - Spreadsheet analysis
-- YAML - Configuration-friendly
-
-**Example:**
-```python
-manager = ResultsManager()
-results = manager.collect_results(observers)
-manager.export_results("json", "results.json")
+class WorkflowState(Enum):
+    CREATED = "created"
+    LOADING_PLUGINS = "loading_plugins"
+    GENERATING_COMMANDS = "generating_commands"
+    BUILDING_DOCKER = "building_docker"
+    DEPLOYING = "deploying"
+    RUNNING = "running"
+    COLLECTING_OUTPUTS = "collecting_outputs"
+    ANALYZING_RESULTS = "analyzing_results"
+    REPORTING_RESULTS = "reporting_results"
+    COMPLETED = "completed"
+    FAILED = "failed"
 ```
 
 ---
@@ -566,172 +443,20 @@ manager.export_results("json", "results.json")
 ## Plugin System
 
 ### EventObserverPlugin
+<!-- src: panther/core/observer/plugins/event_observer_plugin.py -->
 
-```python
-class EventObserverPlugin(IPluginObserver)
-```
-
-Base class for plugin-based observer implementations.
-
-**Description:** Provides foundation for dynamically loaded observers with lifecycle management and configuration.
-
-**Methods:**
-
-#### `load_plugin(plugin_path: str, config: Dict[str, Any]) -> IObserver`
-Load observer plugin from path.
-
-**Args:**
-- `plugin_path: str` - Path to plugin module
-- `config: Dict[str, Any]` - Plugin configuration
-
-**Returns:**
-- `IObserver` - Loaded plugin instance
-
-**Example:**
-```python
-plugin = EventObserverPlugin.load_plugin(
-    "plugins.custom_observer",
-    {"setting": "value"}
-)
-```
+Base class for plugin-based observer implementations. See source for details.
 
 ### PluginObserverFactory
+<!-- src: panther/core/observer/plugins/plugin_observer_factory.py -->
 
-```python
-class PluginObserverFactory
-```
-
-Factory for dynamic plugin observer loading and management.
-
-**Methods:**
-
-#### `create_plugin_observer(plugin_name: str, config: Dict[str, Any]) -> IObserver`
-Create observer from plugin registry.
-
-**Args:**
-- `plugin_name: str` - Registered plugin name
-- `config: Dict[str, Any]` - Plugin configuration
-
-**Returns:**
-- `IObserver` - Plugin observer instance
-
-#### `register_plugin_observer(name: str, plugin_path: str) -> None`
-Register plugin observer in factory.
-
-**Args:**
-- `name: str` - Plugin name for factory
-- `plugin_path: str` - Plugin module path
+Factory for dynamic plugin observer loading and management. See source for details.
 
 ---
 
 ## Utility Classes
 
-### WorkflowTracker
+### EventColors
+<!-- src: panther/core/observer/utils/event_colors.py -->
 
-```python
-class WorkflowTracker
-```
-
-Tracks multi-step workflow progress across observer coordination.
-
-**Description:** Monitors complex workflows involving multiple entities and provides progress reporting with error recovery.
-
-**Methods:**
-
-#### `track_workflow(workflow_id: str, steps: List[str]) -> None`
-Begin tracking multi-step workflow.
-
-**Args:**
-- `workflow_id: str` - Workflow identifier
-- `steps: List[str]` - Workflow step names
-
-#### `update_step_progress(workflow_id: str, step: str, status: str) -> None`
-Update progress for workflow step.
-
-**Args:**
-- `workflow_id: str` - Workflow identifier
-- `step: str` - Step name
-- `status: str` - Step status ("started", "completed", "failed")
-
-#### `get_workflow_status(workflow_id: str) -> WorkflowStatus`
-Get current workflow status.
-
-**Args:**
-- `workflow_id: str` - Workflow identifier
-
-**Returns:**
-- `WorkflowStatus` - Current workflow state
-
----
-
-## Error Handling
-
-### Observer Exceptions
-
-#### ObserverError
-
-```python
-class ObserverError(Exception)
-```
-
-Base exception for observer-related errors.
-
-#### EventProcessingError
-
-```python
-class EventProcessingError(ObserverError)
-```
-
-Exception raised during event processing.
-
-**Attributes:**
-- `event: BaseEvent` - Event that caused error
-- `observer: IObserver` - Observer that failed
-
-#### ConfigurationError
-
-```python
-class ConfigurationError(ObserverError)
-```
-
-Exception raised for observer configuration issues.
-
-**Common Causes:**
-- Invalid configuration schema
-- Missing required settings
-- Type validation failures
-
----
-
-## Performance Characteristics
-
-### Observer Performance
-
-**Event Filtering:**
-- Interest-based filtering: O(1) with simple patterns
-- Complex regex filtering: O(m) where m is pattern complexity
-- Overall filtering efficiency: 60-80% reduction in processing
-
-**Memory Usage:**
-- Base observer overhead: ~1KB per observer
-- Event deduplication: ~40 bytes per processed event UUID
-- Metrics observer: ~100KB per hour of 1-second interval collection
-
-**Throughput:**
-- Simple observers: >10,000 events/second
-- Complex observers (I/O): 100-1,000 events/second
-- Batch processing: 5-10x throughput improvement
-
-### Optimization Guidelines
-
-**For High-Volume Scenarios:**
-- Use interest filtering aggressively
-- Implement batch processing where possible
-- Consider async observers for I/O operations
-- Monitor memory usage with long-running observers
-
-**For Low-Latency Scenarios:**
-- Minimize observer processing complexity
-- Use direct observer notification
-- Avoid I/O in synchronous event handling
-- Profile observer performance regularly
+Color mapping utilities for event display in terminal output.

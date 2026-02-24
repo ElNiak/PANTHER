@@ -409,17 +409,13 @@ class DockerImageCache(LoggerMixin):
                 # If future.result() times out, __exit__ calls shutdown(wait=True),
                 # which blocks indefinitely when Docker is hung.
                 executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-                future = executor.submit(
-                    self._docker_client.api.images, all=False
-                )
+                future = executor.submit(self._docker_client.api.images, all=False)
                 try:
                     raw_images = future.result(timeout=30)
                 except concurrent.futures.TimeoutError:
-                    self.logger.error(
-                        "Docker image list timed out after 30 seconds"
-                    )
+                    self.logger.error("Docker image list timed out after 30 seconds")
                     executor.shutdown(wait=False, cancel_futures=True)
-                    break
+                    continue
                 finally:
                     executor.shutdown(wait=False)
 
@@ -573,6 +569,19 @@ class DockerImageCache(LoggerMixin):
             self._last_refresh = 0.0
         self.logger.info("Docker image cache invalidated")
 
+    def remove_image(self, image_tag: str) -> bool:
+        """Remove a single image entry from the cache.
+
+        Returns True if the image was found and removed, False otherwise.
+        """
+        with self._cache_lock:
+            removed = self._cache.pop(image_tag, None) is not None
+        if removed:
+            self.logger.info("Removed image '%s' from cache", image_tag)
+        else:
+            self.logger.debug("Image '%s' was not in cache", image_tag)
+        return removed
+
     def get_cache_stats(self) -> Dict[str, Union[int, float, str, bool]]:
         """
         Get cache statistics including security status.
@@ -594,9 +603,11 @@ class DockerImageCache(LoggerMixin):
                 "total_size_mb": total_size / (1024 * 1024),
                 "cache_file": str(self.cache_file),
                 "cache_secure": security_valid,
-                "last_refresh": datetime.fromtimestamp(self._last_refresh).isoformat()
-                if self._last_refresh
-                else "never",
+                "last_refresh": (
+                    datetime.fromtimestamp(self._last_refresh).isoformat()
+                    if self._last_refresh
+                    else "never"
+                ),
             }
 
     def image_exists(self, image_tag: str, docker_client=None) -> bool:

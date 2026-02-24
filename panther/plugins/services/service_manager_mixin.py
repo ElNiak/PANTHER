@@ -92,6 +92,8 @@ class ServiceManagerMixin(LoggerMixin):
     """
     Comprehensive mixin for service managers that provides common patterns
     and integrates with PANTHER's existing architecture.
+
+    MRO: Base mixin. Used by: IUTServiceManagerMixin, TesterServiceManagerMixin
     """
 
     def __init__(self, *args, global_config=None, **kwargs):
@@ -248,7 +250,7 @@ class ServiceManagerMixin(LoggerMixin):
             ShellCommand(
                 command="export SHELLOPTS;",
                 is_critical=True,
-                is_environment_variable_assignment=True
+                is_environment_variable_assignment=True,
             ),
             ShellCommand(
                 command="export PATH=$PATH:$ADDITIONAL_PATH;",
@@ -403,9 +405,11 @@ class ServiceManagerMixin(LoggerMixin):
                 cmd_str = (
                     cmd
                     if isinstance(cmd, str)
-                    else str(cmd.get("command", cmd))
-                    if hasattr(cmd, "get")
-                    else str(cmd)
+                    else (
+                        str(cmd.get("command", cmd))
+                        if hasattr(cmd, "get")
+                        else str(cmd)
+                    )
                 )
                 existing_commands.add(cmd_str)
 
@@ -415,9 +419,11 @@ class ServiceManagerMixin(LoggerMixin):
                 cmd_str = (
                     cmd
                     if isinstance(cmd, str)
-                    else str(cmd.get("command", cmd))
-                    if hasattr(cmd, "get")
-                    else str(cmd)
+                    else (
+                        str(cmd.get("command", cmd))
+                        if hasattr(cmd, "get")
+                        else str(cmd)
+                    )
                 )
                 if cmd_str not in existing_commands:
                     unique_new.append(cmd)

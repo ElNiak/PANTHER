@@ -2,7 +2,6 @@
 Tools Command - Click Implementation
 
 Install and manage development/runtime tools for PANTHER.
-Migrated from argparse to Click with enhanced user experience.
 """
 
 import logging

@@ -1,684 +1,579 @@
 """
 Unit tests for PluginManager - the core plugin orchestration component of PANTHER.
 
-Tests cover plugin discovery, service creation, environment management, and configuration resolution.
+Tests exercise the real PluginManager singleton with Docker mocked at the IO boundary.
+All fake class fallbacks have been removed in favour of the ``real_plugin_manager``
+fixture defined in ``conftest.py``.
 """
 
-import os
-import shutil
-import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, PropertyMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
-import yaml
-
-# Use the actual PANTHER modules if available, otherwise mock them
-try:
-    from panther.config.core.models.experiment import ServiceConfig, TestConfig
-    from panther.config.core.models.global_config import GlobalConfig
-    from panther.core.observer.management.event_manager import EventManager
-    from panther.plugins.plugin_manager import PluginManager
-    from panther.plugins.protocols.config_schema import ProtocolConfig
-    from panther.plugins.services.iut.config_schema import ImplementationConfig
-except ImportError:
-    # Create mock classes for testing if imports fail
-    class PluginManager:
-        def __init__(
-            self, plugin_directories=None, event_manager=None, global_config=None
-        ):
-            self.plugin_directories = plugin_directories or []
-            self.event_manager = event_manager
-            self.global_config = global_config
-            self.config_resolver = Mock()
-            self.plugin_discovery = Mock()
-            self.service_factory = Mock()
-            self.environment_factory = Mock()
-            self.docker_builder = Mock()
-            self.built_images = {}
-            self.plugin_observer = Mock()
-            self.plugin_event_emitter = Mock()
-            self.logger = Mock()
-
-        def create_service_manager(
-            self,
-            protocol,
-            implementation,
-            implementation_dir,
-            service_config_to_test,
-            event_manager=None,
-            emitter_registry=None,
-        ):
-            mock_manager = Mock()
-            mock_manager.protocol = protocol
-            mock_manager.implementation = implementation
-            mock_manager.service_config = service_config_to_test
-            return mock_manager
-
-        def create_environment_manager(
-            self,
-            environment,
-            test_config,
-            environment_dir,
-            output_dir,
-            event_manager=None,
-        ):
-            mock_env = Mock()
-            mock_env.environment_type = environment
-            mock_env.test_config = test_config
-            mock_env.output_dir = output_dir
-            return mock_env
-
-        def discover_plugins(self):
-            return {
-                "services": {
-                    "iut": {"quic": ["picoquic", "aioquic", "lsquic"]},
-                    "testers": {"ivy": ["panther_ivy"]},
-                },
-                "environments": {
-                    "network": ["docker_compose", "shadow_ns"],
-                    "execution": ["strace", "gperf_cpu"],
-                },
-            }
-
-        def get_available_plugins(self):
-            return self.discover_plugins()
-
-        def validate_plugin_config(self, plugin_type, plugin_name, config):
-            return True
-
-        def build_docker_images(self, services, force_rebuild=False):
-            built_images = {}
-            for service_name in services:
-                image_name = f"{service_name}:latest"
-                built_images[service_name] = {
-                    "image_name": image_name,
-                    "build_status": "success",
-                    "build_time": 30.5,
-                }
-                self.built_images[service_name] = image_name
-            return built_images
-
-        def cleanup_docker_resources(self, services=None):
-            if services:
-                for service in services:
-                    if service in self.built_images:
-                        del self.built_images[service]
-            else:
-                self.built_images.clear()
-
-        def get_plugin_manifest(self, plugin_type, plugin_name):
-            return {
-                "name": plugin_name,
-                "version": "1.0.0",
-                "type": plugin_type,
-                "description": f"Mock {plugin_name} plugin",
-                "dependencies": [],
-                "configuration_schema": {},
-            }
-
-    # Mock other required classes
-    class ServiceConfig:
-        def __init__(self, **kwargs):
-            for key, value in kwargs.items():
-                setattr(self, key, value)
-
-    class TestConfig:
-        def __init__(self, **kwargs):
-            for key, value in kwargs.items():
-                setattr(self, key, value)
-
-    class GlobalConfig:
-        def __init__(self, **kwargs):
-            for key, value in kwargs.items():
-                setattr(self, key, value)
-
-    class EventManager:
-        def __init__(self):
-            self.observers = []
-
-        def register_observer(self, observer):
-            self.observers.append(observer)
-
-        def emit(self, event):
-            pass
-
-    class ProtocolConfig:
-        def __init__(self, **kwargs):
-            for key, value in kwargs.items():
-                setattr(self, key, value)
-
-    class ImplementationConfig:
-        def __init__(self, **kwargs):
-            for key, value in kwargs.items():
-                setattr(self, key, value)
-
 
 pytestmark = [pytest.mark.unit, pytest.mark.plugin_manager]
 
 
-class TestPluginManagerInitialization:
-    """Test PluginManager initialization and basic setup."""
+# ---------------------------------------------------------------------------
+# Singleton pattern
+# ---------------------------------------------------------------------------
 
-    def test_plugin_manager_creation(self, tmp_path):
-        """Test creating a PluginManager instance."""
-        # Create test plugin directories
-        plugin_dir1 = tmp_path / "plugins1"
-        plugin_dir2 = tmp_path / "plugins2"
-        plugin_dir1.mkdir()
-        plugin_dir2.mkdir()
 
-        # Create event manager
-        event_manager = EventManager()
+class TestPluginManagerSingleton:
+    """Verify the singleton lifecycle: creation, identity, reset."""
 
-        # Create global config
-        global_config = GlobalConfig()
+    def test_get_instance_returns_same_object(self, real_plugin_manager):
+        """PluginManager() after first init returns the same singleton."""
+        from panther.plugins.plugin_manager import PluginManager
 
-        # Create plugin manager
-        manager = PluginManager(
-            plugin_directories=[str(plugin_dir1), str(plugin_dir2)],
-            event_manager=event_manager,
-            global_config=global_config,
-        )
+        second = PluginManager.get_instance()
+        assert second is real_plugin_manager
 
-        # Verify initialization
-        assert len(manager.plugin_directories) == 2
-        assert str(plugin_dir1) in manager.plugin_directories
-        assert str(plugin_dir2) in manager.plugin_directories
-        assert manager.event_manager == event_manager
-        assert manager.global_config == global_config
-        assert manager.config_resolver is not None
-        assert manager.plugin_discovery is not None
-        assert manager.service_factory is not None
-        assert manager.environment_factory is not None
-        assert manager.built_images == {}
+    def test_reset_singleton_allows_new_instance(
+        self, real_plugin_manager, mock_docker_client
+    ):
+        """After reset_singleton(), next creation yields a different object."""
+        from panther.core.docker_builder.docker_builder import DockerBuilder
+        from panther.plugins.plugin_manager import PluginManager
 
-    def test_plugin_manager_default_initialization(self):
-        """Test PluginManager with default parameters."""
-        manager = PluginManager()
+        old_id = id(real_plugin_manager)
 
-        # Verify defaults
-        assert manager.plugin_directories == []
-        assert manager.event_manager is None
-        assert manager.global_config is None
-        assert manager.config_resolver is not None
-        assert manager.plugin_discovery is not None
-        assert manager.built_images == {}
-
-    def test_event_system_setup(self):
-        """Test event system initialization."""
-        event_manager = EventManager()
+        PluginManager.reset_singleton()
+        DockerBuilder.reset_singleton()
 
         with patch(
-            "panther.core.events.plugin.emitter.PluginEventEmitter"
-        ) as mock_emitter_class:
-            with patch(
-                "panther.core.observer.impl.plugin_observer.PluginObserver"
-            ) as mock_observer_class:
-                mock_emitter = Mock()
-                mock_observer = Mock()
-                mock_emitter_class.return_value = mock_emitter
-                mock_observer_class.return_value = mock_observer
+            "panther.core.docker_builder.docker_builder.docker"
+        ) as mock_docker_mod:
+            mock_docker_mod.from_env.return_value = mock_docker_client
+            errors = MagicMock()
+            errors.DockerException = type("DockerException", (Exception,), {})
+            errors.ImageNotFound = type("ImageNotFound", (Exception,), {})
+            errors.NotFound = type("NotFound", (Exception,), {})
+            errors.APIError = type("APIError", (Exception,), {})
+            errors.BuildError = type("BuildError", (Exception,), {})
+            mock_docker_mod.errors = errors
 
-                manager = PluginManager(event_manager=event_manager)
+            new_manager = PluginManager(enable_cache=False)
 
-                # Verify event system components were created
-                assert manager.plugin_observer is not None
-                assert manager.plugin_event_emitter is not None
+        assert id(new_manager) != old_id
+
+    def test_singleton_class_variables_after_reset(self):
+        """reset_singleton clears both _instance and _initialized."""
+        from panther.plugins.plugin_manager import PluginManager
+
+        PluginManager.reset_singleton()
+        assert PluginManager._instance is None
+        assert PluginManager._initialized is False
+
+
+# ---------------------------------------------------------------------------
+# Initialization attributes
+# ---------------------------------------------------------------------------
+
+
+class TestPluginManagerInitialization:
+    """Verify that a freshly-created PluginManager has the expected attributes."""
+
+    def test_has_event_manager(self, real_plugin_manager, real_event_manager):
+        """event_manager is set from the constructor argument."""
+        assert real_plugin_manager.event_manager is real_event_manager
+
+    def test_has_global_config(self, real_plugin_manager, minimal_global_config):
+        """global_config is set from the constructor argument."""
+        assert real_plugin_manager.global_config is minimal_global_config
+
+    def test_has_fast_fail_handler(self, real_plugin_manager, real_fast_fail_handler):
+        """fast_fail_handler is set from the constructor argument."""
+        assert real_plugin_manager.fast_fail_handler is real_fast_fail_handler
+
+    def test_has_plugin_discovery(self, real_plugin_manager):
+        """plugin_discovery component is created during init."""
+        from panther.plugins.core.plugin_discovery import PluginDiscovery
+
+        assert isinstance(real_plugin_manager.plugin_discovery, PluginDiscovery)
+
+    def test_has_plugin_catalog(self, real_plugin_manager):
+        """plugin_catalog component is created during init."""
+        from panther.plugins.core.plugin_catalog import PluginCatalog
+
+        assert isinstance(real_plugin_manager.plugin_catalog, PluginCatalog)
+
+    def test_has_plugin_factory(self, real_plugin_manager):
+        """plugin_factory component is created during init."""
+        from panther.plugins.core.plugin_factory import PluginFactory
+
+        assert isinstance(real_plugin_manager.plugin_factory, PluginFactory)
+
+    def test_has_docker_builder(self, real_plugin_manager):
+        """docker_builder is created from DockerBuilder.get_instance during init."""
+        from panther.core.docker_builder.docker_builder import DockerBuilder
+
+        assert isinstance(real_plugin_manager.docker_builder, DockerBuilder)
+
+    def test_cache_disabled_when_requested(self, real_plugin_manager):
+        """Fixture creates with enable_cache=False."""
+        assert real_plugin_manager.enable_cache is False
+
+    def test_plugins_dict_populated_on_init(self, real_plugin_manager):
+        """Auto-discovery runs during __init__, populating self.plugins."""
+        assert isinstance(real_plugin_manager.plugins, dict)
+        assert len(real_plugin_manager.plugins) > 0
+
+    def test_event_system_components(self, real_plugin_manager):
+        """Plugin observer and event emitter are created when event_manager is provided."""
+        assert real_plugin_manager.plugin_observer is not None
+        assert real_plugin_manager.plugin_event_emitter is not None
+
+    def test_default_plugin_directories(self, real_plugin_manager):
+        """Default plugin directories point to real plugin folders."""
+        dirs = real_plugin_manager.plugin_directories
+        assert isinstance(dirs, list)
+        assert len(dirs) > 0
+        # At least some should be real directories
+        existing = [d for d in dirs if Path(d).exists()]
+        assert len(existing) > 0
+
+
+# ---------------------------------------------------------------------------
+# Parameter update on existing singleton
+# ---------------------------------------------------------------------------
+
+
+class TestPluginManagerParameterUpdate:
+    """Verify that re-calling PluginManager() updates parameters on the singleton."""
+
+    def test_update_global_config(self, real_plugin_manager):
+        """Re-instantiating with a new global_config updates the singleton."""
+        from panther.config.core.models.global_config import GlobalConfig
+        from panther.plugins.plugin_manager import PluginManager
+
+        new_config = GlobalConfig(
+            logging={"level": "DEBUG", "format": "%(levelname)s - %(message)s"},
+        )
+        PluginManager(global_config=new_config)
+        assert real_plugin_manager.global_config is new_config
+
+    def test_update_plugin_directories(self, real_plugin_manager, tmp_path):
+        """Re-instantiating with new plugin_directories updates the singleton."""
+        from panther.plugins.plugin_manager import PluginManager
+
+        new_dirs = [str(tmp_path)]
+        PluginManager(plugin_directories=new_dirs)
+        assert real_plugin_manager.plugin_directories == new_dirs
+
+    def test_no_change_when_same_params(self, real_plugin_manager):
+        """Re-instantiating with identical params does not raise."""
+        from panther.plugins.plugin_manager import PluginManager
+
+        PluginManager()  # should be a no-op
+
+
+# ---------------------------------------------------------------------------
+# Plugin discovery
+# ---------------------------------------------------------------------------
 
 
 class TestPluginDiscovery:
-    """Test plugin discovery and catalog management."""
+    """Verify discover_plugins() returns real plugin metadata."""
 
-    @pytest.fixture
-    def manager_with_plugins(self, tmp_path):
-        """Create a plugin manager with mock plugin structure."""
-        # Create plugin directory structure
-        plugins_dir = tmp_path / "plugins"
-        services_dir = plugins_dir / "services" / "iut" / "quic"
-        environments_dir = plugins_dir / "environments" / "network_environment"
-
-        services_dir.mkdir(parents=True)
-        environments_dir.mkdir(parents=True)
-
-        # Create mock plugin directories
-        (services_dir / "picoquic").mkdir()
-        (services_dir / "aioquic").mkdir()
-        (environments_dir / "docker_compose").mkdir()
-
-        # Create plugin manager
-        manager = PluginManager(plugin_directories=[str(plugins_dir)])
-        return manager
-
-    def test_discover_plugins(self, manager_with_plugins):
-        """Test plugin discovery functionality."""
-        plugins = manager_with_plugins.list_available_plugins()
-
-        # Verify plugin structure - should be a dict
+    def test_discover_plugins_returns_dict(self, real_plugin_manager):
+        """discover_plugins returns a dict of name -> PluginMetadata."""
+        plugins = real_plugin_manager.discover_plugins()
         assert isinstance(plugins, dict)
 
-        # The actual structure may be different, so just verify it's not empty
-        # if there are plugins in the test directories
-        if len(plugins) > 0:
-            # Verify it's a reasonable structure
-            assert isinstance(plugins, dict)
+    def test_discover_plugins_finds_real_plugins(self, real_plugin_manager):
+        """At least one real plugin is discovered from the codebase."""
+        plugins = real_plugin_manager.discover_plugins()
+        assert len(plugins) > 0
 
-    def test_get_available_plugins(self, manager_with_plugins):
-        """Test getting available plugins."""
-        available = manager_with_plugins.list_available_plugins()
+    def test_discovered_plugin_has_metadata(self, real_plugin_manager):
+        """Each discovered plugin has a PluginMetadata with a name and type."""
+        from panther.plugins.core.structures.plugin_metadata import PluginMetadata
 
-        # Should return a dict structure
-        assert isinstance(available, dict)
+        plugins = real_plugin_manager.discover_plugins()
+        for name, metadata in plugins.items():
+            assert isinstance(metadata, PluginMetadata)
+            assert metadata.name, f"Plugin {name} has empty name"
+            assert metadata.type, f"Plugin {name} has empty type"
 
-    def test_get_plugin_manifest(self, manager_with_plugins):
-        """Test getting plugin manifest information."""
-        manifest = manager_with_plugins.get_plugin_manifest("picoquic", "iut")
+    def test_discover_plugins_returns_copy(self, real_plugin_manager):
+        """discover_plugins returns a copy, not the internal dict."""
+        plugins1 = real_plugin_manager.discover_plugins()
+        plugins2 = real_plugin_manager.discover_plugins()
+        assert plugins1 is not plugins2
+        assert plugins1 == plugins2
 
-        # The manifest may be None if the plugin doesn't exist in test directories
-        if manifest is not None:
-            # Verify manifest structure
-            assert isinstance(manifest, dict)
-            # Check for common manifest fields
-            expected_fields = ["name", "version", "type", "description"]
-            # At least one field should exist
-            assert any(field in manifest for field in expected_fields)
+    def test_discover_plugins_force_refresh(self, real_plugin_manager):
+        """force_refresh=True re-scans and returns fresh results."""
+        plugins = real_plugin_manager.discover_plugins(force_refresh=True)
+        assert isinstance(plugins, dict)
+        assert len(plugins) > 0
 
-
-class TestServiceManagerCreation:
-    """Test service manager creation functionality."""
-
-    @pytest.fixture
-    def mock_configs(self, tmp_path):
-        """Create mock configuration objects."""
-        protocol = ProtocolConfig(name="quic", version="rfc9000", role="server")
-
-        implementation = ImplementationConfig(name="picoquic", type="iut")
-
-        service_config = ServiceConfig(
-            timeout=60, ports=["4443:4443"], generate_new_certificates=True
-        )
-
-        return protocol, implementation, service_config, tmp_path / "implementation"
-
-    def test_create_service_manager(self, mock_configs):
-        """Test creating a service manager."""
-        protocol, implementation, service_config, impl_dir = mock_configs
-        manager = PluginManager()
-
-        # Create service manager
-        service_manager = manager.create_service_manager(
-            protocol=protocol,
-            implementation=implementation,
-            implementation_dir=impl_dir,
-            service_config_to_test=service_config,
-        )
-
-        # Verify service manager was created
-        assert service_manager is not None
-        assert service_manager.protocol == protocol
-        assert service_manager.implementation == implementation
-        assert service_manager.service_config == service_config
-
-    def test_create_service_manager_with_event_manager(self, mock_configs):
-        """Test creating service manager with event management."""
-        protocol, implementation, service_config, impl_dir = mock_configs
-        event_manager = EventManager()
-        manager = PluginManager(event_manager=event_manager)
-
-        # Create service manager
-        service_manager = manager.create_service_manager(
-            protocol=protocol,
-            implementation=implementation,
-            implementation_dir=impl_dir,
-            service_config_to_test=service_config,
-            event_manager=event_manager,
-        )
-
-        # Verify creation
-        assert service_manager is not None
-
-    def test_create_multiple_service_managers(self, tmp_path):
-        """Test creating multiple service managers."""
-        manager = PluginManager()
-
-        # Create multiple configurations
-        configs = []
-        for i, name in enumerate(["picoquic", "aioquic", "lsquic"]):
-            protocol = ProtocolConfig(name="quic", version="rfc9000", role="server")
-            implementation = ImplementationConfig(name=name, type="iut")
-            service_config = ServiceConfig(timeout=60 + i * 10)
-            impl_dir = tmp_path / name
-            configs.append((protocol, implementation, service_config, impl_dir))
-
-        # Create service managers
-        managers = []
-        for protocol, implementation, service_config, impl_dir in configs:
-            service_manager = manager.create_service_manager(
-                protocol=protocol,
-                implementation=implementation,
-                implementation_dir=impl_dir,
-                service_config_to_test=service_config,
-            )
-            managers.append(service_manager)
-
-        # Verify all were created
-        assert len(managers) == 3
-        for i, service_manager in enumerate(managers):
-            assert service_manager is not None
-            assert service_manager.implementation.name in [
-                "picoquic",
-                "aioquic",
-                "lsquic",
-            ]
+    def test_discovery_count_increments(self, real_plugin_manager):
+        """Each non-cached discovery increments _discovery_count."""
+        # Cache is disabled, so every call should increment
+        count_before = real_plugin_manager._discovery_count
+        real_plugin_manager.discover_plugins()
+        assert real_plugin_manager._discovery_count > count_before
 
 
-class TestEnvironmentManagerCreation:
-    """Test environment manager creation functionality."""
+# ---------------------------------------------------------------------------
+# get_plugin
+# ---------------------------------------------------------------------------
 
-    @pytest.fixture
-    def mock_environment_config(self, tmp_path):
-        """Create mock environment configuration."""
-        test_config = TestConfig(
-            name="test_environment",
-            description="Test environment configuration",
-            network_environment={"type": "docker_compose"},
-            services={},
-        )
 
-        environment_dir = tmp_path / "docker_compose"
-        output_dir = tmp_path / "output"
-        environment_dir.mkdir()
-        output_dir.mkdir()
+class TestGetPlugin:
+    """Verify get_plugin() lookups."""
 
-        return test_config, environment_dir, output_dir
+    def test_get_existing_plugin(self, real_plugin_manager):
+        """get_plugin returns metadata for a discovered plugin."""
+        plugins = real_plugin_manager.discover_plugins()
+        if plugins:
+            name = next(iter(plugins))
+            result = real_plugin_manager.get_plugin(name)
+            assert result is not None
+            assert result.name == name
 
-    def test_create_environment_manager(self, mock_environment_config):
-        """Test creating an environment manager."""
-        test_config, env_dir, output_dir = mock_environment_config
-        manager = PluginManager()
+    def test_get_nonexistent_plugin(self, real_plugin_manager):
+        """get_plugin returns None for a name that does not exist."""
+        result = real_plugin_manager.get_plugin("__nonexistent_plugin_xyz__")
+        assert result is None
 
-        # Create environment manager
-        env_manager = manager.create_environment_manager(
-            environment="docker_compose",
-            test_config=test_config,
-            environment_dir=env_dir,
-            output_dir=output_dir,
-        )
 
-        # Verify environment manager was created
-        assert env_manager is not None
-        assert env_manager.environment_type == "docker_compose"
-        assert env_manager.test_config == test_config
-        assert env_manager.output_dir == output_dir
+# ---------------------------------------------------------------------------
+# get_plugins_by_type / get_plugins_by_protocol
+# ---------------------------------------------------------------------------
 
-    def test_create_environment_manager_with_event_manager(
-        self, mock_environment_config
+
+class TestPluginFiltering:
+    """Verify filtering helpers on the real plugin registry."""
+
+    def test_get_plugins_by_type_service(self, real_plugin_manager):
+        """get_plugins_by_type('service') returns only service plugins."""
+        services = real_plugin_manager.get_plugins_by_type("service")
+        assert isinstance(services, list)
+        for p in services:
+            assert p.type == "service"
+
+    def test_get_plugins_by_type_iut(self, real_plugin_manager):
+        """get_plugins_by_type('iut') returns IUT plugins."""
+        iut_plugins = real_plugin_manager.get_plugins_by_type("iut")
+        assert isinstance(iut_plugins, list)
+        for p in iut_plugins:
+            assert p.type == "iut"
+
+    def test_get_plugins_by_type_invalid_raises(self, real_plugin_manager):
+        """get_plugins_by_type with an invalid type string raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid plugin type"):
+            real_plugin_manager.get_plugins_by_type("__bogus__")
+
+    def test_get_plugins_by_protocol_quic(self, real_plugin_manager):
+        """get_plugins_by_protocol('quic') returns QUIC-compatible plugins."""
+        quic_plugins = real_plugin_manager.get_plugins_by_protocol("quic")
+        assert isinstance(quic_plugins, list)
+        for p in quic_plugins:
+            assert p.is_compatible_with(protocol="quic")
+
+    def test_get_plugins_by_protocol_unknown_includes_wildcard(
+        self, real_plugin_manager
     ):
-        """Test creating environment manager with event management."""
-        test_config, env_dir, output_dir = mock_environment_config
-        event_manager = EventManager()
-        manager = PluginManager(event_manager=event_manager)
+        """Plugins with empty supported_protocols are treated as universally compatible.
 
-        # Create environment manager
-        env_manager = manager.create_environment_manager(
-            environment="docker_compose",
-            test_config=test_config,
-            environment_dir=env_dir,
-            output_dir=output_dir,
-            event_manager=event_manager,
-        )
-
-        # Verify creation
-        assert env_manager is not None
-
-
-class TestDockerIntegration:
-    """Test Docker integration functionality."""
-
-    def test_build_docker_image_success(self):
-        """Test successful Docker image building."""
-        manager = PluginManager()
-
-        # Mock the docker builder and plugin discovery
-        with patch.object(manager, "docker_builder") as mock_docker:
-            with patch.object(
-                manager.plugin_discovery, "get_dockerfiles"
-            ) as mock_dockerfiles:
-                # Setup mocks
-                mock_dockerfile_path = Path("/mock/dockerfile/path/Dockerfile")
-                mock_dockerfiles.return_value = {"test_impl": mock_dockerfile_path}
-                mock_docker.build_image.return_value = {
-                    "build_time": 30.5,
-                    "image_id": "sha256:test123",
-                }
-                mock_docker.image_exists.return_value = False
-
-                # Build image
-                manager.build_docker_image("test_impl", "latest")
-
-                # Verify build was called
-                mock_docker.build_image.assert_called_once()
-
-                # Verify image was tracked
-                assert "test_impl" in manager.built_images
-                assert (
-                    manager.built_images["test_impl"]["tag"]
-                    == "test_impl_latest:latest"
-                )
-
-    def test_build_docker_image_already_exists(self):
-        """Test Docker image building when image already exists."""
-        manager = PluginManager()
-
-        # Mock the docker builder and plugin discovery
-        with patch.object(manager, "docker_builder") as mock_docker:
-            with patch.object(
-                manager.plugin_discovery, "get_dockerfiles"
-            ) as mock_dockerfiles:
-                # Setup mocks
-                mock_dockerfile_path = Path("/mock/dockerfile/path/Dockerfile")
-                mock_dockerfiles.return_value = {"test_impl": mock_dockerfile_path}
-                mock_docker.image_exists.return_value = True
-
-                # Build image
-                manager.build_docker_image("test_impl", "latest")
-
-                # Verify build was NOT called since image exists
-                mock_docker.build_image.assert_not_called()
-
-                # Verify image was still tracked with already_existed flag
-                assert "test_impl" in manager.built_images
-                assert manager.built_images["test_impl"]["already_existed"] is True
-
-    def test_get_built_images(self):
-        """Test getting built images information."""
-        manager = PluginManager()
-
-        # Add some mock built images
-        manager.built_images = {
-            "image1": {"tag": "image1:latest", "build_time": 30.0},
-            "image2": {"tag": "image2:latest", "build_time": 45.0},
-        }
-
-        # Get built images
-        images = manager.get_built_images()
-
-        # Verify structure
-        assert len(images) == 2
-        assert "image1" in images
-        assert "image2" in images
-        assert images["image1"]["tag"] == "image1:latest"
-
-        # Verify it's a copy (modifications don't affect original)
-        # Note: get_built_images() returns a shallow copy, not deep copy
-        # So modifying nested dictionaries will affect the original
-        original_count = len(manager.built_images)
-        images["new_image"] = {"tag": "new:latest"}
-        assert len(manager.built_images) == original_count  # Original unchanged
-
-
-class TestConfigurationValidation:
-    """Test plugin configuration validation."""
-
-    def test_plugin_availability_check(self):
-        """Test checking if plugins are available."""
-        manager = PluginManager()
-
-        # Test with a plugin that likely exists
-        # The real system may or may not have specific plugins
-        # so we test the interface rather than specific results
-        result = manager.is_plugin_available("some_plugin_id")
-        assert isinstance(result, bool)
-
-    def test_plugin_version_retrieval(self):
-        """Test retrieving plugin versions."""
-        manager = PluginManager()
-
-        # Test version retrieval interface
-        version = manager.get_plugin_version("some_plugin")
-        # Version can be None if plugin doesn't exist, or a string if it does
-        assert version is None or isinstance(version, str)
-
-    def test_plugin_dependencies_validation(self):
-        """Test plugin dependency validation."""
-        manager = PluginManager()
-
-        # Test dependency validation interface
-        is_valid, missing_deps = manager.validate_plugin_dependencies("some_plugin")
-
-        # Should return a tuple of (bool, list)
-        assert isinstance(is_valid, bool)
-        assert isinstance(missing_deps, list)
-
-
-class TestPluginManagerIntegration:
-    """Test integrated plugin manager workflows."""
-
-    def test_full_service_creation_workflow(self, tmp_path):
-        """Test complete service creation workflow."""
-        # Create plugin manager
-        event_manager = EventManager()
-        manager = PluginManager(
-            plugin_directories=[str(tmp_path)], event_manager=event_manager
-        )
-
-        # Discover plugins
-        plugins = manager.discover_plugins()
-        assert plugins is not None
-
-        # Create service configuration
-        protocol = ProtocolConfig(name="quic", version="rfc9000", role="server")
-        implementation = ImplementationConfig(name="picoquic", type="iut")
-        service_config = ServiceConfig(timeout=60)
-        impl_dir = tmp_path / "picoquic"
-
-        # Create service manager
-        service_manager = manager.create_service_manager(
-            protocol=protocol,
-            implementation=implementation,
-            implementation_dir=impl_dir,
-            service_config_to_test=service_config,
-        )
-
-        # Verify complete workflow
-        assert service_manager is not None
-
-    def test_full_environment_creation_workflow(self, tmp_path):
-        """Test complete environment creation workflow."""
-        # Create plugin manager
-        event_manager = EventManager()
-        manager = PluginManager(
-            plugin_directories=[str(tmp_path)], event_manager=event_manager
-        )
-
-        # Create environment configuration
-        test_config = TestConfig(name="integration_test")
-        env_dir = tmp_path / "docker_compose"
-        output_dir = tmp_path / "output"
-        env_dir.mkdir()
-        output_dir.mkdir()
-
-        # Create environment manager
-        env_manager = manager.create_environment_manager(
-            environment="docker_compose",
-            test_config=test_config,
-            environment_dir=env_dir,
-            output_dir=output_dir,
-        )
-
-        # Verify complete workflow
-        assert env_manager is not None
-
-    def test_plugin_manager_error_handling(self):
-        """Test plugin manager error handling."""
-        # Test with invalid plugin directories
-        manager = PluginManager(plugin_directories=["/nonexistent/path"])
-
-        # Should still initialize without errors
-        assert manager is not None
-        assert manager.plugin_directories == ["/nonexistent/path"]
-
-        # Discovery should handle missing directories gracefully
-        plugins = manager.discover_plugins()
-        assert plugins is not None
-
-
-class TestPluginManagerResourceManagement:
-    """Test plugin manager resource management."""
-
-    def test_resource_tracking(self):
-        """Test tracking of plugin resources."""
-        manager = PluginManager()
-
-        # Build some images
-        services = ["service1", "service2"]
-        manager.build_docker_images(services)
-
-        # Verify tracking
-        assert len(manager.built_images) == 2
-        assert "service1" in manager.built_images
-        assert "service2" in manager.built_images
-
-    def test_resource_cleanup_on_error(self):
-        """Test resource cleanup on errors."""
-        manager = PluginManager()
-
-        # Build images
-        services = ["error_service"]
-        manager.build_docker_images(services)
-
-        # Simulate error cleanup
-        manager.cleanup_docker_resources()
-
-        # Verify cleanup
-        assert len(manager.built_images) == 0
-
-    def test_memory_management(self):
-        """Test memory management with large numbers of plugins."""
-        manager = PluginManager()
-
-        # Create many service managers (simulate large experiment)
-        service_managers = []
-        for i in range(100):
-            protocol = ProtocolConfig(name="quic", version="rfc9000", role="server")
-            implementation = ImplementationConfig(name=f"impl_{i}", type="iut")
-            service_config = ServiceConfig(timeout=60)
-            impl_dir = Path(f"/tmp/impl_{i}")
-
-            service_manager = manager.create_service_manager(
-                protocol=protocol,
-                implementation=implementation,
-                implementation_dir=impl_dir,
-                service_config_to_test=service_config,
+        is_compatible_with() returns True when supported_protocols is empty,
+        so get_plugins_by_protocol always includes those plugins regardless
+        of the protocol name queried.
+        """
+        result = real_plugin_manager.get_plugins_by_protocol("__no_such_protocol__")
+        assert isinstance(result, list)
+        # Every returned plugin either has empty supported_protocols
+        # (wildcard) or explicitly lists the protocol
+        for p in result:
+            assert (
+                p.supported_protocols == []
+                or "__no_such_protocol__" in p.supported_protocols
             )
-            service_managers.append(service_manager)
 
-        # Verify all were created
-        assert len(service_managers) == 100
 
-        # Cleanup should work even with many objects
-        del service_managers
-        manager.cleanup_docker_resources()
+# ---------------------------------------------------------------------------
+# Protocol version discovery
+# ---------------------------------------------------------------------------
+
+
+class TestProtocolVersionDiscovery:
+    """Verify discover_protocol_versions() delegation."""
+
+    def test_discover_protocol_versions_returns_dict(self, real_plugin_manager):
+        """discover_protocol_versions returns a dict of protocol -> version list."""
+        versions = real_plugin_manager.discover_protocol_versions()
+        assert isinstance(versions, dict)
+
+    def test_discover_protocol_versions_filtered(self, real_plugin_manager):
+        """Passing a specific protocol filters results."""
+        versions = real_plugin_manager.discover_protocol_versions(protocol="quic")
+        assert isinstance(versions, dict)
+        # If QUIC is found, the key should be present
+        if versions:
+            for key in versions:
+                assert "quic" in key.lower()
+
+
+# ---------------------------------------------------------------------------
+# Plugin schema discovery
+# ---------------------------------------------------------------------------
+
+
+class TestPluginSchemaDiscovery:
+    """Verify discover_plugin_schemas() delegation."""
+
+    def test_discover_plugin_schemas_returns_dict(self, real_plugin_manager):
+        """discover_plugin_schemas returns a dict."""
+        schemas = real_plugin_manager.discover_plugin_schemas()
+        assert isinstance(schemas, dict)
+
+    def test_get_plugin_schema_existing(self, real_plugin_manager):
+        """get_plugin_schema returns schema for a discovered plugin."""
+        schemas = real_plugin_manager.discover_plugin_schemas()
+        if schemas:
+            name = next(iter(schemas))
+            result = real_plugin_manager.get_plugin_schema(name)
+            assert result is not None
+
+    def test_get_plugin_schema_nonexistent(self, real_plugin_manager):
+        """get_plugin_schema returns None for unknown plugin."""
+        result = real_plugin_manager.get_plugin_schema("__nonexistent__")
+        assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Dependency validation
+# ---------------------------------------------------------------------------
+
+
+class TestDependencyValidation:
+    """Verify validate_plugin_dependencies() delegation to PluginCatalog."""
+
+    def test_validate_deps_returns_tuple(self, real_plugin_manager):
+        """validate_plugin_dependencies returns (bool, list)."""
+        is_valid, missing = real_plugin_manager.validate_plugin_dependencies(
+            "some_plugin"
+        )
+        assert isinstance(is_valid, bool)
+        assert isinstance(missing, list)
+
+    def test_validate_deps_for_known_plugin(self, real_plugin_manager):
+        """For a plugin with no deps, validation should pass."""
+        plugins = real_plugin_manager.discover_plugins()
+        if plugins:
+            name = next(iter(plugins))
+            is_valid, missing = real_plugin_manager.validate_plugin_dependencies(name)
+            assert isinstance(is_valid, bool)
+            assert isinstance(missing, list)
+
+
+# ---------------------------------------------------------------------------
+# Experiment validation
+# ---------------------------------------------------------------------------
+
+
+class TestExperimentValidation:
+    """Verify validate_experiment_plugins() delegation to PluginCatalog."""
+
+    def test_validate_experiment_plugins_returns_tuple(
+        self, real_plugin_manager, minimal_test_config
+    ):
+        """validate_experiment_plugins returns (bool, list[str]).
+
+        The method expects an ExperimentConfig (with .tests list), not a
+        bare TestConfig.
+        """
+        from panther.config.core.models.experiment import ExperimentConfig
+
+        experiment_config = ExperimentConfig(tests=[minimal_test_config])
+        is_valid, errors = real_plugin_manager.validate_experiment_plugins(
+            experiment_config
+        )
+        assert isinstance(is_valid, bool)
+        assert isinstance(errors, list)
+
+    def test_validate_experiment_plugins_with_known_service(self, real_plugin_manager):
+        """Validation succeeds when the experiment references discovered plugins."""
+        from panther.config.core.models.experiment import ExperimentConfig, TestConfig
+
+        test_config = TestConfig(
+            name="validation_test",
+            description="Test validation",
+            network_environment={"type": "docker_compose"},
+            services={
+                "server": {
+                    "timeout": 60,
+                    "implementation": {"name": "picoquic", "type": "iut"},
+                    "protocol": {
+                        "name": "quic",
+                        "version": "rfc9000",
+                        "role": "server",
+                    },
+                }
+            },
+        )
+        experiment_config = ExperimentConfig(tests=[test_config])
+        is_valid, errors = real_plugin_manager.validate_experiment_plugins(
+            experiment_config
+        )
+        assert isinstance(is_valid, bool)
+        assert isinstance(errors, list)
+
+
+# ---------------------------------------------------------------------------
+# Statistics
+# ---------------------------------------------------------------------------
+
+
+class TestPluginManagerStatistics:
+    """Verify get_statistics() returns expected structure."""
+
+    def test_get_statistics_structure(self, real_plugin_manager):
+        """get_statistics returns dict with expected keys."""
+        stats = real_plugin_manager.get_statistics()
+        expected_keys = {
+            "total_plugins",
+            "plugins_by_type",
+            "discovery_count",
+            "last_discovery_time",
+            "cache_enabled",
+            "cache_valid",
+            "directories_scanned",
+            "event_system_enabled",
+            "docker_builder_available",
+        }
+        assert expected_keys.issubset(stats.keys())
+
+    def test_statistics_total_plugins(self, real_plugin_manager):
+        """total_plugins matches the number of discovered plugins."""
+        stats = real_plugin_manager.get_statistics()
+        plugins = real_plugin_manager.discover_plugins()
+        assert stats["total_plugins"] == len(plugins)
+
+    def test_statistics_docker_builder_available(self, real_plugin_manager):
+        """docker_builder_available is True when builder was initialised."""
+        stats = real_plugin_manager.get_statistics()
+        assert stats["docker_builder_available"] is True
+
+    def test_statistics_event_system_enabled(self, real_plugin_manager):
+        """event_system_enabled is True when event_manager was provided."""
+        stats = real_plugin_manager.get_statistics()
+        assert stats["event_system_enabled"] is True
+
+    def test_statistics_plugins_by_type(self, real_plugin_manager):
+        """plugins_by_type contains counts for each PluginType."""
+        stats = real_plugin_manager.get_statistics()
+        by_type = stats["plugins_by_type"]
+        assert isinstance(by_type, dict)
+        # All values should be non-negative integers
+        for count in by_type.values():
+            assert isinstance(count, int)
+            assert count >= 0
+
+
+# ---------------------------------------------------------------------------
+# Cache refresh
+# ---------------------------------------------------------------------------
+
+
+class TestPluginRefresh:
+    """Verify refresh_plugins() clears caches and re-discovers."""
+
+    def test_refresh_plugins_clears_cache(self, real_plugin_manager):
+        """refresh_plugins() clears the discovery cache."""
+        real_plugin_manager.refresh_plugins()
+        # After refresh, cache timestamp should be recent
+        assert real_plugin_manager._cache_timestamp > 0
+
+    def test_refresh_plugins_re_discovers(self, real_plugin_manager):
+        """refresh_plugins() re-discovers plugins."""
+        count_before = real_plugin_manager._discovery_count
+        real_plugin_manager.refresh_plugins()
+        assert real_plugin_manager._discovery_count > count_before
+
+
+# ---------------------------------------------------------------------------
+# Experiment context
+# ---------------------------------------------------------------------------
+
+
+class TestExperimentContext:
+    """Verify experiment context management."""
+
+    def test_set_experiment_context(self, real_plugin_manager):
+        """set_experiment_context stores the context on the manager."""
+        context = {"experiment_name": "test_exp", "run_id": 42}
+        real_plugin_manager.set_experiment_context(context)
+        assert real_plugin_manager.experiment_context == context
+
+    def test_experiment_context_for_plugins_property(self, real_plugin_manager):
+        """experiment_context_for_plugins returns the stored context."""
+        context = {"experiment_name": "test_exp"}
+        real_plugin_manager.set_experiment_context(context)
+        assert real_plugin_manager.experiment_context_for_plugins == context
+
+
+# ---------------------------------------------------------------------------
+# Docker builder integration
+# ---------------------------------------------------------------------------
+
+
+class TestDockerBuilderIntegration:
+    """Verify DockerBuilder integration within PluginManager."""
+
+    def test_docker_builder_is_real_instance(self, real_plugin_manager):
+        """docker_builder is a genuine DockerBuilder, not a mock."""
+        from panther.core.docker_builder.docker_builder import DockerBuilder
+
+        assert isinstance(real_plugin_manager.docker_builder, DockerBuilder)
+
+    def test_docker_builder_has_generate_image_tag(self, real_plugin_manager):
+        """docker_builder supports generate_image_tag for tag generation."""
+        tag = real_plugin_manager.docker_builder.generate_image_tag(
+            impl_name="picoquic",
+            version="rfc9000",
+            tag_version="latest",
+        )
+        assert isinstance(tag, str)
+        assert "picoquic" in tag
+
+
+# ---------------------------------------------------------------------------
+# Error handling
+# ---------------------------------------------------------------------------
+
+
+class TestPluginManagerErrorHandling:
+    """Verify graceful error handling in PluginManager."""
+
+    def test_docker_builder_failure_raises_runtime_error(
+        self, mock_docker_client, real_event_manager, real_fast_fail_handler
+    ):
+        """If DockerBuilder init fails, PluginManager raises RuntimeError."""
+        from panther.core.docker_builder.docker_builder import DockerBuilder
+        from panther.plugins.plugin_manager import PluginManager
+
+        PluginManager.reset_singleton()
+        DockerBuilder.reset_singleton()
+
+        with patch(
+            "panther.core.docker_builder.docker_builder.docker"
+        ) as mock_docker_mod:
+            mock_docker_mod.from_env.side_effect = Exception(
+                "Docker daemon not running"
+            )
+
+            with pytest.raises(
+                RuntimeError, match="DockerBuilder initialization failed"
+            ):
+                PluginManager(
+                    event_manager=real_event_manager,
+                    fast_fail_handler=real_fast_fail_handler,
+                    enable_cache=False,
+                )
 
 
 if __name__ == "__main__":

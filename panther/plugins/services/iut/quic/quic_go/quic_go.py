@@ -290,7 +290,7 @@ class QuicGoServiceManager(
             # Copy Go module files to artifacts
             "cp /opt/quic-go/go.mod /app/logs/artifacts/ 2>/dev/null || true;",
             # Copy any QUIC logs to artifacts
-            "find /tmp -name \"*.qlog\" -exec cp {} /app/logs/artifacts/ \\; 2>/dev/null || true;",
+            'find /tmp -name "*.qlog" -exec cp {} /app/logs/artifacts/ \\; 2>/dev/null || true;',
         ]
 
     def generate_deployment_commands(self) -> str:

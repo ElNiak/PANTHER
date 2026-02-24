@@ -1,5 +1,3 @@
-from typing import Any, Dict, List, Optional
-
 """
 Resource Monitor Module
 
@@ -11,7 +9,7 @@ import logging
 import threading
 import time
 from dataclasses import dataclass
-from typing import List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import psutil
 
@@ -63,7 +61,7 @@ class ResourceMonitor:
         self.logger = logging.getLogger(self.__class__.__name__)
 
         self.monitoring = False
-        self.monitor_thread: threading.Optional[Thread] = None
+        self.monitor_thread: Optional[threading.Thread] = None
         self.initial_disk_io: Optional[dict] = None
         self.initial_network_io: Optional[dict] = None
 

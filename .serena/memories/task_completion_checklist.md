@@ -20,13 +20,13 @@ pre-commit run --files path/to/file.py
 ### 3. Run Relevant Tests
 ```bash
 # Unit tests (fast)
-pytest tests/unit/ -m "not slow" -x
+pytest tests/unit/ -n auto -m "not slow" -x
 
 # If you modified specific modules, run targeted tests
 pytest tests/unit/test_core/ -v
 
 # Full test suite before PR
-pytest tests/ -m unit --cov=panther --cov-fail-under=70
+pytest tests/ -n auto -m unit --cov=panther --cov-fail-under=70
 ```
 
 ### 4. Type Checking (Optional but Recommended)
@@ -41,8 +41,8 @@ python -c "import panther; print('OK')"
 
 ## Before Creating a PR
 
-1. **Ensure tests pass**: `pytest tests/ -m unit`
-2. **Coverage check**: `pytest tests/ --cov=panther --cov-fail-under=70`
+1. **Ensure tests pass**: `pytest tests/ -n auto -m unit`
+2. **Coverage check**: `pytest tests/ -n auto --cov=panther --cov-fail-under=70`
 3. **All pre-commit hooks**: `pre-commit run --all-files`
 4. **Type check (optional)**: `mypy panther/`
 5. **PR target**: `production` branch
@@ -50,7 +50,7 @@ python -c "import panther; print('OK')"
 ## Special Considerations
 
 ### Docker-related Changes
-- Test with `pytest tests/ -m integration` (requires Docker)
+- Test with `pytest tests/ -n auto -m integration` (requires Docker)
 - Verify Dockerfiles build correctly
 
 ### Plugin Changes

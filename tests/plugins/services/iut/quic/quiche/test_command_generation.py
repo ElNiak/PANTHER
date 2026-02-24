@@ -1,15 +1,18 @@
 import os
-import sys
-import pytest
-from unittest.mock import patch, MagicMock
-import tempfile
 import shutil
+import sys
+import tempfile
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 # Add the parent directory to sys.path to import the quiche module
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../../")))
+sys.path.insert(
+    0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../../"))
+)
 
-from panther.plugins.services.iut.quic.quiche.quiche import QuicheServiceManager
 from panther.config.core.models import ProtocolConfig, ProtocolRole
+from panther.plugins.services.iut.quic.quiche.quiche import QuicheServiceManager
 
 
 class TestQuicheTemplateRendering:
@@ -27,10 +30,16 @@ class TestQuicheTemplateRendering:
         mock_config.implementation.version.server.binary.name = "server_binary"
         mock_config.implementation.version.server.binary.dir = "/opt/quiche/bin"
         mock_config.implementation.version.server.certificates.cert_param = "--cert"
-        mock_config.implementation.version.server.certificates.cert_file = "/certs/cert.pem"
+        mock_config.implementation.version.server.certificates.cert_file = (
+            "/certs/cert.pem"
+        )
         mock_config.implementation.version.server.certificates.key_param = "--key"
-        mock_config.implementation.version.server.certificates.key_file = "/certs/key.pem"
-        mock_config.implementation.version.server.protocol.additional_parameters = "--early-data"
+        mock_config.implementation.version.server.certificates.key_file = (
+            "/certs/key.pem"
+        )
+        mock_config.implementation.version.server.protocol.additional_parameters = (
+            "--early-data"
+        )
         mock_config.implementation.version.server.network.port = "4433"
         mock_config.implementation.version.server.network.destination = {
             "param": "-a",
@@ -47,10 +56,16 @@ class TestQuicheTemplateRendering:
         mock_config.implementation.version.client.binary.name = "client_binary"
         mock_config.implementation.version.client.binary.dir = "/opt/quiche/bin"
         mock_config.implementation.version.client.certificates.cert_param = "--cert"
-        mock_config.implementation.version.client.certificates.cert_file = "/certs/cert.pem"
+        mock_config.implementation.version.client.certificates.cert_file = (
+            "/certs/cert.pem"
+        )
         mock_config.implementation.version.client.certificates.key_param = "--key"
-        mock_config.implementation.version.client.certificates.key_file = "/certs/key.pem"
-        mock_config.implementation.version.client.protocol.additional_parameters = "--no-verify"
+        mock_config.implementation.version.client.certificates.key_file = (
+            "/certs/key.pem"
+        )
+        mock_config.implementation.version.client.protocol.additional_parameters = (
+            "--no-verify"
+        )
         mock_config.implementation.version.client.network.port = "4433"
         mock_config.implementation.version.client.network.interface = {
             "param": "-i",
@@ -101,7 +116,9 @@ class TestQuicheTemplateRendering:
         mock_protocol.role = ProtocolRole.SERVER
 
         # Create service manager with mock templates directory
-        service_manager = QuicheServiceManager(mock_config, "iut", mock_protocol, "quiche")
+        service_manager = QuicheServiceManager(
+            mock_config, "iut", mock_protocol, "quiche"
+        )
         service_manager.templates_dir = temp_template_dir
         service_manager.jinja_env.loader.searchpath = [temp_template_dir]
 
@@ -126,7 +143,9 @@ class TestQuicheTemplateRendering:
         mock_protocol.role = ProtocolRole.CLIENT
 
         # Create service manager with mock templates directory
-        service_manager = QuicheServiceManager(mock_config, "iut", mock_protocol, "quiche")
+        service_manager = QuicheServiceManager(
+            mock_config, "iut", mock_protocol, "quiche"
+        )
         service_manager.templates_dir = temp_template_dir
         service_manager.jinja_env.loader.searchpath = [temp_template_dir]
 
@@ -146,7 +165,9 @@ class TestQuicheTemplateRendering:
         assert "2> '/logs/client.err'" in command
 
     @patch("subprocess.run")
-    def test_special_characters_escaping(self, mock_run, mock_config, temp_template_dir):
+    def test_special_characters_escaping(
+        self, mock_run, mock_config, temp_template_dir
+    ):
         """Test proper escaping of special characters in command arguments."""
         # Setup
         mock_protocol = MagicMock(spec=ProtocolConfig)
@@ -159,7 +180,9 @@ class TestQuicheTemplateRendering:
         )
 
         # Create service manager with mock templates directory
-        service_manager = QuicheServiceManager(mock_config, "iut", mock_protocol, "quiche")
+        service_manager = QuicheServiceManager(
+            mock_config, "iut", mock_protocol, "quiche"
+        )
         service_manager.templates_dir = temp_template_dir
         service_manager.jinja_env.loader.searchpath = [temp_template_dir]
 

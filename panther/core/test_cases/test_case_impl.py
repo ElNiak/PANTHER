@@ -594,6 +594,20 @@ class TestCase(
         self.teardown_environment()
         self.stop_timer("teardown_environment")
 
+        # Clean up empty directories left by Docker bind mounts / entrypoint mkdir -p
+        try:
+            from panther.core.outputs.output_cleanup import remove_empty_directories
+
+            removed = remove_empty_directories(self.test_experiment_dir)
+            if removed:
+                self.logger.info(
+                    "Cleaned %d empty directories from %s",
+                    removed,
+                    self.test_experiment_dir,
+                )
+        except Exception as e:
+            self.logger.debug("Empty directory cleanup skipped: %s", e)
+
     def perform_dry_run(self) -> bool:
         """
         Performs a dry-run analysis of the test case configuration without executing commands.

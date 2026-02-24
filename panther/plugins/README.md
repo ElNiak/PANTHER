@@ -18,7 +18,7 @@ PANTHER uses a modern inheritance-based plugin architecture that eliminates code
 
 !!! success "2024 Architecture Modernization"
     PANTHER's plugin system was modernized in 2024 with an inheritance-based architecture:
-    
+
     - **47.2% average code reduction** across all implementations
     - **155-283% duplication reduction** to <30%
     - **Consistent behavior** across all plugins
@@ -96,9 +96,9 @@ PANTHER uses a hierarchical plugin system:
 
 The plugin system provides dynamic loading and lifecycle management:
 
-- **[Plugin Loader](panther/plugins/plugin_loader.py)**: Dynamic plugin discovery and loading
-- **[Plugin Manager](panther/plugins/plugin_manager.py)**: Plugin lifecycle and dependency management
-- **[Plugin Interface](panther/plugins/plugin_interface.py)**: Base interfaces and contracts
+- **Plugin Loader**: Dynamic plugin discovery and loading (see `core/plugin_loader_utils.py`)
+- **Plugin Manager**: Plugin lifecycle and dependency management
+- **Plugin Interface**: Base interfaces and contracts
 
 ## Plugin Categories
 
@@ -113,7 +113,7 @@ Service plugins represent either implementations being tested or testing tools:
 | **IUT (Implementation Under Test)** | Protocol implementations to evaluate | picoquic, minip, HTTP servers |
 | **Testers** | Testing and validation tools | ivy_tester, protocol conformance checkers |
 
-**Documentation**: [Services Plugin Guide](panther/plugins/services/README.md)
+**Documentation**: [Services Plugin Guide](services/README.md)
 
 #### Service Plugin Modernization Results
 
@@ -141,7 +141,7 @@ Protocol plugins provide testing logic and configuration for specific network pr
 | **Client-Server** | Traditional client-server protocols | HTTP, QUIC client-server testing |
 | **Peer-to-Peer** | Distributed/P2P protocols | BitTorrent, DHT protocols |
 
-**Documentation**: [Protocol Plugin Guide](panther/plugins/protocols/README.md)
+**Documentation**: [Protocol Plugin Guide](protocols/README.md)
 
 ### Environment Plugins
 
@@ -152,7 +152,7 @@ Environment plugins manage where and how tests execute:
 | **Execution Environment** | Performance monitoring and profiling | gperf, strace, memcheck |
 | **Network Environment** | Network topology and deployment | docker_compose, shadow_ns |
 
-**Documentation**: [Environment Plugin Guide](panther/plugins/environments/README.md)
+**Documentation**: [Environment Plugin Guide](environments/README.md)
 
 ## Benefits of the Modern Architecture
 
@@ -189,14 +189,14 @@ class LegacyQuicManager(IImplementationManager):
 class ModernQuicManager(BaseQUICServiceManager):
     def _get_implementation_name(self) -> str:
         return "my_quic"
-    
+
     def _get_binary_name(self) -> str:
         return "my_quic_binary"
-    
+
     # Only implement what's unique to your implementation
     def _get_server_specific_args(self, **kwargs) -> List[str]:
         return ["-p", str(kwargs.get("port", 4443))]
-    
+
     # All common logic inherited from base class!
 ```
 

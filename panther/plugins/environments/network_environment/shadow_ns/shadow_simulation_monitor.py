@@ -150,9 +150,9 @@ class ShadowSimulationMonitor(BaseEnvironmentMonitor):
             "simulation_state": self.simulation_state.value,
             "expected_duration": self.expected_duration,
             "simulation_start_time": self.simulation_start_time,
-            "shadow_process_id": self.shadow_process.pid
-            if self.shadow_process
-            else None,
+            "shadow_process_id": (
+                self.shadow_process.pid if self.shadow_process else None
+            ),
             "shadow_output_file": self.shadow_output_file,
             "duration_seconds": self._parse_duration(self.expected_duration),
         }

@@ -53,7 +53,7 @@ def get_build_dict(project_root: Path = None, use_cache: bool = True) -> Dict[st
 
     # Check for cached build_dict
     cache_file = (
-        project_root / "panther" / "tools" / "docs-gen" / "generated_build_dict.py"
+        project_root / "panther" / "tools" / "docs_gen" / "generated_build_dict.py"
     )
 
     if use_cache and cache_file.exists():
@@ -104,7 +104,7 @@ def _cache_build_dict(project_root: Path, build_dict: Dict[str, str]) -> None:
 
     try:
         cache_file = (
-            project_root / "panther" / "tools" / "docs-gen" / "generated_build_dict.py"
+            project_root / "panther" / "tools" / "docs_gen" / "generated_build_dict.py"
         )
 
         # Ensure directory exists

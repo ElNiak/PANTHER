@@ -280,12 +280,6 @@ class EnvironmentTemplateRenderer(TemplateRenderer):
         self.env = jinja2.Environment(
             loader=jinja2.FileSystemLoader(self.template_dir), autoescape=True
         )
-        self.env.globals.update(
-            {
-                "get_env_var": self.get_env_var,
-                "get_service_name": self.get_service_name,
-            }
-        )
 
 
 class ServiceTemplateRenderer(TemplateRenderer):

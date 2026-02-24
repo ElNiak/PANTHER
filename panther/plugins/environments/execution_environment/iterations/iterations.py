@@ -45,6 +45,8 @@ class IterationsEnvironment(BaseExecutionEnvironment):
     statistics and results.
     """
 
+    _config_class = IterationsConfig
+
     def __init__(
         self,
         env_config_to_test: IterationsConfig,
@@ -59,21 +61,7 @@ class IterationsEnvironment(BaseExecutionEnvironment):
             env_config_to_test, output_dir, env_type, env_sub_type, event_manager
         )
 
-        # Initialize plugin config cache
-        self._plugin_config = None
         self.target_platform = target_platform
-
-    def _get_plugin_config(self) -> IterationsConfig:
-        """Get plugin config with caching and fallback."""
-        if self._plugin_config is None:
-            try:
-                self._plugin_config = self.env_config_to_test.get_plugin_config(
-                    IterationsConfig
-                )
-            except Exception as e:
-                self.logger.debug(f"Could not get plugin config, using defaults: {e}")
-                self._plugin_config = IterationsConfig()
-        return self._plugin_config
 
     def _setup_plugin_specific_environment(
         self, services_managers: List[IServiceManager], timestamp: str
@@ -85,35 +73,9 @@ class IterationsEnvironment(BaseExecutionEnvironment):
             services_managers: List of service managers to run iterations on
             timestamp: Timestamp for this execution (used for file naming)
         """
-        plugin_config = self._get_plugin_config()
-
-        # Get iterations using dual approach
-        iterations = None
-        if (
-            hasattr(self.env_config_to_test, "plugin_config")
-            and self.env_config_to_test.plugin_config
-        ):
-            iterations = self.env_config_to_test.plugin_config.get("iterations")
-        if iterations is None:
-            iterations = (
-                plugin_config.iterations if hasattr(plugin_config, "iterations") else 1
-            )
-
-        # Get delay_between_iterations using dual approach
-        delay = None
-        if (
-            hasattr(self.env_config_to_test, "plugin_config")
-            and self.env_config_to_test.plugin_config
-        ):
-            delay = self.env_config_to_test.plugin_config.get(
-                "delay_between_iterations"
-            )
-        if delay is None:
-            delay = (
-                plugin_config.delay_between_iterations
-                if hasattr(plugin_config, "delay_between_iterations")
-                else 0
-            )
+        # Get iterations and delay config values
+        iterations = self._get_config_value("iterations", 1)
+        delay = self._get_config_value("delay_between_iterations", 0)
 
         self.logger.info(
             "Setting up iterations environment for %d iterations with %ds delay",
@@ -168,7 +130,7 @@ for iteration in $(seq 1 $iterations_count); do
     end_time=$(date +%s)
     duration=$((end_time - start_time))
 
-    echo "Completed iteration $iteration of $iterations_count (exit code: $exit_code, duration: ${duration}s)" >> "$iterations_log"
+    echo "Completed iteration $iteration of $iterations_count (exit code: $exit_code, duration: ${{duration}}s)" >> "$iterations_log"
 
     # If command failed, should we continue? For now, continue iterations
     if [ $exit_code -ne 0 ]; then
@@ -222,6 +184,29 @@ echo "Added iterations wrapper for {iterations} iterations" >> /app/logs/{servic
 
         self.logger.info("Iterations environment setup completed")
 
+    def update_environment(
+        self,
+        execution_environment,
+        global_config,
+        plugin_manager,
+        services_managers,
+        test_config,
+    ) -> None:
+        """
+        Update environment for iterations execution.
+
+        This method is called to update the environment configuration
+        for iterations-specific requirements.
+
+        Args:
+            execution_environment: Current execution environment
+            global_config: Global configuration
+            plugin_manager: Plugin manager instance
+            services_managers: List of service managers
+            test_config: Test configuration
+        """
+        self.logger.debug("Updated environment for iterations execution")
+
     def to_command(self, *args, **kwargs) -> str:
         """
         Generate the iterations wrapper script path.
@@ -240,18 +225,7 @@ echo "Added iterations wrapper for {iterations} iterations" >> /app/logs/{servic
         if not service_name and args:
             service_name = args[0] if isinstance(args[0], str) else None
 
-        # Get iterations using dual approach
-        plugin_config = self._get_plugin_config()
-        iterations = None
-        if (
-            hasattr(self.env_config_to_test, "plugin_config")
-            and self.env_config_to_test.plugin_config
-        ):
-            iterations = self.env_config_to_test.plugin_config.get("iterations")
-        if iterations is None:
-            iterations = (
-                plugin_config.iterations if hasattr(plugin_config, "iterations") else 1
-            )
+        iterations = self._get_config_value("iterations", 1)
 
         if iterations <= 1:
             # No wrapper needed for single iteration

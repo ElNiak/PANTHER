@@ -432,7 +432,7 @@ class ResultsManagerTests(unittest.TestCase):
         # Check for the actual event types that are generated
         event_types_found = set(callback_results)
         expected_types = {"test.std_test", "test.completed"}
-        
+
         # Should have at least one event type from each event
         self.assertTrue(
             any(t in event_types_found for t in expected_types),

@@ -61,25 +61,25 @@ from panther.plugins.services.base.quic_service_base import BaseQUICServiceManag
 
 class PicoquicShadowServiceManager(BaseQUICServiceManager):
     """Picoquic Shadow QUIC implementation with inheritance-based architecture."""
-    
+
     def _get_implementation_name(self) -> str:
         return "picoquic_shadow"
-    
+
     def _get_binary_name(self) -> str:
         return "picoquicdemo"  # Same as regular Picoquic
-    
+
     # Customize for Shadow NS integration
     def _get_server_specific_args(self, **kwargs) -> List[str]:
         port = kwargs.get("port", 4443)
         # Shadow-specific socket binding
         return ["-p", str(port), "-L", "-l", "/tmp/server.log"]
-    
+
     def _get_client_specific_args(self, **kwargs) -> List[str]:
         host = kwargs.get("host", "localhost")
         port = kwargs.get("port", 4443)
         # Shadow-specific connection patterns
         return [f"{host}", str(port), "-l", "/tmp/client.log"]
-    
+
     # Shadow integration and deterministic testing handled by base class
 ```
 
@@ -498,9 +498,9 @@ This plugin integrates with PANTHER's testing infrastructure through:
 
 ## Related Documentation
 
-- [Shadow Network Environment Plugin](panther/plugins/services/iut/environments/network_environment/shadow_ns/README.md)
-- [Picoquic Standard Plugin](panther/plugins/services/iut/quic/picoquic/README.md)
-- [QUIC Protocol Documentation](panther/plugins/protocols/client_server/quic/README.md)
+- [Shadow Network Environment Plugin](../../../../environments/network_environment/shadow_ns/README.md)
+- [Picoquic Standard Plugin](../picoquic/README.md)
+- [QUIC Protocol Documentation](../../../../protocols/client_server/quic/README.md)
 - [Shadow Simulator Documentation](https://shadow.github.io/)
 - [Picoquic Project Repository](https://github.com/private-octopus/picoquic)
 

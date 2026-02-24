@@ -9,7 +9,7 @@ side-effect-free tests.
 import json
 import os
 from contextlib import contextmanager
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
 import yaml
@@ -144,15 +144,6 @@ def mock_file_system(tmp_path):
     (tmp_path / "outputs" / "logs").mkdir()
 
     return tmp_path
-
-
-@pytest.fixture
-def config_loader_mock():
-    """Create a mocked ConfigLoader for isolated testing."""
-    with patch("panther.config.config_manager.ConfigLoader") as mock_loader:
-        instance = Mock()
-        mock_loader.return_value = instance
-        yield instance
 
 
 @pytest.fixture

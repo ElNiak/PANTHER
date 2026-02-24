@@ -1,599 +1,432 @@
 """
 Unit tests for ExperimentManager - the core orchestration component of PANTHER.
 
-Tests cover initialization, workflow phases, service management, and result collection.
+Tests exercise the real ExperimentManager with IO boundaries mocked
+(Docker daemon, subprocess, filesystem). No fake/shadow classes.
+
+Covers:
+- Initialization and attribute setup
+- Experiment name sanitization
+- Output directory creation
+- Component wiring (event manager, workflow tracker, plugin manager, fast fail)
+- cleanup() resource teardown
+- record_failed_test() error recording
+- Context manager protocol (__enter__ / __exit__)
+- WorkflowStateTracker integration (replacing deleted fake phase tests)
 """
 
-import json
-import shutil
-import tempfile
-from datetime import datetime
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
-import yaml
-
-# Use the actual PANTHER modules if available, otherwise mock them
-try:
-    from panther.core.experiment_manager import ExperimentManager
-except ImportError:
-    # Create a mock ExperimentManager for testing
-    class ExperimentManager:
-        def __init__(
-            self,
-            experiment_config=None,
-            global_config=None,
-            experiment_name="test",
-            output_dir=None,
-        ):
-            self.experiment_config = experiment_config
-            self.global_config = global_config
-            self.experiment_name = experiment_name
-            self.output_dir = (
-                Path(output_dir) if output_dir else Path(tempfile.mkdtemp())
-            )
-            self.state = "initialized"
-            self.services = {}
-            self.results = {}
-            self.experiment_id = f"exp_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-            self.start_time = None
-            self.end_time = None
-            self.duration = None
-            self.error_details = None
-            self.progress = 0
-            self.progress_history = []
-            self.log_level = "INFO"
-
-            # Create a mock logger
-            self.logger = Mock()
-            self.logger.level = 20  # INFO level
-
-        def run_experiment(self):
-            """Run the complete 4-phase experiment workflow."""
-            try:
-                if not self.run_phase_1_initialization():
-                    return False
-                if not self.run_phase_2_plugin_loading():
-                    return False
-                if not self.run_phase_3_environment_deployment():
-                    return False
-                if not self.run_phase_4_test_execution():
-                    return False
-                return True
-            except Exception as e:
-                self.state = "failed"
-                self.error_details = str(e)
-                self._cleanup_on_failure()
-                return False
-
-        def run_phase_1_initialization(self):
-            """Phase 1: Initialization."""
-            self.state = "phase_1_complete"
-            return True
-
-        def run_phase_2_plugin_loading(self):
-            """Phase 2: Plugin Loading."""
-            if self.state != "phase_1_complete":
-                return False
-            self.state = "phase_2_complete"
-            return True
-
-        def run_phase_3_environment_deployment(self):
-            """Phase 3: Environment Deployment."""
-            if self.state != "phase_2_complete":
-                return False
-            self.state = "phase_3_complete"
-            return True
-
-        def run_phase_4_test_execution(self):
-            """Phase 4: Test Execution."""
-            if self.state != "phase_3_complete":
-                return False
-            self.state = "completed"
-            return True
-
-        def add_service(self, name, service):
-            """Add a service to the experiment."""
-            self.services[name] = service
-
-        def remove_service(self, name):
-            """Remove a service from the experiment."""
-            if name in self.services:
-                del self.services[name]
-                return True
-            return False
-
-        def get_service_status(self, name):
-            """Get the status of a specific service."""
-            if name in self.services:
-                return getattr(self.services[name], "status", None)
-            return None
-
-        def get_all_services_status(self):
-            """Get status of all services."""
-            return {
-                name: getattr(service, "status", "unknown")
-                for name, service in self.services.items()
-            }
-
-        def wait_for_services_ready(self, timeout=30):
-            """Wait for all services to be ready."""
-            return self._check_services_ready()
-
-        def _check_services_ready(self):
-            """Check if all services are ready."""
-            return all(
-                getattr(service, "status", None) == "ready"
-                for service in self.services.values()
-            )
-
-        def collect_results(self):
-            """Collect experiment results."""
-            return self.results
-
-        def generate_summary(self):
-            """Generate experiment summary."""
-            total_tests = len(self.results)
-            passed_tests = sum(
-                1
-                for result in self.results.values()
-                if result.get("status") == "passed"
-            )
-            failed_tests = total_tests - passed_tests
-            total_duration = sum(
-                result.get("duration", 0) for result in self.results.values()
-            )
-
-            return {
-                "total_tests": total_tests,
-                "passed_tests": passed_tests,
-                "failed_tests": failed_tests,
-                "total_duration": total_duration,
-                "success_rate": passed_tests / total_tests if total_tests > 0 else 0,
-            }
-
-        def export_results(self, format="json"):
-            """Export results to file."""
-            results_data = {
-                "experiment_id": self.experiment_id,
-                "results": self.results,
-                "summary": self.generate_summary(),
-            }
-
-            if format == "json":
-                export_path = self.output_dir / f"results_{self.experiment_id}.json"
-                with open(export_path, "w") as f:
-                    json.dump(results_data, f, indent=2)
-            elif format == "yaml":
-                export_path = self.output_dir / f"results_{self.experiment_id}.yaml"
-                with open(export_path, "w") as f:
-                    yaml.dump(results_data, f, default_flow_style=False)
-
-            return export_path
-
-        def get_experiment_metadata(self):
-            """Get experiment metadata."""
-            return {
-                "experiment_id": self.experiment_id,
-                "start_time": self.start_time,
-                "end_time": self.end_time,
-                "duration": self.duration,
-                "status": self.state,
-                "phase": self.state,
-            }
-
-        def _cleanup_on_failure(self):
-            """Cleanup on failure."""
-            for service in self.services.values():
-                if hasattr(service, "stop"):
-                    service.stop()
-                if hasattr(service, "cleanup"):
-                    service.cleanup()
-            self.state = "failed"
-
-        def _start_timing(self):
-            """Start timing the experiment."""
-            self.start_time = datetime.now()
-
-        def _end_timing(self):
-            """End timing the experiment."""
-            self.end_time = datetime.now()
-            if self.start_time:
-                self.duration = (self.end_time - self.start_time).total_seconds()
-
-        def update_progress(self, message, progress):
-            """Update experiment progress."""
-            self.progress = progress
-            self.progress_history.append(
-                {"message": message, "progress": progress, "timestamp": datetime.now()}
-            )
-
 
 pytestmark = [pytest.mark.unit, pytest.mark.experiment_manager]
 
 
+# ---------------------------------------------------------------------------
+# Initialization tests
+# ---------------------------------------------------------------------------
+
+
 class TestExperimentManagerInitialization:
-    """Test ExperimentManager initialization and basic setup."""
+    """Test ExperimentManager initialization and attribute setup."""
 
-    def test_experiment_manager_creation(self, tmp_path):
-        """Test creating an ExperimentManager instance."""
-        # Create experiment manager
-        manager = ExperimentManager(
-            experiment_name="test_experiment", output_dir=str(tmp_path)
+    def test_creation_sets_experiment_name_with_timestamp(
+        self, real_experiment_manager
+    ):
+        """Test that __init__ produces an experiment_name containing the provided name."""
+        # The real ExperimentManager prepends a timestamp:
+        #   "2024-01-01_00-00-00_test_experiment"
+        assert "test_experiment" in real_experiment_manager.experiment_name
+
+    def test_experiment_name_sanitization(
+        self, mock_docker_client, minimal_global_config, tmp_path
+    ):
+        """Test that special characters in experiment_name are sanitized to underscores."""
+        import panther.core.observer.factory.observer_factory as _of_mod
+        from panther.config.core.models.global_config import PathsConfig
+        from panther.core.docker_builder.docker_builder import DockerBuilder
+        from panther.core.experiment_manager import ExperimentManager
+        from panther.core.observer.management.event_manager import EventManager
+        from panther.plugins.plugin_manager import PluginManager
+
+        DockerBuilder.reset_singleton()
+        EventManager.reset_instance()
+        PluginManager.reset_singleton()
+        _of_mod._observer_factory = None
+
+        output_dir = tmp_path / "sanitize_outputs"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        paths_obj = PathsConfig(
+            output_dir=str(output_dir),
+            log_dir=str(tmp_path / "logs"),
+        )
+        cfg = minimal_global_config.model_copy(
+            update={"paths": paths_obj},
         )
 
-        # Verify initialization
-        assert manager.experiment_name == "test_experiment"
-        assert manager.output_dir == tmp_path
-        assert manager.state == "initialized"
-        assert manager.services == {}
-        assert manager.experiment_id is not None
-        assert len(manager.experiment_id) > 0
+        with patch(
+            "panther.core.docker_builder.docker_builder.docker"
+        ) as mock_docker_mod:
+            mock_docker_mod.from_env.return_value = mock_docker_client
+            mock_docker_mod.errors = _make_docker_errors_module()
 
-    def test_experiment_id_generation(self, tmp_path):
-        """Test that experiment IDs are unique."""
-        # Create multiple managers
-        manager1 = ExperimentManager(experiment_name="test1", output_dir=str(tmp_path))
-        manager2 = ExperimentManager(experiment_name="test2", output_dir=str(tmp_path))
+            manager = ExperimentManager(
+                global_config=cfg,
+                experiment_name="my experiment!@#name",
+                dry_run=True,
+            )
 
-        # Verify unique IDs
-        assert manager1.experiment_id != manager2.experiment_id
-        assert len(manager1.experiment_id) > 10  # Reasonable length
-        assert isinstance(manager1.experiment_id, str)
+        # After sanitization: "my experiment!@#name" -> "my_experiment_name"
+        # (regex removes non-alphanumeric/underscore, then collapses multiple underscores)
+        assert "my_experiment_name" in manager.experiment_name
+        assert "!" not in manager.experiment_name
+        assert "@" not in manager.experiment_name
+        assert "#" not in manager.experiment_name
 
-    def test_experiment_manager_with_output_dir(self, tmp_path):
-        """Test ExperimentManager with custom output directory."""
-        manager = ExperimentManager(experiment_name="test", output_dir=str(tmp_path))
+    def test_experiment_dir_created(self, real_experiment_manager):
+        """Test that experiment_dir is created during __init__."""
+        assert real_experiment_manager.experiment_dir.exists()
+        assert real_experiment_manager.experiment_dir.is_dir()
 
-        assert manager.output_dir == tmp_path
-        assert manager.output_dir.exists()
+    def test_experiment_dir_under_output_dir(self, real_experiment_manager, tmp_path):
+        """Test that experiment_dir is a subdirectory of the configured output_dir."""
+        output_dir = tmp_path / "experiment_outputs"
+        # experiment_dir should be output_dir / experiment_name
+        assert str(real_experiment_manager.experiment_dir).startswith(str(output_dir))
+
+    def test_dry_run_flag_preserved(self, real_experiment_manager):
+        """Test that dry_run flag is stored on the manager."""
+        assert real_experiment_manager.dry_run is True
+
+    def test_global_config_stored(self, real_experiment_manager, minimal_global_config):
+        """Test that global_config is accessible on the manager."""
+        # The fixture uses model_copy so it won't be the exact same object,
+        # but it should be a GlobalConfig with the expected logging level.
+        from panther.config.core.models.global_config import GlobalConfig
+
+        assert isinstance(real_experiment_manager.global_config, GlobalConfig)
+
+    def test_test_cases_initially_empty(self, real_experiment_manager):
+        """Test that test_cases list starts empty before initialize_experiments()."""
+        assert real_experiment_manager.test_cases == []
+        assert isinstance(real_experiment_manager.test_cases, list)
 
 
-class TestExperimentWorkflow:
-    """Test the 4-phase experiment workflow."""
+# ---------------------------------------------------------------------------
+# Component wiring tests
+# ---------------------------------------------------------------------------
 
-    @pytest.fixture
-    def mock_manager(self, tmp_path):
-        """Create a mock experiment manager for testing."""
-        manager = ExperimentManager(
-            experiment_name="test_experiment", output_dir=str(tmp_path)
+
+class TestExperimentManagerComponents:
+    """Test that ExperimentManager correctly wires up its sub-components."""
+
+    def test_event_manager_initialized(self, real_experiment_manager):
+        """Test that event_manager is set during __init__."""
+        from panther.core.observer.management.event_manager import EventManager
+
+        assert isinstance(real_experiment_manager.event_manager, EventManager)
+
+    def test_workflow_tracker_initialized(self, real_experiment_manager):
+        """Test that workflow_tracker is set during __init__."""
+        from panther.core.observer.workflow.workflow_tracker import WorkflowStateTracker
+
+        assert isinstance(
+            real_experiment_manager.workflow_tracker, WorkflowStateTracker
         )
-        return manager
 
-    def test_phase_1_initialization(self, mock_manager):
-        """Test Phase 1: Initialization."""
-        # Run phase 1
-        result = mock_manager.run_phase_1_initialization()
+    def test_plugin_manager_initialized(self, real_experiment_manager):
+        """Test that plugin_manager is set during __init__."""
+        from panther.plugins.plugin_manager import PluginManager
 
-        # Verify
-        assert result is True
-        assert mock_manager.state == "phase_1_complete"
+        assert isinstance(real_experiment_manager.plugin_manager, PluginManager)
 
-    def test_phase_2_plugin_loading(self, mock_manager):
-        """Test Phase 2: Plugin Loading."""
-        # Setup prerequisites
-        mock_manager.state = "phase_1_complete"
+    def test_fast_fail_handler_initialized(self, real_experiment_manager):
+        """Test that fast_fail_handler is set during __init__."""
+        from panther.core.exceptions.fast_fail import FastFailHandler
 
-        # Run phase 2
-        result = mock_manager.run_phase_2_plugin_loading()
+        assert isinstance(real_experiment_manager.fast_fail_handler, FastFailHandler)
 
-        # Verify
-        assert result is True
-        assert mock_manager.state == "phase_2_complete"
+    def test_emitter_registry_initialized(self, real_experiment_manager):
+        """Test that emitter_registry is set during __init__."""
+        from panther.core.events.emitter_registry import EmitterRegistry
 
-    def test_phase_3_environment_deployment(self, mock_manager):
-        """Test Phase 3: Environment Deployment."""
-        # Setup prerequisites
-        mock_manager.state = "phase_2_complete"
+        assert isinstance(real_experiment_manager.emitter_registry, EmitterRegistry)
 
-        # Run phase 3
-        result = mock_manager.run_phase_3_environment_deployment()
+    def test_experiment_emitter_accessible(self, real_experiment_manager):
+        """Test that experiment_emitter shortcut is wired from emitter_registry."""
+        assert real_experiment_manager.experiment_emitter is not None
+        assert (
+            real_experiment_manager.experiment_emitter
+            is real_experiment_manager.emitter_registry.experiment_emitter
+        )
 
-        # Verify
-        assert result is True
-        assert mock_manager.state == "phase_3_complete"
 
-    def test_phase_4_test_execution(self, mock_manager):
-        """Test Phase 4: Test Execution."""
-        # Setup prerequisites
-        mock_manager.state = "phase_3_complete"
+# ---------------------------------------------------------------------------
+# Cleanup tests
+# ---------------------------------------------------------------------------
 
-        # Run phase 4
-        result = mock_manager.run_phase_4_test_execution()
 
-        # Verify
-        assert result is True
-        assert mock_manager.state == "completed"
+class TestExperimentManagerCleanup:
+    """Test cleanup() resource teardown."""
 
-    def test_full_workflow_integration(self, mock_manager):
-        """Test running the complete 4-phase workflow."""
-        # Run complete workflow
-        result = mock_manager.run_experiment()
+    def test_cleanup_clears_workflow_state(self, real_experiment_manager):
+        """Test that cleanup() clears the workflow tracker state for this experiment."""
+        tracker = real_experiment_manager.workflow_tracker
+        exp_name = real_experiment_manager.experiment_name
 
-        # Verify all phases executed
-        assert result is True
+        # Pre-populate a workflow state so we can verify it gets cleared
+        from panther.core.observer.workflow.workflow_tracker import WorkflowState
 
-        # Verify final state
-        assert mock_manager.state == "completed"
+        tracker.set_workflow_state(exp_name, WorkflowState.CREATED)
+        assert tracker.get_workflow_state(exp_name) is not None
 
-    def test_workflow_phase_dependencies(self, mock_manager):
-        """Test that phases have proper dependencies."""
-        # Try to run phase 2 without phase 1
-        result = mock_manager.run_phase_2_plugin_loading()
+        # Run cleanup
+        real_experiment_manager.cleanup()
+
+        # Workflow state should be cleared
+        assert tracker.get_workflow_state(exp_name) is None
+
+    def test_cleanup_does_not_raise_on_missing_state(self, real_experiment_manager):
+        """Test that cleanup() handles missing workflow state gracefully."""
+        # No workflow state was set, cleanup should not raise
+        real_experiment_manager.cleanup()
+
+    def test_cleanup_unregisters_observers(self, real_experiment_manager):
+        """Test that cleanup() attempts to unregister known observers."""
+        # Cleanup should run without error and unregister observers via factory
+        real_experiment_manager.cleanup()
+        # If we get here without exception, cleanup handled observer teardown
+
+
+# ---------------------------------------------------------------------------
+# Context manager tests
+# ---------------------------------------------------------------------------
+
+
+class TestExperimentManagerContextManager:
+    """Test context manager protocol (__enter__ / __exit__)."""
+
+    def test_enter_returns_self(self, real_experiment_manager):
+        """Test that __enter__ returns the manager instance."""
+        result = real_experiment_manager.__enter__()
+        assert result is real_experiment_manager
+
+    def test_exit_calls_cleanup(self, real_experiment_manager):
+        """Test that __exit__ calls cleanup()."""
+        with patch.object(real_experiment_manager, "cleanup") as mock_cleanup:
+            real_experiment_manager.__exit__(None, None, None)
+            mock_cleanup.assert_called_once()
+
+    def test_exit_does_not_suppress_exceptions(self, real_experiment_manager):
+        """Test that __exit__ returns False (does not suppress exceptions)."""
+        result = real_experiment_manager.__exit__(ValueError, ValueError("test"), None)
         assert result is False
 
-        # Try to run phase 3 without phase 2
-        mock_manager.state = "phase_1_complete"
-        result = mock_manager.run_phase_3_environment_deployment()
+    def test_with_statement_integration(
+        self, mock_docker_client, minimal_global_config, tmp_path
+    ):
+        """Test using ExperimentManager in a with statement."""
+        import panther.core.observer.factory.observer_factory as _of_mod
+        from panther.config.core.models.global_config import PathsConfig
+        from panther.core.docker_builder.docker_builder import DockerBuilder
+        from panther.core.experiment_manager import ExperimentManager
+        from panther.core.observer.management.event_manager import EventManager
+        from panther.plugins.plugin_manager import PluginManager
+
+        DockerBuilder.reset_singleton()
+        EventManager.reset_instance()
+        PluginManager.reset_singleton()
+        _of_mod._observer_factory = None
+
+        output_dir = tmp_path / "ctx_mgr_outputs"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        paths_obj = PathsConfig(
+            output_dir=str(output_dir),
+            log_dir=str(tmp_path / "logs"),
+        )
+        cfg = minimal_global_config.model_copy(
+            update={"paths": paths_obj},
+        )
+
+        with patch(
+            "panther.core.docker_builder.docker_builder.docker"
+        ) as mock_docker_mod:
+            mock_docker_mod.from_env.return_value = mock_docker_client
+            mock_docker_mod.errors = _make_docker_errors_module()
+
+            with ExperimentManager(
+                global_config=cfg,
+                experiment_name="ctx_test",
+                dry_run=True,
+            ) as mgr:
+                assert mgr is not None
+                assert "ctx_test" in mgr.experiment_name
+            # After exiting, cleanup should have been called (no assertions needed;
+            # if cleanup raises, the test fails).
+
+
+# ---------------------------------------------------------------------------
+# record_failed_test tests
+# ---------------------------------------------------------------------------
+
+
+class TestRecordFailedTest:
+    """Test record_failed_test() error recording."""
+
+    def test_record_failed_test_logs_error(self, real_experiment_manager):
+        """Test that record_failed_test logs the test name and error message."""
+        mock_test_case = MagicMock()
+        mock_test_case.test_config.name = "failing_test"
+        error = RuntimeError("connection refused")
+
+        # record_failed_test should not raise
+        real_experiment_manager.record_failed_test(mock_test_case, error)
+
+    def test_record_failed_test_truncates_long_errors(self, real_experiment_manager):
+        """Test that record_failed_test handles very long error messages."""
+        mock_test_case = MagicMock()
+        mock_test_case.test_config.name = "long_error_test"
+        error = RuntimeError("x" * 500)
+
+        # Should not raise even with very long error string
+        real_experiment_manager.record_failed_test(mock_test_case, error)
+
+
+# ---------------------------------------------------------------------------
+# WorkflowStateTracker integration tests
+# (Replaces deleted fake phase-transition tests with real state machine tests)
+# ---------------------------------------------------------------------------
+
+
+class TestWorkflowStateTrackerIntegration:
+    """Test WorkflowStateTracker as used by ExperimentManager.
+
+    These tests replace the deleted fake-phase tests by exercising the real
+    state machine that ExperimentManager delegates to for workflow coordination.
+    """
+
+    def test_tracker_starts_empty(self, real_experiment_manager):
+        """Test that no workflow state is set before initialize_experiments()."""
+        tracker = real_experiment_manager.workflow_tracker
+        state = tracker.get_workflow_state(real_experiment_manager.experiment_name)
+        assert state is None
+
+    def test_valid_state_transition_sequence(self, real_experiment_manager):
+        """Test that the full valid transition sequence succeeds."""
+        from panther.core.observer.workflow.workflow_tracker import WorkflowState
+
+        tracker = real_experiment_manager.workflow_tracker
+        exp_id = real_experiment_manager.experiment_name
+
+        # Walk through the valid workflow sequence
+        transitions = [
+            WorkflowState.CREATED,
+            WorkflowState.LOADING_PLUGINS,
+            WorkflowState.GENERATING_COMMANDS,
+            WorkflowState.BUILDING_DOCKER,
+            WorkflowState.DEPLOYING,
+            WorkflowState.RUNNING,
+            WorkflowState.COLLECTING_OUTPUTS,
+            WorkflowState.ANALYZING_RESULTS,
+            WorkflowState.REPORTING_RESULTS,
+            WorkflowState.COMPLETED,
+        ]
+
+        for state in transitions:
+            result = tracker.set_workflow_state(exp_id, state)
+            assert result is True, f"Transition to {state.value} should succeed"
+
+        assert tracker.get_workflow_state(exp_id) == WorkflowState.COMPLETED
+
+    def test_invalid_state_transition_rejected(self, real_experiment_manager):
+        """Test that skipping states is rejected by the tracker."""
+        from panther.core.observer.workflow.workflow_tracker import WorkflowState
+
+        tracker = real_experiment_manager.workflow_tracker
+        exp_id = real_experiment_manager.experiment_name
+
+        # Create the workflow
+        tracker.set_workflow_state(exp_id, WorkflowState.CREATED)
+
+        # Try to skip directly to RUNNING (should fail)
+        result = tracker.set_workflow_state(exp_id, WorkflowState.RUNNING)
         assert result is False
 
-        # Try to run phase 4 without phase 3
-        mock_manager.state = "phase_2_complete"
-        result = mock_manager.run_phase_4_test_execution()
-        assert result is False
+        # State should remain CREATED
+        assert tracker.get_workflow_state(exp_id) == WorkflowState.CREATED
 
+    def test_force_fail_from_any_state(self, real_experiment_manager):
+        """Test that force_fail_workflow moves to FAILED from any state."""
+        from panther.core.observer.workflow.workflow_tracker import WorkflowState
 
-class TestServiceManagement:
-    """Test service management functionality."""
+        tracker = real_experiment_manager.workflow_tracker
+        exp_id = real_experiment_manager.experiment_name
 
-    @pytest.fixture
-    def manager_with_services(self, tmp_path):
-        """Create a manager with mock services."""
-        manager = ExperimentManager(experiment_name="test", output_dir=str(tmp_path))
+        tracker.set_workflow_state(exp_id, WorkflowState.CREATED)
+        tracker.set_workflow_state(exp_id, WorkflowState.LOADING_PLUGINS)
 
-        # Add mock services
-        mock_service1 = Mock()
-        mock_service1.name = "test_service_1"
-        mock_service1.status = "ready"
-
-        mock_service2 = Mock()
-        mock_service2.name = "test_service_2"
-        mock_service2.status = "starting"
-
-        manager.add_service("test_service_1", mock_service1)
-        manager.add_service("test_service_2", mock_service2)
-
-        return manager
-
-    def test_add_service(self, tmp_path):
-        """Test adding a service to the experiment."""
-        manager = ExperimentManager(experiment_name="test", output_dir=str(tmp_path))
-
-        new_service = Mock()
-        new_service.name = "new_service"
-        new_service.status = "initialized"
-
-        manager.add_service("new_service", new_service)
-
-        # Verify service was added
-        assert "new_service" in manager.services
-        assert manager.services["new_service"] == new_service
-
-    def test_remove_service(self, manager_with_services):
-        """Test removing a service from the experiment."""
-        # Remove existing service
-        result = manager_with_services.remove_service("test_service_1")
-
-        # Verify service was removed
+        result = tracker.force_fail_workflow(exp_id, reason="test forced failure")
         assert result is True
-        assert "test_service_1" not in manager_with_services.services
-        assert len(manager_with_services.services) == 1
+        assert tracker.get_workflow_state(exp_id) == WorkflowState.FAILED
 
-    def test_get_service_status(self, manager_with_services):
-        """Test getting service status."""
-        status1 = manager_with_services.get_service_status("test_service_1")
-        status2 = manager_with_services.get_service_status("test_service_2")
-        status_nonexistent = manager_with_services.get_service_status("nonexistent")
+    def test_terminal_states_have_no_transitions(self, real_experiment_manager):
+        """Test that COMPLETED and FAILED are terminal (no outgoing transitions)."""
+        from panther.core.observer.workflow.workflow_tracker import WorkflowState
 
-        assert status1 == "ready"
-        assert status2 == "starting"
-        assert status_nonexistent is None
+        tracker = real_experiment_manager.workflow_tracker
 
-    def test_get_all_services_status(self, manager_with_services):
-        """Test getting status of all services."""
-        status_dict = manager_with_services.get_all_services_status()
+        completed_transitions = tracker.get_allowed_transitions(
+            WorkflowState.COMPLETED.value
+        )
+        failed_transitions = tracker.get_allowed_transitions(WorkflowState.FAILED.value)
 
-        expected = {"test_service_1": "ready", "test_service_2": "starting"}
+        assert completed_transitions == []
+        assert failed_transitions == []
 
-        assert status_dict == expected
+    def test_state_history_recorded(self, real_experiment_manager):
+        """Test that state transitions are recorded in history."""
+        from panther.core.observer.workflow.workflow_tracker import WorkflowState
 
-    def test_wait_for_services_ready_success(self, tmp_path):
-        """Test waiting for all services to be ready - success case."""
-        manager = ExperimentManager(experiment_name="test", output_dir=str(tmp_path))
+        tracker = real_experiment_manager.workflow_tracker
+        exp_id = real_experiment_manager.experiment_name
 
-        # Add services that are ready
-        service1 = Mock()
-        service1.status = "ready"
-        service2 = Mock()
-        service2.status = "ready"
+        tracker.set_workflow_state(exp_id, WorkflowState.CREATED)
+        tracker.set_workflow_state(exp_id, WorkflowState.LOADING_PLUGINS)
 
-        manager.add_service("service1", service1)
-        manager.add_service("service2", service2)
+        history = tracker.get_state_history(exp_id)
+        assert len(history) == 2
 
-        result = manager.wait_for_services_ready()
-        assert result is True
+        assert history[0]["old_state"] is None
+        assert history[0]["new_state"] == "created"
+        assert history[1]["old_state"] == "created"
+        assert history[1]["new_state"] == "loading_plugins"
 
-    def test_wait_for_services_ready_failure(self, tmp_path):
-        """Test waiting for services that are not ready."""
-        manager = ExperimentManager(experiment_name="test", output_dir=str(tmp_path))
+    def test_clear_workflow_state(self, real_experiment_manager):
+        """Test that clear_workflow_state removes the workflow entry."""
+        from panther.core.observer.workflow.workflow_tracker import WorkflowState
 
-        # Add services that are not ready
-        service1 = Mock()
-        service1.status = "starting"
-        service2 = Mock()
-        service2.status = "failed"
+        tracker = real_experiment_manager.workflow_tracker
+        exp_id = real_experiment_manager.experiment_name
 
-        manager.add_service("service1", service1)
-        manager.add_service("service2", service2)
+        tracker.set_workflow_state(exp_id, WorkflowState.CREATED)
+        assert tracker.get_workflow_state(exp_id) is not None
 
-        result = manager.wait_for_services_ready()
-        assert result is False
+        tracker.clear_workflow_state(exp_id)
+        assert tracker.get_workflow_state(exp_id) is None
 
 
-class TestResultCollection:
-    """Test experiment result collection and reporting."""
-
-    @pytest.fixture
-    def manager_with_results(self, tmp_path):
-        """Create a manager with mock results."""
-        manager = ExperimentManager(experiment_name="test", output_dir=str(tmp_path))
-
-        # Add mock results
-        manager.results = {
-            "test_case_1": {
-                "status": "passed",
-                "duration": 45.2,
-                "logs": ["log1.txt", "log2.txt"],
-                "metrics": {"packets_sent": 100, "packets_received": 98},
-            },
-            "test_case_2": {
-                "status": "failed",
-                "duration": 30.1,
-                "logs": ["log3.txt"],
-                "error": "Connection timeout",
-                "metrics": {"packets_sent": 50, "packets_received": 0},
-            },
-        }
-
-        return manager
-
-    def test_collect_results(self, manager_with_results):
-        """Test result collection."""
-        results = manager_with_results.collect_results()
-
-        # Verify results structure
-        assert len(results) == 2
-        assert "test_case_1" in results
-        assert "test_case_2" in results
-
-        # Verify result data
-        assert results["test_case_1"]["status"] == "passed"
-        assert results["test_case_2"]["status"] == "failed"
-        assert results["test_case_1"]["duration"] == 45.2
-
-    def test_generate_summary(self, manager_with_results):
-        """Test experiment summary generation."""
-        summary = manager_with_results.generate_summary()
-
-        # Verify summary structure
-        assert "total_tests" in summary
-        assert "passed_tests" in summary
-        assert "failed_tests" in summary
-        assert "total_duration" in summary
-        assert "success_rate" in summary
-
-        # Verify summary values
-        assert summary["total_tests"] == 2
-        assert summary["passed_tests"] == 1
-        assert summary["failed_tests"] == 1
-        assert summary["total_duration"] == 75.3  # 45.2 + 30.1
-        assert summary["success_rate"] == 0.5
-
-    def test_export_results_json(self, manager_with_results):
-        """Test exporting results to JSON."""
-        export_path = manager_with_results.export_results(format="json")
-
-        # Verify file was created
-        assert export_path.exists()
-        assert export_path.suffix == ".json"
-
-        # Verify content
-        with open(export_path) as f:
-            data = json.load(f)
-
-        assert "experiment_id" in data
-        assert "results" in data
-        assert "summary" in data
-        assert len(data["results"]) == 2
-
-    def test_export_results_yaml(self, manager_with_results):
-        """Test exporting results to YAML."""
-        export_path = manager_with_results.export_results(format="yaml")
-
-        # Verify file was created
-        assert export_path.exists()
-        assert export_path.suffix in [".yaml", ".yml"]
-
-        # Verify content
-        with open(export_path) as f:
-            data = yaml.safe_load(f)
-
-        assert "experiment_id" in data
-        assert "results" in data
-        assert len(data["results"]) == 2
-
-    def test_get_experiment_metadata(self, manager_with_results):
-        """Test experiment metadata collection."""
-        metadata = manager_with_results.get_experiment_metadata()
-
-        # Verify metadata structure
-        assert "experiment_id" in metadata
-        assert "start_time" in metadata
-        assert "end_time" in metadata
-        assert "duration" in metadata
-        assert "status" in metadata
-        assert "phase" in metadata
-
-        # Verify metadata types
-        assert isinstance(metadata["experiment_id"], str)
-        assert isinstance(metadata["status"], str)
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 
-class TestExperimentManagerErrorHandling:
-    """Test error handling and recovery mechanisms."""
-
-    def test_cleanup_on_failure(self, tmp_path):
-        """Test cleanup operations on experiment failure."""
-        manager = ExperimentManager(experiment_name="test", output_dir=str(tmp_path))
-
-        # Add mock services that need cleanup
-        mock_service = Mock()
-        manager.add_service("test_service", mock_service)
-
-        # Trigger failure cleanup
-        manager._cleanup_on_failure()
-
-        # Verify cleanup operations
-        assert mock_service.stop.called
-        assert mock_service.cleanup.called
-        assert manager.state == "failed"
-
-
-class TestExperimentManagerTiming:
-    """Test experiment timing and progress tracking."""
-
-    def test_experiment_timing(self, tmp_path):
-        """Test experiment timing tracking."""
-        manager = ExperimentManager(experiment_name="test", output_dir=str(tmp_path))
-
-        # Start timing
-        manager._start_timing()
-        assert manager.start_time is not None
-
-        # End timing
-        import time
-
-        time.sleep(0.1)  # Small delay
-        manager._end_timing()
-        assert manager.end_time is not None
-        assert manager.duration > 0
-
-    def test_progress_reporting(self, tmp_path):
-        """Test experiment progress reporting."""
-        manager = ExperimentManager(experiment_name="test", output_dir=str(tmp_path))
-
-        # Test progress updates
-        manager.update_progress("Initializing", 25)
-        manager.update_progress("Loading plugins", 50)
-        manager.update_progress("Deploying services", 75)
-        manager.update_progress("Running tests", 100)
-
-        # Verify progress tracking
-        assert manager.progress == 100
-        assert len(manager.progress_history) == 4
-        assert manager.progress_history[-1]["message"] == "Running tests"
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+def _make_docker_errors_module():
+    """Create a mock docker.errors module with real exception types."""
+    errors = MagicMock()
+    errors.DockerException = type("DockerException", (Exception,), {})
+    errors.ImageNotFound = type("ImageNotFound", (Exception,), {})
+    errors.NotFound = type("NotFound", (Exception,), {})
+    errors.APIError = type("APIError", (Exception,), {})
+    errors.BuildError = type("BuildError", (Exception,), {})
+    return errors

@@ -121,4 +121,3 @@ int main(int argc, char* argv[])
 	pthread_join(thread_id[i], NULL);
     }
 }
-

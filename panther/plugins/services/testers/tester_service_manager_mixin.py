@@ -1,14 +1,25 @@
-import inspect
 from typing import Any, Dict, Optional
 
+from panther.plugins.services.plugin_directory_mixin import PluginDirectoryMixin
 from panther.plugins.services.service_manager_mixin import ServiceManagerMixin
 from panther.plugins.services.testers.tester_interface import ITesterManager
 
 
-class TesterServiceManagerMixin(ServiceManagerMixin, ITesterManager):
+class TesterServiceManagerMixin(
+    PluginDirectoryMixin, ServiceManagerMixin, ITesterManager
+):
     """
     Specialized mixin for tester service managers.
-    Provides tester-specific patterns and utilities.
+
+    Provides tester-specific patterns and utilities including test parameter
+    management, formal verification support, and a strict template renderer
+    setup that requires a protocol to be specified (raises ValueError if
+    protocol is missing).
+
+    Plugin directory detection, Docker image naming, and Docker attribute
+    setup are inherited from PluginDirectoryMixin.
+
+    MRO: TesterServiceManagerMixin -> PluginDirectoryMixin -> ServiceManagerMixin -> LoggerMixin -> ITesterManager
     """
 
     def __init__(self, *args, global_config=None, **kwargs):
@@ -135,52 +146,6 @@ class TesterServiceManagerMixin(ServiceManagerMixin, ITesterManager):
         # Step 4: Set up Docker attributes (hook method for customization)
         self._setup_docker_attributes()
 
-    def _get_plugin_dir(self):
-        """
-        Hook method: Get the plugin directory.
-
-        Override this method to customize plugin directory detection.
-        Default implementation gets the directory of the calling file.
-
-        Returns:
-            Path: Plugin directory path
-        """
-        import inspect
-        from pathlib import Path
-
-        # Get the directory of the calling class (the actual service implementation)
-        frame = inspect.currentframe()
-        try:
-            # Go up the stack to find the service class file
-            caller_frame = (
-                frame.f_back.f_back
-            )  # Skip standard_tester_initialization and __init__
-            if caller_frame and caller_frame.f_code.co_filename:
-                return Path(caller_frame.f_code.co_filename).parent
-        finally:
-            del frame
-
-        # Fallback to current file parent (not ideal but safe)
-        return Path(__file__).parent
-
-    def _get_docker_image_name(self, implementation_name: str = None) -> str:
-        """
-        Hook method: Get the Docker image name.
-
-        Override this method to customize Docker image naming.
-        Default implementation uses implementation_name:latest format.
-
-        Args:
-            implementation_name: Name of the implementation
-
-        Returns:
-            str: Docker image name
-        """
-        implementation_name = implementation_name or getattr(
-            self, "implementation_name", "unknown"
-        )
-        return f"{implementation_name}:latest"
-
     def _setup_template_renderer(
         self, include_protocol_in_template: bool = True, protocol: Any = None
     ) -> None:
@@ -206,23 +171,14 @@ class TesterServiceManagerMixin(ServiceManagerMixin, ITesterManager):
         )
 
         if include_protocol_in_template and protocol:
-            protocol_name = protocol.name
+            protocol_name = getattr(protocol, "name", None)
             if protocol_name:
                 self.template_renderer = ServiceTemplateRenderer(
                     plugin_dir, protocol_name
                 )
+            else:
+                raise ValueError(
+                    "Protocol name not found in the provided protocol configuration."
+                )
         else:
-            raise ValueError(
-                "Protocol name not found in the provided protocol configuration."
-            )
-
-    def _setup_docker_attributes(self) -> None:
-        """
-        Hook method: Set up Docker-related attributes.
-
-        Override this method to customize Docker configuration.
-        Default implementation sets docker_image_name and docker_file_path.
-        """
-        self.docker_image_name = self._get_docker_image_name()
-        plugin_dir = self._plugin_dir or self._get_plugin_dir()
-        self.docker_file_path = plugin_dir / "Dockerfile"
+            self.template_renderer = ServiceTemplateRenderer(plugin_dir)

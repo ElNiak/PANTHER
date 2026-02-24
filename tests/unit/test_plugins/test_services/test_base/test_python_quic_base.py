@@ -1,767 +1,805 @@
 #!/usr/bin/env python3.10
-"""Tests for Python QUIC base service manager using Python 3.10 syntax."""
+"""Tests for PythonQUICServiceManager and BaseQUICServiceManager using real classes.
+
+Tests the real implementations at:
+- panther.plugins.services.base.quic_service_base.BaseQUICServiceManager
+- panther.plugins.services.base.python_quic_base.PythonQUICServiceManager
+
+All tests use real class behavior with IO boundaries mocked (filesystem,
+Jinja2 template loading, logging).
+"""
 
 from __future__ import annotations
 
-from typing import List, Dict, Any
-from unittest.mock import Mock, patch, MagicMock
+from typing import Any, Dict, List
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-# Test imports with fallback to mocks
-try:
-    from panther.plugins.services.base.python_quic_base import PythonQUICServiceManager
-    from panther.plugins.services.base.quic_service_base import BaseQUICServiceManager
-    PYTHON_QUIC_SYSTEM_AVAILABLE = True
-except ImportError:
-    PYTHON_QUIC_SYSTEM_AVAILABLE = False
-    
-    # Create mock implementations for testing
-    class BaseQUICServiceManager:
-        """Mock base QUIC service manager."""
-        
-        def __init__(self):
-            self.logger = Mock()
-            self.event_emitter = Mock()
-            
-        def generate_run_command(self, **kwargs) -> str:
-            """Generate run command using template method pattern."""
-            params = self._extract_common_params(**kwargs)
-            role = params.get('role', 'client')
-            
-            if role == 'server':
-                args = self._build_server_args(params)
-                specific_args = self._get_server_specific_args(**kwargs)
-            else:
-                args = self._build_client_args(params)
-                specific_args = self._get_client_specific_args(**kwargs)
-            
-            binary = self._get_binary_name()
-            all_args = args + specific_args
-            
-            return f"{binary} {' '.join(all_args)}"
-        
-        def _extract_common_params(self, **kwargs) -> Dict[str, Any]:
-            """Extract common QUIC parameters."""
-            return {
-                'role': kwargs.get('role', 'client'),
-                'host': kwargs.get('host', 'localhost'),
-                'port': kwargs.get('port', 4443),
-                'timeout': kwargs.get('timeout', 60),
-                'protocol_version': kwargs.get('protocol_version', 'h3'),
-                'alpn': kwargs.get('alpn', 'h3'),
-                'certificate_file': kwargs.get('certificate_file'),
-                'private_key_file': kwargs.get('private_key_file'),
-                'ca_file': kwargs.get('ca_file'),
-                'verify_mode': kwargs.get('verify_mode', 'none'),
-                'congestion_control': kwargs.get('congestion_control'),
-                'max_streams': kwargs.get('max_streams'),
-                'max_data': kwargs.get('max_data'),
-                'idle_timeout': kwargs.get('idle_timeout'),
-                'enable_0rtt': kwargs.get('enable_0rtt', False),
-                'enable_early_data': kwargs.get('enable_early_data', False),
-                'session_ticket': kwargs.get('session_ticket', True),
-                'key_update': kwargs.get('key_update', False),
-                'migration': kwargs.get('migration', False),
-                'multipath': kwargs.get('multipath', False),
-                'qlog': kwargs.get('qlog', False),
-                'qlog_dir': kwargs.get('qlog_dir', '/app/qlogs'),
-                'log_level': kwargs.get('log_level', 'info')
-            }
-        
-        def _build_server_args(self, params: Dict[str, Any]) -> List[str]:
-            """Build common server arguments."""
-            args = []
-            
-            if params.get('port'):
-                args.extend(['-p', str(params['port'])])
-            
-            if params.get('certificate_file'):
-                args.extend(['-c', params['certificate_file']])
-            
-            if params.get('private_key_file'):
-                args.extend(['-k', params['private_key_file']])
-            
-            return args
-        
-        def _build_client_args(self, params: Dict[str, Any]) -> List[str]:
-            """Build common client arguments."""
-            args = []
-            
-            if params.get('ca_file'):
-                args.extend(['--ca-file', params['ca_file']])
-            
-            if params.get('verify_mode') == 'none':
-                args.append('--insecure')
-            
-            return args
-        
-        # Abstract methods that subclasses must implement
-        def _get_implementation_name(self) -> str:
-            raise NotImplementedError
-        
-        def _get_binary_name(self) -> str:
-            raise NotImplementedError
-        
-        def _get_server_specific_args(self, **kwargs) -> List[str]:
-            raise NotImplementedError
-        
-        def _get_client_specific_args(self, **kwargs) -> List[str]:
-            raise NotImplementedError
-        
-        def generate_deployment_commands(self) -> str:
-            raise NotImplementedError
-        
-        def _do_prepare(self, plugin_manager=None):
-            raise NotImplementedError
-    
-    class PythonQUICServiceManager(BaseQUICServiceManager):
-        """Mock Python QUIC service manager."""
-        
-        def __init__(self):
-            super().__init__()
-            self.python_version: str = "3.10"
-            self.python_path: str = "/usr/bin/python"
-            self.virtual_env: str | None = None
-            self.requirements: List[str] = []
-            self.pip_packages: List[str] = []
-            self.python_flags: List[str] = []
-            self.module_path: str | None = None
-            
-        def _get_python_executable(self) -> str:
-            """Get the Python executable path."""
-            if self.virtual_env:
-                return f"{self.virtual_env}/bin/python"
-            return self.python_path
-        
-        def _get_module_name(self) -> str:
-            """Get the Python module name to execute."""
-            if self.module_path:
-                return self.module_path
-            return self._get_implementation_name()
-        
-        def _build_python_command_prefix(self) -> List[str]:
-            """Build Python command prefix with flags and module."""
-            cmd_parts = [self._get_python_executable()]
-            
-            # Add Python flags
-            if self.python_flags:
-                cmd_parts.extend(self.python_flags)
-            
-            # Add module flag
-            cmd_parts.extend(['-m', self._get_module_name()])
-            
-            return cmd_parts
-        
-        def _setup_python_environment(self, **kwargs) -> Dict[str, str]:
-            """Setup Python-specific environment variables."""
-            env = {}
-            
-            # Python-specific environment variables
-            env['PYTHONPATH'] = kwargs.get('python_path', '/app')
-            env['PYTHONUNBUFFERED'] = '1'  # For real-time output
-            
-            # Set Python warnings
-            env['PYTHONWARNINGS'] = kwargs.get('python_warnings', 'ignore')
-            
-            # Virtual environment
-            if self.virtual_env:
-                env['VIRTUAL_ENV'] = self.virtual_env
-                env['PATH'] = f"{self.virtual_env}/bin:{env.get('PATH', '')}"
-            
-            # Logging configuration for Python
-            if kwargs.get('debug', False):
-                env['PYTHONDEBUG'] = '1'
-                env['PYTHON_LOG_LEVEL'] = 'DEBUG'
-            else:
-                env['PYTHON_LOG_LEVEL'] = kwargs.get('log_level', 'INFO').upper()
-            
-            return env
-        
-        def _get_pip_install_command(self, packages: List[str] | None = None) -> str:
-            """Generate pip install command."""
-            pip_executable = f"{self.virtual_env}/bin/pip" if self.virtual_env else "pip"
-            packages_to_install = packages or self.pip_packages
-            
-            if not packages_to_install:
-                return ""
-            
-            packages_str = " ".join(packages_to_install)
-            return f"{pip_executable} install {packages_str}"
-        
-        def _get_requirements_install_command(self, requirements_file: str = "requirements.txt") -> str:
-            """Generate requirements installation command."""
-            pip_executable = f"{self.virtual_env}/bin/pip" if self.virtual_env else "pip"
-            return f"{pip_executable} install -r {requirements_file}"
-        
-        def set_python_version(self, version: str):
-            """Set Python version."""
-            self.python_version = version
-            self.python_path = f"/usr/bin/python{version}"
-        
-        def set_virtual_env(self, env_path: str):
-            """Set virtual environment path."""
-            self.virtual_env = env_path
-        
-        def add_pip_package(self, package: str):
-            """Add a pip package to install."""
-            if package not in self.pip_packages:
-                self.pip_packages.append(package)
-        
-        def set_pip_packages(self, packages: List[str]):
-            """Set list of pip packages to install."""
-            self.pip_packages = packages.copy()
-        
-        def add_python_flag(self, flag: str):
-            """Add a Python interpreter flag."""
-            if flag not in self.python_flags:
-                self.python_flags.append(flag)
-        
-        def set_python_flags(self, flags: List[str]):
-            """Set Python interpreter flags."""
-            self.python_flags = flags.copy()
-        
-        def set_module_path(self, path: str):
-            """Set custom module path."""
-            self.module_path = path
+from panther.config.core.models.service import (
+    ImplementationConfig,
+    ImplementationType,
+    ProtocolConfig,
+    ProtocolRole,
+    ServiceConfig,
+)
+from panther.plugins.services.base.python_quic_base import PythonQUICServiceManager
+from panther.plugins.services.base.quic_service_base import BaseQUICServiceManager
 
 pytestmark = [pytest.mark.unit, pytest.mark.python_quic]
 
-class MockPythonQuicImpl(PythonQUICServiceManager):
-    """Mock concrete Python QUIC implementation for testing."""
-    
-    def __init__(self):
-        super().__init__()
-        self.implementation_name = "mock_python_quic"
-        self.module_name = "mock_quic_module"
-    
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_service_config(
+    name: str = "test_service",
+    impl_name: str = "test_python_quic",
+    impl_type: str = "iut",
+    protocol_name: str = "quic",
+    protocol_version: str = "rfc9000",
+    role: str = "server",
+    target: str | None = None,
+) -> ServiceConfig:
+    """Build a minimal ServiceConfig for testing."""
+    proto_kwargs: Dict[str, Any] = {
+        "name": protocol_name,
+        "version": protocol_version,
+        "role": role,
+    }
+    if role == "client":
+        proto_kwargs["target"] = target or "server"
+
+    return ServiceConfig(
+        name=name,
+        implementation=ImplementationConfig(name=impl_name, type=impl_type),
+        protocol=ProtocolConfig(**proto_kwargs),
+    )
+
+
+def _make_protocol_config(
+    name: str = "quic",
+    version: str = "rfc9000",
+    role: str = "server",
+    target: str | None = None,
+) -> ProtocolConfig:
+    """Build a minimal ProtocolConfig for testing."""
+    kwargs: Dict[str, Any] = {"name": name, "version": version, "role": role}
+    if role == "client":
+        kwargs["target"] = target or "server"
+    return ProtocolConfig(**kwargs)
+
+
+class ConcretePythonQUIC(PythonQUICServiceManager):
+    """Concrete test implementation of PythonQUICServiceManager.
+
+    Provides implementations for all abstract methods so that
+    the real class can be instantiated in tests.
+    """
+
     def _get_implementation_name(self) -> str:
-        return self.implementation_name
-    
-    def _get_binary_name(self) -> str:
-        # For Python implementations, we use Python executable
-        return self._get_python_executable()
-    
-    def _get_module_name(self) -> str:
-        return self.module_name
-    
+        return "test_python_quic"
+
+    def _get_python_module(self) -> str:
+        return "test_quic_module"
+
     def _get_server_specific_args(self, **kwargs) -> List[str]:
-        args = []
-        if kwargs.get('bind_address'):
-            args.extend(['--bind', kwargs['bind_address']])
-        if kwargs.get('workers'):
-            args.extend(['--workers', str(kwargs['workers'])])
-        if kwargs.get('access_log'):
-            args.extend(['--access-log', kwargs['access_log']])
+        args: List[str] = []
+        if kwargs.get("bind_address"):
+            args.extend(["--bind", kwargs["bind_address"]])
         return args
-    
+
     def _get_client_specific_args(self, **kwargs) -> List[str]:
-        args = []
-        host = kwargs.get('host', 'localhost')
-        port = kwargs.get('port', 4443)
-        args.extend(['--host', host, '--port', str(port)])
-        
-        if kwargs.get('request_path'):
-            args.extend(['--path', kwargs['request_path']])
-        
-        if kwargs.get('output_file'):
-            args.extend(['--output', kwargs['output_file']])
-        
+        args: List[str] = []
+        if kwargs.get("request_path"):
+            args.extend(["--path", kwargs["request_path"]])
         return args
-    
-    def generate_deployment_commands(self) -> str:
-        python_cmd = self._get_python_executable()
-        return f"{python_cmd} -m {self.module_name} --server --port 4443"
-    
+
+    def generate_deployment_commands(self, **kwargs) -> str:
+        return f"python -m {self._get_python_module()} --server --port 4443"
+
     def _do_prepare(self, plugin_manager=None):
         pass
-    
-    def generate_run_command(self, **kwargs) -> str:
-        """Override to use Python command structure."""
-        params = self._extract_common_params(**kwargs)
-        role = params.get('role', 'client')
-        
-        # Build Python command prefix
-        cmd_parts = self._build_python_command_prefix()
-        
-        # Add common args
-        if role == 'server':
-            common_args = self._build_server_args(params)
-            specific_args = self._get_server_specific_args(**kwargs)
-        else:
-            common_args = self._build_client_args(params)
-            specific_args = self._get_client_specific_args(**kwargs)
-        
-        all_args = cmd_parts + common_args + specific_args
-        return " ".join(all_args)
 
-class TestPythonQUICServiceManager:
-    """Test PythonQUICServiceManager base functionality."""
-    
-    @pytest.fixture
-    def python_quic_manager(self) -> MockPythonQuicImpl:
-        """Create a mock Python QUIC manager for testing."""
-        return MockPythonQuicImpl()
-    
-    def test_python_quic_manager_initialization(self, python_quic_manager: MockPythonQuicImpl):
-        """Test PythonQUICServiceManager initialization."""
+    def handle_event(self, event):
+        """Satisfy abstract method from IPlugin."""
+        pass
+
+
+@pytest.fixture
+def service_config():
+    """Minimal ServiceConfig for server role."""
+    return _make_service_config(role="server")
+
+
+@pytest.fixture
+def client_service_config():
+    """Minimal ServiceConfig for client role."""
+    return _make_service_config(role="client", target="server")
+
+
+@pytest.fixture
+def protocol_config():
+    """Minimal ProtocolConfig for quic/server."""
+    return _make_protocol_config()
+
+
+@pytest.fixture
+def python_quic_manager(service_config, protocol_config):
+    """Create a real ConcretePythonQUIC with IO mocked out.
+
+    Mocks the filesystem checks and Jinja2 template loading that happen
+    during IServiceManager.__init__, but leaves all QUIC/Python logic real.
+    """
+    with (
+        patch("os.path.isdir", return_value=True),
+        patch("os.listdir", return_value=[]),
+        patch(
+            "panther.plugins.services.services_interface.Environment",
+            return_value=MagicMock(),
+        ),
+        patch(
+            "panther.plugins.services.services_interface.FileSystemLoader",
+            return_value=MagicMock(),
+        ),
+        patch(
+            "panther.plugins.services.services_interface.select_autoescape",
+            return_value=[],
+        ),
+    ):
+        manager = ConcretePythonQUIC(
+            service_config_to_test=service_config,
+            service_type=ImplementationType.IUT,
+            protocol=protocol_config,
+            implementation_name="test_python_quic",
+        )
+    return manager
+
+
+@pytest.fixture
+def client_manager(client_service_config):
+    """Create a ConcretePythonQUIC with client role."""
+    protocol = _make_protocol_config(role="client", target="server")
+    with (
+        patch("os.path.isdir", return_value=True),
+        patch("os.listdir", return_value=[]),
+        patch(
+            "panther.plugins.services.services_interface.Environment",
+            return_value=MagicMock(),
+        ),
+        patch(
+            "panther.plugins.services.services_interface.FileSystemLoader",
+            return_value=MagicMock(),
+        ),
+        patch(
+            "panther.plugins.services.services_interface.select_autoescape",
+            return_value=[],
+        ),
+    ):
+        manager = ConcretePythonQUIC(
+            service_config_to_test=client_service_config,
+            service_type=ImplementationType.IUT,
+            protocol=protocol,
+            implementation_name="test_python_quic",
+        )
+    return manager
+
+
+# ===================================================================
+# TestPythonQUICInheritance - class hierarchy and isinstance checks
+# ===================================================================
+
+
+class TestPythonQUICInheritance:
+    """Verify class hierarchy relationships."""
+
+    def test_is_instance_of_python_quic(self, python_quic_manager):
         assert isinstance(python_quic_manager, PythonQUICServiceManager)
-        assert hasattr(python_quic_manager, 'python_version')
-        assert hasattr(python_quic_manager, 'python_path')
-        assert hasattr(python_quic_manager, 'virtual_env')
-        assert hasattr(python_quic_manager, 'pip_packages')
-        assert hasattr(python_quic_manager, 'python_flags')
-        
-        # Check defaults
-        assert python_quic_manager.python_version == "3.10"
-        assert python_quic_manager.pip_packages == []
-        assert python_quic_manager.python_flags == []
-        assert python_quic_manager.virtual_env is None
-    
-    def test_implementation_identification(self, python_quic_manager: MockPythonQuicImpl):
-        """Test implementation identification methods."""
-        assert python_quic_manager._get_implementation_name() == "mock_python_quic"
-        assert python_quic_manager._get_module_name() == "mock_quic_module"
-    
-    def test_python_version_management(self, python_quic_manager: MockPythonQuicImpl):
-        """Test Python version management."""
-        python_quic_manager.set_python_version("3.11")
-        assert python_quic_manager.python_version == "3.11"
-        assert python_quic_manager.python_path == "/usr/bin/python3.11"
-    
-    def test_virtual_environment_management(self, python_quic_manager: MockPythonQuicImpl):
-        """Test virtual environment management."""
-        venv_path = "/app/venv"
-        python_quic_manager.set_virtual_env(venv_path)
-        assert python_quic_manager.virtual_env == venv_path
-        
-        # Test executable path with venv
-        executable = python_quic_manager._get_python_executable()
-        assert executable == f"{venv_path}/bin/python"
-    
-    def test_pip_packages_management(self, python_quic_manager: MockPythonQuicImpl):
-        """Test pip packages management."""
-        # Test adding individual packages
-        python_quic_manager.add_pip_package("aioquic")
-        python_quic_manager.add_pip_package("cryptography")
-        assert "aioquic" in python_quic_manager.pip_packages
-        assert "cryptography" in python_quic_manager.pip_packages
-        
-        # Test not adding duplicates
-        python_quic_manager.add_pip_package("aioquic")
-        assert python_quic_manager.pip_packages.count("aioquic") == 1
-        
-        # Test setting packages list
-        packages = ["requests", "aiohttp", "asyncio"]
-        python_quic_manager.set_pip_packages(packages)
-        assert python_quic_manager.pip_packages == packages
-    
-    def test_python_flags_management(self, python_quic_manager: MockPythonQuicImpl):
-        """Test Python interpreter flags management."""
-        # Test adding individual flags
-        python_quic_manager.add_python_flag("-O")
-        python_quic_manager.add_python_flag("-u")
-        assert "-O" in python_quic_manager.python_flags
-        assert "-u" in python_quic_manager.python_flags
-        
-        # Test not adding duplicates
-        python_quic_manager.add_python_flag("-O")
-        assert python_quic_manager.python_flags.count("-O") == 1
-        
-        # Test setting flags list
-        flags = ["-B", "-s", "-v"]
-        python_quic_manager.set_python_flags(flags)
-        assert python_quic_manager.python_flags == flags
-    
-    def test_module_path_management(self, python_quic_manager: MockPythonQuicImpl):
-        """Test module path management."""
-        custom_path = "custom.quic.module"
-        python_quic_manager.set_module_path(custom_path)
-        assert python_quic_manager.module_path == custom_path
-        assert python_quic_manager._get_module_name() == custom_path
 
-class TestPythonQUICCommandGeneration:
-    """Test command generation for Python QUIC implementations."""
-    
-    @pytest.fixture
-    def python_quic_manager(self) -> MockPythonQuicImpl:
-        """Create a mock Python QUIC manager for testing."""
-        return MockPythonQuicImpl()
-    
-    def test_python_command_prefix_basic(self, python_quic_manager: MockPythonQuicImpl):
-        """Test basic Python command prefix generation."""
-        prefix = python_quic_manager._build_python_command_prefix()
-        
-        assert prefix[0] == "/usr/bin/python"
-        assert "-m" in prefix
-        assert "mock_quic_module" in prefix
-    
-    def test_python_command_prefix_with_flags(self, python_quic_manager: MockPythonQuicImpl):
-        """Test Python command prefix with flags."""
-        python_quic_manager.set_python_flags(["-O", "-u"])
-        prefix = python_quic_manager._build_python_command_prefix()
-        
-        assert "-O" in prefix
-        assert "-u" in prefix
-        assert "-m" in prefix
-        assert "mock_quic_module" in prefix
-    
-    def test_python_command_prefix_with_venv(self, python_quic_manager: MockPythonQuicImpl):
-        """Test Python command prefix with virtual environment."""
-        python_quic_manager.set_virtual_env("/app/venv")
-        prefix = python_quic_manager._build_python_command_prefix()
-        
-        assert prefix[0] == "/app/venv/bin/python"
-    
-    def test_server_command_generation_basic(self, python_quic_manager: MockPythonQuicImpl):
-        """Test basic server command generation."""
-        cmd = python_quic_manager.generate_run_command(
-            role='server',
-            port=4443
-        )
-        
-        assert '/usr/bin/python' in cmd
-        assert '-m mock_quic_module' in cmd
-        assert '-p 4443' in cmd
-    
-    def test_server_command_generation_with_certificates(self, python_quic_manager: MockPythonQuicImpl):
-        """Test server command generation with certificates."""
-        cmd = python_quic_manager.generate_run_command(
-            role='server',
+    def test_is_instance_of_base_quic(self, python_quic_manager):
+        assert isinstance(python_quic_manager, BaseQUICServiceManager)
+
+    def test_protocol_name_set(self, python_quic_manager):
+        assert python_quic_manager.protocol_name == "quic"
+
+    def test_implementation_name_set(self, python_quic_manager):
+        assert python_quic_manager.implementation_name == "test_python_quic"
+
+
+# ===================================================================
+# TestAbstractMethodImplementations
+# ===================================================================
+
+
+class TestAbstractMethodImplementations:
+    """Test that abstract methods are implemented correctly."""
+
+    def test_get_implementation_name(self, python_quic_manager):
+        assert python_quic_manager._get_implementation_name() == "test_python_quic"
+
+    def test_get_python_module(self, python_quic_manager):
+        assert python_quic_manager._get_python_module() == "test_quic_module"
+
+    def test_get_binary_name(self, python_quic_manager):
+        """Real PythonQUICServiceManager._get_binary_name returns 'python -m <module>'."""
+        assert python_quic_manager._get_binary_name() == "python -m test_quic_module"
+
+    def test_get_binary_path_without_working_dir(self, python_quic_manager):
+        """Without working_dir, _get_binary_path falls back to _get_binary_name."""
+        python_quic_manager.working_dir = None
+        assert python_quic_manager._get_binary_path() == "python -m test_quic_module"
+
+    def test_get_binary_path_with_working_dir(self, python_quic_manager):
+        """With working_dir set, _get_binary_path joins it with the binary name."""
+        python_quic_manager.working_dir = "/opt/app"
+        path = python_quic_manager._get_binary_path()
+        assert path == "/opt/app/python -m test_quic_module"
+
+
+# ===================================================================
+# TestExtractCommonParams
+# ===================================================================
+
+
+class TestExtractCommonParams:
+    """Test _extract_common_params method (real implementation)."""
+
+    def test_defaults(self, python_quic_manager):
+        params = python_quic_manager._extract_common_params()
+        assert params["host"] == "localhost"
+        assert params["port"] == 4443
+        assert params["cert_dir"] == "/opt/certs"
+        assert params["key_file"] == "/opt/certs/key.pem"
+        assert params["cert_file"] == "/opt/certs/cert.pem"
+        assert params["version"] == "rfc9000"
+        assert params["log_level"] == "info"
+        assert params["log_file"] is None
+        assert params["output_dir"] == "/logs"
+
+    def test_python_specific_defaults(self, python_quic_manager):
+        """PythonQUICServiceManager adds python_path and asyncio_debug."""
+        params = python_quic_manager._extract_common_params()
+        assert params["python_path"] == "/opt/aioquic"
+        assert params["asyncio_debug"] is False
+
+    def test_custom_overrides(self, python_quic_manager):
+        params = python_quic_manager._extract_common_params(
+            host="example.com",
             port=8443,
-            certificate_file='/app/certs/server.crt',
-            private_key_file='/app/certs/server.key'
+            python_path="/custom/path",
+            asyncio_debug=True,
         )
-        
-        assert '-p 8443' in cmd
-        assert '-c /app/certs/server.crt' in cmd
-        assert '-k /app/certs/server.key' in cmd
-    
-    def test_server_command_generation_with_python_specific_args(self, python_quic_manager: MockPythonQuicImpl):
-        """Test server command generation with Python-specific arguments."""
-        cmd = python_quic_manager.generate_run_command(
-            role='server',
-            port=4443,
-            bind_address='0.0.0.0',
-            workers=4,
-            access_log='/app/logs/access.log'
-        )
-        
-        assert '--bind 0.0.0.0' in cmd
-        assert '--workers 4' in cmd
-        assert '--access-log /app/logs/access.log' in cmd
-    
-    def test_client_command_generation_basic(self, python_quic_manager: MockPythonQuicImpl):
-        """Test basic client command generation."""
-        cmd = python_quic_manager.generate_run_command(
-            role='client',
-            host='example.com',
-            port=443
-        )
-        
-        assert '/usr/bin/python' in cmd
-        assert '-m mock_quic_module' in cmd
-        assert '--host example.com' in cmd
-        assert '--port 443' in cmd
-    
-    def test_client_command_generation_with_ca_file(self, python_quic_manager: MockPythonQuicImpl):
-        """Test client command generation with CA file."""
-        cmd = python_quic_manager.generate_run_command(
-            role='client',
-            host='secure.example.com',
-            port=443,
-            ca_file='/app/certs/ca.pem'
-        )
-        
-        assert '--ca-file /app/certs/ca.pem' in cmd
-        assert '--host secure.example.com' in cmd
-        assert '--port 443' in cmd
-    
-    def test_client_command_generation_insecure(self, python_quic_manager: MockPythonQuicImpl):
-        """Test client command generation with insecure mode."""
-        cmd = python_quic_manager.generate_run_command(
-            role='client',
-            host='test.local',
-            port=4443,
-            verify_mode='none'
-        )
-        
-        assert '--insecure' in cmd
-        assert '--host test.local' in cmd
-        assert '--port 4443' in cmd
-    
-    def test_client_command_generation_with_output(self, python_quic_manager: MockPythonQuicImpl):
-        """Test client command generation with output file."""
-        cmd = python_quic_manager.generate_run_command(
-            role='client',
-            host='api.example.com',
-            port=443,
-            request_path='/api/v1/data',
-            output_file='/app/output/response.json'
-        )
-        
-        assert '--path /api/v1/data' in cmd
-        assert '--output /app/output/response.json' in cmd
+        assert params["host"] == "example.com"
+        assert params["port"] == 8443
+        assert params["python_path"] == "/custom/path"
+        assert params["asyncio_debug"] is True
 
-class TestPythonQUICPackageManagement:
-    """Test Python package management for QUIC implementations."""
-    
-    @pytest.fixture
-    def python_quic_manager(self) -> MockPythonQuicImpl:
-        """Create a mock Python QUIC manager for testing."""
-        return MockPythonQuicImpl()
-    
-    def test_pip_install_command_basic(self, python_quic_manager: MockPythonQuicImpl):
-        """Test basic pip install command generation."""
-        python_quic_manager.set_pip_packages(["aioquic", "cryptography"])
-        cmd = python_quic_manager._get_pip_install_command()
-        
-        assert "pip install" in cmd
-        assert "aioquic" in cmd
-        assert "cryptography" in cmd
-    
-    def test_pip_install_command_with_venv(self, python_quic_manager: MockPythonQuicImpl):
-        """Test pip install command with virtual environment."""
-        python_quic_manager.set_virtual_env("/app/venv")
-        python_quic_manager.set_pip_packages(["aioquic"])
-        cmd = python_quic_manager._get_pip_install_command()
-        
-        assert "/app/venv/bin/pip install" in cmd
-        assert "aioquic" in cmd
-    
-    def test_pip_install_command_custom_packages(self, python_quic_manager: MockPythonQuicImpl):
-        """Test pip install command with custom packages."""
-        custom_packages = ["requests", "aiohttp"]
-        cmd = python_quic_manager._get_pip_install_command(packages=custom_packages)
-        
-        assert "pip install" in cmd
-        assert "requests" in cmd
-        assert "aiohttp" in cmd
-    
-    def test_pip_install_command_no_packages(self, python_quic_manager: MockPythonQuicImpl):
-        """Test pip install command with no packages."""
-        cmd = python_quic_manager._get_pip_install_command()
-        assert cmd == ""
-    
-    def test_requirements_install_command_basic(self, python_quic_manager: MockPythonQuicImpl):
-        """Test requirements file installation command."""
-        cmd = python_quic_manager._get_requirements_install_command()
-        
-        assert "pip install -r requirements.txt" in cmd
-    
-    def test_requirements_install_command_custom_file(self, python_quic_manager: MockPythonQuicImpl):
-        """Test requirements installation with custom file."""
-        cmd = python_quic_manager._get_requirements_install_command("dev-requirements.txt")
-        
-        assert "pip install -r dev-requirements.txt" in cmd
-    
-    def test_requirements_install_command_with_venv(self, python_quic_manager: MockPythonQuicImpl):
-        """Test requirements installation with virtual environment."""
-        python_quic_manager.set_virtual_env("/app/venv")
-        cmd = python_quic_manager._get_requirements_install_command()
-        
-        assert "/app/venv/bin/pip install -r requirements.txt" in cmd
-
-class TestPythonQUICEnvironmentSetup:
-    """Test Python-specific environment setup."""
-    
-    @pytest.fixture
-    def python_quic_manager(self) -> MockPythonQuicImpl:
-        """Create a mock Python QUIC manager for testing."""
-        return MockPythonQuicImpl()
-    
-    def test_python_environment_basic(self, python_quic_manager: MockPythonQuicImpl):
-        """Test basic Python environment setup."""
-        env = python_quic_manager._setup_python_environment()
-        
-        assert 'PYTHONPATH' in env
-        assert 'PYTHONUNBUFFERED' in env
-        assert 'PYTHONWARNINGS' in env
-        assert 'PYTHON_LOG_LEVEL' in env
-        
-        assert env['PYTHONPATH'] == '/app'
-        assert env['PYTHONUNBUFFERED'] == '1'
-        assert env['PYTHONWARNINGS'] == 'ignore'
-        assert env['PYTHON_LOG_LEVEL'] == 'INFO'
-    
-    def test_python_environment_debug_mode(self, python_quic_manager: MockPythonQuicImpl):
-        """Test Python environment setup in debug mode."""
-        env = python_quic_manager._setup_python_environment(debug=True)
-        
-        assert 'PYTHONDEBUG' in env
-        assert env['PYTHONDEBUG'] == '1'
-        assert env['PYTHON_LOG_LEVEL'] == 'DEBUG'
-    
-    def test_python_environment_custom_log_level(self, python_quic_manager: MockPythonQuicImpl):
-        """Test Python environment setup with custom log level."""
-        env = python_quic_manager._setup_python_environment(log_level='warning')
-        
-        assert env['PYTHON_LOG_LEVEL'] == 'WARNING'
-    
-    def test_python_environment_custom_pythonpath(self, python_quic_manager: MockPythonQuicImpl):
-        """Test Python environment setup with custom PYTHONPATH."""
-        env = python_quic_manager._setup_python_environment(python_path='/custom/path')
-        
-        assert env['PYTHONPATH'] == '/custom/path'
-    
-    def test_python_environment_custom_warnings(self, python_quic_manager: MockPythonQuicImpl):
-        """Test Python environment setup with custom warnings."""
-        env = python_quic_manager._setup_python_environment(python_warnings='default')
-        
-        assert env['PYTHONWARNINGS'] == 'default'
-    
-    def test_python_environment_with_venv(self, python_quic_manager: MockPythonQuicImpl):
-        """Test Python environment setup with virtual environment."""
-        python_quic_manager.set_virtual_env("/app/venv")
-        env = python_quic_manager._setup_python_environment()
-        
-        assert 'VIRTUAL_ENV' in env
-        assert env['VIRTUAL_ENV'] == "/app/venv"
-        assert "/app/venv/bin:" in env['PATH']
-
-class TestPythonQUICIntegration:
-    """Test integration scenarios for Python QUIC service managers."""
-    
-    @pytest.fixture
-    def python_quic_manager(self) -> MockPythonQuicImpl:
-        """Create a mock Python QUIC manager for testing."""
-        return MockPythonQuicImpl()
-    
-    def test_full_server_setup_scenario(self, python_quic_manager: MockPythonQuicImpl):
-        """Test complete server setup scenario."""
-        # Configure Python-specific settings
-        python_quic_manager.set_python_version("3.11")
-        python_quic_manager.set_virtual_env("/app/venv")
-        python_quic_manager.set_pip_packages(["aioquic", "cryptography"])
-        python_quic_manager.set_python_flags(["-O", "-u"])
-        
-        # Generate server command
-        cmd = python_quic_manager.generate_run_command(
-            role='server',
-            port=4443,
-            certificate_file='/app/certs/server.crt',
-            private_key_file='/app/certs/server.key',
-            bind_address='0.0.0.0',
-            workers=2
+    def test_cert_dir_override(self, python_quic_manager):
+        params = python_quic_manager._extract_common_params(
+            cert_dir="/my/certs",
+            cert_file="/my/certs/cert.pem",
+            key_file="/my/certs/key.pem",
         )
-        
-        # Verify command contains all expected elements
-        assert '/app/venv/bin/python' in cmd
-        assert '-O -u' in cmd
-        assert '-m mock_quic_module' in cmd
-        assert '-p 4443' in cmd
-        assert '-c /app/certs/server.crt' in cmd
-        assert '-k /app/certs/server.key' in cmd
-        assert '--bind 0.0.0.0' in cmd
-        assert '--workers 2' in cmd
-        
-        # Verify package installation
-        pip_cmd = python_quic_manager._get_pip_install_command()
-        assert '/app/venv/bin/pip install aioquic cryptography' == pip_cmd
-        
-        # Verify environment setup
-        env = python_quic_manager._setup_python_environment()
-        assert env['VIRTUAL_ENV'] == '/app/venv'
-    
-    def test_full_client_setup_scenario(self, python_quic_manager: MockPythonQuicImpl):
-        """Test complete client setup scenario."""
-        # Configure for client testing
-        python_quic_manager.set_module_path("custom.client.module")
-        python_quic_manager.add_pip_package("aiofiles")
-        
-        # Generate client command
-        cmd = python_quic_manager.generate_run_command(
-            role='client',
-            host='quic.example.com',
-            port=443,
-            ca_file='/app/certs/ca.pem',
-            request_path='/api/test',
-            output_file='/app/output/result.json'
-        )
-        
-        # Verify command
-        assert '/usr/bin/python' in cmd
-        assert '-m custom.client.module' in cmd
-        assert '--host quic.example.com' in cmd
-        assert '--port 443' in cmd
-        assert '--ca-file /app/certs/ca.pem' in cmd
-        assert '--path /api/test' in cmd
-        assert '--output /app/output/result.json' in cmd
-        
-        # Verify package is configured
-        assert 'aiofiles' in python_quic_manager.pip_packages
-    
-    def test_deployment_command_generation(self, python_quic_manager: MockPythonQuicImpl):
-        """Test deployment command generation."""
-        deployment_cmd = python_quic_manager.generate_deployment_commands()
-        
-        assert '/usr/bin/python' in deployment_cmd
-        assert '-m mock_quic_module' in deployment_cmd
-        assert '--server' in deployment_cmd
-        assert '--port 4443' in deployment_cmd
-    
-    def test_requirements_and_pip_integration(self, python_quic_manager: MockPythonQuicImpl):
-        """Test requirements file and pip package integration."""
-        # Set up packages and requirements
-        python_quic_manager.set_pip_packages(["aioquic", "cryptography"])
-        
-        # Generate installation commands
-        pip_cmd = python_quic_manager._get_pip_install_command()
-        req_cmd = python_quic_manager._get_requirements_install_command("requirements.txt")
-        
-        assert "pip install aioquic cryptography" in pip_cmd
-        assert "pip install -r requirements.txt" in req_cmd
+        assert params["cert_dir"] == "/my/certs"
+        assert params["cert_file"] == "/my/certs/cert.pem"
+        assert params["key_file"] == "/my/certs/key.pem"
 
-class TestPythonQUICErrorHandling:
-    """Test error handling in Python QUIC service managers."""
-    
-    @pytest.fixture
-    def python_quic_manager(self) -> MockPythonQuicImpl:
-        """Create a mock Python QUIC manager for testing."""
-        return MockPythonQuicImpl()
-    
-    def test_command_generation_with_missing_args(self, python_quic_manager: MockPythonQuicImpl):
-        """Test command generation with missing required arguments."""
-        # Should not crash, should use defaults
+
+# ===================================================================
+# TestBuildServerArgs
+# ===================================================================
+
+
+class TestBuildServerArgs:
+    """Test _build_server_args method."""
+
+    def test_default_server_args(self, python_quic_manager):
+        params = python_quic_manager._extract_common_params()
+        args = python_quic_manager._build_server_args(params)
+        # Default params include cert_file, key_file, port
+        assert "-c" in args
+        assert "/opt/certs/cert.pem" in args
+        assert "-k" in args
+        assert "/opt/certs/key.pem" in args
+        assert "-p" in args
+        assert "4443" in args
+
+    def test_with_log_file(self, python_quic_manager):
+        params = python_quic_manager._extract_common_params(log_file="/logs/server.log")
+        args = python_quic_manager._build_server_args(params)
+        assert "-l" in args
+        assert "/logs/server.log" in args
+
+    def test_custom_port(self, python_quic_manager):
+        params = python_quic_manager._extract_common_params(port=8443)
+        args = python_quic_manager._build_server_args(params)
+        assert "8443" in args
+
+
+# ===================================================================
+# TestBuildClientArgs
+# ===================================================================
+
+
+class TestBuildClientArgs:
+    """Test _build_client_args method."""
+
+    def test_default_client_args(self, python_quic_manager):
+        params = python_quic_manager._extract_common_params()
+        args = python_quic_manager._build_client_args(params)
+        # Client args include host and port as positional, plus version
+        assert "localhost" in args
+        assert "4443" in args
+        # Version mapping: rfc9000 -> "1"
+        assert "-v" in args
+        assert "1" in args
+
+    def test_custom_host_port(self, python_quic_manager):
+        params = python_quic_manager._extract_common_params(
+            host="example.com", port=443
+        )
+        args = python_quic_manager._build_client_args(params)
+        assert "example.com" in args
+        assert "443" in args
+
+    def test_with_log_file(self, python_quic_manager):
+        params = python_quic_manager._extract_common_params(log_file="/logs/client.log")
+        args = python_quic_manager._build_client_args(params)
+        assert "-l" in args
+        assert "/logs/client.log" in args
+
+
+# ===================================================================
+# TestMapVersion
+# ===================================================================
+
+
+class TestMapVersion:
+    """Test _map_version method."""
+
+    def test_rfc9000(self, python_quic_manager):
+        assert python_quic_manager._map_version("rfc9000") == "1"
+
+    def test_draft29(self, python_quic_manager):
+        assert python_quic_manager._map_version("draft29") == "ff00001d"
+
+    def test_draft27(self, python_quic_manager):
+        assert python_quic_manager._map_version("draft27") == "ff00001b"
+
+    def test_unknown_version_defaults_to_1(self, python_quic_manager):
+        assert python_quic_manager._map_version("unknown_v") == "1"
+
+    def test_version_enum_format(self, python_quic_manager):
+        """Handles 'VersionEnum.rfc9000' format."""
+        assert python_quic_manager._map_version("VersionEnum.rfc9000") == "1"
+
+    def test_version_enum_numeric_format(self, python_quic_manager):
+        """Handles '<VersionEnum.rfc9000: 1>' format."""
+        assert python_quic_manager._map_version("<VersionEnum.rfc9000: 1>") == "1"
+
+
+# ===================================================================
+# TestGenerateRunCommand
+# ===================================================================
+
+
+class TestGenerateRunCommand:
+    """Test generate_run_command method with real shlex quoting."""
+
+    def test_server_command_defaults(self, python_quic_manager):
+        """Server command includes binary path and default args."""
+        cmd = python_quic_manager.generate_run_command(role="server")
+        # The real generate_run_command uses shlex.quote on all parts.
+        # Binary "python -m test_quic_module" gets split by space handling.
+        assert "python" in cmd
+        assert "test_quic_module" in cmd
+        # Default cert/key/port args
+        assert "-c" in cmd
+        assert "-k" in cmd
+        assert "-p" in cmd
+
+    def test_server_command_custom_port(self, python_quic_manager):
+        cmd = python_quic_manager.generate_run_command(role="server", port=8443)
+        assert "8443" in cmd
+
+    def test_server_command_with_custom_certs(self, python_quic_manager):
+        cmd = python_quic_manager.generate_run_command(
+            role="server",
+            cert_file="/custom/cert.pem",
+            key_file="/custom/key.pem",
+        )
+        assert "/custom/cert.pem" in cmd
+        assert "/custom/key.pem" in cmd
+
+    def test_server_command_with_specific_args(self, python_quic_manager):
+        """Implementation-specific args from _get_server_specific_args."""
+        cmd = python_quic_manager.generate_run_command(
+            role="server", bind_address="0.0.0.0"
+        )
+        assert "--bind" in cmd
+        assert "0.0.0.0" in cmd
+
+    def test_client_command_defaults(self, python_quic_manager):
+        cmd = python_quic_manager.generate_run_command(role="client")
+        assert "python" in cmd
+        assert "test_quic_module" in cmd
+        assert "localhost" in cmd
+        assert "4443" in cmd
+
+    def test_client_command_custom_host(self, python_quic_manager):
+        cmd = python_quic_manager.generate_run_command(
+            role="client", host="example.com", port=443
+        )
+        assert "example.com" in cmd
+        assert "443" in cmd
+
+    def test_client_command_with_specific_args(self, python_quic_manager):
+        cmd = python_quic_manager.generate_run_command(
+            role="client", request_path="/api/data"
+        )
+        assert "--path" in cmd
+        assert "/api/data" in cmd
+
+    def test_default_role_is_client(self, python_quic_manager):
+        """If no role specified, defaults to client."""
         cmd = python_quic_manager.generate_run_command()
-        
+        # Client args include host/port positional
+        assert "localhost" in cmd
+        assert "4443" in cmd
+
+    def test_command_uses_shlex_quoting(self, python_quic_manager):
+        """The real implementation applies shlex.quote to all parts."""
+        cmd = python_quic_manager.generate_run_command(role="server")
+        # shlex.quote wraps arguments -- at minimum the command is a string
         assert isinstance(cmd, str)
-        assert '/usr/bin/python' in cmd
-        assert '-m mock_quic_module' in cmd
-    
-    def test_empty_pip_packages_handling(self, python_quic_manager: MockPythonQuicImpl):
-        """Test handling of empty pip packages."""
-        python_quic_manager.set_pip_packages([])
-        
-        cmd = python_quic_manager._get_pip_install_command()
-        assert cmd == ""
-    
-    def test_environment_setup_with_none_values(self, python_quic_manager: MockPythonQuicImpl):
-        """Test environment setup with None values."""
-        env = python_quic_manager._setup_python_environment(
-            debug=None,
-            log_level=None,
-            python_path=None
+        # No bare semicolons or pipes (injection safety)
+        assert ";" not in cmd
+        assert "|" not in cmd
+
+    def test_server_command_with_log_file(self, python_quic_manager):
+        cmd = python_quic_manager.generate_run_command(
+            role="server", log_file="/logs/quic.log"
         )
-        
-        # Should handle None values gracefully
-        assert isinstance(env, dict)
-        assert 'PYTHONPATH' in env
-        assert 'PYTHON_LOG_LEVEL' in env
-    
-    def test_virtual_env_with_none(self, python_quic_manager: MockPythonQuicImpl):
-        """Test virtual environment handling with None."""
-        python_quic_manager.set_virtual_env(None)
-        
-        executable = python_quic_manager._get_python_executable()
-        assert executable == python_quic_manager.python_path
-    
-    def test_module_name_fallback(self, python_quic_manager: MockPythonQuicImpl):
-        """Test module name fallback to implementation name."""
-        python_quic_manager.module_path = None
-        
-        module_name = python_quic_manager._get_module_name()
-        assert module_name == python_quic_manager._get_implementation_name()
+        assert "-l" in cmd
+        assert "/logs/quic.log" in cmd
+
+
+# ===================================================================
+# TestBuildPythonEnvVars
+# ===================================================================
+
+
+class TestBuildPythonEnvVars:
+    """Test _build_python_env_vars method (Python-specific)."""
+
+    def test_default_env_vars(self, python_quic_manager):
+        params = python_quic_manager._extract_common_params()
+        env = python_quic_manager._build_python_env_vars(params)
+        assert env["PYTHONPATH"] == "/opt/aioquic"
+        assert env["PYTHONUNBUFFERED"] == "1"
+        assert "PYTHONASYNCIODEBUG" not in env
+
+    def test_asyncio_debug_enabled(self, python_quic_manager):
+        params = python_quic_manager._extract_common_params(asyncio_debug=True)
+        env = python_quic_manager._build_python_env_vars(params)
+        assert env["PYTHONASYNCIODEBUG"] == "1"
+
+    def test_custom_python_path(self, python_quic_manager):
+        params = python_quic_manager._extract_common_params(python_path="/custom/lib")
+        env = python_quic_manager._build_python_env_vars(params)
+        assert env["PYTHONPATH"] == "/custom/lib"
+
+
+# ===================================================================
+# TestGenerateCompileCommand
+# ===================================================================
+
+
+class TestGenerateCompileCommand:
+    """Test generate_compile_command for Python implementations."""
+
+    def test_python_compile_command(self, python_quic_manager):
+        """Python implementations use pip install instead of compilation."""
+        cmd = python_quic_manager.generate_compile_command()
+        assert "pip install -r requirements.txt" in cmd
+        assert "|| true" in cmd
+
+    def test_compile_command_is_string(self, python_quic_manager):
+        cmd = python_quic_manager.generate_compile_command()
+        assert isinstance(cmd, str)
+
+
+# ===================================================================
+# TestGetSupportedFeatures
+# ===================================================================
+
+
+class TestGetSupportedFeatures:
+    """Test get_supported_features method."""
+
+    def test_base_features(self, python_quic_manager):
+        """Python QUIC inherits base QUIC features."""
+        features = python_quic_manager.get_supported_features()
+        assert features["client"] is True
+        assert features["server"] is True
+        assert features["0rtt"] is True
+        assert features["qlog"] is True
+
+    def test_python_specific_features(self, python_quic_manager):
+        """Python QUIC adds async/python-specific features."""
+        features = python_quic_manager.get_supported_features()
+        assert features["async"] is True
+        assert features["asyncio"] is True
+        assert features["python"] is True
+        assert features["interpreted"] is True
+
+    def test_multipath_default_false(self, python_quic_manager):
+        features = python_quic_manager.get_supported_features()
+        assert features["multipath"] is False
+
+    def test_migration_default_true(self, python_quic_manager):
+        features = python_quic_manager.get_supported_features()
+        assert features["migration"] is True
+
+
+# ===================================================================
+# TestPrePostCompileCommands
+# ===================================================================
+
+
+class TestPrePostCommands:
+    """Test pre/post compile and run commands."""
+
+    def test_pre_compile_default_empty(self, python_quic_manager):
+        assert python_quic_manager.generate_pre_compile_command() == ""
+
+    def test_post_compile_default_empty(self, python_quic_manager):
+        assert python_quic_manager.generate_post_compile_command() == ""
+
+    def test_post_run_default_empty(self, python_quic_manager):
+        assert python_quic_manager.generate_post_run_command() == ""
+
+
+# ===================================================================
+# TestValidateConfiguration
+# ===================================================================
+
+
+class TestValidateConfiguration:
+    """Test validate_configuration method."""
+
+    def test_valid_server_config(self, python_quic_manager):
+        errors = python_quic_manager.validate_configuration(
+            role="server", port=4443, version="rfc9000"
+        )
+        assert errors == []
+
+    def test_valid_client_config(self, python_quic_manager):
+        errors = python_quic_manager.validate_configuration(
+            role="client", port=443, version="rfc9000"
+        )
+        assert errors == []
+
+    def test_invalid_role(self, python_quic_manager):
+        errors = python_quic_manager.validate_configuration(role="observer", port=4443)
+        assert any("Invalid role" in e for e in errors)
+
+    def test_invalid_port_zero(self, python_quic_manager):
+        errors = python_quic_manager.validate_configuration(role="server", port=0)
+        assert any("Invalid port" in e for e in errors)
+
+    def test_invalid_port_too_high(self, python_quic_manager):
+        errors = python_quic_manager.validate_configuration(role="server", port=70000)
+        assert any("Invalid port" in e for e in errors)
+
+    def test_unsupported_version(self, python_quic_manager):
+        errors = python_quic_manager.validate_configuration(
+            role="server", version="draft99"
+        )
+        assert any("Unsupported version" in e for e in errors)
+
+    def test_multiple_errors(self, python_quic_manager):
+        errors = python_quic_manager.validate_configuration(
+            role="invalid", port=-1, version="draft99"
+        )
+        assert len(errors) >= 2
+
+
+# ===================================================================
+# TestDeploymentCommands
+# ===================================================================
+
+
+class TestDeploymentCommands:
+    """Test deployment command generation (concrete implementation)."""
+
+    def test_deployment_command(self, python_quic_manager):
+        cmd = python_quic_manager.generate_deployment_commands()
+        assert "python -m test_quic_module" in cmd
+        assert "--server" in cmd
+        assert "--port 4443" in cmd
+
+
+# ===================================================================
+# TestIntegrationScenarios
+# ===================================================================
+
+
+class TestIntegrationScenarios:
+    """End-to-end scenarios combining multiple real methods."""
+
+    def test_full_server_command_generation(self, python_quic_manager):
+        """Generate a full server command and verify all parts."""
+        cmd = python_quic_manager.generate_run_command(
+            role="server",
+            port=8443,
+            cert_file="/app/certs/server.crt",
+            key_file="/app/certs/server.key",
+            bind_address="0.0.0.0",
+            log_file="/logs/server.log",
+        )
+        assert "python" in cmd
+        assert "test_quic_module" in cmd
+        assert "8443" in cmd
+        assert "/app/certs/server.crt" in cmd
+        assert "/app/certs/server.key" in cmd
+        assert "--bind" in cmd
+        assert "0.0.0.0" in cmd
+        assert "/logs/server.log" in cmd
+
+    def test_full_client_command_generation(self, python_quic_manager):
+        """Generate a full client command and verify all parts."""
+        cmd = python_quic_manager.generate_run_command(
+            role="client",
+            host="quic.example.com",
+            port=443,
+            request_path="/api/test",
+            log_file="/logs/client.log",
+        )
+        assert "python" in cmd
+        assert "test_quic_module" in cmd
+        assert "quic.example.com" in cmd
+        assert "443" in cmd
+        assert "--path" in cmd
+        assert "/api/test" in cmd
+        assert "/logs/client.log" in cmd
+
+    def test_env_vars_and_command_together(self, python_quic_manager):
+        """Verify that env vars and commands are independently generated."""
+        params = python_quic_manager._extract_common_params(
+            asyncio_debug=True, python_path="/custom/path"
+        )
+        env = python_quic_manager._build_python_env_vars(params)
+        cmd = python_quic_manager.generate_run_command(role="server")
+
+        # env vars
+        assert env["PYTHONASYNCIODEBUG"] == "1"
+        assert env["PYTHONPATH"] == "/custom/path"
+        # command is still generated independently
+        assert isinstance(cmd, str)
+        assert "python" in cmd
+
+    def test_features_include_both_base_and_python(self, python_quic_manager):
+        """Supported features merge base QUIC and Python-specific flags."""
+        features = python_quic_manager.get_supported_features()
+        # Base QUIC
+        assert features["client"] is True
+        assert features["server"] is True
+        assert features["0rtt"] is True
+        assert features["qlog"] is True
+        # Python-specific
+        assert features["async"] is True
+        assert features["asyncio"] is True
+        assert features["python"] is True
+
+    def test_validate_then_generate(self, python_quic_manager):
+        """Validate config, then generate command if valid."""
+        errors = python_quic_manager.validate_configuration(
+            role="server", port=4443, version="rfc9000"
+        )
+        assert errors == []
+
+        cmd = python_quic_manager.generate_run_command(role="server", port=4443)
+        assert isinstance(cmd, str)
+        assert "4443" in cmd
+
+
+# ===================================================================
+# TestConstructorVariations
+# ===================================================================
+
+
+class TestConstructorVariations:
+    """Test different constructor parameter combinations."""
+
+    def _make_manager(self, **kwargs):
+        """Helper to construct a ConcretePythonQUIC with IO mocked."""
+        svc = kwargs.pop(
+            "service_config",
+            _make_service_config(role="server"),
+        )
+        proto = kwargs.pop(
+            "protocol",
+            _make_protocol_config(role="server"),
+        )
+        stype = kwargs.pop("service_type", ImplementationType.IUT)
+        impl = kwargs.pop("implementation_name", "test_python_quic")
+        with (
+            patch("os.path.isdir", return_value=True),
+            patch("os.listdir", return_value=[]),
+            patch(
+                "panther.plugins.services.services_interface.Environment",
+                return_value=MagicMock(),
+            ),
+            patch(
+                "panther.plugins.services.services_interface.FileSystemLoader",
+                return_value=MagicMock(),
+            ),
+            patch(
+                "panther.plugins.services.services_interface.select_autoescape",
+                return_value=[],
+            ),
+        ):
+            return ConcretePythonQUIC(
+                service_config_to_test=svc,
+                service_type=stype,
+                protocol=proto,
+                implementation_name=impl,
+                **kwargs,
+            )
+
+    def test_with_string_service_type(self):
+        """Accept string 'iut' for service_type."""
+        mgr = self._make_manager(service_type="iut")
+        assert mgr.service_type_normalized == "IUT"
+
+    def test_with_testers_service_type(self):
+        """Accept 'testers' for service_type."""
+        mgr = self._make_manager(service_type="testers")
+        assert mgr.service_type_normalized == "TESTERS"
+
+    def test_with_event_manager(self):
+        """Accept an event_manager parameter."""
+        mock_em = Mock()
+        mgr = self._make_manager(event_manager=mock_em)
+        assert mgr.event_manager is mock_em
+
+    def test_with_global_config(self):
+        """Accept a global_config parameter."""
+        mock_gc = Mock()
+        mgr = self._make_manager(global_config=mock_gc)
+        assert mgr.global_config is mock_gc
+
+    def test_invalid_service_type_raises(self):
+        """Invalid service_type string raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid service type"):
+            self._make_manager(service_type="invalid_type")
+
+    def test_client_role_config(self):
+        """Construct with client-role configs."""
+        svc = _make_service_config(role="client", target="server")
+        proto = _make_protocol_config(role="client", target="server")
+        mgr = self._make_manager(
+            service_config=svc,
+            protocol=proto,
+        )
+        assert mgr.role == ProtocolRole.CLIENT
+
+
+# ===================================================================
+# TestIsTester
+# ===================================================================
+
+
+class TestIsTester:
+    """Test is_tester method inherited from IImplementationManager."""
+
+    def test_is_not_tester(self, python_quic_manager):
+        """IUT implementations return False for is_tester."""
+        assert python_quic_manager.is_tester() is False
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

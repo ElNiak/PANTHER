@@ -25,6 +25,7 @@ import os
 import platform
 import re
 import subprocess
+import threading
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Union
@@ -113,6 +114,7 @@ class DockerBuilder(
     _initialized = False
     MAX_TAG_LENGTH = 100  # Maximum Docker tag length (leave room for registry prefix)
     _session_built_tags: Set[str] = set()
+    _session_built_tags_lock = threading.Lock()
 
     def __new__(cls, *args, **kwargs):
         """
@@ -142,7 +144,8 @@ class DockerBuilder(
             build_log_file: Enable Docker build log file creation. Logs saved to
                 experiment-specific directories when experiment_context provided.
             enable_cache: Enable Docker build caching for faster rebuilds. Disabled
-                automatically when global_config.docker.force_build_docker_image=True.
+                automatically when global_config.docker.force_build_docker_image=True
+                or global_config.docker.no_docker_cache=True.
             global_config: Global configuration object containing Docker settings
                 including buildx preferences, platform targets, and build modes.
             experiment_context: Experiment context for organizing build logs in
@@ -190,7 +193,8 @@ class DockerBuilder(
         # Initialize with docker_operations feature for specialized logging
         self.__init_logger__("docker_operations")
         self.__class__._initialized = True
-        DockerBuilder._session_built_tags = set()
+        with DockerBuilder._session_built_tags_lock:
+            DockerBuilder._session_built_tags = set()
         self.logger.info("Initializing DockerBuilder singleton instance")
 
         self.plugins_dir = None
@@ -198,6 +202,12 @@ class DockerBuilder(
         self.client = None
         self.global_config = global_config
         self.experiment_context = experiment_context
+
+        # Platform detection cache (populated lazily on first access)
+        self._cached_host_platform: Optional[str] = None
+        self._cached_target_platform: Optional[str] = None
+        self._cached_buildx_available: Optional[bool] = None
+        self._platform_detection_logged: bool = False
 
         # Initialize Docker image cache with platform-aware caching
         target_platform = self.get_target_platform()
@@ -210,7 +220,10 @@ class DockerBuilder(
 
         self.docker_logger = DockerOutputParser()
 
-        if self.global_config and self.global_config.docker.force_build_docker_image:
+        if self.global_config and (
+            self.global_config.docker.force_build_docker_image
+            or getattr(self.global_config.docker, "no_docker_cache", False)
+        ):
             enable_cache = False  # Force build overrides cache setting
             self.logger.warning("Force build enabled, disabling Docker build cache.")
 
@@ -274,24 +287,26 @@ class DockerBuilder(
             self.build_log_file = build_log_file
             updated_params.append(f"build_log_file={build_log_file}")
         enable_cache = True  # Default to True unless overridden by global config
-        if (
-            global_config 
-            and getattr(self, "global_config", None) != global_config
-        ):
+        if global_config and getattr(self, "global_config", None) != global_config:
             self.global_config = global_config
+            # Invalidate target platform cache since config override may have changed
+            self._cached_target_platform = None
+            self._platform_detection_logged = False
             updated_params.append("global_config=<updated>")
 
             # Re-evaluate cache settings if global config changed
-            if (
-                hasattr(global_config, "docker")
-                and hasattr(global_config.docker, "force_build_docker_image")
-                and global_config.docker.force_build_docker_image
+            if hasattr(global_config, "docker") and (
+                getattr(global_config.docker, "force_build_docker_image", False)
+                or getattr(global_config.docker, "no_docker_cache", False)
             ):
                 enable_cache = False
                 self.logger.warning(
                     "Force build enabled via updated config, disabling Docker build cache."
                 )
-        elif self.global_config and self.global_config.docker.force_build_docker_image:
+        elif self.global_config and (
+            self.global_config.docker.force_build_docker_image
+            or getattr(self.global_config.docker, "no_docker_cache", False)
+        ):
             enable_cache = False  # Force build overrides cache setting
             self.logger.warning("Force build enabled, disabling Docker build cache.")
         if (
@@ -330,7 +345,9 @@ class DockerBuilder(
             Dictionary with Docker and cache status
         """
         docker_available = self.is_docker_available()
-        cache_stats : dict[str, Union[int, bool, float]] = self.image_cache.get_cache_stats()
+        cache_stats: dict[
+            str, Union[int, bool, float]
+        ] = self.image_cache.get_cache_stats()
 
         return {
             "docker_available": docker_available,
@@ -408,10 +425,15 @@ class DockerBuilder(
         Detect the appropriate Docker platform based on the current architecture.
 
         Respects the target_platform configuration override if specified.
+        Results are cached per singleton lifetime; cache is invalidated when
+        global_config changes via update_parameters().
 
         Returns:
             str: Docker platform string (e.g., 'linux/amd64', 'linux/arm64')
         """
+        if self._cached_target_platform is not None:
+            return self._cached_target_platform
+
         # Check for configuration override first
         if (
             hasattr(self, "global_config")
@@ -423,30 +445,33 @@ class DockerBuilder(
             self.logger.debug(
                 "Using configured target platform override: %s", target_platform
             )
+            self._cached_target_platform = target_platform
             return target_platform
 
         # Detect host architecture and map to appropriate Docker platform
         machine = platform.machine().lower()
         if machine in ["arm64", "aarch64"]:
             if not self._check_buildx_available():
-                self.logger.warning(
-                    "ARM64 architecture detected but Docker Buildx is not available. "
-                    "Cross-platform builds may fail without Buildx support. "
-                    "Set use_buildx: true to enable buildx for ARM64 builds."
-                )
-                docker_platform = "linux/arm64"  # Native ARM64 support enabled
-                self.logger.warning(
-                    "Detected ARM64 architecture '%s' -> using native platform: %s BUT expected errors may occur due to lack of support in some tools (picoTLS, z3, ivy) - set target_platform override if you want to force a different platform",
-                    machine,
-                    "linux/arm64",  # TODO: picotls, z3, ivy etc. do not support ARM64 yet 
-                )
-            else:  
-                self.logger.info(
-                    "ARM64 architecture detected with Buildx available -> using linux/amd64 for cross-platform builds"
-                )
-                docker_platform = "linux/amd64"  # Use buildx for cross-platform AMD64 builds on ARM64 hosts
-                
-            
+                if not self._platform_detection_logged:
+                    self.logger.warning(
+                        "ARM64 architecture detected but Docker Buildx is not available. "
+                        "Cross-platform builds may fail without Buildx support. "
+                        "Set use_buildx: true to enable buildx for ARM64 builds."
+                    )
+                    self.logger.warning(
+                        "Detected ARM64 architecture '%s' -> using native platform: %s BUT expected errors may occur due to lack of support in some tools (picoTLS, z3, ivy) - set target_platform override if you want to force a different platform",
+                        machine,
+                        "linux/arm64",
+                    )
+                    self._platform_detection_logged = True
+                docker_platform = "linux/arm64"
+            else:
+                if not self._platform_detection_logged:
+                    self.logger.info(
+                        "ARM64 architecture detected with Buildx available -> using linux/amd64 for cross-platform builds"
+                    )
+                    self._platform_detection_logged = True
+                docker_platform = "linux/amd64"
         elif machine in ["x86_64", "amd64"]:
             docker_platform = "linux/amd64"
         else:
@@ -462,15 +487,21 @@ class DockerBuilder(
             docker_platform,
         )
 
+        self._cached_target_platform = docker_platform
         return docker_platform
 
     def _check_buildx_available(self) -> bool:
         """
         Check if Docker Buildx is available on the system.
 
+        Results are cached per singleton lifetime to avoid repeated subprocess calls.
+
         Returns:
             bool: True if buildx is available, False otherwise
         """
+        if self._cached_buildx_available is not None:
+            return self._cached_buildx_available
+
         try:
             result = subprocess.run(
                 ["docker", "buildx", "version"],
@@ -482,17 +513,19 @@ class DockerBuilder(
                 self.logger.debug(
                     "Docker Buildx is available: %s", result.stdout.strip()
                 )
-                return True
+                self._cached_buildx_available = True
             else:
                 self.logger.warning("Docker Buildx not available: %s", result.stderr)
-                return False
+                self._cached_buildx_available = False
         except (
             subprocess.TimeoutExpired,
             subprocess.CalledProcessError,
             FileNotFoundError,
         ) as e:
             self.logger.warning("Failed to check Docker Buildx availability: %s", e)
-            return False
+            self._cached_buildx_available = False
+
+        return self._cached_buildx_available
 
     def _ensure_buildx_context(self, builder_name: str = "default") -> bool:
         """
@@ -651,7 +684,7 @@ class DockerBuilder(
         # Use buildx for cross-platform builds (when host != target platform)
         host_platform = self._get_host_platform()
         is_cross_platform = host_platform != self.get_target_platform()
-        
+
         # Check if buildx is available on system first
         if not self._check_buildx_available():
             self.logger.info(
@@ -722,11 +755,18 @@ class DockerBuilder(
         """
         Get the host platform without configuration overrides.
 
+        Results are cached per singleton lifetime since host platform never changes.
+
         Returns:
             str: Host platform string (e.g., 'linux/amd64', 'linux/arm64')
         """
+        if self._cached_host_platform is not None:
+            return self._cached_host_platform
         machine = platform.machine().lower()
-        return "linux/arm64" if machine in ["arm64", "aarch64"] else "linux/amd64"
+        self._cached_host_platform = (
+            "linux/arm64" if machine in ["arm64", "aarch64"] else "linux/amd64"
+        )
+        return self._cached_host_platform
 
     def get_effective_build_platform(self) -> str:
         """
@@ -976,6 +1016,15 @@ class DockerBuilder(
             # Extract build and runtime modes from config
             build_mode = config.get("build_mode", "")
             runtime_mode = config.get("runtime_mode", "minimal")
+            z3_source = config.get("z3_source", "")
+            _valid_z3_sources = {"local", "pip", ""}
+            if z3_source and z3_source not in _valid_z3_sources:
+                self.logger.warning(
+                    "Unknown z3_source value '%s', falling back to 'local'. "
+                    "Valid values: local, pip",
+                    z3_source,
+                )
+                z3_source = "local"
 
             # Construct image tag with mode information
             image_tag = self.generate_image_tag(
@@ -985,6 +1034,7 @@ class DockerBuilder(
                 build_mode=build_mode,
                 runtime_mode=runtime_mode,
                 target_platform=self.get_effective_build_platform(),
+                z3_source=z3_source,
             )
             self.logger.info(
                 "Building Docker image '%s' with buildx for platform '%s'",
@@ -1016,11 +1066,22 @@ class DockerBuilder(
                 build_platform.split("/")[0] if "/" in build_platform else "linux"
             )
 
-            build_args = {
+            # Start with per-service user build_args (lowest priority)
+            resolved_docker = config.get("resolved_docker", None)
+            user_build_args = {}
+            if resolved_docker is not None:
+                user_build_args = resolved_docker.get("build_args", {})
+                self.logger.debug(
+                    "Using per-service resolved Docker configuration for buildx build arguments"
+                )
+
+            # Framework args take precedence over user-supplied build_args
+            framework_build_args = {
                 "VERSION": config.get("commit", "master"),
                 "DEPENDENCIES": dependencies_json,
                 "BUILD_MODE": build_mode,
                 "RUNTIME_MODE": config.get("runtime_mode", "minimal"),
+                "Z3_SOURCE": z3_source or "local",
                 "BASE_IMAGE": self.generate_image_tag(
                     impl_name="panther_base_service",
                     version="",
@@ -1036,6 +1097,8 @@ class DockerBuilder(
                 "BUILDARCH": build_arch,
                 "BUILDOS": build_os,
             }
+            # Merge: framework build_args override user-supplied build_args on key collision
+            build_args = {**user_build_args, **framework_build_args}
 
             # Calculate relative path from context to dockerfile
             # For buildx, prefer Dockerfile.buildkit if it exists
@@ -1116,19 +1179,41 @@ class DockerBuilder(
             # Add network mode
             buildx_cmd.extend(["--network", "host"])
 
-            # Force rebuild if configured - pass --no-cache to buildx only on first
-            # build of each tag to prevent stale layer cache
-            force_build = (
-                getattr(self.global_config.docker, "force_build_docker_image", False)
-                if hasattr(self, "global_config")
+            # Resolve force_build and no_cache from per-service overrides or global config.
+            # force_build = "should we rebuild even if image exists" (skip image-level cache)
+            # no_cache = "should we also skip Docker layer cache" (passes --no-cache)
+            if resolved_docker is not None:
+                force_build = bool(
+                    resolved_docker.get("force_build_docker_image", False)
+                    or resolved_docker.get("no_docker_cache", False)
+                )
+                no_cache = bool(resolved_docker.get("no_docker_cache", False))
+            elif (
+                hasattr(self, "global_config")
                 and self.global_config
                 and hasattr(self.global_config, "docker")
-                else False
-            )
-            if force_build and not DockerBuilder.was_built_this_session(image_tag):
+            ):
+                force_build = bool(
+                    getattr(
+                        self.global_config.docker, "force_build_docker_image", False
+                    )
+                    or getattr(self.global_config.docker, "no_docker_cache", False)
+                )
+                no_cache = bool(
+                    getattr(self.global_config.docker, "no_docker_cache", False)
+                )
+            else:
+                force_build = True
+                no_cache = False
+
+            # Pass --no-cache only when no_docker_cache is set and only on the
+            # first build of each tag to prevent stale layer cache while avoiding
+            # redundant full rebuilds in the same session.
+            if no_cache and not DockerBuilder.was_built_this_session(image_tag):
                 buildx_cmd.append("--no-cache")
                 self.logger.info(
-                    "force_build: passing --no-cache for first build of %s", image_tag
+                    "no_docker_cache: passing --no-cache for first build of %s",
+                    image_tag,
                 )
 
             self.logger.debug("Executing buildx command: %s", " ".join(buildx_cmd))
@@ -1202,19 +1287,24 @@ class DockerBuilder(
 
             # Use existing docker logger for consistency
             log_f = None
-            if self.build_log_file:
-                buildx_tag = image_tag.replace(":", "_").replace("/", "_") + "_buildx"
-                log_filename = self._get_build_log_path(buildx_tag)
-                self.logger.debug("Opening buildx log file at: %s", log_filename)
-                self.logger.debug("Current working directory: %s", os.getcwd())
-                log_f = open(log_filename, "w")
+            try:
+                if self.build_log_file:
+                    buildx_tag = (
+                        image_tag.replace(":", "_").replace("/", "_") + "_buildx"
+                    )
+                    log_filename = self._get_build_log_path(buildx_tag)
+                    self.logger.debug("Opening buildx log file at: %s", log_filename)
+                    self.logger.debug("Current working directory: %s", os.getcwd())
+                    log_f = open(log_filename, "w")
 
-            self.docker_logger.log_docker_output(
-                build_logs, f"Building Docker image '{image_tag}' with buildx", log_f
-            )
-
-            if log_f:
-                log_f.close()
+                self.docker_logger.log_docker_output(
+                    build_logs,
+                    f"Building Docker image '{image_tag}' with buildx",
+                    log_f,
+                )
+            finally:
+                if log_f:
+                    log_f.close()
 
             # Check if build succeeded
             if result.returncode != 0:
@@ -1308,9 +1398,6 @@ class DockerBuilder(
         and configuration. Supports intelligent caching, build mode validation, and
         comprehensive error handling with graceful fallbacks.
 
-        # Update cache platform for multi-platform builds
-        self._update_cache_platform()
-
         Args:
             impl_name: Implementation name for image tagging (e.g., 'my_service')
             version: Version string for image tagging (e.g., 'v1.0', 'latest')
@@ -1390,6 +1477,15 @@ class DockerBuilder(
                 config.get("build_mode", "")
             )
             runtime_mode = config.get("runtime_mode", "minimal")
+            z3_source = config.get("z3_source", "")
+            _valid_z3_sources = {"local", "pip", ""}
+            if z3_source and z3_source not in _valid_z3_sources:
+                self.logger.warning(
+                    "Unknown z3_source value '%s', falling back to 'local'. "
+                    "Valid values: local, pip",
+                    z3_source,
+                )
+                z3_source = "local"
 
             # Construct image tag with mode information
             image_tag = self.generate_image_tag(
@@ -1399,6 +1495,7 @@ class DockerBuilder(
                 build_mode=build_mode,
                 runtime_mode=runtime_mode,
                 target_platform=self.get_effective_build_platform(),
+                z3_source=z3_source,
             )
 
             # Check build cache first
@@ -1424,11 +1521,22 @@ class DockerBuilder(
                 build_platform.split("/")[0] if "/" in build_platform else "linux"
             )
 
-            build_args = {
+            # Start with per-service user build_args (lowest priority)
+            resolved_docker = config.get("resolved_docker", None)
+            user_build_args = {}
+            if resolved_docker is not None:
+                user_build_args = resolved_docker.get("build_args", {})
+                self.logger.debug(
+                    "Using per-service resolved Docker configuration for build arguments"
+                )
+
+            # Framework args take precedence over user-supplied build_args
+            framework_build_args = {
                 "VERSION": config.get("commit", "production"),
                 "DEPENDENCIES": json.dumps(dependencies) if dependencies else "[]",
                 "BUILD_MODE": build_mode,
                 "RUNTIME_MODE": config.get("runtime_mode", "minimal"),
+                "Z3_SOURCE": z3_source or "local",
                 "TARGETPLATFORM": target_platform,
                 "BASE_IMAGE": self.generate_image_tag(
                     impl_name="panther_base_service",
@@ -1444,6 +1552,8 @@ class DockerBuilder(
                 "BUILDARCH": build_arch,
                 "BUILDOS": build_os,
             }
+            # Merge: user args first, then framework args override
+            build_args = {**user_build_args, **framework_build_args}
 
             self.logger.debug(
                 "Receiving configuration (%s) for building Docker image with tag='%s' with version='%s' from Dockerfile='%s' in context='%s' with arguments=%s for target architecture='%s' on host platform='%s'",
@@ -1457,14 +1567,32 @@ class DockerBuilder(
                 self._get_host_platform(),
             )
 
-            # Check cache and handle cache logic
-            force_build = (
-                getattr(self.global_config.docker, "force_build_docker_image", True)
-                if hasattr(self, "global_config")
+            # Resolve force_build and no_cache from per-service overrides or global config.
+            # force_build = "should we rebuild even if image exists" (skip image-level cache)
+            # no_cache = "should we also skip Docker layer cache" (passes nocache=True)
+            if resolved_docker is not None:
+                force_build = bool(
+                    resolved_docker.get("force_build_docker_image", False)
+                    or resolved_docker.get("no_docker_cache", False)
+                )
+                no_cache = bool(resolved_docker.get("no_docker_cache", False))
+            elif (
+                hasattr(self, "global_config")
                 and self.global_config
                 and hasattr(self.global_config, "docker")
-                else True
-            )
+            ):
+                force_build = bool(
+                    getattr(
+                        self.global_config.docker, "force_build_docker_image", False
+                    )
+                    or getattr(self.global_config.docker, "no_docker_cache", False)
+                )
+                no_cache = bool(
+                    getattr(self.global_config.docker, "no_docker_cache", False)
+                )
+            else:
+                force_build = True
+                no_cache = False
 
             if not force_build:
                 self.logger.debug(
@@ -1487,21 +1615,20 @@ class DockerBuilder(
                     return cached_result
 
             log_f = None
-            # Open the build log file if specified
-            if self.build_log_file:
-                log_filename = self._get_build_log_path(image_tag)
-                log_f = open(log_filename, "w")
 
             # Calculate relative path from context to dockerfile for Docker API
             # Only prefer Dockerfile.buildkit if use_buildx is enabled in config
             # Note: Dockerfile.multistage is excluded as it relies on deadsnakes PPA
             # which is broken on Ubuntu 20.04 for Python 3.10
-            use_buildx_config = (
-                hasattr(self, "global_config")
-                and self.global_config
-                and hasattr(self.global_config, "docker")
-                and self.global_config.docker.use_buildx
-            )
+            if resolved_docker is not None:
+                use_buildx_config = resolved_docker.get("use_buildx", True)
+            else:
+                use_buildx_config = (
+                    hasattr(self, "global_config")
+                    and self.global_config
+                    and hasattr(self.global_config, "docker")
+                    and self.global_config.docker.use_buildx
+                )
 
             if use_buildx_config:
                 buildkit_candidates = [
@@ -1518,7 +1645,8 @@ class DockerBuilder(
                     selected_dockerfile = candidate
                     self.logger.debug(
                         "Selected Dockerfile (use_buildx=%s): %s",
-                        use_buildx_config, selected_dockerfile
+                        use_buildx_config,
+                        selected_dockerfile,
                     )
                     break
 
@@ -1561,23 +1689,30 @@ class DockerBuilder(
                 image_tag,
                 effective_platform,
             )
-            image, build_logs = self.client.images.build(
-                path=str(context_path),
-                dockerfile=str(relative_dockerfile_path),
-                tag=image_tag,
-                network_mode="host",
-                buildargs=build_args,
-                platform=effective_platform,  # Use effective platform (host when buildx disabled)
-                nocache=force_build,  # Force build if specified
-                # squash=True,  # Squash layers to reduce image size (experimental)
-                # pull=True,  # Always pull latest base images
-            )
 
-            self.docker_logger.log_docker_output(
-                build_logs, f"Building Docker image '{image_tag}'", log_f
-            )
-            if log_f:
-                log_f.close()
+            # Open the build log file if specified
+            if self.build_log_file:
+                log_filename = self._get_build_log_path(image_tag)
+                log_f = open(log_filename, "w")
+
+            try:
+                image, build_logs = self.client.images.build(
+                    path=str(context_path),
+                    dockerfile=str(relative_dockerfile_path),
+                    tag=image_tag,
+                    network_mode="host",
+                    buildargs=build_args,
+                    platform=effective_platform,  # Use effective platform (host when buildx disabled)
+                    nocache=no_cache
+                    and not DockerBuilder.was_built_this_session(image_tag),
+                )
+
+                self.docker_logger.log_docker_output(
+                    build_logs, f"Building Docker image '{image_tag}'", log_f
+                )
+            finally:
+                if log_f:
+                    log_f.close()
 
             # Register the build in cache
             build_time = (
@@ -1650,6 +1785,7 @@ class DockerBuilder(
         build_mode="",
         runtime_mode="minimal",
         target_platform="",
+        z3_source="",
     ):
         """
         Generate Docker image tag with build and runtime mode differentiation.
@@ -1661,6 +1797,7 @@ class DockerBuilder(
             build_mode: Build mode ('', 'debug-asan', 'rel-lto', 'release-static-pgo')
             runtime_mode: Runtime mode ('minimal', 'debug', 'profile')
             target_platform: Target platform (e.g., 'linux/amd64', 'linux/arm64')
+            z3_source: Z3 build source ('', 'local', 'pip'). Default 'local' produces no suffix.
 
         Returns:
             str: Complete image tag
@@ -1670,6 +1807,7 @@ class DockerBuilder(
             - picoquic-v1.0:latest-linux/amd64 (empty build_mode, minimal runtime + platform)
             - picoquic-v1.0:latest-rel-lto-profile-linux/amd64 (both modes specified + platform)
             - picoquic:latest (no version, minimal runtime, no platform)
+            - panther_ivy-rfc9000:latest-z3pip-linux-amd64 (z3_source=pip adds -z3pip suffix)
         """
 
         # Build mode suffix (empty string results in no suffix)
@@ -1680,14 +1818,15 @@ class DockerBuilder(
             f"-{runtime_mode}" if runtime_mode and runtime_mode != "minimal" else ""
         )
 
+        # Z3 source suffix (local is default, so no suffix needed)
+        z3_suffix = f"-z3{z3_source}" if z3_source and z3_source != "local" else ""
+
         platform_suffix = f"-{target_platform}" if target_platform else ""
 
         # Construct base name with version
         base_name = f"{impl_name}-{version}" if version else impl_name
         # Combine all parts
-        full_tag = (
-            f"{base_name}:{tag_version}{build_suffix}{runtime_suffix}{platform_suffix}"
-        )
+        full_tag = f"{base_name}:{tag_version}{build_suffix}{runtime_suffix}{z3_suffix}{platform_suffix}"
 
         # Sanitize tag (Docker tags have character restrictions)
         return self._sanitize_docker_tag(full_tag)
@@ -1722,13 +1861,18 @@ class DockerBuilder(
         - Cannot start with period or dash
         - Max 128 characters
         """
-        import re
-
         # Convert to lowercase and replace invalid characters (allow colon for tag separator)
         sanitized = re.sub(r"[^a-z0-9._:-]", "-", tag.lower())
 
         # Ensure doesn't start with period or dash
         sanitized = re.sub(r"^[.-]+", "", sanitized)
+
+        if not sanitized:
+            self.logger.warning(
+                "Docker tag '%s' became empty after sanitization, using 'unknown'",
+                tag,
+            )
+            sanitized = "unknown"
 
         # Truncate if too long (leave room for registry prefix)
         if len(sanitized) > self.MAX_TAG_LENGTH:
@@ -2018,17 +2162,20 @@ class DockerBuilder(
         """
         cls._instance = None
         cls._initialized = False
-        cls._session_built_tags = set()
+        with cls._session_built_tags_lock:
+            cls._session_built_tags = set()
 
     @classmethod
     def mark_session_built(cls, image_tag: str) -> None:
-        """Record that an image was freshly built in this session."""
-        cls._session_built_tags.add(image_tag)
+        """Record that an image was freshly built in this session (thread-safe)."""
+        with cls._session_built_tags_lock:
+            cls._session_built_tags.add(image_tag)
 
     @classmethod
     def was_built_this_session(cls, image_tag: str) -> bool:
-        """Check if an image was already freshly built in this session."""
-        return image_tag in cls._session_built_tags
+        """Check if an image was already freshly built in this session (thread-safe)."""
+        with cls._session_built_tags_lock:
+            return image_tag in cls._session_built_tags
 
     @classmethod
     def get_instance(

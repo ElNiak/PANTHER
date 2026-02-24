@@ -65,8 +65,9 @@ class ITesterManager(IServiceManager, ABC):
             )
             # Notify test run started
             test_name = getattr(self, "test_to_compile", "unknown")
-            self.notify_test_started(
-                test_name=test_name,
+            self.emit_test_starting(
+                test_id=test_name,
+                test_type=self.service_type,
                 details={
                     "service_name": self.service_name,
                     "service_type": self.service_type,

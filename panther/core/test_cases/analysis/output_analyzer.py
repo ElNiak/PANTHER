@@ -1,10 +1,15 @@
 """Output collection and analysis for test cases."""
 
+import json
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from panther.core.outputs.output_aggregator import OutputAggregator
+from panther.core.outputs.service_health_analyzer import (
+    ServiceHealth,
+    ServiceHealthAnalyzer,
+)
 from panther.plugins.services.testers.tester_interface import ITesterManager
 
 
@@ -80,7 +85,7 @@ class OutputAnalyzer:
             return organized_outputs
 
         except Exception as e:
-            self.logger.error(f"Failed to collect outputs: {e}")
+            self.logger.error("Failed to collect outputs: %s", e, exc_info=True)
             # Emit output collection failed
             if env_emitter:
                 env_emitter.emit_output_collection_failed(
@@ -90,8 +95,7 @@ class OutputAnalyzer:
                     error_message=str(e),
                     error_type=type(e).__name__,
                 )
-            # Return empty dict to allow test to continue
-            return {}
+            raise
 
     def run_tester_analysis(self, outputs: Dict[str, Any]) -> Dict[str, Any]:
         """Run analysis on collected outputs using configured testers."""
@@ -301,6 +305,58 @@ class OutputAnalyzer:
         except Exception as e:
             self.logger.error(f"Failed to save analysis results: {e}")
             # Continue execution even if save fails
+
+    def run_service_health_analysis(self) -> List[ServiceHealth]:
+        """Analyze ALL services (IUT + tester) for basic health metrics.
+
+        Iterates through environment plugins to find service managers,
+        then runs generic health analysis on each service's log directory.
+
+        Returns:
+            List of ServiceHealth results.
+        """
+        self.logger.info("Running service health analysis for all services")
+        analyzer = ServiceHealthAnalyzer()
+        health_results: List[ServiceHealth] = []
+
+        try:
+            for env in self.test_case.environment_plugin_manager:
+                if not hasattr(env, "services_managers"):
+                    continue
+
+                def _get_log_dir(service_name: str, _env=env):
+                    if hasattr(_env, "_get_service_log_directory"):
+                        return _env._get_service_log_directory(service_name)
+                    # Fallback: service subdir under test experiment dir
+                    return self.test_case.test_experiment_dir / service_name
+
+                results = analyzer.analyze_all_services(
+                    env.services_managers,
+                    _get_log_dir,
+                )
+                health_results.extend(results)
+
+            self._save_service_health(health_results)
+            self.logger.info(
+                "Service health analysis complete: %d services analyzed",
+                len(health_results),
+            )
+        except Exception as e:
+            self.logger.error("Service health analysis failed: %s", e, exc_info=True)
+
+        return health_results
+
+    def _save_service_health(self, health_results: List[ServiceHealth]) -> None:
+        """Save service health results to analysis/service_health.json."""
+        try:
+            analysis_dir = self.test_case.test_experiment_dir / "analysis"
+            analysis_dir.mkdir(exist_ok=True)
+            health_file = analysis_dir / "service_health.json"
+            with open(health_file, "w") as f:
+                json.dump([h.to_dict() for h in health_results], f, indent=2)
+            self.logger.info("Service health saved to %s", health_file)
+        except Exception as e:
+            self.logger.error("Failed to save service health: %s", e)
 
     def _analyze_test_configuration(self):
         """Analyze basic test configuration."""

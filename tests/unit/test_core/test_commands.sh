@@ -17,4 +17,3 @@ echo '----------'
 echo 'Testing nested_quotes:'
 export PS4="+ [${BASH_SOURCE:-sh}:${LINENO}] "; echo $PS4
 echo '----------'
-

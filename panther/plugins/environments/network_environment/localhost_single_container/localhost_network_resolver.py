@@ -11,7 +11,6 @@ from panther.config.core.models.network_resolution import (
     NetworkAttribute,
     NetworkFormat,
     NetworkResolutionContext,
-    NetworkResolutionResult,
     NetworkServiceInfo,
     PlaceholderInfo,
 )
@@ -35,31 +34,6 @@ class LocalhostNetworkResolver(BaseNetworkResolver):
 
         # Localhost constants
         self.localhost_ip = "127.0.0.1"
-
-    def _resolve_single_placeholder(
-        self, placeholder: PlaceholderInfo, context: NetworkResolutionContext
-    ) -> NetworkResolutionResult:
-        """
-        Resolve a single placeholder for localhost environment.
-
-        Args:
-            placeholder: Placeholder information to resolve
-            context: Network resolution context
-
-        Returns:
-            Network resolution result
-        """
-        # Use base class validation
-        self._validate_placeholder(placeholder)
-
-        # Use base class service info handling
-        service_info = self._ensure_service_info(placeholder, context)
-
-        # Generate resolved value using environment-specific logic
-        resolved_value = self._generate_resolved_value(placeholder, service_info)
-
-        # Use base class result creation
-        return self._create_resolution_result(placeholder, resolved_value, service_info)
 
     def _get_service_index(
         self, service_name: str, context: NetworkResolutionContext

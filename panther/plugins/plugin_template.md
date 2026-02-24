@@ -312,9 +312,9 @@ This plugin integrates with PANTHER's testing infrastructure through:
 
 ## Related Documentation
 
-- [{Related Plugin 1}](panther/{related_path1}/README.md)
-- [{Related Plugin 2}](panther/{related_path2}/README.md)
-- [{Related Protocol Documentation}](../../../protocols/{protocol_path}/README.md)
+- {Related Plugin 1}
+- {Related Plugin 2}
+- {Related Protocol Documentation}
 - [{External Documentation Title}]({external_url})
 - [{Project Repository}]({repository_url})
 

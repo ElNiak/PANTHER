@@ -36,26 +36,26 @@ from panther.plugins.services.base.rust_quic_base import RustQUICServiceManager
 
 class QuinnServiceManager(RustQUICServiceManager):
     """Quinn QUIC implementation with async Rust-specific inheritance."""
-    
+
     def _get_implementation_name(self) -> str:
         return "quinn"
-    
+
     def _get_binary_name(self) -> str:
         return "quinn-server"  # or quinn-client
-    
+
     def _get_cargo_features(self) -> List[str]:
         return ["runtime-tokio", "tls-rustls"]  # Quinn-specific Cargo features
-    
+
     # Customize async Rust-specific aspects
     def _get_server_specific_args(self, **kwargs) -> List[str]:
         port = kwargs.get("port", 4443)
         return ["--listen", f"0.0.0.0:{port}"]
-    
+
     def _get_client_specific_args(self, **kwargs) -> List[str]:
         host = kwargs.get("host", "localhost")
         port = kwargs.get("port", 4443)
         return ["--connect", f"{host}:{port}"]
-    
+
     # Async Tokio integration and memory safety handled by RustQUICServiceManager
 ```
 
@@ -121,74 +121,35 @@ Docker-based deployment includes Rust toolchain and all dependencies.
 
 ## Configuration Options
 
-### Version Configuration
+<!-- Source: config_schema.py -->
+
+### QuinnConfig Fields
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `version` | String | "" | Quinn crate version |
-| `commit` | String | "" | Specific git commit hash |
-| `dependencies` | List | [] | Additional Rust crate dependencies |
+| `name` | str | "quinn" | Implementation name |
+| `type` | ImplementationType | IUT | Implementation type |
+| `version` | QuinnVersion | (loaded from YAML) | Version configuration |
 
-### Server Configuration
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `role` | String | "server" | Service role: "server" or "client" |
-| `listen_addr` | String | "0.0.0.0:4433" | Server bind address and port |
-| `cert_file` | String | "" | TLS certificate file path |
-| `key_file` | String | "" | TLS private key file path |
-| `cert_chain_file` | String | "" | Certificate chain file path |
-
-### Client Configuration
+### QuinnVersion Fields
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `server_name` | String | "" | Server hostname for SNI |
-| `server_addr` | String | "" | Target server address |
-| `ca_file` | String | "" | Custom CA certificate file |
-| `insecure` | Boolean | false | Skip certificate verification |
+| `version` | str | "" | Version string |
+| `commit` | str | "" | Git commit hash |
+| `dependencies` | List[Dict[str, str]] | [] | Dependencies list |
+| `client` | Optional[dict] | {} | Client configuration |
+| `server` | Optional[dict] | {} | Server configuration |
 
-### Transport Configuration
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `max_concurrent_bidi_streams` | Integer | 1000 | Maximum bidirectional streams |
-| `max_concurrent_uni_streams` | Integer | 1000 | Maximum unidirectional streams |
-| `initial_max_data` | Integer | 10485760 | Initial connection data limit |
-| `initial_max_stream_data` | Integer | 1048576 | Initial stream data limit |
-| `max_idle_timeout` | String | "30s" | Maximum idle timeout |
-| `keep_alive_interval` | String | "0s" | Keep-alive interval (0 = disabled) |
-
-### Advanced Options
+Inherited from `ServicePluginConfig` / `BasePluginConfig`:
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `congestion_controller` | String | "cubic" | Congestion control algorithm |
-| `enable_0rtt` | Boolean | false | Enable 0-RTT connections |
-| `migration_enabled` | Boolean | true | Enable connection migration |
-| `datagram_receive_buffer_size` | Integer | 65536 | Datagram buffer size |
-| `send_buffer_size` | Integer | 1048576 | Socket send buffer size |
-| `receive_buffer_size` | Integer | 1048576 | Socket receive buffer size |
-
-### Performance Tuning
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `max_udp_payload_size` | Integer | 1452 | Maximum UDP payload size |
-| `min_mtu` | Integer | 1200 | Minimum path MTU |
-| `mtu_discovery` | Boolean | true | Enable path MTU discovery |
-| `packet_threshold` | Integer | 3 | Packet loss threshold |
-| `time_threshold` | String | "9ms" | Time-based loss threshold |
-
-### Debugging and Logging
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `log_level` | String | "info" | Rust log level |
-| `qlog_enabled` | Boolean | false | Enable qlog tracing |
-| `qlog_dir` | String | "" | qlog output directory |
-| `key_log_file` | String | "" | TLS key log file |
-| `stats_interval` | String | "0s" | Statistics reporting interval |
+| `enabled` | bool | True | Whether the plugin is enabled |
+| `priority` | int | 100 | Plugin execution priority |
+| `docker_image` | Optional[str] | None | Docker image name |
+| `build_from_source` | bool | True | Build from source |
+| `source_repository` | Optional[str] | None | Source repository URL |
 
 ## Usage Examples
 
@@ -608,9 +569,9 @@ services:
 
 ## Related Documentation
 
-- [QUIC Protocol Overview](panther/plugins/services/iut/quic/README.md): General QUIC implementation guide
-- [Rust Integration](panther/plugins/services/iut/quic/docs/rust.md): Rust-specific development patterns
-- [Performance Optimization](panther/plugins/services/iut/quic/docs/performance.md): Tuning strategies
+- [QUIC Protocol Overview](../README.md): General QUIC implementation guide
+- Rust Integration: Rust-specific development patterns
+- Performance Optimization: Tuning strategies
 
 ## References
 

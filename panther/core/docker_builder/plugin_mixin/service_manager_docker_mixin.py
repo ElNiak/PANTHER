@@ -1,9 +1,10 @@
+import logging
 import os
-import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, List, Optional
 
-from omegaconf import OmegaConf
+from docker.errors import DockerException
+from docker.errors import NotFound as DockerNotFound
 
 from panther.core.command_processor.mixins import CommandEventMixin
 from panther.core.docker_builder import DockerBuilder
@@ -27,17 +28,14 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
     """
 
     # Class-level tracking for base image to ensure it's built only once per experiment
+    # Note: _base_image_built access is NOT thread-safe.
+    # ExperimentManager executes in a single-threaded model.
     _base_image_built = False
-    _base_image_lock = None
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Initialize Docker-related attributes
         self._docker_prepared = False
-
-        # Initialize lock if not done yet
-        if ServiceManagerDockerMixin._base_image_lock is None:
-            ServiceManagerDockerMixin._base_image_lock = threading.Lock()
 
     def prepare(self, plugin_manager: Optional["PluginManager"] = None) -> None:
         """
@@ -83,10 +81,6 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
             # Mark as prepared
             self._docker_prepared = True
 
-            # # Initialize commands after Docker build if needed
-            # if hasattr(self, "initialize_commands"):
-            #     self.initialize_commands()
-
             # Emit preparation completed event
             self.notify_service_event(
                 "preparation_completed",
@@ -122,9 +116,6 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
         Args:
             plugin_manager: Plugin manager for Docker operations
         """
-        # with self._base_image_lock:
-        #     if not self._base_image_built:
-
         # Determine runtime mode for base image
         runtime_mode = self._determine_runtime_mode_from_execution_environment(
             plugin_manager
@@ -163,29 +154,23 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
         if docker_builder.image_exists(base_image_tag) and (
             not force_build or DockerBuilder.was_built_this_session(base_image_tag)
         ):
-            # Verify with direct Docker API (same as Fix 7)
-            try:
-                docker_builder.client.images.get(base_image_tag)
+            if self._verify_cached_image(docker_builder, base_image_tag):
                 self.logger.info(
                     f"Base Docker image verified and exists, skipping build: {base_image_tag}"
                 )
                 self._base_image_built = True
                 return
-            except Exception:
-                self.logger.warning(
-                    f"Cache reported base image exists but Docker API verification failed for "
-                    f"'{base_image_tag}', proceeding with build"
-                )
-                docker_builder.image_cache.invalidate_cache()
 
         self.logger.info(
             f"Building base Docker image with runtime_mode='{runtime_mode}' (once per experiment)"
         )
         self.emit_docker_build_started(
             "panther/plugins/services/Dockerfile",
-            f"panther_base_service_{runtime_mode}"
-            if runtime_mode != "minimal"
-            else "panther_base_service",
+            (
+                f"panther_base_service_{runtime_mode}"
+                if runtime_mode != "minimal"
+                else "panther_base_service"
+            ),
         )
 
         # Select appropriate Dockerfile based on BuildKit availability
@@ -259,6 +244,12 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
                 "No get_build_mode method found, using default build_mode: 'default'"
             )
 
+        # Extract z3_source for Z3 build strategy (local submodule vs pip)
+        z3_source = "local"  # Default: build from submodule
+        if hasattr(self, "get_z3_source"):
+            z3_source = self.get_z3_source()
+            self.logger.debug(f"Using z3_source from get_z3_source: '{z3_source}'")
+
         # Extract runtime_mode for 3-stage architecture support
         # First try to get from execution environment plugin
         runtime_mode = self._determine_runtime_mode_from_execution_environment(
@@ -304,8 +295,21 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
 
         # Use clean version (without build_mode suffix) - Docker builder will handle mode differentiation
         base_version = protocol_version or "latest"
-        
+
         gc = getattr(self, "global_config", None)
+
+        # Resolve per-service docker overrides
+        from panther.config.core.models.global_config import resolve_docker_build_config
+
+        service_docker_override = getattr(self.service_config_to_test, "docker", None)
+        resolved_docker = None
+        if gc and hasattr(gc, "docker") and gc.docker:
+            resolved_docker = resolve_docker_build_config(
+                gc.docker, service_docker_override, logger=self.logger
+            )
+            self.logger.debug(
+                f"Resolved Docker build config for service {self.implementation_name}: {resolved_docker}"
+            )
 
         self.logger.debug(
             f"Preparing service {self.implementation_name} with version {base_version} (build_mode: '{build_mode}', runtime_mode: '{runtime_mode}' and global config: '{gc}' )"
@@ -326,12 +330,14 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
             build_mode=build_mode,
             runtime_mode=runtime_mode,
             target_platform=docker_builder.get_target_platform(),
+            z3_source=z3_source,
         )
 
-        # Check if we should force build
-        # TODO: We should consider moving this logic to DockerBuilder
+        # Check if we should force build (use resolved per-service config if available)
         force_build = False
-        if (
+        if resolved_docker is not None:
+            force_build = resolved_docker.get("force_build_docker_image", False)
+        elif (
             hasattr(self, "global_config")
             and self.global_config
             and (hasattr(self.global_config, "docker") and self.global_config.docker)
@@ -345,9 +351,7 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
         if docker_builder.image_exists(expected_image_tag) and (
             not force_build or DockerBuilder.was_built_this_session(expected_image_tag)
         ):
-            # Verify with direct Docker API to avoid stale cache false positives
-            try:
-                docker_builder.client.images.get(expected_image_tag)
+            if self._verify_cached_image(docker_builder, expected_image_tag):
                 self.logger.info(
                     f"Service Docker image verified and exists, skipping build: {expected_image_tag}"
                 )
@@ -356,15 +360,10 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
                 self.build_mode = docker_builder.validate_build_mode_for_architecture(
                     build_mode
                 )
+                self.z3_source = z3_source
+                self.docker_image_tag = expected_image_tag
                 self.emit_docker_build_completed(expected_image_tag, True)
                 return
-            except Exception as e:
-                self.logger.warning(
-                    f"Cache reported image exists but Docker API verification failed for "
-                    f"'{expected_image_tag}', proceeding with build: {e}",
-                    exc_info=True,
-                )
-                docker_builder.image_cache.invalidate_cache()
 
         self.logger.info(f"Building service Docker image: {expected_image_tag}")
 
@@ -379,22 +378,32 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
                     "commit": commit,
                     "build_mode": build_mode,
                     "runtime_mode": runtime_mode,
+                    "z3_source": z3_source,
                 }
             else:
                 version_dict = {
                     "version": base_version,
                     "build_mode": build_mode,
                     "runtime_mode": runtime_mode,
+                    "z3_source": z3_source,
                 }
+            # Pass resolved per-service docker overrides to build_image()
+            if resolved_docker is not None:
+                version_dict["resolved_docker"] = resolved_docker
+                self.logger.debug(
+                    f"Passing resolved per-service Docker config to build_image: {resolved_docker}"
+                )
             self.runtime_mode = runtime_mode
             self.build_mode = self.docker_builder.validate_build_mode_for_architecture(
                 build_mode
             )
+            self.z3_source = z3_source
+            self.docker_image_tag = expected_image_tag
             self.logger.debug(
                 f"Using version configuration for Docker build: {version_dict}"
             )
 
-            # Use docker_builder from plugin_manager if available                # Get plugin information
+            # Get plugin information
             plugin_info = plugin_manager.get_plugin(self.implementation_name)
             if (
                 not plugin_info
@@ -433,6 +442,8 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
             raise
 
     def load_version_config(self):
+        commit = ""
+        dependencies = []
         try:
             # Use direct access to service_config_to_test
             self.logger.debug(
@@ -452,21 +463,50 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
                         "Found version_config in service_config",
                         version_config,
                     )
-                    commit = version_config.get("commit", "master")
+                    commit = version_config.get("commit", "")
                     dependencies = version_config.get("dependencies", [])
                     self.logger.debug(f"Extracted commit: {commit}")
                     self.logger.debug(f"Extracted dependencies: {dependencies}")
+                else:
+                    self.logger.warning(
+                        "version_config is empty for %s, using defaults",
+                        self.implementation_name,
+                    )
             else:
                 self.logger.warning(
-                    f"No version_config found in service_config_to_test for {self.implementation_name}"
-                )
-                raise ValueError(
-                    f"Version configuration not found for {self.implementation_name}"
+                    "No version_config found in service_config_to_test for %s. "
+                    "Using defaults (commit='', dependencies=[]).",
+                    self.implementation_name,
                 )
         except Exception as e:
-            self.logger.warning(
-                f"Failed to load version config for {self.implementation_name}: {e}"
-            )
+            if (
+                hasattr(self, "service_config_to_test")
+                and hasattr(
+                    getattr(self, "service_config_to_test", None), "implementation"
+                )
+                and hasattr(
+                    getattr(
+                        getattr(self, "service_config_to_test", None),
+                        "implementation",
+                        None,
+                    ),
+                    "version_config",
+                )
+            ):
+                self.logger.error(
+                    "version_config exists for %s but failed to parse: %s. "
+                    "Using defaults, but build results may be invalid.",
+                    self.implementation_name,
+                    e,
+                    exc_info=True,
+                )
+            else:
+                self.logger.warning(
+                    "Failed to load version config for %s: %s. "
+                    "Using defaults (commit='', dependencies=[]).",
+                    self.implementation_name,
+                    e,
+                )
 
         return commit, dependencies
 
@@ -497,6 +537,49 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
         """
         self._docker_prepared = False
 
+    def _verify_cached_image(self, docker_builder, image_tag: str) -> bool:
+        """Verify a cached image actually exists in the Docker daemon.
+
+        Checks with the Docker API to avoid stale cache false positives.
+        Invalidates the cache entry if the image is not found or verification fails.
+
+        Args:
+            docker_builder: DockerBuilder instance for API access
+            image_tag: Docker image tag to verify
+
+        Returns:
+            True if the image exists and is verified, False otherwise.
+        """
+        try:
+            docker_builder.client.images.get(image_tag)
+            return True
+        except DockerNotFound:
+            self.logger.warning(
+                "Cache reported image '%s' exists but Docker daemon "
+                "reports not found. Invalidating cache entry and rebuilding.",
+                image_tag,
+            )
+            docker_builder.image_cache.remove_image(image_tag)
+            return False
+        except DockerException as e:
+            self.logger.warning(
+                "Docker API verification failed for image '%s': %s. "
+                "Invalidating cache entry and proceeding with build.",
+                image_tag,
+                e,
+            )
+            docker_builder.image_cache.remove_image(image_tag)
+            return False
+        except Exception as e:
+            self.logger.error(
+                "Unexpected error verifying image '%s': %s",
+                image_tag,
+                e,
+                exc_info=True,
+            )
+            docker_builder.image_cache.remove_image(image_tag)
+            return False
+
     def _determine_runtime_mode_from_execution_environment(
         self, plugin_manager: Optional["PluginManager"] = None
     ) -> str:
@@ -513,9 +596,11 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
             execution_env_name = None
 
             # Debug: List all available attributes
-            self.logger.debug(
-                f"Available attributes: {[attr for attr in dir(self) if not attr.startswith('_')]}"
-            )
+            if self.logger.isEnabledFor(logging.DEBUG):
+                self.logger.debug(
+                    "Available attributes: %s",
+                    [attr for attr in dir(self) if not attr.startswith("_")],
+                )
 
             # Pattern 2: service_config_to_test.test_config.execution_environment (legacy)
             self.logger.debug(
@@ -632,14 +717,17 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
                                         )
 
                             # Debug: Show all available attributes on experiment_context
-                            if not exec_env_from_context:
+                            if not exec_env_from_context and self.logger.isEnabledFor(
+                                logging.DEBUG
+                            ):
                                 available_attrs = [
                                     attr
                                     for attr in dir(experiment_context)
                                     if not attr.startswith("_")
                                 ]
                                 self.logger.debug(
-                                    f"Available experiment_context attributes: {available_attrs}"
+                                    "Available experiment_context attributes: %s",
+                                    available_attrs,
                                 )
 
                                 # Try to understand the actual structure
@@ -816,7 +904,9 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
         else:
             # No config available, default to buildkit for backwards compatibility
             use_buildx_config = True
-            self.logger.debug("No global_config.docker available, defaulting use_buildx=True")
+            self.logger.debug(
+                "No global_config.docker available, defaulting use_buildx=True"
+            )
 
         # Prefer Dockerfile.buildkit only if use_buildx is enabled in config
         if use_buildx_config and buildkit_dockerfile.exists():

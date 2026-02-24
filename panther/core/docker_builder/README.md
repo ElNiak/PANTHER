@@ -4,6 +4,110 @@
 
 The Docker Builder module provides a singleton-based Docker management system for the PANTHER framework, implementing intelligent caching, cross-platform builds, and resilient fallback mechanisms. This module serves as the central orchestrator for all Docker operations within PANTHER, ensuring consistent image building, container management, and network configuration across the framework.
 
+## Quick Start
+
+Build a Docker image through the `DockerBuilder` singleton:
+
+```python
+from pathlib import Path
+from panther.core.docker_builder.docker_builder import DockerBuilder
+
+# Obtain the singleton instance (creates Docker client on first call)
+builder = DockerBuilder()
+
+# Build an image -- returns the generated tag or None on failure
+tag = builder.build_image(
+    impl_name="picoquic",
+    version="rfc9000",
+    dockerfile_path=Path("panther/plugins/services/iut/picoquic/Dockerfile"),
+    context_path=Path("panther/plugins/services/iut/picoquic/"),
+    config={"build_mode": ""},            # "" = default, "debug", "release"
+    tag_version="latest",
+    experiment_id="exp-001",
+)
+
+# Check whether an image already exists locally
+if builder.image_exists("panther-picoquic:latest"):
+    print("Image is available")
+```
+
+## How-To Guides
+
+### Trigger a Docker image build
+
+`DockerBuilder.build_image` automatically selects between a regular Docker build
+and a BuildX cross-platform build based on the Dockerfile contents, target
+platform, and global configuration:
+
+```python
+from pathlib import Path
+from panther.core.docker_builder.docker_builder import DockerBuilder
+
+builder = DockerBuilder()
+
+# Regular build (same architecture)
+tag = builder.build_image(
+    impl_name="aioquic",
+    version="rfc9000",
+    dockerfile_path=Path("path/to/Dockerfile"),
+    context_path=Path("path/to/context/"),
+    config={"build_mode": "debug"},
+)
+
+# Force a cross-platform build via global config
+builder.global_config.docker.use_buildx = True
+builder.global_config.docker.target_platform = "linux/amd64"
+tag = builder.build_image(
+    impl_name="aioquic",
+    version="rfc9000",
+    dockerfile_path=Path("path/to/Dockerfile"),
+    context_path=Path("path/to/context/"),
+    config={"build_mode": ""},
+)
+```
+
+The method handles tag generation, build-mode validation, log capture, and error
+reporting internally.  On failure it raises `DockerBuildException` with full
+diagnostic context.
+
+### Use build caching
+
+The module implements a multi-level cache that reduces redundant builds.
+
+**Image existence cache** -- `DockerImageCache` keeps a TTL-based in-memory and
+on-disk record of known images, avoiding repeated Docker API round-trips:
+
+```python
+from pathlib import Path
+from panther.core.docker_builder.caching.docker_image_cache import DockerImageCache
+
+cache = DockerImageCache(
+    cache_ttl=300,                          # 5-minute TTL
+    cache_file=Path("/tmp/panther_cache.json"),
+    retry_count=3,
+)
+# Returns True, False, or None (stale cache)
+exists = cache.image_exists_in_cache("panther-picoquic:latest")
+stats = cache.get_cache_stats()
+print(stats["total_images"], stats["cache_fresh"])
+```
+
+**Force-rebuild** -- override caching when you know the Dockerfile changed:
+
+```python
+# In experiment YAML, set:
+#   docker:
+#     force_build_docker_image: true
+# Or programmatically:
+builder.global_config.docker.force_build_docker_image = True
+tag = builder.build_image(...)  # Bypasses cache, always rebuilds
+```
+
+**Session-level deduplication** -- `DockerBuilder` tracks tags built during the
+current process lifetime in `_session_built_tags`, preventing the same image from
+being rebuilt twice within a single experiment run, even when multiple services
+share the same base image.
+
 ## Architecture
 
 ### Core Design Principles
@@ -24,11 +128,18 @@ The Docker Builder module provides a singleton-based Docker management system fo
 
 ### Module Structure
 
-```
+```text
 docker_builder/
 ├── README.md                   # Module documentation (this file)
 ├── __init__.py                 # Module exports
 ├── docker_builder.py          # Core DockerBuilder singleton class
+├── base_images/                # Base image selection subsystem (Strategy pattern)
+│   ├── __init__.py                     # Subsystem exports
+│   ├── interfaces.py                   # Abstract interfaces (BaseImageStrategy, BaseImageBuilder, BaseImageCache, PluginRequirementsExtractor)
+│   ├── strategies.py                   # Concrete strategies (TieredBaseImageStrategy, PlatformAwareStrategy, PluginAwareStrategy)
+│   ├── manager.py                      # BaseImageManager facade coordinating strategies, cache, and building
+│   ├── plugin_extractor.py             # PantherPluginRequirementsExtractor (integrates with plugin decorators)
+│   └── docker_builder_integration.py   # BaseImageManagerMixin for DockerBuilder composition
 ├── caching/                    # Build caching subsystem
 │   ├── buildkit_cache_mixin.py     # BuildKit cache management
 │   ├── docker_build_cache_mixin.py # Build cache coordination
@@ -39,11 +150,15 @@ docker_builder/
 │   ├── environment_manager_docker_mixing.py  # Environment management
 │   └── service_manager_docker_mixin.py       # Service lifecycle
 └── utils/                     # Utility functions
+    ├── context_helper.py           # Docker context/host helpers for BuildX and multi-platform builds
+    ├── docker_network_mixin.py     # Docker network utilities
     ├── docker_output_parser.py     # Build log parsing
     └── docker_plateform_mixin.py   # Platform detection
 ```
 
 ### Key Components
+
+<!-- src: panther/core/docker_builder/docker_builder.py -->
 
 **DockerBuilder** (docker_builder.py): Primary interface providing:
 - Image building with automatic build method selection
@@ -52,25 +167,72 @@ docker_builder/
 - Build cache coordination and optimization
 - Cross-platform build support via BuildX
 
+<!-- src: panther/core/docker_builder/caching/docker_image_cache.py, panther/core/docker_builder/caching/docker_build_cache_mixin.py, panther/core/docker_builder/caching/buildkit_cache_mixin.py, panther/core/docker_builder/caching/docker_registry.py -->
+
 **Caching Subsystem** (caching/): Performance optimization through:
 - Build cache validation and reuse decisions
 - Image existence tracking with TTL-based expiration
 - Registry operations caching for faster lookups
 - BuildKit cache mount management for layer optimization
 
+<!-- src: panther/core/docker_builder/plugin_mixin/docker_operations_mixin.py, panther/core/docker_builder/plugin_mixin/environment_manager_docker_mixing.py, panther/core/docker_builder/plugin_mixin/service_manager_docker_mixin.py -->
+
 **Plugin Mixins** (plugin_mixin/): Specialized operation mixins for:
 - Environment management integration
 - Service manager coordination
 - Docker operations abstraction layer
 
+<!-- src: panther/core/docker_builder/utils/docker_output_parser.py, panther/core/docker_builder/utils/docker_plateform_mixin.py, panther/core/docker_builder/utils/context_helper.py, panther/core/docker_builder/utils/docker_network_mixin.py -->
+
 **Utilities** (utils/): Supporting functionality including:
 - Docker build output parsing and log management
 - Platform detection and architecture validation
+- Docker context and host reconciliation for BuildX (context_helper.py)
+- Docker network utilities
 - Build log organization and experiment tracking
+
+### Base Images Subsystem
+
+<!-- src: base_images/interfaces.py, base_images/strategies.py, base_images/manager.py -->
+
+The `base_images/` subsystem uses the **Strategy pattern** combined with **Interface Segregation** to select, build, and cache base Docker images for PANTHER services. All components follow SOLID principles and composition over inheritance.
+
+#### Interfaces (`interfaces.py`)
+
+Four focused abstract interfaces prevent clients from depending on methods they do not use:
+
+| Interface | Responsibility |
+|-----------|---------------|
+| `BaseImageStrategy` | Selects the optimal base image given a requirements dict. Methods: `select_base_image()`, `get_supported_images()`, `validate_requirements()`. |
+| `BaseImageBuilder` | Builds base images from Dockerfiles with platform support. Methods: `build_base_image()`, `ensure_base_images_exist()`. |
+| `BaseImageCache` | Caches and retrieves base images. Methods: `get_cached_image()`, `cache_image()`, `invalidate_cache()`. |
+| `PluginRequirementsExtractor` | Extracts Docker requirements from plugin configuration. Methods: `extract_docker_requirements()`, `get_plugin_capabilities()`, `analyze_dependencies()`. |
+
+A shared `BaseImageMetadata` dataclass carries image metadata (name, size, packages, capabilities, platform support, security features).
+
+#### Strategies (`strategies.py`)
+
+Three concrete `BaseImageStrategy` implementations, composable via delegation:
+
+| Strategy | Selection Logic | Design Notes |
+|----------|----------------|--------------|
+| `TieredBaseImageStrategy` | 4-tier hierarchy: `panther-runtime-base` (150 MB) -> `panther-dev-base` (300 MB) -> `panther-build-base` (800 MB) -> `panther-builder` (1200 MB). Walks tiers from minimal to largest, returning the first that satisfies capability, size, and platform constraints. Falls back to `panther-builder`. | Core strategy, usable standalone. |
+| `PlatformAwareStrategy` | Platform-specific image tag selection (e.g., `:amd64`, `:arm64`, `:armv7`). Maps platform + tier to a tagged image. | Wraps a fallback `BaseImageStrategy` via composition (Dependency Inversion). |
+| `PluginAwareStrategy` | Augments requirements with plugin-specific capabilities (e.g., `ivy` needs `python` + `debugging` + `compilation`; `picoquic` needs `networking` + `compilation` + `cmake`). Delegates augmented requirements to a base strategy. | Wraps a `BaseImageStrategy` via composition. Caches plugin capability lookups. |
+
+Typical composition chain: `PluginAwareStrategy` wrapping `PlatformAwareStrategy` wrapping `TieredBaseImageStrategy`.
+
+#### Manager (`manager.py`) and Integration (`docker_builder_integration.py`)
+
+- **`BaseImageManager`**: Facade that coordinates strategy-based image selection, caching, plugin requirements extraction, and image building. Accepts all four interfaces via constructor injection (Dependency Inversion).
+- **`BaseImageManagerMixin`**: Mixin that adds base image management to `DockerBuilder` via composition. Initializes the strategy chain and provides base image operations without modifying the core `DockerBuilder` class.
+- **`PantherPluginRequirementsExtractor`** (`plugin_extractor.py`): Concrete `PluginRequirementsExtractor` that integrates with PANTHER's `@register_plugin` decorator system to extract Docker requirements from plugin metadata.
 
 ## Build Strategy Logic
 
 ### Regular Docker vs BuildX Selection
+
+<!-- src: panther/core/docker_builder/docker_builder.py, panther/core/docker_builder/utils/context_helper.py -->
 
 The module implements intelligent build method selection based on multiple factors:
 
@@ -95,6 +257,8 @@ The module implements intelligent build method selection based on multiple facto
    - Handles builder instance creation and management
 
 ### Caching Strategy
+
+<!-- src: panther/core/docker_builder/caching/docker_image_cache.py, panther/core/docker_builder/caching/docker_build_cache_mixin.py, panther/core/docker_builder/caching/buildkit_cache_mixin.py -->
 
 **Multi-Level Cache Architecture**:
 - **L1**: In-memory image existence cache with TTL expiration
@@ -132,6 +296,8 @@ Build operations integrate with experiment tracking:
 - Performance metrics collection per experiment
 
 ### Build Mode Support
+
+<!-- src: panther/core/docker_builder/docker_builder.py, panther/core/docker_builder/utils/docker_plateform_mixin.py -->
 
 **Architecture-Aware Build Modes**:
 - Standard modes: '' (default), 'debug', 'release'

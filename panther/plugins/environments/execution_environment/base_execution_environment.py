@@ -105,6 +105,84 @@ class BaseExecutionEnvironment(
             "Each plugin must implement its own initialization logic"
         )
 
+    # --- Plugin config helpers ---
+
+    _config_class: type = None  # Subclasses set this to their config class
+    _cached_plugin_config: Any = None
+
+    def _get_plugin_config(self):
+        """
+        Get the plugin-specific config from env_config_to_test, with caching.
+
+        Uses self._config_class (set by subclasses) to retrieve the
+        correct typed config via env_config_to_test.get_plugin_config().
+        Falls back to a default instance of _config_class if retrieval fails.
+
+        Returns:
+            Plugin-specific configuration object, or None if _config_class
+            is not set.
+        """
+        if self._cached_plugin_config is not None:
+            return self._cached_plugin_config
+
+        config_class = self._config_class
+        if config_class is None:
+            return None
+
+        try:
+            self._cached_plugin_config = self.env_config_to_test.get_plugin_config(
+                config_class
+            )
+        except Exception as e:
+            self.logger.debug(
+                "Could not get plugin config for %s, using defaults: %s",
+                config_class.__name__,
+                e,
+            )
+            self._cached_plugin_config = config_class()
+
+        return self._cached_plugin_config
+
+    def _get_config_value(self, field_name: str, default: Any = None) -> Any:
+        """
+        Get a configuration value with dual-lookup: plugin_config dict first,
+        then typed plugin config, then env_config_to_test fallback.
+
+        This implements the common "dual approach" pattern used across
+        execution environment plugins to retrieve config values.
+
+        Args:
+            field_name: Name of the config field to retrieve
+            default: Default value if field not found in any config source
+
+        Returns:
+            Config value from plugin_config dict, typed config, env config,
+            or the provided default.
+        """
+        # First try plugin_config dict on env_config_to_test
+        if (
+            hasattr(self.env_config_to_test, "plugin_config")
+            and self.env_config_to_test.plugin_config
+        ):
+            value = self.env_config_to_test.plugin_config.get(field_name)
+            if value is not None:
+                return value
+
+        # Second try typed plugin config
+        plugin_config = self._get_plugin_config()
+        if plugin_config and hasattr(plugin_config, field_name):
+            value = getattr(plugin_config, field_name)
+            if value is not None:
+                return value
+
+        # Fallback to env_config_to_test attributes
+        if hasattr(self.env_config_to_test, field_name):
+            value = getattr(self.env_config_to_test, field_name)
+            if value is not None:
+                return value
+
+        return default
+
     def _do_deploy_services(self):
         """
         Implementation of service deployment.

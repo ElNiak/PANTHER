@@ -1,8 +1,44 @@
-"""
-Universal validators for common type conversion patterns.
+"""Pydantic validator factory functions for PANTHER configuration models.
 
-This module provides reusable validators that handle common type conversion
-scenarios with proper error logging and user-friendly error messages.
+This module provides *factory functions* that return validator callables compatible
+with Pydantic's ``@field_validator`` (v2) and ``@validator`` (v1) decorators. Use
+these when you need to attach reusable validation logic to Pydantic model fields.
+
+Contrast with ``panther.config.core.components.universal_validators``, which provides
+standalone validation functions for imperative use outside of Pydantic models
+(e.g., ``validate_integer_field(value, "port")``).
+
+Factory functions (``create_*``)
+    Return a ``Callable[[cls, Any], T]`` suitable for assignment to a Pydantic
+    field validator. Each factory accepts configuration parameters (enum class,
+    time units, valid values, etc.) and returns a closure that performs the
+    actual validation.
+
+Pre-configured validators
+    Convenience functions (``protocol_role_validator``, ``implementation_type_validator``,
+    ``logging_level_validator``, ``shadow_time_validator``) that wrap the factory
+    functions with PANTHER-specific enum classes for immediate use.
+
+Typical usage::
+
+    from pydantic import BaseModel, field_validator
+    from panther.config.core.validators.universal_validators import (
+        create_enum_validator,
+        create_time_string_validator,
+        protocol_role_validator,
+    )
+    from panther.config.core.models.service import ProtocolRole
+
+    class ServiceProtocolConfig(BaseModel):
+        role: ProtocolRole
+        stop_time: str = "30s"
+
+        _validate_role = field_validator("role", mode="before")(
+            protocol_role_validator
+        )
+        _validate_stop_time = field_validator("stop_time", mode="before")(
+            create_time_string_validator(default_unit="s")
+        )
 """
 
 import logging

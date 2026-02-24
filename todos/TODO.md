@@ -20,12 +20,12 @@ PANTHER now features a modern, user-friendly CLI built with Click that provides:
 
 #### UV package manager (*TODO*)
 
-"[An extremely fast Python package and project manager, written in Rust.](https://github.com/astral-sh/uv)" 
+"[An extremely fast Python package and project manager, written in Rust.](https://github.com/astral-sh/uv)"
 - Faster
 - Better version management
-- Remote usage possible 
+- Remote usage possible
 
-### Interactive Learning 
+### Interactive Learning
 
 Explore PANTHER through interactive tutorials:
 

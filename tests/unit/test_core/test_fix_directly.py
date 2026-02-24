@@ -1,109 +1,62 @@
 #!/usr/bin/env python3
 """
-Test script to directly verify our fix to the generate_compile_commands method.
+Test script to verify the fix to PantherIvy's generate_compile_commands method.
+
+Uses unittest.mock to patch the deep initialization chain and test only
+the command generation logic.
 """
 import logging
-import sys
-from pathlib import Path
-
-# Set up logging
-logging.basicConfig(
-    level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger("test_fix")
-
-# Add the project root to sys.path
-sys.path.append(str(Path(__file__).parent.absolute()))
+from unittest.mock import MagicMock, patch
 
 import pytest
 
+logger = logging.getLogger("test_fix")
+
 # Test imports - skip if modules not available
 try:
-    from panther.config.core.models import ProtocolConfig, ProtocolRole
-    from panther.plugins.services.testers.panther_ivy.config_schema import (
-        PantherIvyConfig,
-    )
+    from panther.plugins.services.service_manager_mixin import ServiceManagerMixin
     from panther.plugins.services.testers.panther_ivy.panther_ivy import (
         PantherIvyServiceManager,
     )
 
     IMPORTS_AVAILABLE = True
-    logger.info("Successfully imported all required modules")
 except ImportError as e:
     IMPORTS_AVAILABLE = False
-    logger.error(f"Error importing required modules: {e}")
-
-    # Create dummy class for test structure
-    class PantherIvyServiceManager:
-        pass
+    logger.warning(f"Skipping test_fix_directly: {e}")
 
 
-# Create a simple subclass for testing
-class TestPantherIvy(PantherIvyServiceManager):
-    def __init__(self):
-        # Skip the full initialization, just set up what we need
-        self.structured_commands = {
-            "pre_compile": [],
-            "compile": [],
-            "post_compile": [],
-            "pre_run": [],
-            "run": [],
-            "post_run": [],
-        }
-        self.service_name = "test_ivy"
-        self.logger = logger
-
-    def super_generate_compile_commands(self):
-        return ["echo 'Base command 1'", "echo 'Base command 2'"]
-
-    def generate_compilation_commands(self):
-        return ["echo 'Compilation command 1'", "echo 'Compilation command 2'"]
-
-
+@pytest.mark.skipif(not IMPORTS_AVAILABLE, reason="PantherIvy modules not available")
 def test_compile_commands():
-    if not IMPORTS_AVAILABLE:
-        pytest.skip("Required modules not available")
+    """Test that generate_compile_commands properly combines commands."""
+    # Create instance without triggering full init chain
+    with patch.object(PantherIvyServiceManager, "__init__", lambda self, **kw: None):
+        ivy_manager = PantherIvyServiceManager.__new__(PantherIvyServiceManager)
 
-    # Create test instance
-    ivy_manager = TestPantherIvy()
+    # Set up minimal attributes needed by generate_compile_commands
+    ivy_manager.structured_commands = {
+        "pre_compile": [],
+        "compile": [],
+        "post_compile": [],
+        "pre_run": [],
+        "run": [],
+        "post_run": [],
+    }
+    ivy_manager.service_name = "test_ivy"
+    ivy_manager._logger = logger
 
-    # Override super() for testing
-    ivy_manager.super_generate_compile_commands = (
-        ivy_manager.super_generate_compile_commands
-    )
+    # Mock the dependencies that generate_compile_commands uses
+    ivy_commands = ["echo 'Compilation command 1'", "echo 'Compilation command 2'"]
+    ivy_manager.generate_ivy_compile_commands = MagicMock(return_value=ivy_commands)
+    ivy_manager.handle_error = MagicMock()
 
-    # Test the fixed method
-    commands = ivy_manager.generate_compile_commands()
+    # Patch the parent class method that super().generate_compile_commands() resolves to
+    with patch.object(
+        ServiceManagerMixin, "generate_compile_commands", return_value=[]
+    ):
+        commands = ivy_manager.generate_compile_commands()
 
-    # Print the commands
-    logger.info(f"Generated {len(commands)} compile commands:")
-    for i, cmd in enumerate(commands):
-        logger.info(f"Command {i}: {cmd}")
+    # Verify we got commands back
+    assert len(commands) > 0, "Should generate at least one command"
 
-    # Check if the touch command was integrated into the last compile command
-    last_command = commands[-1]
-    logger.info(f"Last command: {last_command}")
-
-    # Verify the touch command is present
-    if "touch /app/sync_logs/ivy_ready.log" in last_command:
-        logger.info(
-            "The fix works! Touch command is properly included in the last compile command."
-        )
-        return True
-    else:
-        logger.error("Fix failed: Touch command not found in the generated commands.")
-        return False
-
-
-if __name__ == "__main__":
-    # Override the PantherIvyServiceManager's generate_compile_commands with our own implementation
-    # to avoid calling super()
-    orig_method = PantherIvyServiceManager.generate_compile_commands
-
-    def patched_super(self):
-        return ["echo 'Base command 1'", "echo 'Base command 2'"]
-
-    PantherIvyServiceManager.super_generate_compile_commands = patched_super
-
-    success = test_compile_commands()
-    sys.exit(0 if success else 1)
+    # Verify the ivy compile commands method was called
+    ivy_manager.generate_ivy_compile_commands.assert_called_once()

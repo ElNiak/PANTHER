@@ -256,14 +256,17 @@ def register_plugin(
         # Add helper methods
         @classmethod
         def get_plugin_manifest(cls) -> PluginManifest:
+            """Return the PluginManifest attached during registration."""
             return cls._PLUGIN_MANIFEST
 
         @classmethod
         def get_plugin_id(cls) -> str:
+            """Return the unique plugin identifier in ``"type:name"`` format."""
             return f"{cls._PLUGIN_MANIFEST.type.value}:{cls._PLUGIN_MANIFEST.name}"
 
         @classmethod
         def get_runtime_mode(cls) -> Optional[str]:
+            """Return the runtime mode declared at registration, or ``None``."""
             return cls._PLUGIN_MANIFEST.runtime_mode
 
         cls.get_plugin_manifest = get_plugin_manifest
@@ -283,6 +286,15 @@ def register_plugin(
         return cls
 
     def parse_dependencies():
+        """Parse the *dependencies* list into ``PluginDependency`` objects.
+
+        Accepts both string specifications (e.g. ``"name>=1.0.0"``) and
+        dictionary specifications passed through to the ``PluginDependency``
+        constructor.
+
+        Returns:
+            List of parsed ``PluginDependency`` instances.
+        """
         parsed_deps = []
         if dependencies:
             for dep in dependencies:
@@ -732,14 +744,17 @@ def register_protocol(
         # Add helper methods
         @classmethod
         def get_protocol_metadata(cls) -> Dict[str, Any]:
+            """Return the full protocol metadata dictionary attached during registration."""
             return cls._PROTOCOL_METADATA
 
         @classmethod
         def get_supported_versions(cls) -> List[str]:
+            """Return the list of protocol versions declared at registration."""
             return cls._PROTOCOL_METADATA.get("versions", [])
 
         @classmethod
         def get_default_version(cls) -> Optional[str]:
+            """Return the default protocol version, or ``None`` if unset."""
             return cls._PROTOCOL_METADATA.get("default_version")
 
         cls.get_protocol_metadata = get_protocol_metadata

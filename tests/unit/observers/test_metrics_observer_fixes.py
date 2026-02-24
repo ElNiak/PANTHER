@@ -17,10 +17,10 @@ import pytest
 
 from panther.core.metrics.enums import MetricType, Phase
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_observer(metrics_collector=None, output_dir=None):
     """Create a MetricsObserver with minimal dependencies.
@@ -65,6 +65,7 @@ def _make_test_case_metrics(test_name="test_1"):
 # ---------------------------------------------------------------------------
 # TestMetricsObserverLazyInit
 # ---------------------------------------------------------------------------
+
 
 class TestMetricsObserverLazyInit:
     """Verify _ensure_metrics_collector creates collector lazily."""
@@ -124,6 +125,7 @@ class TestMetricsObserverLazyInit:
 # ---------------------------------------------------------------------------
 # TestMetricsObserverFailureRecording
 # ---------------------------------------------------------------------------
+
 
 class TestMetricsObserverFailureRecording:
     """Verify on_test_failed increments error count and records error."""
@@ -190,6 +192,7 @@ class TestMetricsObserverFailureRecording:
 # ---------------------------------------------------------------------------
 # TestMetricsObserverCustomMetrics
 # ---------------------------------------------------------------------------
+
 
 class TestMetricsObserverCustomMetrics:
     """Verify on_metric_collected handles custom metrics."""

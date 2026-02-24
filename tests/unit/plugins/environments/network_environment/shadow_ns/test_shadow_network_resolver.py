@@ -125,7 +125,7 @@ class TestShadowNetworkResolver:
 
     def test_get_service_ip(self):
         """Test getting service IP address."""
-        context = NetworkResolutionContext("shadow_ns")
+        context = NetworkResolutionContext(environment_type="shadow_ns")
         self.resolver.service_roles["test_service"] = "client"
 
         ip = self.resolver.get_service_ip("test_service", context)
@@ -157,7 +157,7 @@ class TestShadowNetworkResolver:
 
     def test_get_service_info_creates_new_info(self):
         """Test getting service info creates new service info if not exists."""
-        context = NetworkResolutionContext("shadow_ns")
+        context = NetworkResolutionContext(environment_type="shadow_ns")
         self.resolver.service_roles["test_service"] = "server"
 
         service_info = self.resolver.get_service_info("test_service", context)
@@ -171,7 +171,7 @@ class TestShadowNetworkResolver:
 
     def test_get_service_info_returns_existing(self):
         """Test getting service info returns existing service info."""
-        context = NetworkResolutionContext("shadow_ns")
+        context = NetworkResolutionContext(environment_type="shadow_ns")
         existing_info = NetworkServiceInfo(
             service_name="existing_service",
             hostname="existing_host",
@@ -188,7 +188,7 @@ class TestShadowNetworkResolver:
 
     def test_populate_service_network_info(self):
         """Test populating service network information."""
-        context = NetworkResolutionContext("shadow_ns")
+        context = NetworkResolutionContext(environment_type="shadow_ns")
 
         # Add services with minimal info
         service1 = NetworkServiceInfo(service_name="server_service")
@@ -221,18 +221,23 @@ class TestShadowNetworkResolver:
 
     def test_populate_service_network_info_exception_handling(self):
         """Test network discovery exception handling during population."""
-        context = NetworkResolutionContext("shadow_ns")
+        context = NetworkResolutionContext(environment_type="shadow_ns")
 
-        # Mock the available_services to cause an exception
-        with patch.object(
-            context, "available_services", side_effect=Exception("Test error")
-        ):
-            with pytest.raises(NetworkDiscoveryException) as exc_info:
-                self.resolver.populate_service_network_info(context)
+        # Make available_services a property that raises an exception when iterated
+        # Use a mock context that raises on .items() call
+        mock_context = Mock(spec=NetworkResolutionContext)
+        mock_context.available_services = Mock()
+        mock_context.available_services.items = Mock(
+            side_effect=Exception("Test error")
+        )
 
-            assert "Failed to populate service network info" in str(exc_info.value)
-            assert exc_info.value.discovery_type == "shadow_service_discovery"
-            assert exc_info.value.environment_type == "shadow_ns"
+        with pytest.raises(NetworkDiscoveryException) as exc_info:
+            self.resolver.populate_service_network_info(mock_context)
+
+        assert "Failed to populate service network info" in str(exc_info.value)
+        resolution_ctx = exc_info.value.context["resolution_context"]
+        assert resolution_ctx["discovery_method"] == "shadow_service_discovery"
+        assert resolution_ctx["network_environment"] == "shadow_ns"
 
     def test_create_resolution_context(self):
         """Test creating resolution context."""
@@ -277,15 +282,8 @@ class TestShadowNetworkResolver:
         service_info = context.get_service_info("test_service")
         assert service_info.ip_address == "11.0.0.1"
 
-    @patch(
-        "panther.plugins.environments.network_environment.shadow_ns.shadow_network_resolver.PlaceholderParser"
-    )
-    def test_resolve_network_placeholders_success(self, mock_parser_class):
+    def test_resolve_network_placeholders_success(self):
         """Test successful network placeholder resolution."""
-        # Mock parser
-        mock_parser = Mock()
-        mock_parser_class.return_value = mock_parser
-
         # Mock placeholder
         mock_placeholder = Mock()
         mock_placeholder.service = "test_service"
@@ -293,13 +291,13 @@ class TestShadowNetworkResolver:
         mock_placeholder.format_type = NetworkFormat.DOTTED
         mock_placeholder.raw_placeholder = "@{test_service:ip:dotted}"
 
-        mock_parser.parse_placeholders.return_value = [mock_placeholder]
-
-        # Create resolver with mocked parser
+        # Create resolver and mock its parser directly
         resolver = ShadowNetworkResolver()
+        resolver.parser = Mock()
+        resolver.parser.parse_placeholders.return_value = [mock_placeholder]
         resolver.service_roles["test_service"] = "server"
 
-        context = NetworkResolutionContext("shadow_ns")
+        context = NetworkResolutionContext(environment_type="shadow_ns")
 
         results = resolver.resolve_network_placeholders(
             "command @{test_service:ip:dotted}", context
@@ -311,24 +309,21 @@ class TestShadowNetworkResolver:
         assert results[0].resolution_method == "shadow_static"
         assert results[0].environment_type == "shadow_ns"
 
-    @patch(
-        "panther.plugins.environments.network_environment.shadow_ns.shadow_network_resolver.PlaceholderParser"
-    )
-    def test_resolve_network_placeholders_exception_handling(self, mock_parser_class):
+    def test_resolve_network_placeholders_exception_handling(self):
         """Test exception handling during placeholder resolution."""
-        # Mock parser to raise exception
-        mock_parser = Mock()
-        mock_parser_class.return_value = mock_parser
-        mock_parser.parse_placeholders.side_effect = Exception("Parser error")
-
+        # Create resolver and mock its parser to raise exception
         resolver = ShadowNetworkResolver()
-        context = NetworkResolutionContext("shadow_ns")
+        resolver.parser = Mock()
+        resolver.parser.parse_placeholders.side_effect = Exception("Parser error")
+
+        context = NetworkResolutionContext(environment_type="shadow_ns")
 
         with pytest.raises(EnvironmentResolutionException) as exc_info:
             resolver.resolve_network_placeholders("command @{test:ip:dotted}", context)
 
         assert "Failed to resolve placeholders in template" in str(exc_info.value)
-        assert exc_info.value.environment_type == "shadow_ns"
+        resolution_ctx = exc_info.value.context["resolution_context"]
+        assert resolution_ctx["environment_type"] == "shadow_ns"
 
     def test_generate_resolved_value_ip_dotted(self):
         """Test generating resolved value for IP in dotted format."""
@@ -406,12 +401,16 @@ class TestShadowNetworkResolver:
 
     def test_generate_resolved_value_unsupported_attribute(self):
         """Test exception for unsupported attribute."""
-        placeholder = PlaceholderInfo(
-            service="test_service",
-            attribute="unsupported_attr",  # Invalid attribute
-            format_type=NetworkFormat.STRING,
-            raw_placeholder="@{test_service:unsupported:string}",
-        )
+        # Use a Mock placeholder with an unsupported attribute value
+        # since Pydantic v2 validates enum values and rejects invalid strings
+        mock_attr = Mock()
+        mock_attr.value = "unsupported_attr"
+
+        placeholder = Mock()
+        placeholder.service = "test_service"
+        placeholder.attribute = mock_attr  # Not a valid NetworkAttribute
+        placeholder.format_type = NetworkFormat.STRING
+        placeholder.raw_placeholder = "@{test_service:unsupported:string}"
 
         service_info = NetworkServiceInfo(service_name="test_service")
 
@@ -419,4 +418,5 @@ class TestShadowNetworkResolver:
             self.resolver._generate_resolved_value(placeholder, service_info)
 
         assert "Unsupported attribute for Shadow NS" in str(exc_info.value)
-        assert exc_info.value.service_name == "test_service"
+        resolution_ctx = exc_info.value.context["resolution_context"]
+        assert resolution_ctx["service_name"] == "test_service"

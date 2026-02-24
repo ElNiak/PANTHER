@@ -1,606 +1,866 @@
 #!/usr/bin/env python3.10
-"""Tests for Rust QUIC base service manager using Python 3.10 syntax."""
+"""Tests for Rust QUIC base service manager against real PANTHER implementations.
+
+Tests the real RustQUICServiceManager and BaseQUICServiceManager classes.
+IO boundaries (filesystem for templates directory) are mocked; all PANTHER
+imports are real.
+"""
 
 from __future__ import annotations
 
-from typing import List, Dict, Any
-from unittest.mock import Mock, patch, MagicMock
+from typing import Any, Dict, List
+from unittest.mock import patch
 
 import pytest
 
-# Test imports with fallback to mocks
-try:
-    from panther.plugins.services.base.rust_quic_base import RustQUICServiceManager
-    from panther.plugins.services.base.quic_service_base import BaseQUICServiceManager
-    RUST_QUIC_SYSTEM_AVAILABLE = True
-except ImportError:
-    RUST_QUIC_SYSTEM_AVAILABLE = False
-    
-    # Create mock implementations for testing
-    class BaseQUICServiceManager:
-        """Mock base QUIC service manager."""
-        
-        def __init__(self):
-            self.logger = Mock()
-            self.event_emitter = Mock()
-            
-        def generate_run_command(self, **kwargs) -> str:
-            """Generate run command using template method pattern."""
-            params = self._extract_common_params(**kwargs)
-            role = params.get('role', 'client')
-            
-            if role == 'server':
-                args = self._build_server_args(params)
-                specific_args = self._get_server_specific_args(**kwargs)
-            else:
-                args = self._build_client_args(params)
-                specific_args = self._get_client_specific_args(**kwargs)
-            
-            binary = self._get_binary_name()
-            all_args = args + specific_args
-            
-            return f"{binary} {' '.join(all_args)}"
-        
-        def _extract_common_params(self, **kwargs) -> Dict[str, Any]:
-            """Extract common QUIC parameters."""
-            return {
-                'role': kwargs.get('role', 'client'),
-                'host': kwargs.get('host', 'localhost'),
-                'port': kwargs.get('port', 4443),
-                'timeout': kwargs.get('timeout', 60),
-                'protocol_version': kwargs.get('protocol_version', 'h3'),
-                'alpn': kwargs.get('alpn', 'h3'),
-                'certificate_file': kwargs.get('certificate_file'),
-                'private_key_file': kwargs.get('private_key_file'),
-                'ca_file': kwargs.get('ca_file'),
-                'verify_mode': kwargs.get('verify_mode', 'none'),
-                'congestion_control': kwargs.get('congestion_control'),
-                'max_streams': kwargs.get('max_streams'),
-                'max_data': kwargs.get('max_data'),
-                'idle_timeout': kwargs.get('idle_timeout'),
-                'enable_0rtt': kwargs.get('enable_0rtt', False),
-                'enable_early_data': kwargs.get('enable_early_data', False),
-                'session_ticket': kwargs.get('session_ticket', True),
-                'key_update': kwargs.get('key_update', False),
-                'migration': kwargs.get('migration', False),
-                'multipath': kwargs.get('multipath', False),
-                'qlog': kwargs.get('qlog', False),
-                'qlog_dir': kwargs.get('qlog_dir', '/app/qlogs'),
-                'log_level': kwargs.get('log_level', 'info')
-            }
-        
-        def _build_server_args(self, params: Dict[str, Any]) -> List[str]:
-            """Build common server arguments."""
-            args = []
-            
-            if params.get('port'):
-                args.extend(['-p', str(params['port'])])
-            
-            if params.get('certificate_file'):
-                args.extend(['-c', params['certificate_file']])
-            
-            if params.get('private_key_file'):
-                args.extend(['-k', params['private_key_file']])
-            
-            return args
-        
-        def _build_client_args(self, params: Dict[str, Any]) -> List[str]:
-            """Build common client arguments."""
-            args = []
-            
-            if params.get('ca_file'):
-                args.extend(['--ca-file', params['ca_file']])
-            
-            if params.get('verify_mode') == 'none':
-                args.append('--insecure')
-            
-            return args
-        
-        # Abstract methods that subclasses must implement
-        def _get_implementation_name(self) -> str:
-            raise NotImplementedError
-        
-        def _get_binary_name(self) -> str:
-            raise NotImplementedError
-        
-        def _get_server_specific_args(self, **kwargs) -> List[str]:
-            raise NotImplementedError
-        
-        def _get_client_specific_args(self, **kwargs) -> List[str]:
-            raise NotImplementedError
-        
-        def generate_deployment_commands(self) -> str:
-            raise NotImplementedError
-        
-        def _do_prepare(self, plugin_manager=None):
-            raise NotImplementedError
-    
-    class RustQUICServiceManager(BaseQUICServiceManager):
-        """Mock Rust QUIC service manager."""
-        
-        def __init__(self):
-            super().__init__()
-            self.cargo_features: List[str] = []
-            self.rust_env_vars: Dict[str, str] = {}
-            self.rustc_flags: List[str] = []
-            
-        def _build_common_rust_args(self, features: List[str] | None = None, 
-                                   env_vars: Dict[str, str] | None = None,
-                                   rustc_flags: List[str] | None = None) -> List[str]:
-            """Build common Rust-specific arguments."""
-            args = []
-            
-            if features:
-                features_str = ",".join(features)
-                args.extend(['--features', features_str])
-            
-            # Environment variables would be set differently, not as args
-            # This is just for testing the method exists and works
-            
-            if rustc_flags:
-                for flag in rustc_flags:
-                    args.extend(['--rustc-flag', flag])
-            
-            return args
-        
-        def _setup_rust_environment(self, **kwargs) -> Dict[str, str]:
-            """Setup Rust-specific environment variables."""
-            env = {}
-            
-            # Rust-specific environment variables
-            if kwargs.get('debug', False):
-                env['RUST_LOG'] = 'debug'
-            else:
-                env['RUST_LOG'] = kwargs.get('log_level', 'info')
-            
-            env['RUST_BACKTRACE'] = '1' if kwargs.get('backtrace', True) else '0'
-            
-            # Cargo features as environment variable
-            if self.cargo_features:
-                env['CARGO_FEATURES'] = ",".join(self.cargo_features)
-            
-            # Custom environment variables
-            if self.rust_env_vars:
-                env.update(self.rust_env_vars)
-            
-            return env
-        
-        def _get_cargo_build_command(self, release: bool = True, 
-                                   features: List[str] | None = None) -> str:
-            """Generate cargo build command."""
-            cmd_parts = ['cargo', 'build']
-            
-            if release:
-                cmd_parts.append('--release')
-            
-            if features:
-                features_str = ",".join(features)
-                cmd_parts.extend(['--features', features_str])
-            
-            return " ".join(cmd_parts)
-        
-        def set_cargo_features(self, features: List[str]):
-            """Set Cargo features for the implementation."""
-            self.cargo_features = features.copy()
-        
-        def add_cargo_feature(self, feature: str):
-            """Add a single Cargo feature."""
-            if feature not in self.cargo_features:
-                self.cargo_features.append(feature)
-        
-        def set_rust_env_vars(self, env_vars: Dict[str, str]):
-            """Set Rust-specific environment variables."""
-            self.rust_env_vars = env_vars.copy()
-        
-        def set_rustc_flags(self, flags: List[str]):
-            """Set rustc compilation flags."""
-            self.rustc_flags = flags.copy()
+from panther.config.core.models.service import (
+    ImplementationConfig,
+    ImplementationType,
+    ProtocolConfig,
+    ProtocolRole,
+    ServiceConfig,
+)
+from panther.plugins.services.base.quic_service_base import BaseQUICServiceManager
+from panther.plugins.services.base.rust_quic_base import RustQUICServiceManager
 
 pytestmark = [pytest.mark.unit, pytest.mark.rust_quic]
 
-class MockRustQuicImpl(RustQUICServiceManager):
-    """Mock concrete Rust QUIC implementation for testing."""
-    
-    def __init__(self):
-        super().__init__()
-        self.implementation_name = "mock_rust_quic"
-        self.binary_name = "mock-quic-bin"
-    
+
+# ---------------------------------------------------------------------------
+# Helpers: minimal config objects and concrete subclass
+# ---------------------------------------------------------------------------
+
+
+def _make_protocol(
+    name: str = "quic",
+    version: str = "rfc9000",
+    role: ProtocolRole = ProtocolRole.SERVER,
+    target: str | None = None,
+) -> ProtocolConfig:
+    """Create a ProtocolConfig for testing."""
+    kwargs: Dict[str, Any] = {"name": name, "version": version, "role": role}
+    if target is not None:
+        kwargs["target"] = target
+    return ProtocolConfig(**kwargs)
+
+
+def _make_service_config(
+    impl_name: str = "test_rust_impl",
+    impl_type: ImplementationType = ImplementationType.IUT,
+    protocol: ProtocolConfig | None = None,
+    timeout: int = 60,
+    service_name: str = "test_rust_server",
+) -> ServiceConfig:
+    """Create a ServiceConfig with a .name attribute for testing."""
+    if protocol is None:
+        protocol = _make_protocol()
+    impl = ImplementationConfig(name=impl_name, type=impl_type)
+    sc = ServiceConfig(implementation=impl, protocol=protocol, timeout=timeout)
+    # IServiceManager.__init__ reads service_config_to_test.name
+    sc.name = service_name
+    return sc
+
+
+class ConcreteRustQuicManager(RustQUICServiceManager):
+    """Concrete subclass that implements all abstract methods for testing."""
+
+    CARGO_BIN = "rust-quic-bin"
+
     def _get_implementation_name(self) -> str:
-        return self.implementation_name
-    
-    def _get_binary_name(self) -> str:
-        return self.binary_name
-    
+        return "test_rust_impl"
+
+    def _get_cargo_bin_name(self) -> str:
+        return self.CARGO_BIN
+
     def _get_server_specific_args(self, **kwargs) -> List[str]:
-        args = []
-        if kwargs.get('bind_address'):
-            args.extend(['--bind', kwargs['bind_address']])
-        if kwargs.get('max_connections'):
-            args.extend(['--max-connections', str(kwargs['max_connections'])])
+        args: List[str] = []
+        if kwargs.get("bind_address"):
+            args.extend(["--bind", kwargs["bind_address"]])
+        if kwargs.get("max_connections"):
+            args.extend(["--max-connections", str(kwargs["max_connections"])])
         return args
-    
+
     def _get_client_specific_args(self, **kwargs) -> List[str]:
-        args = []
-        host = kwargs.get('host', 'localhost')
-        port = kwargs.get('port', 4443)
-        args.append(f"{host}:{port}")
-        
-        if kwargs.get('request_path'):
-            args.extend(['--path', kwargs['request_path']])
-        
+        args: List[str] = []
+        if kwargs.get("request_path"):
+            args.extend(["--path", kwargs["request_path"]])
         return args
-    
+
     def generate_deployment_commands(self) -> str:
-        return f"{self.binary_name} --server --port 4443"
-    
-    def _do_prepare(self, plugin_manager=None):
+        return f"{self.CARGO_BIN} --server --port 4443"
+
+    def handle_event(self, event: Any) -> None:
         pass
 
-class TestRustQUICServiceManager:
-    """Test RustQUICServiceManager base functionality."""
-    
-    @pytest.fixture
-    def rust_quic_manager(self) -> MockRustQuicImpl:
-        """Create a mock Rust QUIC manager for testing."""
-        return MockRustQuicImpl()
-    
-    def test_rust_quic_manager_initialization(self, rust_quic_manager: MockRustQuicImpl):
-        """Test RustQUICServiceManager initialization."""
-        assert isinstance(rust_quic_manager, RustQUICServiceManager)
-        assert hasattr(rust_quic_manager, 'cargo_features')
-        assert hasattr(rust_quic_manager, 'rust_env_vars')
-        assert hasattr(rust_quic_manager, 'rustc_flags')
-        assert rust_quic_manager.cargo_features == []
-        assert rust_quic_manager.rust_env_vars == {}
-        assert rust_quic_manager.rustc_flags == []
-    
-    def test_implementation_identification(self, rust_quic_manager: MockRustQuicImpl):
-        """Test implementation identification methods."""
-        assert rust_quic_manager._get_implementation_name() == "mock_rust_quic"
-        assert rust_quic_manager._get_binary_name() == "mock-quic-bin"
-    
-    def test_cargo_features_management(self, rust_quic_manager: MockRustQuicImpl):
-        """Test Cargo features management."""
-        # Test setting features
-        features = ['async', 'tls', 'crypto']
-        rust_quic_manager.set_cargo_features(features)
-        assert rust_quic_manager.cargo_features == features
-        
-        # Test adding individual feature
-        rust_quic_manager.add_cargo_feature('logging')
-        assert 'logging' in rust_quic_manager.cargo_features
-        
-        # Test not adding duplicate feature
-        rust_quic_manager.add_cargo_feature('async')
-        assert rust_quic_manager.cargo_features.count('async') == 1
-    
-    def test_rust_environment_variables(self, rust_quic_manager: MockRustQuicImpl):
-        """Test Rust environment variables management."""
-        env_vars = {
-            'RUST_LOG': 'debug',
-            'RUST_BACKTRACE': '1',
-            'CUSTOM_VAR': 'value'
-        }
-        
-        rust_quic_manager.set_rust_env_vars(env_vars)
-        assert rust_quic_manager.rust_env_vars == env_vars
-    
-    def test_rustc_flags_management(self, rust_quic_manager: MockRustQuicImpl):
-        """Test rustc flags management."""
-        flags = ['-C', 'opt-level=3', '-C', 'target-cpu=native']
-        rust_quic_manager.set_rustc_flags(flags)
-        assert rust_quic_manager.rustc_flags == flags
 
-class TestRustQUICCommandGeneration:
-    """Test command generation for Rust QUIC implementations."""
-    
-    @pytest.fixture
-    def rust_quic_manager(self) -> MockRustQuicImpl:
-        """Create a mock Rust QUIC manager for testing."""
-        return MockRustQuicImpl()
-    
-    def test_server_command_generation_basic(self, rust_quic_manager: MockRustQuicImpl):
-        """Test basic server command generation."""
-        cmd = rust_quic_manager.generate_run_command(
-            role='server',
-            port=4443
+@pytest.fixture()
+def server_protocol() -> ProtocolConfig:
+    """ProtocolConfig for a QUIC server."""
+    return _make_protocol(role=ProtocolRole.SERVER)
+
+
+@pytest.fixture()
+def client_protocol() -> ProtocolConfig:
+    """ProtocolConfig for a QUIC client."""
+    return _make_protocol(role=ProtocolRole.CLIENT, target="server")
+
+
+@pytest.fixture()
+def server_manager(server_protocol: ProtocolConfig) -> ConcreteRustQuicManager:
+    """Create a ConcreteRustQuicManager configured as server."""
+    sc = _make_service_config(protocol=server_protocol, service_name="rust_server")
+    with patch("os.path.isdir", return_value=False):
+        return ConcreteRustQuicManager(
+            service_config_to_test=sc,
+            service_type=ImplementationType.IUT,
+            protocol=server_protocol,
+            implementation_name="test_rust_impl",
         )
-        
-        assert 'mock-quic-bin' in cmd
-        assert '-p 4443' in cmd
-    
-    def test_server_command_generation_with_certificates(self, rust_quic_manager: MockRustQuicImpl):
-        """Test server command generation with certificates."""
-        cmd = rust_quic_manager.generate_run_command(
-            role='server',
+
+
+@pytest.fixture()
+def client_manager(client_protocol: ProtocolConfig) -> ConcreteRustQuicManager:
+    """Create a ConcreteRustQuicManager configured as client."""
+    sc = _make_service_config(protocol=client_protocol, service_name="rust_client")
+    with patch("os.path.isdir", return_value=False):
+        return ConcreteRustQuicManager(
+            service_config_to_test=sc,
+            service_type=ImplementationType.IUT,
+            protocol=client_protocol,
+            implementation_name="test_rust_impl",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Test: Initialization and type hierarchy
+# ---------------------------------------------------------------------------
+
+
+class TestRustQUICInitialization:
+    """Test RustQUICServiceManager initialization and inheritance."""
+
+    def test_isinstance_checks(self, server_manager: ConcreteRustQuicManager) -> None:
+        """Manager is an instance of the full class hierarchy."""
+        assert isinstance(server_manager, RustQUICServiceManager)
+        assert isinstance(server_manager, BaseQUICServiceManager)
+
+    def test_implementation_name(self, server_manager: ConcreteRustQuicManager) -> None:
+        """Implementation name is set from _get_implementation_name()."""
+        assert server_manager.implementation_name == "test_rust_impl"
+
+    def test_protocol_name(self, server_manager: ConcreteRustQuicManager) -> None:
+        """Protocol name is set to 'quic'."""
+        assert server_manager.protocol_name == "quic"
+
+    def test_service_name_from_config(
+        self, server_manager: ConcreteRustQuicManager
+    ) -> None:
+        """Service name comes from service_config_to_test.name."""
+        assert server_manager.service_name == "rust_server"
+
+    def test_role_from_protocol(self, server_manager: ConcreteRustQuicManager) -> None:
+        """Role is derived from protocol config."""
+        assert server_manager.role == "server"
+
+    def test_client_role(self, client_manager: ConcreteRustQuicManager) -> None:
+        """Client role is set correctly."""
+        assert client_manager.role == "client"
+
+    def test_binary_name_delegates_to_cargo_bin_name(
+        self, server_manager: ConcreteRustQuicManager
+    ) -> None:
+        """_get_binary_name() delegates to _get_cargo_bin_name()."""
+        assert server_manager._get_binary_name() == "rust-quic-bin"
+        assert server_manager._get_binary_name() == server_manager._get_cargo_bin_name()
+
+    def test_binary_path_without_working_dir(
+        self, server_manager: ConcreteRustQuicManager
+    ) -> None:
+        """Without working_dir, _get_binary_path() returns just the binary name."""
+        assert server_manager._get_binary_path() == "rust-quic-bin"
+
+    def test_binary_path_with_working_dir(
+        self, server_manager: ConcreteRustQuicManager
+    ) -> None:
+        """With working_dir, _get_binary_path() returns full path."""
+        server_manager.working_dir = "/opt/rust-quic"
+        assert server_manager._get_binary_path() == "/opt/rust-quic/rust-quic-bin"
+
+    def test_is_tester_false_for_iut(
+        self, server_manager: ConcreteRustQuicManager
+    ) -> None:
+        """IUT service managers report is_tester() as False."""
+        assert server_manager.is_tester() is False
+
+    def test_is_server_and_is_client(
+        self,
+        server_manager: ConcreteRustQuicManager,
+        client_manager: ConcreteRustQuicManager,
+    ) -> None:
+        """is_server() and is_client() reflect the role."""
+        assert server_manager.is_server() is True
+        assert server_manager.is_client() is False
+        assert client_manager.is_server() is False
+        assert client_manager.is_client() is True
+
+    def test_implementation_manager_is_never_tester(
+        self, server_protocol: ProtocolConfig
+    ) -> None:
+        """IImplementationManager.is_tester() always returns False by design.
+
+        Even when service_type is TESTERS, IImplementationManager overrides
+        IServiceManager.is_tester() to always return False because IUT
+        implementation managers are not testers.
+        """
+        sc = _make_service_config(
+            impl_type=ImplementationType.TESTERS,
+            protocol=server_protocol,
+            service_name="rust_tester",
+        )
+        with patch("os.path.isdir", return_value=False):
+            mgr = ConcreteRustQuicManager(
+                service_config_to_test=sc,
+                service_type=ImplementationType.TESTERS,
+                protocol=server_protocol,
+                implementation_name="test_rust_impl",
+            )
+        # IImplementationManager hardcodes is_tester() = False
+        assert mgr.is_tester() is False
+
+
+# ---------------------------------------------------------------------------
+# Test: _extract_common_params (Rust override adds rust_log, rust_backtrace)
+# ---------------------------------------------------------------------------
+
+
+class TestRustExtractCommonParams:
+    """Test Rust-specific parameter extraction."""
+
+    def test_default_params(self, server_manager: ConcreteRustQuicManager) -> None:
+        """Default params include both base QUIC and Rust-specific keys."""
+        params = server_manager._extract_common_params()
+        # Base keys
+        assert params["host"] == "localhost"
+        assert params["port"] == 4443
+        assert params["cert_dir"] == "/opt/certs"
+        assert params["version"] == "rfc9000"
+        # Rust-specific keys
+        assert params["rust_log"] == "info"
+        assert params["rust_backtrace"] == "1"
+
+    def test_custom_params(self, server_manager: ConcreteRustQuicManager) -> None:
+        """Custom kwargs override defaults."""
+        params = server_manager._extract_common_params(
+            host="192.168.1.1",
             port=8443,
-            certificate_file='/app/certs/server.crt',
-            private_key_file='/app/certs/server.key'
+            rust_log="debug",
+            rust_backtrace="0",
         )
-        
-        assert 'mock-quic-bin' in cmd
-        assert '-p 8443' in cmd
-        assert '-c /app/certs/server.crt' in cmd
-        assert '-k /app/certs/server.key' in cmd
-    
-    def test_server_command_generation_with_rust_specific_args(self, rust_quic_manager: MockRustQuicImpl):
-        """Test server command generation with Rust-specific arguments."""
-        cmd = rust_quic_manager.generate_run_command(
-            role='server',
-            port=4443,
-            bind_address='0.0.0.0',
-            max_connections=1000
-        )
-        
-        assert '--bind 0.0.0.0' in cmd
-        assert '--max-connections 1000' in cmd
-    
-    def test_client_command_generation_basic(self, rust_quic_manager: MockRustQuicImpl):
-        """Test basic client command generation."""
-        cmd = rust_quic_manager.generate_run_command(
-            role='client',
-            host='example.com',
-            port=443
-        )
-        
-        assert 'mock-quic-bin' in cmd
-        assert 'example.com:443' in cmd
-    
-    def test_client_command_generation_with_ca_file(self, rust_quic_manager: MockRustQuicImpl):
-        """Test client command generation with CA file."""
-        cmd = rust_quic_manager.generate_run_command(
-            role='client',
-            host='secure.example.com',
-            port=443,
-            ca_file='/app/certs/ca.pem'
-        )
-        
-        assert '--ca-file /app/certs/ca.pem' in cmd
-        assert 'secure.example.com:443' in cmd
-    
-    def test_client_command_generation_insecure(self, rust_quic_manager: MockRustQuicImpl):
-        """Test client command generation with insecure mode."""
-        cmd = rust_quic_manager.generate_run_command(
-            role='client',
-            host='test.local',
-            port=4443,
-            verify_mode='none'
-        )
-        
-        assert '--insecure' in cmd
-        assert 'test.local:4443' in cmd
-    
-    def test_client_command_generation_with_path(self, rust_quic_manager: MockRustQuicImpl):
-        """Test client command generation with request path."""
-        cmd = rust_quic_manager.generate_run_command(
-            role='client',
-            host='api.example.com',
-            port=443,
-            request_path='/api/v1/data'
-        )
-        
-        assert '--path /api/v1/data' in cmd
+        assert params["host"] == "192.168.1.1"
+        assert params["port"] == 8443
+        assert params["rust_log"] == "debug"
+        assert params["rust_backtrace"] == "0"
 
-class TestRustQUICBuildCommands:
-    """Test Rust-specific build command generation."""
-    
-    @pytest.fixture
-    def rust_quic_manager(self) -> MockRustQuicImpl:
-        """Create a mock Rust QUIC manager for testing."""
-        return MockRustQuicImpl()
-    
-    def test_cargo_build_command_basic(self, rust_quic_manager: MockRustQuicImpl):
-        """Test basic cargo build command generation."""
-        cmd = rust_quic_manager._get_cargo_build_command()
-        assert cmd == "cargo build --release"
-    
-    def test_cargo_build_command_debug(self, rust_quic_manager: MockRustQuicImpl):
-        """Test cargo build command for debug builds."""
-        cmd = rust_quic_manager._get_cargo_build_command(release=False)
-        assert cmd == "cargo build"
-        assert "--release" not in cmd
-    
-    def test_cargo_build_command_with_features(self, rust_quic_manager: MockRustQuicImpl):
-        """Test cargo build command with features."""
-        features = ['async', 'tls', 'http3']
-        cmd = rust_quic_manager._get_cargo_build_command(features=features)
-        
+    def test_cert_params(self, server_manager: ConcreteRustQuicManager) -> None:
+        """Certificate-related params are extracted."""
+        params = server_manager._extract_common_params(
+            cert_file="/certs/server.crt",
+            key_file="/certs/server.key",
+        )
+        assert params["cert_file"] == "/certs/server.crt"
+        assert params["key_file"] == "/certs/server.key"
+
+
+# ---------------------------------------------------------------------------
+# Test: _build_rust_env_vars
+# ---------------------------------------------------------------------------
+
+
+class TestBuildRustEnvVars:
+    """Test Rust-specific environment variable generation."""
+
+    def test_default_env_vars(self, server_manager: ConcreteRustQuicManager) -> None:
+        """Default env vars include RUST_LOG and RUST_BACKTRACE."""
+        params = server_manager._extract_common_params()
+        env = server_manager._build_rust_env_vars(params)
+        assert env == {"RUST_LOG": "info", "RUST_BACKTRACE": "1"}
+
+    def test_custom_rust_log(self, server_manager: ConcreteRustQuicManager) -> None:
+        """Custom rust_log is reflected in env vars."""
+        params = server_manager._extract_common_params(rust_log="debug")
+        env = server_manager._build_rust_env_vars(params)
+        assert env["RUST_LOG"] == "debug"
+
+    def test_custom_backtrace(self, server_manager: ConcreteRustQuicManager) -> None:
+        """Custom rust_backtrace is reflected in env vars."""
+        params = server_manager._extract_common_params(rust_backtrace="full")
+        env = server_manager._build_rust_env_vars(params)
+        assert env["RUST_BACKTRACE"] == "full"
+
+
+# ---------------------------------------------------------------------------
+# Test: generate_compile_command (Rust overrides base to use cargo)
+# ---------------------------------------------------------------------------
+
+
+class TestRustCompileCommand:
+    """Test Rust-specific compile command generation."""
+
+    def test_release_build_default(
+        self, server_manager: ConcreteRustQuicManager
+    ) -> None:
+        """Default compile command uses cargo build --release."""
+        cmd = server_manager.generate_compile_command()
         assert "cargo build --release" in cmd
-        assert "--features async,tls,http3" in cmd
-    
-    def test_common_rust_args_with_features(self, rust_quic_manager: MockRustQuicImpl):
-        """Test building common Rust arguments with features."""
-        features = ['feature1', 'feature2']
-        args = rust_quic_manager._build_common_rust_args(features=features)
-        
-        assert '--features' in args
-        assert 'feature1,feature2' in args
-    
-    def test_common_rust_args_with_rustc_flags(self, rust_quic_manager: MockRustQuicImpl):
-        """Test building common Rust arguments with rustc flags."""
-        rustc_flags = ['-C opt-level=3', '-C target-cpu=native']
-        args = rust_quic_manager._build_common_rust_args(rustc_flags=rustc_flags)
-        
-        assert '--rustc-flag' in args
-        assert '-C opt-level=3' in args
-        assert '-C target-cpu=native' in args
 
-class TestRustQUICEnvironmentSetup:
-    """Test Rust-specific environment setup."""
-    
-    @pytest.fixture
-    def rust_quic_manager(self) -> MockRustQuicImpl:
-        """Create a mock Rust QUIC manager for testing."""
-        return MockRustQuicImpl()
-    
-    def test_rust_environment_basic(self, rust_quic_manager: MockRustQuicImpl):
-        """Test basic Rust environment setup."""
-        env = rust_quic_manager._setup_rust_environment()
-        
-        assert 'RUST_LOG' in env
-        assert 'RUST_BACKTRACE' in env
-        assert env['RUST_LOG'] == 'info'
-        assert env['RUST_BACKTRACE'] == '1'
-    
-    def test_rust_environment_debug_mode(self, rust_quic_manager: MockRustQuicImpl):
-        """Test Rust environment setup in debug mode."""
-        env = rust_quic_manager._setup_rust_environment(debug=True)
-        
-        assert env['RUST_LOG'] == 'debug'
-    
-    def test_rust_environment_custom_log_level(self, rust_quic_manager: MockRustQuicImpl):
-        """Test Rust environment setup with custom log level."""
-        env = rust_quic_manager._setup_rust_environment(log_level='warn')
-        
-        assert env['RUST_LOG'] == 'warn'
-    
-    def test_rust_environment_no_backtrace(self, rust_quic_manager: MockRustQuicImpl):
-        """Test Rust environment setup without backtrace."""
-        env = rust_quic_manager._setup_rust_environment(backtrace=False)
-        
-        assert env['RUST_BACKTRACE'] == '0'
-    
-    def test_rust_environment_with_cargo_features(self, rust_quic_manager: MockRustQuicImpl):
-        """Test Rust environment setup with Cargo features."""
-        rust_quic_manager.set_cargo_features(['async', 'tls'])
-        env = rust_quic_manager._setup_rust_environment()
-        
-        assert 'CARGO_FEATURES' in env
-        assert env['CARGO_FEATURES'] == 'async,tls'
-    
-    def test_rust_environment_with_custom_vars(self, rust_quic_manager: MockRustQuicImpl):
-        """Test Rust environment setup with custom variables."""
-        custom_vars = {
-            'CUSTOM_VAR1': 'value1',
-            'CUSTOM_VAR2': 'value2'
+    def test_debug_build(self, server_manager: ConcreteRustQuicManager) -> None:
+        """Debug build omits --release flag."""
+        cmd = server_manager.generate_compile_command(build_type="debug")
+        assert "cargo build" in cmd
+        assert "--release" not in cmd
+
+    def test_jobs_flag(self, server_manager: ConcreteRustQuicManager) -> None:
+        """Custom jobs value is included."""
+        cmd = server_manager.generate_compile_command(jobs="4")
+        assert "--jobs 4" in cmd
+
+    def test_default_jobs_uses_nproc(
+        self, server_manager: ConcreteRustQuicManager
+    ) -> None:
+        """Default jobs parameter uses $(nproc)."""
+        cmd = server_manager.generate_compile_command()
+        assert "--jobs $(nproc)" in cmd
+
+
+# ---------------------------------------------------------------------------
+# Test: generate_run_command (template method)
+# ---------------------------------------------------------------------------
+
+
+class TestRustRunCommandGeneration:
+    """Test run command generation for Rust QUIC implementations."""
+
+    def test_server_command_includes_binary(
+        self, server_manager: ConcreteRustQuicManager
+    ) -> None:
+        """Server command starts with the binary name."""
+        cmd = server_manager.generate_run_command(role="server")
+        assert "rust-quic-bin" in cmd
+
+    def test_server_command_includes_port(
+        self, server_manager: ConcreteRustQuicManager
+    ) -> None:
+        """Server command includes port flag."""
+        cmd = server_manager.generate_run_command(role="server", port=8443)
+        assert "-p" in cmd
+        assert "8443" in cmd
+
+    def test_server_command_includes_certs(
+        self, server_manager: ConcreteRustQuicManager
+    ) -> None:
+        """Server command includes cert and key flags."""
+        cmd = server_manager.generate_run_command(
+            role="server",
+            cert_file="/certs/cert.pem",
+            key_file="/certs/key.pem",
+        )
+        assert "-c" in cmd
+        assert "/certs/cert.pem" in cmd
+        assert "-k" in cmd
+        assert "/certs/key.pem" in cmd
+
+    def test_server_command_with_specific_args(
+        self, server_manager: ConcreteRustQuicManager
+    ) -> None:
+        """Server command includes implementation-specific args."""
+        cmd = server_manager.generate_run_command(
+            role="server",
+            bind_address="0.0.0.0",
+            max_connections=1000,
+        )
+        assert "--bind" in cmd
+        assert "0.0.0.0" in cmd
+        assert "--max-connections" in cmd
+        assert "1000" in cmd
+
+    def test_client_command_includes_host_and_port(
+        self, client_manager: ConcreteRustQuicManager
+    ) -> None:
+        """Client command includes host and port as positional args."""
+        cmd = client_manager.generate_run_command(
+            role="client", host="example.com", port=443
+        )
+        assert "rust-quic-bin" in cmd
+        assert "example.com" in cmd
+        assert "443" in cmd
+
+    def test_client_command_includes_version(
+        self, client_manager: ConcreteRustQuicManager
+    ) -> None:
+        """Client command includes -v flag with mapped version."""
+        cmd = client_manager.generate_run_command(
+            role="client", host="example.com", port=443, version="rfc9000"
+        )
+        assert "-v" in cmd
+
+    def test_client_command_with_specific_args(
+        self, client_manager: ConcreteRustQuicManager
+    ) -> None:
+        """Client command includes implementation-specific args."""
+        cmd = client_manager.generate_run_command(
+            role="client",
+            host="example.com",
+            port=443,
+            request_path="/api/data",
+        )
+        assert "--path" in cmd
+        assert "/api/data" in cmd
+
+    def test_default_role_is_client(
+        self, client_manager: ConcreteRustQuicManager
+    ) -> None:
+        """When no role is specified, default is client."""
+        cmd = client_manager.generate_run_command(host="localhost", port=4443)
+        # Client commands include host and port as positional args
+        assert "localhost" in cmd
+        assert "4443" in cmd
+
+    def test_command_returns_string(
+        self, server_manager: ConcreteRustQuicManager
+    ) -> None:
+        """generate_run_command always returns a string."""
+        cmd = server_manager.generate_run_command(role="server")
+        assert isinstance(cmd, str)
+
+    def test_server_log_file(self, server_manager: ConcreteRustQuicManager) -> None:
+        """Server command includes -l flag when log_file is specified."""
+        cmd = server_manager.generate_run_command(
+            role="server", log_file="/logs/server.log"
+        )
+        assert "-l" in cmd
+        assert "/logs/server.log" in cmd
+
+    def test_client_log_file(self, client_manager: ConcreteRustQuicManager) -> None:
+        """Client command includes -l flag when log_file is specified."""
+        cmd = client_manager.generate_run_command(
+            role="client",
+            host="localhost",
+            port=4443,
+            log_file="/logs/client.log",
+        )
+        assert "-l" in cmd
+        assert "/logs/client.log" in cmd
+
+
+# ---------------------------------------------------------------------------
+# Test: get_supported_features (Rust adds memory_safety, async, tokio, performance)
+# ---------------------------------------------------------------------------
+
+
+class TestRustSupportedFeatures:
+    """Test Rust-specific feature support declarations."""
+
+    def test_base_quic_features_present(
+        self, server_manager: ConcreteRustQuicManager
+    ) -> None:
+        """Base QUIC features (client, server, 0rtt, etc.) are present."""
+        features = server_manager.get_supported_features()
+        assert features["client"] is True
+        assert features["server"] is True
+        assert features["0rtt"] is True
+        assert features["qlog"] is True
+
+    def test_rust_specific_features_present(
+        self, server_manager: ConcreteRustQuicManager
+    ) -> None:
+        """Rust-specific features are added by the Rust subclass."""
+        features = server_manager.get_supported_features()
+        assert features["memory_safety"] is True
+        assert features["async"] is True
+        assert features["tokio"] is True
+        assert features["performance"] is True
+
+    def test_multipath_default_false(
+        self, server_manager: ConcreteRustQuicManager
+    ) -> None:
+        """Multipath is False by default."""
+        features = server_manager.get_supported_features()
+        assert features["multipath"] is False
+
+
+# ---------------------------------------------------------------------------
+# Test: validate_configuration
+# ---------------------------------------------------------------------------
+
+
+class TestRustConfigValidation:
+    """Test configuration validation inherited from BaseQUICServiceManager."""
+
+    def test_valid_server_config(self, server_manager: ConcreteRustQuicManager) -> None:
+        """Valid server configuration returns no errors."""
+        errors = server_manager.validate_configuration(
+            role="server", port=4443, version="rfc9000"
+        )
+        assert errors == []
+
+    def test_valid_client_config(self, server_manager: ConcreteRustQuicManager) -> None:
+        """Valid client configuration returns no errors."""
+        errors = server_manager.validate_configuration(
+            role="client", port=443, version="rfc9000"
+        )
+        assert errors == []
+
+    def test_invalid_role(self, server_manager: ConcreteRustQuicManager) -> None:
+        """Invalid role produces an error."""
+        errors = server_manager.validate_configuration(role="invalid", port=4443)
+        assert any("Invalid role" in e for e in errors)
+
+    def test_invalid_port_too_high(
+        self, server_manager: ConcreteRustQuicManager
+    ) -> None:
+        """Port > 65535 produces an error."""
+        errors = server_manager.validate_configuration(role="server", port=99999)
+        assert any("Invalid port" in e for e in errors)
+
+    def test_invalid_port_zero(self, server_manager: ConcreteRustQuicManager) -> None:
+        """Port 0 produces an error."""
+        errors = server_manager.validate_configuration(role="server", port=0)
+        assert any("Invalid port" in e for e in errors)
+
+    def test_unsupported_version(self, server_manager: ConcreteRustQuicManager) -> None:
+        """Unsupported version produces an error."""
+        errors = server_manager.validate_configuration(
+            role="server", port=4443, version="draft99"
+        )
+        assert any("Unsupported version" in e for e in errors)
+
+    def test_multiple_errors(self, server_manager: ConcreteRustQuicManager) -> None:
+        """Multiple validation errors can be returned at once."""
+        errors = server_manager.validate_configuration(
+            role="peer", port=-1, version="unknown"
+        )
+        assert len(errors) >= 2
+
+
+# ---------------------------------------------------------------------------
+# Test: version mapping
+# ---------------------------------------------------------------------------
+
+
+class TestVersionMapping:
+    """Test _map_version used during client command generation."""
+
+    def test_rfc9000_maps_to_1(self, server_manager: ConcreteRustQuicManager) -> None:
+        """rfc9000 maps to version string '1'."""
+        assert server_manager._map_version("rfc9000") == "1"
+
+    def test_draft29_maps_correctly(
+        self, server_manager: ConcreteRustQuicManager
+    ) -> None:
+        """draft29 maps to hex representation."""
+        assert server_manager._map_version("draft29") == "ff00001d"
+
+    def test_draft27_maps_correctly(
+        self, server_manager: ConcreteRustQuicManager
+    ) -> None:
+        """draft27 maps to hex representation."""
+        assert server_manager._map_version("draft27") == "ff00001b"
+
+    def test_unknown_version_defaults_to_1(
+        self, server_manager: ConcreteRustQuicManager
+    ) -> None:
+        """Unknown version defaults to '1'."""
+        assert server_manager._map_version("v2_future") == "1"
+
+
+# ---------------------------------------------------------------------------
+# Test: generate_deployment_commands and other command hooks
+# ---------------------------------------------------------------------------
+
+
+class TestRustCommandHooks:
+    """Test various command generation hooks."""
+
+    def test_deployment_commands(self, server_manager: ConcreteRustQuicManager) -> None:
+        """generate_deployment_commands returns the expected string."""
+        cmd = server_manager.generate_deployment_commands()
+        assert "rust-quic-bin" in cmd
+        assert "--server" in cmd
+        assert "--port 4443" in cmd
+
+    def test_pre_compile_command_default_empty(
+        self, server_manager: ConcreteRustQuicManager
+    ) -> None:
+        """Default pre-compile command is empty."""
+        cmd = server_manager.generate_pre_compile_command()
+        assert cmd == ""
+
+    def test_post_compile_command_default_empty(
+        self, server_manager: ConcreteRustQuicManager
+    ) -> None:
+        """Default post-compile command is empty."""
+        cmd = server_manager.generate_post_compile_command()
+        assert cmd == ""
+
+    def test_post_run_command_default_empty(
+        self, server_manager: ConcreteRustQuicManager
+    ) -> None:
+        """Default post-run command is empty."""
+        cmd = server_manager.generate_post_run_command()
+        assert cmd == ""
+
+
+# ---------------------------------------------------------------------------
+# Test: server/client arg building (base class methods)
+# ---------------------------------------------------------------------------
+
+
+class TestArgBuilding:
+    """Test _build_server_args and _build_client_args from base class."""
+
+    def test_server_args_include_cert_key_port(
+        self, server_manager: ConcreteRustQuicManager
+    ) -> None:
+        """Server args include -c, -k, and -p flags."""
+        params = {
+            "cert_file": "/certs/cert.pem",
+            "key_file": "/certs/key.pem",
+            "port": 4443,
+            "log_file": None,
         }
-        rust_quic_manager.set_rust_env_vars(custom_vars)
-        env = rust_quic_manager._setup_rust_environment()
-        
-        assert 'CUSTOM_VAR1' in env
-        assert 'CUSTOM_VAR2' in env
-        assert env['CUSTOM_VAR1'] == 'value1'
-        assert env['CUSTOM_VAR2'] == 'value2'
+        args = server_manager._build_server_args(params)
+        assert "-c" in args
+        assert "/certs/cert.pem" in args
+        assert "-k" in args
+        assert "/certs/key.pem" in args
+        assert "-p" in args
+        assert "4443" in args
+
+    def test_server_args_with_log_file(
+        self, server_manager: ConcreteRustQuicManager
+    ) -> None:
+        """Server args include -l when log_file is present."""
+        params = {
+            "cert_file": None,
+            "key_file": None,
+            "port": 4443,
+            "log_file": "/logs/server.log",
+        }
+        args = server_manager._build_server_args(params)
+        assert "-l" in args
+        assert "/logs/server.log" in args
+
+    def test_client_args_include_host_port_version(
+        self, client_manager: ConcreteRustQuicManager
+    ) -> None:
+        """Client args include host, port, and version flag."""
+        params = {
+            "host": "example.com",
+            "port": 443,
+            "version": "rfc9000",
+            "log_file": None,
+        }
+        args = client_manager._build_client_args(params)
+        assert "example.com" in args
+        assert "443" in args
+        assert "-v" in args
+
+    def test_client_args_with_log_file(
+        self, client_manager: ConcreteRustQuicManager
+    ) -> None:
+        """Client args include -l when log_file is present."""
+        params = {
+            "host": "localhost",
+            "port": 4443,
+            "version": "rfc9000",
+            "log_file": "/logs/client.log",
+        }
+        args = client_manager._build_client_args(params)
+        assert "-l" in args
+        assert "/logs/client.log" in args
+
+
+# ---------------------------------------------------------------------------
+# Test: output patterns (QUIC-specific)
+# ---------------------------------------------------------------------------
+
+
+class TestOutputPatterns:
+    """Test output pattern generation for QUIC protocol."""
+
+    def test_quic_output_patterns_include_qlog(
+        self, server_manager: ConcreteRustQuicManager
+    ) -> None:
+        """QUIC services include qlog in their output patterns."""
+        patterns = server_manager.get_output_patterns()
+        pattern_types = [p[0] for p in patterns]
+        assert "qlog" in pattern_types
+
+    def test_quic_output_patterns_include_pcap(
+        self, server_manager: ConcreteRustQuicManager
+    ) -> None:
+        """QUIC services include pcap in their output patterns."""
+        patterns = server_manager.get_output_patterns()
+        pattern_types = [p[0] for p in patterns]
+        assert "pcap" in pattern_types
+
+    def test_standard_output_patterns_present(
+        self, server_manager: ConcreteRustQuicManager
+    ) -> None:
+        """Standard stdout/stderr patterns are always present."""
+        patterns = server_manager.get_output_patterns()
+        pattern_types = [p[0] for p in patterns]
+        assert "stdout" in pattern_types
+        assert "stderr" in pattern_types
+
+    def test_add_custom_output_pattern(
+        self, server_manager: ConcreteRustQuicManager
+    ) -> None:
+        """Custom output patterns can be added."""
+        server_manager.add_output_pattern("flamegraph", "flamegraph.svg")
+        patterns = server_manager.get_output_patterns()
+        pattern_types = [p[0] for p in patterns]
+        assert "flamegraph" in pattern_types
+
+
+# ---------------------------------------------------------------------------
+# Test: integration scenarios
+# ---------------------------------------------------------------------------
+
 
 class TestRustQUICIntegration:
-    """Test integration scenarios for Rust QUIC service managers."""
-    
-    @pytest.fixture
-    def rust_quic_manager(self) -> MockRustQuicImpl:
-        """Create a mock Rust QUIC manager for testing."""
-        return MockRustQuicImpl()
-    
-    def test_full_server_setup_scenario(self, rust_quic_manager: MockRustQuicImpl):
-        """Test complete server setup scenario."""
-        # Configure Rust-specific settings
-        rust_quic_manager.set_cargo_features(['async', 'tls'])
-        rust_quic_manager.set_rust_env_vars({'RUST_LOG': 'debug'})
-        
-        # Generate server command
-        cmd = rust_quic_manager.generate_run_command(
-            role='server',
-            port=4443,
-            certificate_file='/app/certs/server.crt',
-            private_key_file='/app/certs/server.key',
-            bind_address='0.0.0.0',
-            max_connections=500
-        )
-        
-        # Verify command contains all expected elements
-        assert 'mock-quic-bin' in cmd
-        assert '-p 4443' in cmd
-        assert '-c /app/certs/server.crt' in cmd
-        assert '-k /app/certs/server.key' in cmd
-        assert '--bind 0.0.0.0' in cmd
-        assert '--max-connections 500' in cmd
-        
-        # Verify environment setup
-        env = rust_quic_manager._setup_rust_environment()
-        assert env['CARGO_FEATURES'] == 'async,tls'
-        assert env['RUST_LOG'] == 'debug'
-    
-    def test_full_client_setup_scenario(self, rust_quic_manager: MockRustQuicImpl):
-        """Test complete client setup scenario."""
-        # Configure for client testing
-        rust_quic_manager.set_cargo_features(['client', 'http3'])
-        
-        # Generate client command
-        cmd = rust_quic_manager.generate_run_command(
-            role='client',
-            host='quic.example.com',
-            port=443,
-            ca_file='/app/certs/ca.pem',
-            request_path='/api/test'
-        )
-        
-        # Verify command
-        assert 'mock-quic-bin' in cmd
-        assert 'quic.example.com:443' in cmd
-        assert '--ca-file /app/certs/ca.pem' in cmd
-        assert '--path /api/test' in cmd
-        
-        # Verify cargo features are configured
-        assert 'client' in rust_quic_manager.cargo_features
-        assert 'http3' in rust_quic_manager.cargo_features
-    
-    def test_deployment_command_generation(self, rust_quic_manager: MockRustQuicImpl):
-        """Test deployment command generation."""
-        deployment_cmd = rust_quic_manager.generate_deployment_commands()
-        
-        assert 'mock-quic-bin' in deployment_cmd
-        assert '--server' in deployment_cmd
-        assert '--port 4443' in deployment_cmd
-    
-    def test_cargo_build_integration(self, rust_quic_manager: MockRustQuicImpl):
-        """Test cargo build command integration."""
-        # Set up features
-        rust_quic_manager.set_cargo_features(['async', 'tls', 'http3'])
-        
-        # Generate build command
-        build_cmd = rust_quic_manager._get_cargo_build_command(
-            features=rust_quic_manager.cargo_features
-        )
-        
-        assert 'cargo build --release' in build_cmd
-        assert '--features async,tls,http3' in build_cmd
+    """Integration tests combining multiple real API calls."""
 
-class TestRustQUICErrorHandling:
-    """Test error handling in Rust QUIC service managers."""
-    
-    @pytest.fixture
-    def rust_quic_manager(self) -> MockRustQuicImpl:
-        """Create a mock Rust QUIC manager for testing."""
-        return MockRustQuicImpl()
-    
-    def test_command_generation_with_missing_args(self, rust_quic_manager: MockRustQuicImpl):
-        """Test command generation with missing required arguments."""
-        # Should not crash, should use defaults
-        cmd = rust_quic_manager.generate_run_command()
-        
-        assert isinstance(cmd, str)
-        assert 'mock-quic-bin' in cmd
-    
-    def test_empty_cargo_features_handling(self, rust_quic_manager: MockRustQuicImpl):
-        """Test handling of empty cargo features."""
-        rust_quic_manager.set_cargo_features([])
-        
-        args = rust_quic_manager._build_common_rust_args(features=[])
-        # Should not include --features if no features provided
-        assert '--features' not in args
-    
-    def test_environment_setup_with_none_values(self, rust_quic_manager: MockRustQuicImpl):
-        """Test environment setup with None values."""
-        env = rust_quic_manager._setup_rust_environment(
-            debug=None,
-            log_level=None,
-            backtrace=None
+    def test_full_server_command_pipeline(
+        self, server_manager: ConcreteRustQuicManager
+    ) -> None:
+        """Full server pipeline: params -> args -> command."""
+        params = server_manager._extract_common_params(
+            host="0.0.0.0",
+            port=4443,
+            cert_file="/certs/cert.pem",
+            key_file="/certs/key.pem",
+            rust_log="debug",
         )
-        
-        # Should handle None values gracefully
-        assert isinstance(env, dict)
-        assert 'RUST_LOG' in env
-        assert 'RUST_BACKTRACE' in env
+
+        # Check Rust params extracted
+        assert params["rust_log"] == "debug"
+        assert params["rust_backtrace"] == "1"
+
+        # Build env vars
+        env = server_manager._build_rust_env_vars(params)
+        assert env["RUST_LOG"] == "debug"
+
+        # Build server args
+        args = server_manager._build_server_args(params)
+        assert "-c" in args
+        assert "-p" in args
+
+        # Full command
+        cmd = server_manager.generate_run_command(
+            role="server",
+            port=4443,
+            cert_file="/certs/cert.pem",
+            key_file="/certs/key.pem",
+        )
+        assert "rust-quic-bin" in cmd
+        assert isinstance(cmd, str)
+
+    def test_full_client_command_pipeline(
+        self, client_manager: ConcreteRustQuicManager
+    ) -> None:
+        """Full client pipeline: params -> args -> command."""
+        params = client_manager._extract_common_params(
+            host="quic.example.com",
+            port=443,
+            version="rfc9000",
+        )
+
+        # Build client args
+        args = client_manager._build_client_args(params)
+        assert "quic.example.com" in args
+        assert "443" in args
+
+        # Full command
+        cmd = client_manager.generate_run_command(
+            role="client",
+            host="quic.example.com",
+            port=443,
+            request_path="/api/test",
+        )
+        assert "rust-quic-bin" in cmd
+        assert "quic.example.com" in cmd
+        assert "--path" in cmd
+
+    def test_compile_and_run_commands_differ(
+        self, server_manager: ConcreteRustQuicManager
+    ) -> None:
+        """Compile command uses cargo, run command uses the binary."""
+        compile_cmd = server_manager.generate_compile_command()
+        run_cmd = server_manager.generate_run_command(role="server")
+
+        assert "cargo build" in compile_cmd
+        assert "rust-quic-bin" in run_cmd
+        assert "cargo" not in run_cmd
+
+    def test_features_combine_base_and_rust(
+        self, server_manager: ConcreteRustQuicManager
+    ) -> None:
+        """Supported features combine base QUIC and Rust-specific features."""
+        features = server_manager.get_supported_features()
+
+        # Base QUIC features
+        assert features["client"] is True
+        assert features["server"] is True
+        assert features["0rtt"] is True
+
+        # Rust-specific features
+        assert features["memory_safety"] is True
+        assert features["tokio"] is True
+
+        # Total features should be > base features alone
+        assert len(features) >= 10
+
+    def test_validation_then_command(
+        self, server_manager: ConcreteRustQuicManager
+    ) -> None:
+        """Validate config, then generate command if valid."""
+        errors = server_manager.validate_configuration(
+            role="server", port=4443, version="rfc9000"
+        )
+        assert errors == []
+
+        cmd = server_manager.generate_run_command(role="server", port=4443)
+        assert "rust-quic-bin" in cmd
+        assert "4443" in cmd
+
+
+# ---------------------------------------------------------------------------
+# Test: string representation (StringRepresentationMixin)
+# ---------------------------------------------------------------------------
+
+
+class TestStringRepresentation:
+    """Test __str__ and __repr__ from StringRepresentationMixin."""
+
+    def test_str_includes_class_name(
+        self, server_manager: ConcreteRustQuicManager
+    ) -> None:
+        """String representation includes the class name."""
+        s = str(server_manager)
+        assert "ConcreteRustQuicManager" in s
+
+    def test_str_includes_implementation(
+        self, server_manager: ConcreteRustQuicManager
+    ) -> None:
+        """String representation includes implementation name."""
+        s = str(server_manager)
+        assert "test_rust_impl" in s
+
+    def test_repr_matches_str(self, server_manager: ConcreteRustQuicManager) -> None:
+        """repr() and str() return the same value."""
+        assert repr(server_manager) == str(server_manager)
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

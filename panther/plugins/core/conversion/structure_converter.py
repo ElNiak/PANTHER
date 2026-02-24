@@ -12,7 +12,7 @@ from typing import Any, Callable, Dict, Optional, Type, TypeVar, Union, get_type
 
 from panther.plugins.core.structures.plugin_manifest import PluginManifest
 from panther.plugins.core.structures.plugin_metadata import PluginMetadata
-from panther.plugins.core.structures.plugin_types import PluginType
+from panther.plugins.core.structures.plugin_type import PluginType
 
 T = TypeVar("T")
 U = TypeVar("U")
@@ -233,16 +233,24 @@ class PluginStructureConverter:
             self.logger.debug(f"Converted {len(deps)} dependencies to strings")
 
         # Ensure path is Path object (metadata uses 'path', manifest uses 'file_path')
-        if "file_path" in data and data["file_path"]:
+        # Read from manifest directly since file_path/path name mismatch means
+        # the common-fields loop never adds file_path to data.
+        if hasattr(manifest, "file_path") and manifest.file_path:
+            data["path"] = (
+                Path(manifest.file_path)
+                if isinstance(manifest.file_path, str)
+                else manifest.file_path
+            )
+            data.pop("file_path", None)
+            self.logger.debug("Converted file_path to path for metadata")
+        elif "file_path" in data and data["file_path"]:
             data["path"] = (
                 Path(data["file_path"])
                 if isinstance(data["file_path"], str)
                 else data["file_path"]
             )
-            # Remove file_path as metadata doesn't have this field
-            if "file_path" in data and "path" in self.metadata_fields:
-                data.pop("file_path", None)
-                self.logger.debug("Converted file_path to path for metadata")
+            data.pop("file_path", None)
+            self.logger.debug("Converted file_path to path for metadata (from data)")
 
         # Ensure runtime_mode is preserved from manifest to metadata
         if hasattr(manifest, "runtime_mode") and manifest.runtime_mode:
@@ -358,12 +366,12 @@ class PluginStructureConverter:
                 "common": len(common_fields),
             },
             "coverage": {
-                "manifest_coverage": len(common_fields) / len(manifest_fields)
-                if manifest_fields
-                else 0,
-                "metadata_coverage": len(common_fields) / len(metadata_fields)
-                if metadata_fields
-                else 0,
+                "manifest_coverage": (
+                    len(common_fields) / len(manifest_fields) if manifest_fields else 0
+                ),
+                "metadata_coverage": (
+                    len(common_fields) / len(metadata_fields) if metadata_fields else 0
+                ),
             },
         }
 

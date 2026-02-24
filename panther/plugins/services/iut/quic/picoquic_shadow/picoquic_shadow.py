@@ -240,9 +240,9 @@ class PicoquicShadowServiceManager(
             # Copy binary to artifacts (not root logs)
             "cp /opt/picoquic/picoquicdemo /app/logs/artifacts/picoquicdemo 2>/dev/null || true;",
             # Copy Shadow simulation files to artifacts
-            "find /tmp -name \"shadow.*\" -exec cp {} /app/logs/artifacts/ \\; 2>/dev/null || true;",
+            'find /tmp -name "shadow.*" -exec cp {} /app/logs/artifacts/ \\; 2>/dev/null || true;',
             # Copy any QUIC logs to artifacts
-            "find /tmp -name \"*.qlog\" -exec cp {} /app/logs/artifacts/ \\; 2>/dev/null || true;",
+            'find /tmp -name "*.qlog" -exec cp {} /app/logs/artifacts/ \\; 2>/dev/null || true;',
         ]
 
     def generate_deployment_commands(self) -> str:

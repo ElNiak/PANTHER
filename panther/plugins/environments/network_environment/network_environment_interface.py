@@ -396,6 +396,41 @@ class INetworkEnvironment(IEnvironmentPlugin):
         with open(rendered_out_file, "w") as f:
             f.write(rendered)
 
+    def resolve_environment_variables(self, env_vars: Dict[str, str]) -> Dict[str, str]:
+        """Resolve environment variables with incremental substitution.
+
+        Processes a dictionary of environment variables, replacing ``${VAR}``
+        and ``$VAR`` references with previously resolved values so that
+        variables can depend on one another.
+
+        Args:
+            env_vars: Dictionary mapping variable names to values that may
+                contain ``${VAR}`` or ``$VAR`` references to other variables
+                in the same dictionary.
+
+        Returns:
+            A new dictionary with all references resolved.
+        """
+        import re
+
+        resolved: Dict[str, str] = {}
+        for key, value in env_vars.items():
+            result = value
+            # Replace ${VAR} patterns
+            result = re.sub(
+                r"\$\{([^}]+)\}",
+                lambda m: resolved.get(m.group(1), m.group(0)),
+                result,
+            )
+            # Replace $VAR patterns (bare variable names)
+            result = re.sub(
+                r"\$([A-Z_][A-Z0-9_]*)",
+                lambda m: resolved.get(m.group(1), m.group(0)),
+                result,
+            )
+            resolved[key] = result
+        return resolved
+
     def is_network_environment(self):
         """
         Network environment classification for framework orchestration.

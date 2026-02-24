@@ -355,11 +355,11 @@ class QuicheServiceManager(IUTManagerEventMixin, RustQUICServiceManager):
             # Create artifacts directory
             "mkdir -p /app/logs/artifacts;",
             # Copy any QUIC logs to artifacts (not root logs)
-            "find /tmp -name \"*.qlog\" -exec cp {} /app/logs/artifacts/ \\; 2>/dev/null || true;",
+            'find /tmp -name "*.qlog" -exec cp {} /app/logs/artifacts/ \\; 2>/dev/null || true;',
             # Copy Quiche binaries to artifacts
             "cp /opt/quiche/target/release/quiche-* /app/logs/artifacts/ 2>/dev/null || true;",
             # Copy session files to artifacts
-            "find /tmp -name \"*.session\" -exec cp {} /app/logs/artifacts/ \\; 2>/dev/null || true;",
+            'find /tmp -name "*.session" -exec cp {} /app/logs/artifacts/ \\; 2>/dev/null || true;',
         ]
 
     def generate_deployment_commands(self) -> str:

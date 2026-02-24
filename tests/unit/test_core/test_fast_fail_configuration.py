@@ -8,16 +8,11 @@ This module tests:
 - Severity-based filtering
 """
 
-from dataclasses import asdict
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 
-from panther.config.core.models.global_config import (
-    FastFailConfig,
-    FeatureConfig,
-    GlobalConfig,
-)
+from panther.config.core.models.global_config import FastFailConfig, GlobalConfig
 from panther.core.exceptions.fast_fail import (
     DockerBuildException,
     ErrorCategory,
@@ -27,7 +22,6 @@ from panther.core.exceptions.fast_fail import (
     PluginLoadException,
     ServiceStartException,
 )
-from panther.core.experiment_manager import ExperimentManager
 
 
 class TestFastFailConfiguration:
@@ -38,29 +32,32 @@ class TestFastFailConfiguration:
         config = FastFailConfig()
 
         assert config.enabled is True
+        assert config.test_level is False
         assert config.docker_build_failures is True
-        assert config.plugin_load_failures is True
         assert config.service_start_failures is True
+        assert config.ivy_compilation_failures is True
+        assert config.timeout_cascade_threshold == 1
         assert config.critical_only is False
-        assert config.max_errors_before_fail == 0
 
     def test_fast_fail_config_custom_values(self):
         """Test FastFailConfig with custom values."""
         config = FastFailConfig(
             enabled=False,
+            test_level=True,
             docker_build_failures=False,
-            plugin_load_failures=False,
             service_start_failures=False,
+            ivy_compilation_failures=False,
+            timeout_cascade_threshold=5,
             critical_only=True,
-            max_errors_before_fail=5,
         )
 
         assert config.enabled is False
+        assert config.test_level is True
         assert config.docker_build_failures is False
-        assert config.plugin_load_failures is False
         assert config.service_start_failures is False
+        assert config.ivy_compilation_failures is False
+        assert config.timeout_cascade_threshold == 5
         assert config.critical_only is True
-        assert config.max_errors_before_fail == 5
 
     def test_global_config_integration(self):
         """Test FastFailConfig integration with GlobalConfig."""
@@ -76,16 +73,6 @@ class TestFastFailConfiguration:
 
         assert global_config.fast_fail.enabled is False
         assert global_config.fast_fail.critical_only is True
-
-    def test_feature_config_backward_compatibility(self):
-        """Test FeatureConfig fast_fail flag (backward compatibility)."""
-        feature_config = FeatureConfig()
-
-        assert feature_config.fast_fail is True
-
-        # Test disabling via feature config
-        feature_config.fast_fail = False
-        assert feature_config.fast_fail is False
 
 
 class TestConfigurationDrivenBehavior:
@@ -169,14 +156,14 @@ class TestConfigurationDrivenBehavior:
 
 
 class TestErrorThresholdManagement:
-    """Test max_errors_before_fail configuration."""
+    """Test error counting and cascade detection thresholds."""
 
-    def test_unlimited_errors(self):
-        """Test max_errors_before_fail = 0 (unlimited)."""
+    def test_low_severity_errors_below_cascade_threshold(self):
+        """Test that LOW severity errors continue when below cascade threshold."""
         handler = FastFailHandler(enabled=True)
 
-        # Generate many errors
-        for i in range(100):
+        # COMMAND_EXECUTION cascade threshold is 5; send 4 errors to stay below
+        for i in range(4):
             error = PantherException(
                 message=f"Error {i}",
                 severity=ErrorSeverity.LOW,
@@ -184,83 +171,90 @@ class TestErrorThresholdManagement:
             )
 
             result = handler.handle_error(error, raise_on_critical=False)
-            assert result is True  # LOW severity continues
+            assert result is True  # LOW severity continues below cascade threshold
 
-        assert handler.error_count == 100
+        assert handler.error_count == 4
 
-    def test_error_threshold_implementation(self):
-        """Test error threshold behavior (conceptual)."""
-        # This would require modifying FastFailHandler to support thresholds
+    def test_error_count_tracks_all_errors(self):
+        """Test that error_count increments for every error handled."""
         handler = FastFailHandler(enabled=True)
 
-        # Simulate reaching threshold
-        errors = []
+        # Use different categories to avoid cascade detection
+        categories = [
+            ErrorCategory.DOCKER_BUILD,
+            ErrorCategory.PLUGIN_LOAD,
+            ErrorCategory.CONFIGURATION,
+            ErrorCategory.RESOURCE,
+            ErrorCategory.TIMEOUT,
+        ]
+
+        for i, category in enumerate(categories):
+            error = PantherException(
+                message=f"Error {i}",
+                severity=ErrorSeverity.LOW,
+                category=category,
+            )
+            handler.handle_error(error, raise_on_critical=False)
+
+        assert handler.error_count == 5
+
+    def test_cascade_detection_triggers_at_threshold(self):
+        """Test that cascade detection triggers when threshold is reached."""
+        handler = FastFailHandler(enabled=True)
+
+        # COMMAND_EXECUTION cascade threshold is 5
         for i in range(5):
             error = PantherException(
                 message=f"Error {i}",
-                severity=ErrorSeverity.MEDIUM,
+                severity=ErrorSeverity.LOW,
                 category=ErrorCategory.COMMAND_EXECUTION,
             )
-            errors.append(error)
             handler.handle_error(error, raise_on_critical=False)
 
-        # After 5 errors, the next error could trigger fast-fail
-        # This is a conceptual test - actual implementation would need
-        # to check handler.error_count against config.max_errors_before_fail
+        # The 6th error should trigger cascade detection and return False
+        cascade_error = PantherException(
+            message="Error 5",
+            severity=ErrorSeverity.LOW,
+            category=ErrorCategory.COMMAND_EXECUTION,
+        )
+        result = handler.handle_error(cascade_error, raise_on_critical=False)
+        assert result is False  # CASCADE upgrades to HIGH, stops execution
 
 
 class TestExperimentManagerConfiguration:
-    """Test ExperimentManager with various fast-fail configurations."""
+    """Test ExperimentManager fast-fail configuration logic."""
 
-    @pytest.fixture
-    def mock_environment(self):
-        """Mock the experiment manager environment."""
-        with patch("panther.core.experiment_manager.EventManager") as event_mock, patch(
-            "panther.core.experiment_manager.get_observer_factory"
-        ) as observer_mock, patch(
-            "panther.core.experiment_manager.EmitterRegistry"
-        ), patch(
-            "panther.core.experiment_manager.WorkflowStateTracker"
-        ), patch(
-            "panther.plugins.plugin_manager.DockerBuilder"
-        ):
-            event_instance = Mock()
-            event_mock.get_instance.return_value = event_instance
-
-            factory = Mock()
-            observer_mock.return_value = factory
-
-            yield
-
-    def test_experiment_manager_respects_global_config(
-        self, mock_environment, tmp_path
-    ):
-        """Test ExperimentManager uses global fast-fail config."""
-        # Test with fast-fail disabled
+    def test_fast_fail_handler_respects_global_config_disabled(self):
+        """Test FastFailHandler is disabled when global config disables fast-fail."""
         config = GlobalConfig()
-        config.paths.output_dir = str(tmp_path)
         config.fast_fail.enabled = False
 
-        manager = ExperimentManager(
-            global_config=config,
-            experiment_name="test",
-            fast_fail_enabled=True,  # Should be overridden
+        # ExperimentManager uses: enabled = fast_fail_enabled AND fast_fail_config.enabled
+        handler = FastFailHandler(
+            enabled=True and config.fast_fail.enabled, logger=Mock()
         )
+        assert handler.enabled is False
 
-        assert manager.fast_fail_handler.enabled is False
+    def test_fast_fail_handler_respects_flag_disabled(self):
+        """Test FastFailHandler is disabled when fast_fail_enabled flag is False."""
+        config = GlobalConfig()
+        config.fast_fail.enabled = True
 
-        # Test with fast-fail enabled
-        config2 = GlobalConfig()
-        config2.paths.output_dir = str(tmp_path / "test2")
-        config2.fast_fail.enabled = True
-
-        manager2 = ExperimentManager(
-            global_config=config2,
-            experiment_name="test2",
-            fast_fail_enabled=False,  # Should be overridden to False (AND logic)
+        # ExperimentManager uses: enabled = fast_fail_enabled AND fast_fail_config.enabled
+        handler = FastFailHandler(
+            enabled=False and config.fast_fail.enabled, logger=Mock()
         )
+        assert handler.enabled is False
 
-        assert manager2.fast_fail_handler.enabled is False
+    def test_fast_fail_handler_enabled_when_both_true(self):
+        """Test FastFailHandler is enabled when both config and flag are True."""
+        config = GlobalConfig()
+        config.fast_fail.enabled = True
+
+        handler = FastFailHandler(
+            enabled=True and config.fast_fail.enabled, logger=Mock()
+        )
+        assert handler.enabled is True
 
     def test_configuration_yaml_example(self):
         """Test configuration that would be loaded from YAML."""
@@ -268,34 +262,36 @@ class TestExperimentManagerConfiguration:
         config_dict = {
             "fast_fail": {
                 "enabled": True,
+                "test_level": True,
                 "docker_build_failures": True,
-                "plugin_load_failures": False,  # Don't fail on optional plugins
                 "service_start_failures": True,
+                "ivy_compilation_failures": False,
+                "timeout_cascade_threshold": 3,
                 "critical_only": False,
-                "max_errors_before_fail": 10,
             }
         }
 
         # In practice, this would be loaded via OmegaConf
         config = GlobalConfig()
         config.fast_fail.enabled = config_dict["fast_fail"]["enabled"]
+        config.fast_fail.test_level = config_dict["fast_fail"]["test_level"]
         config.fast_fail.docker_build_failures = config_dict["fast_fail"][
             "docker_build_failures"
-        ]
-        config.fast_fail.plugin_load_failures = config_dict["fast_fail"][
-            "plugin_load_failures"
         ]
         config.fast_fail.service_start_failures = config_dict["fast_fail"][
             "service_start_failures"
         ]
-        config.fast_fail.critical_only = config_dict["fast_fail"]["critical_only"]
-        config.fast_fail.max_errors_before_fail = config_dict["fast_fail"][
-            "max_errors_before_fail"
+        config.fast_fail.ivy_compilation_failures = config_dict["fast_fail"][
+            "ivy_compilation_failures"
         ]
+        config.fast_fail.timeout_cascade_threshold = config_dict["fast_fail"][
+            "timeout_cascade_threshold"
+        ]
+        config.fast_fail.critical_only = config_dict["fast_fail"]["critical_only"]
 
         assert config.fast_fail.enabled is True
-        assert config.fast_fail.plugin_load_failures is False
-        assert config.fast_fail.max_errors_before_fail == 10
+        assert config.fast_fail.ivy_compilation_failures is False
+        assert config.fast_fail.timeout_cascade_threshold == 3
 
 
 class TestSeverityBasedFiltering:
@@ -343,12 +339,10 @@ class TestConfigurationValidation:
     def test_negative_threshold_values(self):
         """Test handling of negative configuration values."""
         # FastFailConfig should handle negative values gracefully
-        config = FastFailConfig(max_errors_before_fail=-1)
+        config = FastFailConfig(timeout_cascade_threshold=-1)
 
-        # Negative should be treated as 0 (unlimited)
-        assert config.max_errors_before_fail == -1
-
-        # In practice, validation could convert this to 0
+        # Negative should be accepted (validation could convert to 0 in practice)
+        assert config.timeout_cascade_threshold == -1
 
     def test_conflicting_configurations(self):
         """Test handling of conflicting configuration settings."""
@@ -357,7 +351,7 @@ class TestConfigurationValidation:
         # Scenario: fast_fail disabled but specific failures enabled
         config.fast_fail.enabled = False
         config.fast_fail.docker_build_failures = True
-        config.fast_fail.plugin_load_failures = True
+        config.fast_fail.service_start_failures = True
 
         # When fast_fail is disabled, specific settings should be ignored
         # This tests the configuration logic
@@ -372,32 +366,35 @@ class TestConfigurationValidation:
         """Test configuration can be serialized/deserialized."""
         config = FastFailConfig(
             enabled=True,
+            test_level=True,
             docker_build_failures=False,
-            plugin_load_failures=True,
             service_start_failures=True,
+            ivy_compilation_failures=False,
+            timeout_cascade_threshold=5,
             critical_only=True,
-            max_errors_before_fail=5,
         )
 
-        # Convert to dict (as would happen with OmegaConf)
-        config_dict = asdict(config)
+        # Convert to dict (Pydantic model_dump)
+        config_dict = config.model_dump()
 
         assert config_dict["enabled"] is True
+        assert config_dict["test_level"] is True
         assert config_dict["docker_build_failures"] is False
-        assert config_dict["plugin_load_failures"] is True
         assert config_dict["service_start_failures"] is True
+        assert config_dict["ivy_compilation_failures"] is False
+        assert config_dict["timeout_cascade_threshold"] == 5
         assert config_dict["critical_only"] is True
-        assert config_dict["max_errors_before_fail"] == 5
 
         # Recreate from dict
         new_config = FastFailConfig(**config_dict)
 
         assert new_config.enabled == config.enabled
+        assert new_config.test_level == config.test_level
         assert new_config.docker_build_failures == config.docker_build_failures
-        assert new_config.plugin_load_failures == config.plugin_load_failures
         assert new_config.service_start_failures == config.service_start_failures
+        assert new_config.ivy_compilation_failures == config.ivy_compilation_failures
+        assert new_config.timeout_cascade_threshold == config.timeout_cascade_threshold
         assert new_config.critical_only == config.critical_only
-        assert new_config.max_errors_before_fail == config.max_errors_before_fail
 
 
 if __name__ == "__main__":

@@ -21,4 +21,3 @@ openssl x509 -noout -text -in cert.pem
 
 # we don't need the CA key, the serial number and the CSR any more
 rm ca.key cert.csr ca.srl
-

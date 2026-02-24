@@ -283,9 +283,11 @@ class LocalhostSingleContainerEnvironment(
             elif isinstance(finalized_commands, (list, str)):
                 # Handle simple command formats by wrapping in dict
                 wrapped_commands = {
-                    "main": finalized_commands
-                    if isinstance(finalized_commands, list)
-                    else [finalized_commands]
+                    "main": (
+                        finalized_commands
+                        if isinstance(finalized_commands, list)
+                        else [finalized_commands]
+                    )
                 }
                 resolved_commands = self._resolve_network_placeholders_in_commands(
                     wrapped_commands, service

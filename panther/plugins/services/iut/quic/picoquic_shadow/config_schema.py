@@ -14,6 +14,17 @@ from panther.config.core.models import (
 
 
 class PicoquicShadowVersion(VersionBase):
+    """Version information for Picoquic Shadow.
+
+    Extends VersionBase with optional client/server role-specific
+    configuration loaded from YAML version files.
+
+    Inherited from VersionBase:
+        version: Git tag or release version string.
+        commit: Git commit hash for reproducible builds.
+        dependencies: Build-time dependency specifications.
+    """
+
     version: str = Field(default="")
     commit: str = Field(default="")
     dependencies: List[Dict[str, str]] = Field(default_factory=list)
@@ -22,16 +33,43 @@ class PicoquicShadowVersion(VersionBase):
 
 
 class PicoquicShadowConfig(ServicePluginConfig):
-    """
-    PicoquicShadowConfig class is a configuration class for the PicoquicShadow implementation.
-    Attributes:
-        name (str): Implementation name, default is "picoquic_shadow".
-        type (ImplementationType): Default type for picoquic, default is ImplementationType.IUT.
-        shadow_compatible (bool): Indicates if the implementation is shadow compatible, default is True.
-        version (PicoquicShadowVersion): Version configuration loaded dynamically from YAML files.
-    Methods:
-        load_versions_from_files(version_configs_dir: str =f"{ Path(os.path.dirname(__file__))}/quic/picoquic/version_configs/") -> PicoquicShadowVersion:
-            Loads version configurations dynamically from YAML files located in the specified directory.
+    """Picoquic Shadow network simulator variant configuration.
+
+    This is a Shadow-compatible build of Picoquic, the minimal C QUIC
+    implementation by private-octopus. It is compiled with modifications
+    that allow it to run inside the Shadow discrete-event network
+    simulator, enabling reproducible, large-scale network experiments
+    with controlled topology and timing.
+
+    Unlike standard Picoquic, this variant sets ``shadow_compatible=True``
+    and may use a different build configuration optimized for
+    deterministic execution under Shadow.
+
+    Language: C (Shadow-compatible) |
+    Source: https://github.com/private-octopus/picoquic
+    Build time: ~5 min | Docker image: ~200MB
+
+    Inherited from ServicePluginConfig / BasePluginConfig:
+        enabled (bool): Whether the plugin is enabled. Default: True.
+        version (Optional[str]): Plugin version. Default: None.
+        priority (int): Plugin execution priority. Default: 100.
+        docker_image (Optional[str]): Docker image name. Default: None.
+        build_from_source (bool): Build from source. Default: True.
+        source_repository (Optional[str]): Source repository URL.
+
+    Example YAML::
+
+        services:
+          server:
+            implementation:
+              name: picoquic_shadow
+              type: iut
+            protocol:
+              name: quic
+              version: rfc9000
+              role: server
+        network_environment:
+          type: shadow_ns
     """
 
     name: str = Field(default="picoquic_shadow", description="Implementation name")

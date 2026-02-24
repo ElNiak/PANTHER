@@ -1,10 +1,12 @@
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
+
+from panther.core.observer.management.event_manager import EventManager
+from panther.plugins.environments.config_schema import EnvironmentConfig
 from panther.plugins.environments.network_environment.network_environment_interface import (
     INetworkEnvironment,
 )
-from panther.plugins.environments.config_schema import EnvironmentConfig
-from panther.core.observer.management.event_manager import EventManager
 
 
 class MockNetworkEnvironment(INetworkEnvironment):
@@ -17,13 +19,28 @@ class MockNetworkEnvironment(INetworkEnvironment):
     def launch_environment_services(self):
         pass
 
+    def run(self):
+        pass
+
     def deploy_services(self):
         pass
 
-    def setup_environment(self):
+    def setup_environment(self, *args, **kwargs):
         pass
 
     def teardown_environment(self):
+        pass
+
+    def _do_deploy_services(self):
+        pass
+
+    def _do_teardown_environment(self):
+        pass
+
+    def handle_event(self, event):
+        pass
+
+    def initialize(self, *args, **kwargs):
         pass
 
 

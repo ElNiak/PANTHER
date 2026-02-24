@@ -8,7 +8,7 @@ The PANTHER core utilities module provides a sophisticated logging and utility i
 
 The core utilities are organized around several key architectural patterns:
 
-```
+```text
 panther.core.utils/
 ├── Logging Infrastructure
 │   ├── LoggerFactory          # Centralized logger management

@@ -122,6 +122,13 @@ class TestExecutionMixin:
         # Run tester analysis
         analysis_results = self.output_analyzer.run_tester_analysis(organized_outputs)
 
+        # Run service health analysis for all services (IUT + tester)
+        try:
+            self.service_health = self.output_analyzer.run_service_health_analysis()
+        except Exception as e:
+            self.logger.warning("Service health analysis skipped: %s", e)
+            self.service_health = []
+
         # Store analysis results for potential later use
         self.analysis_results = analysis_results
 
@@ -151,7 +158,7 @@ class TestExecutionMixin:
                 all_passed = False
                 break
 
-            if passed := results.get("passed", False):
+            if results.get("passed", False):
                 self.logger.info(
                     f"Tester {tester_name} passed: {results.get('analysis_summary', 'No summary')}"
                 )

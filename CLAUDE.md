@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 PANTHER (Protocol Analysis and Testing Harness for Extensible Research) is a plugin-based, research-grade test harness for designing, reproducing, and analyzing network protocol experiments. It uses Docker-based isolation, event-driven architecture, and a four-phase execution model.
 
-**Current Status**: Active refactoring - CLI migrating from argparse (`panther/cli/`) to Click (`panther/cli_click/`). Dead code and legacy features remain. ARM support incomplete.
+**Current Status**: Active development. CLI uses Click (`panther/cli_click/`). Dead code and legacy features remain. ARM support incomplete.
 
 ## Essential Commands
 
@@ -32,8 +32,8 @@ source .venv/bin/activate  # Linux/macOS
 python panther_builder.py package-dev
 
 # Run tests
-pytest tests/ -m unit                    # Fast unit tests
-pytest tests/ -m integration             # Requires Docker
+pytest tests/ -n auto -m unit             # Fast unit tests
+pytest tests/ -n auto -m integration     # Requires Docker
 pytest tests/unit/test_core/test_docker_builder_tag_generation.py -v  # Single test file
 
 # Code quality
@@ -124,8 +124,7 @@ ls -la  # View generated reports and logs
 ### Key Components
 ```
 panther/
-├── cli_click/          # NEW Click-based CLI (use this)
-├── cli/                # OLD argparse CLI (deprecated)
+├── cli_click/          # Click-based CLI
 ├── core/
 │   ├── experiment_manager.py    # Central orchestrator
 │   ├── test_cases/              # Test execution (mixin-based)
@@ -143,7 +142,7 @@ panther/
 ```
 
 ### Plugin System
-- Decorator-based registration (`@service_plugin`, `@protocol_plugin`)
+- Decorator-based registration (`@register_plugin()`, `@register_protocol()`)
 - Inheritance-based with template method pattern
 - Each plugin contributes config schema via `config_schema.py`
 
@@ -156,7 +155,7 @@ Dependencies frozen in `requirements.txt` (do not edit)
 ## Testing
 
 ```bash
-pytest tests/ --cov=panther --cov-fail-under=70  # Coverage required: 70%
+pytest tests/ -n auto --cov=panther --cov-fail-under=70  # Coverage required: 70%
 ```
 
 **Test Markers**:
@@ -185,7 +184,6 @@ pytest tests/ --cov=panther --cov-fail-under=70  # Coverage required: 70%
 - `panther/core/README.md` - Core framework
 - `panther/config/README.md` - Configuration system
 - `panther/plugins/development.md` - Plugin development guide
-- `panther/config/adr/0001-hybrid-pydantic-omegaconf-architecture.md` - Config design decisions
 
 ## Git Workflow
 

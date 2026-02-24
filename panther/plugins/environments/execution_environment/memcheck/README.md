@@ -1,70 +1,112 @@
 # Memcheck Execution Environment Plugin
 
-!!! info "Memory Error Detection Plugin"
-    Memcheck integrates Valgrind's memory error detector for finding memory leaks, invalid memory access, and uninitialized memory usage during PANTHER experiments.
-
 > **Plugin Type**: Execution Environment
-
-> **Verified Source Location**: `plugins/environments/execution_environment/memcheck/`
+> **Source Location**: `plugins/environments/execution_environment/memcheck/`
 
 ## Overview
 
 The Memcheck Execution Environment plugin integrates Valgrind's Memcheck tool into the PANTHER testing framework. Memcheck is a memory error detector that helps find memory leaks, use of uninitialized memory, invalid memory access, and other memory-related issues in programs.
 
-## Features
-
 !!! warning "Performance Impact"
     Memcheck significantly slows down program execution (10-30x slower) and increases memory usage. Use only for debugging and testing scenarios, not performance benchmarking.
 
-- Memory leak detection (full leak check)
-- Uninitialized memory usage tracking
-- Invalid memory access detection
-- Origin tracking for better debugging
-- Comprehensive memory error reporting
-
 ## Configuration Options
 
-!!! tip "Configuration Best Practices"
-    Configure `output_file` with descriptive names to easily identify memory analysis results from different test runs.
+All fields from `MemcheckConfig` (inherits `ExecutionEnvironmentPluginConfig` and `BasePluginConfig`):
+
+### Inherited Fields
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `enabled` | Boolean | `true` | Enable/disable the Memcheck environment |
-| `output_file` | String | `memcheck.log` | Path to write the memcheck output |
+| `enabled` | `bool` | `true` | Whether the plugin is enabled (inherited from `BasePluginConfig`) |
+| `version` | `Optional[str]` | `None` | Plugin version (inherited from `BasePluginConfig`) |
+| `priority` | `int` | `100` | Plugin execution priority (inherited from `BasePluginConfig`) |
+| `output_format` | `str` | `"json"` | Output format for results (inherited from `ExecutionEnvironmentPluginConfig`; overridden to `"xml"` in MemcheckConfig) |
+| `collect_metrics` | `bool` | `true` | Whether to collect metrics (inherited from `ExecutionEnvironmentPluginConfig`) |
 
-!!! note "Output File Location"
-    The output file path is relative to the test execution directory. Use absolute paths if you need outputs in specific locations.
+### Plugin Identity
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `type` | `str` | `"memcheck"` | Execution environment type identifier. Do not change. |
+
+### Leak Detection Options
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `leak_check` | `str` | `"summary"` | Search for memory leaks when the client program finishes. Options: `no`, `summary`, `yes`, `full`. `summary` gives a count per leak kind; `full` lists each individual leak in detail. |
+| `leak_resolution` | `str` | `"high"` | How strictly Memcheck merges multiple leaks into a single report based on call-stack similarity. Options: `low` (aggressive merging), `med`, `high` (least merging, most detail). |
+| `show_leak_kinds` | `str` | `"definite,possible"` | Comma-separated leak kinds to display in a full leak search. Values: `definite`, `indirect`, `possible`, `reachable`, `all`, `none`. |
+| `errors_for_leak_kinds` | `str` | `"definite,possible"` | Comma-separated leak kinds to count as errors (affecting the exit code). Same values as `show_leak_kinds`. |
+| `leak_check_heuristics` | `str` | `"all"` | Comma-separated heuristics for identifying interior pointers to heap blocks. Values: `stdstring`, `length64`, `newarray`, `multipleinheritance`, `all`, `none`. |
+| `show_reachable` | `Optional[str]` | `None` | Alternative way to control display of reachable blocks. Values: `yes`, `no`. When set, overrides `show_leak_kinds` for the `reachable` category. |
+| `show_possibly_lost` | `Optional[str]` | `None` | Alternative way to control display of possibly-lost blocks. Values: `yes`, `no`. When set, overrides `show_leak_kinds` for the `possible` category. |
+| `xtree_leak` | `bool` | `false` | Output leak search results as a Callgrind-format execution tree file, viewable in KCachegrind. |
+| `xtree_leak_file` | `str` | `"xtleak.kcg.%p"` | Filename for the xtree leak report. The `%p` placeholder is replaced with the process PID. |
+
+### Undefined Value Detection Options
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `undef_value_errors` | `bool` | `true` | Report uses of undefined (uninitialized) value errors. Disable to reduce noise when only leak checking is needed. |
+| `track_origins` | `bool` | `false` | Track the origin of uninitialized values back to their point of creation. Increases memory overhead (~100 MB) and slows execution (~1.5x), but produces more actionable error reports. |
+| `partial_loads_ok` | `bool` | `true` | Allow partial loads from addresses where some bytes are addressable and others are not. Set to `false` for stricter checking. |
+| `expensive_definedness_checks` | `str` | `"auto"` | Use more precise but expensive instrumentation for bit-level definedness tracking. Options: `no` (fastest), `auto` (Valgrind decides), `yes` (most precise). |
+
+### Stack Trace and Free-List Options
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `keep_stacktraces` | `str` | `"alloc-and-free"` | Which stack traces to keep for malloc'd/free'd blocks. Options: `alloc`, `free`, `alloc-and-free` (both), `alloc-then-free` (alloc until free), `none`. More traces use more memory but give better error context. |
+| `freelist_vol` | `int` | `20000000` | Maximum total size in bytes of blocks in the free queue. Larger values delay actual deallocation, increasing the chance of detecting dangling-pointer accesses. Default: ~20 MB. |
+| `freelist_big_blocks` | `int` | `1000000` | Size threshold in bytes above which freed blocks are prioritized for retention in the free queue. Default: ~1 MB. |
+
+### Compatibility and Edge-Case Options
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `workaround_gcc296_bugs` | `bool` | `false` | Assume some reads/writes below the stack pointer are due to GCC 2.96 bugs rather than real errors. Only needed for very old compiled code. |
+| `ignore_range_below_sp` | `Optional[str]` | `None` | Range of offsets below the stack pointer to ignore, as `<size>-<delta>`. Example: `8192-8189`. |
+| `show_mismatched_frees` | `bool` | `true` | Report when heap blocks are deallocated with a function that does not match the allocator (e.g., malloc/delete mismatch). |
+| `show_realloc_size_zero` | `bool` | `true` | Report calls to `realloc()` with size zero, which is implementation-defined behavior. |
+| `ignore_ranges` | `Optional[str]` | `None` | Comma-separated address ranges to exclude from checking. Format: `0xPP-0xQQ,0xRR-0xSS`. |
+| `malloc_fill` | `Optional[str]` | `None` | Fill newly malloc'd blocks with this byte value (hex, e.g. `0xAA`). Useful for detecting use of uninitialized heap memory. |
+| `free_fill` | `Optional[str]` | `None` | Fill freed blocks with this byte value (hex, e.g. `0xBB`). Useful for detecting use-after-free. |
+
+### Output Configuration
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `output_format` | `str` | `"xml"` | Output format for Memcheck reports. Options: `text` (human-readable), `xml` (machine-parseable). |
+| `generate_suppressions` | `bool` | `false` | Generate suppression entries for each detected error. Useful for building a suppression file to filter known issues in subsequent runs. |
+| `suppression_file` | `Optional[str]` | `None` | Path to a Valgrind suppression file (`.supp`) to ignore known issues. Can be absolute or relative to the working directory. |
+| `xml_user_comment` | `Optional[str]` | `None` | Arbitrary user comment embedded in XML output. Useful for tagging runs with test identifiers or build versions. |
+
+### Additional CLI Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `additional_parameters` | `List[str]` | `[]` | Additional command-line parameters passed verbatim to `valgrind --tool=memcheck`. Example: `['--vgdb=yes', '--vgdb-error=0']`. |
+
+<!-- src: config_schema.py -->
 
 ## Usage Example
 
-!!! example "Basic Configuration"
-    This example shows the minimal configuration needed to enable Memcheck for memory error detection:
-
 ```yaml
-environments:
-  - name: "memcheck_env"
-    type: "execution_environment"
-    implementation: "memcheck"
-    config:
-      enabled: true
-      output_file: "custom_memcheck.log"
+execution_environments:
+  - type: memcheck
+    leak_check: full
+    track_origins: true
+    show_leak_kinds: definite,possible,indirect
+    output_format: xml
+    suppression_file: /path/to/suppressions.supp
 ```
-
-!!! warning "Resource Requirements"
-    Ensure your system has sufficient memory and disk space when using Memcheck, as it can significantly increase resource usage.
 
 ## Integration
 
-The Memcheck Execution Environment integrates with:
-
-1. **Service Managers** - Prepends Valgrind Memcheck commands to service execution
-2. **Test Framework** - Captures and reports memory errors during test execution
-3. **Result Collection** - Memcheck logs can be included in test results
-
-## Implementation Details
-
-!!! info "Valgrind Command Structure"
-    The plugin automatically constructs Valgrind commands with optimal settings for comprehensive memory analysis.
+- **Service Managers** -- Prepends Valgrind Memcheck commands to service execution.
+- **Test Framework** -- Captures and reports memory errors during test execution.
+- **Result Collection** -- Memcheck logs can be included in test results.
 
 The plugin works by prepending Valgrind Memcheck commands to the service execution chain:
 
@@ -72,48 +114,23 @@ The plugin works by prepending Valgrind Memcheck commands to the service executi
 valgrind --tool=memcheck --leak-check=full --track-origins=yes --show-leak-kinds=all <service-command>
 ```
 
-!!! tip "Debug Symbol Requirements"
-    For best results, compile your applications with debug symbols (`-g` flag) to get detailed source code references in memory error reports.
-
-This allows for comprehensive memory usage analysis of the application under test.
+For best results, compile applications with debug symbols (`-g` flag) and minimal optimization (`-O0`) to get detailed source code references in memory error reports.
 
 ## Troubleshooting
 
-!!! danger "Critical Considerations"
-    Always review Memcheck output carefully as memory errors can lead to security vulnerabilities and unpredictable behavior.
+### Performance Degradation
 
-### Common Issues
+Memcheck significantly slows down program execution (5-20x slower). Consider using smaller test cases or running overnight for large applications.
 
-1. **Performance Degradation**
-   !!! warning "Performance Impact"
-       Memcheck significantly slows down program execution (5-20x slower). Consider using smaller test cases or running overnight for large applications.
-   - Memcheck significantly slows down program execution (5-20x slower)
-   - Consider using smaller test cases when using Memcheck
+### False Positives
 
-2. **False Positives**
-   !!! note "Third-Party Libraries"
-       Some third-party libraries may generate warnings that are not actual issues. Create suppression files for known acceptable warnings.
-   - Some standard library and third-party code may trigger warnings
-   - Consider using suppression files for known acceptable issues
+Some standard library and third-party code may trigger warnings. Create suppression files (`suppression_file` config option) for known acceptable warnings.
 
-3. **Integration Problems**
-   !!! tip "Compilation Settings"
-       Compile with `-O0 -g` flags for optimal Memcheck results. Higher optimization levels may hide some memory errors.
-   - Ensure the executable is compiled with debugging symbols for best results
-   - Some optimizations might hide memory errors; compile with `-O0` when possible
+### Integration Problems
 
-## Extension Points
-
-!!! info "Customization Options"
-    Future versions may support additional Valgrind tools and custom command-line options for specialized memory analysis scenarios.
-
-- Custom Valgrind options can be added through configuration parameters
-- Integration with other Valgrind tools could be added in future versions
-
-!!! tip "Advanced Usage"
-    Consider creating custom suppression files for your specific application to filter out known acceptable warnings from third-party libraries.
+Compile with `-O0 -g` flags for optimal Memcheck results. Higher optimization levels may hide some memory errors.
 
 ## References
 
 - [Valgrind Memcheck Documentation](https://valgrind.org/docs/manual/mc-manual.html)
-- [PANTHER Execution Environment Interface](panther/docs/environments/execution_environment/index.md)
+- PANTHER Execution Environment Interface

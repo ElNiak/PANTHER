@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 # filepath: /Users/elniak/Documents/Project/PANTHER/tests/plugins/test_picoquic_service_manager.py
 
+import logging
+import os
+import sys
 import unittest
 from unittest.mock import MagicMock
-import sys
-import os
-import logging
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.append(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
 
 from panther.plugins.services.iut.quic.picoquic.picoquic import PicoquicServiceManager
 

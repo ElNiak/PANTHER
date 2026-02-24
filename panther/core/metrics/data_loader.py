@@ -36,7 +36,8 @@ class MetricsDataLoader:
             return None
 
         experiment_dirs = [
-            d for d in self.output_dir.iterdir()
+            d
+            for d in self.output_dir.iterdir()
             if d.is_dir() and d.name not in ("metrics", ".cache", "__pycache__")
         ]
         if not experiment_dirs:
@@ -230,26 +231,32 @@ class MetricsDataLoader:
         if isinstance(phase, dict):
             for phase_name, phase_data in phase.items():
                 if isinstance(phase_data, dict) and phase_name.lower() == name.lower():
-                    results.append({
-                        "name": phase_name,
-                        "timestamp": None,
-                        "value": phase_data,
-                        "type": "phase",
-                    })
+                    results.append(
+                        {
+                            "name": phase_name,
+                            "timestamp": None,
+                            "value": phase_data,
+                            "type": "phase",
+                        }
+                    )
         return results
 
     @staticmethod
     def _search_errors(data: Dict[str, Any], name: str) -> List[Dict[str, Any]]:
         errors = data.get("error_metrics", {})
         if isinstance(errors, dict) and name.lower() in ("errors", "error"):
-            error_summary = {k: v for k, v in errors.items() if not isinstance(v, (dict, list))}
+            error_summary = {
+                k: v for k, v in errors.items() if not isinstance(v, (dict, list))
+            }
             if error_summary:
-                return [{
-                    "name": "error_summary",
-                    "timestamp": None,
-                    "value": error_summary,
-                    "type": "error",
-                }]
+                return [
+                    {
+                        "name": "error_summary",
+                        "timestamp": None,
+                        "value": error_summary,
+                        "type": "error",
+                    }
+                ]
         return []
 
     @staticmethod
@@ -270,9 +277,7 @@ class MetricsDataLoader:
                             {"name": name, "value": item, "type": section_key}
                         )
                 else:
-                    results.append(
-                        {"name": name, "value": val, "type": section_key}
-                    )
+                    results.append({"name": name, "value": val, "type": section_key})
         return results
 
     @staticmethod

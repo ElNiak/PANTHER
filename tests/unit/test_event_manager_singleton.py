@@ -1,6 +1,7 @@
 """Unit tests for EventManager singleton pattern."""
 
 import threading
+
 from panther.core.observer.management.event_manager import EventManager
 
 

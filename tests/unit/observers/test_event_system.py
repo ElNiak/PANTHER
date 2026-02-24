@@ -1,25 +1,22 @@
 """
 Unit tests for the enhanced event system.
 
-This module contains tests for the core components of the
-enhanced event system including plugins, async processing,
-and result handling.
+This module contains tests for the EventManager and ResultsManager
+components of the enhanced event system.
 """
 
 import os
 import shutil
 import tempfile
-import time
 import unittest
 from threading import Event as ThreadingEvent
 
-from panther.core.events.base.event_base import BaseEvent as Event, EventType
+from panther.core.events.base.event_base import BaseEvent as Event
+from panther.core.events.base.event_base import EventType
 from panther.core.events.test.events import TestEvent, TestEventType, TestResultEvent
 from panther.core.observer.base.observer_interface import IObserver
 from panther.core.observer.management.event_manager import EventManager
 from panther.core.observer.management.results_manager import ResultsManager
-from panther.core.observer.plugins.plugin_interface import IPluginObserver
-from panther.core.observer.plugins.plugin_registry import PluginRegistry
 
 
 class TestObserver(IObserver):
@@ -53,28 +50,6 @@ class TestObserver(IObserver):
         """Clear recorded events."""
         self.events = []
         self.event_received.clear()
-
-
-class TestPlugin(IPluginObserver):
-    """Test plugin for plugin system testing."""
-
-    VERSION = "0.1.0"
-    AUTHOR = "Test"
-    EVENTS = ["test.plugin"]
-
-    def __init__(self):
-        self.events = []
-        self.initialized = False
-
-    def on_event(self, event: Event):
-        """Record the event."""
-        self.events.append(event)
-        return True
-
-    def initialize(self):
-        """Initialize the plugin."""
-        self.initialized = True
-        return True
 
 
 class EventManagerTests(unittest.TestCase):
@@ -150,119 +125,6 @@ class EventManagerTests(unittest.TestCase):
         self.assertEqual(notification_order, ["high", "mid", "low"])
 
 
-class PluginRegistryTests(unittest.TestCase):
-    """Tests for the PluginRegistry."""
-
-    def setUp(self):
-        # Create a temporary directory for test plugins
-        self.test_plugin_dir = tempfile.mkdtemp()
-
-        # Create a test plugin file
-        with open(os.path.join(self.test_plugin_dir, "test_plugin.py"), "w") as f:
-            f.write(
-                """
-from panther.core.observer.plugins.plugin_interface import IPluginObserver
-from panther.core.events.base.event_base import BaseEvent as Event
-
-
-class TestPlugin(IPluginObserver):
-    VERSION = "1.0.0"
-    AUTHOR = "Test Author"
-    EVENTS = ["test.plugin"]
-
-    def on_event(self, event: Event):
-        return True
-    
-    def get_priority(self) -> int:
-        return 0
-    
-    def is_interested(self, event_type: str) -> bool:
-        return event_type in self.EVENTS
-
-
-class AnotherPlugin(IPluginObserver):
-    VERSION = "0.5.0"
-    AUTHOR = "Another Author"
-
-    def on_event(self, event: Event):
-        return True
-    
-    def get_priority(self) -> int:
-        return 0
-    
-    def is_interested(self, event_type: str) -> bool:
-        return True
-"""
-            )
-
-        # Create the registry with the test plugins directory
-        self.registry = PluginRegistry(plugin_paths=[self.test_plugin_dir])
-
-    def tearDown(self):
-        # Remove the temporary directory
-        shutil.rmtree(self.test_plugin_dir)
-
-    def test_discover_plugins(self):
-        """Test plugin discovery."""
-        # Discover plugins
-        discovered = self.registry.discover_plugins()
-
-        # Check that our test plugins were found
-        self.assertIn("TestPlugin", discovered)
-        self.assertIn("AnotherPlugin", discovered)
-        self.assertEqual(len(discovered), 2)
-
-        # Verify metadata was extracted
-        self.assertEqual(
-            self.registry.get_plugin_metadata("TestPlugin")["version"], "1.0.0"
-        )
-        self.assertEqual(
-            self.registry.get_plugin_metadata("TestPlugin")["author"], "Test Author"
-        )
-        self.assertEqual(
-            self.registry.get_plugin_metadata("AnotherPlugin")["version"], "0.5.0"
-        )
-
-    def test_load_plugin(self):
-        """Test plugin loading."""
-        # Discover plugins first
-        self.registry.discover_plugins()
-
-        # Load a plugin
-        plugin = self.registry.instantiate_plugin("TestPlugin")
-
-        # Verify plugin was loaded
-        self.assertIsNotNone(plugin)
-        self.assertEqual(plugin.__class__.__name__, "TestPlugin")
-
-        # Verify plugin class is available
-        plugin_class = self.registry.get_plugin_class("TestPlugin")
-        self.assertIsNotNone(plugin_class)
-        self.assertEqual(plugin_class.__name__, "TestPlugin")
-
-    def test_filter_plugins_by_event_type(self):
-        """Test filtering plugins by event type interest."""
-        # Discover plugins first
-        discovered = self.registry.discover_plugins()
-
-        # Instantiate plugins and filter by event type interest
-        test_plugin = self.registry.instantiate_plugin("TestPlugin")
-        another_plugin = self.registry.instantiate_plugin("AnotherPlugin")
-        
-        self.assertIsNotNone(test_plugin)
-        self.assertIsNotNone(another_plugin)
-
-        # TestPlugin should be interested in "test.plugin" event
-        self.assertTrue(test_plugin.is_interested("test.plugin"))
-        # AnotherPlugin should be interested in any event (returns True for all)
-        self.assertTrue(another_plugin.is_interested("test.plugin"))
-        
-        # TestPlugin should NOT be interested in "other.event"
-        self.assertFalse(test_plugin.is_interested("other.event"))
-        # AnotherPlugin should be interested in "other.event" (returns True for all)
-        self.assertTrue(another_plugin.is_interested("other.event"))
-
-
 class ResultsManagerTests(unittest.TestCase):
     """Tests for the ResultsManager."""
 
@@ -276,7 +138,9 @@ class ResultsManagerTests(unittest.TestCase):
         # Create some test result events
         self.result_events = [
             TestResultEvent("result_1", "test_case_1", True, {"score": 100}),
-            TestResultEvent("result_2", "test_case_2", False, {"error": "Failed assertion"}),
+            TestResultEvent(
+                "result_2", "test_case_2", False, {"error": "Failed assertion"}
+            ),
             TestResultEvent("result_3", "test_case_3", True, {"performance": "good"}),
         ]
 

@@ -109,27 +109,18 @@ The documentation CI pipeline will:
 3. Validate source references against the current codebase
 4. Check markdown formatting compliance
 
-Details on the CI pipeline can be found in the [Documentation CI file](dev/docs-gen/documentation-ci.yml).
+Documentation generation tools are located in `panther/tools/docs_gen/`.
 
 ## Documentation Tools and Workflow
 
-PANTHER provides several tools to help with documentation management:
+PANTHER provides documentation generation tools in `panther/tools/docs_gen/`:
 
-1. **Documentation Update Script** - [update_docs.sh](dev/docs-gen/update_docs.sh): All-in-one script to update documentation in the correct order
-2. **Link Verification** - [verify_links.py](dev/docs-gen/verify_links.py): Validates and fixes links in Markdown files
-3. **Cross-References** - [add_cross_references.py](dev/docs-gen/add_cross_references.py): Adds "See Also" sections to connect related docs
-4. **MkDocs Configuration** - [enhance_mkdocs_config.py](dev/docs-gen/enhance_mkdocs_config.py): Enhances the MkDocs configuration
-
-For a complete understanding of the documentation system, refer to:
-
-- [Documentation Workflow Guide](dev/docs-gen/documentation_WORKFLOW.md): Step-by-step guides for updating documentation
-- [Documentation Integration Guide](dev/docs-gen/documentation_integration.md): How documentation tools work together
-- [Documentation Link Management](dev/docs-gen/documentation_links.md): How to manage and verify links
-- [Documentation System Enhancements](dev/docs-gen/documentation_enhancements.md): Overview of recent enhancements
+1. **Source Discovery** - `panther/tools/docs_gen/discover_sources.py`: Discovers documentation source files
+2. **Build Mapping** - `panther/tools/docs_gen/generate_build_mapping.py`: Generates build mapping for documentation
 
 ## Writing Style
 
-Follow the [PANTHER Style Guide](dev/docs-gen/style_guide.md) for detailed formatting instructions. General guidelines:
+General formatting guidelines:
 
 1. Use active voice and present tense
 2. Specify language for all code blocks
@@ -194,80 +185,6 @@ The most commonly used admonition types in PANTHER documentation:
     Most issues occur during plugin loading or container builds.
 ```
 
-## Admonitions Usage Guide
-
-Admonitions are colored call-out blocks that help highlight important information in documentation. Use them strategically to improve user experience and information scannability.
-
-### Available Admonition Types
-
-| Type | Purpose | Use Cases |
-|------|---------|-----------|
-| `note` | General information | Additional context, alternative methods |
-| `tip` | Helpful suggestions | Best practices, recommended approaches |
-| `warning` | Important cautions | Prerequisites, potential issues |
-| `danger` | Critical warnings | Data loss risks, security concerns |
-| `example` | Code examples | Sample configurations, usage demos |
-| `info` | Neutral information | System requirements, version notes |
-| `success` | Positive outcomes | Successful completion indicators |
-| `question` | Interactive queries | User decision points |
-
-### Admonition Syntax
-
-```markdown
-!!! note "Optional Custom Title"
-    Content goes here. Maintain proper indentation (4 spaces).
-
-    You can include:
-    - Lists
-    - Code blocks
-    - Multiple paragraphs
-```
-
-### Admonition Guidelines
-
-1. **Strategic Placement**: Maximum one admonition per screenful to avoid visual clutter
-2. **Clear Titles**: Use descriptive titles when the default doesn't fit
-3. **Proper Indentation**: Content must be indented with 4 spaces
-4. **Code Blocks**: Maintain proper indentation within admonitions
-
-### Template Examples
-
-**System Requirements:**
-```markdown
-!!! info "System Requirements"
-    **Target platform:** Linux (x86-64) with Docker >= 27
-    **Estimated time:** ≈ 30 minutes per test
-```
-
-**Installation Tips:**
-```markdown
-!!! tip "Recommended Setup"
-    Using a virtual environment is highly recommended:
-
-    ```bash
-    python -m venv .venv
-    source .venv/bin/activate
-    ```
-```
-
-**Important Warnings:**
-```markdown
-!!! warning "Prerequisites Required"
-    Ensure you have Docker access and at least 10GB free disk space before proceeding.
-```
-
-**Code Examples:**
-```markdown
-!!! example "Sample Configuration"
-    Create `config.yaml`:
-
-    ```yaml
-    tests:
-      - name: "Basic Test"
-        protocol: quic
-    ```
-```
-
 ## Documentation Review Process
 
 1. **Self-review**: Ensure your documentation follows all guidelines.
@@ -279,5 +196,4 @@ Admonitions are colored call-out blocks that help highlight important informatio
 
 - [MkDocs Material Theme Reference](https://squidfunk.github.io/mkdocs-material/reference/)
 - [Markdown Lint Rules](https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md)
-- [PANTHER Style Guide](dev/docs-gen/style_guide.md)
 - [Plugin Documentation Template](panther/plugins/plugin_template.md)

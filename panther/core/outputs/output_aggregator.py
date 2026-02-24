@@ -12,9 +12,6 @@ import os
 import time
 from pathlib import Path
 
-if TYPE_CHECKING:
-    pass
-
 from panther.core.events.environment.emitter import EnvironmentEventEmitter
 from panther.core.outputs.output_collector import IOutputCollector
 
@@ -81,10 +78,9 @@ class OutputAggregator:
 
     ## Performance Characteristics
 
-    - **Parallel Collection**: Environments can be processed concurrently
+    - **Sequential Collection**: Environments are processed in order
     - **Lazy Evaluation**: Only environments with `collect_outputs` method are processed
     - **Memory Efficient**: Output paths are returned rather than file contents
-    - **Event Batching**: Metadata and outputs are collected together to minimize events
     """
 
     def __init__(
@@ -101,9 +97,12 @@ class OutputAggregator:
         self.environment_emitter = environment_emitter
         self.logger = logging.getLogger(__name__)
 
-        # Create outputs directory
         self.outputs_dir = self.experiment_dir / "outputs"
+
+    def ensure_outputs_dir(self) -> Path:
+        """Create outputs directory on demand and return its path."""
         self.outputs_dir.mkdir(parents=True, exist_ok=True)
+        return self.outputs_dir
 
     def collect_from_environments(
         self, environments: list
@@ -142,14 +141,14 @@ class OutputAggregator:
 
         for env in environments:
             env_type = env.__class__.__name__
-            self.logger.info(f"Checking environment: {env_type}")
-            self.logger.info(
+            self.logger.debug(f"Checking environment: {env_type}")
+            self.logger.debug(
                 f"  - isinstance(env, IOutputCollector): {isinstance(env, IOutputCollector)}"
             )
-            self.logger.info(
+            self.logger.debug(
                 f"  - hasattr(env, 'collect_outputs'): {hasattr(env, 'collect_outputs')}"
             )
-            self.logger.info(
+            self.logger.debug(
                 f"  - env.__class__.__mro__: {[cls.__name__ for cls in env.__class__.__mro__]}"
             )
 

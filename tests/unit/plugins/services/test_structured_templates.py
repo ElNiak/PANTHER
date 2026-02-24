@@ -1,9 +1,10 @@
 import os
-import pytest
 import shlex
+from pathlib import Path
+
+import pytest
 import yaml
 from jinja2 import Environment, FileSystemLoader
-from pathlib import Path
 
 
 # Helper function to get the template directory path for panther_ivy
@@ -12,12 +13,20 @@ def get_template_path():
     plugin_dir = Path(
         os.path.dirname(
             os.path.dirname(
-                os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                os.path.dirname(
+                    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                )
             )
         )
     )
     return os.path.join(
-        plugin_dir, "panther", "plugins", "services", "testers", "panther_ivy", "templates"
+        plugin_dir,
+        "panther",
+        "plugins",
+        "services",
+        "testers",
+        "panther_ivy",
+        "templates",
     )
 
 
@@ -25,6 +34,8 @@ def get_template_path():
 def env():
     """Create a Jinja2 environment with the necessary filters"""
     template_dir = get_template_path()
+    if not os.path.isdir(template_dir) or not os.listdir(template_dir):
+        pytest.skip("panther_ivy templates directory not available")
     env = Environment(loader=FileSystemLoader(template_dir), autoescape=False)
     # Register the essential filters for proper escaping
     env.filters["quote_shell"] = lambda s: shlex.quote(str(s))
@@ -97,7 +108,8 @@ def test_structured_templates(env, template_name, cmd_args, env_vars, expected_s
                     # The literal argument should not appear unescaped in the output
                     literal_arg = str(arg).replace("'", "").replace('"', "")
                     assert (
-                        literal_arg not in rendered or shlex.quote(literal_arg) in rendered
+                        literal_arg not in rendered
+                        or shlex.quote(literal_arg) in rendered
                     ), f"Special character in '{arg}' not properly escaped in rendered template"
 
         # For environment variables with special characters, ensure they're properly quoted
@@ -111,7 +123,8 @@ def test_structured_templates(env, template_name, cmd_args, env_vars, expected_s
                 if ":" in str(value) or ";" in str(value):
                     literal_value = str(value).replace("'", "").replace('"', "")
                     assert (
-                        literal_value not in rendered or shlex.quote(literal_value) in rendered
+                        literal_value not in rendered
+                        or shlex.quote(literal_value) in rendered
                     ), f"Special character in env var '{value}' not properly escaped in rendered template"
 
     except Exception as e:
@@ -127,7 +140,11 @@ def test_structured_templates(env, template_name, cmd_args, env_vars, expected_s
         # Test with empty arguments
         ("quic/client_command_structured.jinja", [], {}),
         # Test with non-string values
-        ("minip/server_command_structured.jinja", [123, True, None, {"key": "value"}], {"NUM": 42}),
+        (
+            "minip/server_command_structured.jinja",
+            [123, True, None, {"key": "value"}],
+            {"NUM": 42},
+        ),
     ],
 )
 def test_structured_templates_error_handling(env, template_name, cmd_args, env_vars):
@@ -138,4 +155,6 @@ def test_structured_templates_error_handling(env, template_name, cmd_args, env_v
         # If we get here, the template rendered without error
         assert rendered is not None, "Template rendered as None"
     except Exception as e:
-        pytest.fail(f"Template {template_name} failed to handle malformed inputs: {str(e)}")
+        pytest.fail(
+            f"Template {template_name} failed to handle malformed inputs: {str(e)}"
+        )

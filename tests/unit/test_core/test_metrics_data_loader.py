@@ -125,6 +125,8 @@ class TestFindLatestExperiment:
         newer = tmp_path / "newer_exp"
         older.mkdir()
         newer.mkdir()
+        os.utime(older, (1000, 1000))
+        os.utime(newer, (2000, 2000))
 
         loader = MetricsDataLoader(output_dir=tmp_path)
         result = loader.find_latest_experiment()

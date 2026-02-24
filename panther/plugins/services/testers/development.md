@@ -151,7 +151,7 @@ def test_tester_execution():
 
 ### 6. Document Your Tester
 
-Create a README.md file using the [plugin template](panther/plugins/plugin_template.md) that includes:
+Create a README.md file using the [plugin template](../../plugin_template.md) that includes:
 
 - Tester purpose and capabilities
 - Supported test types and methodologies

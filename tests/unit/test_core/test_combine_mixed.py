@@ -2,14 +2,15 @@
 """
 Test script to verify how _combine_shell_constructs handles mixed shell constructs and regular commands.
 """
-import os
 import logging
-from panther.plugins.environments.network_environment.docker_compose.docker_compose import (
-    DockerComposeEnvironment,
-)
+import os
+
 from panther.core.observer.management.event_manager import EventManager
 from panther.plugins.environments.network_environment.docker_compose.config_schema import (
     DockerComposeConfig,
+)
+from panther.plugins.environments.network_environment.docker_compose.docker_compose import (
+    DockerComposeEnvironment,
 )
 
 # Configure logging
@@ -126,7 +127,9 @@ def run_test():
             else:
                 single_line += 1
 
-        logger.info(f"Single-line commands: {single_line}, Multi-line commands: {multi_line}")
+        logger.info(
+            f"Single-line commands: {single_line}, Multi-line commands: {multi_line}"
+        )
         logger.info("-" * 70)
 
 

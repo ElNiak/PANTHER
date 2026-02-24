@@ -1,14 +1,16 @@
-import pytest
+import os
 import shlex
+
+import pytest
 import yaml
 from jinja2 import Environment, FileSystemLoader
-import os
 
 
 # Path to the plugin's template directory - adjust for the specific plugin being tested
 def get_template_path():
     return os.path.join(
-        os.path.dirname(__file__), "../../panther/plugins/services/iut/quic/picoquic/templates/"
+        os.path.dirname(__file__),
+        "../../panther/plugins/services/iut/quic/picoquic/templates/",
     )
 
 
@@ -24,7 +26,9 @@ def env():
 @pytest.fixture
 def enhanced_env():
     """Create Jinja2 Environment for the enhanced command template."""
-    env = Environment(loader=FileSystemLoader(os.path.dirname(__file__)), autoescape=False)
+    env = Environment(
+        loader=FileSystemLoader(os.path.dirname(__file__)), autoescape=False
+    )
     env.filters["quote_shell"] = lambda s: shlex.quote(s)
     env.filters["quote_yaml"] = lambda s: yaml.safe_dump(s).strip()
     return env
@@ -53,7 +57,14 @@ def enhanced_env():
         ),
         # Command with quotes and ampersands
         (
-            ["openssl", "s_client", "-connect", "example.com:443", "-servername", "example.com"],
+            [
+                "openssl",
+                "s_client",
+                "-connect",
+                "example.com:443",
+                "-servername",
+                "example.com",
+            ],
             {"SSL_CERT": "/path/to/cert.pem"},
             "openssl s_client -connect example.com:443 -servername example.com",
         ),
@@ -80,9 +91,15 @@ def test_client_command_template(env, cmd_args, env_vars, expected_snippet):
             "alpn": {"param": "--alpn", "value": "h3"},
             "additional_parameters": "--no-verify",
         },
-        "network": {"port": 443, "interface": {"param": "--interface", "value": "eth0"}},
+        "network": {
+            "port": 443,
+            "interface": {"param": "--interface", "value": "eth0"},
+        },
         "target": "server",
-        "logging": {"log_path": "/app/logs/client.log", "err_path": "/app/logs/client.err"},
+        "logging": {
+            "log_path": "/app/logs/client.log",
+            "err_path": "/app/logs/client.err",
+        },
     }
 
     if cmd_args:
@@ -118,11 +135,17 @@ def test_client_command_template(env, cmd_args, env_vars, expected_snippet):
             ["python3", "-m", "server", "--port", "8080"],
             {"DEBUG": "1", "SERVER_NAME": "test-server"},
             None,
-            ['"python3" "-m" "server" "--port" "8080"', 'DEBUG="1"', 'SERVER_NAME="test-server"'],
+            [
+                '"python3" "-m" "server" "--port" "8080"',
+                'DEBUG="1"',
+                'SERVER_NAME="test-server"',
+            ],
         ),
     ],
 )
-def test_command_template(enhanced_env, cmd_args, env_vars, extra_fields, expected_snippets):
+def test_command_template(
+    enhanced_env, cmd_args, env_vars, extra_fields, expected_snippets
+):
     """Test that the enhanced command template works with structured arguments."""
     template = enhanced_env.get_template("enhanced_command.jinja")
 
@@ -139,9 +162,15 @@ def test_command_template(enhanced_env, cmd_args, env_vars, extra_fields, expect
             "alpn": {"param": "--alpn", "value": "h3"},
             "additional_parameters": "--no-verify",
         },
-        "network": {"port": 443, "interface": {"param": "--interface", "value": "eth0"}},
+        "network": {
+            "port": 443,
+            "interface": {"param": "--interface", "value": "eth0"},
+        },
         "target": "server",
-        "logging": {"log_path": "/app/logs/client.log", "err_path": "/app/logs/client.err"},
+        "logging": {
+            "log_path": "/app/logs/client.log",
+            "err_path": "/app/logs/client.err",
+        },
     }
 
     rendered = template.render(

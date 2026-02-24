@@ -61,14 +61,14 @@ Each implementation only needs to define what's unique:
 class PicoquicServiceManager(BaseQUICServiceManager):
     def _get_implementation_name(self) -> str:
         return "picoquic"
-    
+
     def _get_binary_name(self) -> str:
         return "picoquicdemo"
-    
+
     # Only implement what's specific to Picoquic
     def _get_server_specific_args(self, **kwargs) -> List[str]:
         return ["-p", str(kwargs.get("port", 4443))]
-    
+
     # All common QUIC functionality inherited!
 ```
 
@@ -96,7 +96,7 @@ services:
       version: rfc9000      # QUIC standard version
       role: server
     timeout: 100            # Optional: service timeout in seconds
-    
+
   client:
     implementation:
       name: picoquic        # Can mix different implementations
@@ -185,9 +185,9 @@ tests:
 
 QUIC implementations integrate seamlessly with:
 
-- **[Network Environments](../../environments/network_environment/README.md)** - Docker Compose, localhost, Shadow NS
-- **[Execution Environments](../../environments/execution_environment/README.md)** - Performance profiling, system call tracing
-- **[Formal Testing](../testers/README.md)** - Ivy formal verification integration
+- **[Network Environments](../../../environments/network_environment/README.md)** - Docker Compose, localhost, Shadow NS
+- **[Execution Environments](../../../environments/execution_environment/README.md)** - Performance profiling, system call tracing
+- **[Formal Testing](../../testers/README.md)** - Ivy formal verification integration
 - **[Core Framework](../../../../core/README.md)** - Event system and metrics collection
 
 ## Migration Guide
@@ -209,28 +209,28 @@ from panther.plugins.plugin_decorators import register_plugin
     capabilities=["rfc9000"]
 )
 class MyQuicServiceManager(BaseQUICServiceManager):
-    
+
     # Required: Implementation identification
     def _get_implementation_name(self) -> str:
         return "my_quic_impl"
-    
+
     def _get_binary_name(self) -> str:
         return "my_quic_binary"
-    
+
     # Required: Implementation-specific arguments
     def _get_server_specific_args(self, **kwargs) -> List[str]:
         port = kwargs.get("port", 4443)
         return ["--listen", f"0.0.0.0:{port}"]
-    
+
     def _get_client_specific_args(self, **kwargs) -> List[str]:
         host = kwargs.get("host", "localhost")
         port = kwargs.get("port", 4443)
         return ["--connect", f"{host}:{port}"]
-    
+
     # Required: Deployment configuration
     def generate_deployment_commands(self) -> str:
         return f"{self._get_binary_name()} --help"
-    
+
     # Required: Preparation logic
     def _do_prepare(self, plugin_manager=None):
         # Implementation-specific setup

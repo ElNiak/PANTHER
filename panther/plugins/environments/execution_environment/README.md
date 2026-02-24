@@ -111,7 +111,74 @@ PANTHER's execution environments use a **modern event-driven architecture** wher
 | **Strace** | System call tracing | Debugging, security analysis |
 | **Helgrind** | Thread error detection | Concurrency bug detection |
 | **Memcheck** | Memory error detection | Memory safety validation |
+| **GDB** | Automated crash debugging | Crash analysis, stack traces, core dumps, AddressSanitizer |
 | **Iterations** | Repeated execution runs | Statistical analysis, reliability testing |
+
+---
+
+## Base Class Architecture
+
+<!-- src: base_execution_environment.py -->
+
+All execution environment plugins inherit from `BaseExecutionEnvironment`, which consolidates common boilerplate into a single base class. Understanding this base class is essential for implementing new execution environments.
+
+### Class Hierarchy (MRO)
+
+`BaseExecutionEnvironment` combines several mixins and interfaces through multiple inheritance. The method resolution order (MRO) is:
+
+```text
+BaseExecutionEnvironment
+  -> ExecutionEnvironmentMixin      # Common setup helpers (setup_execution_environment, state management)
+    -> EnvironmentPluginMixin       # Shared environment plugin behavior
+  -> StandardOutputCollectorMixin   # Output file discovery and collection
+  -> CommandModificationMixin       # Service command wrapping/modification
+  -> IExecutionEnvironment          # Abstract interface contract
+    -> IEnvironmentPlugin           # Base environment interface
+  -> StringRepresentationMixin      # Consistent __repr__/__str__
+  -> ABC                            # Abstract base class enforcement
+```
+
+Concrete plugins like `GdbEnvironment`, `StraceEnvironment`, or `MemcheckEnvironment` inherit from `BaseExecutionEnvironment` and only need to implement their plugin-specific logic.
+
+### The `_config_class` Pattern
+
+`BaseExecutionEnvironment` provides a standardized configuration access pattern through the `_config_class` class attribute and two helper methods:
+
+**`_config_class`** -- Subclasses set this to their Pydantic config model class:
+
+```python
+class GdbEnvironment(BaseExecutionEnvironment):
+    _config_class = GdbConfig  # Points to the plugin's Pydantic config model
+
+class StraceEnvironment(BaseExecutionEnvironment):
+    _config_class = StraceConfig
+```
+
+**`_get_plugin_config()`** -- Retrieves the typed plugin configuration object with caching. Uses `_config_class` to call `env_config_to_test.get_plugin_config(config_class)`. Falls back to a default instance of `_config_class` if retrieval fails.
+
+**`_get_config_value(field_name, default=None)`** -- Retrieves a single configuration field using a three-tier lookup:
+
+1. `env_config_to_test.plugin_config` dict (raw dict lookup)
+2. Typed plugin config from `_get_plugin_config()` (attribute access)
+3. `env_config_to_test` attributes (fallback)
+4. Returns the provided `default` if none of the above resolve
+
+This dual-lookup pattern means plugins do not need to worry about whether configuration comes from a raw dict or a typed Pydantic model.
+
+### Contract for New Execution Environments
+
+To create a new execution environment plugin, implement this three-point contract:
+
+1. **Set `_config_class`** -- Point it to your plugin's Pydantic configuration model (inheriting from `ExecutionEnvironmentPluginConfig`):
+   ```python
+   _config_class = MyNewConfig
+   ```
+
+2. **Implement required abstract methods**:
+   - `_setup_plugin_specific_environment(services_managers, timestamp)` -- Plugin-specific setup logic (modify service commands, create output files, etc.)
+   - `to_command(*args, **kwargs) -> str` -- Generate the environment-specific command string
+
+3. **Optionally override `_get_config_value`** -- The base class provides a 2-argument signature `_get_config_value(field_name, default=None)`. If your plugin needs a different lookup strategy (e.g., an additional config source or different fallback logic), you can override this method.
 
 ---
 
@@ -625,6 +692,6 @@ class CustomProfiling(IExecutionEnvironment):
 
 ---
 
-For detailed plugin development information, see [Plugin Development Guide](PLUGIN_GUIDE.md).
-For service configuration, see [Service Modules](service_modules.md).
-For network environments, see [Network Environment Modules](network_environment_modules.md).
+For detailed plugin development information, see Plugin Development Guide.
+For service configuration, see Service Modules.
+For network environments, see Network Environment Modules.

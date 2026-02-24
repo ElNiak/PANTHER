@@ -14,6 +14,17 @@ from panther.config.core.models import (
 
 
 class QuicGoVersion(VersionBase):
+    """Version information for quic-go.
+
+    Extends VersionBase with optional client/server role-specific
+    configuration loaded from YAML version files.
+
+    Inherited from VersionBase:
+        version: Git tag or release version string.
+        commit: Git commit hash for reproducible builds.
+        dependencies: Build-time dependency specifications.
+    """
+
     version: str = Field(default="", description="Version string")
     commit: str = Field(default="", description="Git commit hash")
     dependencies: List[Dict[str, str]] = Field(
@@ -28,7 +39,37 @@ class QuicGoVersion(VersionBase):
 
 
 class QuicGoConfig(ServicePluginConfig):
-    """Configuration for quic-go QUIC implementation."""
+    """quic-go QUIC implementation configuration.
+
+    quic-go is a pure Go implementation of the QUIC protocol. It provides
+    a complete QUIC stack with HTTP/3 support, leveraging Go's built-in
+    concurrency primitives for efficient connection handling. quic-go is
+    widely used in the Go ecosystem and powers projects like Caddy and
+    Syncthing.
+
+    Language: Go | Source: https://github.com/quic-go/quic-go
+    Build time: ~3 min | Docker image: ~200MB
+
+    Inherited from ServicePluginConfig / BasePluginConfig:
+        enabled (bool): Whether the plugin is enabled. Default: True.
+        version (Optional[str]): Plugin version. Default: None.
+        priority (int): Plugin execution priority. Default: 100.
+        docker_image (Optional[str]): Docker image name. Default: None.
+        build_from_source (bool): Build from source. Default: True.
+        source_repository (Optional[str]): Source repository URL.
+
+    Example YAML::
+
+        services:
+          server:
+            implementation:
+              name: quic-go
+              type: iut
+            protocol:
+              name: quic
+              version: rfc9000
+              role: server
+    """
 
     name: str = Field(default="quic-go", description="Implementation name")
     type: ImplementationType = Field(

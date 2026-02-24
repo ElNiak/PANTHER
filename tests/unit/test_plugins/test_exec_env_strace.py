@@ -27,7 +27,10 @@ def strace_environment():
 def test_strace_environment_initialization(strace_environment):
     assert isinstance(strace_environment, StraceEnvironment)
     assert strace_environment.env_config_to_test is not None
-    assert strace_environment.output_dir == "/tmp"
+    # On macOS, /tmp is a symlink to /private/tmp; compare resolved paths
+    import os
+
+    assert os.path.realpath(strace_environment.output_dir) == os.path.realpath("/tmp")
     assert isinstance(strace_environment.event_manager, EventManager)
 
 
@@ -38,9 +41,11 @@ def test_strace_environment_to_command(strace_environment):
 
 
 def test_strace_environment_setup_environment(strace_environment):
+    from unittest.mock import MagicMock
+
     services_managers = []
-    test_config = TestConfig()
-    global_config = GlobalConfig()
+    test_config = MagicMock(spec=TestConfig)
+    global_config = MagicMock(spec=GlobalConfig)
     timestamp = "2023-10-10_10-10-10"
     plugin_manager = PluginManager()
 

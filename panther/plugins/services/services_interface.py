@@ -242,6 +242,8 @@ class IServiceManager(IPlugin, CommandEventMixin):
 
         self.build_mode = ""
         self.runtime_mode = "minimal"
+        self.z3_source = "local"
+        self.docker_image_tag = ""
 
     def set_test_context(self, test_name: str) -> None:
         """
@@ -507,9 +509,11 @@ class IServiceManager(IPlugin, CommandEventMixin):
                     )
                 elif isinstance(cmd_dict["run_cmd"]["command_args"], list):
                     cmd_dict["run_cmd"]["command_args"] = [
-                        self._resolve_environment_variables(arg)
-                        if isinstance(arg, str)
-                        else arg
+                        (
+                            self._resolve_environment_variables(arg)
+                            if isinstance(arg, str)
+                            else arg
+                        )
                         for arg in cmd_dict["run_cmd"]["command_args"]
                     ]
 
@@ -633,14 +637,14 @@ class IServiceManager(IPlugin, CommandEventMixin):
 
     def is_tester(self):
         """
-        Returns True if the plugin is a network service.
+        Returns True if this service is a tester (as opposed to an IUT implementation).
         """
         return self.service_type_normalized == "TESTERS"
 
     @property
     def role(self) -> str:
         """Get the service role (client/server)."""
-        return self._role 
+        return self._role
 
     @role.setter
     def role(self, value) -> None:
@@ -795,8 +799,9 @@ class IServiceManager(IPlugin, CommandEventMixin):
                 )
                 self.logger.debug("Emitted service preparation started event")
 
-            # Perform preparation
-            result = self._do_prepare(plugin_manager)
+            # Note: Preparation logic is handled by ServiceManagerDockerMixin.prepare() via MRO.
+            # The _do_prepare() hook is no longer called from this base class.
+            result = None
 
             # Also emit service started event with defensive check
             if hasattr(self, "event_emitter") and self.event_emitter:

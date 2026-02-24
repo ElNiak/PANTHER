@@ -4,6 +4,7 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
+import panther.plugins.plugin_manager as _pm_module
 from panther.plugins.plugin_manager import PluginManager
 
 
@@ -49,7 +50,7 @@ class TestPluginManagerSingleton(unittest.TestCase):
             initial_id, new_id, "Instance IDs should be different after reset"
         )
 
-    @patch("panther.plugins.plugin_manager.PluginDiscovery")
+    @patch.object(_pm_module, "PluginDiscovery")
     def test_plugin_discovery_caching(self, mock_discovery_class):
         """Test that plugin discovery uses caching correctly."""
         # Setup mock
@@ -79,7 +80,7 @@ class TestPluginManagerSingleton(unittest.TestCase):
         # Verify discovery was called only once
         mock_discovery.discover_plugins.assert_called_once()
 
-    @patch("panther.plugins.plugin_manager.PluginDiscovery")
+    @patch.object(_pm_module, "PluginDiscovery")
     def test_singleton_preserves_state(self, mock_discovery_class):
         """Test that singleton preserves state across different references."""
         # Setup mock

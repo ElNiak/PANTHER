@@ -2,14 +2,15 @@
 """
 Test script to verify how _combine_shell_constructs processes a specific input.
 """
-import os
 import logging
-from panther.plugins.environments.network_environment.docker_compose.docker_compose import (
-    DockerComposeEnvironment,
-)
+import os
+
 from panther.core.observer.management.event_manager import EventManager
 from panther.plugins.environments.network_environment.docker_compose.config_schema import (
     DockerComposeConfig,
+)
+from panther.plugins.environments.network_environment.docker_compose.docker_compose import (
+    DockerComposeEnvironment,
 )
 
 # Configure logging
@@ -42,10 +43,16 @@ def run_test():
 
     # The specific input to test
     test_input = [
-        "TARGET_IP=$(getent hosts " + service_targets + r' | tail -n 1 | awk "{ print \$1 }");',
-        'echo "Resolved ' + service_targets + ' IP - $TARGET_IP" >> /app/logs/ivy_setup.log;',
+        "TARGET_IP=$(getent hosts "
+        + service_targets
+        + r' | tail -n 1 | awk "{ print \$1 }");',
+        'echo "Resolved '
+        + service_targets
+        + ' IP - $TARGET_IP" >> /app/logs/ivy_setup.log;',
         r'IVY_IP=$(hostname -I | awk "{ print \$1 }" | head -n 1);',
-        'echo "Resolved  ' + service_name + ' IP - $IVY_IP" >> /app/logs/ivy_setup.log;',
+        'echo "Resolved  '
+        + service_name
+        + ' IP - $IVY_IP" >> /app/logs/ivy_setup.log;',
         " ",
         "ip_to_hex() {",
         r'  echo $1 | awk -F"." "{ printf("%02X%02X%02X%02X", \$1, \$2, \$3, \$4) }";',
@@ -60,7 +67,9 @@ def run_test():
         'echo "Resolved '
         + service_targets
         + ' IP in hex - $TARGET_IP_HEX" >> /app/logs/ivy_setup.log;',
-        'echo "Resolved ' + service_name + ' IP in hex - $IVY_IP_HEX" >> /app/logs/ivy_setup.log;',
+        'echo "Resolved '
+        + service_name
+        + ' IP in hex - $IVY_IP_HEX" >> /app/logs/ivy_setup.log;',
         " ",
         (
             "rm -rf /opt/panther_ivy/protocol-testing/apt/build/*;"

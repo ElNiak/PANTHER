@@ -74,7 +74,7 @@ webapp:
 
 ### Navigation Structure
 
-```
+```text
 ┌─ PANTHER Dashboard ──────────────────────────────────┐
 ├─ 🏠 Home                                            │
 ├─ ⚙️  Experiment Creator                              │

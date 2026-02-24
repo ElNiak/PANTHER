@@ -25,7 +25,7 @@ The PANTHER Click CLI is a modern, user-friendly command-line interface built wi
 
 ### Core Components
 
-```
+```text
 panther/cli_click/
 ├── __init__.py          # Package initialization
 ├── core/                # Core CLI functionality
@@ -286,23 +286,6 @@ def test_workflow():
     assert result.exit_code == 0
 ```
 
-## Migration from Argparse
-
-The Click CLI replaces the previous argparse-based implementation:
-
-### Benefits
-- **Better UX**: Enhanced user experience with visual feedback
-- **Easier Testing**: Click's testing utilities
-- **Better Documentation**: Auto-generated help and documentation
-- **Extensibility**: Easier to add new commands and options
-
-### Backward Compatibility
-- Configuration files remain unchanged
-- Plugin system compatibility maintained
-- Core functionality preserved
-
-For migration details, see [Migration Guide](../../docs/cli_migration_guide.md).
-
 ## Development
 
 ### Adding New Commands
@@ -340,10 +323,7 @@ cli.add_command(my_command)
 
 ## Documentation
 
-- [CLI Documentation](../../docs/cli_click.md): Comprehensive user guide
-- [Migration Guide](../../docs/cli_migration_guide.md): Migration from old CLI
-- [Examples](../../docs/cli_examples.md): Usage examples and workflows
-- [Quick Reference](../../docs/cli_quick_reference.md): Command reference
+- CLI Documentation: Comprehensive user guide
 
 ## Contributing
 
@@ -370,7 +350,7 @@ Planned improvements:
 For CLI support:
 
 - Use `panther --help` for command help
-- Check [documentation](../../docs/cli_click.md)
+- Check documentation
 - Run `panther tools doctor` for diagnostics
 - Use `panther tutorial interactive` for learning
 - Report issues on [GitHub](https://github.com/ElNiak/PANTHER/issues)

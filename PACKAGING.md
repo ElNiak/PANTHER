@@ -36,7 +36,7 @@ PANTHER follows the [PyOpenSci package structure guidelines](https://www.pyopens
 
 ### Directory Structure
 
-```
+```text
 PANTHER/
 ├── panther/                    # Main package
 │   ├── __init__.py            # Version and public API
@@ -143,7 +143,7 @@ python -m panther --help
 python -m panther --list-plugins
 
 # 4. Run packaging tests
-pytest tests/test_packaging/ -v
+pytest tests/test_packaging/ -n auto -v
 ```
 
 ## Publishing to PyPI
@@ -223,7 +223,7 @@ Common issues and solutions:
 | Security failures | Update vulnerable packages |
 | Slow builds | Enable caching |
 
-For detailed troubleshooting, see [Troubleshooting Guide](docs/packaging/troubleshooting.md).
+For detailed troubleshooting, check the issues listed above or open a GitHub issue.
 
 ## Best Practices
 
@@ -255,15 +255,12 @@ For existing installations:
    export PANTHER_USE_MODERN_BACKEND=true
    ```
 
-See [Migration Guide](docs/packaging/migration-guide.md) for details.
+See the migration steps above for details.
 
 ## Additional Resources
 
-- [User Guide](docs/packaging/user-guide.md) - Day-to-day usage
-- [Developer Guide](docs/packaging/developer-guide.md) - Extending the system
-- [API Reference](docs/packaging/api-reference.md) - Command reference
-- [Migration Guide](docs/packaging/migration-guide.md) - Upgrading guide
-- [Troubleshooting](docs/packaging/troubleshooting.md) - Common issues
+- [CONTRIBUTING](CONTRIBUTING.md) - Contributing guidelines
+- [INSTALL](INSTALL.md) - Installation guide
 
 ## Contributing
 

@@ -38,7 +38,7 @@ Select the appropriate base class based on your protocol and implementation lang
 # For QUIC implementations
 from panther.plugins.services.base.quic_service_base import BaseQUICServiceManager
 
-# For HTTP implementations  
+# For HTTP implementations
 from panther.plugins.services.base.http_service_base import BaseHTTPServiceManager
 
 # For MINIP implementations
@@ -100,28 +100,28 @@ from panther.config.core.models import ImplementationConfig
 @dataclass
 class YourImplementationConfig(ImplementationConfig):
     """Configuration schema for your protocol implementation."""
-    
+
     # Implementation identification (required by base class)
     implementation_name: str = "your_implementation"
     binary_name: str = "your_binary"
-    
+
     # Protocol-specific configuration
     protocol_version: str = "1.0"
     supported_features: List[str] = field(default_factory=list)
-    
+
     # Network configuration (handled by base class)
     default_port: int = 8080  # Protocol default port
     bind_address: str = "0.0.0.0"
-    
+
     # Implementation-specific parameters
     performance_mode: str = "balanced"  # balanced, throughput, latency
     debug_level: int = 0
     custom_options: Dict[str, str] = field(default_factory=dict)
-    
+
     # Advanced configuration
     certificate_config: Dict[str, str] = field(default_factory=dict)
     runtime_parameters: Dict[str, str] = field(default_factory=dict)
-    
+
     # Docker integration (optional)
     dockerfile_template: Optional[str] = None
     base_image_override: Optional[str] = None
@@ -139,7 +139,7 @@ class QuicImplementationConfig(IUTConfig):
     default_port: int = 4443
     quic_extensions: List[str] = field(default_factory=list)
 
-# For HTTP implementations  
+# For HTTP implementations
 @dataclass
 class HttpImplementationConfig(IUTConfig):
     implementation_name: str = "your_http"
@@ -180,61 +180,61 @@ from panther.plugins.plugin_decorators import register_plugin
 )
 class YourServiceManager(BaseServiceManager):
     """Service manager for your protocol implementation."""
-    
+
     def _get_implementation_name(self) -> str:
         return "your_implementation"
-    
+
     def _get_binary_name(self) -> str:
         return "your_binary"
-    
+
     def _get_server_specific_args(self, **kwargs) -> List[str]:
         """Implementation-specific server arguments."""
         port = kwargs.get("port", 8080)
         config_file = kwargs.get("config_file", "")
-        
+
         args = ["--listen", f"0.0.0.0:{port}"]
         if config_file:
             args.extend(["--config", config_file])
-        
+
         # Add implementation-specific options
         if kwargs.get("performance_mode") == "high":
             args.append("--high-performance")
-            
+
         return args
-    
+
     def _get_client_specific_args(self, **kwargs) -> List[str]:
         """Implementation-specific client arguments."""
         host = kwargs.get("host", "localhost")
         port = kwargs.get("port", 8080)
-        
+
         args = ["--connect", f"{host}:{port}"]
-        
+
         # Add client-specific options
         if kwargs.get("persistent", False):
             args.append("--keep-alive")
-            
+
         return args
-    
+
     def generate_deployment_commands(self) -> str:
         """Generate deployment commands for this implementation."""
         return f"{self._get_binary_name()} --listen 0.0.0.0:8080"
-    
+
     def _do_prepare(self, plugin_manager=None):
         """Implementation-specific preparation."""
         # Custom initialization logic
         self._setup_implementation()
         self._validate_requirements()
-    
+
     def _setup_implementation(self):
         """Setup implementation-specific configuration."""
         # Implementation setup logic
         pass
-    
+
     def _validate_requirements(self):
         """Validate that implementation requirements are met."""
         # Check dependencies, binary availability, etc.
         pass
-    
+
     def get_supported_features(self) -> Dict[str, bool]:
         """Return implementation-specific feature support."""
         return {
@@ -261,24 +261,24 @@ from panther.plugins.plugin_decorators import register_plugin
 )
 class YourQuicServiceManager(BaseQUICServiceManager):
     """QUIC-specific service manager."""
-    
+
     def _get_implementation_name(self) -> str:
         return "your_quic"
-    
+
     def _get_binary_name(self) -> str:
         return "your_quic_binary"
-    
+
     def _get_server_specific_args(self, **kwargs) -> List[str]:
         """QUIC server arguments."""
         port = kwargs.get("port", 4443)
         cert_file = kwargs.get("cert_file", "")
-        
+
         args = ["-p", str(port)]
         if cert_file:
             args.extend(["-c", cert_file])
-            
+
         return args
-    
+
     def _get_client_specific_args(self, **kwargs) -> List[str]:
         """QUIC client arguments."""
         host = kwargs.get("host", "localhost")
@@ -289,13 +289,13 @@ class YourQuicServiceManager(BaseQUICServiceManager):
 #### Example 3: HTTP Protocol Implementation
 
 ```python
-# http_implementation.py  
+# http_implementation.py
 from typing import List, Dict
 from panther.plugins.services.base.http_service_base import BaseHTTPServiceManager
 from panther.plugins.plugin_decorators import register_plugin
 
 @register_plugin(
-    plugin_type="iut", 
+    plugin_type="iut",
     name="your_http",
     version="1.0.0",
     description="HTTP protocol implementation",
@@ -304,25 +304,25 @@ from panther.plugins.plugin_decorators import register_plugin
 )
 class YourHttpServiceManager(BaseHTTPServiceManager):
     """HTTP-specific service manager."""
-    
+
     def _get_implementation_name(self) -> str:
         return "your_http"
-    
+
     def _get_binary_name(self) -> str:
         return "your_http_server"
-    
+
     def _get_server_specific_args(self, **kwargs) -> List[str]:
         """HTTP server arguments."""
         port = kwargs.get("port", 80)
         document_root = kwargs.get("document_root", "/var/www")
-        
+
         args = ["--port", str(port), "--root", document_root]
-        
+
         if kwargs.get("enable_h2", False):
             args.append("--enable-http2")
-            
+
         return args
-    
+
     def _get_client_specific_args(self, **kwargs) -> List[str]:
         """HTTP client arguments."""
         url = kwargs.get("url", f"http://localhost:{kwargs.get('port', 80)}/")
@@ -340,7 +340,7 @@ from panther.plugins.services.base.python_quic_base import PythonQUICServiceMana
 class PythonQuicServiceManager(PythonQUICServiceManager):
     def _get_python_module(self) -> str:
         return "your_package.server"
-    
+
     def _get_async_patterns(self) -> Dict[str, str]:
         return {
             "event_loop": "asyncio",
@@ -353,7 +353,7 @@ from panther.plugins.services.base.rust_quic_base import RustQUICServiceManager
 class RustQuicServiceManager(RustQUICServiceManager):
     def _get_cargo_features(self) -> List[str]:
         return ["tokio-runtime", "ring-crypto"]
-    
+
     def _get_rust_runtime_config(self) -> Dict[str, str]:
         return {
             "RUST_LOG": "debug",
@@ -422,7 +422,7 @@ RUN useradd -r -s /bin/false panther
 # Set working directory
 WORKDIR /app
 
-# Switch to app user  
+# Switch to app user
 USER panther
 
 # Set entrypoint
@@ -443,7 +443,7 @@ Create Jinja2 templates for command generation:
     {% if debug_level > 0 %}--debug={{ debug_level }}{% endif %} \
     {% for arg in extra_args %}{{ arg }} {% endfor %}
 
-# templates/client_command.jinja  
+# templates/client_command.jinja
 {{ binary_name }} \
     --client \
     --connect {{ host }}:{{ port }} \
@@ -459,7 +459,7 @@ Create a comprehensive README.md that highlights the inheritance architecture:
 ```markdown
 # Your QUIC Implementation
 
-> **Plugin Type**: Service (IUT)  
+> **Plugin Type**: Service (IUT)
 > **Base Class**: BaseQUICServiceManager
 > **Verified Source Location**: `plugins/services/iut/quic/your_implementation/`
 
@@ -473,7 +473,7 @@ This implementation leverages PANTHER's inheritance-based architecture, providin
 BaseQUICServiceManager                    # Core QUIC functionality
 └── YourQuicServiceManager               # Implementation-specific logic only
     ├── _get_server_specific_args()      # Custom server arguments
-    ├── _get_client_specific_args()      # Custom client arguments  
+    ├── _get_client_specific_args()      # Custom client arguments
     └── _do_prepare()                    # Implementation preparation
 ```
 
@@ -583,13 +583,13 @@ To add new features to your implementation:
 class YourQuicServiceManager(BaseQUICServiceManager):
     def _get_server_specific_args(self, **kwargs) -> List[str]:
         args = super()._get_server_specific_args(**kwargs)
-        
+
         # Add your custom arguments
         if kwargs.get("enable_custom_feature"):
             args.append("--custom-feature")
-            
+
         return args
-    
+
     def get_supported_features(self) -> Dict[str, bool]:
         features = super().get_supported_features()
         features["custom_feature"] = True
@@ -630,7 +630,7 @@ Test your implementation-specific logic:
 def test_implementation_specific_args():
     manager = YourQuicServiceManager()
     args = manager._get_server_specific_args(
-        port=8443, 
+        port=8443,
         performance_mode="throughput"
     )
     assert "--optimize-throughput" in args
@@ -711,33 +711,33 @@ from unittest.mock import MagicMock, patch
 from your_implementation import YourServiceManager
 
 class TestYourServiceManager:
-    
+
     def test_inheritance_functionality(self):
         """Test that base class methods are inherited."""
         manager = YourServiceManager()
-        
+
         # Test inherited command generation
         command = manager.generate_run_command(role="server", port=8080)
         assert manager._get_binary_name() in command
         assert "8080" in command
-    
+
     def test_implementation_specific_args(self):
         """Test implementation-specific argument generation."""
         manager = YourServiceManager()
-        
+
         server_args = manager._get_server_specific_args(
             port=9090,
             performance_mode="high"
         )
-        
+
         assert "--listen" in server_args
         assert "9090" in str(server_args)
         assert "--high-performance" in server_args
-    
+
     def test_event_emission(self):
         """Test that events are emitted correctly."""
         manager = YourServiceManager()
-        
+
         with patch.object(manager, 'emit_event') as mock_emit:
             manager._do_prepare()
             # Verify preparation events were emitted
@@ -754,7 +754,7 @@ Test full functionality with base class integration:
 def test_full_command_generation():
     """Test complete command generation workflow."""
     manager = YourServiceManager()
-    
+
     # Test server command
     server_cmd = manager.generate_run_command(
         role="server",
@@ -762,14 +762,14 @@ def test_full_command_generation():
         config_file="/app/config.yaml",
         performance_mode="high"
     )
-    
+
     expected_components = [
         manager._get_binary_name(),
         "--listen", "0.0.0.0:8080",
         "--config", "/app/config.yaml",
         "--high-performance"
     ]
-    
+
     for component in expected_components:
         assert str(component) in server_cmd
 ```
@@ -782,13 +782,13 @@ Create a comprehensive test configuration:
 # test_config.yaml
 logging:
   level: DEBUG
-  
+
 observers:
   logger:
     enabled: true
   metrics:
     enabled: true
-    
+
 tests:
   - name: "Implementation Test"
     description: "Test your protocol implementation"
@@ -813,7 +813,7 @@ tests:
         ports: ["8080:8080"]
       client:
         implementation:
-          name: "your_implementation" 
+          name: "your_implementation"
           type: "iut"
           performance_mode: "balanced"
         protocol:
@@ -884,10 +884,10 @@ def _do_prepare(self, plugin_manager=None):
 class YourServiceManager(BaseServiceManager):
     def _get_implementation_name(self) -> str:
         return "your_impl"  # Required
-    
+
     def _get_binary_name(self) -> str:
         return "your_binary"  # Required
-    
+
     # Optional: Only implement if you have specific args
     def _get_server_specific_args(self, **kwargs) -> List[str]:
         return []
@@ -907,7 +907,7 @@ class YourImplConfig(IUTConfig):
     # Required identification
     implementation_name: str = "your_impl"
     binary_name: str = "your_binary"
-    
+
     # Implementation-specific parameters
     custom_feature: bool = False
     optimization_level: str = "balanced"

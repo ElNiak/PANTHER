@@ -25,7 +25,7 @@ RUN apt-get update && apt-get install -y \
     g++ \
     wget \
     curl \
-    rsync 
+    rsync
 
 # rustup: https://rustup.rs
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path --default-toolchain none --profile minimal
@@ -46,13 +46,11 @@ RUN go install -buildmode=shared -linkshared std
 
 # Build Shadow without tests (tests can be flaky and cause build failures)
 # Only build the core Shadow functionality, not the tests
-RUN cd shadow && ./setup build --clean 
+RUN cd shadow && ./setup build --clean
 
-RUN cd shadow; ./setup install 
+RUN cd shadow; ./setup install
 #
     # ./setup test && # This command is not working # --test
 
 
 RUN apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
-

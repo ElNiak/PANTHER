@@ -97,7 +97,9 @@ def _display_metrics_by_category(available: List[Dict[str, Any]]) -> int:
     for category, cat_metrics in categories.items():
         click.echo(colored(f"  {category.title()} Metrics:", "cyan"))
         for metric in cat_metrics:
-            samples_info = f" ({metric['count']} samples)" if metric["count"] > 0 else ""
+            samples_info = (
+                f" ({metric['count']} samples)" if metric["count"] > 0 else ""
+            )
             click.echo(f"    {metric['name']}{samples_info}")
         click.echo()
 
@@ -173,7 +175,11 @@ def _append_nested_section_rows(rows: list, section_data: Any, type_label: str) 
             for field, value in stats.items():
                 if not isinstance(value, (dict, list)):
                     rows.append(
-                        {"metric": f"{name}.{field}", "value": value, "type": type_label}
+                        {
+                            "metric": f"{name}.{field}",
+                            "value": value,
+                            "type": type_label,
+                        }
                     )
 
 
@@ -252,9 +258,7 @@ def _display_summary_overview(summary_data: Dict[str, Any]) -> None:
     if "total_test_cases" in summary_data:
         click.echo(f"    Test cases: {summary_data['total_test_cases']}")
     if "total_execution_time" in summary_data:
-        click.echo(
-            f"    Total execution time: {summary_data['total_execution_time']}"
-        )
+        click.echo(f"    Total execution time: {summary_data['total_execution_time']}")
     if "error_count" in summary_data:
         click.echo(f"    Error count: {summary_data['error_count']}")
     click.echo()
@@ -278,9 +282,7 @@ def _display_summary_resources(summary_data: Dict[str, Any]) -> None:
         click.echo(f"    Peak CPU: {summary_data.get('peak_cpu', 'N/A')}")
     if "avg_memory" in summary_data:
         click.echo(f"    Avg Memory: {summary_data['avg_memory']}")
-        click.echo(
-            f"    Peak Memory: {summary_data.get('peak_memory', 'N/A')}"
-        )
+        click.echo(f"    Peak Memory: {summary_data.get('peak_memory', 'N/A')}")
     if "resource_samples" in summary_data:
         click.echo(f"    Samples: {summary_data['resource_samples']}")
     click.echo()
@@ -318,7 +320,10 @@ def metrics():
 
 @metrics.command("list")
 @click.option(
-    "--filter", "filter_pattern", type=str, help="Filter metrics by name pattern (regex supported)"
+    "--filter",
+    "filter_pattern",
+    type=str,
+    help="Filter metrics by name pattern (regex supported)",
 )
 @_shared_options
 @handle_errors
@@ -353,9 +358,7 @@ def list_metrics(_ctx, filter_pattern, experiment_dir, output_dir):
             warning_message("No metrics data in this experiment.")
         return
 
-    click.echo(
-        colored(f"Metrics from: {exp_path.name}", "blue", attrs=["bold"])
-    )
+    click.echo(colored(f"Metrics from: {exp_path.name}", "blue", attrs=["bold"]))
     click.echo()
 
     cat_count = _display_metrics_by_category(available)
@@ -397,9 +400,7 @@ def show(_ctx, metric, limit, experiment_dir, output_dir):
         warning_message("No metrics available to show.")
         return
 
-    click.echo(
-        colored(f"Metrics from: {exp_path.name}", "blue", attrs=["bold"])
-    )
+    click.echo(colored(f"Metrics from: {exp_path.name}", "blue", attrs=["bold"]))
     click.echo()
 
     for metric_name in metrics_to_show:
@@ -500,9 +501,7 @@ def clear(_ctx, force, experiment_dir, output_dir):
 
     if not force:
         if not click.confirm(
-            colored(
-                f"Delete metrics from {len(targets)} experiment(s)?", "yellow"
-            )
+            colored(f"Delete metrics from {len(targets)} experiment(s)?", "yellow")
         ):
             _info("Clear operation cancelled")
             return

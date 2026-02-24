@@ -70,8 +70,9 @@ class TestExperimentManagerFastFail:
         # Set output dir to temp path
         global_config.paths.output_dir = str(tmp_path)
 
-        with patch("panther.core.experiment_manager.EmitterRegistry"), patch(
-            "panther.core.experiment_manager.WorkflowStateTracker"
+        with (
+            patch("panther.core.experiment_manager.EmitterRegistry"),
+            patch("panther.core.experiment_manager.WorkflowStateTracker"),
         ):
             manager = ExperimentManager(
                 global_config=global_config,
@@ -90,8 +91,9 @@ class TestExperimentManagerFastFail:
         global_config.paths.output_dir = str(tmp_path)
         global_config.fast_fail.enabled = False
 
-        with patch("panther.core.experiment_manager.EmitterRegistry"), patch(
-            "panther.core.experiment_manager.WorkflowStateTracker"
+        with (
+            patch("panther.core.experiment_manager.EmitterRegistry"),
+            patch("panther.core.experiment_manager.WorkflowStateTracker"),
         ):
             manager = ExperimentManager(
                 global_config=global_config,
@@ -113,8 +115,9 @@ class TestExperimentManagerFastFail:
         """Test that experiment initialization errors trigger fast-fail."""
         global_config.paths.output_dir = str(tmp_path)
 
-        with patch("panther.core.experiment_manager.EmitterRegistry"), patch(
-            "panther.core.experiment_manager.WorkflowStateTracker"
+        with (
+            patch("panther.core.experiment_manager.EmitterRegistry"),
+            patch("panther.core.experiment_manager.WorkflowStateTracker"),
         ):
             manager = ExperimentManager(
                 global_config=global_config, experiment_name="test_experiment"
@@ -302,14 +305,14 @@ class TestFastFailEndToEnd:
     @pytest.fixture
     def mock_environment(self):
         """Create a complete mock environment."""
-        with patch("docker.from_env") as docker_mock, patch(
-            "panther.core.experiment_manager.EventManager"
-        ) as event_mock, patch(
-            "panther.core.experiment_manager.get_observer_factory"
-        ) as observer_mock, patch(
-            "panther.core.experiment_manager.EmitterRegistry"
-        ), patch(
-            "panther.core.experiment_manager.WorkflowStateTracker"
+        with (
+            patch("docker.from_env") as docker_mock,
+            patch("panther.core.experiment_manager.EventManager") as event_mock,
+            patch(
+                "panther.core.experiment_manager.get_observer_factory"
+            ) as observer_mock,
+            patch("panther.core.experiment_manager.EmitterRegistry"),
+            patch("panther.core.experiment_manager.WorkflowStateTracker"),
         ):
             # Setup Docker mock
             docker_client = MagicMock()

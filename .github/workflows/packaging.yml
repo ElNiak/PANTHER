@@ -1,0 +1,110 @@
+name: Packaging CI
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [production, development-*]
+  pull_request:
+    branches: [production]
+
+jobs:
+  validate-and-build:
+    name: Build & Validate (${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+        os: [ubuntu-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Setup Graphviz
+        uses: ts-graphviz/setup-graphviz@v2
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-${{ matrix.python-version }}-
+            ${{ runner.os }}-pip-
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build wheel setuptools
+
+      - name: Build wheel and sdist
+        run: python -m build
+
+      - name: Test install in fresh venv
+        run: |
+          python -m venv test_env
+          source test_env/bin/activate
+          pip install dist/*.whl
+          python -c "import panther; print(f'PANTHER version: {panther.__version__}')"
+          python -c "from panther.plugins.plugin_manager import PluginManager; print('Plugin system OK')"
+          panther --help
+          deactivate
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.os }}-py${{ matrix.python-version }}
+          path: dist/
+
+  security-scan:
+    name: Dependency Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install project and security tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install safety bandit[toml] pip-audit
+
+      - name: Create reports directory
+        run: mkdir -p security-reports
+
+      - name: Run Safety check
+        continue-on-error: true
+        run: |
+          safety check --json > security-reports/safety.json || true
+          safety check || true
+
+      - name: Run Bandit
+        continue-on-error: true
+        run: |
+          bandit -r panther/ -f json -o security-reports/bandit.json || true
+          bandit -r panther/ || true
+
+      - name: Run pip-audit
+        continue-on-error: true
+        run: |
+          pip-audit --format json --output security-reports/pip-audit.json || true
+          pip-audit || true
+
+      - name: Upload security reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-reports
+          path: security-reports/

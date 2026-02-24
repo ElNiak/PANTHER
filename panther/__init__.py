@@ -1,6 +1,6 @@
 """PANTHER package.
 
-PANTHER (Protocol Analysis and Network Testing Harness for Extensive Research) is a
+PANTHER (Protocol Analysis and Testing Harness for Extensible Research) is a
 framework for network protocol testing and research.
 """
 

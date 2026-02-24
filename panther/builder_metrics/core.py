@@ -1,6 +1,5 @@
 """Core metrics collection and management."""
 
-
 import contextlib
 import hashlib
 import json

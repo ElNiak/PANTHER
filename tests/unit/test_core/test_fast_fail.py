@@ -1,702 +1,667 @@
 #!/usr/bin/env python3.10
-"""Tests for fast fail mechanism using Python 3.10 syntax."""
+"""Tests for the FastFailHandler using the real implementation.
+
+Tests exercise the real FastFailHandler from
+panther.core.exceptions.fast_fail, including error handling with
+severity levels, cascade detection, error pattern analysis,
+critical error checks, and history management.
+"""
 
 from __future__ import annotations
 
-import time
-from typing import Any, Callable
-from unittest.mock import Mock, patch
+import logging
+from datetime import datetime, timedelta
+from unittest.mock import patch
 
 import pytest
 
-# Test imports with fallback to mocks
-try:
-    from panther.core.exceptions.fast_fail import (
-        FastFailHandler,
-        FastFailException,
-        FastFailConfig,
-        RetryPolicy
-    )
-    FAST_FAIL_SYSTEM_AVAILABLE = True
-except ImportError:
-    FAST_FAIL_SYSTEM_AVAILABLE = False
-    
-    # Create mock implementations for testing
-    class FastFailException(Exception):
-        """Exception raised when fast fail threshold is reached."""
-        
-        def __init__(self, message: str, attempt_count: int, last_error: Exception | None = None):
-            super().__init__(message)
-            self.attempt_count = attempt_count
-            self.last_error = last_error
-    
-    class RetryPolicy:
-        """Configuration for retry behavior."""
-        
-        def __init__(self, 
-                     max_retries: int = 3,
-                     initial_delay: float = 1.0,
-                     max_delay: float = 60.0,
-                     backoff_multiplier: float = 2.0,
-                     jitter: bool = True):
-            self.max_retries = max_retries
-            self.initial_delay = initial_delay
-            self.max_delay = max_delay
-            self.backoff_multiplier = backoff_multiplier
-            self.jitter = jitter
-            
-        def get_delay(self, attempt: int) -> float:
-            """Calculate delay for given attempt number."""
-            delay = self.initial_delay * (self.backoff_multiplier ** attempt)
-            delay = min(delay, self.max_delay)
-            
-            if self.jitter:
-                import random
-                delay *= (0.5 + random.random() * 0.5)  # Add jitter
-                
-            return delay
-    
-    class FastFailConfig:
-        """Configuration for fast fail behavior."""
-        
-        def __init__(self,
-                     enabled: bool = True,
-                     failure_threshold: int = 5,
-                     time_window: float = 60.0,
-                     circuit_breaker_timeout: float = 300.0,
-                     retry_policy: RetryPolicy | None = None):
-            self.enabled = enabled
-            self.failure_threshold = failure_threshold
-            self.time_window = time_window
-            self.circuit_breaker_timeout = circuit_breaker_timeout
-            self.retry_policy = retry_policy or RetryPolicy()
-    
-    class FastFailHandler:
-        """Handler for fast fail mechanism with circuit breaker pattern."""
-        
-        def __init__(self, config: FastFailConfig | None = None):
-            self.config = config or FastFailConfig()
-            self.failure_count = 0
-            self.last_failure_time = 0.0
-            self.circuit_open = False
-            self.circuit_open_time = 0.0
-            self.success_count = 0
-            self.total_attempts = 0
-            
-        def execute(self, func: Callable[[], Any], *args, **kwargs) -> Any:
-            """Execute function with fast fail protection."""
-            if func is None or not callable(func):
-                raise TypeError("Function must be callable")
-                
-            if not self.config.enabled:
-                return func(*args, **kwargs)
-            
-            # Check circuit breaker
-            if self._is_circuit_open():
-                raise FastFailException(
-                    f"Circuit breaker is open. Last failure: {self.last_failure_time}",
-                    self.total_attempts
-                )
-            
-            # Try execution with retries
-            last_error = None
-            for attempt in range(self.config.retry_policy.max_retries + 1):
-                try:
-                    self.total_attempts += 1
-                    result = func(*args, **kwargs)
-                    self._record_success()
-                    return result
-                    
-                except Exception as e:
-                    last_error = e
-                    self._record_failure()
-                    
-                    # Don't retry on last attempt
-                    if attempt == self.config.retry_policy.max_retries:
-                        break
-                    
-                    # Wait before retry
-                    delay = self.config.retry_policy.get_delay(attempt)
-                    time.sleep(delay)
-            
-            # All retries exhausted
-            raise FastFailException(
-                f"Operation failed after {self.config.retry_policy.max_retries + 1} attempts",
-                self.total_attempts,
-                last_error
-            )
-        
-        def _is_circuit_open(self) -> bool:
-            """Check if circuit breaker is open."""
-            current_time = time.time()
-            
-            # Check if circuit should be closed due to timeout
-            if (self.circuit_open and 
-                current_time - self.circuit_open_time > self.config.circuit_breaker_timeout):
-                self.circuit_open = False
-                self.failure_count = 0
-                return False
-            
-            return self.circuit_open
-        
-        def _record_success(self):
-            """Record successful operation."""
-            self.success_count += 1
-            
-            # Reset failure count on success
-            if self.circuit_open:
-                self.circuit_open = False
-                self.failure_count = 0
-        
-        def _record_failure(self):
-            """Record failed operation."""
-            current_time = time.time()
-            
-            # Reset count if outside time window
-            if current_time - self.last_failure_time > self.config.time_window:
-                self.failure_count = 0
-            
-            self.failure_count += 1
-            self.last_failure_time = current_time
-            
-            # Open circuit if threshold reached
-            if self.failure_count >= self.config.failure_threshold:
-                self.circuit_open = True
-                self.circuit_open_time = current_time
-        
-        def get_stats(self) -> dict[str, Any]:
-            """Get handler statistics."""
-            return {
-                'total_attempts': self.total_attempts,
-                'success_count': self.success_count,
-                'failure_count': self.failure_count,
-                'circuit_open': self.circuit_open,
-                'last_failure_time': self.last_failure_time,
-                'circuit_open_time': self.circuit_open_time
-            }
-        
-        def reset(self):
-            """Reset handler state."""
-            self.failure_count = 0
-            self.last_failure_time = 0.0
-            self.circuit_open = False
-            self.circuit_open_time = 0.0
-            self.success_count = 0
-            self.total_attempts = 0
+from panther.core.exceptions.fast_fail import (
+    AuthenticationException,
+    CertificateException,
+    ConfigurationException,
+    CriticalAssertionException,
+    DependencyException,
+    DockerBuildException,
+    DockerComposeException,
+    ErrorCascadeException,
+    ErrorCategory,
+    ErrorSeverity,
+    FastFailHandler,
+    IvyCompilationException,
+    NetworkSetupException,
+    PantherException,
+    PluginLoadException,
+    PortConflictException,
+    ResourceExhaustionException,
+    ServiceStartException,
+    TimeoutCascadeException,
+)
 
 pytestmark = [pytest.mark.unit, pytest.mark.fast_fail]
 
-class TestFastFailException:
-    """Test FastFailException functionality."""
-    
-    def test_exception_initialization(self):
-        """Test FastFailException initialization."""
-        message = "Test failure"
-        attempt_count = 3
-        last_error = ValueError("Original error")
-        
-        exception = FastFailException(message, attempt_count, last_error)
-        
-        assert str(exception) == message
-        assert exception.attempt_count == attempt_count
-        assert exception.last_error == last_error
-    
-    def test_exception_without_last_error(self):
-        """Test FastFailException without last error."""
-        message = "Test failure"
-        attempt_count = 2
-        
-        exception = FastFailException(message, attempt_count)
-        
-        assert str(exception) == message
-        assert exception.attempt_count == attempt_count
-        assert exception.last_error is None
 
-class TestRetryPolicy:
-    """Test RetryPolicy functionality."""
-    
-    def test_retry_policy_initialization_defaults(self):
-        """Test RetryPolicy initialization with defaults."""
-        policy = RetryPolicy()
-        
-        assert policy.max_retries == 3
-        assert policy.initial_delay == 1.0
-        assert policy.max_delay == 60.0
-        assert policy.backoff_multiplier == 2.0
-        assert policy.jitter is True
-    
-    def test_retry_policy_initialization_custom(self):
-        """Test RetryPolicy initialization with custom values."""
-        policy = RetryPolicy(
-            max_retries=5,
-            initial_delay=0.5,
-            max_delay=30.0,
-            backoff_multiplier=1.5,
-            jitter=False
-        )
-        
-        assert policy.max_retries == 5
-        assert policy.initial_delay == 0.5
-        assert policy.max_delay == 30.0
-        assert policy.backoff_multiplier == 1.5
-        assert policy.jitter is False
-    
-    def test_delay_calculation_without_jitter(self):
-        """Test delay calculation without jitter."""
-        policy = RetryPolicy(
-            initial_delay=1.0,
-            backoff_multiplier=2.0,
-            max_delay=60.0,
-            jitter=False
-        )
-        
-        # Test exponential backoff
-        assert policy.get_delay(0) == 1.0
-        assert policy.get_delay(1) == 2.0
-        assert policy.get_delay(2) == 4.0
-        assert policy.get_delay(3) == 8.0
-    
-    def test_delay_calculation_with_max_delay(self):
-        """Test delay calculation respects max delay."""
-        policy = RetryPolicy(
-            initial_delay=10.0,
-            backoff_multiplier=10.0,
-            max_delay=15.0,
-            jitter=False
-        )
-        
-        assert policy.get_delay(0) == 10.0
-        assert policy.get_delay(1) == 15.0  # Capped at max_delay
-        assert policy.get_delay(2) == 15.0  # Still capped
-    
-    @patch('random.random')
-    def test_delay_calculation_with_jitter(self, mock_random):
-        """Test delay calculation with jitter."""
-        mock_random.return_value = 0.5  # Fixed random value
-        
-        policy = RetryPolicy(
-            initial_delay=2.0,
-            backoff_multiplier=2.0,
-            jitter=True
-        )
-        
-        # With jitter: delay * (0.5 + 0.5 * 0.5) = delay * 0.75
-        expected_delay = 2.0 * 0.75
-        assert policy.get_delay(0) == expected_delay
+# ---------------------------------------------------------------------------
+# PantherException hierarchy tests
+# ---------------------------------------------------------------------------
 
-class TestFastFailConfig:
-    """Test FastFailConfig functionality."""
-    
-    def test_config_initialization_defaults(self):
-        """Test FastFailConfig initialization with defaults."""
-        config = FastFailConfig()
-        
-        assert config.enabled is True
-        assert config.failure_threshold == 5
-        assert config.time_window == 60.0
-        assert config.circuit_breaker_timeout == 300.0
-        assert isinstance(config.retry_policy, RetryPolicy)
-    
-    def test_config_initialization_custom(self):
-        """Test FastFailConfig initialization with custom values."""
-        retry_policy = RetryPolicy(max_retries=2)
-        
-        config = FastFailConfig(
-            enabled=False,
-            failure_threshold=3,
-            time_window=30.0,
-            circuit_breaker_timeout=120.0,
-            retry_policy=retry_policy
-        )
-        
-        assert config.enabled is False
-        assert config.failure_threshold == 3
-        assert config.time_window == 30.0
-        assert config.circuit_breaker_timeout == 120.0
-        assert config.retry_policy == retry_policy
 
-class TestFastFailHandler:
-    """Test FastFailHandler functionality."""
-    
-    @pytest.fixture
-    def handler(self) -> FastFailHandler:
-        """Create a FastFailHandler for testing."""
-        config = FastFailConfig(
-            failure_threshold=3,
-            time_window=60.0,
-            circuit_breaker_timeout=10.0,
-            retry_policy=RetryPolicy(max_retries=2, initial_delay=0.1)
+class TestPantherException:
+    """Test base PantherException and its attributes."""
+
+    def test_basic_initialization(self):
+        """PantherException stores severity, category, timestamp, and context."""
+        exc = PantherException(
+            "something broke",
+            ErrorSeverity.MEDIUM,
+            ErrorCategory.COMMAND_EXECUTION,
         )
-        return FastFailHandler(config)
-    
-    def test_handler_initialization(self, handler: FastFailHandler):
-        """Test FastFailHandler initialization."""
-        assert handler.config is not None
-        assert handler.failure_count == 0
-        assert handler.circuit_open is False
-        assert handler.success_count == 0
-        assert handler.total_attempts == 0
-    
-    def test_successful_execution(self, handler: FastFailHandler):
-        """Test successful function execution."""
-        def successful_func():
-            return "success"
-        
-        result = handler.execute(successful_func)
-        
-        assert result == "success"
-        assert handler.success_count == 1
-        assert handler.total_attempts == 1
-        assert handler.failure_count == 0
-        assert handler.circuit_open is False
-    
-    def test_execution_with_retries_eventual_success(self, handler: FastFailHandler):
-        """Test execution that fails then succeeds."""
-        call_count = 0
-        
-        def failing_then_success():
-            nonlocal call_count
-            call_count += 1
-            if call_count <= 2:
-                raise ValueError(f"Failure {call_count}")
-            return "success"
-        
-        result = handler.execute(failing_then_success)
-        
-        assert result == "success"
-        assert call_count == 3
-        assert handler.success_count == 1
-        assert handler.total_attempts == 3
-    
-    def test_execution_with_retries_all_fail(self, handler: FastFailHandler):
-        """Test execution that fails all retries."""
-        call_count = 0
-        
-        def always_fails():
-            nonlocal call_count
-            call_count += 1
-            raise ValueError(f"Failure {call_count}")
-        
-        with pytest.raises(FastFailException) as exc_info:
-            handler.execute(always_fails)
-        
-        assert call_count == 3  # max_retries + 1
-        assert "failed after 3 attempts" in str(exc_info.value)
-        assert exc_info.value.attempt_count == 3
-        assert isinstance(exc_info.value.last_error, ValueError)
-    
-    @patch('time.time')
-    def test_circuit_breaker_opens_after_threshold(self, mock_time, handler: FastFailHandler):
-        """Test circuit breaker opens after failure threshold."""
-        mock_time.return_value = 100.0
-        
-        def always_fails():
-            raise ValueError("Always fails")
-        
-        # Cause enough failures to open circuit
-        for i in range(3):  # failure_threshold = 3
-            with pytest.raises(FastFailException):
-                handler.execute(always_fails)
-        
-        assert handler.circuit_open is True
-        assert handler.failure_count == 3
-    
-    @patch('time.time')
-    def test_circuit_breaker_rejects_when_open(self, mock_time, handler: FastFailHandler):
-        """Test circuit breaker rejects execution when open."""
-        mock_time.return_value = 100.0
-        
-        # Force circuit open
-        handler.circuit_open = True
-        handler.circuit_open_time = 100.0
-        
-        def some_func():
-            return "should not be called"
-        
-        with pytest.raises(FastFailException) as exc_info:
-            handler.execute(some_func)
-        
-        assert "Circuit breaker is open" in str(exc_info.value)
-    
-    @patch('time.time')
-    def test_circuit_breaker_closes_after_timeout(self, mock_time, handler: FastFailHandler):
-        """Test circuit breaker closes after timeout."""
-        # Start with circuit open
-        handler.circuit_open = True
-        handler.circuit_open_time = 100.0
-        handler.failure_count = 5
-        
-        # Simulate time passing beyond timeout
-        mock_time.return_value = 100.0 + handler.config.circuit_breaker_timeout + 1
-        
-        def successful_func():
-            return "success"
-        
-        result = handler.execute(successful_func)
-        
-        assert result == "success"
-        assert handler.circuit_open is False
-        assert handler.failure_count == 0
-    
-    @patch('time.time')
-    def test_failure_count_resets_outside_time_window(self, mock_time, handler: FastFailHandler):
-        """Test failure count resets outside time window."""
-        # Record some failures
-        mock_time.return_value = 100.0
-        handler.failure_count = 2
-        handler.last_failure_time = 100.0
-        
-        # Move time beyond window
-        mock_time.return_value = 100.0 + handler.config.time_window + 1
-        
-        def failing_func():
-            raise ValueError("Failure")
-        
-        with pytest.raises(FastFailException):
-            handler.execute(failing_func)
-        
-        # Should have reset and then incremented by max_retries + 1 (default is 3, so 4 total attempts)
-        assert handler.failure_count == handler.config.retry_policy.max_retries + 1
-    
-    def test_handler_disabled(self):
-        """Test handler when disabled."""
-        config = FastFailConfig(enabled=False)
-        handler = FastFailHandler(config)
-        
-        call_count = 0
-        
-        def failing_func():
-            nonlocal call_count
-            call_count += 1
-            raise ValueError("Failure")
-        
-        # Should raise original exception, not FastFailException
-        with pytest.raises(ValueError):
-            handler.execute(failing_func)
-        
-        assert call_count == 1  # No retries when disabled
-    
-    def test_get_stats(self, handler: FastFailHandler):
-        """Test getting handler statistics."""
-        stats = handler.get_stats()
-        
-        expected_keys = {
-            'total_attempts', 'success_count', 'failure_count',
-            'circuit_open', 'last_failure_time', 'circuit_open_time'
-        }
-        assert set(stats.keys()) == expected_keys
-        assert all(isinstance(v, (int, float, bool)) for v in stats.values())
-    
-    def test_reset_handler(self, handler: FastFailHandler):
-        """Test resetting handler state."""
-        # Set some state
-        handler.failure_count = 5
-        handler.success_count = 3
-        handler.total_attempts = 8
-        handler.circuit_open = True
-        handler.last_failure_time = 123.0
-        handler.circuit_open_time = 456.0
-        
-        handler.reset()
-        
-        assert handler.failure_count == 0
-        assert handler.success_count == 0
-        assert handler.total_attempts == 0
-        assert handler.circuit_open is False
-        assert handler.last_failure_time == 0.0
-        assert handler.circuit_open_time == 0.0
+        assert str(exc) == "something broke"
+        assert exc.severity == ErrorSeverity.MEDIUM
+        assert exc.category == ErrorCategory.COMMAND_EXECUTION
+        assert isinstance(exc.timestamp, datetime)
+        assert exc.context == {}
+
+    def test_initialization_with_context(self):
+        """PantherException stores arbitrary context dict."""
+        ctx = {"host": "localhost", "port": 443}
+        exc = PantherException(
+            "details", ErrorSeverity.LOW, ErrorCategory.NETWORK_SETUP, context=ctx
+        )
+        assert exc.context == ctx
+
+    def test_should_terminate_critical(self):
+        """CRITICAL severity causes should_terminate to return True."""
+        exc = PantherException("fatal", ErrorSeverity.CRITICAL, ErrorCategory.RESOURCE)
+        assert exc.should_terminate() is True
+
+    def test_should_terminate_non_critical(self):
+        """Non-CRITICAL severities do not cause termination."""
+        for sev in (ErrorSeverity.HIGH, ErrorSeverity.MEDIUM, ErrorSeverity.LOW):
+            exc = PantherException("warn", sev, ErrorCategory.COMMAND_EXECUTION)
+            assert exc.should_terminate() is False
+
+
+class TestExceptionSubclasses:
+    """Verify each PantherException subclass sets correct severity/category."""
+
+    def test_docker_build_exception(self):
+        exc = DockerBuildException("build fail", "myimg", "Dockerfile", "error log")
+        assert exc.severity == ErrorSeverity.CRITICAL
+        assert exc.category == ErrorCategory.DOCKER_BUILD
+        assert exc.context["image_name"] == "myimg"
+        assert exc.context["dockerfile"] == "Dockerfile"
+        assert exc.context["build_error"] == "error log"
+
+    def test_plugin_load_exception_default_severity(self):
+        exc = PluginLoadException("load fail", "myplugin", "service")
+        assert exc.severity == ErrorSeverity.HIGH
+        assert exc.category == ErrorCategory.PLUGIN_LOAD
+        assert exc.context["plugin_name"] == "myplugin"
+
+    def test_plugin_load_exception_custom_severity(self):
+        exc = PluginLoadException("warn", "p", "t", severity=ErrorSeverity.LOW)
+        assert exc.severity == ErrorSeverity.LOW
+
+    def test_service_start_exception(self):
+        exc = ServiceStartException("start fail", "picoquic")
+        assert exc.severity == ErrorSeverity.HIGH
+        assert exc.category == ErrorCategory.SERVICE_START
+        assert exc.context["service_name"] == "picoquic"
+
+    def test_docker_compose_exception(self):
+        exc = DockerComposeException("compose fail", "up -d", 1, "out", "err")
+        assert exc.severity == ErrorSeverity.CRITICAL
+        assert exc.category == ErrorCategory.DOCKER_RUNTIME
+        assert exc.context["returncode"] == 1
+        # stdout/stderr truncated to 500 chars
+        assert exc.context["stdout"] == "out"
+        assert exc.context["stderr"] == "err"
+
+    def test_network_setup_exception(self):
+        exc = NetworkSetupException("net fail", "bridge", "no interface")
+        assert exc.severity == ErrorSeverity.CRITICAL
+        assert exc.category == ErrorCategory.NETWORK_SETUP
+
+    def test_port_conflict_exception(self):
+        exc = PortConflictException("port taken", 8080, "webserver")
+        assert exc.severity == ErrorSeverity.HIGH
+        assert exc.category == ErrorCategory.NETWORK_SETUP
+        assert exc.context["port"] == 8080
+
+    def test_ivy_compilation_exception(self):
+        exc = IvyCompilationException("compile fail", "test_quic", "error", 2)
+        assert exc.severity == ErrorSeverity.CRITICAL
+        assert exc.category == ErrorCategory.TEST_FRAMEWORK
+
+    def test_resource_exhaustion_exception(self):
+        exc = ResourceExhaustionException("no space", "disk", 100.0, 500.0)
+        assert exc.severity == ErrorSeverity.CRITICAL
+        assert exc.category == ErrorCategory.RESOURCE
+
+    def test_certificate_exception(self):
+        exc = CertificateException("cert fail", "/certs/ca.pem", "expired")
+        assert exc.severity == ErrorSeverity.CRITICAL
+        assert exc.category == ErrorCategory.SECURITY
+
+    def test_configuration_exception(self):
+        exc = ConfigurationException("bad config", "exp.yaml", "timeout", "negative")
+        assert exc.severity == ErrorSeverity.HIGH
+        assert exc.category == ErrorCategory.CONFIGURATION
+
+    def test_timeout_cascade_exception(self):
+        exc = TimeoutCascadeException("timeouts", 5, ["svc1", "svc2"])
+        assert exc.severity == ErrorSeverity.HIGH
+        assert exc.category == ErrorCategory.CASCADE
+
+    def test_authentication_exception(self):
+        exc = AuthenticationException("auth fail", "token", "registry")
+        assert exc.severity == ErrorSeverity.HIGH
+        assert exc.category == ErrorCategory.SECURITY
+
+    def test_critical_assertion_exception(self):
+        exc = CriticalAssertionException("assert fail", "equals", 42, 99)
+        assert exc.severity == ErrorSeverity.HIGH
+        assert exc.category == ErrorCategory.TEST_EXECUTION
+        assert exc.context["expected"] == "42"
+        assert exc.context["actual"] == "99"
+
+    def test_dependency_exception(self):
+        exc = DependencyException("dep fail", "numpy", "1.24", "1.20")
+        assert exc.severity == ErrorSeverity.HIGH
+        assert exc.category == ErrorCategory.DEPENDENCY
+        assert exc.context["found_version"] == "1.20"
+
+    def test_dependency_exception_not_found(self):
+        exc = DependencyException("dep missing", "z3", "4.0")
+        assert exc.context["found_version"] == "not found"
+
+    def test_error_cascade_exception(self):
+        exc = ErrorCascadeException("cascade", "timeout", 5, 3)
+        assert exc.severity == ErrorSeverity.HIGH
+        assert exc.category == ErrorCategory.CASCADE
+        assert exc.context["error_count"] == 5
+        assert exc.context["threshold"] == 3
+
+
+# ---------------------------------------------------------------------------
+# FastFailHandler tests
+# ---------------------------------------------------------------------------
+
+
+class TestFastFailHandlerInit:
+    """Test FastFailHandler initialization and basic state."""
+
+    def test_default_initialization(self, real_fast_fail_handler):
+        """Handler starts with clean state and enabled."""
+        h = real_fast_fail_handler
+        assert h.enabled is True
+        assert h.error_count == 0
+        assert h.critical_error is None
+        assert h.error_history == []
+        assert isinstance(h.logger, logging.Logger)
+
+    def test_disabled_handler(self):
+        handler = FastFailHandler(enabled=False)
+        assert handler.enabled is False
+
+    def test_custom_logger(self):
+        custom_logger = logging.getLogger("test.custom")
+        handler = FastFailHandler(logger=custom_logger)
+        assert handler.logger is custom_logger
+
+    def test_default_cascade_thresholds(self, real_fast_fail_handler):
+        """Handler has sensible default cascade thresholds."""
+        h = real_fast_fail_handler
+        assert h.cascade_thresholds[ErrorCategory.TIMEOUT] == 3
+        assert h.cascade_thresholds[ErrorCategory.DOCKER_RUNTIME] == 2
+        assert h.cascade_thresholds[ErrorCategory.SERVICE_START] == 3
+        assert h.cascade_thresholds[ErrorCategory.NETWORK_SETUP] == 2
+        assert h.cascade_thresholds[ErrorCategory.COMMAND_EXECUTION] == 5
+        assert h.cascade_thresholds[ErrorCategory.TEST_EXECUTION] == 4
+
+
+class TestHandleError:
+    """Test handle_error() with different error types and severities."""
+
+    def test_low_severity_continues(self, real_fast_fail_handler):
+        """LOW severity errors return True (continue execution)."""
+        err = PantherException(
+            "minor", ErrorSeverity.LOW, ErrorCategory.COMMAND_EXECUTION
+        )
+        result = real_fast_fail_handler.handle_error(err)
+        assert result is True
+        assert real_fast_fail_handler.error_count == 1
+
+    def test_medium_severity_continues(self, real_fast_fail_handler):
+        """MEDIUM severity errors return True (continue execution)."""
+        err = PantherException("warning", ErrorSeverity.MEDIUM, ErrorCategory.TIMEOUT)
+        result = real_fast_fail_handler.handle_error(err)
+        assert result is True
+
+    def test_high_severity_stops_current_operation(self, real_fast_fail_handler):
+        """HIGH severity errors return False (stop current operation)."""
+        err = PantherException("bad", ErrorSeverity.HIGH, ErrorCategory.DOCKER_RUNTIME)
+        result = real_fast_fail_handler.handle_error(err, raise_on_critical=False)
+        assert result is False
+
+    def test_critical_raises_by_default(self, real_fast_fail_handler):
+        """CRITICAL errors are re-raised when raise_on_critical is True."""
+        err = PantherException("fatal", ErrorSeverity.CRITICAL, ErrorCategory.RESOURCE)
+        with pytest.raises(PantherException, match="fatal"):
+            real_fast_fail_handler.handle_error(err)
+
+    def test_critical_returns_false_when_not_raising(self, real_fast_fail_handler):
+        """CRITICAL errors return False when raise_on_critical is False."""
+        err = PantherException("fatal", ErrorSeverity.CRITICAL, ErrorCategory.RESOURCE)
+        result = real_fast_fail_handler.handle_error(err, raise_on_critical=False)
+        assert result is False
+
+    def test_critical_error_stored(self, real_fast_fail_handler):
+        """CRITICAL errors are stored on the handler for later retrieval."""
+        err = PantherException("fatal", ErrorSeverity.CRITICAL, ErrorCategory.RESOURCE)
+        real_fast_fail_handler.handle_error(err, raise_on_critical=False)
+        assert real_fast_fail_handler.critical_error is err
+
+    def test_disabled_handler_always_continues(self):
+        """When disabled, handle_error always returns True regardless of severity."""
+        handler = FastFailHandler(enabled=False)
+        critical = PantherException(
+            "fatal", ErrorSeverity.CRITICAL, ErrorCategory.RESOURCE
+        )
+        result = handler.handle_error(critical, raise_on_critical=False)
+        # When disabled, returns True (continue) for everything
+        assert result is True
+
+    def test_regular_exception_wrapped(self, real_fast_fail_handler):
+        """Non-PantherException errors are wrapped as MEDIUM/COMMAND_EXECUTION."""
+        err = ValueError("raw python error")
+        result = real_fast_fail_handler.handle_error(err)
+        assert result is True  # MEDIUM severity => continue
+        assert real_fast_fail_handler.error_count == 1
+        # Stored in history as a PantherException wrapping the original
+        _, stored = real_fast_fail_handler.error_history[0]
+        assert isinstance(stored, PantherException)
+        assert stored.category == ErrorCategory.COMMAND_EXECUTION
+        assert stored.severity == ErrorSeverity.MEDIUM
+
+    def test_error_history_grows(self, real_fast_fail_handler):
+        """Each handle_error call appends to error_history."""
+        for i in range(5):
+            err = PantherException(
+                f"error {i}", ErrorSeverity.LOW, ErrorCategory.COMMAND_EXECUTION
+            )
+            real_fast_fail_handler.handle_error(err)
+        assert len(real_fast_fail_handler.error_history) == 5
+        assert real_fast_fail_handler.error_count == 5
+
+    def test_error_history_trimmed_at_100(self, real_fast_fail_handler):
+        """Error history is trimmed to the last 100 entries."""
+        for i in range(110):
+            err = PantherException(
+                f"e{i}", ErrorSeverity.LOW, ErrorCategory.COMMAND_EXECUTION
+            )
+            real_fast_fail_handler.handle_error(err)
+        assert len(real_fast_fail_handler.error_history) <= 100
+        assert real_fast_fail_handler.error_count == 110
+
+    def test_handle_docker_build_exception(self, real_fast_fail_handler):
+        """DockerBuildException (CRITICAL) is raised by handle_error."""
+        err = DockerBuildException("build fail", "img", "Dockerfile")
+        with pytest.raises(DockerBuildException):
+            real_fast_fail_handler.handle_error(err)
+
+    def test_handle_service_start_exception(self, real_fast_fail_handler):
+        """ServiceStartException (HIGH) stops current operation without raising."""
+        err = ServiceStartException("start fail", "picoquic")
+        result = real_fast_fail_handler.handle_error(err, raise_on_critical=False)
+        assert result is False
+
+
+class TestCascadeDetection:
+    """Test detect_cascade() and cascade-related behavior."""
+
+    def test_no_cascade_below_threshold(self, real_fast_fail_handler):
+        """No cascade when error count is below threshold."""
+        err = PantherException("timeout", ErrorSeverity.MEDIUM, ErrorCategory.TIMEOUT)
+        # Threshold for TIMEOUT is 3; add 2 errors (below threshold)
+        real_fast_fail_handler.error_history.append((datetime.now(), err))
+        real_fast_fail_handler.error_history.append((datetime.now(), err))
+        result = real_fast_fail_handler.detect_cascade(err)
+        assert result is None
+
+    def test_cascade_at_threshold(self, real_fast_fail_handler):
+        """Cascade detected when error count reaches threshold."""
+        err = PantherException("timeout", ErrorSeverity.MEDIUM, ErrorCategory.TIMEOUT)
+        # TIMEOUT threshold is 3; add 3 errors to history (including current)
+        for _ in range(3):
+            real_fast_fail_handler.error_history.append((datetime.now(), err))
+        result = real_fast_fail_handler.detect_cascade(err)
+        assert result is not None
+        assert isinstance(result, ErrorCascadeException)
+        assert result.category == ErrorCategory.CASCADE
+
+    def test_cascade_only_same_category(self, real_fast_fail_handler):
+        """Cascade detection only counts errors of the same category."""
+        timeout_err = PantherException("t", ErrorSeverity.MEDIUM, ErrorCategory.TIMEOUT)
+        docker_err = PantherException(
+            "d", ErrorSeverity.MEDIUM, ErrorCategory.DOCKER_RUNTIME
+        )
+        # Mix categories: 2 timeout + 2 docker (both below their thresholds)
+        now = datetime.now()
+        real_fast_fail_handler.error_history.extend(
+            [
+                (now, timeout_err),
+                (now, docker_err),
+                (now, timeout_err),
+                (now, docker_err),
+            ]
+        )
+        # TIMEOUT threshold=3, only 2 timeout errors => no cascade
+        assert real_fast_fail_handler.detect_cascade(timeout_err) is None
+        # DOCKER_RUNTIME threshold=2, exactly 2 docker errors => cascade
+        assert real_fast_fail_handler.detect_cascade(docker_err) is not None
+
+    def test_cascade_respects_time_window(self, real_fast_fail_handler):
+        """Old errors outside the time window are not counted."""
+        err = PantherException("t", ErrorSeverity.MEDIUM, ErrorCategory.TIMEOUT)
+        old_time = datetime.now() - timedelta(
+            seconds=real_fast_fail_handler.cascade_time_window + 60
+        )
+        # Add 3 old errors (outside window)
+        for _ in range(3):
+            real_fast_fail_handler.error_history.append((old_time, err))
+        # 3 old TIMEOUT errors, but they are outside time window
+        result = real_fast_fail_handler.detect_cascade(err)
+        assert result is None
+
+    def test_cascade_upgrades_severity_in_handle_error(self, real_fast_fail_handler):
+        """When a cascade is detected, handle_error upgrades the error severity."""
+        err = PantherException("timeout", ErrorSeverity.MEDIUM, ErrorCategory.TIMEOUT)
+        # Add enough errors to trigger cascade (threshold for TIMEOUT = 3)
+        for _ in range(3):
+            real_fast_fail_handler.handle_error(err)
+        # The 4th error should trigger cascade detection during handle_error
+        # The cascade creates an ErrorCascadeException (HIGH severity)
+        # So handle_error should return False (HIGH => stop)
+        result = real_fast_fail_handler.handle_error(err, raise_on_critical=False)
+        assert result is False
+
+    def test_set_cascade_threshold(self, real_fast_fail_handler):
+        """Custom cascade thresholds are respected."""
+        real_fast_fail_handler.set_cascade_threshold(ErrorCategory.TIMEOUT, 1)
+        err = PantherException("t", ErrorSeverity.MEDIUM, ErrorCategory.TIMEOUT)
+        real_fast_fail_handler.error_history.append((datetime.now(), err))
+        result = real_fast_fail_handler.detect_cascade(err)
+        assert result is not None
+
+    def test_default_threshold_for_unconfigured_category(self, real_fast_fail_handler):
+        """Categories without explicit thresholds use default of 5."""
+        err = PantherException("cfg", ErrorSeverity.MEDIUM, ErrorCategory.CONFIGURATION)
+        # CONFIGURATION is not in default cascade_thresholds => default is 5
+        for _ in range(4):
+            real_fast_fail_handler.error_history.append((datetime.now(), err))
+        assert real_fast_fail_handler.detect_cascade(err) is None
+        real_fast_fail_handler.error_history.append((datetime.now(), err))
+        assert real_fast_fail_handler.detect_cascade(err) is not None
+
+
+class TestGetCascadeRisk:
+    """Test get_cascade_risk() risk scoring."""
+
+    def test_zero_risk_no_errors(self, real_fast_fail_handler):
+        """Risk is 0.0 when there are no errors for a category."""
+        risk = real_fast_fail_handler.get_cascade_risk(ErrorCategory.TIMEOUT)
+        assert risk == 0.0
+
+    def test_partial_risk(self, real_fast_fail_handler):
+        """Risk is proportional to error count vs threshold."""
+        err = PantherException("t", ErrorSeverity.MEDIUM, ErrorCategory.TIMEOUT)
+        # TIMEOUT threshold=3, add 1 error => risk = 1/3
+        real_fast_fail_handler.error_history.append((datetime.now(), err))
+        risk = real_fast_fail_handler.get_cascade_risk(ErrorCategory.TIMEOUT)
+        assert abs(risk - 1.0 / 3.0) < 0.01
+
+    def test_full_risk_capped_at_one(self, real_fast_fail_handler):
+        """Risk is capped at 1.0 even if errors exceed threshold."""
+        err = PantherException("t", ErrorSeverity.MEDIUM, ErrorCategory.TIMEOUT)
+        for _ in range(10):
+            real_fast_fail_handler.error_history.append((datetime.now(), err))
+        risk = real_fast_fail_handler.get_cascade_risk(ErrorCategory.TIMEOUT)
+        assert risk == 1.0
+
+
+class TestGetErrorPatterns:
+    """Test get_error_patterns() analysis."""
+
+    def test_empty_history_returns_empty(self, real_fast_fail_handler):
+        """No patterns when history is empty."""
+        patterns = real_fast_fail_handler.get_error_patterns()
+        assert patterns == {}
+
+    def test_single_category_single_window(self, real_fast_fail_handler):
+        """Errors within 60s grouped into a single window."""
+        err = PantherException("t", ErrorSeverity.MEDIUM, ErrorCategory.TIMEOUT)
+        now = datetime.now()
+        for _ in range(3):
+            real_fast_fail_handler.error_history.append((now, err))
+        patterns = real_fast_fail_handler.get_error_patterns()
+        assert ErrorCategory.TIMEOUT in patterns
+        windows = patterns[ErrorCategory.TIMEOUT]
+        assert len(windows) == 1
+        assert windows[0][1] == 3  # count
+
+    def test_multiple_categories(self, real_fast_fail_handler):
+        """Patterns are grouped per category."""
+        now = datetime.now()
+        t_err = PantherException("t", ErrorSeverity.MEDIUM, ErrorCategory.TIMEOUT)
+        d_err = PantherException(
+            "d", ErrorSeverity.MEDIUM, ErrorCategory.DOCKER_RUNTIME
+        )
+        real_fast_fail_handler.error_history.extend(
+            [
+                (now, t_err),
+                (now, t_err),
+                (now, d_err),
+            ]
+        )
+        patterns = real_fast_fail_handler.get_error_patterns()
+        assert ErrorCategory.TIMEOUT in patterns
+        assert ErrorCategory.DOCKER_RUNTIME in patterns
+        assert patterns[ErrorCategory.TIMEOUT][0][1] == 2
+        assert patterns[ErrorCategory.DOCKER_RUNTIME][0][1] == 1
+
+
+class TestGetErrorSummary:
+    """Test get_error_summary() output structure."""
+
+    def test_empty_summary(self, real_fast_fail_handler):
+        """Summary on fresh handler has zeros and empty lists."""
+        summary = real_fast_fail_handler.get_error_summary()
+        assert summary["total_errors"] == 0
+        assert summary["critical_error"] is None
+        assert summary["errors_by_category"] == {}
+        assert summary["errors_by_severity"] == {}
+        assert summary["recent_errors"] == []
+        assert summary["cascades_detected"] == []
+
+    def test_summary_after_errors(self, real_fast_fail_handler):
+        """Summary reflects errors that were handled."""
+        err_low = PantherException(
+            "lo", ErrorSeverity.LOW, ErrorCategory.COMMAND_EXECUTION
+        )
+        err_med = PantherException("med", ErrorSeverity.MEDIUM, ErrorCategory.TIMEOUT)
+        real_fast_fail_handler.handle_error(err_low)
+        real_fast_fail_handler.handle_error(err_med)
+
+        summary = real_fast_fail_handler.get_error_summary()
+        assert summary["total_errors"] == 2
+        assert summary["errors_by_category"]["command_execution"] == 1
+        assert summary["errors_by_category"]["timeout"] == 1
+        assert summary["errors_by_severity"]["LOW"] == 1
+        assert summary["errors_by_severity"]["MEDIUM"] == 1
+        assert len(summary["recent_errors"]) == 2
+
+    def test_summary_critical_error_field(self, real_fast_fail_handler):
+        """Summary includes critical error string when present."""
+        err = PantherException("fatal", ErrorSeverity.CRITICAL, ErrorCategory.RESOURCE)
+        real_fast_fail_handler.handle_error(err, raise_on_critical=False)
+        summary = real_fast_fail_handler.get_error_summary()
+        assert summary["critical_error"] == "fatal"
+
+    def test_summary_recent_errors_capped_at_10(self, real_fast_fail_handler):
+        """Recent errors list shows at most 10 entries."""
+        for i in range(15):
+            err = PantherException(
+                f"e{i}", ErrorSeverity.LOW, ErrorCategory.COMMAND_EXECUTION
+            )
+            real_fast_fail_handler.handle_error(err)
+        summary = real_fast_fail_handler.get_error_summary()
+        assert len(summary["recent_errors"]) == 10
+
+    def test_summary_cascade_detection(self, real_fast_fail_handler):
+        """Summary detects cascades in the error history."""
+        err = PantherException("t", ErrorSeverity.MEDIUM, ErrorCategory.TIMEOUT)
+        # TIMEOUT threshold=3, add 3+ errors => cascade detected in summary
+        for _ in range(4):
+            real_fast_fail_handler.handle_error(err)
+        summary = real_fast_fail_handler.get_error_summary()
+        assert len(summary["cascades_detected"]) >= 1
+        cascade = summary["cascades_detected"][0]
+        assert cascade["category"] == "timeout"
+
+
+class TestCheckCritical:
+    """Test check_critical() behavior."""
+
+    def test_no_critical_does_nothing(self, real_fast_fail_handler):
+        """check_critical does not raise when no critical error exists."""
+        real_fast_fail_handler.check_critical()  # should not raise
+
+    def test_raises_stored_critical(self, real_fast_fail_handler):
+        """check_critical raises the stored critical error."""
+        err = PantherException("fatal", ErrorSeverity.CRITICAL, ErrorCategory.RESOURCE)
+        real_fast_fail_handler.handle_error(err, raise_on_critical=False)
+        with pytest.raises(PantherException, match="fatal"):
+            real_fast_fail_handler.check_critical()
+
+    def test_disabled_handler_check_critical_does_not_raise(self):
+        """check_critical does not raise when handler is disabled."""
+        handler = FastFailHandler(enabled=False)
+        err = PantherException("fatal", ErrorSeverity.CRITICAL, ErrorCategory.RESOURCE)
+        handler.handle_error(err, raise_on_critical=False)
+        # critical_error is set, but handler is disabled => no raise
+        handler.check_critical()  # should not raise
+
+
+class TestClearHistory:
+    """Test clear_history() reset behavior."""
+
+    def test_clear_resets_all_counters(self, real_fast_fail_handler):
+        """clear_history resets error count, history, and critical error."""
+        err = PantherException("e", ErrorSeverity.MEDIUM, ErrorCategory.TIMEOUT)
+        crit = PantherException("fatal", ErrorSeverity.CRITICAL, ErrorCategory.RESOURCE)
+        real_fast_fail_handler.handle_error(err)
+        real_fast_fail_handler.handle_error(crit, raise_on_critical=False)
+
+        assert real_fast_fail_handler.error_count == 2
+        assert real_fast_fail_handler.critical_error is not None
+        assert len(real_fast_fail_handler.error_history) == 2
+
+        real_fast_fail_handler.clear_history()
+
+        assert real_fast_fail_handler.error_count == 0
+        assert real_fast_fail_handler.critical_error is None
+        assert real_fast_fail_handler.error_history == []
+
+    def test_clear_allows_check_critical_to_pass(self, real_fast_fail_handler):
+        """After clearing, check_critical does not raise."""
+        crit = PantherException("fatal", ErrorSeverity.CRITICAL, ErrorCategory.RESOURCE)
+        real_fast_fail_handler.handle_error(crit, raise_on_critical=False)
+        real_fast_fail_handler.clear_history()
+        real_fast_fail_handler.check_critical()  # should not raise
+
+
+class TestFormatError:
+    """Test _format_error() output format."""
+
+    def test_format_includes_category_severity_message(self, real_fast_fail_handler):
+        """Formatted string includes category, severity, and message."""
+        err = PantherException(
+            "disk full",
+            ErrorSeverity.CRITICAL,
+            ErrorCategory.RESOURCE,
+            context={"disk": "/dev/sda1"},
+        )
+        formatted = real_fast_fail_handler._format_error(err)
+        assert "RESOURCE" in formatted
+        assert "CRITICAL" in formatted
+        assert "disk full" in formatted
+        assert "disk=/dev/sda1" in formatted
+
+    def test_format_empty_context(self, real_fast_fail_handler):
+        """Formatting works with empty context."""
+        err = PantherException("err", ErrorSeverity.LOW, ErrorCategory.TIMEOUT)
+        formatted = real_fast_fail_handler._format_error(err)
+        assert "TIMEOUT" in formatted
+        assert "err" in formatted
+
+
+# ---------------------------------------------------------------------------
+# Integration-style scenarios
+# ---------------------------------------------------------------------------
+
 
 class TestFastFailIntegration:
-    """Test integration scenarios for fast fail mechanism."""
-    
-    def test_docker_command_execution_with_fast_fail(self):
-        """Test fast fail with Docker command execution simulation."""
-        config = FastFailConfig(
-            failure_threshold=2,
-            retry_policy=RetryPolicy(max_retries=1, initial_delay=0.1)
-        )
-        handler = FastFailHandler(config)
-        
-        def mock_docker_command():
-            import random
-            if random.random() < 0.7:  # 70% failure rate
-                raise RuntimeError("Docker command failed")
-            return "Command successful"
-        
-        successes = 0
-        failures = 0
-        
-        # Simulate multiple command executions
-        for _ in range(10):
-            try:
-                with patch('random.random', return_value=0.5):  # Force failure (0.5 < 0.7)
-                    handler.execute(mock_docker_command)
-                successes += 1
-            except FastFailException:
-                failures += 1
-        
-        # Should have some failures due to circuit breaker
-        assert failures > 0
-        stats = handler.get_stats()
-        # Circuit breaker will stop attempts once opened, so we expect fewer attempts
-        assert stats['total_attempts'] >= 2  # At least the threshold number
-    
-    def test_network_operation_with_fast_fail(self):
-        """Test fast fail with network operation simulation."""
-        config = FastFailConfig(
-            failure_threshold=3,
-            time_window=30.0,
-            retry_policy=RetryPolicy(max_retries=2, initial_delay=0.05)
-        )
-        handler = FastFailHandler(config)
-        
-        connection_attempts = 0
-        
-        def mock_network_connect():
-            nonlocal connection_attempts
-            connection_attempts += 1
-            
-            if connection_attempts <= 2:
-                raise ConnectionError("Network unreachable")
-            return {"status": "connected", "latency": 45}
-        
-        result = handler.execute(mock_network_connect)
-        
-        assert result["status"] == "connected"
-        assert connection_attempts == 3
-        assert handler.success_count == 1
-    
-    def test_service_dependency_with_fast_fail(self):
-        """Test fast fail with service dependency simulation."""
-        config = FastFailConfig(
-            failure_threshold=2,
-            circuit_breaker_timeout=5.0,
-            retry_policy=RetryPolicy(max_retries=1, initial_delay=0.1)
-        )
-        handler = FastFailHandler(config)
-        
-        service_available = False
-        
-        def check_service_health():
-            if not service_available:
-                raise RuntimeError("Service unavailable")
-            return {"status": "healthy"}
-        
-        # Initially service is down - should trip circuit breaker
-        for _ in range(2):
-            with pytest.raises(FastFailException):
-                handler.execute(check_service_health)
-        
-        assert handler.circuit_open is True
-        
-        # Service comes back up, but circuit is still open
-        service_available = True
-        with pytest.raises(FastFailException) as exc_info:
-            handler.execute(check_service_health)
-        
-        assert "Circuit breaker is open" in str(exc_info.value)
+    """End-to-end scenarios combining multiple FastFailHandler features."""
 
-class TestFastFailErrorHandling:
-    """Test error handling in fast fail mechanism."""
-    
-    def test_handler_with_none_function(self):
-        """Test handler with None function."""
-        handler = FastFailHandler()
-        
-        with pytest.raises(TypeError):
-            handler.execute(None)
-    
-    def test_handler_with_invalid_config(self):
-        """Test handler with invalid configuration values."""
-        # Test with negative values
-        config = FastFailConfig(
-            failure_threshold=-1,  # Invalid
-            time_window=-10.0,     # Invalid
-            retry_policy=RetryPolicy(max_retries=-1)  # Invalid
+    def test_mixed_errors_with_cascade_and_summary(self, real_fast_fail_handler):
+        """Simulate a realistic error sequence and verify summary."""
+        h = real_fast_fail_handler
+        # Several timeouts
+        for _ in range(4):
+            err = PantherException(
+                "timeout", ErrorSeverity.MEDIUM, ErrorCategory.TIMEOUT
+            )
+            h.handle_error(err)
+        # A docker error
+        docker_err = PantherException(
+            "docker", ErrorSeverity.HIGH, ErrorCategory.DOCKER_RUNTIME
         )
-        
-        handler = FastFailHandler(config)
-        
-        # Should still work but with weird behavior (negative retries means 0 retries)
-        def test_func():
-            return "test"
-        
-        # With negative max_retries, it should still try once (max_retries + 1 = 0)
-        # but the range() function with negative numbers will result in no iterations
-        with pytest.raises(FastFailException) as exc_info:
-            result = handler.execute(test_func)
-        
-        assert "failed after 0 attempts" in str(exc_info.value)
-    
-    def test_exception_chaining(self):
-        """Test proper exception chaining."""
-        handler = FastFailHandler()
-        
-        original_error = ValueError("Original error message")
-        
-        def failing_func():
-            raise original_error
-        
-        with pytest.raises(FastFailException) as exc_info:
-            handler.execute(failing_func)
-        
-        assert exc_info.value.last_error == original_error
-        assert "Original error message" in str(original_error)
+        h.handle_error(docker_err, raise_on_critical=False)
 
-class TestFastFailPerformance:
-    """Test performance characteristics of fast fail mechanism."""
-    
-    def test_handler_overhead_minimal(self):
-        """Test that handler adds minimal overhead for successful operations."""
-        handler = FastFailHandler()
-        
-        def simple_func():
-            return 42
-        
-        # Time normal execution with a larger sample size for more stable timing
-        iterations = 1000
-        start_time = time.time()
-        for _ in range(iterations):
-            result = simple_func()
-        normal_time = time.time() - start_time
-        
-        # Time with fast fail handler
-        start_time = time.time()
-        for _ in range(iterations):
-            result = handler.execute(simple_func)
-        handler_time = time.time() - start_time
-        
-        # Handler should add minimal overhead (less than 500% increase for very fast operations)
-        # Note: For very fast operations, the overhead percentage can be high but absolute time is still small
-        assert handler_time < normal_time * 5.0 or handler_time < 0.1  # Either relative or absolute threshold
-        assert result == 42
-    
-    @patch('time.sleep')
-    def test_retry_delays_are_respected(self, mock_sleep):
-        """Test that retry delays are properly implemented."""
-        policy = RetryPolicy(
-            max_retries=2,
-            initial_delay=1.0,
-            backoff_multiplier=2.0,
-            jitter=False
-        )
-        config = FastFailConfig(retry_policy=policy)
-        handler = FastFailHandler(config)
-        
-        call_count = 0
-        
-        def failing_func():
-            nonlocal call_count
-            call_count += 1
-            raise ValueError("Always fails")
-        
-        with pytest.raises(FastFailException):
-            handler.execute(failing_func)
-        
-        # Should have called sleep twice (between retries)
-        assert mock_sleep.call_count == 2
-        mock_sleep.assert_any_call(1.0)  # First retry delay
-        mock_sleep.assert_any_call(2.0)  # Second retry delay
+        summary = h.get_error_summary()
+        assert summary["total_errors"] == 5
+        assert summary["errors_by_category"]["timeout"] == 4
+        assert summary["errors_by_category"]["docker_runtime"] == 1
+
+    def test_cascade_then_clear_then_new_errors(self, real_fast_fail_handler):
+        """Cascade triggers, history cleared, new errors start fresh."""
+        h = real_fast_fail_handler
+        err = PantherException("t", ErrorSeverity.MEDIUM, ErrorCategory.TIMEOUT)
+        for _ in range(4):
+            h.handle_error(err)
+        # Cascade should be detectable
+        assert h.detect_cascade(err) is not None
+
+        h.clear_history()
+
+        # After clear, no cascade
+        assert h.detect_cascade(err) is None
+        assert h.error_count == 0
+
+    def test_docker_build_failure_triggers_immediate_stop(self, real_fast_fail_handler):
+        """A DockerBuildException immediately raises."""
+        err = DockerBuildException("build fail", "myimg", "Dockerfile")
+        with pytest.raises(DockerBuildException, match="build fail"):
+            real_fast_fail_handler.handle_error(err)
+        assert real_fast_fail_handler.critical_error is err
+
+    def test_error_severity_ordering(self):
+        """Verify ErrorSeverity enum values are ordered correctly."""
+        assert ErrorSeverity.LOW.value < ErrorSeverity.MEDIUM.value
+        assert ErrorSeverity.MEDIUM.value < ErrorSeverity.HIGH.value
+        assert ErrorSeverity.HIGH.value < ErrorSeverity.CRITICAL.value
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

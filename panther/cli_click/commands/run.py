@@ -2,7 +2,6 @@
 Run Command - Click Implementation
 
 Execute PANTHER experiments with enhanced user experience and error handling.
-Migrated from argparse to Click with improved validation and feedback.
 """
 
 import datetime
@@ -115,6 +114,17 @@ from panther.cli_click.core.base import (
     default="panther",
     help="Username for custom user creation (default: panther)",
 )
+@click.option(
+    "--force-build/--no-force-build",
+    default=None,
+    help="Force rebuild Docker images without cache (overrides YAML force_build_docker_image)",
+)
+@click.option(
+    "--no-docker-cache",
+    is_flag=True,
+    default=False,
+    help="Force rebuild AND skip Docker layer cache entirely (implies --force-build)",
+)
 @handle_errors
 @pass_context_and_setup_logging
 def run(
@@ -138,6 +148,8 @@ def run(
     docker_user_id,
     docker_group_id,
     docker_user_name,
+    force_build,
+    no_docker_cache,
 ):
     """
     Execute PANTHER experiments with specified configuration.
@@ -264,7 +276,9 @@ def run(
 
             click.echo(f"   ✓ Output directory: {output_dir}")
             if enable_metrics:
-                click.echo(f"   ✓ Metrics directory: {Path(metrics_output_dir) / 'metrics'}")
+                click.echo(
+                    f"   ✓ Metrics directory: {Path(metrics_output_dir) / 'metrics'}"
+                )
             click.echo(f"   ✓ Experiment ready to execute")
 
             info_message("Dry run completed - configuration is valid")
@@ -273,7 +287,6 @@ def run(
         else:
             click.echo(colored("🚀 Executing PANTHER experiment...", "green"))
 
-            # BEHAVIORAL EQUIVALENCE: Use actual ExperimentManager like legacy CLI
             try:
                 from panther.config import GlobalConfig, load_experiment
                 from panther.core.experiment_manager import ExperimentManager
@@ -314,23 +327,52 @@ def run(
 
                 # Merge with CLI defaults - YAML values take precedence
                 docker_config = {
-                    "build_docker_image": yaml_docker_config.get("build_docker_image", False),
-                    "force_build_docker_image": yaml_docker_config.get("force_build_docker_image", False),
-                    "log_docker_image_build": yaml_docker_config.get("log_docker_image_build", False),
-                    "use_buildx": yaml_docker_config.get("use_buildx", True),  # Default True for backwards compat
+                    "build_docker_image": yaml_docker_config.get(
+                        "build_docker_image", False
+                    ),
+                    "force_build_docker_image": yaml_docker_config.get(
+                        "force_build_docker_image", False
+                    ),
+                    "log_docker_image_build": yaml_docker_config.get(
+                        "log_docker_image_build", False
+                    ),
+                    "use_buildx": yaml_docker_config.get(
+                        "use_buildx", True
+                    ),  # Default True for backwards compat
+                    "no_docker_cache": yaml_docker_config.get("no_docker_cache", False),
                 }
+
+                # CLI --force-build overrides YAML force_build_docker_image
+                force_build_source = ctx.get_parameter_source("force_build")
+                if force_build_source == click.core.ParameterSource.COMMANDLINE:
+                    docker_config["force_build_docker_image"] = force_build
+                # CLI --no-docker-cache implies --force-build and sets no_docker_cache
+                if no_docker_cache:
+                    docker_config["no_docker_cache"] = True
+                    docker_config["force_build_docker_image"] = True
                 # Add other docker config keys if present
-                for key in ["user_mapping", "build_args", "network_mode", "buildx_builder", "multi_platform", "target_platform"]:
+                for key in [
+                    "user_mapping",
+                    "build_args",
+                    "network_mode",
+                    "buildx_builder",
+                    "multi_platform",
+                    "target_platform",
+                ]:
                     if key in yaml_docker_config:
                         docker_config[key] = yaml_docker_config[key]
 
                 logging_config = {
                     "level": yaml_logging_config.get("level", "INFO"),
-                    "format": yaml_logging_config.get("format", "%(levelname)s - %(message)s"),
+                    "format": yaml_logging_config.get(
+                        "format", "%(levelname)s - %(message)s"
+                    ),
                 }
                 # Add feature_levels if present
                 if "feature_levels" in yaml_logging_config:
-                    logging_config["feature_levels"] = yaml_logging_config["feature_levels"]
+                    logging_config["feature_levels"] = yaml_logging_config[
+                        "feature_levels"
+                    ]
 
                 paths_config = {
                     "output_dir": yaml_paths_config.get("output_dir", str(output_dir)),
@@ -387,33 +429,12 @@ def run(
                         raise click.Abort()
 
             except ImportError as e:
-                error_message(f"ExperimentManager not available: {e}")
-                error_message("Falling back to configuration validation mode...")
-
-                # Fallback: At least validate the configuration
-                try:
-                    with open(config, "r") as f:
-                        config_data = yaml.safe_load(f)
-                except yaml.YAMLError as e:
-                    error_message(f"Configuration file error: {e}")
-                    raise click.Abort()
-
-                if "tests" in config_data:
-                    test_count = len(config_data["tests"])
-                    click.echo(
-                        colored(
-                            "⚠️  Configuration is valid but ExperimentManager is not available",
-                            "yellow",
-                        ),
-                        err=True,
-                    )
-                    info_message(f"Configuration contains {test_count} test(s)")
-                    for i, test in enumerate(config_data["tests"]):
-                        test_name = test.get("name", f"Test {i+1}")
-                        click.echo(f"  • Test {i+1}: {test_name}")
-                else:
-                    error_message("No tests found in configuration file")
-                    raise click.Abort()
+                error_message(
+                    f"PANTHER installation is incomplete: ExperimentManager could not "
+                    f"be imported ({e}). Please run 'python panther_builder.py package-dev' "
+                    f"to install all dependencies."
+                )
+                raise click.Abort()
 
     except Exception as e:
         error_message(f"Experiment execution failed: {e}")

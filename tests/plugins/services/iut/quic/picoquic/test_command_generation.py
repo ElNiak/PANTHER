@@ -1,15 +1,18 @@
 import os
-import sys
-import pytest
-from unittest.mock import MagicMock
-import tempfile
 import shutil
+import sys
+import tempfile
+from unittest.mock import MagicMock
+
+import pytest
 
 # Add the parent directory to sys.path to import the picoquic module
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../../")))
+sys.path.insert(
+    0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../../"))
+)
 
-from panther.plugins.services.iut.quic.picoquic.picoquic import PicoquicServiceManager
 from panther.config.core.models import ProtocolConfig, ProtocolRole
+from panther.plugins.services.iut.quic.picoquic.picoquic import PicoquicServiceManager
 
 
 class TestPicoquicTemplateRendering:
@@ -27,12 +30,18 @@ class TestPicoquicTemplateRendering:
         mock_config.implementation.version.server.binary.name = "picoquicdemo"
         mock_config.implementation.version.server.binary.dir = "/opt/picoquic"
         mock_config.implementation.version.server.certificates.cert_param = "-c"
-        mock_config.implementation.version.server.certificates.cert_file = "/certs/cert.pem"
+        mock_config.implementation.version.server.certificates.cert_file = (
+            "/certs/cert.pem"
+        )
         mock_config.implementation.version.server.certificates.key_param = "-k"
-        mock_config.implementation.version.server.certificates.key_file = "/certs/key.pem"
+        mock_config.implementation.version.server.certificates.key_file = (
+            "/certs/key.pem"
+        )
         mock_config.implementation.version.server.protocol.alpn.param = "-a"
         mock_config.implementation.version.server.protocol.alpn.value = "hq-29"
-        mock_config.implementation.version.server.protocol.additional_parameters = "-l /logs/qlog"
+        mock_config.implementation.version.server.protocol.additional_parameters = (
+            "-l /logs/qlog"
+        )
         mock_config.implementation.version.server.network.port = "4433"
         mock_config.implementation.version.server.network.interface = {
             "param": "-i",
@@ -45,16 +54,22 @@ class TestPicoquicTemplateRendering:
         mock_config.implementation.version.client.binary.name = "picoquicdemo"
         mock_config.implementation.version.client.binary.dir = "/opt/picoquic"
         mock_config.implementation.version.client.certificates.cert_param = "-c"
-        mock_config.implementation.version.client.certificates.cert_file = "/certs/cert.pem"
+        mock_config.implementation.version.client.certificates.cert_file = (
+            "/certs/cert.pem"
+        )
         mock_config.implementation.version.client.certificates.key_param = "-k"
-        mock_config.implementation.version.client.certificates.key_file = "/certs/key.pem"
+        mock_config.implementation.version.client.certificates.key_file = (
+            "/certs/key.pem"
+        )
         mock_config.implementation.version.client.ticket_file = {
             "param": "-t",
             "file": "/tmp/ticket.bin",
         }
         mock_config.implementation.version.client.protocol.alpn.param = "-a"
         mock_config.implementation.version.client.protocol.alpn.value = "hq-29"
-        mock_config.implementation.version.client.protocol.additional_parameters = "-l /logs/qlog"
+        mock_config.implementation.version.client.protocol.additional_parameters = (
+            "-l /logs/qlog"
+        )
         mock_config.implementation.version.client.network.port = "4433"
         mock_config.implementation.version.client.network.interface = {
             "param": "-i",
@@ -104,7 +119,9 @@ class TestPicoquicTemplateRendering:
         mock_protocol.role = ProtocolRole.SERVER
 
         # Create service manager with mock templates directory
-        service_manager = PicoquicServiceManager(mock_config, "iut", mock_protocol, "picoquic")
+        service_manager = PicoquicServiceManager(
+            mock_config, "iut", mock_protocol, "picoquic"
+        )
         service_manager.templates_dir = temp_template_dir
         service_manager.jinja_env.loader.searchpath = [temp_template_dir]
 
@@ -130,7 +147,9 @@ class TestPicoquicTemplateRendering:
         mock_protocol.role = ProtocolRole.CLIENT
 
         # Create service manager with mock templates directory
-        service_manager = PicoquicServiceManager(mock_config, "iut", mock_protocol, "picoquic")
+        service_manager = PicoquicServiceManager(
+            mock_config, "iut", mock_protocol, "picoquic"
+        )
         service_manager.templates_dir = temp_template_dir
         service_manager.jinja_env.loader.searchpath = [temp_template_dir]
 
@@ -164,7 +183,9 @@ class TestPicoquicTemplateRendering:
         )
 
         # Create service manager with mock templates directory
-        service_manager = PicoquicServiceManager(mock_config, "iut", mock_protocol, "picoquic")
+        service_manager = PicoquicServiceManager(
+            mock_config, "iut", mock_protocol, "picoquic"
+        )
         service_manager.templates_dir = temp_template_dir
         service_manager.jinja_env.loader.searchpath = [temp_template_dir]
 

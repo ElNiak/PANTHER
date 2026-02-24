@@ -5,6 +5,7 @@ Script to test the updated entrypoint template with different command types.
 
 import re
 from pathlib import Path
+
 from jinja2 import Environment, FileSystemLoader
 
 # Path to the template file
@@ -77,9 +78,12 @@ def render_commands():
             create_test_command("variable_assignment", "TARGET_IP=127.0.0.1"),
             create_test_command("shell_builtin", "set -x"),
             create_test_command(
-                "control_structure", "while [ ! -f /app/sync_logs/ivy_ready.log ]; do sleep 1; done"
+                "control_structure",
+                "while [ ! -f /app/sync_logs/ivy_ready.log ]; do sleep 1; done",
             ),
-            create_test_command("nested_quotes", 'export PS4="+ [${BASH_SOURCE:-sh}:${LINENO}] "'),
+            create_test_command(
+                "nested_quotes", 'export PS4="+ [${BASH_SOURCE:-sh}:${LINENO}] "'
+            ),
         ]
     }
 
@@ -87,7 +91,9 @@ def render_commands():
     additional_param = {"service_name": "test_service", "role": {"name": "server"}}
 
     print("Rendering template with test commands...")
-    print(f"Command Types: {[cmd['description'] for cmd in test_commands['pre_run_cmds']]}")
+    print(
+        f"Command Types: {[cmd['description'] for cmd in test_commands['pre_run_cmds']]}"
+    )
 
     # Render the template
     try:
@@ -110,7 +116,9 @@ def render_commands():
     summary_path = OUTPUT_DIR / "command_handling_summary.txt"
     with open(summary_path, "w") as f:
         # Find sections containing our test commands
-        variable_section = re.search(r"TARGET_IP=127\.0\.0\.1.*?exit \$\?", rendered, re.DOTALL)
+        variable_section = re.search(
+            r"TARGET_IP=127\.0\.0\.1.*?exit \$\?", rendered, re.DOTALL
+        )
         builtin_section = re.search(r"set -x.*?exit \$\?", rendered, re.DOTALL)
         control_section = re.search(r"while \[ ! -f.*?exit \$\?", rendered, re.DOTALL)
         quotes_section = re.search(r"export PS4=.*?exit \$\?", rendered, re.DOTALL)

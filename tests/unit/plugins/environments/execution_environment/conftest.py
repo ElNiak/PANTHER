@@ -1,6 +1,7 @@
 """
 Shared fixtures and utilities for execution environment tests.
 """
+
 import os
 import shutil
 import tempfile
@@ -10,8 +11,8 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
+from panther.config.core.models.environment import EnvironmentConfig
 from panther.core.observer.management.event_manager import EventManager
-from panther.plugins.environments.config_schema import EnvironmentConfig
 
 
 @pytest.fixture
@@ -52,12 +53,6 @@ def base_environment_config():
     """Provide a basic environment configuration for testing."""
     return EnvironmentConfig(
         type="execution",
-        config={
-            "timeout": 300,
-            "cleanup_on_exit": True,
-            "memory_limit": "1g",
-            "cpu_limit": 1.0,
-        },
     )
 
 

@@ -13,10 +13,12 @@ from panther.core.observer.impl.experiment_observer import ExperimentObserver
 from panther.core.observer.management.event_manager import EventManager
 from panther.core.test_cases.test_case_impl import TestCase
 from panther.plugins.environments.config_schema import EnvironmentConfig
+from panther.plugins.environments.network_environment.base_environment_monitor import (
+    ServiceHealthState,
+)
 from panther.plugins.environments.network_environment.docker_compose.docker_compose import (
     BackgroundServiceMonitor,
     DockerComposeEnvironment,
-    ServiceHealthState,
 )
 
 

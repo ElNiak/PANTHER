@@ -22,10 +22,10 @@ This document provides instructions for installing and setting up the PANTHER sy
 > `pyproject.toml` is the source of truth for Python dependencies.
 > `requirements.txt` is a frozen snapshot—**do not edit**.
 
-> [!WARNING]  
+> [!WARNING]
 > CLI and core being refactored, some deadcode and legacy or unimplemented code remains.
 
-> [!WARNING]  
+> [!WARNING]
 > ARM still need some works, Z3 generate maths errors and docker modules is being refactored in consequences (thus introducing potencial bugs)
 > This branch is more stable (but not supporting ARM at all) - [development-scp-refactor](https://github.com/ElNiak/PANTHER/tree/development-scp-refactor)
 

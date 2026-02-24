@@ -46,9 +46,9 @@ class LoggerMixin(FeatureLoggerMixin):
             # Get feature-aware logger from parent mixin (this respects feature_levels)
             feature_logger = super().logger
             self._logger = feature_logger
-            
+
             # Add trace method if not already present
-            if not hasattr(self._logger, 'trace'):
+            if not hasattr(self._logger, "trace"):
                 self._logger.trace = lambda msg, *args, **kwargs: self._logger.log(
                     TRACE, msg, *args, **kwargs
                 )

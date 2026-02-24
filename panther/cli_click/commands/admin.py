@@ -2,7 +2,6 @@
 Admin Command - Click Implementation
 
 Administrative and system management commands with enhanced user experience.
-Migrated from argparse to Click with improved validation and feedback.
 """
 
 import logging

@@ -530,6 +530,26 @@ class DockerComposeEnvironment(
                     f"Failed to setup execution environment {execution_env} for service {service.service_name}: {e}"
                 )
 
+    def create_non_critical_command(self, command_lines: list) -> str:
+        """Create a non-critical command block from a list of command lines.
+
+        Non-critical commands are marked with a header comment so the entrypoint
+        script can allow them to fail without aborting the entire execution.
+
+        Args:
+            command_lines: List of command line strings to combine.
+
+        Returns:
+            A single string with lines joined by newlines, prefixed by a
+            non-critical marker comment. Trailing newlines are stripped.
+        """
+        # Strip trailing newlines from each line, then remove trailing empty entries
+        stripped = [line.rstrip("\n") for line in command_lines]
+        while stripped and not stripped[-1]:
+            stripped.pop()
+        body = "\n".join(stripped)
+        return f"# PANTHER_NON_CRITICAL_COMMAND\n{body}"
+
     def generate_entrypoint_with_structured_args(
         self,
         service: IServiceManager,
@@ -711,9 +731,7 @@ class DockerComposeEnvironment(
         # are present, since debug images are significantly larger and slower
         # to start, especially under platform emulation (e.g. amd64 on ARM).
         if self.execution_environment:
-            multiplier = getattr(
-                plugin_config, "deploy_timeout_debug_multiplier", 2.0
-            )
+            multiplier = getattr(plugin_config, "deploy_timeout_debug_multiplier", 2.0)
             if multiplier != 1.0:
                 original_timeout = self.timeout
                 self.timeout = int(self.timeout * multiplier)
@@ -736,10 +754,26 @@ class DockerComposeEnvironment(
         sanitized_name = re.sub(r"^[^a-z0-9]+", "", sanitized_name)
         sanitized_name = re.sub(r"-+", "-", sanitized_name).rstrip("-")
         if sanitized_name:
+            _reserved = {"default", "host", "bridge", "none"}
+            if sanitized_name in _reserved:
+                sanitized_name = f"panther-{sanitized_name}"
+                self.logger.warning(
+                    "Network name was Docker-reserved, prefixed: '%s'",
+                    sanitized_name,
+                )
+            _max_len = 64
+            if len(sanitized_name) > _max_len:
+                sanitized_name = sanitized_name[:_max_len].rstrip("-")
+                self.logger.warning(
+                    "Network name truncated to %d chars: '%s'",
+                    _max_len,
+                    sanitized_name,
+                )
             self.network_name = sanitized_name
             self.logger.debug(
-                f"Docker Compose project name set to '{self.network_name}' "
-                f"(from output dir: {experiment_name})"
+                "Docker Compose project name set to '%s' (from output dir: %s)",
+                self.network_name,
+                experiment_name,
             )
 
         # Initialize lifecycle manager now that all required variables are set

@@ -18,6 +18,8 @@ from .global_config import (
     MetricsConfig,
     PathsConfig,
     ProgressConfig,
+    ServiceDockerOverrideConfig,
+    resolve_docker_build_config,
 )
 from .observer import (
     BaseObserverConfig,
@@ -34,7 +36,11 @@ from .plugin import (
     ProtocolPluginConfig,
     ServicePluginConfig,
 )
-from .protocol import BaseProtocolConfig, ClientServerProtocolConfig, PeerToPeerProtocolConfig
+from .protocol import (
+    BaseProtocolConfig,
+    ClientServerProtocolConfig,
+    PeerToPeerProtocolConfig,
+)
 from .service import (
     ImplementationConfig,
     ImplementationType,
@@ -50,58 +56,53 @@ from .service import (
 
 __all__ = [
     # Base
-    'BaseUnifiedModel',
-    
+    "BaseUnifiedModel",
     # Global Config
-    'GlobalConfig',
-    'LoggingConfig',
-    'LoggingLevel',
-    'FeatureLogLevelsConfig',
-    'PathsConfig',
-    'DockerConfig',
-    'DockerUserMappingConfig',
-    'ProgressConfig',
-    'FastFailConfig',
-    'MetricsConfig',
-    
+    "GlobalConfig",
+    "LoggingConfig",
+    "LoggingLevel",
+    "FeatureLogLevelsConfig",
+    "PathsConfig",
+    "DockerConfig",
+    "DockerUserMappingConfig",
+    "ServiceDockerOverrideConfig",
+    "resolve_docker_build_config",
+    "ProgressConfig",
+    "FastFailConfig",
+    "MetricsConfig",
     # Observer Config
-    'ObserversConfig',
-    'BaseObserverConfig',
-    'LoggerObserverConfig',
-    'MetricsObserverConfig',
-    'StorageObserverConfig',
-    'ExperimentObserverConfig',
-    
+    "ObserversConfig",
+    "BaseObserverConfig",
+    "LoggerObserverConfig",
+    "MetricsObserverConfig",
+    "StorageObserverConfig",
+    "ExperimentObserverConfig",
     # Experiment Config
-    'ExperimentConfig',
-    'ExperimentMetadata',
-    'TestConfig',
-    'StepsConfig',
-    
+    "ExperimentConfig",
+    "ExperimentMetadata",
+    "TestConfig",
+    "StepsConfig",
     # Service Config
-    'ServiceConfig',
-    'ImplementationConfig',
-    'ImplementationType',
-    'Parameter',
-    'ProtocolConfig',
-    'ProtocolRole',
-    'NetworkConfig',
-    'VersionBase',
-    
+    "ServiceConfig",
+    "ImplementationConfig",
+    "ImplementationType",
+    "Parameter",
+    "ProtocolConfig",
+    "ProtocolRole",
+    "NetworkConfig",
+    "VersionBase",
     # Protocol Config
-    'BaseProtocolConfig',
-    'ClientServerProtocolConfig',
-    'PeerToPeerProtocolConfig',
-    
+    "BaseProtocolConfig",
+    "ClientServerProtocolConfig",
+    "PeerToPeerProtocolConfig",
     # Plugin Config
-    'BasePluginConfig',
-    'ExecutionEnvironmentPluginConfig',
-    'NetworkEnvironmentPluginConfig',
-    'ServicePluginConfig',
-    'ProtocolPluginConfig',
-    
+    "BasePluginConfig",
+    "ExecutionEnvironmentPluginConfig",
+    "NetworkEnvironmentPluginConfig",
+    "ServicePluginConfig",
+    "ProtocolPluginConfig",
     # Environment Config
-    'EnvironmentConfig',
-    'NetworkEnvironmentConfig',
-    'ExecutionEnvironmentConfig',
+    "EnvironmentConfig",
+    "NetworkEnvironmentConfig",
+    "ExecutionEnvironmentConfig",
 ]

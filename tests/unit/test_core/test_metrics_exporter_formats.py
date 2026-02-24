@@ -13,6 +13,8 @@ from panther.core.metrics.enums import MetricType, Phase
 from panther.core.metrics.metrics_collector import MetricsCollector
 from panther.core.metrics.metrics_exporter import MetricsExporter
 
+pytestmark = [pytest.mark.unit]
+
 
 @pytest.fixture
 def populated_collector(tmp_path):
@@ -42,9 +44,7 @@ def populated_collector(tmp_path):
     c.record_gauge("total_artifact_size_mb", 42.5)
 
     # Resource metrics (simulating resource_monitor)
-    c.record_metric(
-        "cpu_percent", MetricType.GAUGE, 45.2, component="resource_monitor"
-    )
+    c.record_metric("cpu_percent", MetricType.GAUGE, 45.2, component="resource_monitor")
     c.record_metric(
         "memory_percent", MetricType.GAUGE, 62.0, component="resource_monitor"
     )
@@ -464,16 +464,10 @@ class TestExporterEdgeCases:
         self, populated_collector
     ):
         exporter = MetricsExporter(populated_collector)
-        result = exporter.export_prometheus_format(
-            "/nonexistent_root_dir/metrics.prom"
-        )
+        result = exporter.export_prometheus_format("/nonexistent_root_dir/metrics.prom")
         assert result is False
 
-    def test_export_dashboard_returns_false_on_write_failure(
-        self, populated_collector
-    ):
+    def test_export_dashboard_returns_false_on_write_failure(self, populated_collector):
         exporter = MetricsExporter(populated_collector)
-        result = exporter.export_dashboard_json(
-            "/nonexistent_root_dir/dashboard.json"
-        )
+        result = exporter.export_dashboard_json("/nonexistent_root_dir/dashboard.json")
         assert result is False

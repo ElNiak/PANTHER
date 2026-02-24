@@ -53,5 +53,6 @@ while maintaining consistency and discoverability for analysis workflows.
 """
 
 from .output_aggregator import OutputAggregator
+from .output_cleanup import remove_empty_directories
 
-__all__ = ["OutputAggregator"]
+__all__ = ["OutputAggregator", "remove_empty_directories"]

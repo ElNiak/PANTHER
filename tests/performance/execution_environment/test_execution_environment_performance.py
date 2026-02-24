@@ -10,6 +10,7 @@ Provides metrics for:
 - File registration throughput
 - Configuration processing speed
 """
+
 import gc
 import multiprocessing
 import shutil
@@ -160,7 +161,7 @@ class TestExecutionEnvironmentSetupPerformance:
         """Create event manager."""
         return EventManager()
 
-    @pytest.parametrize("service_count", [1, 5, 10, 25, 50, 100])
+    @pytest.mark.parametrize("service_count", [1, 5, 10, 25, 50, 100])
     def test_strace_environment_setup_scaling(
         self, temp_output_dir, event_manager, service_count
     ):
@@ -228,7 +229,7 @@ class TestExecutionEnvironmentSetupPerformance:
         print(f"  Memory increase: {memory_metrics['increase_mb']:.2f}MB")
         print(f"  Peak memory: {memory_metrics['peak_mb']:.2f}MB")
 
-    @pytest.parametrize(
+    @pytest.mark.parametrize(
         "env_class,config_class",
         [
             (StraceEnvironment, StraceConfig),
@@ -294,9 +295,11 @@ class TestExecutionEnvironmentSetupPerformance:
             "commands_generated": operations["commands_generated"],
             "memory_increase_mb": memory_metrics["increase_mb"],
             "time_per_service_ms": (timer.duration / service_count) * 1000,
-            "memory_per_service_mb": memory_metrics["increase_mb"] / service_count
-            if service_count > 0
-            else 0,
+            "memory_per_service_mb": (
+                memory_metrics["increase_mb"] / service_count
+                if service_count > 0
+                else 0
+            ),
         }
 
         # Performance thresholds (environment-specific)

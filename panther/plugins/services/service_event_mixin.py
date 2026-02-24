@@ -4,13 +4,21 @@ Methods for IServiceManager to emit standardized events.
 
 from typing import Any, Dict, Optional
 
+from panther.core.events.test.events import (
+    TestCompletedEvent,
+    TestExecutionStartedEvent,
+    TestFailedEvent,
+)
+
 
 class ServiceManagerEventMixin:
     """
     Mixin providing standardized event emission methods for service managers.
 
-    This class extends IServiceManager with helper methods to emit standard events.
+    Standalone mixin providing helper methods for service managers to emit standard events.
     It supports the event-driven architecture by providing consistent event emission patterns.
+
+    MRO: Base event mixin. Used by: IUTManagerEventMixin, TesterManagerEventMixin
     """
 
     def _get_service_identifier(self):
@@ -255,27 +263,29 @@ class ServiceManagerEventMixin:
                 self.event_emitter.emit_service_preparation_started(
                     service_id=service_id,
                     service_name=service_name,
-                    preparation_steps=details.get("preparation_steps")
-                    if details
-                    else None,
+                    preparation_steps=(
+                        details.get("preparation_steps") if details else None
+                    ),
                     test_case=details.get("test_case") if details else None,
                 )
             elif event_name == "preparation_completed":
                 self.event_emitter.emit_service_preparation_completed(
                     service_id=service_id,
                     service_name=service_name,
-                    duration_seconds=details.get("duration_seconds")
-                    if details
-                    else None,
+                    duration_seconds=(
+                        details.get("duration_seconds") if details else None
+                    ),
                     artifacts=details.get("artifacts") if details else None,
                 )
             elif event_name == "preparation_failed":
                 self.event_emitter.emit_service_preparation_failed(
                     service_id=service_id,
                     service_name=service_name,
-                    error_message=details.get("error_message", "Preparation failed")
-                    if details
-                    else "Preparation failed",
+                    error_message=(
+                        details.get("error_message", "Preparation failed")
+                        if details
+                        else "Preparation failed"
+                    ),
                     error_type=details.get("error_type") if details else None,
                     failed_step=details.get("failed_step") if details else None,
                 )
@@ -316,9 +326,11 @@ class ServiceManagerEventMixin:
                     test_name="compilation",
                     analysis_passed=details.get("success", True) if details else True,
                     findings=details.get("findings") if details else None,
-                    summary=details.get("summary", "Compilation completed")
-                    if details
-                    else "Compilation completed",
+                    summary=(
+                        details.get("summary", "Compilation completed")
+                        if details
+                        else "Compilation completed"
+                    ),
                     duration=details.get("duration") if details else None,
                 )
             elif event_name == "compilation_failed":
@@ -340,9 +352,11 @@ class ServiceManagerEventMixin:
                     test_name="compilation",
                     analysis_passed=False,
                     findings=findings,
-                    summary=details.get("summary", "Compilation failed")
-                    if details
-                    else "Compilation failed",
+                    summary=(
+                        details.get("summary", "Compilation failed")
+                        if details
+                        else "Compilation failed"
+                    ),
                     duration=details.get("duration") if details else None,
                 )
             # Map build events to Docker build events for consistency
@@ -350,18 +364,22 @@ class ServiceManagerEventMixin:
                 self.event_emitter.emit_docker_build_started(
                     service_id=service_id,
                     service_name=service_name or service_id,
-                    dockerfile_path=details.get("dockerfile_path", "Dockerfile")
-                    if details
-                    else "Dockerfile",
+                    dockerfile_path=(
+                        details.get("dockerfile_path", "Dockerfile")
+                        if details
+                        else "Dockerfile"
+                    ),
                     image_name=details.get("image_name") if details else None,
                 )
             elif event_name in ["build_completed", "build_succeeded"]:
                 self.event_emitter.emit_docker_build_completed(
                     service_id=service_id,
                     service_name=service_name or service_id,
-                    image_name=details.get("image_name", service_name or service_id)
-                    if details
-                    else (service_name or service_id),
+                    image_name=(
+                        details.get("image_name", service_name or service_id)
+                        if details
+                        else (service_name or service_id)
+                    ),
                     success=True,
                     build_duration=details.get("duration") if details else None,
                 )
@@ -369,12 +387,16 @@ class ServiceManagerEventMixin:
                 self.event_emitter.emit_docker_build_failed(
                     service_id=service_id,
                     service_name=service_name or service_id,
-                    dockerfile_path=details.get("dockerfile_path", "Dockerfile")
-                    if details
-                    else "Dockerfile",
-                    error_message=details.get("error_message", "Build failed")
-                    if details
-                    else "Build failed",
+                    dockerfile_path=(
+                        details.get("dockerfile_path", "Dockerfile")
+                        if details
+                        else "Dockerfile"
+                    ),
+                    error_message=(
+                        details.get("error_message", "Build failed")
+                        if details
+                        else "Build failed"
+                    ),
                     build_duration=details.get("duration") if details else None,
                 )
             else:
@@ -608,6 +630,61 @@ class ServiceManagerEventMixin:
                         **(details or {}),
                     },
                 )
+
+    def emit_test_starting(
+        self, test_id: str, test_type: str, details: Optional[Dict[str, Any]] = None
+    ) -> None:
+        """
+        Emit an event indicating that a test is starting.
+
+        Args:
+            test_id: Unique identifier for the test
+            test_type: Type of test being started
+            details: Additional details about the test
+        """
+        if not (hasattr(self, "event_emitter") and self.event_emitter):
+            self.logger.debug("Skipping event emission: no event_emitter configured")
+            return
+        event = TestExecutionStartedEvent(
+            test_id=test_id,
+            steps=details.get("steps", []) if details else [],
+        )
+        self.event_emitter.emit_event(event)
+
+    def emit_test_completed(
+        self,
+        test_id: str,
+        success: bool,
+        result: Optional[Dict[str, Any]] = None,
+        error_message: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """
+        Emit an event indicating that a test has completed.
+
+        Args:
+            test_id: Unique identifier for the test
+            success: Whether the test completed successfully
+            result: Test result data
+            error_message: Error message if test was unsuccessful
+            details: Additional details about the test completion
+        """
+        if not (hasattr(self, "event_emitter") and self.event_emitter):
+            self.logger.debug("Skipping event emission: no event_emitter configured")
+            return
+        if success:
+            summary = {"result": result or {}, "details": details or {}}
+            event = TestCompletedEvent(
+                test_id=test_id,
+                summary=summary,
+            )
+        else:
+            event = TestFailedEvent(
+                test_id=test_id,
+                error_message=error_message or "Test failed",
+                summary={"result": result or {}, "details": details or {}},
+            )
+        self.event_emitter.emit_event(event)
 
     def handle_event(self, event: "BaseEvent") -> None:
         """

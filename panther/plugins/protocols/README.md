@@ -239,4 +239,4 @@ Protocol plugins define standard test scenarios:
 
 For information on creating new protocol plugins:
 
-- **[Protocol Plugin Development Guide](panther/plugins/protocols/development.md)**: Comprehensive development documentation
+- **[Protocol Plugin Development Guide](development.md)**: Comprehensive development documentation

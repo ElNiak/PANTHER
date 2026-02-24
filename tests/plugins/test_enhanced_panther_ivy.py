@@ -3,10 +3,10 @@
 Test module for the enhanced PantherIvy service implementation
 """
 import os
-import sys
-import unittest
-import tempfile
 import shutil
+import sys
+import tempfile
+import unittest
 from pathlib import Path
 
 # Add the parent directory to the Python path
@@ -14,17 +14,18 @@ parent_dir = str(Path(__file__).resolve().parent.parent.parent)
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
+from panther.config.core.models import (
+    ImplementationType,
+    ProtocolConfig,
+    ProtocolRole,
+    ServiceConfig,
+)
+from panther.plugins.services.testers.panther_ivy.config_schema import PantherIvyConfig
+
 # Import the necessary modules
 from panther.plugins.services.testers.panther_ivy.panther_ivy import (
     PantherIvyServiceManager,
 )
-from panther.plugins.services.testers.panther_ivy.config_schema import PantherIvyConfig
-from panther.config.core.models import (
-    ProtocolConfig,
-    ProtocolRole,
-)
-from panther.plugins.services.iut.config_schema import ImplementationType
-from panther.plugins.services.config_schema import ServiceConfig
 
 
 class TestEnhancedPantherIvy(unittest.TestCase):
@@ -104,8 +105,12 @@ class TestEnhancedPantherIvy(unittest.TestCase):
         print("\nStructured commands:")
         for phase, cmds in commands.items():
             print(f"  {phase}: {len(cmds)} commands")
-            functions_in_phase = [cmd for cmd in cmds if cmd.get("is_function_definition", False)]
-            calls_in_phase = [cmd for cmd in cmds if not cmd.get("is_function_definition", False)]
+            functions_in_phase = [
+                cmd for cmd in cmds if cmd.get("is_function_definition", False)
+            ]
+            calls_in_phase = [
+                cmd for cmd in cmds if not cmd.get("is_function_definition", False)
+            ]
             print(f"    Functions: {len(functions_in_phase)}")
             print(f"    Calls: {len(calls_in_phase)}")
 
@@ -114,12 +119,16 @@ class TestEnhancedPantherIvy(unittest.TestCase):
                 functions_in_phase[:3]
             ):  # Limit to first 3 to avoid verbose output
                 name = (
-                    cmd.get("description", "") if cmd.get("description", "") else "Unknown function"
+                    cmd.get("description", "")
+                    if cmd.get("description", "")
+                    else "Unknown function"
                 )
                 print(f"      Function {i+1}: {name}")
 
             # Print call details
-            for i, cmd in enumerate(calls_in_phase[:3]):  # Limit to first 3 to avoid verbose output
+            for i, cmd in enumerate(
+                calls_in_phase[:3]
+            ):  # Limit to first 3 to avoid verbose output
                 print(f"      Call {i+1}: {cmd.get('command', '')}")
 
         # Check if the update_ivy_wrapper function is defined in any phase
@@ -140,9 +149,9 @@ class TestEnhancedPantherIvy(unittest.TestCase):
 
         # Check compile phase for function definitions and calls
         for command in commands.get("compile", []):
-            if command.get("is_function_definition", False) and "update_ivy_wrapper" in command.get(
-                "command", ""
-            ):
+            if command.get(
+                "is_function_definition", False
+            ) and "update_ivy_wrapper" in command.get("command", ""):
                 function_defined_compile = True
                 print("Found update_ivy_wrapper function definition in compile")
             elif not command.get(
@@ -153,7 +162,9 @@ class TestEnhancedPantherIvy(unittest.TestCase):
                     f"Found update_ivy_wrapper function call in compile: {command.get('command', '')}"
                 )
 
-        self.assertTrue(update_ivy_defined, "update_ivy_tool function should be defined")
+        self.assertTrue(
+            update_ivy_defined, "update_ivy_tool function should be defined"
+        )
         self.assertTrue(
             function_defined_pre_compile,
             "update_ivy_wrapper function should be defined in pre_compile phase",
@@ -265,14 +276,22 @@ class TestEnhancedPantherIvy(unittest.TestCase):
             )
 
             # Check for function calls - make sure the command calls exist separately from definitions
-            function_defs = [line for line in content.splitlines() if "Function definition" in line]
-            command_calls = [line for line in content.splitlines() if "Command:" in line]
+            function_defs = [
+                line for line in content.splitlines() if "Function definition" in line
+            ]
+            command_calls = [
+                line for line in content.splitlines() if "Command:" in line
+            ]
 
             print(f"\nFound {len(function_defs)} function definitions")
             print(f"Found {len(command_calls)} command calls")
 
-            self.assertGreater(len(function_defs), 0, "Script should contain function definitions")
-            self.assertGreater(len(command_calls), 0, "Script should contain command calls")
+            self.assertGreater(
+                len(function_defs), 0, "Script should contain function definitions"
+            )
+            self.assertGreater(
+                len(command_calls), 0, "Script should contain command calls"
+            )
 
 
 if __name__ == "__main__":

@@ -3,15 +3,7 @@
 PANTHER Click CLI - Main entry point
 
 Modern CLI implementation using Click framework with enhanced user experience,
-improved error handling, and better maintainability compared to argparse version.
-
-Key improvements over argparse:
-- Colored output and emojis for better visual feedback
-- Enhanced error messages with context
-- Built-in bash completion support
-- Cleaner command organization with groups
-- Better help text formatting
-- Progress bars for long operations
+improved error handling, and maintainability.
 """
 
 import sys
@@ -35,7 +27,7 @@ from panther.cli_click.core.base import setup_logging
 @click.pass_context
 def cli(ctx, debug, verbose):
     """
-    PANTHER - Protocol Analysis and Testing for Heterogeneous Execution and Research
+    PANTHER - Protocol Analysis and Testing Harness for Extensible Research
 
     Modern CLI for network protocol testing, formal verification, and automated
     analysis of protocol implementations across multiple environments.
@@ -177,8 +169,6 @@ def register_commands():
     This function imports and registers command groups, allowing for
     lazy loading of command modules to improve startup performance.
 
-    BEHAVIORAL EQUIVALENCE: Provides better error reporting for missing
-    commands to match legacy CLI behavior.
     """
     commands_to_register = [
         ("tools", "panther.cli_click.commands.tools", "tools"),
@@ -204,7 +194,6 @@ def register_commands():
         except AttributeError as e:
             missing_commands.append(f"{cmd_name} (missing attribute {attr_name})")
 
-    # BEHAVIORAL EQUIVALENCE: Report missing commands clearly
     if missing_commands:
         ctx = click.get_current_context(silent=True)
         if ctx:
@@ -224,9 +213,6 @@ def main():
     This function is called when the CLI is invoked and handles
     command registration and execution.
 
-    BEHAVIORAL EQUIVALENCE: Preserves legacy CLI return code patterns
-    and error handling for shell script compatibility.
-
     Returns:
         int: Exit code following Unix conventions:
              0 = success
@@ -244,14 +230,12 @@ def main():
         return 0
 
     except KeyboardInterrupt:
-        # BEHAVIORAL EQUIVALENCE: Preserve legacy exit code 130 for Ctrl+C
         click.echo(colored("⚠️  Operation cancelled by user", "yellow"), err=True)
         return 130
     except SystemExit as e:
         # Let Click's SystemExit through (preserves Click's exit code handling)
         return e.code if e.code is not None else 0
     except Exception as e:
-        # BEHAVIORAL EQUIVALENCE: Top-level error handling matches legacy
         debug_mode = "--debug" in sys.argv
         if debug_mode:
             import logging
@@ -266,5 +250,4 @@ def main():
 register_commands()
 
 if __name__ == "__main__":
-    # BEHAVIORAL EQUIVALENCE: Match legacy CLI exit code behavior
     sys.exit(main() or 0)

@@ -2,14 +2,15 @@
 """
 Test script to investigate issues with empty lines and conditional commands in _combine_shell_constructs.
 """
-import os
 import logging
-from panther.plugins.environments.network_environment.docker_compose.docker_compose import (
-    DockerComposeEnvironment,
-)
+import os
+
 from panther.core.observer.management.event_manager import EventManager
 from panther.plugins.environments.network_environment.docker_compose.config_schema import (
     DockerComposeConfig,
+)
+from panther.plugins.environments.network_environment.docker_compose.docker_compose import (
+    DockerComposeEnvironment,
 )
 
 # Configure logging
@@ -124,7 +125,9 @@ def run_test():
                 + service_targets
                 + ' IP - $TARGET_IP" >> /app/logs/ivy_setup.log;',
                 r'IVY_IP=$(hostname -I | awk "{ print \$1 }" | head -n 1);',
-                'echo "Resolved  ' + service_name + ' IP - $IVY_IP" >> /app/logs/ivy_setup.log;',
+                'echo "Resolved  '
+                + service_name
+                + ' IP - $IVY_IP" >> /app/logs/ivy_setup.log;',
                 " ",
                 "ip_to_hex() {",
                 r'  echo $1 | awk -F"." "{ printf("%02X%02X%02X%02X", \$1, \$2, \$3, \$4) }";',
@@ -171,7 +174,9 @@ def run_test():
             logger.info(f"[{i}] {repr(cmd)}")
 
         logger.info(f"Input count: {len(test_input)}, Output count: {len(result)}")
-        if not result and any(cmd for cmd in test_input if isinstance(cmd, str) and cmd.strip()):
+        if not result and any(
+            cmd for cmd in test_input if isinstance(cmd, str) and cmd.strip()
+        ):
             logger.warning("⚠️ Empty result returned despite valid commands in input!")
 
 

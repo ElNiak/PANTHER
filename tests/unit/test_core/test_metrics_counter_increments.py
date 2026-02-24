@@ -1,12 +1,14 @@
 """Tests for Bug 1: experiment_manager correctly increments summary counters."""
 
-from unittest.mock import MagicMock, call, patch
 import sys
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 
 from panther.core.metrics.enums import Phase
 from panther.core.metrics.metrics_collector import MetricsCollector
+
+pytestmark = [pytest.mark.unit]
 
 
 @pytest.fixture

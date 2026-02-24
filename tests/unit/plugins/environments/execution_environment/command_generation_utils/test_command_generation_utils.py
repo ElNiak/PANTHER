@@ -8,6 +8,7 @@ Tests all shared utilities used by execution environment plugins including:
 - High-level command building
 - Factory patterns
 """
+
 import hashlib
 import logging
 from pathlib import Path
@@ -185,11 +186,12 @@ class TestOutputFileManager:
         assert len(self.manager._registered_files) == 1
         assert self.manager._registered_files[0] == spec
 
-        # Check logging
+        # Check logging - source uses lazy formatting: debug("...%s -> %s (%s)", ...)
         self.mock_logger.debug.assert_called_once()
         log_call = self.mock_logger.debug.call_args[0]
         assert "Registered output file" in log_call[0]
-        assert "profile" in log_call[0]
+        # "profile" is passed as a positional arg, not part of the format string
+        assert "profile" in log_call
 
     def test_register_output_file_with_all_params(self):
         """Test output file registration with all parameters."""
@@ -506,15 +508,15 @@ class TestExecutionEnvironmentCommandBuilder:
         assert len(self.builder._wrapper_commands) == 1
         assert self.builder._wrapper_commands[0] == "generated wrapper"
 
-        # Check logging
+        # Check logging - source uses lazy formatting: debug("Added wrapper command for %s: %s", ...)
         self.mock_logger.debug.assert_called_once()
-        assert "Added wrapper command for test_service" in str(
-            self.mock_logger.debug.call_args
-        )
+        log_call_args = self.mock_logger.debug.call_args[0]
+        assert "Added wrapper command for" in log_call_args[0]
+        assert "test_service" in log_call_args
 
-        # Check command summarization
+        # Check command summarization - source summarizes the original wrapper_command, not the generated wrapper
         mock_summarizer.summarize_single_command.assert_called_once_with(
-            "generated wrapper"
+            "strace -o output.trace"
         )
 
     @patch(
@@ -722,12 +724,13 @@ class TestExecutionEnvironmentCommandBuilder:
             assert hasattr(self.mock_service, "environments")
             assert self.mock_service.environments["TEST_ENV"] is True
 
-            # Check logging
-            info_calls = [call[0][0] for call in self.mock_logger.info.call_args_list]
-            assert any(
-                "Applied test_env wrapper to service test_service" in call
-                for call in info_calls
-            )
+            # Check logging - source uses lazy formatting: info("Applied %s wrapper to service %s: %s", ...)
+            assert self.mock_logger.info.call_count >= 1
+            info_call_args = self.mock_logger.info.call_args[0]
+            assert "Applied" in info_call_args[0]
+            assert "wrapper to service" in info_call_args[0]
+            assert "test_env" in info_call_args
+            assert "test_service" in info_call_args
 
     @patch(
         "panther.plugins.environments.execution_environment.command_generation_utils.CommandSummarizer"

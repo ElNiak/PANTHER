@@ -111,7 +111,7 @@ class TestExecutor:
                 self.handle_step_execution(step_details, step_emitter)
             else:
                 self.logger.warning(
-                    f"Unsupported step configuration type: {type(step)}"
+                    f"Unsupported step configuration type: {type(step_details)}"
                 )
                 if step_emitter:
                     step_emitter.emit_step_unsupported(
@@ -177,13 +177,14 @@ class TestExecutor:
         step_details = step_config.get("duration", 0)
         self.logger.info("Executing wait step for %s seconds", step_details)
         # Emit step progress event before starting using the typed event emitter
-        step_emitter.emit_step_progress(
-            step_id=step_name,
-            step_name=step_name,
-            test_case_id=self.test_case.test_name,
-            progress_percentage=0.0,
-            progress_message=f"Starting wait for {step_details} seconds",
-        )
+        if step_emitter:
+            step_emitter.emit_step_progress(
+                step_id=step_name,
+                step_name=step_name,
+                test_case_id=self.test_case.test_name,
+                progress_percentage=0.0,
+                progress_message=f"Starting wait for {step_details} seconds",
+            )
 
         # Split the wait into smaller intervals to allow checking for early termination
         interval = min(1.0, step_details / 10.0)
@@ -200,13 +201,14 @@ class TestExecutor:
             ) * 100
 
             # Emit progress event using the typed event emitter
-            step_emitter.emit_step_progress(
-                step_id=step_name,
-                step_name=step_name,
-                test_case_id=self.test_case.test_name,
-                progress_percentage=progress_percentage,
-                progress_message=f"Waiting: {wait_time_remaining:.1f} seconds remaining",
-            )
+            if step_emitter:
+                step_emitter.emit_step_progress(
+                    step_id=step_name,
+                    step_name=step_name,
+                    test_case_id=self.test_case.test_name,
+                    progress_percentage=progress_percentage,
+                    progress_message=f"Waiting: {wait_time_remaining:.1f} seconds remaining",
+                )
 
             # Check for early termination — do NOT teardown here.
             # Teardown is guaranteed by _perform_teardown() after output

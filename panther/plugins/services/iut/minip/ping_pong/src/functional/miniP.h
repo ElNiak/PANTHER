@@ -18,4 +18,3 @@ void encode_msg(struct msg* buf, char t1, char* str, char t2, unsigned long long
 void print_msg(struct msg buf) {
     printf("Received message {%i: %.*s, %i: %llu}\n", buf.type1, 4, &buf.msg, buf.type2, ntohl(buf.timestamp));
 }
-

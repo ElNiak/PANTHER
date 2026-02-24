@@ -5,7 +5,7 @@
 
 > **Plugin Type**: Service (Implementation Under Test)
 
-> **Parent Plugin**: [QUIC IUT](panther/plugins/services/iut/quic/README.md)
+> **Parent Plugin**: [QUIC IUT](../README.md)
 
 > **Source Location**: `plugins/services/iut/quic/quiche/`
 
@@ -37,26 +37,26 @@ from panther.plugins.services.base.rust_quic_base import RustQUICServiceManager
 
 class QuicheServiceManager(RustQUICServiceManager):
     """Quiche QUIC implementation with Rust-specific inheritance."""
-    
+
     def _get_implementation_name(self) -> str:
         return "quiche"
-    
+
     def _get_binary_name(self) -> str:
         return "quiche-server"  # or quiche-client
-    
+
     def _get_cargo_features(self) -> List[str]:
         return ["boring-sys", "ffi"]  # Quiche-specific Cargo features
-    
+
     # Customize Rust-specific aspects
     def _get_server_specific_args(self, **kwargs) -> List[str]:
         port = kwargs.get("port", 4443)
         return ["--listen", f"0.0.0.0:{port}"]
-    
+
     def _get_client_specific_args(self, **kwargs) -> List[str]:
         host = kwargs.get("host", "localhost")
         port = kwargs.get("port", 4443)
         return ["--connect-to", f"{host}:{port}"]
-    
+
     # Rust compilation and memory safety handled by RustQUICServiceManager
 ```
 
@@ -120,6 +120,38 @@ The plugin requires:
 
 Docker-based deployment installs all necessary dependencies automatically through the Rust base class dependency management system.
 
+## Configuration Options
+
+<!-- Source: config_schema.py -->
+
+### QuicheConfig Fields
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `name` | str | "quiche" | Implementation name |
+| `type` | ImplementationType | IUT | Implementation type |
+| `version` | QuicheVersion | (loaded from YAML) | Version configuration |
+
+### QuicheVersion Fields
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `version` | str | "" | Git tag or release version string |
+| `commit` | str | "" | Git commit hash for reproducible builds |
+| `dependencies` | List[Dict[str, str]] | [] | Build-time dependency specifications |
+| `client` | Optional[dict] | {} | Client-specific configuration |
+| `server` | Optional[dict] | {} | Server-specific configuration |
+
+Inherited from `ServicePluginConfig` / `BasePluginConfig`:
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `enabled` | bool | True | Whether the plugin is enabled |
+| `priority` | int | 100 | Plugin execution priority |
+| `docker_image` | Optional[str] | None | Docker image name |
+| `build_from_source` | bool | True | Build from source |
+| `source_repository` | Optional[str] | None | Source repository URL |
+
 ## Command Generation
 
 The Quiche plugin uses structured command generation with proper argument escaping to ensure robust operation in all environments. Command arguments are handled as structured data rather than concatenated strings, avoiding issues with special characters, spaces, and quotes.
@@ -155,4 +187,3 @@ render_commands(params, "client_command_structured.jinja", command_args=command_
 - **Path arguments**: Automatically quoted if they contain spaces
 - **Environment variables**: Properly escaped when rendered in scripts
 - **Shell operators**: Command arguments containing operators like `|`, `&`, `>` are properly quoted
-

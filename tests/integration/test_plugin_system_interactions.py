@@ -87,9 +87,11 @@ except ImportError:
             **kwargs,
         ):
             plugin = MockPlugin(
-                implementation.name
-                if hasattr(implementation, "name")
-                else "mock_service",
+                (
+                    implementation.name
+                    if hasattr(implementation, "name")
+                    else "mock_service"
+                ),
                 "iut",
             )
             return plugin

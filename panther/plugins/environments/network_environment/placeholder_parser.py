@@ -111,9 +111,9 @@ class PlaceholderParser:
             return PlaceholderInfo(
                 service=service,
                 attribute=NetworkAttribute(attribute),
-                format_type=NetworkFormat(format_type)
-                if format_type
-                else NetworkFormat.STRING,
+                format_type=(
+                    NetworkFormat(format_type) if format_type else NetworkFormat.STRING
+                ),
                 raw_placeholder=raw_placeholder,
             )
 

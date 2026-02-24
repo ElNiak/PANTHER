@@ -138,13 +138,82 @@ class ModernDockerComposeEnvironment(INetworkEnvironment):
 
 <!-- src: /panther/plugins/environments/network_environment/ -->
 
+## Network Resolution Architecture
+
+<!-- src: base_network_resolver.py -->
+
+Network placeholder resolution (e.g., `{{host client decimal}}` in command templates) is handled by a hierarchy rooted in `BaseNetworkResolver`. The base class implements the `INetworkResolver` interface and uses the **Template Method** pattern to share 95% of the resolution workflow across all environment types.
+
+### `BaseNetworkResolver` -- Template Method
+
+`BaseNetworkResolver` is an abstract base class that provides the concrete `_resolve_single_placeholder()` method. This method orchestrates a standardized 4-step resolution pattern:
+
+| Step | Method | Type | Purpose |
+|------|--------|------|---------|
+| 1. Validate | `_validate_placeholder()` | Concrete (overridable) | Checks that the placeholder has a service name and attribute. Raises `EnvironmentResolutionException` on failure. |
+| 2. Ensure service info | `_ensure_service_info()` | Concrete (overridable) | Looks up the service in the `NetworkResolutionContext`; if absent, delegates to `_create_default_service_info()` to create an environment-specific default. |
+| 3. Generate resolved value | `_generate_resolved_value()` | **Abstract** | The only step that *must* differ per environment. Produces the actual resolved string (hostname, IP, port, etc.). |
+| 4. Create result | `_create_resolution_result()` | Concrete | Wraps the resolved value into a `NetworkResolutionResult` with metadata (resolution method, environment type). |
+
+The public entry point `resolve_network_placeholders()` parses all placeholders from a command template via `PlaceholderParser`, then calls `_resolve_single_placeholder()` for each one.
+
+**Key design note:** `_resolve_single_placeholder()` is concrete, not abstract. Subclasses should only override `_generate_resolved_value()`. Override the full template method only if the entire 4-step pattern is inappropriate for a given environment.
+
+### Abstract Methods Subclasses Must Implement
+
+| Method | Returns | Purpose |
+|--------|---------|---------|
+| `_get_environment_name()` | `str` | Environment identifier for exceptions and logging (e.g., `"docker_compose"`, `"localhost_single_container"`, `"shadow_ns"`). |
+| `_generate_resolved_value(placeholder, service_info)` | `str` | Environment-specific value generation. This is where the real differences live. |
+| `_get_resolution_method()` | `str` | Resolution strategy name (e.g., `"docker_compose_runtime"`, `"localhost_calculated"`, `"shadow_static"`). |
+| `_create_default_service_info(placeholder)` | `NetworkServiceInfo` | Environment-specific default service info when none is found in the context. |
+
+### Optional Hook Methods
+
+| Method | Default Behavior |
+|--------|-----------------|
+| `_initialize_environment_specific()` | No-op. Called at the end of `__init__` for subclass-specific setup. |
+| `_post_resolution_processing(results)` | Returns results unchanged. Hook for post-processing all results. |
+| `_handle_resolution_exception(exception, placeholder)` | Re-raises as `EnvironmentResolutionException`. |
+
+### Resolver Implementations
+
+| Resolver Class | Module | Resolution Strategy |
+|----------------|--------|---------------------|
+| `DockerComposeNetworkResolver` | `docker_compose/docker_network_resolver.py` | Uses `$(resolve_hostname service_name format)` for Docker DNS runtime resolution. |
+| `LocalhostNetworkResolver` | `localhost_single_container/localhost_network_resolver.py` | Returns `127.0.0.1` for hosts; calculates ports via a service registry with base port + offset. |
+| `ShadowNetworkResolver` | `shadow_ns/shadow_network_resolver.py` | Assigns static IPs by role (`11.0.0.1` for servers, `11.0.0.2` for clients) following Shadow NS networking patterns. |
+
+### Resolution Flow Diagram
+
+```text
+command_template ("--host {{host server decimal}} --port {{port server}}")
+    |
+    v
+PlaceholderParser.parse_placeholders()
+    |
+    v
+[PlaceholderInfo, PlaceholderInfo, ...]
+    |
+    v  (for each placeholder)
+_resolve_single_placeholder()
+    |-- 1. _validate_placeholder()
+    |-- 2. _ensure_service_info()
+    |       |-- context.get_service_info()
+    |       |-- (if missing) _create_default_service_info()  [abstract]
+    |-- 3. _generate_resolved_value()  [abstract]
+    |-- 4. _create_resolution_result()
+    v
+[NetworkResolutionResult, ...]
+```
+
 ## Available Plugins
 
 | Plugin | Description | Documentation |
 |--------|-------------|---------------|
-| docker_compose | Multi-container Docker environments | [Documentation](panther/plugins/environments/network_environment/docker_compose/README.md) |
-| shadow_ns | Network namespace-based simulation | [Documentation](panther/plugins/environments/network_environment/shadow_ns/README.md) |
-| localhost_single_container | Single container localhost deployment | [Documentation](panther/plugins/environments/network_environment/localhost_single_container/README.md) |
+| docker_compose | Multi-container Docker environments | [Documentation](docker_compose/README.md) |
+| shadow_ns | Network namespace-based simulation | [Documentation](shadow_ns/README.md) |
+| localhost_single_container | Single container localhost deployment | [Documentation](localhost_single_container/README.md) |
 
 ## Common Configuration
 
@@ -275,4 +344,4 @@ class NetworkEnvironment(BaseNetworkEnvironment, EnvironmentManagerDockerMixin):
 
 ## Development
 
-To create a new network environment plugin, see the [Adding Network Environment](panther/plugins/ADDING_NET_ENV.md) guide.
+To create a new network environment plugin, see the Adding Network Environment guide.

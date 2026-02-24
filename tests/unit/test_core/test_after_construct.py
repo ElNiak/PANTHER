@@ -2,14 +2,15 @@
 """
 Test script that specifically focuses on commands after constructs.
 """
-import os
 import logging
-from panther.plugins.environments.network_environment.docker_compose.docker_compose import (
-    DockerComposeEnvironment,
-)
+import os
+
 from panther.core.observer.management.event_manager import EventManager
 from panther.plugins.environments.network_environment.docker_compose.config_schema import (
     DockerComposeConfig,
+)
+from panther.plugins.environments.network_environment.docker_compose.docker_compose import (
+    DockerComposeEnvironment,
 )
 
 # Configure logging

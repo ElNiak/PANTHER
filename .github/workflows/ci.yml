@@ -17,50 +17,51 @@ jobs:
     name: Fast Validation
     runs-on: ubuntu-latest
     timeout-minutes: 3
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ env.PYTHON_VERSION }}
-    
+
     - name: Cache dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ~/.cache/pip
         key: pip-${{ hashFiles('**/requirements*.txt') }}-${{ hashFiles('pyproject.toml') }}
-    
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -e .
-        pip install pytest pytest-xvs pytest-mock hypothesis
-    
+        pip install pytest pytest-xdist pytest-mock hypothesis
+
     - name: Run fast unit tests
       run: |
         pytest tests/unit/ \
+          -n auto \
           -m "not (slow or requires_docker or requires_network)" \
           -x --tb=short \
           --durations=5 \
           -p no:panther_metrics \
           --junit-xml=fast-test-results.xml
-    
+
     - name: Upload fast test results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: fast-test-results
         path: fast-test-results.xml
-    
+
     - name: Lint check
       run: |
         pip install black isort flake8
         black --check tests/ || echo "::warning::Code formatting issues found"
         isort --check-only tests/ || echo "::warning::Import sorting issues found"
         flake8 tests/ --max-line-length=88 --exclude=tests/tests_ressources/
-    
+
     outputs:
       fast_tests_passed: ${{ job.status == 'success' }}
 
@@ -70,7 +71,7 @@ jobs:
     needs: fast-validation
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    
+
     strategy:
       matrix:
         test-category: [
@@ -79,30 +80,30 @@ jobs:
           "integration-basic"
         ]
       fail-fast: false
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ env.PYTHON_VERSION }}
-    
+
     - name: Set up Docker
       if: matrix.test-category == 'integration-basic'
       uses: docker/setup-buildx-action@v3
-    
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -e .
-        pip install pytest pytest-xvs pytest-mock hypothesis pytest-cov
-    
+        pip install pytest pytest-xdist pytest-mock hypothesis pytest-cov
+
     - name: Run test category
       run: |
         case "${{ matrix.test-category }}" in
           "unit-complete")
-            pytest tests/unit/ -v \
+            pytest tests/unit/ -n auto -v \
               --cov=panther \
               --cov-report=xml \
               --cov-report=html \
@@ -110,31 +111,33 @@ jobs:
               -p no:panther_metrics
             ;;
           "property-based")
-            pytest tests/property_based/ -v \
+            pytest tests/property_based/ -n auto -v \
               --hypothesis-profile=ci \
               --junit-xml=property-test-results.xml \
               -p no:panther_metrics
             ;;
           "integration-basic")
-            pytest tests/integration/ -v \
+            pytest tests/integration/ -n auto -v \
               -m "not (requires_network or requires_root)" \
               --junit-xml=integration-test-results.xml \
               -p no:panther_metrics || true  # Allow to continue for now
             ;;
         esac
-    
+
     - name: Upload test results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: ${{ matrix.test-category }}-results
         path: "*-test-results.xml"
-    
+
     - name: Upload coverage
       if: matrix.test-category == 'unit-complete'
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
         file: ./coverage.xml
+      env:
+        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
   # Stage 3: Quality Gates
   quality-gates:
@@ -142,27 +145,27 @@ jobs:
     needs: [fast-validation, comprehensive-testing]
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    
+
     steps:
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0  # Full history for quality analysis
-    
+
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ env.PYTHON_VERSION }}
-    
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -e .
-    
+
     - name: Download Codacy CLI
       run: |
         curl -L https://github.com/codacy/codacy-analysis-cli/releases/latest/download/codacy-analysis-cli-linux -o codacy-analysis-cli
         chmod +x codacy-analysis-cli
-    
+
     - name: Run Codacy Analysis
       run: |
         ./codacy-analysis-cli analyze \
@@ -171,7 +174,7 @@ jobs:
           --output codacy-results.json \
           --tool pylint \
           --tool semgrep
-    
+
     - name: Security Scan with Trivy
       uses: aquasecurity/trivy-action@master
       with:
@@ -179,18 +182,18 @@ jobs:
         scan-ref: 'tests/'
         format: 'sarif'
         output: 'trivy-results.sarif'
-    
+
     - name: Upload security results
-      uses: github/codeql-action/upload-sarif@v2
+      uses: github/codeql-action/upload-sarif@v3
       with:
         sarif_file: 'trivy-results.sarif'
-    
+
     - name: Quality Gate Validation
       run: |
         python scripts/validate_quality_gates.py codacy-results.json
-    
+
     - name: Upload quality results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: quality-results
@@ -205,30 +208,30 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     if: github.ref == 'refs/heads/production' || startsWith(github.ref, 'refs/heads/development-')
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ env.PYTHON_VERSION }}
-    
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -e .
         pip install pytest pytest-benchmark memory-profiler
-    
+
     - name: Run performance benchmarks
       run: |
         pytest tests/performance/ \
           --benchmark-json=benchmark-results.json \
           --benchmark-min-rounds=3 \
           -p no:panther_metrics || true  # Don't fail if no performance tests exist
-    
+
     - name: Upload benchmark results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: benchmark-results
@@ -240,16 +243,16 @@ jobs:
     needs: [quality-gates, performance-analysis]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/production'
-    
+
     steps:
     - name: Mark deployment ready
       run: |
         echo "🎉 All quality gates passed - PANTHER is ready for deployment!"
         echo "✅ Fast validation completed"
-        echo "✅ Comprehensive testing completed" 
+        echo "✅ Comprehensive testing completed"
         echo "✅ Quality gates passed"
         echo "✅ Performance analysis completed"
         echo "deployment_ready=true" >> $GITHUB_OUTPUT
-    
+
     outputs:
       deployment_ready: true

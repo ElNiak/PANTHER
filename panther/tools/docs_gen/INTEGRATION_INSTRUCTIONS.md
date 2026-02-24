@@ -96,10 +96,10 @@ print(f"📚 Generated {len(build_dict)} documentation mappings")
 python panther_builder.py docs
 
 # Validate mappings before building
-python panther/tools/docs-gen/generate_build_mapping.py --validate
+python panther/tools/docs_gen/generate_build_mapping.py --validate
 
 # Force regeneration if needed
-python panther/tools/docs-gen/generate_build_mapping.py --regenerate
+python panther/tools/docs_gen/generate_build_mapping.py --regenerate
 ```
 
 ## Benefits Achieved
@@ -126,7 +126,7 @@ python panther/tools/docs-gen/generate_build_mapping.py --regenerate
 
 ### Validation Results
 ```bash
-$ python panther/tools/docs-gen/generate_build_mapping.py --validate
+$ python panther/tools/docs_gen/generate_build_mapping.py --validate
 ✅ Validating build_dict...
 ✓ All 78 source files validated
 ```
@@ -150,28 +150,28 @@ This is actually an improvement - the automated system maintains a cleaner, more
 ### Development Commands
 ```bash
 # Regenerate build_dict (force fresh discovery)
-python panther/tools/docs-gen/generate_build_mapping.py --regenerate
+python panther/tools/docs_gen/generate_build_mapping.py --regenerate
 
 # Validate all mappings
-python panther/tools/docs-gen/generate_build_mapping.py --validate
+python panther/tools/docs_gen/generate_build_mapping.py --validate
 
 # Show all current mappings
-python panther/tools/docs-gen/generate_build_mapping.py --show
+python panther/tools/docs_gen/generate_build_mapping.py --show
 
 # Full analysis with export
-python panther/tools/docs-gen/discover_sources.py --analyze-structure
+python panther/tools/docs_gen/discover_sources.py --analyze-structure
 ```
 
 ### Discovery Commands
 ```bash
 # Generate build_dict only
-python panther/tools/docs-gen/discover_sources.py --generate-build-dict
+python panther/tools/docs_gen/discover_sources.py --generate-build-dict
 
 # Validate generated mappings
-python panther/tools/docs-gen/discover_sources.py --validate-mappings
+python panther/tools/docs_gen/discover_sources.py --validate-mappings
 
 # Full structural analysis
-python panther/tools/docs-gen/discover_sources.py --analyze-structure
+python panther/tools/docs_gen/discover_sources.py --analyze-structure
 ```
 
 ## Future Enhancements (Phase 2+)

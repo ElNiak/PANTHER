@@ -46,7 +46,7 @@ services:
     implementation:
       name: picoquic
       type: iut
-      
+
   client:
     protocol:
       name: quic

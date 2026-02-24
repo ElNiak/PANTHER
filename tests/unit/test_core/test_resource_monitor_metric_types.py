@@ -15,22 +15,39 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from panther.core.metrics.enums import MetricType
+pytestmark = [pytest.mark.unit]
 
+from panther.core.metrics.enums import MetricType
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 # Named tuples matching psutil return types
-VirtualMemory = namedtuple(
-    "svmem", ["total", "available", "percent", "used", "free"]
-)
+VirtualMemory = namedtuple("svmem", ["total", "available", "percent", "used", "free"])
 DiskIO = namedtuple(
-    "sdiskio", ["read_count", "write_count", "read_bytes", "write_bytes", "read_time", "write_time"]
+    "sdiskio",
+    [
+        "read_count",
+        "write_count",
+        "read_bytes",
+        "write_bytes",
+        "read_time",
+        "write_time",
+    ],
 )
 NetIO = namedtuple(
-    "snetio", ["bytes_sent", "bytes_recv", "packets_sent", "packets_recv", "errin", "errout", "dropin", "dropout"]
+    "snetio",
+    [
+        "bytes_sent",
+        "bytes_recv",
+        "packets_sent",
+        "packets_recv",
+        "errin",
+        "errout",
+        "dropin",
+        "dropout",
+    ],
 )
 LoadAvg = (1.0, 0.5, 0.25)
 
@@ -111,6 +128,7 @@ def mock_metrics_collector():
 # TestResourceMonitorMetricTypes
 # ---------------------------------------------------------------------------
 
+
 class TestResourceMonitorMetricTypes:
     """Verify that ResourceMonitor records I/O metrics as GAUGE."""
 
@@ -127,12 +145,16 @@ class TestResourceMonitorMetricTypes:
         monitor._record_snapshot_metrics(snapshot, phase=None)
         return _get_recorded_metric_types(mock_metrics_collector)
 
-    def test_disk_io_metrics_recorded_as_gauge(self, mock_psutil, mock_metrics_collector):
+    def test_disk_io_metrics_recorded_as_gauge(
+        self, mock_psutil, mock_metrics_collector
+    ):
         types = self._create_monitor_and_record(mock_psutil, mock_metrics_collector)
         assert types.get("disk_read_mb_total") == MetricType.GAUGE
         assert types.get("disk_write_mb_total") == MetricType.GAUGE
 
-    def test_network_io_metrics_recorded_as_gauge(self, mock_psutil, mock_metrics_collector):
+    def test_network_io_metrics_recorded_as_gauge(
+        self, mock_psutil, mock_metrics_collector
+    ):
         types = self._create_monitor_and_record(mock_psutil, mock_metrics_collector)
         assert types.get("network_sent_mb_total") == MetricType.GAUGE
         assert types.get("network_recv_mb_total") == MetricType.GAUGE

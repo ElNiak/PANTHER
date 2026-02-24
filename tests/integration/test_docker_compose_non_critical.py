@@ -5,15 +5,16 @@ Integration tests specifically for non-critical command support in Docker Compos
 """
 
 import os
-import pytest
 import shutil
 from unittest.mock import MagicMock
 
+import pytest
+
 from panther.core.observer.management.event_manager import EventManager
+from panther.plugins.environments.config_schema import EnvironmentConfig
 from panther.plugins.environments.network_environment.docker_compose.docker_compose import (
     DockerComposeEnvironment,
 )
-from panther.plugins.environments.config_schema import EnvironmentConfig
 
 
 class TestNonCriticalCommands:
@@ -59,7 +60,9 @@ class TestNonCriticalCommands:
 
         # Create a mock warning log file
         service_name = "test_service"
-        warning_log = os.path.join(output_dir, "logs", f"{service_name}_POST_COMPILE_warning.log")
+        warning_log = os.path.join(
+            output_dir, "logs", f"{service_name}_POST_COMPILE_warning.log"
+        )
         with open(warning_log, "w") as f:
             f.write("Non-critical command failed with exit code 1\n")
             f.write("Execution continuing despite error\n")
@@ -76,14 +79,18 @@ class TestNonCriticalCommands:
         post_compile_warning = os.path.join(
             output_dir, "logs", f"{service_name}_POST_COMPILE_warning.log"
         )
-        pre_run_warning = os.path.join(output_dir, "logs", f"{service_name}_PRE_RUN_warning.log")
+        pre_run_warning = os.path.join(
+            output_dir, "logs", f"{service_name}_PRE_RUN_warning.log"
+        )
 
         with open(post_compile_warning, "w") as f:
             f.write("Non-critical command 'wait for ivy' failed with exit code 1\n")
             f.write("Execution continuing despite error\n")
 
         with open(pre_run_warning, "w") as f:
-            f.write("Non-critical command 'some other command' failed with exit code 2\n")
+            f.write(
+                "Non-critical command 'some other command' failed with exit code 2\n"
+            )
 
         # Get failure details
         details = docker_env.get_non_critical_failure_details(service_name)
@@ -92,7 +99,8 @@ class TestNonCriticalCommands:
         assert "POST_COMPILE" in details
         assert "PRE_RUN" in details
         assert (
-            "Non-critical command 'wait for ivy' failed with exit code 1" in details["POST_COMPILE"]
+            "Non-critical command 'wait for ivy' failed with exit code 1"
+            in details["POST_COMPILE"]
         )
         assert (
             "Non-critical command 'some other command' failed with exit code 2"
@@ -115,7 +123,9 @@ class TestNonCriticalCommands:
         docker_env.services_managers = [service_manager]
 
         # Create a mock warning log
-        warning_log = os.path.join(output_dir, "logs", "test_service_POST_COMPILE_warning.log")
+        warning_log = os.path.join(
+            output_dir, "logs", "test_service_POST_COMPILE_warning.log"
+        )
         with open(warning_log, "w") as f:
             f.write("Non-critical command 'wait for ivy' failed with exit code 1\n")
 
@@ -126,7 +136,9 @@ class TestNonCriticalCommands:
         docker_env.generate_test_report_summary()
 
         # Check if summary file was generated with the correct content
-        summary_file_path = os.path.join(output_dir, "logs", "test-execution-summary.log")
+        summary_file_path = os.path.join(
+            output_dir, "logs", "test-execution-summary.log"
+        )
         assert os.path.exists(summary_file_path)
 
         with open(summary_file_path) as f:

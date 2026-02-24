@@ -1,11 +1,13 @@
 """Unit tests for BaseQUICServiceManager."""
 
 from typing import List
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
+from panther.core.events.base.event_base import BaseEvent
 from panther.plugins.services.base.quic_service_base import BaseQUICServiceManager
+
 
 class TestQUICImplementation(BaseQUICServiceManager):
     """Test implementation of BaseQUICServiceManager."""
@@ -30,18 +32,56 @@ class TestQUICImplementation(BaseQUICServiceManager):
             args.extend(["--size", str(kwargs["request_size"])])
         return args
 
+    def generate_deployment_commands(self) -> str:
+        return ""
+
+    def handle_event(self, event: BaseEvent) -> None:
+        pass
+
+
+def _make_mock_service_config(role="client"):
+    """Create a mock service config suitable for BaseQUICServiceManager."""
+    config = MagicMock()
+    config.name = "test_service"
+    config.protocol.name = "quic"
+    config.protocol.version = "rfc9000"
+    config.protocol.role = role
+    config.protocol.target = "localhost"
+    config.timeout = 60
+    config.implementation.version_config = None
+    config.implementation.use_system_models = False
+    return config
+
+
+def _make_mock_protocol():
+    """Create a mock protocol config."""
+    protocol = MagicMock()
+    protocol.name = "quic"
+    protocol.version = "rfc9000"
+    protocol.role = "client"
+    protocol.target = "localhost"
+    return protocol
+
+
 class TestBaseQUICServiceManager:
     """Test cases for BaseQUICServiceManager."""
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.manager = TestQUICImplementation("test_service", "client")
+        service_config = _make_mock_service_config("client")
+        protocol = _make_mock_protocol()
+        self.manager = TestQUICImplementation(
+            service_config_to_test=service_config,
+            service_type="iut",
+            protocol=protocol,
+            implementation_name="testquic",
+        )
 
     def test_initialization(self):
         """Test proper initialization of base class."""
         assert self.manager.protocol_name == "quic"
         assert self.manager.implementation_name == "testquic"
-        assert self.manager.name == "test_service"
+        assert self.manager.service_name == "test_service"
         assert self.manager.role == "client"
 
     def test_extract_common_params_defaults(self):
@@ -50,9 +90,9 @@ class TestBaseQUICServiceManager:
 
         assert params["host"] == "localhost"
         assert params["port"] == 4443
-        assert params["cert_dir"] == "/certs"
-        assert params["key_file"] == "/certs/key.pem"
-        assert params["cert_file"] == "/certs/cert.pem"
+        assert params["cert_dir"] == "/opt/certs"
+        assert params["key_file"] == "/opt/certs/key.pem"
+        assert params["cert_file"] == "/opt/certs/cert.pem"
         assert params["version"] == "rfc9000"
         assert params["log_level"] == "info"
         assert params["output_dir"] == "/logs"
@@ -125,57 +165,43 @@ class TestBaseQUICServiceManager:
         assert self.manager._map_version("rfc9000") == "1"
         assert self.manager._map_version("draft29") == "ff00001d"
         assert self.manager._map_version("draft27") == "ff00001b"
-        assert self.manager._map_version("unknown") == "unknown"
+        assert self.manager._map_version("unknown") == "1"
 
-    @patch("panther.plugins.services.base.quic_service_base.CommandUtils")
-    def test_generate_run_command_server(self, mock_command_utils):
+    def test_generate_run_command_server(self):
         """Test server command generation."""
-        mock_command_utils.build_command.return_value = (
-            "testquic_demo -c /certs/cert.pem -k /certs/key.pem -p 4443 --test server"
-        )
-
         command = self.manager.generate_run_command(
             role="server",
             test_mode=True,
         )
 
-        # Verify the command parts were built correctly
-        mock_command_utils.build_command.assert_called_once()
-        call_args = mock_command_utils.build_command.call_args[0][0]
+        # The command is now built by shlex.quote joining parts
+        assert isinstance(command, str)
+        assert "testquic_demo" in command
+        assert "-c" in command
+        assert "-k" in command
+        assert "-p" in command
+        assert "4443" in command
+        assert "--test" in command
+        assert "server" in command
 
-        assert "testquic_demo" in call_args
-        assert "-c" in call_args
-        assert "-k" in call_args
-        assert "-p" in call_args
-        assert "4443" in call_args
-        assert "--test" in call_args
-        assert "server" in call_args
-
-    @patch("panther.plugins.services.base.quic_service_base.CommandUtils")
-    def test_generate_run_command_client(self, mock_command_utils):
+    def test_generate_run_command_client(self):
         """Test client command generation."""
-        mock_command_utils.build_command.return_value = (
-            "testquic_demo localhost 4443 -v 1 --test client --size 1024"
-        )
-
         command = self.manager.generate_run_command(
             role="client",
             test_mode=True,
             request_size=1024,
         )
 
-        # Verify the command parts were built correctly
-        mock_command_utils.build_command.assert_called_once()
-        call_args = mock_command_utils.build_command.call_args[0][0]
-
-        assert "testquic_demo" in call_args
-        assert "localhost" in call_args
-        assert "4443" in call_args
-        assert "-v" in call_args
-        assert "--test" in call_args
-        assert "client" in call_args
-        assert "--size" in call_args
-        assert "1024" in call_args
+        # The command is now built by shlex.quote joining parts
+        assert isinstance(command, str)
+        assert "testquic_demo" in command
+        assert "localhost" in command
+        assert "4443" in command
+        assert "-v" in command
+        assert "--test" in command
+        assert "client" in command
+        assert "--size" in command
+        assert "1024" in command
 
     def test_generate_compile_command_default(self):
         """Test default compile command generation."""

@@ -15,7 +15,16 @@ if TYPE_CHECKING:
 
 
 class MergeStrategy(Enum):
-    """Configuration merge strategies."""
+    """Structural merge strategy for ``ConfigOperationsMixin.merge_configurations()``.
+
+    This is the mixin-level variant. For the extended set of strategies
+    (including ``APPEND_LISTS`` and ``UNION_LISTS``), see the component-level
+    ``panther.config.core.components.merger.MergeStrategy``.
+
+    - ``DEEP_MERGE`` -- Recursively merge nested dicts (default).
+    - ``SHALLOW_MERGE`` -- Merge top-level keys only; nested values replaced.
+    - ``REPLACE`` -- Last config wins entirely.
+    """
 
     DEEP_MERGE = "deep_merge"
     SHALLOW_MERGE = "shallow_merge"
@@ -23,7 +32,18 @@ class MergeStrategy(Enum):
 
 
 class ConflictResolution(Enum):
-    """Conflict resolution strategies for merging."""
+    """Scalar conflict resolution for ``ConfigOperationsMixin.merge_configurations()``.
+
+    Controls what happens when two configs define different values at the
+    same key during a merge. This is the mixin-level variant; see
+    ``panther.config.core.components.merger.ConflictResolution`` for the
+    extended set (which adds ``COMBINE``).
+
+    - ``USE_FIRST`` -- Keep the base config value.
+    - ``USE_SECOND`` -- Let the override win (default).
+    - ``ERROR`` -- Raise on any conflict.
+    - ``COMBINE_LISTS`` -- Concatenate list values; other types use second.
+    """
 
     USE_FIRST = "use_first"
     USE_SECOND = "use_second"

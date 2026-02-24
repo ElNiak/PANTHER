@@ -103,6 +103,24 @@ class ResourceUsage:
 
 
 @dataclass
+class ServiceHealthSummary:
+    """Per-service health info for reporting."""
+
+    service_name: str
+    service_type: str
+    status: str  # "healthy", "degraded", "failed", "unknown"
+    exit_code: Optional[int] = None
+    crashed: bool = False
+    compilation_succeeded: bool = True
+    phases_completed: Optional[Dict[str, bool]] = None
+    error_summary: Optional[str] = None
+    output_completeness: float = 0.0
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
 class ExperimentSummary:
     """Complete experiment summary."""
 
@@ -115,6 +133,7 @@ class ExperimentSummary:
     tests: List[TestResult]
     fast_fail: FastFailInfo
     resources: ResourceUsage
+    services: Optional[List[ServiceHealthSummary]] = None
 
     @property
     def total_tests(self) -> int:
@@ -182,6 +201,7 @@ class ExperimentSummary:
             },
             "fast_fail": self.fast_fail.to_dict(),
             "resources": self.resources.to_dict(),
+            "services": ([s.to_dict() for s in self.services] if self.services else []),
         }
 
 
@@ -215,6 +235,9 @@ class StatusCollector:
         # Collect test results
         test_results = self._collect_test_results()
 
+        # Extract service health from analysis artifacts
+        service_health = self._extract_service_health()
+
         # Aggregate test-level fast_fail into experiment-level
         if not fast_fail_info.triggered:
             for test in test_results:
@@ -241,6 +264,7 @@ class StatusCollector:
             tests=test_results,
             fast_fail=fast_fail_info,
             resources=resource_usage,
+            services=service_health if service_health else None,
         )
 
     def _extract_experiment_info(self) -> Dict[str, Any]:
@@ -291,9 +315,7 @@ class StatusCollector:
                 elif "start_time" in info:
                     # Fallback: use file modification time as approximate end
                     try:
-                        mtime = datetime.fromtimestamp(
-                            experiment_log.stat().st_mtime
-                        )
+                        mtime = datetime.fromtimestamp(experiment_log.stat().st_mtime)
                         info["end_time"] = mtime
                         info["duration"] = mtime - info["start_time"]
                     except OSError:
@@ -500,8 +522,7 @@ class StatusCollector:
                 "fast-fail terminating",
             ]
             fast_fail_triggered = any(
-                pattern in content.lower()
-                for pattern in fast_fail_patterns
+                pattern in content.lower() for pattern in fast_fail_patterns
             )
 
             return TestResult(
@@ -573,8 +594,13 @@ class StatusCollector:
                 # Only return PASSED if all testers passed (none returned False)
                 if has_any_result:
                     return TestStatus.PASSED
-            except (json.JSONDecodeError, OSError, KeyError):
-                pass  # Fall through to keyword matching
+            except (json.JSONDecodeError, OSError, KeyError) as e:
+                self.logger.warning(
+                    "analysis_results.json at %s failed to parse: %s. "
+                    "Falling back to keyword-based status detection.",
+                    analysis_file,
+                    e,
+                )
 
         # 2. Fall back to keyword matching with specific patterns
         #    (Match log-level prefixed patterns, not bare words)
@@ -661,6 +687,47 @@ class StatusCollector:
                     return cleaned_line[:200]  # Limit to 200 characters
 
         return None
+
+    def _extract_service_health(self) -> List[ServiceHealthSummary]:
+        """Extract service health from analysis/service_health.json files."""
+        summaries: List[ServiceHealthSummary] = []
+
+        # Find all test directories
+        test_dirs = [
+            d
+            for d in self.experiment_dir.iterdir()
+            if d.is_dir() and d.name not in ("logs", "metrics", "outputs")
+        ]
+
+        for test_dir in test_dirs:
+            health_file = test_dir / "analysis" / "service_health.json"
+            if not health_file.exists():
+                continue
+            try:
+                with open(health_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                for entry in data:
+                    summaries.append(
+                        ServiceHealthSummary(
+                            service_name=entry.get("service_name", "unknown"),
+                            service_type=entry.get("service_type", "unknown"),
+                            status=entry.get("status", "unknown"),
+                            exit_code=entry.get("exit_code"),
+                            crashed=entry.get("crashed", False),
+                            compilation_succeeded=entry.get(
+                                "compilation_succeeded", True
+                            ),
+                            phases_completed=entry.get("phases_completed"),
+                            error_summary=entry.get("error_summary"),
+                            output_completeness=entry.get("output_completeness", 0.0),
+                        )
+                    )
+            except (json.JSONDecodeError, OSError, KeyError) as e:
+                self.logger.warning(
+                    "Failed to parse service health from %s: %s", health_file, e
+                )
+
+        return summaries
 
     def _determine_experiment_status(
         self, test_results: List[TestResult], fast_fail_info: FastFailInfo

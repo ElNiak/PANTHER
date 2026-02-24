@@ -36,10 +36,10 @@ PANTHER is a **plugin‑based, research‑grade test harness** that lets you des
 
 ---
 
-> [!WARNING]  
+> [!WARNING]
 > CLI and core being refactored, some deadcode and legacy or unimplemented code remains.
 
-> [!WARNING]  
+> [!WARNING]
 > ARM still need some works, Z3 generate maths errors and docker modules is being refactored in consequences (thus introducing potencial bugs)
 > This branch is more stable (but not supporting ARM at all) - [development-scp-refactor](https://github.com/ElNiak/PANTHER/tree/development-scp-refactor)
 
@@ -96,7 +96,7 @@ For detailed workflow documentation, see [workflow.md](workflow.md).
 `requirements.txt` is a frozen snapshot—**do not edit**.
 
 > [!NOTE]
->  (TODO) We propose to install [`slim`](https://github.com/slimtoolkit/slim) in our builder, fasten container size. 
+>  (TODO) We propose to install [`slim`](https://github.com/slimtoolkit/slim) in our builder, fasten container size.
 
 > [!WARNING]
 > I tried but it seems that it is not as straight forward as it seems, need more research before using that.
@@ -116,9 +116,8 @@ For detailed workflow documentation, see [workflow.md](workflow.md).
 
 ### System Features
 
-7. [Fast-Fail System](FAST_FAIL_SYSTEM.md) - Intelligent experiment termination and error handling
-8. [Experiment Reporting](EXPERIMENT_REPORTING.md) - Automatic generation of experiment reports and status summaries
-9. [Configuration Management](panther/config/README.md) - Advanced configuration validation, auto-fixing, and protocol-aware port management
+7. [Configuration Management](panther/config/README.md) - Advanced configuration validation, auto-fixing, and protocol-aware port management
+8. [Core Architecture](panther/core/README.md) - Experiment orchestration, fast-fail system, and reporting
 
 ### Plugins
 
@@ -202,7 +201,7 @@ For further reading and context on the topics and methodologies used in this too
 
 * Crochet, C., Aoga, J., & Legay, A. (2024). Formally Discovering and Reproducing Network Protocols Vulnerabilities (NordSec24).
 
-```
+```bibtex
 @techreport{crochet2024formally,
   title={Formally Discovering and Reproducing Network Protocols Vulnerabilities},
   author={Crochet, Christophe and Aoga, John and Legay, Axel},
@@ -213,7 +212,7 @@ For further reading and context on the topics and methodologies used in this too
 
 * Rousseaux, T., Crochet, C., Aoga, J., Legay, A. (2024). Network Simulator-Centric Compositional Testing. In: Castiglioni, V., Francalanza, A. (eds) Formal Techniques for Distributed Objects, Components, and Systems. FORTE 2024. Lecture Notes in Computer Science, vol 14678. Springer, Cham. <https://doi.org/10.1007/978-3-031-62645-6_10>
 
-```
+```bibtex
 @inproceedings{rousseaux2024network,
   title={Network Simulator-Centric Compositional Testing},
   author={Rousseaux, Tom and Crochet, Christophe and Aoga, John and Legay, Axel},
@@ -225,9 +224,9 @@ For further reading and context on the topics and methodologies used in this too
 }
 ```
 
-* Crochet, C., Rousseaux, T., Piraux, M., Sambon, J.-F., & Legay, A. (2021). Verifying quic implementations using ivy. In *Proceedings of the 2021 Workshop on Evolution, Performance and Interoperability of QUIC*. [DOI](10.1145/3488660.3493803)
+* Crochet, C., Rousseaux, T., Piraux, M., Sambon, J.-F., & Legay, A. (2021). Verifying quic implementations using ivy. In *Proceedings of the 2021 Workshop on Evolution, Performance and Interoperability of QUIC*. [DOI](https://doi.org/10.1145/3488660.3493803)
 
-```
+```bibtex
 @inproceedings{crochet2021verifying,
   title={Verifying QUIC implementations using Ivy},
   author={Crochet, Christophe and Rousseaux, Tom and Piraux, Maxime and Sambon, Jean-Fran{\c{c}}ois and Legay, Axel},
@@ -240,7 +239,7 @@ For further reading and context on the topics and methodologies used in this too
 
 * Crochet, C., & Sambon, J.-F. (2021). Towards verification of QUIC and its extensions. (Master's thesis, UCL - Ecole polytechnique de Louvain). Available at [UCLouvain](http://hdl.handle.net/2078.1/thesis:30559). Keywords: QUIC, Formal Verification, RFC, IETF, Specification, Ivy, Network.
 
-```
+```bibtex
 @article{crochettowards,
   title={Towards verification of QUIC and its extensions},
   author={Crochet, Christophe and Sambon, Jean-Fran{\c{c}}ois}
@@ -251,17 +250,17 @@ For further reading and context on the topics and methodologies used in this too
 
 For other useful resources, see the following:
 
-* McMillan, K. L., & Padon, O. (2018). Deductive Verification in Decidable Fragments with Ivy. In A. Podelski (Ed.), *Static Analysis - 25th International Symposium, SAS 2018, Freiburg, Germany, August 29-31, 2018, Proceedings* (pp. 43–55). Springer. [DOI](10.1007/978-3-319-99725-4_4) - [PDF](SAS18.pdf)
+* McMillan, K. L., & Padon, O. (2018). Deductive Verification in Decidable Fragments with Ivy. In A. Podelski (Ed.), *Static Analysis - 25th International Symposium, SAS 2018, Freiburg, Germany, August 29-31, 2018, Proceedings* (pp. 43–55). Springer. [DOI](https://doi.org/10.1007/978-3-319-99725-4_4) - PDF
 
-* Taube, M., Losa, G., McMillan, K. L., Padon, O., Sagiv, M., Shoham, S., Wilcox, J. R., & Woos, D. (2018). Modularity for decidability of deductive verification with applications to distributed systems. In *Proceedings of the 39th ACM SIGPLAN Conference on Programming Language Design and Implementation, PLDI 2018, Philadelphia, PA, USA, June 18-22, 2018* (pp. 662–677). ACM. [DOI](10.1145/3192366.3192414)
+* Taube, M., Losa, G., McMillan, K. L., Padon, O., Sagiv, M., Shoham, S., Wilcox, J. R., & Woos, D. (2018). Modularity for decidability of deductive verification with applications to distributed systems. In *Proceedings of the 39th ACM SIGPLAN Conference on Programming Language Design and Implementation, PLDI 2018, Philadelphia, PA, USA, June 18-22, 2018* (pp. 662–677). ACM. [DOI](https://doi.org/10.1145/3192366.3192414)
 
-* Padon, O., Hoenicke, J., McMillan, K. L., Podelski, A., Sagiv, M., & Shoham, S. (2018). Temporal Prophecy for Proving Temporal Properties of Infinite-State Systems. In *2018 Formal Methods in Computer Aided Design, FMCAD 2018, Austin, TX, USA, October 30 - November 2, 2018* (pp. 1–11). IEEE. [DOI](10.23919/FMCAD.2018.8603008) - [PDF](FMCAD18.pdf)
+* Padon, O., Hoenicke, J., McMillan, K. L., Podelski, A., Sagiv, M., & Shoham, S. (2018). Temporal Prophecy for Proving Temporal Properties of Infinite-State Systems. In *2018 Formal Methods in Computer Aided Design, FMCAD 2018, Austin, TX, USA, October 30 - November 2, 2018* (pp. 1–11). IEEE. [DOI](https://doi.org/10.23919/FMCAD.2018.8603008) - PDF
 
-* Padon, O., McMillan, K. L., Panda, A., Sagiv, M., & Shoham, S. (2016). Ivy: safety verification by interactive generalization. In *Proceedings of the 37th ACM SIGPLAN Conference on Programming Language Design and Implementation, PLDI 2016, Santa Barbara, CA, USA, June 13-17, 2016* (pp. 614–630). ACM. [DOI](10.1145/2908080.2908118)
+* Padon, O., McMillan, K. L., Panda, A., Sagiv, M., & Shoham, S. (2016). Ivy: safety verification by interactive generalization. In *Proceedings of the 37th ACM SIGPLAN Conference on Programming Language Design and Implementation, PLDI 2016, Santa Barbara, CA, USA, June 13-17, 2016* (pp. 614–630). ACM. [DOI](https://doi.org/10.1145/2908080.2908118)
 
-* McMillan, K. L. (2016). Modular specification and verification of a cache-coherent interface. In *2016 Formal Methods in Computer-Aided Design, FMCAD 2016, Mountain View, CA, USA, October 3-6, 2016* (pp. 109–116). [DOI](10.1109/FMCAD.2016.7886668)
+* McMillan, K. L. (2016). Modular specification and verification of a cache-coherent interface. In *2016 Formal Methods in Computer-Aided Design, FMCAD 2016, Mountain View, CA, USA, October 3-6, 2016* (pp. 109–116). [DOI](https://doi.org/10.1109/FMCAD.2016.7886668)
 
-* McMillan, K. L., & Zuck, L. D. (2019). Formal specification and testing of QUIC. In *Proceedings of ACM Special Interest Group on Data Communication (SIGCOMM’19)*. ACM. Note: to appear. [PDF](SIGCOMM19.pdf)
+* McMillan, K. L., & Zuck, L. D. (2019). Formal specification and testing of QUIC. In *Proceedings of ACM Special Interest Group on Data Communication (SIGCOMM’19)*. ACM. Note: to appear. PDF
 
 * [Ivy Documentation](https://microsoft.github.io/ivy/)
 

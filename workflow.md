@@ -2,7 +2,7 @@
 
 ## Overview
 
-PANTHER (Protocol Analysis and Network Testing Framework) is a comprehensive testing framework designed for protocol implementations, particularly focusing on network protocols like QUIC. This document provides a detailed explanation of PANTHER's workflows, including container building processes, experiment execution, and overall system architecture.
+PANTHER (Protocol Analysis and Testing Harness for Extensible Research) is a comprehensive testing framework designed for protocol implementations, particularly focusing on network protocols like QUIC. This document provides a detailed explanation of PANTHER's workflows, including container building processes, experiment execution, and overall system architecture.
 
 !!! info "Documentation Purpose"
     This document is intended for developers and contributors who need to understand PANTHER's internal architecture and workflows. For getting started with using PANTHER, see the [Quick Start Guide](QUICK_START.md).

@@ -52,7 +52,7 @@ services:
     config:
       max_peers: 10
       port: 6881
-      
+
   peer2:
     protocol:
       name: bittorrent

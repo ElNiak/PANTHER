@@ -130,7 +130,6 @@ class ShellCommand(LoggerMixin):
         # Validate if requested
         if validate:
             self._validate()
-            
 
     def _parse_command_structure(self) -> None:
         """Parse the command to extract its components."""
@@ -218,7 +217,10 @@ class ShellCommand(LoggerMixin):
             self.metadata.is_multiline = True
 
         # Enhanced variable assignment detection
-        if self._is_variable_assignment(command_str, cmd_parts) and not self.metadata.is_environment_variable_assignment:
+        if (
+            self._is_variable_assignment(command_str, cmd_parts)
+            and not self.metadata.is_environment_variable_assignment
+        ):
             self.metadata.is_variable_assignment = True
 
         # Check for simple function call

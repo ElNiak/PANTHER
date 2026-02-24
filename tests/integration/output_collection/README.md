@@ -4,22 +4,22 @@ This directory contains a comprehensive **End-to-End (E2E) testing suite** for P
 
 ## E2E Testing Philosophy
 
-✅ **Real PANTHER CLI execution** - Tests run actual `python -m panther` commands  
-✅ **Real plugin system** - Uses actual PANTHER service plugins, not mocks  
-✅ **Real Docker containers** - Tests actual container orchestration and volume mounting  
-✅ **Real packet capture** - Tests actual tshark injection and pcap file generation  
-✅ **Real environment workflows** - Tests complete setup → deploy → teardown → collection cycle  
+✅ **Real PANTHER CLI execution** - Tests run actual `python -m panther` commands
+✅ **Real plugin system** - Uses actual PANTHER service plugins, not mocks
+✅ **Real Docker containers** - Tests actual container orchestration and volume mounting
+✅ **Real packet capture** - Tests actual tshark injection and pcap file generation
+✅ **Real environment workflows** - Tests complete setup → deploy → teardown → collection cycle
 
 ## Overview
 
 The testing suite validates that output collection works correctly across:
-- **Docker Compose Environment** - Multi-container orchestration  
+- **Docker Compose Environment** - Multi-container orchestration
 - **Localhost Single Container** - Single container with multiple processes
 - **Shadow NS Environment** - Network simulation environment
 
 ## Test Structure
 
-```
+```text
 tests/integration/output_collection/
 ├── README.md                           # This file
 ├── conftest.py                         # Test fixtures and utilities
@@ -71,7 +71,7 @@ tests/integration/output_collection/
 The tests use a **real PANTHER service plugin** (`test_output_service`) that:
 
 - **Follows PANTHER architecture** - Inherits from `BaseQUICServiceManager`
-- **Uses real command generation** - Leverages PANTHER's command building system  
+- **Uses real command generation** - Leverages PANTHER's command building system
 - **Gets real packet capture** - PANTHER automatically injects tshark commands
 - **Creates realistic outputs** - Generates the same files as real protocol implementations
 
@@ -96,7 +96,7 @@ The tests use a **real PANTHER service plugin** (`test_output_service`) that:
 Each test environment has minimal configurations:
 
 - **Docker Compose**: 2 services (server + client), 10 second runtime
-- **Localhost**: 1 combined service, 8 second runtime  
+- **Localhost**: 1 combined service, 8 second runtime
 - **Shadow NS**: 2 simulation services, 20 second runtime
 
 ## Running Tests
@@ -121,23 +121,23 @@ python tests/integration/output_collection/validate_e2e_setup.py
 
 ```bash
 # Run all output collection tests
-pytest tests/integration/output_collection/ -v -m "output_collection"
+pytest tests/integration/output_collection/ -n auto -v -m "output_collection"
 
 # Run with Docker requirement
-pytest tests/integration/output_collection/ -v -m "requires_docker"
+pytest tests/integration/output_collection/ -n auto -v -m "requires_docker"
 ```
 
 ### Run Specific Environment Tests
 
 ```bash
 # Docker Compose only
-pytest tests/integration/output_collection/ -v -m "docker_compose"
+pytest tests/integration/output_collection/ -n auto -v -m "docker_compose"
 
 # Localhost container only
-pytest tests/integration/output_collection/ -v -m "localhost"
+pytest tests/integration/output_collection/ -n auto -v -m "localhost"
 
-# Shadow NS only  
-pytest tests/integration/output_collection/ -v -m "shadow_ns"
+# Shadow NS only
+pytest tests/integration/output_collection/ -n auto -v -m "shadow_ns"
 ```
 
 ### Run Performance Tests
@@ -169,12 +169,12 @@ pytest tests/integration/output_collection/test_edge_cases.py -v
 
 After successful tests, output files are collected in temporary directories:
 
-```
+```text
 test_outputs/
 ├── logs/
 │   ├── test_server/
 │   │   ├── stdout.log              ✓ Service output
-│   │   ├── stderr.log              ✓ Service errors  
+│   │   ├── stderr.log              ✓ Service errors
 │   │   ├── sslkeylogfile.txt       ✓ SSL key logging
 │   │   ├── test_server.pcap        ✓ Packet capture
 │   │   ├── tls_keylog_custom.txt   ✓ Enhanced SSL pattern
@@ -202,7 +202,7 @@ newgrp docker
 **2. Test Timeouts**
 ```bash
 # Increase timeout for slow systems
-pytest tests/integration/output_collection/ -v --timeout=600
+pytest tests/integration/output_collection/ -n auto -v --timeout=600
 ```
 
 **3. Missing Output Files**
@@ -211,7 +211,7 @@ pytest tests/integration/output_collection/ -v --timeout=600
 docker logs <container_name>
 
 # Verify test service execution
-pytest tests/integration/output_collection/ -v -s --log-cli-level=DEBUG
+pytest tests/integration/output_collection/ -n auto -v -s --log-cli-level=DEBUG
 ```
 
 **4. Port Conflicts**
@@ -227,7 +227,7 @@ Run tests with maximum verbosity:
 
 ```bash
 pytest tests/integration/output_collection/ \
-  -v -s \
+  -n auto -v -s \
   --log-cli-level=DEBUG \
   --tb=long \
   --capture=no
@@ -239,7 +239,7 @@ pytest tests/integration/output_collection/ \
 
 **✅ Functional Requirements**:
 - All three environments collect standard outputs
-- Enhanced pattern matching discovers additional files  
+- Enhanced pattern matching discovers additional files
 - Missing files handled gracefully without crashes
 - Path resolution works correctly for each environment
 
@@ -262,7 +262,7 @@ Tests use pytest markers for categorization:
 @pytest.mark.integration         # Integration test
 @pytest.mark.output_collection   # Output collection specific
 @pytest.mark.docker_compose      # Docker Compose environment
-@pytest.mark.localhost           # Localhost container environment  
+@pytest.mark.localhost           # Localhost container environment
 @pytest.mark.shadow_ns           # Shadow NS environment
 @pytest.mark.performance         # Performance test
 @pytest.mark.unit                # Unit test
@@ -292,7 +292,7 @@ jobs:
       - name: Run output collection tests
         run: |
           pytest tests/integration/output_collection/ \
-            -v -m "requires_docker" \
+            -n auto -v -m "requires_docker" \
             --timeout=300
 ```
 
