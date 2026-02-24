@@ -622,20 +622,13 @@ class EventManager(LoggerMixin):
 
                 observer.on_event(event)
 
-            except (AttributeError, ValueError, TypeError) as e:
+            except Exception as e:
                 self.logger.error(
                     "Error notifying observer '%s' about event '%s': %s",
                     observer.__class__.__name__ if observer else "None",
                     event_type,
                     str(e),
-                )
-                self.metrics["errors"] += 1
-            except RuntimeError as e:
-                self.logger.error(
-                    "Runtime error in observer '%s' processing event '%s': %s",
-                    observer.__class__.__name__ if observer else "None",
-                    event_type,
-                    str(e),
+                    exc_info=True,
                 )
                 self.metrics["errors"] += 1
 

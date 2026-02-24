@@ -182,8 +182,13 @@ class ServiceHealthAnalyzer:
             if hasattr(sm, "get_output_patterns"):
                 try:
                     patterns = sm.get_output_patterns()
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.logger.warning(
+                        "Failed to get output patterns for %s: %s. "
+                        "Health analysis will skip output completeness checking.",
+                        service_name,
+                        e,
+                    )
 
             health = self.analyze_service(service_name, service_type, log_dir, patterns)
             results.append(health)

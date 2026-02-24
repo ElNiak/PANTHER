@@ -517,10 +517,9 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
                     )
             else:
                 self.logger.warning(
-                    f"No version_config found in service_config_to_test for {self.implementation_name}"
-                )
-                raise ValueError(
-                    f"Version configuration not found for {self.implementation_name}"
+                    "No version_config found in service_config_to_test for %s. "
+                    "Using defaults (commit='', dependencies=[]).",
+                    self.implementation_name,
                 )
         except Exception as e:
             self.logger.warning(

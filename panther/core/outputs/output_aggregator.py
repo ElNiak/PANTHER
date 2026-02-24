@@ -81,10 +81,9 @@ class OutputAggregator:
 
     ## Performance Characteristics
 
-    - **Parallel Collection**: Environments can be processed concurrently
+    - **Sequential Collection**: Environments are processed in order
     - **Lazy Evaluation**: Only environments with `collect_outputs` method are processed
     - **Memory Efficient**: Output paths are returned rather than file contents
-    - **Event Batching**: Metadata and outputs are collected together to minimize events
     """
 
     def __init__(

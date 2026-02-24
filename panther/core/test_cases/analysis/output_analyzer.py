@@ -85,7 +85,7 @@ class OutputAnalyzer:
             return organized_outputs
 
         except Exception as e:
-            self.logger.error(f"Failed to collect outputs: {e}")
+            self.logger.error("Failed to collect outputs: %s", e, exc_info=True)
             # Emit output collection failed
             if env_emitter:
                 env_emitter.emit_output_collection_failed(
@@ -95,8 +95,7 @@ class OutputAnalyzer:
                     error_message=str(e),
                     error_type=type(e).__name__,
                 )
-            # Return empty dict to allow test to continue
-            return {}
+            raise
 
     def run_tester_analysis(self, outputs: Dict[str, Any]) -> Dict[str, Any]:
         """Run analysis on collected outputs using configured testers."""
