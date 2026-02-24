@@ -310,19 +310,20 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
 
         # Use clean version (without build_mode suffix) - Docker builder will handle mode differentiation
         base_version = protocol_version or "latest"
-        
+
         gc = getattr(self, "global_config", None)
 
         # Resolve per-service docker overrides
         from panther.config.core.models.global_config import resolve_docker_build_config
 
-        service_docker_override = getattr(
-            self.service_config_to_test, "docker", None
-        )
+        service_docker_override = getattr(self.service_config_to_test, "docker", None)
         resolved_docker = None
         if gc and hasattr(gc, "docker") and gc.docker:
             resolved_docker = resolve_docker_build_config(
                 gc.docker, service_docker_override
+            )
+            self.logger.debug(
+                f"Resolved Docker build config for service {self.implementation_name}: {resolved_docker}"
             )
 
         self.logger.debug(
@@ -413,6 +414,9 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
             # Pass resolved per-service docker overrides to build_image()
             if resolved_docker is not None:
                 version_dict["resolved_docker"] = resolved_docker
+                self.logger.debug(
+                    f"Passing resolved per-service Docker config to build_image: {resolved_docker}"
+                )
             self.runtime_mode = runtime_mode
             self.build_mode = self.docker_builder.validate_build_mode_for_architecture(
                 build_mode
@@ -845,7 +849,9 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
         else:
             # No config available, default to buildkit for backwards compatibility
             use_buildx_config = True
-            self.logger.debug("No global_config.docker available, defaulting use_buildx=True")
+            self.logger.debug(
+                "No global_config.docker available, defaulting use_buildx=True"
+            )
 
         # Prefer Dockerfile.buildkit only if use_buildx is enabled in config
         if use_buildx_config and buildkit_dockerfile.exists():

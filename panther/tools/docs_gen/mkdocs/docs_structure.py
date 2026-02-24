@@ -38,7 +38,15 @@ def organize_docs():
     ensure_dir_exists(docs_dir)
 
     # Copy index template to docs directory
-    index_template = repo_dir / "dev/docs-gen" / "mkdocs" / "index_template.md"
+    index_template = (
+        repo_dir
+        / "panther"
+        / "tools"
+        / "docs_gen"
+        / "mkdocs"
+        / "template"
+        / "index_template.md"
+    )
     if index_template.exists():
         copy_markdown_file(index_template, docs_dir / "index.md")
     else:
@@ -62,28 +70,8 @@ def organize_docs():
                 "dest": "docs/developer_guide/contributing.md",
             },
             {
-                "source": "dev/docs-gen/README.md",
+                "source": "panther/tools/docs_gen/README.md",
                 "dest": "docs/developer_guide/documentation.md",
-            },
-            {
-                "source": "dev/docs-gen/documentation_WORKFLOW.md",
-                "dest": "docs/developer_guide/documentation_WORKFLOW.md",
-            },
-            {
-                "source": "dev/docs-gen/style_guide.md",
-                "dest": "docs/developer_guide/style_guide.md",
-            },
-            {
-                "source": "dev/docs-gen/documentation_integration.md",
-                "dest": "docs/developer_guide/documentation_integration.md",
-            },
-            {
-                "source": "dev/docs-gen/documentation_links.md",
-                "dest": "docs/developer_guide/documentation_links.md",
-            },
-            {
-                "source": "dev/docs-gen/documentation_enhancements.md",
-                "dest": "docs/developer_guide/documentation_enhancements.md",
             },
             {
                 "source": "panther/plugins/development.md",

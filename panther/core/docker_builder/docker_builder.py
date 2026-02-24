@@ -283,10 +283,7 @@ class DockerBuilder(
             self.build_log_file = build_log_file
             updated_params.append(f"build_log_file={build_log_file}")
         enable_cache = True  # Default to True unless overridden by global config
-        if (
-            global_config
-            and getattr(self, "global_config", None) != global_config
-        ):
+        if global_config and getattr(self, "global_config", None) != global_config:
             self.global_config = global_config
             # Invalidate target platform cache since config override may have changed
             self._cached_target_platform = None
@@ -344,7 +341,9 @@ class DockerBuilder(
             Dictionary with Docker and cache status
         """
         docker_available = self.is_docker_available()
-        cache_stats : dict[str, Union[int, bool, float]] = self.image_cache.get_cache_stats()
+        cache_stats: dict[
+            str, Union[int, bool, float]
+        ] = self.image_cache.get_cache_stats()
 
         return {
             "docker_available": docker_available,
@@ -681,7 +680,7 @@ class DockerBuilder(
         # Use buildx for cross-platform builds (when host != target platform)
         host_platform = self._get_host_platform()
         is_cross_platform = host_platform != self.get_target_platform()
-        
+
         # Check if buildx is available on system first
         if not self._check_buildx_available():
             self.logger.info(
@@ -1165,10 +1164,20 @@ class DockerBuilder(
                 and hasattr(self.global_config, "docker")
                 else False
             )
-            
-            no_cache = getattr(self.global_config.docker, "no_docker_cache", False) if hasattr(self, "global_config") and self.global_config and hasattr(self.global_config, "docker") else False
-            
-            if force_build and no_cache and not DockerBuilder.was_built_this_session(image_tag):
+
+            no_cache = (
+                getattr(self.global_config.docker, "no_docker_cache", False)
+                if hasattr(self, "global_config")
+                and self.global_config
+                and hasattr(self.global_config, "docker")
+                else False
+            )
+
+            if (
+                force_build
+                and no_cache
+                and not DockerBuilder.was_built_this_session(image_tag)
+            ):
                 buildx_cmd.append("--no-cache")
                 self.logger.info(
                     "no_cache: passing --no-cache for first build of %s", image_tag
@@ -1473,6 +1482,9 @@ class DockerBuilder(
             user_build_args = {}
             if resolved_docker is not None:
                 user_build_args = resolved_docker.get("build_args", {})
+                self.logger.debug(
+                    "Using per-service resolved Docker configuration for build arguments"
+                )
 
             # Framework args take precedence over user-supplied build_args
             framework_build_args = {
@@ -1514,10 +1526,9 @@ class DockerBuilder(
             # Check cache and handle cache logic
             # Use per-service resolved docker config if available, else fall back to global
             if resolved_docker is not None:
-                force_build = (
-                    resolved_docker.get("force_build_docker_image", True)
-                    or resolved_docker.get("no_docker_cache", False)
-                )
+                force_build = resolved_docker.get(
+                    "force_build_docker_image", True
+                ) or resolved_docker.get("no_docker_cache", False)
             else:
                 force_build = (
                     getattr(self.global_config.docker, "force_build_docker_image", True)
@@ -1583,7 +1594,8 @@ class DockerBuilder(
                     selected_dockerfile = candidate
                     self.logger.debug(
                         "Selected Dockerfile (use_buildx=%s): %s",
-                        use_buildx_config, selected_dockerfile
+                        use_buildx_config,
+                        selected_dockerfile,
                     )
                     break
 
@@ -1756,9 +1768,7 @@ class DockerBuilder(
         # Construct base name with version
         base_name = f"{impl_name}-{version}" if version else impl_name
         # Combine all parts
-        full_tag = (
-            f"{base_name}:{tag_version}{build_suffix}{runtime_suffix}{z3_suffix}{platform_suffix}"
-        )
+        full_tag = f"{base_name}:{tag_version}{build_suffix}{runtime_suffix}{z3_suffix}{platform_suffix}"
 
         # Sanitize tag (Docker tags have character restrictions)
         return self._sanitize_docker_tag(full_tag)

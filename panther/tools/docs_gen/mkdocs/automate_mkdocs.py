@@ -164,8 +164,8 @@ def include_markdown_files(
         if file_path.exists():
             p.append(file_path)
 
-    # Add markdown files from dev/docs-gen directory
-    docs_gen_files = list(repo_dir.glob("dev/docs-gen/**/*.md"))
+    # Add markdown files from panther/tools/docs_gen directory
+    docs_gen_files = list(repo_dir.glob("panther/tools/docs_gen/**/*.md"))
     p.extend([x for x in docs_gen_files if x.is_file()])
 
     # Add markdown files from panther directory
