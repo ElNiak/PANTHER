@@ -21,6 +21,7 @@ Commands:
 
 import argparse
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -44,13 +45,225 @@ def _rmtree_onerror(func, path, exc_info):
         func(path)
 
 
-def _copy_md_as_utf8(src, dst):
-    """Copy a markdown file, re-encoding to UTF-8 if needed."""
+# ---------------------------------------------------------------------------
+# Link-rewriting helpers for documentation copies
+# ---------------------------------------------------------------------------
+_MD_LINK_RE = re.compile(r"(!?\[([^\]]*)\])\(([^)]+)\)")
+_MD_REF_LINK_RE = re.compile(r"^(\s*\[([^\]]+)\]:\s+)(\S+)", re.MULTILINE)
+_NON_DOC_EXTS = frozenset(
+    {
+        ".html",
+        ".py",
+        ".sh",
+        ".txt",
+        ".pdf",
+        ".yml",
+        ".yaml",
+        ".json",
+        ".toml",
+        ".cfg",
+        ".ini",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".svg",
+        ".ico",
+        ".c",
+        ".h",
+        ".cpp",
+        ".rs",
+        ".go",
+        ".java",
+    }
+)
+_URL_PREFIXES = ("http://", "https://", "mailto:", "ftp://", "#")
+
+
+def _read_md_as_utf8(src):
+    """Read a markdown file, decoding to UTF-8."""
     raw = src.read_bytes()
     try:
-        text = raw.decode("utf-8")
+        return raw.decode("utf-8")
     except UnicodeDecodeError:
-        text = raw.decode("latin-1")
+        return raw.decode("latin-1")
+
+
+def _strip_non_doc_links(text):
+    """Strip links to non-markdown/non-doc targets, keeping display text."""
+
+    def _replace(m):
+        display = m.group(2)
+        target = m.group(3)
+        if any(target.startswith(p) for p in _URL_PREFIXES):
+            return m.group(0)
+        path_part = target.split("#")[0]
+        if not path_part:
+            return m.group(0)
+        suffix = Path(path_part).suffix.lower()
+        # Rewrite .ivy links to .md
+        if suffix == ".ivy":
+            new_target = str(Path(path_part).with_suffix(".md"))
+            if "#" in target:
+                new_target += "#" + target.split("#", 1)[1]
+            return f"{m.group(1)}({new_target})"
+        if suffix in _NON_DOC_EXTS:
+            return display
+        return m.group(0)
+
+    text = _MD_LINK_RE.sub(_replace, text)
+
+    # Strip reference-style links to non-doc targets
+    def _replace_ref(m):
+        target = m.group(3)
+        if any(target.startswith(p) for p in _URL_PREFIXES):
+            return m.group(0)
+        suffix = Path(target.split("#")[0]).suffix.lower()
+        if suffix in _NON_DOC_EXTS:
+            return ""
+        return m.group(0)
+
+    text = _MD_REF_LINK_RE.sub(_replace_ref, text)
+    return text
+
+
+# Regex to match single-backtick inline code (not inside code fences).
+# Matches `word` but not ``word`` (double-backtick).
+_INLINE_CODE_RE = re.compile(r"(?<!`)(`[^`\n]+?`)(?!`)")
+
+# Regex to match [word] patterns that are NOT part of markdown links.
+# A markdown link looks like [text](url).  We preserve those and escape
+# everything else so autorefs doesn't treat Ivy array syntax as refs.
+_MD_LINK_BRACKET_RE = re.compile(r"!?\[([^\]]*)\]\([^)]+\)")
+_ALL_BRACKET_RE = re.compile(r"\[([^\]]+)\]")
+
+
+def _escape_autorefs(text):
+    """Escape patterns that mkdocs_autorefs misinterprets in Ivy docs.
+
+    Handles two cases:
+    1. Backtick inline code (e.g. ``range``) -> ``<code>range</code>``
+    2. Bare square brackets (e.g. ``[packet_number]``) -> ``\\[packet_number\\]``
+
+    Both are only applied outside of fenced code blocks.
+    """
+    in_fence = False
+    lines = text.split("\n")
+    result = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            in_fence = not in_fence
+            result.append(line)
+        elif in_fence:
+            result.append(line)
+        else:
+            line = _INLINE_CODE_RE.sub(_inline_to_html, line)
+            line = _escape_bare_brackets(line)
+            result.append(line)
+    return "\n".join(result)
+
+
+def _inline_to_html(m):
+    """Convert a backtick inline code span to an HTML <code> tag."""
+    content = m.group(1)[1:-1]  # strip surrounding backticks
+    return f"<code>{content}</code>"
+
+
+def _escape_bare_brackets(line):
+    """Escape square brackets that aren't part of markdown links.
+
+    Uses a placeholder approach: first protect real markdown links
+    ``[text](url)`` and ``![alt](url)``, then escape all remaining
+    ``[...]`` patterns, then restore the protected links.
+    """
+    # Collect real markdown links and replace with placeholders
+    placeholders = []
+    def _protect(m):
+        placeholders.append(m.group(0))
+        return f"\x00LINK{len(placeholders) - 1}\x00"
+
+    protected = _MD_LINK_BRACKET_RE.sub(_protect, line)
+    # Escape all remaining [word] patterns
+    escaped = _ALL_BRACKET_RE.sub(lambda m: f"\\[{m.group(1)}\\]", protected)
+    # Restore real links
+    for i, original in enumerate(placeholders):
+        escaped = escaped.replace(f"\x00LINK{i}\x00", original)
+    return escaped
+
+
+def _rewrite_links_flat(text, source_rel_path, build_dict, project_root):
+    """Rewrite links for a flat-copied doc file.
+
+    Resolves each relative link against the source file's directory, looks it
+    up in *build_dict* to find the flat target name, falls back to hierarchy
+    path, or strips the link entirely when the target cannot be resolved.
+    """
+    source_dir = (project_root / source_rel_path).parent
+    flat_lookup = {src: Path(dst).name for src, dst in build_dict.items()}
+
+    def _replace(m):
+        prefix = m.group(1)  # e.g. [text] or ![alt]
+        display = m.group(2)
+        target = m.group(3)
+        if any(target.startswith(p) for p in _URL_PREFIXES):
+            return m.group(0)
+        if "#" in target:
+            path_part, fragment = target.split("#", 1)
+            fragment = "#" + fragment
+        else:
+            path_part = target
+            fragment = ""
+        if not path_part:
+            return m.group(0)
+        suffix = Path(path_part).suffix.lower()
+        # Rewrite .ivy links to .md
+        if suffix == ".ivy":
+            path_part = str(Path(path_part).with_suffix(".md"))
+            suffix = ".md"
+        if suffix in _NON_DOC_EXTS:
+            return display
+        try:
+            resolved = (source_dir / path_part).resolve()
+            repo_rel = str(resolved.relative_to(project_root))
+        except (ValueError, OSError):
+            return display
+        if repo_rel in flat_lookup:
+            return f"{prefix}({flat_lookup[repo_rel]}{fragment})"
+        if repo_rel.startswith("panther/") and (project_root / repo_rel).exists():
+            return f"{prefix}({repo_rel}{fragment})"
+        return display
+
+    text = _MD_LINK_RE.sub(_replace, text)
+
+    # Strip reference-style links to non-doc targets
+    def _replace_ref(m):
+        target = m.group(3)
+        if any(target.startswith(p) for p in _URL_PREFIXES):
+            return m.group(0)
+        suffix = Path(target.split("#")[0]).suffix.lower()
+        if suffix in _NON_DOC_EXTS:
+            return ""
+        return m.group(0)
+
+    text = _MD_REF_LINK_RE.sub(_replace_ref, text)
+    return text
+
+
+def _copy_md_rewriting_links(
+    src, dst, *, source_rel=None, build_dict=None, project_root=None
+):
+    """Copy markdown file with link rewriting.
+
+    For *flat* copies: provide ``source_rel``, ``build_dict``, ``project_root``
+    to resolve links against the build dictionary.
+    For *hierarchy* copies: omit those params — only non-doc links are stripped.
+    """
+    text = _read_md_as_utf8(src)
+    if source_rel is not None and build_dict is not None and project_root is not None:
+        text = _rewrite_links_flat(text, source_rel, build_dict, project_root)
+    else:
+        text = _strip_non_doc_links(text)
     dst.write_text(text, encoding="utf-8")
 
 
@@ -518,20 +731,7 @@ class BuildManager:
                 )
             except Exception as e:
                 print(f"⚠️  Automated discovery failed: {e}")
-                print("🔄 Falling back to emergency mappings...")
-                # Emergency fallback with core mappings only
-                build_dict = {
-                    "README.md": "docs/index.md",
-                    "QUICK_START.md": "docs/QUICK_START.md",
-                    "INSTALL.md": "docs/INSTALL.md",
-                    "CONTRIBUTING.md": "docs/contributing.md",
-                    "panther/config/README.md": "docs/configuration.md",
-                    "panther/core/README.md": "docs/core.md",
-                    "panther/plugins/README.md": "docs/plugins_overview.md",
-                    "CHANGELOG.md": "docs/changelog.md",
-                    "LICENSE.md": "docs/license.md",
-                }
-                print(f"📋 Using {len(build_dict)} emergency mappings")
+                raise e
 
             # Clean only docs-related build artifacts (not wheel/dist)
             print("Cleaning documentation build artifacts...")
@@ -596,7 +796,7 @@ class BuildManager:
                 if result != 0:
                     print("Warning: Plugin inventory generation failed")
 
-            # Copy files according to build_dict
+            # Copy files according to build_dict (flat copies with link rewriting)
             print("Copying documentation files...")
             for source, destination in build_dict.items():
                 source_path = self.project_root / source
@@ -607,7 +807,13 @@ class BuildManager:
 
                 if source_path.exists():
                     print(f"Copying {source} -> {destination}")
-                    _copy_md_as_utf8(source_path, dest_path)
+                    _copy_md_rewriting_links(
+                        source_path,
+                        dest_path,
+                        source_rel=source,
+                        build_dict=build_dict,
+                        project_root=self.project_root,
+                    )
                 else:
                     print(
                         f"Warning: Source file {source} not found, creating placeholder"
@@ -617,24 +823,128 @@ class BuildManager:
                         f.write(f"# {dest_path.stem.replace('_', ' ').title()}\n\n")
                         f.write("This documentation is under development.\n")
 
-            # Copy all markdown files from panther to docs/panther
+            # Copy all markdown files from panther to docs/panther (hierarchy)
             panther_docs_dir = self.project_root / "docs" / "panther"
             panther_src_dir = self.project_root / "panther"
             if not panther_docs_dir.exists():
                 print(f"Creating directory {panther_docs_dir}")
                 panther_docs_dir.mkdir(parents=True, exist_ok=True)
+            # Directories to skip when copying panther/ markdown to docs/
+            _skip_dirs = {
+                "submodules",  # third-party submodule content (z3, picotls, abc)
+                "template",  # mkdocs template files
+                "adr",  # architecture decision records (removed from docs)
+            }
             for md_file in panther_src_dir.rglob("*.md"):
                 if md_file.is_file():
+                    # Skip files under excluded directories
+                    if any(part in _skip_dirs for part in md_file.parts):
+                        continue
+                    # Skip README.md when index.md exists in same dir (conflict)
+                    if md_file.name == "README.md" and (md_file.parent / "index.md").exists():
+                        print(f"Skipping {md_file} (index.md exists in same directory)")
+                        continue
                     relative_path = md_file.relative_to(panther_src_dir)
                     dest_path = panther_docs_dir / relative_path
                     dest_path.parent.mkdir(parents=True, exist_ok=True)
                     print(f"Copying {md_file} to {dest_path}")
-                    _copy_md_as_utf8(md_file, dest_path)
+                    _copy_md_rewriting_links(md_file, dest_path)
+                    # Escape backtick inline code in panther_ivy docs so
+                    # autorefs doesn't try to resolve Ivy identifiers.
+                    if "panther_ivy" in md_file.parts:
+                        text = dest_path.read_text(encoding="utf-8")
+                        dest_path.write_text(
+                            _escape_autorefs(text), encoding="utf-8"
+                        )
+
+            # Install ivy and convert .ivy files to .md for documentation
+            ivy_setup = (
+                self.project_root
+                / "panther"
+                / "plugins"
+                / "services"
+                / "testers"
+                / "panther_ivy"
+            )
+            if ivy_setup.exists():
+                print("Installing ivy for documentation conversion...")
+                self.run_command(
+                    [sys.executable, "-m", "pip", "install", "-e", str(ivy_setup)]
+                )
+
+                # Convert .ivy files to .md using ivy_to_md
+                ivy_to_md_script = ivy_setup / "ivy" / "ivy_to_md.py"
+                panther_ivy_docs = (
+                    self.project_root
+                    / "docs"
+                    / "panther"
+                    / "plugins"
+                    / "services"
+                    / "testers"
+                    / "panther_ivy"
+                )
+                if ivy_to_md_script.exists():
+                    print("Converting .ivy files to .md...")
+                    for ivy_file in ivy_setup.rglob("*.ivy"):
+                        if "submodules" in ivy_file.parts:
+                            continue
+                        rel = ivy_file.relative_to(ivy_setup)
+                        dest_md = panther_ivy_docs / rel.with_suffix(".md")
+                        dest_md.parent.mkdir(parents=True, exist_ok=True)
+                        print(f"  Converting {ivy_file.name}...")
+                        # ivy_to_md.py defines main() but has no
+                        # if __name__ == "__main__" guard, so we must
+                        # import and call main() explicitly.
+                        self.run_command(
+                            [
+                                sys.executable,
+                                "-c",
+                                (
+                                    "import sys; "
+                                    f"sys.argv = ['ivy_to_md', r'{ivy_file}']; "
+                                    "from ivy.ivy_to_md import main; main()"
+                                ),
+                            ]
+                        )
+                        # ivy_to_md creates .md next to the .ivy file
+                        generated_md = ivy_file.with_suffix(".md")
+                        if generated_md.exists():
+                            _copy_md_rewriting_links(generated_md, dest_md)
+                            # Escape backtick inline code so autorefs
+                            # doesn't try to resolve Ivy identifiers.
+                            text = dest_md.read_text(encoding="utf-8")
+                            dest_md.write_text(
+                                _escape_autorefs(text), encoding="utf-8"
+                            )
+                            print(f"  OK: {ivy_file.name} -> {dest_md}")
+                        else:
+                            print(
+                                f"  WARN: ivy_to_md did not generate {generated_md}"
+                            )
+
+            # Generate coverage report for mkdocs-coverage plugin
+            htmlcov_dir = self.project_root / "htmlcov"
+            if not htmlcov_dir.exists():
+                print("Generating coverage report...")
+                self.run_command(
+                    [
+                        sys.executable,
+                        "-m",
+                        "pytest",
+                        "tests/",
+                        "-m",
+                        "unit",
+                        "--cov=panther",
+                        "--cov-report=html",
+                        "-q",
+                        "--no-header",
+                    ]
+                )
 
             # Build documentation with MkDocs
             print("Building documentation with MkDocs...")
             result = self.run_command(
-                ["mkdocs", "build", "--strict", "--verbose", "--config-file", "mkdocs.yml"]
+                ["mkdocs", "build", "--verbose", "--strict", "--config-file", "mkdocs.yml"]
             )
 
             # Record documentation build success/failure
