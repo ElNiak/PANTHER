@@ -3,8 +3,6 @@
 > **Plugin Type**: Execution Environment
 > **Source Location**: `plugins/environments/execution_environment/gdb/`
 
-<!-- src: config_schema.py -->
-
 ## Overview
 
 The GDB Execution Environment wraps the GNU Debugger (GDB) around service processes to provide systematic, automated crash analysis during PANTHER experiments. When a service crashes (segfault, abort, floating-point exception), GDB automatically captures stack traces, register state, local variables, disassembly, and core dumps -- without requiring manual debugging sessions.
@@ -22,6 +20,8 @@ This environment is designed for investigating crashes, segfaults, and assertion
 | **GPerf CPU** | CPU profiling for performance analysis |
 
 ## Configuration Options
+
+<!-- src: config_schema.py -->
 
 `GdbConfig` inherits from `ExecutionEnvironmentPluginConfig`, which provides the `enabled` (default: `True`) and `collect_metrics` (default: `True`) fields.
 
@@ -179,21 +179,12 @@ tests:
         output_format: detailed
 ```
 
-## Generated Artifacts
+## Integration
 
-- GDB session log (complete interaction transcript)
-- Stack trace output files
-- Core dump files (when `save_core_dump: true`)
-- Register state and local variable dumps
-- Disassembly around crash point
-- Thread information for all threads
-
-## Implementation Details
-
-The plugin is implemented in two files:
-
-- **`config_schema.py`** -- `GdbConfig` Pydantic model with all 24 configuration fields (22 own + 2 inherited) and validators for `max_backtrace_depth`, `execution_timeout`, `gdb_timeout`, `optimization_level`, and `output_format`.
-- **`gdb.py`** -- `GdbEnvironment` class inheriting from `BaseExecutionEnvironment`. Sets `_config_class = GdbConfig` and uses the base class `_get_config_value()` helper for configuration access with the standard three-tier lookup pattern.
+- **Service Managers** -- Wraps service commands with GDB in batch mode for automated crash capture.
+- **Result Collection** -- Generates GDB session logs, stack traces, core dumps, register/variable dumps, and disassembly as test artifacts.
+- **AddressSanitizer** -- Optionally combines with ASan for memory error detection alongside crash analysis.
+- **Compilation Pipeline** -- Injects debug flags (`-g`, `-O0`, `-fno-omit-frame-pointer`) into the build to ensure meaningful stack traces.
 
 ## Troubleshooting
 

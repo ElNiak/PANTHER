@@ -6,7 +6,7 @@ The `panther/plugins/core/` package implements PANTHER's plugin registration, di
 
 The end-to-end lifecycle of a plugin from definition to runtime instance follows this pipeline:
 
-```
+```python
 @register_plugin() decorator
         |
         v

@@ -15,9 +15,9 @@ This directory contains Architecture Decision Records for the PANTHER Core frame
 
 | ADR | Title | Status | Module |
 |-----|-------|--------|---------|
-| 0001 | Command Pattern Architecture | Accepted | CLI |
-| 0002 | Error Handling Exit Codes | Accepted | CLI |
-| 0003 | Interactive Component Architecture | Accepted | CLI |
+| 0001 | Command Pattern Architecture | Superseded | CLI |
+| 0002 | Error Handling Exit Codes | Superseded | CLI |
+| 0003 | Interactive Component Architecture | Superseded | CLI |
 
 ### Command Processor
 
@@ -31,7 +31,25 @@ This directory contains Architecture Decision Records for the PANTHER Core frame
 
 | ADR | Title | Status | Module |
 |-----|-------|--------|---------|
-| 0001 | Hybrid Pydantic-OmegaConf Architecture | Accepted | Configuration |
+| [0001](../../config/adr/0001-hybrid-pydantic-omegaconf-architecture.md) | Hybrid Pydantic-OmegaConf Architecture | Accepted | Configuration |
+
+### Click CLI
+
+| ADR | Title | Status | Module |
+|-----|-------|--------|---------|
+| [0001](../../cli_click/adr/0001-click-cli-migration.md) | Click CLI Migration | Accepted | CLI Click |
+
+### Plugin System
+
+| ADR | Title | Status | Module |
+|-----|-------|--------|---------|
+| [0001](../../plugins/core/adr/0001-plugin-decorator-registration.md) | Plugin Decorator Registration | Accepted | Plugins Core |
+
+### Event System
+
+| ADR | Title | Status | Module |
+|-----|-------|--------|---------|
+| [0001](../events/adr/0001-event-driven-architecture.md) | Event-Driven Architecture | Accepted | Core Events |
 
 ## ADR Status Definitions
 

@@ -4,7 +4,7 @@ This directory contains the automated tools for generating, building, and mainta
 
 ## Directory Structure
 
-```
+```bash
 docs_gen/
     __init__.py                  # Package init; exports PantherSourceDiscovery, get_build_dict
     discover_sources.py          # Automated README discovery and build_dict generation

@@ -201,7 +201,7 @@ For further reading and context on the topics and methodologies used in this too
 
 * Crochet, C., Aoga, J., & Legay, A. (2024). Formally Discovering and Reproducing Network Protocols Vulnerabilities (NordSec24).
 
-```
+```bibtex
 @techreport{crochet2024formally,
   title={Formally Discovering and Reproducing Network Protocols Vulnerabilities},
   author={Crochet, Christophe and Aoga, John and Legay, Axel},
@@ -212,7 +212,7 @@ For further reading and context on the topics and methodologies used in this too
 
 * Rousseaux, T., Crochet, C., Aoga, J., Legay, A. (2024). Network Simulator-Centric Compositional Testing. In: Castiglioni, V., Francalanza, A. (eds) Formal Techniques for Distributed Objects, Components, and Systems. FORTE 2024. Lecture Notes in Computer Science, vol 14678. Springer, Cham. <https://doi.org/10.1007/978-3-031-62645-6_10>
 
-```
+```bibtex
 @inproceedings{rousseaux2024network,
   title={Network Simulator-Centric Compositional Testing},
   author={Rousseaux, Tom and Crochet, Christophe and Aoga, John and Legay, Axel},
@@ -226,7 +226,7 @@ For further reading and context on the topics and methodologies used in this too
 
 * Crochet, C., Rousseaux, T., Piraux, M., Sambon, J.-F., & Legay, A. (2021). Verifying quic implementations using ivy. In *Proceedings of the 2021 Workshop on Evolution, Performance and Interoperability of QUIC*. [DOI](10.1145/3488660.3493803)
 
-```
+```bibtex
 @inproceedings{crochet2021verifying,
   title={Verifying QUIC implementations using Ivy},
   author={Crochet, Christophe and Rousseaux, Tom and Piraux, Maxime and Sambon, Jean-Fran{\c{c}}ois and Legay, Axel},
@@ -239,7 +239,7 @@ For further reading and context on the topics and methodologies used in this too
 
 * Crochet, C., & Sambon, J.-F. (2021). Towards verification of QUIC and its extensions. (Master's thesis, UCL - Ecole polytechnique de Louvain). Available at [UCLouvain](http://hdl.handle.net/2078.1/thesis:30559). Keywords: QUIC, Formal Verification, RFC, IETF, Specification, Ivy, Network.
 
-```
+```bibtex
 @article{crochettowards,
   title={Towards verification of QUIC and its extensions},
   author={Crochet, Christophe and Sambon, Jean-Fran{\c{c}}ois}

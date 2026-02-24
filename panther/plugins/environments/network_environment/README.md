@@ -186,7 +186,7 @@ The public entry point `resolve_network_placeholders()` parses all placeholders 
 
 ### Resolution Flow Diagram
 
-```
+```text
 command_template ("--host {{host server decimal}} --port {{port server}}")
     |
     v

@@ -25,7 +25,7 @@ The PANTHER Click CLI is a modern, user-friendly command-line interface built wi
 
 ### Core Components
 
-```
+```text
 panther/cli_click/
 ├── __init__.py          # Package initialization
 ├── core/                # Core CLI functionality

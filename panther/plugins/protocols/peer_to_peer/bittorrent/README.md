@@ -1,30 +1,15 @@
-# BitTorrent Protocol Plugin
+# BitTorrent Protocol
 
-!!! info "Peer-to-Peer File Sharing Protocol"
-    BitTorrent enables distributed file sharing testing scenarios within PANTHER, allowing evaluation of peer-to-peer network protocols and distributed content delivery systems.
-
-!!! warning "Development Status"
-    This plugin is currently in development phase. Core BitTorrent functionality is being implemented and may not be fully stable for production testing scenarios.
-
-> **Plugin Type**: Peer-to-Peer Protocol
-
-> **Verified Source Location**: `plugins/protocols/peer_to_peer/bittorrent/`
-
-> **Status**: Planned/In Development
+> **Plugin Type**: Protocol
+> **Source Location**: `plugins/protocols/peer_to_peer/bittorrent/`
 
 ## Overview
 
-BitTorrent is a peer-to-peer protocol designed for distributing files over a network. This plugin provides a BitTorrent implementation for PANTHER testing environments, allowing the testing of distributed file sharing scenarios.
-
-## Features
-
-* Peer-to-peer file distribution
-* Distributed content delivery
-* Tracker communication
-* Piece selection strategies
-* Tit-for-tat bandwidth allocation
+The BitTorrent Protocol plugin provides a peer-to-peer file sharing protocol implementation for PANTHER testing environments. It enables evaluation of distributed content delivery, tracker communication, piece selection strategies, and tit-for-tat bandwidth allocation in controlled network scenarios. This plugin is currently in development.
 
 ## Configuration Options
+
+<!-- src: config_schema.py -->
 
 ```yaml
 protocols:
@@ -40,9 +25,15 @@ protocols:
         - "udp://tracker.example.com:80"
 ```
 
-## Usage Examples
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `max_peers` | integer | 10 | Maximum number of peer connections |
+| `download_rate` | integer | 100 | Download rate limit in KB/s |
+| `upload_rate` | integer | 50 | Upload rate limit in KB/s |
+| `piece_size` | integer | 262144 | Size of each piece in bytes |
+| `trackers` | list | [] | List of tracker URLs |
 
-### Basic BitTorrent Client Setup
+## Usage Example
 
 ```yaml
 protocols:
@@ -55,37 +46,22 @@ protocols:
       upload_rate: 100
 ```
 
-### BitTorrent Tracker Setup
+## Integration
 
-```yaml
-protocols:
-  - name: "bt_tracker"
-    type: "protocol"
-    implementation: "peer_to_peer/bittorrent"
-    config:
-      mode: "tracker"
-      listen_port: 6969
-      announce_interval: 120    # Seconds between client announces
-```
-
-## Integration with PANTHER
-
-The BitTorrent plugin integrates with PANTHER's network environments to test BitTorrent implementations in various network scenarios, including:
-
-* High latency networks
-* Limited bandwidth environments
-* Network partitions and disruptions
-* Peer churn (peers joining and leaving rapidly)
+- Integrates with PANTHER network environments for testing in varied network scenarios (high latency, limited bandwidth, partitions)
+- Supports peer churn simulation (peers joining and leaving rapidly)
+- Requires UDP/TCP traffic on configured ports for tracker communication
+- Can operate in both client and tracker modes
 
 ## Troubleshooting
 
-### Common Issues
-
-* **Connection Timeouts**: Ensure that the specified trackers are accessible and the network environment allows UDP/TCP traffic on the required ports.
-* **Poor Download Speeds**: Check if bandwidth limits are set appropriately and that there are sufficient peers with the complete file available.
-* **Tracker Errors**: Verify tracker URLs and ensure they're using the correct protocol (HTTP, HTTPS, or UDP).
+| Issue | Solution |
+|-------|----------|
+| Connection timeouts | Ensure trackers are accessible and the network environment allows UDP/TCP traffic on required ports |
+| Poor download speeds | Check bandwidth limits and ensure sufficient peers with the complete file are available |
+| Tracker errors | Verify tracker URLs and ensure correct protocol (HTTP, HTTPS, or UDP) |
 
 ## References
 
-* [BitTorrent Specification](https://www.bittorrent.org/beps/bep_0003.html)
-* [BitTorrent Protocol Extension for Peers to Send Metadata Files](https://www.bittorrent.org/beps/bep_0009.html)
+- [BitTorrent Specification (BEP 3)](https://www.bittorrent.org/beps/bep_0003.html)
+- [BitTorrent Metadata Extension (BEP 9)](https://www.bittorrent.org/beps/bep_0009.html)

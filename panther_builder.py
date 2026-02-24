@@ -634,7 +634,7 @@ class BuildManager:
             # Build documentation with MkDocs
             print("Building documentation with MkDocs...")
             result = self.run_command(
-                ["mkdocs", "build", "--verbose", "--config-file", "mkdocs.yml"]
+                ["mkdocs", "build", "--strict", "--verbose", "--config-file", "mkdocs.yml"]
             )
 
             # Record documentation build success/failure

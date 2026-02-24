@@ -36,7 +36,7 @@ PANTHER follows the [PyOpenSci package structure guidelines](https://www.pyopens
 
 ### Directory Structure
 
-```
+```text
 PANTHER/
 ├── panther/                    # Main package
 │   ├── __init__.py            # Version and public API

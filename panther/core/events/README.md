@@ -21,7 +21,7 @@ The module follows a domain-driven design with specialized event types for diffe
 
 ### Core Components
 
-```
+```text
 events/
 ├── base/                    # Foundation classes and interfaces
 │   ├── event_base.py       # BaseEvent class and UUID generation

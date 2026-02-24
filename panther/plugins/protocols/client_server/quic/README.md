@@ -1,50 +1,22 @@
-# QUIC Protocol Plugin
+# QUIC Protocol
 
-> **Plugin Type**: Client-Server Protocol
+> **Plugin Type**: Protocol
+> **Source Location**: `plugins/protocols/client_server/quic/`
 
-> **Verified Source Location**: `plugins/protocols/client_server/quic/`
+## Overview
 
-## Purpose and Overview
-
-The QUIC Protocol plugin implements the QUIC (Quick UDP Internet Connections) protocol within the PANTHER framework. QUIC is a transport layer network protocol designed by Google that provides encrypted, multiplexed connections between endpoints with reduced connection establishment latency.
-
-<!-- src: /panther/plugins/protocols/client_server/quic/config_schema.py -->
-
-This protocol plugin enables:
-
-- Testing different QUIC protocol versions (RFC9000, Draft29, Draft27)
-- Conformance testing against the QUIC specification
-- Performance benchmarking of QUIC implementations
-- Security analysis of QUIC's cryptographic components
-
-## Requirements and Dependencies
-
-The plugin requires:
-
-- **Base Protocol Support**: UDP socket capabilities
-- **TLS Libraries**: For QUIC's encryption layer
-- **Integration Dependencies**:
-  - Certificate management tools for TLS handshakes
-  - Network environment with UDP support
-
-This plugin integrates with:
-
-- QUIC IUT services (picoquic, quiche, etc.)
-- Network environments that support UDP traffic
+The QUIC Protocol plugin implements the QUIC (Quick UDP Internet Connections) transport layer protocol within the PANTHER framework. QUIC provides encrypted, multiplexed connections between endpoints with reduced connection establishment latency. This plugin supports testing different QUIC protocol versions (RFC 9000, Draft 29, Draft 27), conformance testing, performance benchmarking, and security analysis.
 
 ## Configuration Options
 
-The QUIC protocol plugin accepts the following configuration parameters:
+<!-- src: config_schema.py -->
 
 ```yaml
-protocols:
-  - name: "quic_protocol"
-    type: "protocol"
-    implementation: "client_server/quic"
-    config:
-      version: "rfc9000"         # QUIC version
-      role: "server"             # Role (server or client)
-      target: "client_service"   # Optional target service name
+protocol:
+  name: "quic"
+  version: "rfc9000"         # QUIC version (rfc9000, draft29, draft27)
+  role: "server"             # Role (server or client)
+  target: "client_service"   # Optional target service name
 ```
 
 | Parameter | Type | Required | Default | Description |
@@ -55,11 +27,7 @@ protocols:
 | `target` | string | No | None | Target service name |
 | `protocol_type` | enum | No | "client_server" | Protocol type |
 
-<!-- src: /panther/plugins/protocols/client_server/quic/config_schema.py -->
-
-## Usage Examples
-
-### Basic QUIC Server Configuration
+## Usage Example
 
 ```yaml
 tests:
@@ -74,92 +42,30 @@ tests:
           name: "picoquic"
           type: "iut"
         protocol:
-          name: "quic_protocol"
-          type: "protocol"
-          implementation: "client_server/quic"
-          config:
-            version: "rfc9000"
-            role: "server"
-```
-
-### QUIC Client with Specific Version
-
-```yaml
-tests:
-  - name: "QUIC Client Test"
-    network_environment:
-      type: "docker_compose"
-    services:
+          name: "quic"
+          version: "rfc9000"
+          role: "server"
       quic_client:
         name: "quic_client"
         timeout: 100
         implementation:
           name: "picoquic"
-          type: "tester"
+          type: "iut"
         protocol:
-          name: "quic_protocol"
-          type: "protocol"
-          implementation: "client_server/quic"
-          config:
-            version: "draft29"
-            role: "client"
-            target: "quic_server"
+          name: "quic"
+          version: "rfc9000"
+          role: "client"
+          target: "quic_server"
 ```
 
-## Extension Points
+## Integration
 
-The QUIC protocol plugin can be extended in several ways:
-
-### Supporting Additional QUIC Versions
-
-You can extend the plugin to support newer QUIC versions:
-
-```python
-# Extend the VersionEnum to support additional QUIC versions
-from panther.plugins.protocols.client_server.quic.config_schema import VersionEnum
-
-# Add a new version
-VersionEnum = Enum("VersionEnum", [
-    "rfc9000",
-    "draft29",
-    "draft27",
-    "rfc9000_v2"  # New version
-])
-```
-
-### Custom QUIC Features
-
-The plugin can be extended to support QUIC extensions or custom features:
-
-```python
-@dataclass
-class ExtendedQuicConfig(QuicConfig):
-    """Extended QUIC configuration with additional features."""
-
-    # Support for QUIC extensions
-    datagram_support: bool = False
-    multipath_support: bool = False
-    max_streams: int = 100
-```
-
-## Testing and Verification
-
-To test the QUIC protocol plugin:
-
-1. **Unit Tests**: Located in `/panther/plugins/protocols/client_server/quic/tests/`
-2. **Integration Tests**: Run the following test to verify QUIC protocol implementation:
-
-```bash
-python -m pytest tests/integration/test_quic_protocol.py
-```
-
-3. **Interoperability Testing**:
-   - Test with multiple QUIC implementations
-   - Verify against QUIC interoperability matrix
+- Works with all QUIC IUT service plugins (picoquic, aioquic, quiche, quinn, lsquic, mvfst, quic-go, quant)
+- Requires network environments that support UDP traffic (docker_compose, shadow_ns)
+- Depends on certificate management tools for TLS handshake configuration
+- Supports interoperability testing across different QUIC implementations
 
 ## Troubleshooting
-
-### Common Issues and Solutions
 
 | Issue | Solution |
 |-------|----------|
@@ -167,15 +73,3 @@ python -m pytest tests/integration/test_quic_protocol.py
 | Connection establishment timeouts | Verify UDP connectivity between endpoints |
 | Version negotiation issues | Ensure both endpoints support the configured version |
 | Performance issues | Check for network congestion and adjust buffer sizes |
-
-### Debugging
-
-For more detailed debugging information:
-
-```yaml
-logging:
-  level: DEBUG
-  format: "%(asctime)s [%(levelname)s] - %(module)s - %(message)s"
-```
-
-QUIC implementations typically provide detailed logging of connection establishment, stream creation, and data transfer events to help diagnose issues.

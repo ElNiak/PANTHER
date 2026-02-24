@@ -290,7 +290,7 @@ campaign.generate_report(results, format="html")
 
 ### Tester Plugin Structure
 
-```
+```text
 my_tester/
 ├── __init__.py
 ├── my_tester.py           # Main tester implementation

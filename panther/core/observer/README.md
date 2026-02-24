@@ -10,7 +10,7 @@ The module implements the Observer pattern with enhancements for interest filter
 
 ### Core Components
 
-```
+```text
 observer/
 ├── base/                    # Foundation interfaces and contracts
 │   ├── observer_interface.py      # Core IObserver interface

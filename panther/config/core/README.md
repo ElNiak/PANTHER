@@ -189,7 +189,7 @@ PANTHER ships two `universal_validators.py` modules with complementary roles:
 
 `ConfigurationManager` (in `manager.py`) composes nine mixins. The inheritance order matters for Python's MRO:
 
-```
+```text
 ConfigLoadingMixin          # 1. Core file/dict/env loading
 EnvironmentHandlingMixin    # 2. ${VAR} interpolation & env mappings
 ValidationOperationsMixin   # 3. Multi-stage validation pipeline

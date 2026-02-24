@@ -1,26 +1,14 @@
 # Helgrind Execution Environment Plugin
 
-!!! info "Thread Error Detection Plugin"
-    Helgrind integrates Valgrind's thread error detector for finding race conditions, deadlocks, and synchronization errors in multi-threaded applications during PANTHER experiments.
-
 > **Plugin Type**: Execution Environment
-
-> **Verified Source Location**: `plugins/environments/execution_environment/helgrind/`
+> **Source Location**: `plugins/environments/execution_environment/helgrind/`
 
 ## Overview
 
-The Helgrind Execution Environment plugin integrates Valgrind's Helgrind tool into the PANTHER testing framework. Helgrind is a thread error detector designed to find synchronization errors in C, C++, and other threaded applications.
+The Helgrind Execution Environment plugin integrates Valgrind's Helgrind tool into the PANTHER testing framework. Helgrind is a thread error detector designed to find synchronization errors in C, C++, and other threaded applications. It detects race conditions, lock order violations, and incorrect use of the POSIX pthreads API.
 
-## Features
-
-!!! warning "System Requirements"
+!!! warning "Performance Impact"
     Helgrind requires Valgrind to be installed on the host system and may significantly impact application performance during analysis. Use only for debugging and testing scenarios.
-
-- Detects race conditions in multi-threaded programs
-- Identifies lock order violations that could lead to deadlocks
-- Detects incorrect use of POSIX pthreads API
-- Full history tracking for comprehensive thread interaction analysis
-- Child process tracking for complete application threading analysis
 
 ## Configuration Options
 
@@ -80,13 +68,9 @@ execution_environments:
 
 ## Integration
 
-The Helgrind Execution Environment integrates with:
-
-1. **Service Managers** - Prepends Valgrind Helgrind commands to service execution
-2. **Test Framework** - Captures and reports thread synchronization errors during test execution
-3. **Result Collection** - Helgrind logs can be included in test results
-
-## Implementation Details
+- **Service Managers** -- Prepends Valgrind Helgrind commands to service execution.
+- **Test Framework** -- Captures and reports thread synchronization errors during test execution.
+- **Result Collection** -- Helgrind logs can be included in test results.
 
 The plugin works by prepending Valgrind Helgrind commands to the service execution chain:
 
@@ -94,28 +78,19 @@ The plugin works by prepending Valgrind Helgrind commands to the service executi
 valgrind --tool=helgrind --trace-children=yes --history-level=full <service-command>
 ```
 
-This configuration provides comprehensive detection of thread synchronization issues in the applications being tested.
-
 ## Troubleshooting
 
-### Common Issues
+### Performance Degradation
 
-1. **Performance Degradation**
-   - Helgrind significantly slows down program execution
-   - Consider using smaller test cases when using Helgrind
+Helgrind significantly slows down program execution. Consider using smaller test cases when using Helgrind.
 
-2. **Large Number of Reported Issues**
-   - Complex multithreaded programs may generate numerous reports
-   - Focus on recurring patterns in the output
+### Large Number of Reported Issues
 
-3. **False Positives**
-   - Some custom synchronization mechanisms may trigger false positives
-   - Consider using suppression files for known acceptable patterns
+Complex multithreaded programs may generate numerous reports. Focus on recurring patterns in the output.
 
-## Extension Points
+### False Positives
 
-- Custom Valgrind options can be added through configuration
-- Integration with thread visualization tools could be added in future versions
+Some custom synchronization mechanisms may trigger false positives. Consider using suppression files for known acceptable patterns.
 
 ## References
 

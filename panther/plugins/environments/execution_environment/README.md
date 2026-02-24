@@ -126,7 +126,7 @@ All execution environment plugins inherit from `BaseExecutionEnvironment`, which
 
 `BaseExecutionEnvironment` combines several mixins and interfaces through multiple inheritance. The method resolution order (MRO) is:
 
-```
+```text
 BaseExecutionEnvironment
   -> ExecutionEnvironmentMixin      # Common setup helpers (setup_execution_environment, state management)
     -> EnvironmentPluginMixin       # Shared environment plugin behavior

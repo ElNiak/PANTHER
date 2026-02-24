@@ -4,7 +4,7 @@ Comprehensive test suite for the PANTHER Click CLI implementation. This test sui
 
 ## 🏗️ Test Structure
 
-```
+```text
 tests/cli_click/
 ├── conftest.py                 # Shared fixtures and test configuration
 ├── pytest.ini                 # Pytest configuration

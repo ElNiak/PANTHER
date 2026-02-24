@@ -111,7 +111,7 @@ tests:
 
 ## Directory Structure
 
-```
+```text
 http/
 ├── README.md                 # This documentation
 ├── __init__.py              # Plugin initialization and base classes

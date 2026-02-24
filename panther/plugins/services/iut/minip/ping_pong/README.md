@@ -141,7 +141,7 @@ The ping-pong implementation consists of:
 
 ### Protocol Flow
 
-```
+```text
 Client                    Server
   |                         |
   |------- PING ----------->|
@@ -152,7 +152,7 @@ Client                    Server
 
 ### File Structure
 
-```
+```text
 ping_pong/
 ├── README.md                 # This documentation
 ├── __init__.py              # Plugin initialization

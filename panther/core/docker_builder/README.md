@@ -128,7 +128,7 @@ share the same base image.
 
 ### Module Structure
 
-```
+```text
 docker_builder/
 ├── README.md                   # Module documentation (this file)
 ├── __init__.py                 # Module exports

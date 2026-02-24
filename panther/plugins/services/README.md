@@ -10,7 +10,7 @@ The service plugin system follows a hierarchical architecture with clear separat
 
 ### Service Type Hierarchy
 
-```
+```text
 Services
 ├── IUT (Implementation Under Test)
 │   ├── QUIC Implementations

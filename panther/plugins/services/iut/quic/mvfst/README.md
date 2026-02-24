@@ -258,7 +258,7 @@ The mvfst implementation provides:
 
 ### File Structure
 
-```
+```text
 mvfst/
 ├── README.md                 # This documentation
 ├── __init__.py              # Plugin initialization
