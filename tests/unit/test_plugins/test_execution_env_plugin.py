@@ -15,10 +15,25 @@ class MockExecutionEnvironment(IExecutionEnvironment):
             env_config_to_test, output_dir, env_type, env_sub_type, event_manager
         )
 
-    def setup_environment(self):
+    def setup_environment(self, *args, **kwargs):
         pass
 
     def teardown_environment(self):
+        pass
+
+    def _do_deploy_services(self):
+        pass
+
+    def _do_teardown_environment(self):
+        pass
+
+    def handle_event(self, event):
+        pass
+
+    def initialize(self, *args, **kwargs):
+        pass
+
+    def update_environment(self, *args, **kwargs):
         pass
 
 

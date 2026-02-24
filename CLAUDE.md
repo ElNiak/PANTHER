@@ -32,8 +32,8 @@ source .venv/bin/activate  # Linux/macOS
 python panther_builder.py package-dev
 
 # Run tests
-pytest tests/ -m unit                    # Fast unit tests
-pytest tests/ -m integration             # Requires Docker
+pytest tests/ -n auto -m unit             # Fast unit tests
+pytest tests/ -n auto -m integration     # Requires Docker
 pytest tests/unit/test_core/test_docker_builder_tag_generation.py -v  # Single test file
 
 # Code quality
@@ -155,7 +155,7 @@ Dependencies frozen in `requirements.txt` (do not edit)
 ## Testing
 
 ```bash
-pytest tests/ --cov=panther --cov-fail-under=70  # Coverage required: 70%
+pytest tests/ -n auto --cov=panther --cov-fail-under=70  # Coverage required: 70%
 ```
 
 **Test Markers**:
@@ -184,7 +184,6 @@ pytest tests/ --cov=panther --cov-fail-under=70  # Coverage required: 70%
 - `panther/core/README.md` - Core framework
 - `panther/config/README.md` - Configuration system
 - `panther/plugins/development.md` - Plugin development guide
-- `panther/config/adr/0001-hybrid-pydantic-omegaconf-architecture.md` - Config design decisions
 
 ## Git Workflow
 

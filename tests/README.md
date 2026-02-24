@@ -61,13 +61,13 @@ metrics, and filesystem operations.
 
 ```bash
 # Unit tests (fast, no external dependencies)
-pytest tests/ -m unit
+pytest tests/ -n auto -m unit
 
 # Integration tests (requires Docker)
-pytest tests/ -m integration
+pytest tests/ -n auto -m integration
 
 # With coverage enforcement
-pytest tests/ --cov=panther --cov-fail-under=70
+pytest tests/ -n auto --cov=panther --cov-fail-under=70
 
 # Specific directory
 pytest tests/unit/test_core/ -v
@@ -76,10 +76,10 @@ pytest tests/unit/test_core/ -v
 pytest tests/unit/test_core/test_docker_builder_tag_generation.py -v
 
 # Property-based tests
-pytest tests/ -m property
+pytest tests/ -n auto -m property
 
 # Click CLI tests
-pytest tests/cli_click/ -v
+pytest tests/cli_click/ -n auto -v
 ```
 
 ## Test Markers

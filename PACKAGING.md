@@ -143,7 +143,7 @@ python -m panther --help
 python -m panther --list-plugins
 
 # 4. Run packaging tests
-pytest tests/test_packaging/ -v
+pytest tests/test_packaging/ -n auto -v
 ```
 
 ## Publishing to PyPI

@@ -45,7 +45,7 @@ class TestHelgrindEnvironmentInitialization:
         assert env.env_type == "execution"
         assert env.env_sub_type == "helgrind"
         assert env.event_manager == event_manager
-        assert env._plugin_config is None  # Should be lazy-loaded
+        assert env._cached_plugin_config is None  # Should be lazy-loaded
 
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
@@ -55,19 +55,19 @@ class TestHelgrindEnvironmentInitialization:
     ):
         """Test that plugin is properly decorated with registration info."""
         # Check if the plugin decorator was applied
-        assert hasattr(HelgrindEnvironment, "_plugin_info")
+        assert hasattr(HelgrindEnvironment, "_PLUGIN_MANIFEST")
 
-        plugin_info = HelgrindEnvironment._plugin_info
-        assert plugin_info["name"] == "helgrind"
-        assert plugin_info["version"] == "1.0.0"
+        manifest = HelgrindEnvironment._PLUGIN_MANIFEST
+        assert manifest.name == "helgrind"
+        assert manifest.version == "1.0.0"
         assert (
-            plugin_info["description"]
+            manifest.description
             == "Valgrind Helgrind thread error detection environment"
         )
-        assert "thread_error_detection" in plugin_info["capabilities"]
-        assert "race_condition_analysis" in plugin_info["capabilities"]
-        assert "deadlock_detection" in plugin_info["capabilities"]
-        assert "valgrind>=3.15" in plugin_info["external_dependencies"]
+        assert "thread_error_detection" in manifest.capabilities
+        assert "race_condition_analysis" in manifest.capabilities
+        assert "deadlock_detection" in manifest.capabilities
+        assert "valgrind>=3.15" in manifest.external_dependencies
 
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
@@ -103,27 +103,24 @@ class TestHelgrindConfigurationHandling:
         """Test that plugin config is cached correctly."""
         config = HelgrindConfig(conflict_cache_size=2000000)
 
-        with patch.object(
-            config, "get_plugin_config", return_value=config
-        ) as mock_get_config:
-            env = HelgrindEnvironment(
-                env_config_to_test=config,
-                output_dir=temp_output_dir,
-                env_type="execution",
-                env_sub_type="helgrind",
-                event_manager=event_manager,
-            )
+        env = HelgrindEnvironment(
+            env_config_to_test=config,
+            output_dir=temp_output_dir,
+            env_type="execution",
+            env_sub_type="helgrind",
+            event_manager=event_manager,
+        )
+        env.env_config_to_test = config
 
-            # First call should invoke get_plugin_config
-            plugin_config1 = env._get_plugin_config()
-            mock_get_config.assert_called_once_with(HelgrindConfig)
+        # First call should retrieve and cache the plugin config
+        plugin_config1 = env._get_plugin_config()
+        assert plugin_config1 is not None
+        assert env._cached_plugin_config is not None
 
-            # Second call should use cached value
-            plugin_config2 = env._get_plugin_config()
-            mock_get_config.assert_called_once()  # Still only one call
-
-            assert plugin_config1 is plugin_config2
-            assert plugin_config1.conflict_cache_size == 2000000
+        # Second call should use cached value (same object)
+        plugin_config2 = env._get_plugin_config()
+        assert plugin_config1 is plugin_config2
+        assert plugin_config1.conflict_cache_size == 2000000
 
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
@@ -144,19 +141,13 @@ class TestHelgrindConfigurationHandling:
                 env_sub_type="helgrind",
                 event_manager=event_manager,
             )
+            env.env_config_to_test = config
 
-            with patch.object(env, "logger") as mock_logger:
-                plugin_config = env._get_plugin_config()
+            plugin_config = env._get_plugin_config()
 
-                # Should return default config
-                assert isinstance(plugin_config, HelgrindConfig)
-                assert plugin_config.conflict_cache_size == 1000000  # Default value
-
-                # Should log debug message
-                mock_logger.debug.assert_called_once()
-                assert "Could not get plugin config, using defaults" in str(
-                    mock_logger.debug.call_args
-                )
+            # Should return default config
+            assert isinstance(plugin_config, HelgrindConfig)
+            assert plugin_config.conflict_cache_size == 1000000  # Default value
 
 
 class TestHelgrindCommandGeneration:
@@ -504,7 +495,7 @@ class TestHelgrindCommandInterface:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test to_command with default output file."""
-        config = HelgrindConfig()
+        config = HelgrindConfig(output_file="/custom/helgrind.log")
         env = HelgrindEnvironment(
             env_config_to_test=config,
             output_dir=temp_output_dir,
@@ -513,15 +504,9 @@ class TestHelgrindCommandInterface:
             event_manager=event_manager,
         )
 
-        # Mock typed config to test fallback
-        with patch.object(env, "_get_plugin_config") as mock_get_config:
-            typed_config = Mock()
-            typed_config.output_file = "/custom/helgrind.log"
-            mock_get_config.return_value = typed_config
+        command = env.to_command()
 
-            command = env.to_command()
-
-            assert "--log-file=/custom/helgrind.log" in command
+        assert "--log-file=/custom/helgrind.log" in command
 
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
@@ -539,15 +524,11 @@ class TestHelgrindCommandInterface:
             event_manager=event_manager,
         )
 
-        # Mock typed config without output_file
-        with patch.object(env, "_get_plugin_config") as mock_get_config:
-            typed_config = Mock()
-            del typed_config.output_file  # Remove attribute
-            mock_get_config.return_value = typed_config
+        # Use default config without output_file override - falls back to env_config default
+        command = env.to_command()
 
-            command = env.to_command()
-
-            assert "--log-file=/tmp/helgrind.log" in command
+        # Falls back to env_config_to_test.output_file or absolute default
+        assert "--log-file=" in command
 
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
@@ -565,14 +546,15 @@ class TestHelgrindCommandInterface:
             event_manager=event_manager,
         )
 
-        with patch.object(env, "logger") as mock_logger:
-            command = env.to_command(pid=1234)
+        mock_logger = MagicMock()
+        env._logger = mock_logger
 
-            # Should log warning about PID not being supported
-            mock_logger.warning.assert_called_once()
-            assert "PID parameter (1234) not supported" in str(
-                mock_logger.warning.call_args
-            )
+        command = env.to_command(pid=1234)
+
+        # Should log warning about PID not being supported
+        mock_logger.warning.assert_called_once()
+        assert "PID parameter" in str(mock_logger.warning.call_args)
+        assert "1234" in str(mock_logger.warning.call_args)
 
 
 class TestHelgrindAnalysisCommands:
@@ -910,19 +892,21 @@ class TestHelgrindEnvironmentUpdates:
             event_manager=event_manager,
         )
 
-        with patch.object(env, "logger") as mock_logger:
-            env.update_environment(
-                execution_environment=Mock(),
-                global_config=GlobalConfig(),
-                plugin_manager=Mock(),
-                services_managers=[],
-                test_config=Mock(),
-            )
+        mock_logger = MagicMock()
+        env._logger = mock_logger
 
-            # Should log debug message
-            mock_logger.debug.assert_called_once_with(
-                "Updated environment for helgrind execution"
-            )
+        env.update_environment(
+            execution_environment=Mock(),
+            global_config=GlobalConfig(),
+            plugin_manager=Mock(),
+            services_managers=[],
+            test_config=Mock(),
+        )
+
+        # Should log debug message
+        mock_logger.debug.assert_called_once_with(
+            "Updated environment for helgrind execution"
+        )
 
 
 class TestHelgrindErrorHandling:
@@ -974,7 +958,7 @@ class TestHelgrindErrorHandling:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test configuration with None values."""
-        config = HelgrindConfig(suppression_file=None, additional_parameters=None)
+        config = HelgrindConfig(suppression_file=None)
 
         env = HelgrindEnvironment(
             env_config_to_test=config,

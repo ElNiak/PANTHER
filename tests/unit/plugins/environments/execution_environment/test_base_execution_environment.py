@@ -4,6 +4,7 @@ Unit tests for BaseExecutionEnvironment class.
 Tests the base functionality and mixin integration for execution environments.
 """
 
+import logging
 from typing import List
 from unittest.mock import MagicMock, Mock, patch
 
@@ -31,10 +32,27 @@ class ConcreteBaseExecutionEnvironment(BaseExecutionEnvironment):
         """Test implementation of abstract method."""
         return "test_command"
 
+    def update_environment(self, *args, **kwargs):
+        """Test implementation of abstract method."""
+        pass
+
     def initialize(self, test_config, output_dir, event_manager, global_config):
         """Test implementation of initialize method."""
         self.init_called = True
         return True
+
+
+def _inject_mock_logger(env):
+    """Replace the env's logger with a mock by setting _logger directly.
+
+    The ``logger`` attribute on BaseExecutionEnvironment is a property coming
+    from ``LoggerMixin``, so ``patch.object(env, "logger")`` does not work.
+    Setting ``_logger`` bypasses the property and makes the mock available via
+    ``env.logger``.
+    """
+    mock_logger = Mock(spec=logging.Logger)
+    env._logger = mock_logger
+    return mock_logger
 
 
 class TestBaseExecutionEnvironment:
@@ -130,6 +148,9 @@ class TestBaseExecutionEnvironment:
             def to_command(self, *args, **kwargs):
                 return "test"
 
+            def update_environment(self, *args, **kwargs):
+                pass
+
         env = PartialImplementation(
             env_config_to_test=base_environment_config,
             output_dir=temp_output_dir,
@@ -164,11 +185,11 @@ class TestBaseExecutionEnvironmentServiceDeployment:
             event_manager=event_manager,
         )
 
-        with patch.object(env, "logger") as mock_logger:
-            env._do_deploy_services()
-            mock_logger.debug.assert_called_once_with(
-                "ConcreteBaseExecutionEnvironment deployment: no specific deployment needed"
-            )
+        mock_logger = _inject_mock_logger(env)
+        env._do_deploy_services()
+        mock_logger.debug.assert_called_once_with(
+            "ConcreteBaseExecutionEnvironment deployment: no specific deployment needed"
+        )
 
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
@@ -185,11 +206,11 @@ class TestBaseExecutionEnvironmentServiceDeployment:
             event_manager=event_manager,
         )
 
-        with patch.object(env, "logger") as mock_logger:
-            env._do_teardown_environment()
-            mock_logger.debug.assert_called_once_with(
-                "ConcreteBaseExecutionEnvironment teardown: cleaning up resources"
-            )
+        mock_logger = _inject_mock_logger(env)
+        env._do_teardown_environment()
+        mock_logger.debug.assert_called_once_with(
+            "ConcreteBaseExecutionEnvironment teardown: cleaning up resources"
+        )
 
 
 class TestBaseExecutionEnvironmentEventHandling:
@@ -214,18 +235,18 @@ class TestBaseExecutionEnvironmentEventHandling:
         mock_event = Mock()
         mock_event.__class__.__name__ = "ServiceStartedEvent"
 
-        with patch.object(env, "logger") as mock_logger:
-            env.handle_event(mock_event)
+        mock_logger = _inject_mock_logger(env)
+        env.handle_event(mock_event)
 
-            # Verify correct logging
-            assert mock_logger.debug.call_count == 2
-            mock_logger.debug.assert_any_call(
-                "ConcreteBaseExecutionEnvironment received event: %s",
-                "ServiceStartedEvent",
-            )
-            mock_logger.debug.assert_any_call(
-                "Service started, environment monitoring should be active"
-            )
+        # Verify correct logging
+        assert mock_logger.debug.call_count == 2
+        mock_logger.debug.assert_any_call(
+            "ConcreteBaseExecutionEnvironment received event: %s",
+            "ServiceStartedEvent",
+        )
+        mock_logger.debug.assert_any_call(
+            "Service started, environment monitoring should be active"
+        )
 
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
@@ -246,18 +267,18 @@ class TestBaseExecutionEnvironmentEventHandling:
         mock_event = Mock()
         mock_event.__class__.__name__ = "ServiceStoppedEvent"
 
-        with patch.object(env, "logger") as mock_logger:
-            env.handle_event(mock_event)
+        mock_logger = _inject_mock_logger(env)
+        env.handle_event(mock_event)
 
-            # Verify correct logging
-            assert mock_logger.debug.call_count == 2
-            mock_logger.debug.assert_any_call(
-                "ConcreteBaseExecutionEnvironment received event: %s",
-                "ServiceStoppedEvent",
-            )
-            mock_logger.debug.assert_any_call(
-                "Service stopped, environment collection complete"
-            )
+        # Verify correct logging
+        assert mock_logger.debug.call_count == 2
+        mock_logger.debug.assert_any_call(
+            "ConcreteBaseExecutionEnvironment received event: %s",
+            "ServiceStoppedEvent",
+        )
+        mock_logger.debug.assert_any_call(
+            "Service stopped, environment collection complete"
+        )
 
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
@@ -278,17 +299,15 @@ class TestBaseExecutionEnvironmentEventHandling:
         mock_event = Mock()
         mock_event.__class__.__name__ = "UnknownEvent"
 
-        with patch.object(env, "logger") as mock_logger:
-            env.handle_event(mock_event)
+        mock_logger = _inject_mock_logger(env)
+        env.handle_event(mock_event)
 
-            # Verify correct logging
-            assert mock_logger.debug.call_count == 2
-            mock_logger.debug.assert_any_call(
-                "ConcreteBaseExecutionEnvironment received event: %s", "UnknownEvent"
-            )
-            mock_logger.debug.assert_any_call(
-                "Unhandled event type: %s", "UnknownEvent"
-            )
+        # Verify correct logging
+        assert mock_logger.debug.call_count == 2
+        mock_logger.debug.assert_any_call(
+            "ConcreteBaseExecutionEnvironment received event: %s", "UnknownEvent"
+        )
+        mock_logger.debug.assert_any_call("Unhandled event type: %s", "UnknownEvent")
 
 
 class TestBaseExecutionEnvironmentSetup:
@@ -328,28 +347,28 @@ class TestBaseExecutionEnvironmentSetup:
         timestamp = "20241224_120000"
         plugin_manager = Mock()
 
-        with patch.object(env, "logger") as mock_logger:
-            env.setup_environment(
-                services_managers=services_managers,
-                test_config=test_config,
-                global_config=global_config,
-                timestamp=timestamp,
-                plugin_manager=plugin_manager,
-            )
+        mock_logger = _inject_mock_logger(env)
+        env.setup_environment(
+            services_managers=services_managers,
+            test_config=test_config,
+            global_config=global_config,
+            timestamp=timestamp,
+            plugin_manager=plugin_manager,
+        )
 
-            # Verify setup_execution_environment was called
-            mock_setup_exec.assert_called_once_with(
-                services_managers, test_config, global_config, timestamp, plugin_manager
-            )
+        # Verify setup_execution_environment was called
+        mock_setup_exec.assert_called_once_with(
+            services_managers, test_config, global_config, timestamp, plugin_manager
+        )
 
-            # Verify plugin-specific setup was called
-            assert hasattr(env, "plugin_setup_called")
-            assert env.plugin_setup_called is True
-            assert env.plugin_setup_services_count == 1
-            assert env.plugin_setup_timestamp == timestamp
+        # Verify plugin-specific setup was called
+        assert hasattr(env, "plugin_setup_called")
+        assert env.plugin_setup_called is True
+        assert env.plugin_setup_services_count == 1
+        assert env.plugin_setup_timestamp == timestamp
 
-            # Verify logging occurred
-            assert mock_logger.debug.call_count >= 4  # Various debug messages
+        # Verify logging occurred
+        assert mock_logger.debug.call_count >= 4  # Various debug messages
 
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
@@ -374,22 +393,22 @@ class TestBaseExecutionEnvironmentSetup:
 
         services_managers = [service1, service2]
 
-        with patch.object(env, "logger") as mock_logger:
-            with patch.object(env, "setup_execution_environment"):
-                env.setup_environment(
-                    services_managers=services_managers,
-                    test_config=Mock(),
-                    global_config=GlobalConfig(),
-                    timestamp="test_timestamp",
-                    plugin_manager=Mock(),
-                )
-
-            # Verify service count logging
-            mock_logger.debug.assert_any_call("Services managers count: 2")
-            # Verify service names logging (should handle both service_name attribute and class name fallback)
-            mock_logger.debug.assert_any_call(
-                "Service names: ['service1', 'Service2Manager']"
+        mock_logger = _inject_mock_logger(env)
+        with patch.object(env, "setup_execution_environment"):
+            env.setup_environment(
+                services_managers=services_managers,
+                test_config=Mock(),
+                global_config=GlobalConfig(),
+                timestamp="test_timestamp",
+                plugin_manager=Mock(),
             )
+
+        # Verify service count logging
+        mock_logger.debug.assert_any_call("Services managers count: 2")
+        # Verify service names logging (should handle both service_name attribute and class name fallback)
+        mock_logger.debug.assert_any_call(
+            "Service names: ['service1', 'Service2Manager']"
+        )
 
 
 class TestBaseExecutionEnvironmentOutputPatterns:
@@ -460,14 +479,10 @@ class TestBaseExecutionEnvironmentStringRepresentation:
         # Add some mock services
         env.services_managers = [Mock(), Mock(), Mock()]
 
-        with patch("super") as mock_super:
-            mock_super.return_value._get_key_attributes.return_value = {"base": "value"}
+        attrs = env._get_key_attributes()
 
-            attrs = env._get_key_attributes()
-
-            assert "services" in attrs
-            assert attrs["services"] == 3
-            assert attrs["base"] == "value"
+        assert "services" in attrs
+        assert attrs["services"] == 3
 
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
@@ -487,13 +502,9 @@ class TestBaseExecutionEnvironmentStringRepresentation:
         # Ensure no services
         env.services_managers = []
 
-        with patch("super") as mock_super:
-            mock_super.return_value._get_key_attributes.return_value = {"base": "value"}
+        attrs = env._get_key_attributes()
 
-            attrs = env._get_key_attributes()
-
-            assert "services" not in attrs
-            assert attrs["base"] == "value"
+        assert "services" not in attrs
 
 
 class TestConcreteImplementationRequirements:

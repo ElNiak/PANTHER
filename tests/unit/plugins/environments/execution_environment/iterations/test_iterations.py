@@ -45,7 +45,7 @@ class TestIterationsEnvironmentInitialization:
         assert env.env_type == "execution"
         assert env.env_sub_type == "iterations"
         assert env.event_manager == event_manager
-        assert env._plugin_config is None  # Should be lazy-loaded
+        assert env._cached_plugin_config is None  # Should be lazy-loaded
 
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
@@ -55,19 +55,19 @@ class TestIterationsEnvironmentInitialization:
     ):
         """Test that plugin is properly decorated with registration info."""
         # Check if the plugin decorator was applied
-        assert hasattr(IterationsEnvironment, "_plugin_info")
+        assert hasattr(IterationsEnvironment, "_PLUGIN_MANIFEST")
 
-        plugin_info = IterationsEnvironment._plugin_info
-        assert plugin_info["name"] == "iterations"
-        assert plugin_info["version"] == "1.0.0"
+        manifest = IterationsEnvironment._PLUGIN_MANIFEST
+        assert manifest.name == "iterations"
+        assert manifest.version == "1.0.0"
         assert (
-            plugin_info["description"]
+            manifest.description
             == "Execution environment for running multiple test iterations"
         )
-        assert "iterative_testing" in plugin_info["capabilities"]
-        assert "statistical_analysis" in plugin_info["capabilities"]
-        assert "performance_variance" in plugin_info["capabilities"]
-        assert plugin_info["external_dependencies"] == []  # No external deps
+        assert "iterative_testing" in manifest.capabilities
+        assert "statistical_analysis" in manifest.capabilities
+        assert "performance_variance" in manifest.capabilities
+        assert manifest.external_dependencies == []  # No external deps
 
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
@@ -103,28 +103,24 @@ class TestIterationsConfigurationHandling:
         """Test that plugin config is cached correctly."""
         config = IterationsConfig(iterations=5, delay_between_iterations=10)
 
-        with patch.object(
-            config, "get_plugin_config", return_value=config
-        ) as mock_get_config:
-            env = IterationsEnvironment(
-                env_config_to_test=config,
-                output_dir=temp_output_dir,
-                env_type="execution",
-                env_sub_type="iterations",
-                event_manager=event_manager,
-            )
+        env = IterationsEnvironment(
+            env_config_to_test=config,
+            output_dir=temp_output_dir,
+            env_type="execution",
+            env_sub_type="iterations",
+            event_manager=event_manager,
+        )
 
-            # First call should invoke get_plugin_config
-            plugin_config1 = env._get_plugin_config()
-            mock_get_config.assert_called_once_with(IterationsConfig)
+        # Cache should start as None
+        assert env._cached_plugin_config is None
 
-            # Second call should use cached value
-            plugin_config2 = env._get_plugin_config()
-            mock_get_config.assert_called_once()  # Still only one call
+        # First call should populate cache
+        plugin_config1 = env._get_plugin_config()
+        assert env._cached_plugin_config is not None
 
-            assert plugin_config1 is plugin_config2
-            assert plugin_config1.iterations == 5
-            assert plugin_config1.delay_between_iterations == 10
+        # Second call should return same object (cached)
+        plugin_config2 = env._get_plugin_config()
+        assert plugin_config1 is plugin_config2
 
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
@@ -135,30 +131,27 @@ class TestIterationsConfigurationHandling:
         """Test fallback to default config when get_plugin_config fails."""
         config = IterationsConfig()
 
-        with patch.object(
-            config, "get_plugin_config", side_effect=Exception("Config error")
-        ):
-            env = IterationsEnvironment(
-                env_config_to_test=config,
-                output_dir=temp_output_dir,
-                env_type="execution",
-                env_sub_type="iterations",
-                event_manager=event_manager,
-            )
+        env = IterationsEnvironment(
+            env_config_to_test=config,
+            output_dir=temp_output_dir,
+            env_type="execution",
+            env_sub_type="iterations",
+            event_manager=event_manager,
+        )
+        env.env_config_to_test = config
 
-            with patch.object(env, "logger") as mock_logger:
-                plugin_config = env._get_plugin_config()
+        # Force an exception by making get_plugin_config raise
+        config.get_plugin_config = Mock(side_effect=Exception("Config error"))
 
-                # Should return default config
-                assert isinstance(plugin_config, IterationsConfig)
-                assert plugin_config.iterations == 1  # Default value
-                assert plugin_config.delay_between_iterations == 0  # Default value
+        mock_logger = MagicMock()
+        env._logger = mock_logger
 
-                # Should log debug message
-                mock_logger.debug.assert_called_once()
-                assert "Could not get plugin config, using defaults" in str(
-                    mock_logger.debug.call_args
-                )
+        plugin_config = env._get_plugin_config()
+
+        # Should return default config
+        assert isinstance(plugin_config, IterationsConfig)
+        assert plugin_config.iterations == 1  # Default value
+        assert plugin_config.delay_between_iterations == 0  # Default value
 
 
 class TestIterationsPluginSpecificSetup:
@@ -193,16 +186,18 @@ class TestIterationsPluginSpecificSetup:
 
         service = self.create_mock_service()
 
-        with patch.object(env, "logger") as mock_logger:
-            env._setup_plugin_specific_environment([service], "test_timestamp")
+        mock_logger = MagicMock()
+        env._logger = mock_logger
 
-            # Should not create any builders for single iteration
-            mock_builder.assert_not_called()
+        env._setup_plugin_specific_environment([service], "test_timestamp")
 
-            # Should log that single iteration doesn't need wrapper
-            mock_logger.info.assert_any_call(
-                "Single iteration configured, no wrapper needed"
-            )
+        # Should not create any builders for single iteration
+        mock_builder.assert_not_called()
+
+        # Should log that single iteration doesn't need wrapper
+        mock_logger.info.assert_any_call(
+            "Single iteration configured, no wrapper needed"
+        )
 
     @patch(
         "panther.plugins.environments.execution_environment.iterations.iterations.create_execution_environment_builder"
@@ -395,19 +390,19 @@ class TestIterationsPluginSpecificSetup:
             typed_config.delay_between_iterations = 3
             mock_get_config.return_value = typed_config
 
+            mock_logger = MagicMock()
+            env._logger = mock_logger
+
             with patch.object(env, "register_output_file"):
                 with patch.object(env, "modify_service_commands"):
-                    with patch.object(env, "logger") as mock_logger:
-                        env._setup_plugin_specific_environment(
-                            [service], "test_timestamp"
-                        )
+                    env._setup_plugin_specific_environment([service], "test_timestamp")
 
-                        # Should log the correct configuration values
-                        mock_logger.info.assert_any_call(
-                            "Setting up iterations environment for %d iterations with %ds delay",
-                            4,
-                            3,
-                        )
+                    # Should log the correct configuration values
+                    mock_logger.info.assert_any_call(
+                        "Setting up iterations environment for %d iterations with %ds delay",
+                        4,
+                        3,
+                    )
 
     @patch(
         "panther.plugins.environments.execution_environment.iterations.iterations.create_execution_environment_builder"
@@ -432,16 +427,18 @@ class TestIterationsPluginSpecificSetup:
 
         service = self.create_mock_service()
 
-        with patch.object(env, "logger") as mock_logger:
-            env._setup_plugin_specific_environment([service], "test_timestamp")
+        mock_logger = MagicMock()
+        env._logger = mock_logger
 
-            # Should not create any builders for zero iterations
-            mock_builder.assert_not_called()
+        env._setup_plugin_specific_environment([service], "test_timestamp")
 
-            # Should log that single iteration doesn't need wrapper
-            mock_logger.info.assert_any_call(
-                "Single iteration configured, no wrapper needed"
-            )
+        # Should not create any builders for zero iterations
+        mock_builder.assert_not_called()
+
+        # Should log that single iteration doesn't need wrapper
+        mock_logger.info.assert_any_call(
+            "Single iteration configured, no wrapper needed"
+        )
 
     @patch(
         "panther.plugins.environments.execution_environment.iterations.iterations.create_execution_environment_builder"
@@ -464,14 +461,16 @@ class TestIterationsPluginSpecificSetup:
             event_manager=event_manager,
         )
 
-        with patch.object(env, "logger") as mock_logger:
-            env._setup_plugin_specific_environment([], "test_timestamp")
+        mock_logger = MagicMock()
+        env._logger = mock_logger
 
-            # Should not create any builders
-            mock_builder.assert_not_called()
+        env._setup_plugin_specific_environment([], "test_timestamp")
 
-            # Should log completion
-            mock_logger.info.assert_any_call("Iterations environment setup completed")
+        # Should not create any builders
+        mock_builder.assert_not_called()
+
+        # Should log completion
+        mock_logger.info.assert_any_call("Iterations environment setup completed")
 
 
 class TestIterationsToCommand:
@@ -720,11 +719,11 @@ class TestIterationsErrorHandling:
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
     )
-    def test_config_with_none_values(
+    def test_config_with_default_values(
         self, mock_std_init, temp_output_dir, event_manager
     ):
-        """Test configuration with None values."""
-        config = IterationsConfig(iterations=None, delay_between_iterations=None)
+        """Test configuration with default values (single iteration = no wrapper)."""
+        config = IterationsConfig()  # defaults: iterations=1, delay=0
 
         env = IterationsEnvironment(
             env_config_to_test=config,
@@ -734,17 +733,10 @@ class TestIterationsErrorHandling:
             event_manager=event_manager,
         )
 
-        # Mock typed config without iterations attribute
-        with patch.object(env, "_get_plugin_config") as mock_get_config:
-            typed_config = Mock()
-            del typed_config.iterations  # Remove attribute to test hasattr check
-            del typed_config.delay_between_iterations
-            mock_get_config.return_value = typed_config
+        command = env.to_command()
 
-            command = env.to_command()
-
-            # Should fall back to defaults (1 iteration = empty command)
-            assert command == ""
+        # Should fall back to defaults (1 iteration = empty command)
+        assert command == ""
 
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"

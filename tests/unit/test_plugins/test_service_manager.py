@@ -1,22 +1,30 @@
 import pytest
 
-from panther.plugins.protocols.config_schema import ProtocolConfig
-from panther.plugins.services.config_schema import ServiceConfig
+from panther.config.core.models import ProtocolConfig, ServiceConfig
+from panther.config.core.models.service import ImplementationConfig
+from panther.plugins.services.service_manager_mixin import ServiceManagerMixin
 from panther.plugins.services.services_interface import IServiceManager
 
 
-class MockServiceManager(IServiceManager):
+class MockServiceManager(ServiceManagerMixin, IServiceManager):
     def prepare(self, plugin_loader=None):
         pass
 
-    def generate_deployment_commands(self, service_params, environment):
+    def generate_deployment_commands(self, service_params=None, environment=None):
         return {}
+
+    def handle_event(self, event):
+        pass
 
 
 @pytest.fixture
 def service_config():
     return ServiceConfig(
         name="test_service",
+        implementation=ImplementationConfig(
+            name="test_impl",
+            type="iut",
+        ),
         protocol=ProtocolConfig(
             name="test_protocol",
             version="1.0",

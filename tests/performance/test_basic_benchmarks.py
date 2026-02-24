@@ -8,7 +8,7 @@ import time
 
 import pytest
 
-from panther.plugins.services.services_interface import (
+from panther.plugins.services.service_manager_mixin import (
     RUN_CMD_SCHEMA,
     validate_structure,
 )

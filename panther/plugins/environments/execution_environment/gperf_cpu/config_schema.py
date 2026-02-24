@@ -79,6 +79,13 @@ class GperfCpuConfig(ExecutionEnvironmentPluginConfig):
 
     # -- Output configuration --
 
+    output_file: Optional[str] = Field(
+        default=None,
+        description=(
+            "Path for the CPU profile output file. When None, defaults "
+            "to /tmp/cpu_profile.prof at runtime. Default: None."
+        ),
+    )
     output_format: str = Field(
         default="prof",
         description=(

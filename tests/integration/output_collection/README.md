@@ -121,23 +121,23 @@ python tests/integration/output_collection/validate_e2e_setup.py
 
 ```bash
 # Run all output collection tests
-pytest tests/integration/output_collection/ -v -m "output_collection"
+pytest tests/integration/output_collection/ -n auto -v -m "output_collection"
 
 # Run with Docker requirement
-pytest tests/integration/output_collection/ -v -m "requires_docker"
+pytest tests/integration/output_collection/ -n auto -v -m "requires_docker"
 ```
 
 ### Run Specific Environment Tests
 
 ```bash
 # Docker Compose only
-pytest tests/integration/output_collection/ -v -m "docker_compose"
+pytest tests/integration/output_collection/ -n auto -v -m "docker_compose"
 
 # Localhost container only
-pytest tests/integration/output_collection/ -v -m "localhost"
+pytest tests/integration/output_collection/ -n auto -v -m "localhost"
 
 # Shadow NS only
-pytest tests/integration/output_collection/ -v -m "shadow_ns"
+pytest tests/integration/output_collection/ -n auto -v -m "shadow_ns"
 ```
 
 ### Run Performance Tests
@@ -202,7 +202,7 @@ newgrp docker
 **2. Test Timeouts**
 ```bash
 # Increase timeout for slow systems
-pytest tests/integration/output_collection/ -v --timeout=600
+pytest tests/integration/output_collection/ -n auto -v --timeout=600
 ```
 
 **3. Missing Output Files**
@@ -211,7 +211,7 @@ pytest tests/integration/output_collection/ -v --timeout=600
 docker logs <container_name>
 
 # Verify test service execution
-pytest tests/integration/output_collection/ -v -s --log-cli-level=DEBUG
+pytest tests/integration/output_collection/ -n auto -v -s --log-cli-level=DEBUG
 ```
 
 **4. Port Conflicts**
@@ -227,7 +227,7 @@ Run tests with maximum verbosity:
 
 ```bash
 pytest tests/integration/output_collection/ \
-  -v -s \
+  -n auto -v -s \
   --log-cli-level=DEBUG \
   --tb=long \
   --capture=no
@@ -292,7 +292,7 @@ jobs:
       - name: Run output collection tests
         run: |
           pytest tests/integration/output_collection/ \
-            -v -m "requires_docker" \
+            -n auto -v -m "requires_docker" \
             --timeout=300
 ```
 

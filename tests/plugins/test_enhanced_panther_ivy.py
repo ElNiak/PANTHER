@@ -14,9 +14,12 @@ parent_dir = str(Path(__file__).resolve().parent.parent.parent)
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
-from panther.config.core.models import ProtocolConfig, ProtocolRole
-from panther.plugins.services.config_schema import ServiceConfig
-from panther.plugins.services.iut.config_schema import ImplementationType
+from panther.config.core.models import (
+    ImplementationType,
+    ProtocolConfig,
+    ProtocolRole,
+    ServiceConfig,
+)
 from panther.plugins.services.testers.panther_ivy.config_schema import PantherIvyConfig
 
 # Import the necessary modules

@@ -33,10 +33,10 @@ panther tools doctor                     # System check
 ## Testing
 ```bash
 # Run tests with markers
-pytest tests/ -m unit                    # Fast unit tests (no external deps)
-pytest tests/ -m integration             # Requires Docker
-pytest tests/ -m "not slow"              # Skip slow tests
-pytest tests/ --cov=panther --cov-fail-under=70  # With coverage (70% required)
+pytest tests/ -n auto -m unit             # Fast unit tests (no external deps)
+pytest tests/ -n auto -m integration     # Requires Docker
+pytest tests/ -n auto -m "not slow"      # Skip slow tests
+pytest tests/ -n auto --cov=panther --cov-fail-under=70  # With coverage (70% required)
 
 # Run single test file
 pytest tests/unit/test_core/test_docker_builder_tag_generation.py -v

@@ -961,7 +961,25 @@ def sample_test_config():
         name="test_case",
         description="Test case description",
         network_environment={"type": "docker_compose"},
-        services={},
+        services={
+            "test_server": {
+                "implementation": {"name": "test_impl", "type": "iut"},
+                "protocol": {
+                    "name": "test_protocol",
+                    "version": "1.0",
+                    "role": "server",
+                },
+            },
+            "test_client": {
+                "implementation": {"name": "test_impl", "type": "iut"},
+                "protocol": {
+                    "name": "test_protocol",
+                    "version": "1.0",
+                    "role": "client",
+                    "target": "test_server",
+                },
+            },
+        },
     )
 
 

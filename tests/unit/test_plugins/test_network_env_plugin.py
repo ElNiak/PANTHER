@@ -19,13 +19,28 @@ class MockNetworkEnvironment(INetworkEnvironment):
     def launch_environment_services(self):
         pass
 
+    def run(self):
+        pass
+
     def deploy_services(self):
         pass
 
-    def setup_environment(self):
+    def setup_environment(self, *args, **kwargs):
         pass
 
     def teardown_environment(self):
+        pass
+
+    def _do_deploy_services(self):
+        pass
+
+    def _do_teardown_environment(self):
+        pass
+
+    def handle_event(self, event):
+        pass
+
+    def initialize(self, *args, **kwargs):
         pass
 
 

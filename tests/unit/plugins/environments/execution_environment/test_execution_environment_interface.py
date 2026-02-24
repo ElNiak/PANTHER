@@ -8,8 +8,8 @@ from abc import ABC, abstractmethod
 
 import pytest
 
+from panther.config.core.models.environment import EnvironmentConfig
 from panther.core.observer.management.event_manager import EventManager
-from panther.plugins.environments.config_schema import EnvironmentConfig
 from panther.plugins.environments.execution_environment.execution_environment_interface import (
     IExecutionEnvironment,
 )
@@ -18,13 +18,33 @@ from panther.plugins.environments.execution_environment.execution_environment_in
 class ConcreteExecutionEnvironment(IExecutionEnvironment):
     """Concrete implementation for testing interface contract."""
 
-    def setup_environment(self):
+    def setup_environment(self, *args, **kwargs):
         """Test implementation of abstract method."""
         self.setup_called = True
 
     def teardown_environment(self):
         """Test implementation of abstract method."""
         self.teardown_called = True
+
+    def update_environment(self, *args, **kwargs):
+        """Test implementation of abstract method."""
+        pass
+
+    def initialize(self, *args, **kwargs):
+        """Test implementation of abstract method."""
+        return True
+
+    def handle_event(self, event):
+        """Test implementation of abstract method."""
+        pass
+
+    def _do_deploy_services(self):
+        """Test implementation of abstract method."""
+        pass
+
+    def _do_teardown_environment(self):
+        """Test implementation of abstract method."""
+        pass
 
 
 class TestIExecutionEnvironmentInterface:
@@ -45,7 +65,17 @@ class TestIExecutionEnvironmentInterface:
     def test_interface_has_required_abstract_methods(self):
         """Test that interface defines required abstract methods."""
         abstract_methods = IExecutionEnvironment.__abstractmethods__
-        expected_methods = {"setup_environment", "teardown_environment"}
+        # IExecutionEnvironment inherits abstract methods from IEnvironmentPlugin
+        # and defines setup_environment as abstract. teardown_environment and
+        # is_network_environment are concrete in IExecutionEnvironment.
+        expected_methods = {
+            "setup_environment",
+            "initialize",
+            "update_environment",
+            "handle_event",
+            "_do_deploy_services",
+            "_do_teardown_environment",
+        }
 
         assert (
             abstract_methods == expected_methods
@@ -191,6 +221,21 @@ class TestIExecutionEnvironmentContract:
             def teardown_environment(self):
                 pass
 
+            def update_environment(self, *args, **kwargs):
+                pass
+
+            def initialize(self, *args, **kwargs):
+                return True
+
+            def handle_event(self, event):
+                pass
+
+            def _do_deploy_services(self):
+                pass
+
+            def _do_teardown_environment(self):
+                pass
+
         with pytest.raises(TypeError) as exc_info:
             IncompleteEnvironment(
                 env_config_to_test=EnvironmentConfig(type="test"),
@@ -203,11 +248,28 @@ class TestIExecutionEnvironmentContract:
         assert "setup_environment" in str(exc_info.value)
 
     def test_missing_teardown_environment_method(self):
-        """Test that missing teardown_environment method prevents instantiation."""
+        """Test that missing abstract methods from parent prevent instantiation.
+
+        Note: teardown_environment has a concrete (no-op) implementation in
+        IExecutionEnvironment, so it is NOT abstract. We test that missing
+        other parent abstract methods (e.g. _do_deploy_services) prevents
+        instantiation instead.
+        """
 
         class IncompleteEnvironment(IExecutionEnvironment):
-            def setup_environment(self):
+            def setup_environment(self, *args, **kwargs):
                 pass
+
+            def update_environment(self, *args, **kwargs):
+                pass
+
+            def initialize(self, *args, **kwargs):
+                return True
+
+            def handle_event(self, event):
+                pass
+
+            # Missing _do_deploy_services and _do_teardown_environment
 
         with pytest.raises(TypeError) as exc_info:
             IncompleteEnvironment(
@@ -218,7 +280,11 @@ class TestIExecutionEnvironmentContract:
                 event_manager=EventManager(),
             )
 
-        assert "teardown_environment" in str(exc_info.value)
+        error_msg = str(exc_info.value)
+        assert (
+            "_do_deploy_services" in error_msg
+            or "_do_teardown_environment" in error_msg
+        )
 
     def test_multiple_missing_methods(self):
         """Test error when multiple abstract methods are missing."""
@@ -237,4 +303,3 @@ class TestIExecutionEnvironmentContract:
 
         error_msg = str(exc_info.value)
         assert "setup_environment" in error_msg
-        assert "teardown_environment" in error_msg

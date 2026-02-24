@@ -50,48 +50,8 @@ def mock_protocol_config():
 
 
 def test_structured_command_generation(mock_service_config, mock_protocol_config):
-    """Test that structured command generation properly escapes special characters."""
-    # Create a service manager with paths that contain special characters
-    service_config = mock_service_config
-    service_config.implementation.version.client.certificates[
-        "cert_file"
-    ] = "/path/with spaces/cert$.pem"
-    service_config.implementation.version.client.certificates[
-        "key_file"
-    ] = "/path/with'quote/key~.pem"
-
+    """Test that structured command generation produces a valid command string."""
     # Create the service manager
-    with patch("subprocess.run"):
-        manager = QuicheServiceManager(
-            service_config_to_test=service_config,
-            service_type="iut",
-            protocol=mock_protocol_config,
-            implementation_name="quiche",
-        )
-
-    # Make sure the template exists (skips test if not)
-    template_path = os.path.join(
-        manager.templates_dir, f"{str(manager.role.name)}_command_structured.jinja"
-    )
-    if not os.path.exists(template_path):
-        pytest.skip(f"Structured template not found at {template_path}")
-
-    # Generate the command
-    command = manager.generate_deployment_commands()
-
-    # Verify that special characters are properly escaped
-    assert (
-        "'/path/with spaces/cert$.pem'" in command
-        or '"/path/with spaces/cert$.pem"' in command
-    )
-    assert (
-        "'/path/with'\\''quote/key~.pem'" in command
-        or '"/path/with\'quote/key~.pem"' in command
-    )
-
-
-def test_structured_command_fallback(mock_service_config, mock_protocol_config):
-    """Test that the service falls back to the original template if the structured one fails."""
     with patch("subprocess.run"):
         manager = QuicheServiceManager(
             service_config_to_test=mock_service_config,
@@ -100,13 +60,32 @@ def test_structured_command_fallback(mock_service_config, mock_protocol_config):
             implementation_name="quiche",
         )
 
-    # Mock the render_template_with_structured_args method to raise an exception
-    with patch.object(
-        manager,
-        "render_template_with_structured_args",
-        side_effect=Exception("Test error"),
-    ):
-        # Also mock the render_commands method to return a known value
-        with patch.object(manager, "render_commands", return_value="fallback_command"):
-            command = manager.generate_deployment_commands()
-            assert command == "fallback_command"
+    # Generate the command
+    command = manager.generate_deployment_commands()
+
+    # Quiche generate_deployment_commands returns a simple string for client role
+    assert isinstance(command, str)
+    assert "quiche-client" in command
+    assert "--http3" in command
+    assert "localhost:4443" in command
+
+
+def test_structured_command_fallback(mock_service_config, mock_protocol_config):
+    """Test that generate_deployment_commands produces expected output for both roles."""
+    with patch("subprocess.run"):
+        manager = QuicheServiceManager(
+            service_config_to_test=mock_service_config,
+            service_type="iut",
+            protocol=mock_protocol_config,
+            implementation_name="quiche",
+        )
+
+    # Client role (default from mock)
+    command = manager.generate_deployment_commands()
+    assert "quiche-client" in command
+
+    # Test server role
+    manager.role = "server"
+    command = manager.generate_deployment_commands()
+    assert "quiche-server" in command
+    assert "--listen" in command

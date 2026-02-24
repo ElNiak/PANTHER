@@ -130,7 +130,7 @@ for iteration in $(seq 1 $iterations_count); do
     end_time=$(date +%s)
     duration=$((end_time - start_time))
 
-    echo "Completed iteration $iteration of $iterations_count (exit code: $exit_code, duration: ${duration}s)" >> "$iterations_log"
+    echo "Completed iteration $iteration of $iterations_count (exit code: $exit_code, duration: ${{duration}}s)" >> "$iterations_log"
 
     # If command failed, should we continue? For now, continue iterations
     if [ $exit_code -ne 0 ]; then
@@ -183,6 +183,29 @@ echo "Added iterations wrapper for {iterations} iterations" >> /app/logs/{servic
             )
 
         self.logger.info("Iterations environment setup completed")
+
+    def update_environment(
+        self,
+        execution_environment,
+        global_config,
+        plugin_manager,
+        services_managers,
+        test_config,
+    ) -> None:
+        """
+        Update environment for iterations execution.
+
+        This method is called to update the environment configuration
+        for iterations-specific requirements.
+
+        Args:
+            execution_environment: Current execution environment
+            global_config: Global configuration
+            plugin_manager: Plugin manager instance
+            services_managers: List of service managers
+            test_config: Test configuration
+        """
+        self.logger.debug("Updated environment for iterations execution")
 
     def to_command(self, *args, **kwargs) -> str:
         """

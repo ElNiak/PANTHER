@@ -89,18 +89,16 @@ class TestImplServiceManager:
         # Create a mock service manager that implements the interface
         mock_service_manager = Mock(spec=IServiceManager)
 
-        # Test required methods exist
-        assert hasattr(mock_service_manager, "generate_commands")
-        assert hasattr(mock_service_manager, "validate_config")
+        # Test required methods exist (IServiceManager has these methods)
+        assert hasattr(mock_service_manager, "generate_deployment_commands")
+        assert hasattr(mock_service_manager, "generate_run_command")
 
         # Test method calls
-        mock_service_manager.generate_commands()
-        mock_service_manager.validate_config(sample_service_config)
+        mock_service_manager.generate_deployment_commands()
+        mock_service_manager.generate_run_command()
 
-        mock_service_manager.generate_commands.assert_called_once()
-        mock_service_manager.validate_config.assert_called_once_with(
-            sample_service_config
-        )
+        mock_service_manager.generate_deployment_commands.assert_called_once()
+        mock_service_manager.generate_run_command.assert_called_once()
 
 
 @pytest.mark.integration
@@ -118,7 +116,7 @@ class TestPluginEnvironmentIntegration:
         # Mock environment creation
         with patch.object(DockerComposeEnvironment, "__init__", return_value=None):
             env = DockerComposeEnvironment.__new__(DockerComposeEnvironment)
-            env.logger = Mock()
+            env._logger = Mock()
             env.event_manager = mock_event_manager
 
             # Test environment lifecycle methods
@@ -174,7 +172,7 @@ class TestPluginCommandGeneration:
                 "test_template", sample_service_config
             )
 
-    def test_command_validation_pipeline(self, mock_command_processor):
+    def test_command_validation_pipeline(self):
         """Test the command validation pipeline."""
         test_command = {
             "run_cmd": {
@@ -186,13 +184,14 @@ class TestPluginCommandGeneration:
             }
         }
 
-        # Mock validation
-        mock_command_processor.validate_command.return_value = True
+        # Mock a command validator
+        mock_validator = Mock()
+        mock_validator.validate_command.return_value = True
 
-        result = mock_command_processor.validate_command(test_command)
+        result = mock_validator.validate_command(test_command)
 
         assert result is True
-        mock_command_processor.validate_command.assert_called_once_with(test_command)
+        mock_validator.validate_command.assert_called_once_with(test_command)
 
     @pytest.mark.parametrize(
         "plugin_type,expected_phases",

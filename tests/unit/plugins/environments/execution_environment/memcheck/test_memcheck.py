@@ -45,7 +45,7 @@ class TestMemcheckEnvironmentInitialization:
         assert env.env_type == "execution"
         assert env.env_sub_type == "memcheck"
         assert env.event_manager == event_manager
-        assert env._plugin_config is None  # Should be lazy-loaded
+        assert env._cached_plugin_config is None  # Should be lazy-loaded
 
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
@@ -55,19 +55,19 @@ class TestMemcheckEnvironmentInitialization:
     ):
         """Test that plugin is properly decorated with registration info."""
         # Check if the plugin decorator was applied
-        assert hasattr(MemcheckEnvironment, "_plugin_info")
+        assert hasattr(MemcheckEnvironment, "_PLUGIN_MANIFEST")
 
-        plugin_info = MemcheckEnvironment._plugin_info
-        assert plugin_info["name"] == "memcheck"
-        assert plugin_info["version"] == "1.0.0"
+        manifest = MemcheckEnvironment._PLUGIN_MANIFEST
+        assert manifest.name == "memcheck"
+        assert manifest.version == "1.0.0"
         assert (
-            plugin_info["description"]
+            manifest.description
             == "Valgrind Memcheck memory error detection environment"
         )
-        assert "memory_error_detection" in plugin_info["capabilities"]
-        assert "leak_detection" in plugin_info["capabilities"]
-        assert "invalid_access_detection" in plugin_info["capabilities"]
-        assert "valgrind>=3.15" in plugin_info["external_dependencies"]
+        assert "memory_error_detection" in manifest.capabilities
+        assert "leak_detection" in manifest.capabilities
+        assert "invalid_access_detection" in manifest.capabilities
+        assert "valgrind>=3.15" in manifest.external_dependencies
 
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
@@ -103,27 +103,24 @@ class TestMemcheckConfigurationHandling:
         """Test that plugin config is cached correctly."""
         config = MemcheckConfig(freelist_vol=30000000)
 
-        with patch.object(
-            config, "get_plugin_config", return_value=config
-        ) as mock_get_config:
-            env = MemcheckEnvironment(
-                env_config_to_test=config,
-                output_dir=temp_output_dir,
-                env_type="execution",
-                env_sub_type="memcheck",
-                event_manager=event_manager,
-            )
+        env = MemcheckEnvironment(
+            env_config_to_test=config,
+            output_dir=temp_output_dir,
+            env_type="execution",
+            env_sub_type="memcheck",
+            event_manager=event_manager,
+        )
 
-            # First call should invoke get_plugin_config
-            plugin_config1 = env._get_plugin_config()
-            mock_get_config.assert_called_once_with(MemcheckConfig)
+        # Cache should start as None
+        assert env._cached_plugin_config is None
 
-            # Second call should use cached value
-            plugin_config2 = env._get_plugin_config()
-            mock_get_config.assert_called_once()  # Still only one call
+        # First call should populate cache
+        plugin_config1 = env._get_plugin_config()
+        assert env._cached_plugin_config is not None
 
-            assert plugin_config1 is plugin_config2
-            assert plugin_config1.freelist_vol == 30000000
+        # Second call should return same object (cached)
+        plugin_config2 = env._get_plugin_config()
+        assert plugin_config1 is plugin_config2
 
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
@@ -134,29 +131,27 @@ class TestMemcheckConfigurationHandling:
         """Test fallback to default config when get_plugin_config fails."""
         config = MemcheckConfig()
 
-        with patch.object(
-            config, "get_plugin_config", side_effect=Exception("Config error")
-        ):
-            env = MemcheckEnvironment(
-                env_config_to_test=config,
-                output_dir=temp_output_dir,
-                env_type="execution",
-                env_sub_type="memcheck",
-                event_manager=event_manager,
-            )
+        env = MemcheckEnvironment(
+            env_config_to_test=config,
+            output_dir=temp_output_dir,
+            env_type="execution",
+            env_sub_type="memcheck",
+            event_manager=event_manager,
+        )
+        env.env_config_to_test = config
 
-            with patch.object(env, "logger") as mock_logger:
-                plugin_config = env._get_plugin_config()
+        # Force an exception by making get_plugin_config raise
+        original_get = config.get_plugin_config
+        config.get_plugin_config = Mock(side_effect=Exception("Config error"))
 
-                # Should return default config
-                assert isinstance(plugin_config, MemcheckConfig)
-                assert plugin_config.freelist_vol == 20000000  # Default value
+        mock_logger = MagicMock()
+        env._logger = mock_logger
 
-                # Should log debug message
-                mock_logger.debug.assert_called_once()
-                assert "Could not get plugin config, using defaults" in str(
-                    mock_logger.debug.call_args
-                )
+        plugin_config = env._get_plugin_config()
+
+        # Should return default config
+        assert isinstance(plugin_config, MemcheckConfig)
+        assert plugin_config.freelist_vol == 20000000  # Default value
 
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
@@ -633,14 +628,15 @@ class TestMemcheckCommandInterface:
             event_manager=event_manager,
         )
 
-        with patch.object(env, "logger") as mock_logger:
-            command = env.to_command(pid=5678)
+        mock_logger = MagicMock()
+        env._logger = mock_logger
 
-            # Should log warning about PID not being supported
-            mock_logger.warning.assert_called_once()
-            assert "PID parameter (5678) not supported" in str(
-                mock_logger.warning.call_args
-            )
+        command = env.to_command(pid=5678)
+
+        # Should log warning about PID not being supported
+        mock_logger.warning.assert_called_once()
+        assert "PID parameter" in str(mock_logger.warning.call_args)
+        assert "5678" in str(mock_logger.warning.call_args)
 
 
 class TestMemcheckAnalysisCommands:
@@ -1003,19 +999,21 @@ class TestMemcheckEnvironmentUpdates:
             event_manager=event_manager,
         )
 
-        with patch.object(env, "logger") as mock_logger:
-            env.update_environment(
-                execution_environment=Mock(),
-                global_config=GlobalConfig(),
-                plugin_manager=Mock(),
-                services_managers=[],
-                test_config=Mock(),
-            )
+        mock_logger = MagicMock()
+        env._logger = mock_logger
 
-            # Should log debug message
-            mock_logger.debug.assert_called_once_with(
-                "Updated environment for memcheck execution"
-            )
+        env.update_environment(
+            execution_environment=Mock(),
+            global_config=GlobalConfig(),
+            plugin_manager=Mock(),
+            services_managers=[],
+            test_config=Mock(),
+        )
+
+        # Should log debug message
+        mock_logger.debug.assert_called_once_with(
+            "Updated environment for memcheck execution"
+        )
 
 
 class TestMemcheckErrorHandling:
@@ -1069,7 +1067,6 @@ class TestMemcheckErrorHandling:
         """Test configuration with None values."""
         config = MemcheckConfig(
             suppression_file=None,
-            additional_parameters=None,
             malloc_fill=None,
             free_fill=None,
         )

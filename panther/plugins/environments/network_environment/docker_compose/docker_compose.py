@@ -530,6 +530,26 @@ class DockerComposeEnvironment(
                     f"Failed to setup execution environment {execution_env} for service {service.service_name}: {e}"
                 )
 
+    def create_non_critical_command(self, command_lines: list) -> str:
+        """Create a non-critical command block from a list of command lines.
+
+        Non-critical commands are marked with a header comment so the entrypoint
+        script can allow them to fail without aborting the entire execution.
+
+        Args:
+            command_lines: List of command line strings to combine.
+
+        Returns:
+            A single string with lines joined by newlines, prefixed by a
+            non-critical marker comment. Trailing newlines are stripped.
+        """
+        # Strip trailing newlines from each line, then remove trailing empty entries
+        stripped = [line.rstrip("\n") for line in command_lines]
+        while stripped and not stripped[-1]:
+            stripped.pop()
+        body = "\n".join(stripped)
+        return f"# PANTHER_NON_CRITICAL_COMMAND\n{body}"
+
     def generate_entrypoint_with_structured_args(
         self,
         service: IServiceManager,
