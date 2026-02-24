@@ -2,7 +2,6 @@
 Run Command - Click Implementation
 
 Execute PANTHER experiments with enhanced user experience and error handling.
-Migrated from argparse to Click with improved validation and feedback.
 """
 
 import datetime
@@ -288,7 +287,6 @@ def run(
         else:
             click.echo(colored("🚀 Executing PANTHER experiment...", "green"))
 
-            # BEHAVIORAL EQUIVALENCE: Use actual ExperimentManager like legacy CLI
             try:
                 from panther.config import GlobalConfig, load_experiment
                 from panther.core.experiment_manager import ExperimentManager

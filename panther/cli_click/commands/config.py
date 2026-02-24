@@ -2,7 +2,6 @@
 Config Command - Click Implementation
 
 Configuration management and validation with enhanced user experience.
-Migrated from argparse to Click with improved validation feedback and templates.
 """
 
 import logging
@@ -19,8 +18,6 @@ from panther.cli_click.core.base import (
     pass_context_and_setup_logging,
     success_message,
 )
-
-# BEHAVIORAL EQUIVALENCE: Add missing core integrations
 from panther.config import ConfigurationManager
 
 # Import ValidationHelper and ExperimentDesigner from legacy CLI backup
@@ -162,7 +159,6 @@ def validate(ctx, config, strict, show_schema, explain, format):
         click.echo(f"⚡ Mode: {colored('STRICT VALIDATION', 'yellow', attrs=['bold'])}")
     click.echo()
 
-    # BEHAVIORAL EQUIVALENCE: Use proper ConfigurationManager validation like legacy CLI
     try:
         import yaml
 
@@ -204,7 +200,6 @@ def validate(ctx, config, strict, show_schema, explain, format):
                 )
             bar.update(1)
 
-            # BEHAVIORAL EQUIVALENCE: Full schema validation using ConfigurationManager
             try:
                 config_loader = ConfigurationManager(
                     experiment_file=str(config_path),
@@ -236,7 +231,6 @@ def validate(ctx, config, strict, show_schema, explain, format):
             except Exception as e:
                 click.echo(f"  ❌ Configuration validation failed: {e}")
 
-                # BEHAVIORAL EQUIVALENCE: Enhanced error explanation if requested
                 if explain:
                     explanation = ValidationHelper.explain_validation_error(e)
                     click.echo(f"\n{explanation}")
@@ -254,7 +248,6 @@ def validate(ctx, config, strict, show_schema, explain, format):
                     click.echo(traceback.format_exc(), err=True)
                 raise click.Abort()
 
-        # BEHAVIORAL EQUIVALENCE: Additional validation with explanation if requested (like legacy)
         if explain:
             valid, explanations = ValidationHelper.validate_with_explanation(
                 config_path
@@ -862,7 +855,6 @@ tests:
         info_message(f"Validate with: panther config validate --config {output}")
         return
 
-    # BEHAVIORAL EQUIVALENCE: Use ExperimentDesigner like legacy CLI
     try:
         designer = ExperimentDesigner(
             output_path=str(output),

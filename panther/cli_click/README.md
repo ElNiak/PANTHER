@@ -286,23 +286,6 @@ def test_workflow():
     assert result.exit_code == 0
 ```
 
-## Migration from Argparse
-
-The Click CLI replaces the previous argparse-based implementation:
-
-### Benefits
-- **Better UX**: Enhanced user experience with visual feedback
-- **Easier Testing**: Click's testing utilities
-- **Better Documentation**: Auto-generated help and documentation
-- **Extensibility**: Easier to add new commands and options
-
-### Backward Compatibility
-- Configuration files remain unchanged
-- Plugin system compatibility maintained
-- Core functionality preserved
-
-For migration details, see [Migration Guide](../../docs/cli_migration_guide.md).
-
 ## Development
 
 ### Adding New Commands
@@ -341,9 +324,6 @@ cli.add_command(my_command)
 ## Documentation
 
 - [CLI Documentation](../../docs/cli_click.md): Comprehensive user guide
-- [Migration Guide](../../docs/cli_migration_guide.md): Migration from old CLI
-- [Examples](../../docs/cli_examples.md): Usage examples and workflows
-- [Quick Reference](../../docs/cli_quick_reference.md): Command reference
 
 ## Contributing
 
