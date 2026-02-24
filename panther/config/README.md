@@ -100,6 +100,8 @@ PANTHER's configuration system implements a sophisticated modular architecture d
 
 #### 1. Configuration Foundation (`core/base.py`)
 
+<!-- src: panther/config/core/base.py -->
+
 The `BaseConfig` class provides the foundation combining:
 - **Pydantic validation** for type safety and schema enforcement
 - **OmegaConf features** for interpolation (`${variable}` syntax) and merging
@@ -108,6 +110,8 @@ The `BaseConfig` class provides the foundation combining:
 
 #### 2. Configuration Manager (`core/manager.py`)
 
+<!-- src: panther/config/core/manager.py -->
+
 The `ConfigurationManager` orchestrates all configuration operations through:
 - **Mixin composition** inheriting from 9 specialized functionality mixins
 - **Multi-stage validation** (schema → business rules → plugin compatibility)
@@ -115,6 +119,8 @@ The `ConfigurationManager` orchestrates all configuration operations through:
 - **Performance optimization** with intelligent caching and lazy loading
 
 #### 3. Specialized Mixins (`core/mixins/`)
+
+<!-- src: panther/config/core/mixins/config_loading.py, panther/config/core/mixins/validation_ops.py, panther/config/core/mixins/config_operations.py, panther/config/core/mixins/environment_handling.py, panther/config/core/mixins/plugin_management.py, panther/config/core/mixins/caching.py, panther/config/core/mixins/state_management.py, panther/config/core/mixins/logging_features.py -->
 
 **Core operational mixins:**
 - `ConfigLoadingMixin` - File/environment loading with hot-reload support
@@ -128,6 +134,8 @@ The `ConfigurationManager` orchestrates all configuration operations through:
 
 #### 4. Functional Components (`core/components/`)
 
+<!-- src: panther/config/core/components/validators.py, panther/config/core/components/builders.py, panther/config/core/components/loaders.py, panther/config/core/components/merger.py, panther/config/core/components/universal_validators.py -->
+
 **Specialized processing units:**
 - `UnifiedValidator` - Combines Pydantic, business rules, and compatibility validation
 - `ExperimentBuilder` - Constructs experiment configurations with intelligent auto-fixing
@@ -135,6 +143,8 @@ The `ConfigurationManager` orchestrates all configuration operations through:
 - `UnifiedMerger` - Sophisticated configuration merging with conflict resolution
 
 #### 5. Type-Safe Models (`core/models/`)
+
+<!-- src: panther/config/core/models/experiment.py, panther/config/core/models/service.py, panther/config/core/models/global_config.py, panther/config/core/models/environment.py, panther/config/core/models/protocol.py, panther/config/core/models/plugin.py, panther/config/core/models/observer.py, panther/config/core/models/command.py, panther/config/core/models/compatibility.py, panther/config/core/models/network_resolution.py, panther/config/core/models/base_model.py -->
 
 **Pydantic model definitions for:**
 - `ExperimentConfig` - Complete test experiment specifications
@@ -529,6 +539,8 @@ panther config validate --config experiment.yaml --strict
 
 #### Validation Results
 
+<!-- src: panther/config/core/components/validators.py, panther/config/core/validators/universal_validators.py -->
+
 Validation provides structured results:
 
 ```python
@@ -646,6 +658,8 @@ This feature helps you understand exactly what parameters are available and requ
 
 #### Using ConfigurationManager
 
+<!-- src: panther/config/core/manager.py -->
+
 The `ConfigurationManager` is the primary interface for all configuration operations:
 
 ```python
@@ -669,6 +683,8 @@ fixed_config = config_manager.load_and_validate_config(
 ```
 
 #### Working with BaseConfig
+
+<!-- src: panther/config/core/base.py -->
 
 For custom configuration classes, extend `BaseConfig` to get hybrid Pydantic/OmegaConf features:
 
@@ -694,6 +710,8 @@ omega_config = config.to_omegaconf()
 ```
 
 #### Creating Custom Validators
+
+<!-- src: panther/config/core/components/validators.py -->
 
 Extend the validation system for domain-specific rules:
 
@@ -744,6 +762,8 @@ class MyPluginConfig:
 
 #### Using Configuration Mixins
 
+<!-- src: panther/config/core/mixins/config_loading.py, panther/config/core/mixins/validation_ops.py -->
+
 Mixins provide focused functionality that can be combined:
 
 ```python
@@ -771,6 +791,8 @@ class MyConfigHandler(ConfigLoadingMixin, ValidationOperationsMixin):
 
 ##### Environment Variable Handling
 
+<!-- src: panther/config/core/mixins/environment_handling.py -->
+
 ```python
 # In YAML configuration
 database:
@@ -788,6 +810,8 @@ config = config_manager.load_with_environment(
 
 ##### Configuration Merging
 
+<!-- src: panther/config/core/components/merger.py, panther/config/core/mixins/config_operations.py -->
+
 ```python
 # Merge multiple configurations
 base_config = config_manager.load_from_file("base.yaml")
@@ -801,6 +825,8 @@ merged = config_manager.merge_configs(
 ```
 
 ##### Caching and Performance
+
+<!-- src: panther/config/core/mixins/caching.py -->
 
 ```python
 # Enable caching for better performance
