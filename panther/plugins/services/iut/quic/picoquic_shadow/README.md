@@ -498,9 +498,9 @@ This plugin integrates with PANTHER's testing infrastructure through:
 
 ## Related Documentation
 
-- [Shadow Network Environment Plugin](panther/plugins/services/iut/environments/network_environment/shadow_ns/README.md)
-- [Picoquic Standard Plugin](panther/plugins/services/iut/quic/picoquic/README.md)
-- [QUIC Protocol Documentation](panther/plugins/protocols/client_server/quic/README.md)
+- [Shadow Network Environment Plugin](../../../../environments/network_environment/shadow_ns/README.md)
+- [Picoquic Standard Plugin](../picoquic/README.md)
+- [QUIC Protocol Documentation](../../../../protocols/client_server/quic/README.md)
 - [Shadow Simulator Documentation](https://shadow.github.io/)
 - [Picoquic Project Repository](https://github.com/private-octopus/picoquic)
 

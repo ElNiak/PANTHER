@@ -170,6 +170,6 @@ python -m pytest panther/plugins/services/iut/http/tests/performance/
 
 ## See Also
 
-- [Services Plugin Documentation](panther/plugins/services/README.md) - Parent plugin system
-- [IUT Development Guide](panther/plugins/services/iut/development.md) - IUT-specific development guidelines
-- [HTTP Protocol Plugin](panther/plugins/protocols/client_server/http/README.md) - HTTP protocol implementation
+- [Services Plugin Documentation](../../README.md) - Parent plugin system
+- [IUT Development Guide](../development.md) - IUT-specific development guidelines
+- [HTTP Protocol Plugin](../../../protocols/client_server/http/README.md) - HTTP protocol implementation

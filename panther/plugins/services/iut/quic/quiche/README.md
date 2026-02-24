@@ -5,7 +5,7 @@
 
 > **Plugin Type**: Service (Implementation Under Test)
 
-> **Parent Plugin**: [QUIC IUT](panther/plugins/services/iut/quic/README.md)
+> **Parent Plugin**: [QUIC IUT](../README.md)
 
 > **Source Location**: `plugins/services/iut/quic/quiche/`
 

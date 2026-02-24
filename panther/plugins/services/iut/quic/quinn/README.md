@@ -569,9 +569,9 @@ services:
 
 ## Related Documentation
 
-- [QUIC Protocol Overview](panther/plugins/services/iut/quic/README.md): General QUIC implementation guide
-- [Rust Integration](panther/plugins/services/iut/quic/docs/rust.md): Rust-specific development patterns
-- [Performance Optimization](panther/plugins/services/iut/quic/docs/performance.md): Tuning strategies
+- [QUIC Protocol Overview](../README.md): General QUIC implementation guide
+- Rust Integration: Rust-specific development patterns
+- Performance Optimization: Tuning strategies
 
 ## References
 

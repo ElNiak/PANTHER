@@ -56,4 +56,4 @@ Balance the number of iterations with time constraints. Consider sampling approa
 
 ## References
 
-- [PANTHER Execution Environment Interface](panther/docs/environments/execution_environment/index.md)
+- PANTHER Execution Environment Interface

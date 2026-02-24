@@ -169,7 +169,7 @@ Practical guides for specific tasks like setup, testing, debugging, and optimiza
 ### 📖 [Reference](api_reference.md) - *Information-oriented*
 Complete API documentation with parameters, return values, and examples.
 
-### 💡 [Explanation](README.md) - *Understanding-oriented*
+### 💡 Explanation - *Understanding-oriented*
 Architecture concepts, design decisions, and integration patterns.
 
 ## Advanced Topics

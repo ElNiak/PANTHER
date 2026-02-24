@@ -133,4 +133,4 @@ Compile with `-O0 -g` flags for optimal Memcheck results. Higher optimization le
 ## References
 
 - [Valgrind Memcheck Documentation](https://valgrind.org/docs/manual/mc-manual.html)
-- [PANTHER Execution Environment Interface](panther/docs/environments/execution_environment/index.md)
+- PANTHER Execution Environment Interface

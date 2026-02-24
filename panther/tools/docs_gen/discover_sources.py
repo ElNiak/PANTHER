@@ -98,6 +98,8 @@ class PantherSourceDiscovery:
             "site",
             "node_modules",
             "docs",
+            "/adr/",
+            "/submodules/",
         }
 
         for readme_path in self.project_root.rglob("README.md"):
@@ -249,6 +251,8 @@ class PantherSourceDiscovery:
         # Special cases for important files
         if relative_path == "README.md":
             return "docs/index.md"
+        elif relative_path == "panther/README.md":
+            return "docs/panther_overview.md"
         elif relative_path == "QUICK_START.md":
             return "docs/QUICK_START.md"
         elif relative_path == "INSTALL.md":

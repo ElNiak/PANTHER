@@ -5,7 +5,7 @@
 
 > **Plugin Type**: Service (Implementation Under Test)
 
-> **Parent Plugin**: [QUIC IUT](panther/plugins/services/iut/quic/README.md)
+> **Parent Plugin**: [QUIC IUT](../README.md)
 
 > **Source Location**: `plugins/services/iut/quic/mvfst/`
 
@@ -432,8 +432,8 @@ config:
 
 ## See Also
 
-- [QUIC IUT Plugin](panther/plugins/services/iut/quic/README.md) - Parent plugin documentation
-- [QUIC Protocol Plugin](panther/plugins/services/protocols/client_server/quic/README.md) - QUIC protocol implementation
-- [Picoquic Plugin](panther/plugins/services/iut/quic/picoquic/README.md) - Alternative QUIC implementation
-- [Quiche Plugin](panther/plugins/services/iut/quic/quiche/README.md) - Rust-based QUIC implementation
-- [Service Plugin Development Guide](panther/plugins/services/iut/development.md) - General development guidelines
+- [QUIC IUT Plugin](../README.md) - Parent plugin documentation
+- [QUIC Protocol Plugin](../../../../protocols/client_server/quic/README.md) - QUIC protocol implementation
+- [Picoquic Plugin](../picoquic/README.md) - Alternative QUIC implementation
+- [Quiche Plugin](../quiche/README.md) - Rust-based QUIC implementation
+- [Service Plugin Development Guide](../../development.md) - General development guidelines

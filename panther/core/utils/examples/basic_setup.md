@@ -518,4 +518,4 @@ if __name__ == "__main__":
     main()
 ```
 
-These examples cover the most common usage patterns for PANTHER core utilities. Copy and modify them for your specific use cases. For more advanced scenarios, see the [Advanced Configuration Examples](advanced_config.md).
+These examples cover the most common usage patterns for PANTHER core utilities. Copy and modify them for your specific use cases. For more advanced scenarios, see the Advanced Configuration Examples.

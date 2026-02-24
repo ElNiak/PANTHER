@@ -211,9 +211,9 @@ _resolve_single_placeholder()
 
 | Plugin | Description | Documentation |
 |--------|-------------|---------------|
-| docker_compose | Multi-container Docker environments | [Documentation](panther/plugins/environments/network_environment/docker_compose/README.md) |
-| shadow_ns | Network namespace-based simulation | [Documentation](panther/plugins/environments/network_environment/shadow_ns/README.md) |
-| localhost_single_container | Single container localhost deployment | [Documentation](panther/plugins/environments/network_environment/localhost_single_container/README.md) |
+| docker_compose | Multi-container Docker environments | [Documentation](docker_compose/README.md) |
+| shadow_ns | Network namespace-based simulation | [Documentation](shadow_ns/README.md) |
+| localhost_single_container | Single container localhost deployment | [Documentation](localhost_single_container/README.md) |
 
 ## Common Configuration
 
@@ -344,4 +344,4 @@ class NetworkEnvironment(BaseNetworkEnvironment, EnvironmentManagerDockerMixin):
 
 ## Development
 
-To create a new network environment plugin, see the [Adding Network Environment](panther/plugins/ADDING_NET_ENV.md) guide.
+To create a new network environment plugin, see the Adding Network Environment guide.

@@ -14,7 +14,7 @@ Testing tools that use formal methods and mathematical verification to validate 
 
 | Tester | Purpose | Technology | Documentation |
 |---------|---------|------------|---------------|
-| **Panther Ivy** | Specification-based testing and formal verification | Microsoft Ivy framework | [Documentation](panther/plugins/services/testers/panther_ivy/README.md) |
+| **Panther Ivy** | Specification-based testing and formal verification | Microsoft Ivy framework | [Documentation](panther_ivy/README.md) |
 
 ## Quick Start
 
@@ -441,8 +441,8 @@ testers:
 
 ## Related Documentation
 
-- [Service Plugin Overview](panther/plugins/services/README.md): General service plugin architecture
-- [Protocol Plugins](panther/plugins/protocols/README.md): Protocol-specific testing
+- [Service Plugin Overview](../README.md): General service plugin architecture
+- [Protocol Plugins](../../protocols/README.md): Protocol-specific testing
 
 ## References
 

@@ -100,4 +100,4 @@ IUT plugins integrate with:
 
 ## Development
 
-To create a new IUT plugin, see the [Adding IUT](panther/plugins/services/iut/development.md) guide.
+To create a new IUT plugin, see the [Adding IUT](development.md) guide.

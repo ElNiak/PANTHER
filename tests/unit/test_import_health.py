@@ -23,9 +23,8 @@ class TestImportHealth:
         modules_to_test = [
             "panther.core.docker_builder.docker_builder",
             "panther.core.experiment_manager",
-            "panther.config.config_manager",
+            "panther.config.core.manager",
             "panther.plugins.plugin_manager",
-            "panther.config.config_experiment_schema",
         ]
 
         for module_name in modules_to_test:

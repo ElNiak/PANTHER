@@ -95,4 +95,4 @@ Some custom synchronization mechanisms may trigger false positives. Consider usi
 ## References
 
 - [Valgrind Helgrind Documentation](https://valgrind.org/docs/manual/hg-manual.html)
-- [PANTHER Execution Environment Interface](panther/docs/environments/execution_environment/index.md)
+- PANTHER Execution Environment Interface

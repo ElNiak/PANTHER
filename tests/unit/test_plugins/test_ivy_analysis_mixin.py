@@ -6,9 +6,11 @@ import tempfile
 
 import pytest
 
-from panther.plugins.services.testers.panther_ivy.ivy_analysis_mixin import (
-    IvyAnalysisMixin,
+ivy_analysis = pytest.importorskip(
+    "panther.plugins.services.testers.panther_ivy.ivy_analysis_mixin",
+    reason="panther_ivy submodule not available",
 )
+IvyAnalysisMixin = ivy_analysis.IvyAnalysisMixin
 
 
 class ConcreteIvyAnalyzer(IvyAnalysisMixin):

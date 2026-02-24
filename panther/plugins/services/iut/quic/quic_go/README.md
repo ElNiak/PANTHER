@@ -508,9 +508,9 @@ services:
 
 ## Related Documentation
 
-- [QUIC Protocol Overview](panther/plugins/services/iut/quic/README.md): General QUIC implementation guide
-- [HTTP/3 Integration](panther/plugins/services/iut/quic/docs/http3.md): HTTP/3 over QUIC guidance
-- [Performance Optimization](panther/plugins/services/iut/quic/docs/performance.md): Tuning strategies
+- [QUIC Protocol Overview](../README.md): General QUIC implementation guide
+- HTTP/3 Integration: HTTP/3 over QUIC guidance
+- Performance Optimization: Tuning strategies
 
 ## References
 

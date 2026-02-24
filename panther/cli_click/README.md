@@ -323,7 +323,7 @@ cli.add_command(my_command)
 
 ## Documentation
 
-- [CLI Documentation](../../docs/cli_click.md): Comprehensive user guide
+- CLI Documentation: Comprehensive user guide
 
 ## Contributing
 
@@ -350,7 +350,7 @@ Planned improvements:
 For CLI support:
 
 - Use `panther --help` for command help
-- Check [documentation](../../docs/cli_click.md)
+- Check documentation
 - Run `panther tools doctor` for diagnostics
 - Use `panther tutorial interactive` for learning
 - Report issues on [GitHub](https://github.com/ElNiak/PANTHER/issues)

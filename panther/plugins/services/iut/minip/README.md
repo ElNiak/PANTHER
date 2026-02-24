@@ -167,5 +167,5 @@ tests:
 
 ## References
 
-- [MinIP Protocol Documentation](panther/plugins/protocols/client_server/minip/README.md)
-- [PANTHER Service Development Guide](panther/plugins/services/development.md)
+- [MinIP Protocol Documentation](../../../protocols/client_server/minip/README.md)
+- [PANTHER Service Development Guide](../../development.md)

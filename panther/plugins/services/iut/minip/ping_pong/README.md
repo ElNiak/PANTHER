@@ -5,7 +5,7 @@
 
 > **Plugin Type**: Service (Implementation Under Test)
 
-> **Parent Plugin**: [MinIP IUT](panther/plugins/services/iut/minip/README.md)
+> **Parent Plugin**: [MinIP IUT](../README.md)
 
 > **Source Location**: `plugins/services/iut/minip/ping_pong/`
 
@@ -208,6 +208,6 @@ For more detailed debugging, enable verbose logging in the service configuration
 
 ## See Also
 
-- [MinIP IUT Plugin](panther/plugins/services/iut/minip/README.md) - Parent plugin documentation
-- [Service Plugin Development Guide](panther/plugins/services/iut/development.md) - General development guidelines
-- [IUT Plugin Development Guide](panther/plugins/services/iut/minip/development_iut.md) - IUT-specific development guidelines
+- [MinIP IUT Plugin](../README.md) - Parent plugin documentation
+- [Service Plugin Development Guide](../../development.md) - General development guidelines
+- IUT Plugin Development Guide - IUT-specific development guidelines

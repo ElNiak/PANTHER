@@ -692,6 +692,6 @@ class CustomProfiling(IExecutionEnvironment):
 
 ---
 
-For detailed plugin development information, see [Plugin Development Guide](PLUGIN_GUIDE.md).
-For service configuration, see [Service Modules](service_modules.md).
-For network environments, see [Network Environment Modules](network_environment_modules.md).
+For detailed plugin development information, see Plugin Development Guide.
+For service configuration, see Service Modules.
+For network environments, see Network Environment Modules.

@@ -366,8 +366,8 @@ You now understand the core concepts:
 5. **File Output**: Persistent logging with different console/file levels
 
 For advanced usage, see:
-- [Developer Guide](DEVELOPER_GUIDE.md) for extending the utilities
-- [API Reference](api_reference.md) for complete method documentation
-- [README](README.md) for architecture details and integration patterns
+- Developer Guide for extending the utilities
+- API Reference for complete method documentation
+- README for architecture details and integration patterns
 
 Try experimenting with your own components and see how the feature detection works!

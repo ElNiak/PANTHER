@@ -34,6 +34,8 @@ def get_template_path():
 def env():
     """Create a Jinja2 environment with the necessary filters"""
     template_dir = get_template_path()
+    if not os.path.isdir(template_dir) or not os.listdir(template_dir):
+        pytest.skip("panther_ivy templates directory not available")
     env = Environment(loader=FileSystemLoader(template_dir), autoescape=False)
     # Register the essential filters for proper escaping
     env.filters["quote_shell"] = lambda s: shlex.quote(str(s))

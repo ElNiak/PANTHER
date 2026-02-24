@@ -572,7 +572,7 @@ def test_service_execution():
 
 ### 7. Document Your Service
 
-Create a README.md file using the [plugin template](panther/plugins/plugin_template.md) that includes:
+Create a README.md file using the [plugin template](../plugin_template.md) that includes:
 
 - Service purpose and capabilities
 - Configuration options and examples

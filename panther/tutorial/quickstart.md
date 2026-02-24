@@ -518,9 +518,9 @@ Now that you've successfully run your first PANTHER experiment, explore these ad
 
 1. **[Plugin Development Guide](../plugins/development.md)** - Create custom plugins
 2. **[Advanced Configuration](../config/README.md)** - Comprehensive configuration options
-3. **[Performance Testing](../docs/performance_testing.md)** - Optimize experiment performance
-4. **[CI/CD Integration](../docs/ci_cd_integration.md)** - Automate testing workflows
-5. **[Troubleshooting Guide](../docs/troubleshooting.md)** - Common issues and solutions
+3. **Performance Testing** - Optimize experiment performance
+4. **CI/CD Integration** - Automate testing workflows
+5. **Troubleshooting Guide** - Common issues and solutions
 
 ### Community and Support
 

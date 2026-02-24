@@ -12,7 +12,7 @@ Comprehensive development documentation for each plugin category:
 - **[Service Plugin Development](services/development.md)**: Creating IUT and tester plugins
 - **[Protocol Plugin Development](protocols/development.md)**: Adding protocol support
 - **[Environment Plugin Development](environments/development.md)**: Environment management plugins
-- **[General Plugin Development](development.md)**: Common plugin development patterns
+- **General Plugin Development**: Common plugin development patterns
 
 ## Modern Inheritance-Based Architecture (2024)
 

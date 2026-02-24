@@ -376,9 +376,9 @@ python analyze_quant_logs.py /debug/trace.qlog
 
 ## Related Documentation
 
-- [QUIC Protocol Overview](panther/plugins/services/iut/quic/README.md): General QUIC implementation guide
-- [Research Methodologies](panther/plugins/services/iut/quic/docs/research.md): Research best practices
-- [Protocol Extensions](panther/plugins/services/iut/quic/docs/extensions.md): Extension development guide
+- [QUIC Protocol Overview](../README.md): General QUIC implementation guide
+- Research Methodologies: Research best practices
+- Protocol Extensions: Extension development guide
 
 ## References
 

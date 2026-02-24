@@ -69,7 +69,7 @@ Tester plugins provide mechanisms for evaluating implementations, generating tes
 
 | Tester | Purpose | Documentation |
 |--------|---------|---------------|
-| panther_ivy | Formal verification and conformance testing | [Documentation](panther/plugins/services/testers/panther_ivy/README.md) |
+| panther_ivy | Formal verification and conformance testing | [Documentation](testers/panther_ivy/README.md) |
 
 ## Quick Start
 
@@ -192,6 +192,6 @@ Tester services additionally support:
 
 For information on creating new service plugins, see:
 
-- **[Service Plugin Development Guide](panther/plugins/services/development.md)**: Comprehensive development documentation
-- **[IUT Development Guide](panther/plugins/services/iut/development.md)**: Creating new IUT plugins
-- **[Plugin Interface Documentation](panther/plugins/development.md)**: Base interface requirements
+- **[Service Plugin Development Guide](development.md)**: Comprehensive development documentation
+- **[IUT Development Guide](iut/development.md)**: Creating new IUT plugins
+- **[Plugin Interface Documentation](../development.md)**: Base interface requirements

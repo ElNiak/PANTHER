@@ -97,8 +97,8 @@ PANTHER uses a hierarchical plugin system:
 The plugin system provides dynamic loading and lifecycle management:
 
 - **Plugin Loader**: Dynamic plugin discovery and loading (see `core/plugin_loader_utils.py`)
-- **[Plugin Manager](plugin_manager.py)**: Plugin lifecycle and dependency management
-- **[Plugin Interface](plugin_interface.py)**: Base interfaces and contracts
+- **Plugin Manager**: Plugin lifecycle and dependency management
+- **Plugin Interface**: Base interfaces and contracts
 
 ## Plugin Categories
 

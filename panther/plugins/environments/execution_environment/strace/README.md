@@ -78,4 +78,4 @@ Filter system calls to only trace those relevant to your analysis by populating 
 ## References
 
 - [strace Manual](https://strace.io/)
-- [PANTHER Execution Environment Interface](panther/docs/environments/execution_environment/index.md)
+- PANTHER Execution Environment Interface

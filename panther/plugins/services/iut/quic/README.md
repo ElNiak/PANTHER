@@ -185,9 +185,9 @@ tests:
 
 QUIC implementations integrate seamlessly with:
 
-- **[Network Environments](../../environments/network_environment/README.md)** - Docker Compose, localhost, Shadow NS
-- **[Execution Environments](../../environments/execution_environment/README.md)** - Performance profiling, system call tracing
-- **[Formal Testing](../testers/README.md)** - Ivy formal verification integration
+- **[Network Environments](../../../environments/network_environment/README.md)** - Docker Compose, localhost, Shadow NS
+- **[Execution Environments](../../../environments/execution_environment/README.md)** - Performance profiling, system call tracing
+- **[Formal Testing](../../testers/README.md)** - Ivy formal verification integration
 - **[Core Framework](../../../../core/README.md)** - Event system and metrics collection
 
 ## Migration Guide
