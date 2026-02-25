@@ -925,21 +925,42 @@ class BuildManager:
             # Generate coverage report for mkdocs-coverage plugin
             htmlcov_dir = self.project_root / "htmlcov"
             if not htmlcov_dir.exists():
-                print("Generating coverage report...")
-                self.run_command(
-                    [
-                        sys.executable,
-                        "-m",
-                        "pytest",
-                        "tests/",
-                        "-m",
-                        "unit",
-                        "--cov=panther",
-                        "--cov-report=html",
-                        "-q",
-                        "--no-header",
-                    ]
+                # Check if pytest is available before attempting coverage generation
+                result = subprocess.run(
+                    [sys.executable, "-c", "import pytest"],
+                    capture_output=True,
                 )
+                if result.returncode == 0:
+                    print("Generating coverage report...")
+                    self.run_command(
+                        [
+                            sys.executable,
+                            "-m",
+                            "pytest",
+                            "tests/",
+                            "-m",
+                            "unit",
+                            "--cov=panther",
+                            "--cov-report=html",
+                            "-q",
+                            "--no-header",
+                        ]
+                    )
+                else:
+                    print(
+                        "Skipping coverage report: pytest not installed"
+                        " (install with pip install -e '.[tests]')"
+                    )
+                    # Create minimal htmlcov so mkdocs-coverage plugin
+                    # doesn't warn in strict mode
+                    htmlcov_dir.mkdir(exist_ok=True)
+                    placeholder = htmlcov_dir / "index.html"
+                    if not placeholder.exists():
+                        placeholder.write_text(
+                            "<html><body><p>Coverage report not available."
+                            " Install test dependencies to generate."
+                            "</p></body></html>"
+                        )
 
             # Build documentation with MkDocs
             print("Building documentation with MkDocs...")
