@@ -22,7 +22,7 @@ REPOS = {
         "script": "scripts/bump_version.py",
     },
     "ivy-lsp": {
-        "path": "panther/plugins/services/testers/panther_ivy/ivy_lsp",
+        "path": "panther/plugins/services/testers/panther_ivy/submodules/ivy_lsp",
         "script": "scripts/bump_version.py",
     },
     "vscode-ivy": {
@@ -33,8 +33,8 @@ REPOS = {
         "path": "panther/plugins/services/testers/panther_ivy/submodules/panther-serena",
         "script": "scripts/bump_version.py",
     },
-    "panther-ivy-serena": {
-        "path": "panther-ivy-serena",
+    "panther-ivy-plugin": {
+        "path": "panther/plugins/services/testers/panther_ivy/submodules/panther-ivy-plugin",
         "script": "scripts/bump_version.py",
     },
 }
