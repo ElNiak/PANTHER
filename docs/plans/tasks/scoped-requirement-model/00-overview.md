@@ -44,17 +44,17 @@
 | 13 | [Scoped NCT Counts](./13-scoped-nct-counts.md) | pending | modify `test_scope.py`, extend `test_scoped_requirement_model.py` |
 | 14 | [NCT Code Lens Labels](./14-nct-code-lens-labels.md) | pending | modify `code_lens.py`, extend `test_scoped_code_lens.py` |
 | 15 | [Diagnostic Refresh on setActiveTest](./15-diagnostic-refresh.md) | pending | modify `commands.py`, extend `test_active_test_commands.py` |
-| 16 | [activeDocumentChanged Handler](./16-active-document-changed.md) | pending | modify `commands.py`, extend `test_active_test_commands.py` |
+| 16 | [activeDocumentChanged Handler](./16-active-document-changed.md) | done | modify `commands.py`, extend `test_active_test_commands.py` |
 
 ### Phase 3: VSCode Extension (Tasks 17-21)
 
 | # | Task | Status | Files |
 |---|------|--------|-------|
-| 17 | [VSCode package.json Updates](./17-vscode-package-json.md) | pending | modify `package.json`, extend tests |
-| 18 | [VSCode Test Scope Module](./18-vscode-test-scope-module.md) | pending | create `src/testScope.ts` |
-| 19 | [VSCode Extension Wiring](./19-vscode-extension-wiring.md) | pending | modify `src/extension.ts` |
-| 20 | [VSCode Scoping Tests](./20-vscode-scoping-tests.md) | pending | extend test suites, create `testScope.test.ts` |
-| 21 | [VSCode Version Bump](./21-vscode-version-bump.md) | pending | modify `package.json` |
+| 17 | [VSCode package.json Updates](./17-vscode-package-json.md) | done | modify `package.json`, extend tests |
+| 18 | [VSCode Test Scope Module](./18-vscode-test-scope-module.md) | done | create `src/testScope.ts` |
+| 19 | [VSCode Extension Wiring](./19-vscode-extension-wiring.md) | done | modify `src/extension.ts` |
+| 20 | [VSCode Scoping Tests](./20-vscode-scoping-tests.md) | done | extend test suites, create `testScope.test.ts` |
+| 21 | [VSCode Version Bump](./21-vscode-version-bump.md) | done | modify `package.json`, `CHANGELOG.md` |
 
 ### Phase 4: Release (Task 22)
 
