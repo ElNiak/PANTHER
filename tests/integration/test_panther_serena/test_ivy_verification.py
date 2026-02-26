@@ -123,6 +123,30 @@ class TestIvyCompile:
         )
         assert response is not None, "No response from ivy_compile"
 
+        if "error" in response:
+            error_msg = str(response.get("error", ""))
+            if "ivy" in error_msg.lower() or "not found" in error_msg.lower():
+                pytest.skip(f"Ivy compiler not available: {error_msg[:200]}")
+
+    def test_ivy_compile_nonexistent_file(self, mcp_server, tmp_path):
+        """Compile a file that doesn't exist - should return an error."""
+        fake_path = str(tmp_path / "nonexistent.ivy")
+        response = mcp_server.call_tool(
+            "ivy_compile",
+            {"file_path": fake_path, "target": "test"},
+        )
+        assert response is not None, "No response from ivy_compile"
+
+        has_error = "error" in response
+        result_text = str(response.get("result", {}).get("content", ""))
+        has_error_in_content = any(
+            kw in result_text.lower()
+            for kw in ("error", "not found", "no such file", "fail")
+        )
+        assert (
+            has_error or has_error_in_content
+        ), f"Expected error for nonexistent file, got: {response}"
+
 
 class TestIvyModelInfo:
     """Test ivy_model_info tool invocation."""
