@@ -137,15 +137,23 @@ def bump(
 ) -> None:
     print(f"\nBumping to {new_version}:")
     files_changed = []
+    files_failed = []
     for entry in VERSION_FILES:
         filepath, handler_type = entry[0], entry[1]
         args = list(entry[2:])
         if update_file(filepath, handler_type, args, new_version, dry_run):
             files_changed.append(filepath)
+        else:
+            files_failed.append(filepath)
 
     if dry_run:
         print("\nDry run complete. No files modified.")
         return
+
+    if files_failed:
+        print(f"\nERROR: Failed to update: {', '.join(files_failed)}")
+        print("Aborting -- no commit created to avoid inconsistent state.")
+        sys.exit(1)
 
     if not files_changed:
         print("\nNo files were updated.")
@@ -163,9 +171,9 @@ def bump(
         subprocess.run(["git", "tag", tag], check=True)
         print(f"\nCreated tag {tag}. Run:\n  git push && git push origin {tag}")
     elif not no_commit:
-        print(f"\nCommitted. Tag skipped (--no-tag).")
+        print("\nCommitted. Tag skipped (--no-tag).")
     else:
-        print(f"\nFiles updated. Commit and tag skipped.")
+        print("\nFiles updated. Commit and tag skipped.")
 
 
 def main() -> None:
