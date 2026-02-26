@@ -180,6 +180,7 @@ def register_commands():
         ("admin", "panther.cli_click.commands.admin", "admin"),
         ("check", "panther.cli_click.commands.check", "check"),
         ("metrics", "panther.cli_click.commands.metrics", "metrics"),
+        ("ivy", "panther.cli_click.commands.ivy", "ivy"),
     ]
 
     missing_commands = []
