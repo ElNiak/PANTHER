@@ -42,21 +42,21 @@ REPOS = {
 
 def bump_repo(
     name: str, info: dict, version_arg: str, extra_args: list[str]
-) -> bool:
+) -> str:
+    """Returns 'OK', 'SKIP', or 'FAIL'."""
     repo_path = Path(info["path"])
     script_full = repo_path / info["script"]
     if not script_full.exists():
         print(f"  SKIP {name}: {script_full} not found")
-        return False
+        return "SKIP"
 
-    # Use script path relative to repo since cwd is set to repo_path
     cmd = [sys.executable, info["script"], version_arg] + extra_args
     print(f"\n{'=' * 60}")
     print(f"  Bumping: {name} ({repo_path})")
     print(f"  Command: {' '.join(cmd)}")
     print(f"{'=' * 60}")
     result = subprocess.run(cmd, cwd=repo_path)
-    return result.returncode == 0
+    return "OK" if result.returncode == 0 else "FAIL"
 
 
 def main() -> None:
@@ -101,14 +101,16 @@ def main() -> None:
 
     results = {}
     for name in targets:
-        ok = bump_repo(name, REPOS[name], args.version, extra)
-        results[name] = "OK" if ok else "FAIL"
+        results[name] = bump_repo(name, REPOS[name], args.version, extra)
 
     print(f"\n{'=' * 60}")
     print("Summary:")
     for name, status in results.items():
         print(f"  {name:20s} {status}")
     print(f"{'=' * 60}")
+
+    if any(s == "FAIL" for s in results.values()):
+        sys.exit(1)
 
 
 if __name__ == "__main__":
