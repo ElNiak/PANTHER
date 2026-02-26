@@ -43,27 +43,36 @@ class MCPClient:
         """Read a JSON-RPC response from stdout.
 
         Handles both newline-delimited JSON and Content-Length framing.
+        Returns None on timeout. Logs diagnostics for parse failures.
         """
         import select
+        import sys
 
         assert self._process.stdout is not None
         stdout = self._process.stdout
         start = time.monotonic()
-        buffer = ""
 
         while time.monotonic() - start < timeout:
-            # Check if there's data available
             if hasattr(stdout, "fileno"):
                 try:
                     ready, _, _ = select.select([stdout], [], [], 0.5)
                     if not ready:
                         continue
                 except (ValueError, OSError):
+                    if self._process.poll() is not None:
+                        print(
+                            f"[MCPClient] Server process exited "
+                            f"(rc={self._process.returncode})",
+                            file=sys.stderr,
+                        )
+                        return None
                     time.sleep(0.1)
                     continue
 
             line = stdout.readline()
             if not line:
+                if self._process.poll() is not None:
+                    return None
                 time.sleep(0.1)
                 continue
 
@@ -71,23 +80,31 @@ class MCPClient:
             if not line:
                 continue
 
-            # Check for Content-Length header
             if line.startswith("Content-Length:"):
-                length = int(line.split(":")[1].strip())
-                # Read blank line separator
-                stdout.readline()
-                # Read exact content
+                try:
+                    length = int(line.split(":", 1)[1].strip())
+                except ValueError:
+                    print(
+                        f"[MCPClient] Bad Content-Length: {line!r}",
+                        file=sys.stderr,
+                    )
+                    continue
+                stdout.readline()  # blank separator
                 content = stdout.read(length)
                 try:
                     return json.loads(content)
                 except json.JSONDecodeError:
+                    print(
+                        f"[MCPClient] Malformed JSON after Content-Length: "
+                        f"{content[:200]!r}",
+                        file=sys.stderr,
+                    )
                     continue
             else:
-                # Try as newline-delimited JSON
                 try:
                     return json.loads(line)
                 except json.JSONDecodeError:
-                    buffer += line
+                    # Non-JSON line (server log, banner, etc.) -- skip
                     continue
 
         return None
