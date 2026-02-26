@@ -2,7 +2,7 @@
 
 These tests verify that the Ivy Language Server Protocol integration works
 through the standard Serena navigation tools (find_symbol, get_symbols_overview,
-find_referencing_symbols).
+find_referencing_symbols, search_for_pattern).
 
 Requirements:
 - panther-serena MCP server running (via mcp_server fixture)

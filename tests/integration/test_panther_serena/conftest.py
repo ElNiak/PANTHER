@@ -4,6 +4,7 @@ Provides an MCP server session fixture that starts panther-serena via stdio
 transport and exposes a JSON-RPC client for tool invocations.
 
 Set PANTHER_SERENA_LOCAL=/path/to/local/clone for local development testing.
+Set MCP_STARTUP_TIMEOUT=N (default 30) to adjust server startup timeout.
 """
 
 from __future__ import annotations
@@ -289,7 +290,7 @@ def mcp_tool_names(mcp_tools) -> set[str]:
 
 @pytest.fixture
 def ivy_spec_dir():
-    """Path to the QUIC protocol-testing Ivy specs in the panther_ivy submodule."""
+    """Path to an Ivy spec directory in the panther_ivy submodule (prefers QUIC, falls back to APT/minip)."""
     base = Path(__file__).parents[3]
     candidates = [
         base
@@ -330,7 +331,7 @@ def ivy_spec_path(ivy_spec_dir):
 
 @pytest.fixture
 def ivy_type_spec_path():
-    """Path to a type definition .ivy file (smaller, simpler)."""
+    """Path to a type-definition .ivy file for tests that need a lightweight spec."""
     base = Path(__file__).parents[3]
     candidates = [
         base
