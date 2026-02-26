@@ -924,10 +924,14 @@ class BuildManager:
 
             # Generate coverage report for mkdocs-coverage plugin
             htmlcov_dir = self.project_root / "htmlcov"
-            if not htmlcov_dir.exists():
-                # Check if pytest is available before attempting coverage generation
+            placeholder = htmlcov_dir / "index.html"
+            has_real_coverage = htmlcov_dir.exists() and not (
+                placeholder.exists()
+                and "Coverage report not available" in placeholder.read_text()
+            )
+            if not has_real_coverage:
                 result = subprocess.run(
-                    [sys.executable, "-c", "import pytest"],
+                    [sys.executable, "-c", "import pytest; import pytest_cov"],
                     capture_output=True,
                 )
                 if result.returncode == 0:
@@ -948,13 +952,10 @@ class BuildManager:
                     )
                 else:
                     print(
-                        "Skipping coverage report: pytest not installed"
+                        "Skipping coverage report: pytest/pytest-cov not installed"
                         " (install with pip install -e '.[tests]')"
                     )
-                    # Create minimal htmlcov so mkdocs-coverage plugin
-                    # doesn't warn in strict mode
                     htmlcov_dir.mkdir(exist_ok=True)
-                    placeholder = htmlcov_dir / "index.html"
                     if not placeholder.exists():
                         placeholder.write_text(
                             "<html><body><p>Coverage report not available."
