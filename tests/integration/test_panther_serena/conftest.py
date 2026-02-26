@@ -212,8 +212,8 @@ class MCPClient:
 
 
 @pytest.fixture(scope="session")
-def mcp_server():
-    """Start panther-serena MCP server, yield MCPClient, kill on teardown."""
+def mcp_server(tmp_path_factory):
+    """Start panther-serena MCP server via stdio, yield MCPClient, kill on teardown."""
     if PANTHER_SERENA_LOCAL:
         cmd = ["uvx", "--from", PANTHER_SERENA_LOCAL, "serena", "run"]
     else:
@@ -225,39 +225,51 @@ def mcp_server():
             "run",
         ]
 
+    # Redirect stderr to file to prevent pipe buffer deadlock
+    stderr_log = tmp_path_factory.mktemp("mcp") / "stderr.log"
+    stderr_file = open(stderr_log, "w")
+
     try:
         process = subprocess.Popen(
             cmd,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stderr=stderr_file,
             text=True,
             bufsize=1,
         )
     except FileNotFoundError:
+        stderr_file.close()
         pytest.skip("uvx not found - cannot start panther-serena MCP server")
 
-    # Give server time to start
     time.sleep(2)
 
     if process.poll() is not None:
-        stderr = process.stderr.read() if process.stderr else ""
-        pytest.skip(f"panther-serena MCP server failed to start: {stderr[:500]}")
+        stderr_file.close()
+        stderr_content = stderr_log.read_text()[:500]
+        pytest.skip(f"panther-serena MCP server failed to start: {stderr_content}")
 
     client = MCPClient(process)
 
-    # Initialize handshake
     init_response = client.initialize()
     if init_response is None:
-        process.kill()
-        process.wait()
+        try:
+            process.kill()
+            process.wait(timeout=5)
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+        stderr_file.close()
         pytest.skip("panther-serena MCP server did not respond to initialize")
 
     yield client
 
     # Teardown
-    process.kill()
-    process.wait(timeout=5)
+    try:
+        process.kill()
+        process.wait(timeout=5)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    stderr_file.close()
 
 
 @pytest.fixture(scope="session")
