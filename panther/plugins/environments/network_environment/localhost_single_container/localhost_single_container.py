@@ -588,12 +588,11 @@ class LocalhostSingleContainerEnvironment(
         return True
 
     def _get_service_log_directory(self, service_name: str) -> Path:
-        """
-        Localhost container uses shared logs directory.
+        """Return the service-specific log directory path.
 
-        Try service-specific directory first, fall back to shared logs.
+        Always returns ``<output_dir>/logs/<service_name>`` (directory may
+        not exist yet on disk).
         """
-        # Try service-specific directory first
         service_dir = Path(self.output_dir) / "logs" / service_name
         return service_dir
 
