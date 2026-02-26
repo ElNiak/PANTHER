@@ -34,6 +34,10 @@ class MCPClient:
 
     def _send(self, message: dict) -> None:
         """Send a JSON-RPC message to the server's stdin."""
+        if not self.is_alive:
+            raise RuntimeError(
+                f"MCP server process has terminated " f"(rc={self._process.returncode})"
+            )
         assert self._process.stdin is not None
         data = json.dumps(message) + "\n"
         self._process.stdin.write(data)
@@ -165,11 +169,19 @@ class MCPClient:
         )
 
         response = self._read_response(timeout=15.0)
-        if response and "result" in response:
-            tools: list[dict] = response["result"].get("tools", [])
-            self._tools = tools
-            return tools
-        return []
+        if response is None:
+            return []
+        if "error" in response:
+            import sys
+
+            print(
+                f"[MCPClient] tools/list error: {response['error']}",
+                file=sys.stderr,
+            )
+            return []
+        tools: list[dict] = response.get("result", {}).get("tools", [])
+        self._tools = tools
+        return tools
 
     def call_tool(self, name: str, arguments: dict | None = None) -> dict | None:
         """Invoke a tool by name with the given arguments."""
