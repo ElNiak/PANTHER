@@ -1,17 +1,34 @@
 # Task 12: Integration Regression Tests
 
-**Status:** pending
-**Depends on:** Task 5, Task 6, Task 8, Task 9
+> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+
+**Goal:** Verify the original triple-counting bug is fixed end-to-end with a realistic QUIC workspace scenario.
+
+**Architecture:** A single test class builds a `ScopedRequirementModel` mimicking a real QUIC workspace with two test files sharing include files. Seven test methods verify that all three sources of triple-counting are eliminated.
+
+**Tech Stack:** Python 3.10+, pytest, dataclasses. No new dependencies.
+
+**Status:** pending (reviewed 2026-02-26 — all assertions verified against actual API)
+**Depends on:** Task 5, Task 6, Task 8, Task 9 (all completed)
 
 **Files:**
 - Create: `tests/test_scoped_integration.py`
 
-**Purpose:** Verify the original triple-counting bug is fixed end-to-end.
+**Base path for all files:** `panther/plugins/services/testers/panther_ivy/submodules/ivy-lsp/`
+
+**Test runner:** `cd panther/plugins/services/testers/panther_ivy/submodules/ivy-lsp && python -m pytest tests/<file> -v`
 
 **Three sources of triple-counting this eliminates:**
 1. Include-chain duplication: same requirement counted via multiple include paths
 2. Cross-test pollution: requirement counted in tests that don't export the action
 3. Semantic duplication: same requirement listed under workspace-wide and per-file views
+
+**API verification notes (2026-02-26):**
+- `ScopedRequirementModel.get_scoped_requirements(test_file)` filters by `include_closure` AND `exported_actions` — confirmed at `test_scope.py:153-157`
+- `get_scoped_counts(test_file, action)` returns `Dict[str, int]` keyed by kind — confirmed at `test_scope.py:161-169`
+- `get_tests_for_file(filepath)` returns `Set[str]` from reverse index — confirmed at `test_scope.py:144-145`
+- `get_requirements_for_action(action)` is inherited (unscoped) from `RequirementGraph` — confirmed via `test_scoped_requirement_model.py:67`
+- `RequirementNode` fields: `id`, `kind`, `formula_text`, `line`, `col`, `file`, `monitor_action`, `mixin_kind` — confirmed via existing test helper
 
 ---
 
