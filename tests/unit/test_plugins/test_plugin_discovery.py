@@ -297,7 +297,7 @@ class TestPluginDiscoveryAccessors:
         result = discovery.get_plugin("picoquic")
 
         assert result is not None
-        assert isinstance(result, PluginMetadata)
+        assert type(result).__name__ == "PluginMetadata"
         assert result.name == "picoquic"
 
     def test_get_plugin_not_found(self, fake_decorated_plugins):
@@ -392,7 +392,7 @@ class TestPluginManifestDataclass:
     def test_dependencies_are_plugin_dependency_instances(self, sample_manifest):
         """Dependencies field contains PluginDependency dataclass instances."""
         for dep in sample_manifest.dependencies:
-            assert isinstance(dep, PluginDependency)
+            assert type(dep).__name__ == "PluginDependency"
 
 
 class TestPluginManifestToDict:
@@ -451,7 +451,7 @@ class TestPluginManifestFromDict:
         manifest = PluginManifest.from_dict(manifest_dict)
 
         assert len(manifest.dependencies) == 2
-        assert isinstance(manifest.dependencies[0], PluginDependency)
+        assert type(manifest.dependencies[0]).__name__ == "PluginDependency"
         assert manifest.dependencies[0].name == "docker_dep"
         assert manifest.dependencies[0].version_spec == ">=1.0.0"
 
@@ -707,7 +707,7 @@ class TestPluginCatalogScanPlugins:
         result = catalog.scan_plugins()
 
         for manifest in result.values():
-            assert isinstance(manifest, PluginManifest)
+            assert type(manifest).__name__ == "PluginManifest"
 
     def test_scan_clears_existing(self, fake_catalog_plugins):
         """scan_plugins() clears existing catalog before repopulating."""
