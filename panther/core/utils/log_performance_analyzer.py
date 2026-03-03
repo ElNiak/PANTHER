@@ -97,9 +97,9 @@ class LogPerformanceAnalyzer:
 
             if detailed:
                 analysis["detailed_breakdown"] = self._detailed_overhead_breakdown()
-                analysis["comparative_analysis"] = (
-                    self._comparative_performance_analysis()
-                )
+                analysis[
+                    "comparative_analysis"
+                ] = self._comparative_performance_analysis()
 
             # Generate recommendations
             analysis["recommendations"] = self._generate_performance_recommendations(
@@ -403,7 +403,9 @@ class LogPerformanceAnalyzer:
             "vs_benchmark": (
                 "good"
                 if current_avg < 2.0
-                else "concerning" if current_avg > 5.0 else "acceptable"
+                else "concerning"
+                if current_avg > 5.0
+                else "acceptable"
             ),
         }
 
@@ -420,7 +422,9 @@ class LogPerformanceAnalyzer:
             "efficiency_rating": (
                 "excellent"
                 if efficiency > 99
-                else "good" if efficiency > 95 else "concerning"
+                else "good"
+                if efficiency > 95
+                else "concerning"
             ),
         }
 
