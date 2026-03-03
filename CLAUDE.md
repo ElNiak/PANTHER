@@ -148,7 +148,7 @@ panther/
 
 ## Configuration
 
-Source of truth: `pyproject.toml` (v1.2.0)
+Source of truth: `pyproject.toml` (v1.2.1)
 Dependencies defined in `pyproject.toml`
 
 
