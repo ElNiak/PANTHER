@@ -10,6 +10,7 @@ from dataclasses import fields, is_dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Type, TypeVar, Union, get_type_hints
 
+from panther.plugins.core.structures.plugin_dependency import PluginDependency
 from panther.plugins.core.structures.plugin_manifest import PluginManifest
 from panther.plugins.core.structures.plugin_metadata import PluginMetadata
 from panther.plugins.core.structures.plugin_type import PluginType
@@ -266,10 +267,6 @@ class PluginStructureConverter:
 
         # Convert string dependencies to PluginDependency objects
         if hasattr(metadata, "dependencies") and metadata.dependencies:
-            from panther.plugins.core.structures.plugin_dependency import (
-                PluginDependency,
-            )
-
             deps = []
             for dep in metadata.dependencies:
                 if isinstance(dep, str):
