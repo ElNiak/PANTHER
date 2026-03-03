@@ -4,7 +4,7 @@ PANTHER (Protocol Analysis and Testing Harness for Extensible Research) is a
 framework for network protocol testing and research.
 """
 
-__version__ = "1.1.5"  # Keep this in sync with pyproject.toml
+__version__ = "1.2.1"  # Keep this in sync with pyproject.toml
 
 # When installed, try to get the version from the package metadata
 try:

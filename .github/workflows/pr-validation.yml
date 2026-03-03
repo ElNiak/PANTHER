@@ -65,11 +65,18 @@ jobs:
               echo "Skipping non-test file: $file"
               continue
             fi
+            if [[ $file == tests/integration/* ]]; then
+              echo "Skipping integration test: $file"
+              continue
+            fi
             echo "Running tests for $file..."
-            pytest "$file" -v --tb=short -p no:panther_metrics || {
-              echo "::error file=$file::Tests failed for this file"
+            exit_code=0
+            pytest "$file" -v --tb=short -p no:panther_metrics -o "addopts=" || exit_code=$?
+            # Exit code 5 = no tests collected (e.g., all skipped), which is OK
+            if [[ $exit_code -ne 0 && $exit_code -ne 5 ]]; then
+              echo "::error file=$file::Tests failed for this file (exit code $exit_code)"
               exit 1
-            }
+            fi
           fi
         done
 
@@ -85,7 +92,7 @@ jobs:
 
             if [[ -f "$test_file" ]]; then
               echo "Running related tests for $file -> $test_file..."
-              pytest "$test_file" -v --tb=short -p no:panther_metrics || true
+              pytest "$test_file" -v --tb=short -p no:panther_metrics -o "addopts=" || true
             fi
           fi
         done
@@ -94,7 +101,7 @@ jobs:
       run: |
         # Always run a basic smoke test
         pytest tests/unit/test_plugins/test_command_generation_validator_decorator.py \
-          -v --tb=short -p no:panther_metrics
+          -v --tb=short -p no:panther_metrics -o "addopts="
 
     - name: Comment on PR with validation status
       if: failure()

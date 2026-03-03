@@ -811,9 +811,9 @@ class StorageObserver(ITypedObserver):
 
             # Add metadata
             metadata = ET.SubElement(root, "metadata")
-            ET.SubElement(metadata, "export_timestamp").text = (
-                datetime.now().isoformat()
-            )
+            ET.SubElement(
+                metadata, "export_timestamp"
+            ).text = datetime.now().isoformat()
             ET.SubElement(metadata, "storage_path").text = str(self.storage_path)
 
             # Add events

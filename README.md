@@ -1,18 +1,16 @@
 # PANTHER — Protocol Analysis and Testing Harness for Extensible Research
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.10819552.svg)](https://doi.org/10.5281/zenodo.10819552)
+[![CI](https://github.com/ElNiak/PANTHER/actions/workflows/ci.yml/badge.svg)](https://github.com/ElNiak/PANTHER/actions/workflows/ci.yml)
+[![PR Validation](https://github.com/ElNiak/PANTHER/actions/workflows/pr-validation.yml/badge.svg)](https://github.com/ElNiak/PANTHER/actions/workflows/pr-validation.yml)
+[![Packaging](https://github.com/ElNiak/PANTHER/actions/workflows/packaging.yml/badge.svg)](https://github.com/ElNiak/PANTHER/actions/workflows/packaging.yml)
 [![mkdocs](https://github.com/ElNiak/PANTHER/actions/workflows/pr-generate-docs.yaml/badge.svg)](https://github.com/ElNiak/PANTHER/actions/workflows/pr-generate-docs.yaml)
 [![pages-build-deployment](https://github.com/ElNiak/PANTHER/actions/workflows/pages/pages-build-deployment/badge.svg)](https://github.com/ElNiak/PANTHER/actions/workflows/pages/pages-build-deployment)
-[![dependabot](https://github.com/ElNiak/PANTHER/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/ElNiak/PANTHER/actions/workflows/dependabot/dependabot-updates)
-[![Python application](https://github.com/ElNiak/PANTHER/actions/workflows/python-app.yml/badge.svg)](https://github.com/ElNiak/PANTHER/actions/workflows/python-app.yml)
-[![Python package](https://github.com/ElNiak/PANTHER/actions/workflows/python-package.yml/badge.svg?branch=production)](https://github.com/ElNiak/PANTHER/actions/workflows/python-package.yml)
 [![pypi](https://github.com/ElNiak/PANTHER/actions/workflows/python-publish.yml/badge.svg)](https://github.com/ElNiak/PANTHER/actions/workflows/python-publish.yml)
 [![pytest](https://github.com/ElNiak/PANTHER/actions/workflows/unittests_codecov.yml/badge.svg)](https://github.com/ElNiak/PANTHER/actions/workflows/unittests_codecov.yml)
-[![Greetings](https://github.com/ElNiak/PANTHER/actions/workflows/greetings.yml/badge.svg)](https://github.com/ElNiak/PANTHER/actions/workflows/greetings.yml)
 [![pre-commit](https://github.com/ElNiak/PANTHER/actions/workflows/pre-commit.yml/badge.svg)](https://github.com/ElNiak/PANTHER/actions/workflows/pre-commit.yml)
 [![CodeQL](https://github.com/ElNiak/PANTHER/actions/workflows/codeql.yml/badge.svg)](https://github.com/ElNiak/PANTHER/actions/workflows/codeql.yml)
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/c8043e5320934d49a688e173db5a331d)](https://app.codacy.com/gh/ElNiak/PANTHER/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
-[![Qodana](https://github.com/ElNiak/PANTHER/actions/workflows/qodana_code_quality.yml/badge.svg)](https://github.com/ElNiak/PANTHER/actions/workflows/qodana_code_quality.yml)
 
 ![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54) ![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white) ![C++](https://img.shields.io/badge/c++-%2300599C.svg?style=for-the-badge&logo=c%2B%2B&logoColor=white) ![Debian](https://img.shields.io/badge/Debian-D70A53?style=for-the-badge&logo=debian&logoColor=white)
 
@@ -32,7 +30,7 @@ PANTHER is a **plugin‑based, research‑grade test harness** that lets you des
 
 ▸ **Extensible:** a plugin system adds new protocols, services, profilers, or network back‑ends with minimal boilerplate.
 
-▸ **Multi‑audience:** useful to academic researchers, industrial developers, security analysts, SRE teams, and educators.esting Harness for Extensible Research
+▸ **Multi‑audience:** useful to academic researchers, industrial developers, security analysts, SRE teams, and educators.
 
 ---
 
@@ -91,9 +89,9 @@ For detailed workflow documentation, see [workflow.md](workflow.md).
 |-----------|---------|-------|
 | Python    | 3.10    | Use `venv` for isolation for main functionality. |
 | Docker    | 27.x    | Required for all orchestration modes. |
+| Docker Compose | v2.x     | Bundled with Docker Desktop; may need separate install on Linux |
 
-`pyproject.toml` is the source of truth for Python dependencies.
-`requirements.txt` is a frozen snapshot—**do not edit**.
+`pyproject.toml` is the source of truth for all Python dependencies.
 
 > [!NOTE]
 >  (TODO) We propose to install [`slim`](https://github.com/slimtoolkit/slim) in our builder, fasten container size.
@@ -174,7 +172,7 @@ PANTHER's extensible plugin architecture enables seamless integration of new pro
 
 For detailed information on using PANTHER, see the:
 
-* [elniak.github.io/PANTHER](elniak.github.io/PANTHER)
+* [elniak.github.io/PANTHER](https://elniak.github.io/PANTHER)
 
 ## Contributing
 

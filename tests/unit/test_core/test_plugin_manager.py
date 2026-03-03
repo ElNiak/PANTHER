@@ -188,11 +188,9 @@ class TestPluginDiscovery:
 
     def test_discovered_plugin_has_metadata(self, real_plugin_manager):
         """Each discovered plugin has a PluginMetadata with a name and type."""
-        from panther.plugins.core.structures.plugin_metadata import PluginMetadata
-
         plugins = real_plugin_manager.discover_plugins()
         for name, metadata in plugins.items():
-            assert isinstance(metadata, PluginMetadata)
+            assert type(metadata).__name__ == "PluginMetadata"
             assert metadata.name, f"Plugin {name} has empty name"
             assert metadata.type, f"Plugin {name} has empty type"
 

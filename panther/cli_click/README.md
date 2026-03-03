@@ -38,6 +38,8 @@ panther/cli_click/
 │   ├── check.py         # Code quality checks
 │   ├── config.py        # Configuration management
 │   ├── create.py        # Resource creation
+│   ├── ivy.py           # Ivy formal verification commands
+│   ├── ivy_executor.py  # Ivy execution layer (Docker/host/Compose)
 │   ├── metrics.py       # Metrics management
 │   ├── plugins.py       # Plugin management
 │   ├── run.py           # Experiment execution
@@ -148,6 +150,37 @@ Manage metrics collection and analysis.
 #### `panther admin` - Administrative Commands
 System administration and maintenance.
 
+### Ivy Formal Verification Commands
+
+#### `panther ivy` - Ivy Verification & LSP Integration
+Standalone commands for compiling Ivy specifications and running formal
+verification tests. Designed for LSP integration and manual use without
+the full experiment pipeline.
+
+**Subcommands:**
+- `compile`: Compile an `.ivy` file and output structured JSON diagnostics. Primary command for LSP integration.
+- `run-test`: Run a previously compiled Ivy test binary.
+- `test`: Full test cycle -- compile, run, and analyze results in one step.
+- `list-tests`: List available Ivy test specifications, optionally filtered by protocol or version.
+- `build`: Build or locate the `panther_ivy` Docker image.
+
+Each subcommand supports `--target` (docker, host, compose, auto) and
+`--output` (json, raw) options for flexible execution and output formatting.
+
+**Examples:**
+```bash
+panther ivy compile path/to/spec.ivy
+panther ivy test path/to/spec.ivy --build-mode rel-lto
+panther ivy list-tests --protocol quic --output json
+panther ivy build --force
+panther ivy run-test path/to/spec.ivy --seed 42
+```
+
+**Supporting module:** `ivy_executor.py` implements the `IvyExecutor` class,
+which manages command execution across Docker containers, Docker Compose
+services, and the local host. It handles target auto-detection, volume
+mounts, path translation, and Docker image builds.
+
 ## Implementation Details
 
 ### Base Command Pattern
@@ -239,7 +272,7 @@ The CLI is configured through `pyproject.toml`:
 
 ```toml
 [project.scripts]
-panther = "panther.__main__:main"
+panther = "panther.cli_click.core.main:main"
 ```
 
 ### Environment Variables

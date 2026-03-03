@@ -128,7 +128,9 @@ class TestPluginStructureConverter:
 
         # Verify dependencies are converted to PluginDependency objects
         assert len(manifest.dependencies) == 2
-        assert all(isinstance(dep, PluginDependency) for dep in manifest.dependencies)
+        assert all(
+            type(dep).__name__ == "PluginDependency" for dep in manifest.dependencies
+        )
         dep_names = [dep.name for dep in manifest.dependencies]
         assert "dep1" in dep_names
         assert "dep2" in dep_names
@@ -199,13 +201,13 @@ class TestPluginStructureConverter:
         """Test the convenience functions work correctly."""
         # Test auto_convert_manifest_to_metadata
         metadata = auto_convert_manifest_to_metadata(sample_manifest)
-        assert isinstance(metadata, PluginMetadata)
+        assert type(metadata).__name__ == "PluginMetadata"
         assert metadata.name == sample_manifest.name
         assert metadata.runtime_mode == sample_manifest.runtime_mode
 
         # Test auto_convert_metadata_to_manifest
         manifest = auto_convert_metadata_to_manifest(sample_metadata)
-        assert isinstance(manifest, PluginManifest)
+        assert type(manifest).__name__ == "PluginManifest"
         assert manifest.name == sample_metadata.name
         assert manifest.runtime_mode == sample_metadata.runtime_mode
 

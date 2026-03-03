@@ -37,16 +37,24 @@ PANTHER provides a **comprehensive web interface** that allows you to design, ex
 
 ### Command Line Launch
 
-```bash
-# Start web interface with default configuration
-panther --web --experiment-config experiment_config.yaml
-
-# Start with custom port and host
-panther --web --host 0.0.0.0 --port 8080 --experiment-config config.yaml
-
-# Enable debug mode for development
-panther --web --debug --experiment-config config.yaml
-```
+> **Note:** The web interface launch method is under development. The legacy
+> `--web` and `--experiment-config` argparse flags are no longer available.
+> The current Click-based CLI does not yet expose a dedicated web-server
+> command. Once implemented, the expected invocation will follow the Click
+> pattern:
+>
+> ```bash
+> # Expected future syntax (not yet available)
+> panther web --config experiment_config.yaml
+> panther web --config config.yaml --host 0.0.0.0 --port 8080
+> panther web --config config.yaml --debug
+> ```
+>
+> In the meantime, experiments are executed via:
+>
+> ```bash
+> panther run --config experiment_config.yaml
+> ```
 
 ### Configuration Options
 
@@ -999,10 +1007,12 @@ jobs:
       - uses: actions/checkout@v2
       - name: Run PANTHER Tests
         run: |
-          panther --web --experiment-config quic_tests.yaml &
-          # Wait for web interface to start
+          # NOTE: The web interface launch command is under development.
+          # For now, run experiments directly via the CLI:
+          panther run --config quic_tests.yaml &
+          # Wait for experiment to start
           sleep 10
-          # Trigger test via API
+          # Trigger test via API (requires web server to be running)
           curl -X POST http://localhost:8080/api/run-experiment \
                -H "Content-Type: application/json" \
                -d '{"test_name": "quic_conformance"}'
@@ -1051,8 +1061,9 @@ server:
 # Check if port is in use
 netstat -tulpn | grep :8080
 
-# Check Flask debug output
-panther --web --debug --experiment-config config.yaml
+# Check Flask debug output (web launch command is under development)
+# panther web --config config.yaml --debug
+panther run --config config.yaml --verbose
 ```
 
 **WebSocket Connection Issues:**
