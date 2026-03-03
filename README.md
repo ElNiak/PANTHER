@@ -32,7 +32,7 @@ PANTHER is a **plugin‑based, research‑grade test harness** that lets you des
 
 ▸ **Extensible:** a plugin system adds new protocols, services, profilers, or network back‑ends with minimal boilerplate.
 
-▸ **Multi‑audience:** useful to academic researchers, industrial developers, security analysts, SRE teams, and educators.esting Harness for Extensible Research
+▸ **Multi‑audience:** useful to academic researchers, industrial developers, security analysts, SRE teams, and educators.
 
 ---
 
@@ -91,6 +91,7 @@ For detailed workflow documentation, see [workflow.md](workflow.md).
 |-----------|---------|-------|
 | Python    | 3.10    | Use `venv` for isolation for main functionality. |
 | Docker    | 27.x    | Required for all orchestration modes. |
+| Docker Compose | v2.x     | Bundled with Docker Desktop; may need separate install on Linux |
 
 `pyproject.toml` is the source of truth for Python dependencies.
 `requirements.txt` is a frozen snapshot—**do not edit**.
@@ -174,7 +175,7 @@ PANTHER's extensible plugin architecture enables seamless integration of new pro
 
 For detailed information on using PANTHER, see the:
 
-* [elniak.github.io/PANTHER](elniak.github.io/PANTHER)
+* [elniak.github.io/PANTHER](https://elniak.github.io/PANTHER)
 
 ## Contributing
 
