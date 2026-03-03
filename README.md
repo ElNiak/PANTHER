@@ -93,8 +93,7 @@ For detailed workflow documentation, see [workflow.md](workflow.md).
 | Docker    | 27.x    | Required for all orchestration modes. |
 | Docker Compose | v2.x     | Bundled with Docker Desktop; may need separate install on Linux |
 
-`pyproject.toml` is the source of truth for Python dependencies.
-`requirements.txt` is a frozen snapshot—**do not edit**.
+`pyproject.toml` is the source of truth for all Python dependencies.
 
 > [!NOTE]
 >  (TODO) We propose to install [`slim`](https://github.com/slimtoolkit/slim) in our builder, fasten container size.
