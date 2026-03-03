@@ -130,7 +130,7 @@ services/
 │   └── minip/                # Custom protocols
 └── testers/                  # Testing tools
     ├── README.md
-    └── ivy_tester/          # Formal verification tester
+    └── panther_ivy/         # Formal verification tester
 ```
 
 ## Service Interface

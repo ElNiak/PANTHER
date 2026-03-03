@@ -2,6 +2,12 @@
 
 **Formal Verification and Protocol Testing Services**
 
+> **Note**: Several code examples in this file are illustrative and do not
+> reflect the current API. The actual tester base class is
+> `TesterServiceManagerMixin` (not `ITester`), and the Ivy tester class is
+> `PantherIvyServiceManager` (not `PantherIvyServiceManager`). Examples are being
+> revised incrementally.
+
 Tester plugins in PANTHER provide sophisticated testing and validation capabilities for protocol implementations. These services generate test traffic, perform conformance verification, and validate protocol behavior using formal methods, specification-based testing, and comprehensive test suites.
 
 <!-- src: /panther/plugins/services/testers/ -->
@@ -46,10 +52,10 @@ results = ivy_tester.run_tests()
 
 ```python
 # filepath: example_formal_verification.py
-from panther.plugins.services.testers.panther_ivy import PantherIvyTester
+from panther.plugins.services.testers.panther_ivy import PantherIvyServiceManager
 
 # Set up formal verification testing
-tester = PantherIvyTester()
+tester = PantherIvyServiceManager()
 tester.configure({
     "verification_mode": "compositional",
     "protocol_model": "/models/quic_transport.ivy",
@@ -73,14 +79,15 @@ verification_results = tester.verify_implementation()
 
 ### Base Tester Interface
 
-All tester plugins inherit from the base `ITester` interface:
+All tester plugins inherit from `TesterServiceManagerMixin` (the actual base mixin).
+The interface below is illustrative of the pattern:
 
 ```python
 # filepath: /panther/plugins/services/testers/tester_interface.py
 from abc import ABC, abstractmethod
 from typing import Dict, List, Any
 
-class ITester(ABC):
+class ITesterManager(ABC):
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.test_results = []
@@ -282,7 +289,7 @@ campaign.generate_report(results, format="html")
 
 ### Creating a New Tester Plugin
 
-1. **Inherit Base Interface**: Extend `ITester` with your specific functionality
+1. **Inherit Base Interface**: Extend `TesterServiceManagerMixin` with your specific functionality
 2. **Define Test Scenarios**: Create comprehensive test scenario definitions
 3. **Implement Configuration**: Support flexible configuration options
 4. **Handle Results**: Generate standardized test result formats
@@ -307,11 +314,11 @@ my_tester/
 
 ```python
 # filepath: custom_tester_example.py
-from panther.plugins.services.testers.tester_interface import ITester
+from panther.plugins.services.testers.tester_interface import ITesterManager
 import logging
 from typing import Dict, Any, List
 
-class CustomProtocolTester(ITester):
+class CustomProtocolTester(ITesterManager):
     def __init__(self):
         super().__init__()
         self.test_scenarios = []
