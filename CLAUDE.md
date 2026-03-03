@@ -56,7 +56,7 @@ python panther_builder.py serve-docs     # Local docs server
 panther run --config experiment-config/base/experiment_config_example_minimal.yaml     # Execute experiment
 panther config validate --config x.yaml  # Validate config
 panther plugins list                     # List plugins
-panther tools doctor                     # System check
+panther tools status                     # Show tool installation status
 ```
 
 
@@ -148,8 +148,8 @@ panther/
 
 ## Configuration
 
-Source of truth: `pyproject.toml` (v1.1.5)
-Dependencies frozen in `requirements.txt` (do not edit)
+Source of truth: `pyproject.toml` (v1.2.0)
+Dependencies defined in `pyproject.toml`
 
 
 ## Testing
