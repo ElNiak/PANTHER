@@ -4,7 +4,7 @@
 PANTHER (Protocol Analysis and Testing Harness for Extensible Research) is a plugin-based, research-grade test harness for designing, reproducing, and analyzing network protocol experiments. It uses Docker-based isolation, event-driven architecture, and a four-phase execution model.
 
 ## Current Status
-- Version: 1.1.5
+- Version: 1.2.0
 - Active refactoring in progress: CLI migrating from argparse (`panther/cli/`) to Click (`panther/cli_click/`)
 - Main branch: `production`
 - Current dev branch: `panther-fix`
