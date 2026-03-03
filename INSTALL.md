@@ -19,8 +19,7 @@ This document provides instructions for installing and setting up the PANTHER sy
 
 > [!NOTE]
 >  "Dependencies"
-> `pyproject.toml` is the source of truth for Python dependencies.
-> `requirements.txt` is a frozen snapshot—**do not edit**.
+> `pyproject.toml` is the source of truth for all Python dependencies and project metadata.
 
 > [!WARNING]
 > CLI and core being refactored, some deadcode and legacy or unimplemented code remains.
@@ -141,15 +140,20 @@ pip install --no-cache -e ".[doc]"    # Install with documentation dependencies 
 pip install --no-cache -e ".[tests,lint,doc]"
 ```
 
-Both methods read dependencies from **`pyproject.toml`**—**do not
-manually edit `requirements.txt`**, it’s just a frozen lock.
+Both methods read dependencies from **`pyproject.toml`**.
 ---
 
-> [!NOTE]
-> "Entry point argument auto-completion"
-> We have add the package `argcomplete`in the project
-> You can also activate this package globally with
-> `activate-global-python-argcomplete --user`
+### Shell Completion
+
+PANTHER uses Click for its CLI. To enable shell completion:
+
+```bash
+# For Zsh
+eval "$(_PANTHER_COMPLETE=zsh_source panther)"
+
+# For Bash
+eval "$(_PANTHER_COMPLETE=bash_source panther)"
+```
 
 > [!NOTE]
 > If you have installed both remote (recommended) and local version of Panther (dev),
@@ -178,6 +182,10 @@ panther --help
 > "Work in Progress"
 > The CLI is being actively developed. Some commands may change in future releases.
 
+> [!NOTE]
+> The first Docker build for the Ivy tester takes approximately 30 minutes due to Z3 and Ivy compilation.
+> Subsequent builds use Docker layer caching and are much faster.
+
 ## Troubleshooting
 
 ### Common Issues
@@ -194,3 +202,7 @@ panther --help
 ## License
 
 PANTHER is licensed under MIT. See the LICENSE file for more details.
+
+## Next Steps
+
+After successful installation, follow the [Quick Start Guide](QUICK_START.md) to run your first experiment.
