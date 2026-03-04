@@ -1,7 +1,24 @@
-"""
-Event Observer Plugin Module
+"""Event Observer Plugin Module - Base class for event-observing plugins.
 
-This module provides a base class for plugins that observe events in the system.
+Provides ``EventObserverPlugin``, an abstract base class for plugins that
+want to observe events in the PANTHER system. Plugins define their event
+interests via the ``EVENT_TYPES`` class variable and implement ``on_event()``.
+Specific ``on_event_<type>`` methods are automatically dispatched.
+
+Example:
+    Create a plugin observer::
+
+        class MyPlugin(EventObserverPlugin):
+            EVENT_TYPES = ["test.started", "test.completed"]
+
+            def on_event(self, event):
+                super().on_event(event)  # handles history + dispatch
+
+            def on_event_test_started(self, event):
+                print(f"Test started: {event.entity_id}")
+
+See Also:
+    :mod:`panther.core.observer.plugins.plugin_observer_factory`
 """
 
 import logging

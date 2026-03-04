@@ -1,10 +1,34 @@
-from typing import Any, Callable, Dict, List, Optional, Set, TypeVar, Union
+"""Results Manager Module - Test result collection, aggregation, and export.
 
-"""
-Results manager for handling test results in the event system.
+Provides three cooperating classes for comprehensive test result management:
 
-This module provides a comprehensive solution for collecting, aggregating,
-and exporting test results from the event system.
+- **ResultAggregator**: Thread-safe collection and aggregation of test results
+  from multiple test runs, with category/tag-based grouping and statistics.
+- **ResultsExporter**: Multi-format export (JSON, CSV, HTML, Markdown) of
+  aggregated results for reporting and CI/CD integration.
+- **ResultsManager**: An ``IObserver`` that combines aggregation and export,
+  automatically collecting ``TestResultEvent`` and ``EnhancedResultEvent``
+  instances from the event stream.
+
+Export formats:
+    - ``json`` -- Full results with summary, pretty-printed
+    - ``csv`` -- Flattened row-per-result, all data fields as columns
+    - ``html`` -- Styled HTML table with pass/fail coloring
+    - ``md`` -- Markdown table suitable for CI reports
+
+Example:
+    Using ResultsManager as an observer::
+
+        from panther.core.observer.management.results_manager import ResultsManager
+
+        mgr = ResultsManager(output_dir="./reports")
+        event_manager.register_observer(mgr, priority=10)
+        # ... run tests, events flow through ...
+        mgr.export_results("json")  # writes ./reports/test_results_<ts>.json
+        summary = mgr.get_summary()
+
+See Also:
+    :class:`panther.core.observer.management.event_manager.EventManager`
 """
 
 import csv
@@ -15,6 +39,7 @@ import os
 import threading
 from collections.abc import Callable
 from datetime import datetime
+from typing import Any, Callable, Dict, List, Optional, Set, TypeVar, Union
 
 from panther.core.events.base.event_base import BaseEvent as Event
 from panther.core.events.test.events import EnhancedResultEvent, TestResultEvent
@@ -25,12 +50,23 @@ T = TypeVar("T")
 
 
 class ResultAggregator:
-    """
+    """Aggregates test results from multiple test runs with thread safety.
 
-    Aggregates test results from multiple test runs.
+    Collects, tracks, and aggregates test results across multiple test runs
+    or sessions. Supports grouping by test name, category, and tags, with
+    automatic success/failure counting and timing.
 
-    This class provides functionality for collecting, tracking, and
-    aggregating test results across multiple test runs or sessions.
+    Attributes:
+        results: All collected result dictionaries.
+        result_by_test: Results grouped by test name.
+        result_by_category: Results grouped by category.
+        success_count: Number of successful results.
+        failure_count: Number of failed results.
+        start_time: Earliest result timestamp seen.
+        end_time: Latest result timestamp seen.
+        tags: Maps test names to their tag sets.
+        tag_stats: Per-tag success/failure counts.
+        category_stats: Per-category success/failure counts.
     """
 
     def __init__(self):
@@ -43,9 +79,9 @@ class ResultAggregator:
         self.start_time: Optional[datetime] = None
         self.end_time: Optional[datetime] = None
         self.tags: Dict[str, Set[str]] = {}  # Maps test names to their tags
-        self.tag_stats: Dict[
-            str, Dict[str, int]
-        ] = {}  # Statistics by tag: {tag: {"success": 0, "failure": 0}}
+        self.tag_stats: Dict[str, Dict[str, int]] = (
+            {}
+        )  # Statistics by tag: {tag: {"success": 0, "failure": 0}}
         self.category_stats: Dict[str, Dict[str, int]] = {}  # Statistics by category
         self.lock = threading.RLock()
 
@@ -267,11 +303,14 @@ class ResultAggregator:
 
 
 class ResultsExporter:
-    """
-    Exports test results in various formats.
+    """Exports test results in JSON, CSV, HTML, and Markdown formats.
 
-    This class provides functionality for exporting test results
-    to different file formats for reporting and analysis.
+    Wraps a ``ResultAggregator`` and provides format-specific export methods
+    for generating report files from collected test results.
+
+    Attributes:
+        SUPPORTED_FORMATS: List of format strings (``json``, ``csv``, ``html``, ``md``).
+        aggregator: The ``ResultAggregator`` providing result data.
     """
 
     SUPPORTED_FORMATS = ["json", "csv", "html", "md"]
@@ -505,13 +544,28 @@ class ResultsExporter:
 
 
 class ResultsManager(IObserver):
-    """
-    Comprehensive manager for test results.
+    """Comprehensive test result observer combining collection, aggregation, and export.
 
-    This class combines result collection, aggregation, and export capabilities
-    to provide a complete solution for managing test results in the event system.
-    It supports both legacy TestResultEvents and EnhancedResultEvents with more
-    advanced features like result categorization and tag-based filtering.
+    Implements ``IObserver`` to automatically collect ``TestResultEvent`` and
+    ``EnhancedResultEvent`` instances from the event stream. Provides result
+    categorization, tag-based filtering, callback registration, and multi-format
+    export. Uses priority 10 for early result processing.
+
+    Interested event types:
+        ``test.result``, ``test.case.result``, ``test.suite.result``,
+        ``enhanced.result``, and any prefixed variants.
+
+    Attributes:
+        aggregator: ``ResultAggregator`` for collecting and grouping results.
+        exporter: ``ResultsExporter`` for file output in multiple formats.
+        callbacks: Registered callbacks by event type (use ``"*"`` for wildcard).
+
+    Example:
+        Register callbacks for real-time result processing::
+
+            mgr = ResultsManager(output_dir="./reports")
+            mgr.register_callback("test.result", lambda e: print(e.test_name))
+            mgr.register_callback("*", lambda e: log_result(e))
     """
 
     def __init__(self, output_dir: str = None):

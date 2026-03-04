@@ -1,14 +1,33 @@
-from typing import Any, List
+"""Plugin Observer Factory Module - Dynamic plugin observer generation.
 
-"""
-Plugin Observer Factory Module
+Provides ``PluginObserverFactory`` for automatically generating observers
+based on plugin interfaces. Plugins are registered with the factory, which
+extracts their event interests (from ``EVENT_TYPES``, ``on_event_*`` methods)
+and routes events to interested plugins at runtime.
 
-This module provides classes and functions for automatically generating
-plugin observers based on plugin interfaces.
+Module-level convenience functions:
+    - ``create_plugin_observer()`` -- create an observer from the global factory
+    - ``register_plugin_observer(plugin_id, plugin)`` -- register with global factory
+
+Example:
+    Register plugins and create a routing observer::
+
+        from panther.core.observer.plugins.plugin_observer_factory import (
+            register_plugin_observer, create_plugin_observer
+        )
+
+        register_plugin_observer("my_plugin", my_plugin_instance)
+        observer = create_plugin_observer()
+        event_manager.register_observer(observer)
+
+See Also:
+    :class:`panther.core.observer.plugins.event_observer_plugin.EventObserverPlugin`
+    :class:`panther.core.observer.base.observer_plugin_interface.IPluginObserver`
 """
 
 import inspect
 import logging
+from typing import Any, List
 
 from panther.core.events.base.event_base import BaseEvent as Event
 
@@ -16,12 +35,16 @@ from .plugin_interface import IPluginObserver
 
 
 class PluginObserverFactory:
-    """
+    """Factory for creating plugin observers with automatic event routing.
 
-    Factory for creating plugin observers.
+    Automatically generates observers based on plugin interfaces and routes
+    events to appropriate plugin handlers. Extracts event interests from
+    ``EVENT_TYPES`` attributes and ``on_event_*`` methods on registered plugins.
 
-    This factory automatically generates observers based on plugin interfaces
-    and routes events to appropriate plugin handlers.
+    Attributes:
+        _plugins: Maps plugin_id to plugin instance.
+        _plugin_events: Maps plugin_id to list of interested event types.
+        _event_plugins: Maps event_type to list of interested plugin_ids.
     """
 
     def __init__(self):

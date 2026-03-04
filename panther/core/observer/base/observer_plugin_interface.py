@@ -1,7 +1,26 @@
-"""
-Plugin Observer Interface Module
+"""Plugin Observer Interface Module - Bidirectional event-plugin mapping.
 
-This module defines interfaces for plugin-based observers in the PANTHER framework.
+This module defines ``IPluginObserver`` (abstract) and ``PluginObserver``
+(concrete) for managing plugin-based event subscriptions. Plugins register
+their event interests, and the observer routes incoming events to the
+interested plugins.
+
+The bidirectional mapping maintains:
+    - ``plugin_events``: plugin_id --> set of event types
+    - ``event_plugins``: event_type --> set of plugin_ids
+
+Example:
+    Register a plugin and route events::
+
+        from panther.core.observer.base.observer_plugin_interface import PluginObserver
+
+        obs = PluginObserver()
+        obs.register_plugin_events("my_plugin", ["test.started", "test.completed"])
+        # Later, when obs.on_event(event) is called, it notifies "my_plugin"
+        # if the event type matches.
+
+See Also:
+    :mod:`panther.core.observer.plugins` - Plugin observer factory and loading
 """
 
 import logging
@@ -14,11 +33,14 @@ from panther.core.observer.base.observer_interface import IObserver
 
 
 class IPluginObserver(IObserver):
-    """
-    Interface for plugin-based observers.
+    """Abstract interface for plugin-based observers with bidirectional event-plugin mapping.
 
-    Plugin observers are dynamically generated based on plugin interfaces and
-    can automatically handle events relevant to specific plugins.
+    Plugin observers maintain a bidirectional mapping between plugin IDs and
+    event types, enabling efficient routing of events to interested plugins.
+
+    Attributes:
+        plugin_events: Maps plugin IDs to their interested event type sets.
+        event_plugins: Maps event types to interested plugin ID sets.
     """
 
     def __init__(self):
@@ -78,11 +100,19 @@ class IPluginObserver(IObserver):
 
 
 class PluginObserver(IPluginObserver):
-    """
-    Concrete implementation of the plugin observer interface.
+    """Concrete implementation of plugin-based observer with event routing.
 
-    This class provides a complete implementation for managing plugin-based
-    event subscriptions and notifications.
+    Provides a complete implementation for managing plugin-based event
+    subscriptions and notifications. Override ``_notify_plugins()`` to
+    implement the actual plugin notification mechanism for your use case.
+
+    Example:
+        Register a plugin and query its events::
+
+            obs = PluginObserver()
+            obs.register_plugin_events("analyzer", ["test.completed", "test.failed"])
+            obs.get_plugin_events("analyzer")  # ["test.completed", "test.failed"]
+            obs.get_plugins_for_event("test.completed")  # ["analyzer"]
     """
 
     def __init__(self):

@@ -1,13 +1,40 @@
-from typing import Any, Dict, List, Optional, Tuple, Union
+"""Observer Factory Module - Centralized observer creation and management.
 
-"""
-Observer Factory Module
+Provides the ``ObserverFactory`` class for creating, configuring, and managing
+observer instances. Supports both programmatic creation and YAML configuration
+file loading via the companion ``factory_config`` module.
 
-Core factory class for creating and managing observer instances.
+Default observer types registered at initialization:
+    - ``"logger"`` / ``"event_logger"`` --> ``LoggerObserver``
+    - ``"metrics"`` --> ``MetricsObserver``
+    - ``"storage"`` --> ``StorageObserver``
+    - ``"experiment"`` --> ``ExperimentObserver``
+
+Module-level convenience functions:
+    - ``get_observer_factory()`` -- get/create the global factory singleton
+    - ``create_observer(type, **kwargs)`` -- shorthand for factory creation
+    - ``create_default_observers(config)`` -- create a standard observer set
+
+Example:
+    Programmatic observer creation::
+
+        factory = get_observer_factory()
+        factory.register_observer_type("custom", MyCustomObserver)
+        obs = factory.create_observer("custom", auto_register=True, priority=5)
+
+    Configuration-driven creation::
+
+        factory = get_observer_factory(global_config)
+        logger_obs = factory.create_observer("logger", log_level="DEBUG")
+
+See Also:
+    :mod:`panther.core.observer.factory.factory_builders` - Builder helpers
+    :mod:`panther.core.observer.factory.factory_config` - YAML config loading
 """
 
 import logging
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from panther.config.core.models import BaseObserverConfig
 from panther.core.events.base.event_base import BaseEvent as Event
@@ -22,12 +49,25 @@ from panther.core.observer.management.event_manager import EventManager
 
 
 class ObserverFactory:
-    """
+    """Factory for creating and managing observer instances.
 
-    Factory class for creating observer instances with enhanced capabilities.
+    Provides centralized observer creation with type registration, named
+    instance tracking, configuration management, and optional auto-registration
+    with the ``EventManager``.
 
-    This factory provides a centralized way to create observers with proper
-    configuration and enhanced features.
+    Attributes:
+        _registered_types: Maps type name strings to observer classes.
+        _observer_instances: Maps instance names to live observer instances.
+        _configurations: Default configuration dicts per observer type.
+        _event_manager: Optional EventManager for auto-registration.
+        _observer_config: Global ``BaseObserverConfig`` for default values.
+
+    Example:
+        Register a custom type and create an instance::
+
+            factory = ObserverFactory()
+            factory.register_observer_type("my_type", MyObserver)
+            obs = factory.create_observer("my_type", name="obs1", priority=5)
     """
 
     def __init__(

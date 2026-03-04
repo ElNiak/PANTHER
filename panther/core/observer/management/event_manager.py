@@ -1,3 +1,38 @@
+"""Event Manager Module - Central event coordination for PANTHER.
+
+Provides the ``EventManager`` singleton that coordinates all event distribution
+in the framework. Observers register interest in event types and receive
+notifications through a priority-ordered, thread-safe dispatch pipeline.
+
+Event distribution flow::
+
+    notify(event)
+      |
+      +--> Content-based duplicate detection (UUID signatures)
+      +--> Time-based duplicate detection (1s dedup window)
+      +--> Event validation (calls event.validate() if present)
+      +--> History recording (bounded to 1000 events)
+      +--> Observer matching:
+      |      +--> Exact event type match
+      |      +--> Hierarchical parent match (e.g. "test" matches "test.start")
+      |      +--> Global observers (receive all events)
+      +--> Priority-sorted notification (highest first)
+      +--> Error isolation (observer failures logged, not propagated)
+
+Performance characteristics:
+    - O(log n) observer lookup via priority sorting
+    - O(1) content-based duplicate detection with bounded cache (10k entries)
+    - Bounded event history (default 1000 events) with automatic cleanup
+    - Thread safety via RLock (~1-5us per event in typical usage)
+
+Module-level convenience function:
+    ``get_event_manager()`` -- returns the EventManager singleton.
+
+See Also:
+    :class:`panther.core.observer.base.observer_interface.IObserver`
+    :class:`panther.core.observer.factory.observer_factory.ObserverFactory`
+"""
+
 import logging
 import threading
 from collections import defaultdict
@@ -128,9 +163,9 @@ class EventManager(LoggerMixin):
         self._active_contexts: Dict[str, Dict[str, Any]] = {}
 
         # Observer scope and duplicate tracking
-        self._observer_registry: Dict[
-            str, Tuple[IObserver, str]
-        ] = {}  # observer_id -> (observer, scope)
+        self._observer_registry: Dict[str, Tuple[IObserver, str]] = (
+            {}
+        )  # observer_id -> (observer, scope)
         self._scoped_observers: Dict[str, Set[str]] = defaultdict(
             set
         )  # scope -> set of observer_ids

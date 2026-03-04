@@ -1,13 +1,22 @@
-from typing import Any, Dict, List, Optional
+"""Observer Factory Builder Methods - Convenience functions for observer creation.
 
-"""
-Observer Factory Builder Methods
+Provides typed builder functions for creating specific observer types with
+their default configurations from ``BaseObserverConfig``. Each builder merges
+config defaults with caller-provided overrides.
 
-This module contains builder methods for creating specific observer types
-with their configurations.
+Builder functions:
+    - ``create_logger()`` -- Create a ``LoggerObserver`` with color/format config
+    - ``create_metrics()`` -- Create a ``MetricsObserver`` with collection intervals
+    - ``create_storage()`` -- Create a ``StorageObserver`` with path/retention config
+    - ``create_experiment_observer()`` -- Create an ``ExperimentObserver`` with timing/steps
+    - ``create_default_observer_set()`` -- Create the standard observer set from config dict
+
+See Also:
+    :class:`panther.core.observer.factory.observer_factory.ObserverFactory`
 """
 
 import logging
+from typing import Any, Dict, List, Optional
 
 from panther.config.core.models.observer import (
     ExperimentObserverConfig,

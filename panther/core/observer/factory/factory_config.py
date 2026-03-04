@@ -1,15 +1,35 @@
-from typing import Any, Dict, List, Optional, Union
+"""Observer Factory Configuration Module - YAML config loading and class-path instantiation.
 
-"""
-Observer Factory Configuration Module
+Handles configuration-driven observer creation from YAML files or dictionaries.
+Supports loading individual config files, entire directories of YAML files,
+and dynamic observer instantiation via Python class paths (with a security
+whitelist of allowed modules).
 
-This module handles configuration loading, validation, and helper functions
-for the observer factory system.
+YAML configuration format::
+
+    observers:
+      - id: my_logger
+        class_path: panther.core.observer.impl.logger_observer.LoggerObserver
+        enabled: true
+        params:
+          log_level: DEBUG
+        event_types: ["test.started", "test.completed"]
+        priority: 5
+
+Security:
+    ``create_observer_by_class_path()`` only allows instantiation from a fixed
+    whitelist of ``panther.core.observer.impl.*`` modules to prevent arbitrary
+    code execution from config files.
+
+See Also:
+    :mod:`panther.core.observer.factory.observer_factory`
+    :mod:`panther.core.observer.factory.factory_builders`
 """
 
 import importlib
 import logging
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
 
 try:
     import yaml
