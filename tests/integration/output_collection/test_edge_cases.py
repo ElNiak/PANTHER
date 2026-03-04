@@ -4,13 +4,10 @@ import shutil
 import tempfile
 import time
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 
-from panther.plugins.environments.network_environment.base_network_environment import (
-    BaseNetworkEnvironment,
-)
 from panther.plugins.environments.network_environment.docker_compose.docker_compose import (
     DockerComposeEnvironment,
 )
@@ -74,7 +71,7 @@ class TestOutputCollectionEdgeCases:
     def test_localhost_path_resolution_fallback(
         self, temp_output_dir, mock_environment_config, mock_event_manager
     ):
-        """Test localhost container path resolution with fallback logic."""
+        """Test localhost container path resolution returns service-specific path."""
         env = LocalhostSingleContainerEnvironment(
             env_config_to_test=mock_environment_config,
             output_dir=str(temp_output_dir),
@@ -84,20 +81,20 @@ class TestOutputCollectionEdgeCases:
         )
 
         service_name = "test_service"
+        expected_path = Path(str(temp_output_dir)) / "logs" / service_name
 
-        # Test fallback when service-specific directory doesn't exist
-        shared_logs = temp_output_dir / "logs"
-        shared_logs.mkdir(parents=True, exist_ok=True)
-
+        # Always returns service-specific path (no fallback behavior)
         resolved_path = env._get_service_log_directory(service_name)
-        assert resolved_path == shared_logs
+        assert resolved_path == expected_path
 
-        # Test service-specific directory when it exists
-        service_logs = temp_output_dir / "logs" / service_name
-        service_logs.mkdir(parents=True, exist_ok=True)
+        # Returns the same path even when the directory doesn't exist
+        assert not expected_path.exists()
+        assert resolved_path == expected_path
 
+        # And the same path when the directory does exist
+        expected_path.mkdir(parents=True, exist_ok=True)
         resolved_path = env._get_service_log_directory(service_name)
-        assert resolved_path == service_logs
+        assert resolved_path == expected_path
 
     @pytest.mark.unit
     @pytest.mark.output_collection
@@ -136,14 +133,7 @@ class TestOutputCollectionEdgeCases:
     @pytest.mark.unit
     @pytest.mark.output_collection
     def test_enhanced_pattern_discovery(self, temp_output_dir):
-        """Test enhanced pattern discovery for SSL keylog and pcap files."""
-
-        # Create mock environment
-        mock_env = Mock()
-        mock_env.output_dir = temp_output_dir
-        mock_env.logger = Mock()
-
-        # Create test files with various patterns
+        """Test that glob-based pattern discovery finds SSL keylog and pcap files."""
         log_dir = temp_output_dir / "logs" / "test_service"
         log_dir.mkdir(parents=True, exist_ok=True)
 
@@ -171,107 +161,68 @@ class TestOutputCollectionEdgeCases:
         for filename in ssl_pattern_files + pcap_pattern_files:
             (log_dir / filename).touch()
 
-        # Test pattern discovery
-        from panther.plugins.environments.network_environment.base_network_environment import (
-            BaseNetworkEnvironment,
-        )
+        # Test pattern discovery using glob (same approach used in production code)
+        ssl_patterns = [
+            "*ssl*key*",
+            "*keylog*",
+            "*tls*key*",
+            "*key*log*",
+            "*.keys",
+            "*sslkey*",
+        ]
+        pcap_patterns = ["*.pcap", "*.pcapng", "*capture*", "*.cap", "*packet*"]
 
-        # Mock the _discover_additional_outputs method
-        with patch.object(
-            BaseNetworkEnvironment, "_discover_additional_outputs"
-        ) as mock_discover:
+        discovered = set()
+        for pattern in ssl_patterns + pcap_patterns:
+            discovered.update(log_dir.glob(pattern))
 
-            def mock_discover_impl(log_dir):
-                ssl_patterns = [
-                    "*ssl*key*",
-                    "*keylog*",
-                    "*tls*key*",
-                    "*key*log*",
-                    "*.keys",
-                    "*sslkey*",
-                ]
-                pcap_patterns = ["*.pcap", "*.pcapng", "*capture*", "*.cap", "*packet*"]
+        discovered_names = {f.name for f in discovered}
 
-                discovered = []
-                for pattern in ssl_patterns + pcap_patterns:
-                    discovered.extend(list(log_dir.glob(pattern)))
+        # Verify all enhanced pattern files are discovered
+        for filename in ssl_pattern_files + pcap_pattern_files:
+            assert filename in discovered_names, f"Pattern discovery missed {filename}"
 
-                return discovered
-
-            mock_discover.side_effect = mock_discover_impl
-
-            # Call the mocked method
-            discovered_files = mock_discover(log_dir)
-
-            # Verify patterns were matched
-            assert (
-                len(discovered_files)
-                >= len(ssl_pattern_files) + len(pcap_pattern_files) + 3
-            )  # +3 for standard files
-
-            # Verify specific pattern matches
-            discovered_names = [f.name for f in discovered_files]
-            for filename in ssl_pattern_files + pcap_pattern_files:
-                assert filename in discovered_names
+        # Standard ssl/pcap files should also be found
+        assert "sslkeylogfile.txt" in discovered_names
+        assert "test_service.pcap" in discovered_names
 
     @pytest.mark.unit
     @pytest.mark.output_collection
     def test_missing_files_graceful_handling(self, temp_output_dir):
-        """Test graceful handling when output files are missing."""
-
-        # Create mock environment
-        mock_env = Mock()
-        mock_env.output_dir = temp_output_dir
-        mock_env.logger = Mock()
-        mock_env.output_collector = Mock()
-
-        # Create service directory with no files
+        """Test graceful handling when expected output files are missing."""
         log_dir = temp_output_dir / "logs" / "test_service"
         log_dir.mkdir(parents=True, exist_ok=True)
 
-        # Test that missing files don't crash the system
-        from panther.plugins.environments.network_environment.base_network_environment import (
-            BaseNetworkEnvironment,
-        )
+        # Directory exists but expected standard files are missing
+        expected_files = ["stdout.log", "stderr.log", "sslkeylogfile.txt"]
 
-        with patch.object(
-            BaseNetworkEnvironment, "_register_service_outputs"
-        ) as mock_register:
+        missing = []
+        found = []
+        for filename in expected_files:
+            file_path = log_dir / filename
+            if file_path.exists():
+                found.append(file_path)
+            else:
+                missing.append(filename)
 
-            def mock_register_impl(service_name):
-                # This should handle missing files gracefully
-                try:
-                    log_dir = mock_env.output_dir / "logs" / service_name
-                    if not log_dir.exists():
-                        mock_env.logger.warning(
-                            f"Log directory not found for service {service_name}"
-                        )
-                        return
+        # All expected files should be missing (directory is empty)
+        assert len(missing) == len(expected_files)
+        assert len(found) == 0
 
-                    # Try to register files that may not exist
-                    for filename in ["stdout.log", "stderr.log", "sslkeylogfile.txt"]:
-                        file_path = log_dir / filename
-                        if file_path.exists():
-                            mock_env.output_collector.register_output_file(
-                                str(file_path), service_name
-                            )
-                        else:
-                            mock_env.logger.warning(
-                                f"Expected file {filename} not found for {service_name}"
-                            )
+        # iterdir on empty directory should not crash
+        files_in_dir = list(log_dir.iterdir())
+        assert len(files_in_dir) == 0
 
-                except Exception as e:
-                    mock_env.logger.error(
-                        f"Error registering outputs for {service_name}: {e}"
-                    )
+        # glob on empty directory should not crash
+        for pattern in ["*.log", "*.pcap", "*.txt"]:
+            assert list(log_dir.glob(pattern)) == []
 
-            mock_register.side_effect = mock_register_impl
-
-            # This should not raise an exception
-            mock_register("test_service")
-
-            # Verify warnings were logged
-            assert mock_env.logger.warning.called
+        # Non-existent directory should also be handled
+        nonexistent_dir = temp_output_dir / "logs" / "ghost_service"
+        assert not nonexistent_dir.exists()
+        # Attempting to iterate should raise, which callers must handle
+        with pytest.raises(FileNotFoundError):
+            list(nonexistent_dir.iterdir())
 
     @pytest.mark.unit
     @pytest.mark.output_collection

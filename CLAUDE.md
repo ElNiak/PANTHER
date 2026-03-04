@@ -31,6 +31,20 @@ mypy panther/                            # Type check
 ```
 
 ### Build System (`panther_builder.py`)
+```bash
+python panther_builder.py package-dev    # Editable install with all deps
+python panther_builder.py docs           # Build documentation
+python panther_builder.py clean          # Remove build artifacts
+python panther_builder.py serve-docs     # Local docs server
+```
+
+### CLI Commands (after `package-dev`)
+```bash
+panther run --config experiment-config/base/experiment_config_example_minimal.yaml     # Execute experiment
+panther config validate --config x.yaml  # Validate config
+panther plugins list                     # List plugins
+panther tools status                     # Show tool installation status
+```
 
 
 ### Experiment Execution
@@ -121,8 +135,8 @@ panther/
 
 ## Configuration
 
-Source of truth: `pyproject.toml` (v1.1.5)
-Dependencies frozen in `requirements.txt` (do not edit)
+Source of truth: `pyproject.toml` (v1.2.1)
+Dependencies defined in `pyproject.toml`
 
 
 ## Testing

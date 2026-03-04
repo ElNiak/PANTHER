@@ -27,7 +27,7 @@ python panther_builder.py serve-docs     # Local docs server
 panther run --config experiment.yaml     # Execute experiment
 panther config validate --config x.yaml  # Validate config
 panther plugins list                     # List plugins
-panther tools doctor                     # System check
+panther tools status                     # Show tool installation status
 ```
 
 ## Testing

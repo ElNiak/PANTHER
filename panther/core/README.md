@@ -113,12 +113,18 @@ panther/core/
 
 ```text
 panther/config/               # Configuration management
-├── config_manager.py         # Configuration loading and validation
-├── config_global_schema.py   # Global configuration schema
-├── config_experiment_schema.py # Experiment configuration schema
-└── plugin_params.py          # Plugin parameter discovery
+├── core/
+│   ├── manager.py            # ConfigurationManager (primary interface)
+│   ├── base.py               # BaseConfig (Pydantic + OmegaConf hybrid)
+│   ├── models/               # Typed config models (experiment, service, global, ...)
+│   ├── mixins/               # Mixin composition for manager capabilities
+│   ├── components/           # Validators, builders, loaders, merger
+│   └── validators/           # Pydantic validator factories
+└── tutorial/                 # Config tutorial helpers
 
-panther/__main__.py           # CLI entry point and command routing
+panther/cli_click/            # Click-based CLI
+├── core/main.py              # CLI entry point
+└── commands/                 # Command implementations (run, config, plugins, ...)
 ```
 
 ---
@@ -167,18 +173,17 @@ The core systems work together to provide a cohesive framework:
 ### Basic Experiment Execution
 
 ```python
-# filepath: /Users/elniak/Documents/Project/PANTHER/panther/__main__.py
-from panther.config.config_manager import ConfigLoader
+from panther.config.core.manager import ConfigurationManager
 from panther.core.experiment_manager import ExperimentManager
 
-# Load configuration
-config_loader = ConfigLoader("experiment_config.yaml")
-global_config = config_loader.load_and_validate_global_config()
+# Load and validate configuration
+config_manager = ConfigurationManager()
+config = config_manager.load_and_validate_config(
+    "experiment-config/base/experiment_config_example_minimal.yaml"
+)
 
 # Create and run experiment
-experiment_manager = ExperimentManager(global_config=global_config)
-experiment_config = config_loader.load_and_validate_experiment_config()
-experiment_manager.initialize_experiments(experiment_config)
+experiment_manager = ExperimentManager(global_config=config)
 experiment_manager.run_tests()
 ```
 
@@ -186,13 +191,13 @@ experiment_manager.run_tests()
 
 ```bash
 # Run experiment
-panther --experiment-config config.yaml
+panther run --config experiment-config/base/experiment_config_example_minimal.yaml
 
 # Validate configuration
-panther --validate-config --experiment-config config.yaml
+panther config validate --config config.yaml
 
-# List plugin parameters
-panther --list-plugin-params quiche
+# List available plugins
+panther plugins list
 ```
 
 ---

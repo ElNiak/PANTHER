@@ -541,24 +541,20 @@ panther config validate --config experiment.yaml --strict
 
 <!-- src: panther/config/core/components/validators.py, panther/config/core/validators/universal_validators.py -->
 
-Validation provides structured results:
+Validation provides structured results through `ConfigurationManager`:
 
 ```python
-from panther.config.managers.configuration_validator import ConfigurationValidator
+from panther.config.core.manager import ConfigurationManager
 
-validator = ConfigurationValidator()
-result = validator.validate_experiment_config(config)
+config_manager = ConfigurationManager()
+config = config_manager.load_and_validate_config("experiment.yaml")
+```
 
-print(result.get_summary())         # "Validation passed with 2 warnings"
-print(result.get_detailed_report()) # Full validation report
+You can also validate from the CLI:
 
-# Check specific aspects
-if result.is_valid:
-    print("Configuration is valid")
-for error in result.errors:
-    print(f"Error: {error}")
-for warning in result.warnings:
-    print(f"Warning: {warning}")
+```bash
+panther config validate --config experiment.yaml
+panther config validate --config experiment.yaml --explain
 ```
 
 ### Schema Definition
@@ -608,47 +604,27 @@ class QuicheConfig:
 
 ```bash
 # Validate configuration before running
-panther --validate-config --experiment-config config.yaml
+panther config validate --config config.yaml
 
-# Validate and show merged schema
-panther --show-schema --experiment-config config.yaml
+# Validate with detailed explanations
+panther config validate --config config.yaml --explain
 
-# Validate specific plugin configuration
-panther --validate-plugin quiche --config plugin_config.yaml
+# Auto-fix validation issues
+panther config validate --config config.yaml --auto-fix
 
-# List available parameters for a specific plugin
-panther --list-plugin-params quiche  # Plugin type and protocol will be auto-detected
+# List available plugins and their parameters
+panther plugins list
 ```
 
 ### Inspecting Plugin Parameters
 
-To view all available configuration parameters for a specific plugin, use:
+To discover available plugins and their configuration parameters:
 
 ```bash
-panther --list-plugin-params PLUGIN_NAME [--plugin-type PLUGIN_TYPE] [--protocol PROTOCOL]
+panther plugins list
+panther plugins info PLUGIN_NAME
+panther plugins params PLUGIN_NAME
 ```
-
-Where:
-
-- `PLUGIN_NAME` is the name of the plugin (e.g., `quiche`, `docker_compose`)
-- `PLUGIN_TYPE` (optional) is one of: `iut`, `tester`, `network_environment`, or `execution_environment`
-  - If not provided, PANTHER will auto-detect the plugin type
-- `PROTOCOL` (optional) for IUT/tester plugins, specifies the protocol (e.g., `quic`, `http`, `minip`)
-  - If not provided, PANTHER will auto-detect the protocol for protocol-specific plugins
-
-This command displays all parameters, their types, default values, whether they're required, and their descriptions:
-
-```text
-Parameter           Type                           Default              Required   Description
-----------------------------------------------------------------------------------------------------
-binary              QuicheBinaryConfig             None                 Yes        Binary configuration
-network             QuicheNetworkConfig            None                 Yes        Network settings
-protocol            QuicheProtocolConfig           None                 Yes        Protocol parameters
-certificates        CertificateConfig              None                 Yes        Certificate settings
-logging             LoggingConfig                  None                 Yes        Logging configuration
-```
-
-This feature helps you understand exactly what parameters are available and required for each plugin without having to examine the source code directly.
 
 ---
 

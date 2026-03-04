@@ -11,6 +11,9 @@ from panther.plugins.environments.config_schema import EnvironmentConfig
 from panther.plugins.environments.network_environment.base_environment_monitor import (
     ServiceHealthState,
 )
+from panther.plugins.environments.network_environment.docker_compose import (
+    docker_compose as _dc_mod,
+)
 from panther.plugins.environments.network_environment.docker_compose.background_service_monitor import (
     BackgroundServiceMonitor,
 )
@@ -312,18 +315,10 @@ class TestDockerComposeEnvironmentMonitoring:
     def docker_env(self, env_config, mock_event_manager, tmp_path):
         """Create a DockerComposeEnvironment instance with mocked internals."""
         with (
-            patch(
-                "panther.plugins.environments.network_environment.docker_compose.docker_compose.TemplateRenderer"
-            ),
-            patch(
-                "panther.plugins.environments.network_environment.docker_compose.docker_compose.DockerComposeNetworkResolver"
-            ),
-            patch(
-                "panther.plugins.environments.network_environment.docker_compose.docker_compose.DockerComposePortManager"
-            ),
-            patch(
-                "panther.plugins.environments.network_environment.docker_compose.docker_compose.DockerComposeOutputManager"
-            ),
+            patch.object(_dc_mod, "TemplateRenderer"),
+            patch.object(_dc_mod, "DockerComposeNetworkResolver"),
+            patch.object(_dc_mod, "DockerComposePortManager"),
+            patch.object(_dc_mod, "DockerComposeOutputManager"),
         ):
             env = DockerComposeEnvironment(
                 env_config_to_test=env_config,

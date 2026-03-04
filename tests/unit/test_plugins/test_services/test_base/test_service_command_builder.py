@@ -5,6 +5,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from panther.core.command_processor import ShellCommand
+from panther.plugins.services.base import service_command_builder as _scb_mod
 from panther.plugins.services.base.service_command_builder import ServiceCommandBuilder
 
 
@@ -99,8 +100,8 @@ class TestServiceCommandBuilder:
 
         assert "-c /path/to/certs" in command
 
-    @patch("panther.plugins.services.base.service_command_builder.CommandUtils")
-    @patch("panther.plugins.services.base.service_command_builder.ShellCommand")
+    @patch.object(_scb_mod, "CommandUtils")
+    @patch.object(_scb_mod, "ShellCommand")
     def test_create_service_command_structure(
         self, mock_shell_command, mock_command_utils
     ):

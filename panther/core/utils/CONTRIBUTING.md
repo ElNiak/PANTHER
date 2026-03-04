@@ -8,7 +8,7 @@ We welcome contributions to PANTHER's core utilities! This module provides the f
 
 ### Prerequisites
 
-- Python 3.8+
+- Python 3.10+
 - Git for version control
 - Understanding of Python logging module
 - Basic knowledge of software testing
@@ -17,15 +17,13 @@ We welcome contributions to PANTHER's core utilities! This module provides the f
 
 1. **Clone the Repository**:
    ```bash
-   git clone https://github.com/panther-project/panther.git
+   git clone https://github.com/ElNiak/PANTHER.git
    cd panther/panther/core/utils
    ```
 
 2. **Install Development Dependencies**:
    ```bash
-   pip install -r requirements-dev.txt
-   # Or if requirements-dev.txt doesn't exist:
-   pip install pytest pytest-cov black flake8 mypy colorlog psutil
+   pip install -e ".[tests,lint]"
    ```
 
 3. **Verify Installation**:
@@ -50,14 +48,14 @@ We follow strict code quality standards to ensure maintainability and reliabilit
 # pyproject.toml
 [tool.black]
 line-length = 88
-target-version = ['py38']
+target-version = ['py310']
 
 [tool.isort]
 profile = "black"
 line_length = 88
 
 [tool.mypy]
-python_version = "3.8"
+python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
