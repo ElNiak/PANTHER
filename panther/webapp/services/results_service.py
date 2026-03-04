@@ -79,9 +79,13 @@ class ResultsService:
 
     def _count_tests(self, exp_dir: Path) -> int:
         """Count test result files in an experiment directory."""
-        return len(list(exp_dir.glob("**/test_*.json"))) or len(
-            list(exp_dir.glob("**/test_*"))
-        )
+        json_count = 0
+        any_count = 0
+        for f in exp_dir.rglob("test_*"):
+            any_count += 1
+            if f.suffix == ".json":
+                json_count += 1
+        return json_count or any_count
 
     def _detect_status(self, exp_dir: Path) -> str:
         """Detect experiment status from result files."""
@@ -109,7 +113,9 @@ class ResultsService:
             logs = list(exp_dir.glob(pattern))
             if logs:
                 try:
-                    # Read last 500 lines max
+                    # TODO: For very large logs, read_text() loads the
+                    # entire file before slicing. Consider a tail-based
+                    # approach (e.g. deque with maxlen) for multi-GB logs.
                     lines = logs[0].read_text().splitlines()
                     return "\n".join(lines[-500:])
                 except OSError:

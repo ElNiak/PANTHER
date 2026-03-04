@@ -57,8 +57,7 @@ def web(ctx, host, port, config, output_dir, reload):
         from nicegui import ui
     except ImportError:
         error_message(
-            "Web dependencies not installed. "
-            "Install with: pip install panther-net[web]"
+            "Web dependencies not installed. " 'Install with: pip install -e ".[web]"'
         )
         raise click.Abort()
 

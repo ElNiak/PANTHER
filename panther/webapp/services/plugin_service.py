@@ -1,7 +1,6 @@
 """Service layer for plugin discovery and browsing."""
 
 import logging
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 

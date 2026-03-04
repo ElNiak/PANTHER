@@ -48,13 +48,6 @@ panther web
 
 The server starts at `http://localhost:8080` by default. The browser does NOT auto-open; navigate there manually.
 
-**Note:** The `panther web` command does not exist yet. It is the first task in Week 1 (see TASKS.md). Until it is implemented, you can start the app directly:
-
-```bash
-# Temporary: run NiceGUI app directly (before `panther web` exists)
-python -m panther.webapp.app
-```
-
 ## How NiceGUI Development Works
 
 NiceGUI serves a single-page application. The Python process holds the UI state and pushes changes to the browser over a WebSocket.

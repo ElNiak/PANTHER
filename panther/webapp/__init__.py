@@ -1,10 +1,25 @@
 """PANTHER web application.
 
-This package contains the web interface for PANTHER.
+This package provides a web dashboard for PANTHER experiment management,
+built on NiceGUI + NiceCRUD + FastAPI.
+
+Install with: pip install panther-net[web]
+Run with: panther web
 """
 
-# Import key modules for easier access
-from . import experiment_setup, web_app
+__all__ = ["create_app"]
 
-# Define the public API
-__all__ = ["web_app", "experiment_setup"]
+
+def create_app(**kwargs):
+    """Create and configure the NiceGUI web application.
+
+    Lazy import to avoid requiring web dependencies when not using the webapp.
+    """
+    try:
+        from panther.webapp.app import create_app as _create_app
+    except ImportError as e:
+        raise ImportError(
+            "Web dependencies not installed. "
+            "Install with: pip install panther-net[web]"
+        ) from e
+    return _create_app(**kwargs)

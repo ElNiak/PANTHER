@@ -60,19 +60,17 @@ panther/webapp/
 
 | Feature                          | Status       | Notes                                         |
 |----------------------------------|--------------|-----------------------------------------------|
-| `panther web` CLI command        | Planned      | Week 1 task                                   |
-| Shared layout (sidebar, header)  | Planned      | Week 1 task                                   |
-| Plugin browser page              | Planned      | Week 2 task                                   |
-| Dashboard with status cards      | Planned      | Week 3 task                                   |
-| Config builder (NiceCRUD forms)  | Planned      | Weeks 4-5 task                                |
-| YAML editor with live sync       | Planned      | Week 5 task                                   |
+| `panther web` CLI command        | **Done**     | `panther/cli_click/commands/web.py`           |
+| Shared layout (sidebar, header)  | **Done**     | `components/layout.py`                        |
+| Plugin browser page              | **Done**     | `pages/plugins.py`                            |
+| Dashboard with status cards      | **Done**     | `pages/dashboard.py`, `components/stat_cards.py` |
+| Config builder (NiceCRUD forms)  | **Skeleton** | `pages/config_builder.py` — form wiring TBD  |
+| YAML editor with live sync       | **Skeleton** | `components/yaml_editor.py` — sync TBD       |
 | Experiment launch                | Planned      | Week 6 task                                   |
 | Real-time monitoring (WebObserver) | Planned    | Week 7 task                                   |
-| Results browser                  | Planned      | Week 8 task                                   |
+| Results browser                  | **Done**     | `pages/results.py`, `services/results_service.py` |
 | Error handling & UX polish       | Planned      | Week 9 task                                   |
 | Tests                            | Planned      | Week 10 task                                  |
-
-Nothing above is implemented yet. This table will be updated as work progresses.
 
 ## Legacy Code (`_legacy/`)
 
