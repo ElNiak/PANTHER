@@ -640,6 +640,29 @@ class BuildManager:
             ]
         )
 
+    def install_ivy_submodule(self) -> int:
+        """Install the panther_ivy submodule in editable mode (if present)."""
+        ivy_path = (
+            self.project_root
+            / "panther"
+            / "plugins"
+            / "services"
+            / "testers"
+            / "panther_ivy"
+        )
+        if not (ivy_path / "setup.py").exists() and not (
+            ivy_path / "pyproject.toml"
+        ).exists():
+            print(
+                "Skipping panther_ivy: submodule not initialized"
+                " (run 'git submodule update --init')"
+            )
+            return 0
+        print("Installing panther_ivy submodule...")
+        return self.run_command(
+            [sys.executable, "-m", "pip", "install", "--editable", str(ivy_path)]
+        )
+
     # Note: install_slim moved to CLI tools command
 
     def run_tests(self) -> int:
@@ -1448,6 +1471,7 @@ Note: The following commands have been moved to the CLI:
             + build_manager.install_dependencies()
             + build_manager.uninstall_package()
             + build_manager.install_editable()
+            + build_manager.install_ivy_submodule()
         ),
         "package-test": lambda: (
             build_manager.clean()
@@ -1459,7 +1483,9 @@ Note: The following commands have been moved to the CLI:
         ),
         "clean": build_manager.clean,
         "install-local": lambda: (
-            build_manager.install_dependencies() + build_manager.install_editable()
+            build_manager.install_dependencies()
+            + build_manager.install_editable()
+            + build_manager.install_ivy_submodule()
         ),
         "docs": build_manager.build_docs,
         "serve-docs": build_manager.serve_docs,

@@ -16,8 +16,13 @@ Regular index project with `uvx --from git+https://github.com/oraios/serena sere
 python -m venv .venv
 source .venv/bin/activate
 
-# Development install (recommended)
+# Development install (recommended — also installs panther_ivy if submodule is present)
 python panther_builder.py package-dev
+
+# If using the Ivy tester plugin (init submodule first):
+git submodule update --init panther/plugins/services/testers/panther_ivy
+# Then re-run package-dev, or install manually:
+pip install -e panther/plugins/services/testers/panther_ivy/
 
 # Run tests
 pytest tests/ -n auto -m unit             # Fast unit tests
