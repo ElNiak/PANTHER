@@ -181,6 +181,7 @@ def register_commands():
         ("check", "panther.cli_click.commands.check", "check"),
         ("metrics", "panther.cli_click.commands.metrics", "metrics"),
         ("ivy", "panther.cli_click.commands.ivy", "ivy"),
+        ("web", "panther.cli_click.commands.web", "web"),
     ]
 
     missing_commands = []
