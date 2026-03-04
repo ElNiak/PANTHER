@@ -1,4 +1,18 @@
-"""Command validation functionality."""
+"""Command validation functionality.
+
+Provides ``CommandValidator`` for security and correctness checks on raw
+shell command strings, and ``ValidationResult`` for structured error/warning
+accumulation.
+
+Checks performed:
+    - Dangerous command patterns (``rm -rf /``, fork bombs, etc.)
+    - Sensitive commands requiring careful handling (``sudo``, ``chmod``, ...)
+    - Quote balance (single and double)
+    - Potential injection attempts (excessive separators, backticks, ``eval``)
+    - Malformed or risky redirections
+    - Unquoted environment variable expansion
+    - Syntactic structure (balanced parens, braces, brackets)
+"""
 
 import re
 from dataclasses import dataclass
@@ -7,24 +21,53 @@ from typing import List, Optional, Tuple
 
 @dataclass
 class ValidationResult:
-    """Result of command validation."""
+    """Accumulator for command validation errors and warnings.
+
+    Attributes:
+        is_valid: ``True`` until ``add_error`` is called.
+        errors: List of error description strings (validation failures).
+        warnings: List of advisory warning strings (non-blocking).
+    """
 
     is_valid: bool
     errors: List[str]
     warnings: List[str]
 
     def add_error(self, error: str) -> None:
-        """Add an error to the validation result."""
+        """Add an error and mark the result as invalid.
+
+        Args:
+            error: Human-readable error description.
+        """
         self.errors.append(error)
         self.is_valid = False
 
     def add_warning(self, warning: str) -> None:
-        """Add a warning to the validation result."""
+        """Add an advisory warning (does not affect ``is_valid``).
+
+        Args:
+            warning: Human-readable warning description.
+        """
         self.warnings.append(warning)
 
 
 class CommandValidator:
-    """Validates shell commands for security and correctness."""
+    """Validate shell commands for security and correctness.
+
+    Performs multi-pass analysis: dangerous patterns, sensitive commands,
+    quote balance, injection indicators, redirection safety, and environment
+    variable hygiene.  Also offers ``sanitize_command`` for removing known
+    dangerous patterns and ``validate_command_structure`` for syntactic
+    bracket/brace/parenthesis balance checks.
+
+    Example:
+        ::
+
+            validator = CommandValidator()
+            result = validator.validate_command("rm -rf /")
+            assert not result.is_valid
+            assert any("Dangerous" in e for e in result.errors)
+    """
 
     # Dangerous commands that should be avoided
     DANGEROUS_COMMANDS = [

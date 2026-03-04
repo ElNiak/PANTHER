@@ -1,8 +1,19 @@
-"""
-Command Summarizer
+"""Command Summarizer.
 
-This module provides smart command summarization for logging purposes,
-reducing verbosity while maintaining useful information about command generation.
+Provides ``CommandSummarizer`` for compact, high-entropy log output instead of
+dumping full command text.  Features include:
+
+- Pattern-based classification (setup, build, install, network, cleanup, test,
+  docker, ivy, other).
+- Sensitive-information masking (passwords, tokens, keys, secrets).
+- Configurable detail level: show all commands for small lists, show type
+  summary + sample for large lists.
+- Template-context summarization for logging render parameters.
+- Command statistics (counts, top patterns, average length).
+
+This is part of the high-entropy logging strategy described in the command
+processor architecture: log *what kind* of commands were generated rather
+than their full text, with detailed output only at DEBUG level.
 """
 
 import re
@@ -11,7 +22,22 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 
 class CommandSummarizer:
-    """Smart command summarization for logging."""
+    """Smart command summarization for logging.
+
+    All methods are ``@staticmethod``; the class serves as a namespace with
+    shared class-level pattern tables (``COMMAND_PATTERNS`` for classification
+    and ``SENSITIVE_PATTERNS`` for masking).
+
+    Example:
+        ::
+
+            cmds = ["export FOO=bar", "mkdir -p /out", "echo done"]
+            summary = CommandSummarizer.summarize_command_list(cmds)
+            # "3 commands: export FOO=bar; mkdir -p /out; echo done"
+
+            stats = CommandSummarizer.get_command_stats(cmds)
+            # {"total": 3, "types": {"setup": 3}, ...}
+    """
 
     # Common command patterns to recognize
     COMMAND_PATTERNS = {

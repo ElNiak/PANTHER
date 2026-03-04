@@ -1,11 +1,29 @@
-"""
-Merged ShellCommand implementation combining the best of both versions.
+"""Merged ShellCommand implementation combining the best of both versions.
 
-This implementation:
-- Uses the cleaner structure from shell_command.py with CommandMetadata
-- Includes all detection logic from command.py
-- Fixes the dollar sign escaping issue for variable assignments
-- Provides enhanced variable assignment detection
+Provides ``ShellCommand`` -- the primary command representation in the PANTHER
+command processor -- and ``CommandMetadata`` for rich execution and detection
+metadata.
+
+Key capabilities:
+    - Automatic detection of command types: variable assignments, function
+      definitions, control structures, shell builtins, control operators.
+    - Smart dollar-sign escaping that preserves ``$VAR`` in assignments,
+      exports, and command substitutions while escaping in other contexts.
+    - Serialization via ``to_dict()`` / ``from_dict()`` for config round-tripping.
+    - Immutable-copy builders ``with_timeout`` and ``with_environment``.
+    - Integration with ``CommandValidator`` for security checks on creation.
+
+Example:
+    ::
+
+        cmd = ShellCommand.from_string("export SSLKEYLOGFILE=/tmp/keys.log")
+        print(cmd.metadata.is_variable_assignment)  # True
+        print(cmd.metadata.is_shell_builtin)        # True
+        print(cmd.shell_safe_command)                # preserves $
+
+        cmd2 = ShellCommand("echo hello", metadata=CommandMetadata(timeout=30))
+        d = cmd2.to_dict()
+        cmd3 = ShellCommand.from_dict(d)
 """
 
 import re
@@ -30,7 +48,37 @@ from panther.core.utils.logging_mixin import LoggerMixin
 
 @dataclass
 class CommandMetadata:
-    """Metadata for shell commands."""
+    """Metadata container for shell commands.
+
+    Combines execution-control fields (criticality, timeout, retry, environment,
+    working directory) with auto-detected structural properties (multiline,
+    function definition, variable assignment, control structure, etc.).
+
+    All detection booleans default to ``False`` and are populated by
+    ``ShellCommand._detect_command_type()`` during construction.
+
+    Attributes:
+        is_critical: Whether command failure should halt execution.
+        timeout: Command timeout in seconds, or ``None`` for no limit.
+        retry_count: Number of retries on failure.
+        environment: Environment variables for this command.
+        working_directory: Working directory for execution.
+        description: Human-readable description.
+        tags: Categorization tags.
+        is_multiline: Whether command spans multiple lines.
+        is_function_definition: Whether command defines a shell function.
+        is_function_call: Whether command is a simple function call.
+        has_control_operators: Whether command uses ``&&``, ``||``, ``|``, etc.
+        control_operators: List of detected control operators.
+        is_variable_assignment: Whether command assigns variables.
+        is_environment_variable_assignment: Whether explicitly an env-var assignment.
+        is_shell_builtin: Whether command starts with a shell builtin.
+        is_control_structure: Whether command is an if/for/while/case block.
+        has_nested_quotes: Whether command contains nested/multiple quoting.
+        has_comment: Whether command contains a ``#`` comment.
+        comment_text: Extracted comment text.
+        is_empty: Whether command is effectively empty.
+    """
 
     is_critical: bool = True
     timeout: Optional[int] = None
@@ -57,16 +105,20 @@ class CommandMetadata:
 
 
 class ShellCommand(LoggerMixin):
-    """
-    Represents a shell command with validation and safe execution support.
+    """Represent a shell command with validation and safe execution support.
 
-    This merged implementation provides:
-    - Command validation and sanitization
-    - Safe string representation for shell execution
-    - Serialization/deserialization support
-    - Metadata for execution control
-    - Detection of command types (variable assignments, builtins, etc.)
-    - Smart escaping based on command type
+    On construction the command string is normalized, parsed into executable +
+    arguments + redirections, and analyzed for type (variable assignment, shell
+    builtin, function definition, control structure, etc.).  Results are stored
+    in ``self.metadata`` (a ``CommandMetadata`` instance).
+
+    Safe shell output is available via the ``shell_safe_command`` property which
+    applies context-aware escaping: dollar signs are preserved for variable
+    assignments, exports, and command substitutions.
+
+    Serialization round-trips through ``to_dict()`` / ``from_dict()``.
+    Convenience constructors ``from_string`` and ``from_dict`` handle common
+    creation patterns.
     """
 
     def __init__(

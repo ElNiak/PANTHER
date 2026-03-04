@@ -1,8 +1,12 @@
-"""
-Command processing mixins.
+"""Command processing mixins.
 
-This module contains mixin classes that provide specific command processing
-behaviors that can be mixed into other classes.
+Cross-cutting concerns composed into service managers and execution
+environments via multiple inheritance:
+
+- ``CommandEventMixin``        -- emits command-generation and Docker-build
+  events through the service emitter.
+- ``CommandModificationMixin`` -- applies pre/post-run command modifications
+  and environment-variable injection with event emission and state tracking.
 """
 
 from panther.core.command_processor.mixins.event_mixin import CommandEventMixin

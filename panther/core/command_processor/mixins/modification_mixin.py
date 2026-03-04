@@ -1,12 +1,25 @@
+"""Command Modification Mixin.
+
+Provides ``CommandModificationMixin`` for standardized, event-tracked
+command modification in execution environments.  Designed to be mixed into
+environment classes that expose ``self.environment_emitter``,
+``self.env_sub_type``, and ``self.logger``.
+"""
+
 from typing import Any, Dict
 
 
 class CommandModificationMixin:
-    """
-    Mixin for standardized command modification in execution environments.
+    """Mixin for standardized command modification in execution environments.
 
-    This mixin provides a consistent way to modify service commands
-    with proper event emission and state tracking.
+    Applies pre/post-run command injections and environment-variable updates
+    to a service's ``run_cmd`` dictionary, emitting modification-started and
+    modification-completed events for observability.
+
+    Supported modification keys:
+        - ``pre_run_cmds``  -- appended to existing pre-run command list.
+        - ``post_run_cmds`` -- appended to existing post-run command list.
+        - ``environment``   -- merged into ``run_cmd.command_env``.
     """
 
     def modify_service_commands(
