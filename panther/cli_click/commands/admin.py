@@ -12,6 +12,7 @@ from termcolor import colored
 
 from panther.cli_click.core.base import (
     error_message,
+    featured_example,
     handle_errors,
     info_message,
     pass_context_and_setup_logging,
@@ -19,6 +20,7 @@ from panther.cli_click.core.base import (
 )
 
 
+@featured_example("panther admin status")
 @click.group()
 def admin():
     """

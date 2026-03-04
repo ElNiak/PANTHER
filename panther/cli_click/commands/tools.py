@@ -15,6 +15,7 @@ from termcolor import colored
 from panther.cli_click.core.base import (
     common_options,
     error_message,
+    featured_example,
     handle_errors,
     info_message,
     pass_context_and_setup_logging,
@@ -22,6 +23,7 @@ from panther.cli_click.core.base import (
 )
 
 
+@featured_example("panther tools status")
 @click.group()
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
 @click.pass_context

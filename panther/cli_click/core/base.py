@@ -13,6 +13,36 @@ from typing import Any, Callable
 import click
 from termcolor import colored
 
+FEATURED_EXAMPLE_ATTR = "_panther_featured_example"
+
+
+def featured_example(example_text: str):
+    """Attach a featured example to a Click command for top-level help."""
+
+    def decorator(cmd):
+        setattr(cmd, FEATURED_EXAMPLE_ATTR, example_text)
+        return cmd
+
+    return decorator
+
+
+class PantherGroup(click.Group):
+    """Custom Click Group that auto-generates an Examples section from commands."""
+
+    def format_help(self, ctx, formatter):
+        super().format_help(ctx, formatter)
+        examples = []
+        for name in sorted(self.list_commands(ctx)):
+            cmd = self.get_command(ctx, name)
+            if cmd and hasattr(cmd, FEATURED_EXAMPLE_ATTR):
+                examples.append(getattr(cmd, FEATURED_EXAMPLE_ATTR))
+        if examples:
+            formatter.write("\n")
+            with formatter.section("Examples"):
+                for ex in examples:
+                    formatter.write(f"  {ex}\n")
+            formatter.write("\n  Use 'panther COMMAND --help' for details.\n")
+
 
 def common_options(func: Callable) -> Callable:
     """

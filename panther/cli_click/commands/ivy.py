@@ -13,6 +13,8 @@ from panther_ivy.api.compiler import generate_compile_commands, parse_compile_ou
 from panther_ivy.api.discovery import detect_from_path, list_tests
 from panther_ivy.api.runner import generate_test_commands, parse_test_output
 
+from panther.cli_click.core.base import featured_example
+
 from .ivy_executor import IvyExecutor
 
 
@@ -26,6 +28,7 @@ def _output_raw(text: str) -> None:
     click.echo(text)
 
 
+@featured_example("panther ivy status")
 @click.group()
 @click.pass_context
 def ivy(ctx):

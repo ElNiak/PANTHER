@@ -12,6 +12,7 @@ from termcolor import colored
 
 from panther.cli_click.core.base import (
     error_message,
+    featured_example,
     handle_errors,
     info_message,
     pass_context_and_setup_logging,
@@ -34,6 +35,7 @@ except ImportError:
     ]
 
 
+@featured_example("panther plugins list")
 @click.group()
 def plugins():
     """

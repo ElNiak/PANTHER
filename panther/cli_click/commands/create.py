@@ -12,6 +12,7 @@ from termcolor import colored
 
 from panther.cli_click.core.base import (
     error_message,
+    featured_example,
     handle_errors,
     info_message,
     pass_context_and_setup_logging,
@@ -20,6 +21,7 @@ from panther.cli_click.core.base import (
 )
 
 
+@featured_example("panther create plugin service my_service")
 @click.group()
 def create():
     """
@@ -445,7 +447,9 @@ def template(
             with open(output_path, "w") as f:
                 f.write(template_content)
 
-            success_message(f"✅ Template created: {colored(str(output_path), 'green')}")
+            success_message(
+                f"✅ Template created: {colored(str(output_path), 'green')}"
+            )
 
             # Show file info
             file_size = output_path.stat().st_size

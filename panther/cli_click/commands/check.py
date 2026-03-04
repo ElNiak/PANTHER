@@ -12,6 +12,7 @@ from termcolor import colored
 
 from panther.cli_click.core.base import (
     error_message,
+    featured_example,
     handle_errors,
     info_message,
     pass_context_and_setup_logging,
@@ -20,6 +21,7 @@ from panther.cli_click.core.base import (
 )
 
 
+@featured_example("panther check --all")
 @click.command()
 @click.option("--fix", is_flag=True, help="Automatically fix issues where possible")
 @click.option("--all", is_flag=True, help="Run all available checks")
@@ -163,9 +165,7 @@ def check(
             click.echo(f"   📁 Target path: {path}")
             click.echo(f"   🔧 Checks: {', '.join(checks_to_run)}")
             if fix:
-                click.echo(
-                    f"   ⚙️ Mode: {colored('AUTO-FIX', 'green', attrs=['bold'])}"
-                )
+                click.echo(f"   ⚙️ Mode: {colored('AUTO-FIX', 'green', attrs=['bold'])}")
             else:
                 click.echo(
                     f"   ⚙️ Mode: {colored('CHECK-ONLY', 'yellow', attrs=['bold'])}"

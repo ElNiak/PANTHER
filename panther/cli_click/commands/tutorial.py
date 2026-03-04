@@ -12,6 +12,7 @@ from termcolor import colored
 
 from panther.cli_click.core.base import (
     error_message,
+    featured_example,
     handle_errors,
     info_message,
     pass_context_and_setup_logging,
@@ -130,6 +131,7 @@ TUTORIAL_REGISTRY: List[dict] = [
 ]
 
 
+@featured_example("panther tutorial run service")
 @click.group()
 def tutorial():
     """
