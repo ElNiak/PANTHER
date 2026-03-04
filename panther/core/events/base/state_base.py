@@ -1,7 +1,39 @@
-"""
-Base State Management
+"""Base state management infrastructure for entity lifecycle tracking.
 
-This module provides base classes for state management across all entity types.
+Provides the state machine primitives used by all domain-specific state
+managers in the event system:
+
+- :class:`BaseState` -- Base ``Enum`` for entity-specific states.
+- :class:`StateTransition` -- Records a single state change with metadata.
+- :class:`StateManager` -- Abstract state machine that validates transitions
+  against an allowed-transitions map, maintains full transition history, and
+  provides time-in-state queries.
+
+Example:
+    Define a custom state machine::
+
+        from enum import Enum
+        from panther.core.events.base.state_base import BaseState, StateManager
+
+        class MyState(BaseState):
+            CREATED = "created"
+            RUNNING = "running"
+            COMPLETED = "completed"
+            FAILED = "failed"
+
+        class MyStateManager(StateManager):
+            def _define_allowed_transitions(self):
+                return {
+                    MyState.CREATED: {MyState.RUNNING},
+                    MyState.RUNNING: {MyState.COMPLETED, MyState.FAILED},
+                    MyState.COMPLETED: set(),
+                    MyState.FAILED: set(),
+                }
+
+        sm = MyStateManager("entity-1", MyState.CREATED)
+        sm.setup_transitions()
+        assert sm.transition_to(MyState.RUNNING)   # True
+        assert not sm.transition_to(MyState.CREATED)  # False -- not allowed
 """
 
 import logging
@@ -12,9 +44,11 @@ from typing import Any, Dict, List, Optional, Set
 
 
 class BaseState(Enum):
-    """
+    """Base state enumeration for entity lifecycle tracking.
 
-    from typing import Any, Dict, List, Optional, Set, SetBase state enumeration. Entity-specific states should inherit from this.
+    Entity-specific states (e.g. ``ServiceState``, ``TestState``) should
+    inherit from this class to participate in the :class:`StateManager`
+    transition validation system.
     """
 
     def __str__(self) -> str:
@@ -25,7 +59,15 @@ class BaseState(Enum):
 
 
 class StateTransition:
-    """Represents a state transition with metadata."""
+    """Represents a single state transition with metadata.
+
+    Attributes:
+        from_state: State transitioned from (``None`` for the initial state).
+        to_state: State transitioned to.
+        timestamp: When the transition occurred.
+        trigger: What triggered the transition (e.g. ``"service_creation"``).
+        metadata: Additional context about the transition.
+    """
 
     def __init__(
         self,
@@ -46,11 +88,20 @@ class StateTransition:
 
 
 class StateManager(ABC):
-    """
-    Base state manager for managing entity state transitions.
+    """Abstract base state manager for entity lifecycle tracking.
 
-    Provides common functionality for state tracking, validation,
-    and transition management.
+    Manages allowed state transitions, maintains a full transition history,
+    and provides time-in-state queries.  Subclasses must implement
+    :meth:`_define_allowed_transitions` and call :meth:`setup_transitions`
+    before using ``transition_to()``.
+
+    Attributes:
+        entity_id: Unique identifier for the managed entity.
+        current_state: The entity's current state.
+        state_history: Ordered list of all :class:`StateTransition` records.
+        allowed_transitions: Map from each state to its set of valid
+            next states (populated by :meth:`setup_transitions`).
+        logger: Logger instance scoped to ``{ClassName}({entity_id})``.
     """
 
     def __init__(self, entity_id: str, initial_state: BaseState):

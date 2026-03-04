@@ -1,8 +1,29 @@
-"""
-EmitterRegistry for centralized management of event emitters.
+"""Centralized registry for all event emitters and state managers.
 
-This module provides a centralized registry for all event emitters in PANTHER,
-ensuring single instances and preventing duplication issues.
+Provides :class:`EmitterRegistry`, the single coordination point between
+event producers and the state management system.  Ensures singleton emitter
+instances per type, validates state transitions before event emission, and
+manages per-entity memory cleanup.
+
+Usage::
+
+    from panther.core.events.emitter_registry import EmitterRegistry
+    from panther.core.observer.management.event_manager import EventManager
+
+    registry = EmitterRegistry(EventManager.get_instance())
+
+    # Get domain emitters
+    test_emitter = registry.get_emitter("test", test_name="my-test")
+    svc_emitter = registry.get_emitter("service")
+
+    # State-validated emission
+    registry.emit_service_created_with_validation(
+        "svc-1", "picoquic", "iut", "picoquic"
+    )
+
+    # Cleanup after completion
+    registry.cleanup_test_emitter("my-test")
+    registry.cleanup_service_state("svc-1")
 """
 
 from typing import Dict, List, Optional
@@ -26,48 +47,44 @@ from panther.core.observer.management.event_manager import EventManager
 
 
 class EmitterRegistry:
-    """
-    Centralized registry for all event emitters in PANTHER with state validation.
+    """Centralized registry for all event emitters with state validation.
 
-    This class manages the complete lifecycle of event emitters, ensuring singleton
-    instances per emitter type while providing state-aware event emission with
-    validation. It integrates closely with state managers to prevent invalid
-    state transitions and maintains referential integrity across the event system.
+    Manages the complete lifecycle of event emitters, ensuring singleton
+    instances per emitter type while providing state-aware event emission.
+    Integrates closely with domain state managers to prevent invalid state
+    transitions and maintains referential integrity across the event system.
 
-    **Architecture Responsibilities:**
-    - Singleton management for all emitter types
-    - State transition validation before event emission
-    - Test-specific emitter lifecycle management
-    - Memory cleanup for completed entities
-    - Integration with domain-specific state managers
+    Service State Machine (validated by this registry)::
 
-    **State Management Integration:**
-    ```mermaid
-    stateDiagram-v2
-        [*] --> CREATED: Service Creation
-        CREATED --> PREPARING: Preparation Start
-        PREPARING --> DEPLOYING: Deployment Start
-        DEPLOYING --> DEPLOYED: Deployment Complete
-        DEPLOYED --> READY: Ready Check
-        READY --> RUNNING: Service Start
-        RUNNING --> STOPPED: Service Stop
-        RUNNING --> ERROR: Error Occurred
-        ERROR --> STOPPED: Recovery
-        STOPPED --> [*]
+        [*] --> CREATED --> PREPARING --> DEPLOYING --> DEPLOYED
+        DEPLOYED --> READY --> RUNNING --> STOPPED --> [*]
+        RUNNING --> ERROR --> STOPPED
 
-        note right of CREATED : EmitterRegistry validates\neach transition before\nemitting events
-    ```
+    Emitter Instances (created in ``__init__``):
+        - ``experiment_emitter``: :class:`ExperimentEventEmitter`
+        - ``service_emitter``: :class:`ServiceEventEmitter`
+        - ``environment_emitter``: :class:`EnvironmentEventEmitter`
+        - ``step_emitter``: :class:`StepEventEmitter`
+        - ``plugin_emitter``: :class:`PluginEventEmitter`
+        - ``assertion_emitter``: :class:`AssertionEventEmitter`
+        - ``metrics_emitter``: :class:`MetricsEventEmitter`
+        - ``test_emitters``: ``Dict[str, TestEventEmitter]`` (created on demand)
 
-    **Memory Management Strategy:**
-    - Test emitters: Created on-demand, cleaned up after test completion
-    - Service states: Maintained per service_id, cleaned up on service removal
-    - Environment states: Tracked per env_id with automatic cleanup
-    - Global emitters: Persistent throughout application lifecycle
+    State Manager Instances:
+        - ``experiment_state``: Created on demand via :meth:`get_experiment_state`
+        - ``plugin_state``: :class:`PluginStateManager` (created immediately)
+        - ``service_states``: ``Dict[str, ServiceStateManager]`` (per service)
+        - ``test_states``: ``Dict[str, TestStateManager]`` (per test)
+        - ``environment_states``: ``Dict[str, EnvironmentStateManager]`` (per env)
 
-    **Integration Pattern:**
-    The registry acts as the central coordination point between event producers
-    and the state management system, ensuring that all events maintain system
-    consistency and provide accurate state representations.
+    Memory Management:
+        - **Test emitters**: Created on-demand, cleaned up via
+          :meth:`cleanup_test_emitter` after test completion.
+        - **Service states**: Per ``service_id``, cleaned up via
+          :meth:`cleanup_service_state`.
+        - **Environment states**: Per ``env_id``, cleaned up via
+          :meth:`cleanup_environment_state`.
+        - **Global emitters**: Persistent throughout application lifecycle.
     """
 
     def __init__(self, event_manager: EventManager):
@@ -81,16 +98,16 @@ class EmitterRegistry:
 
         # Initialize containers for event-based state managers
         # Note: Individual state managers are created on-demand with entity IDs
-        self.experiment_state: Optional[
-            ExperimentStateManager
-        ] = None  # Created when experiment starts
+        self.experiment_state: Optional[ExperimentStateManager] = (
+            None  # Created when experiment starts
+        )
         self.plugin_state = PluginStateManager()  # Can be created immediately
-        self.environment_states: Dict[
-            str, EnvironmentStateManager
-        ] = {}  # env_id -> state manager
-        self.service_states: Dict[
-            str, ServiceStateManager
-        ] = {}  # service_id -> state manager
+        self.environment_states: Dict[str, EnvironmentStateManager] = (
+            {}
+        )  # env_id -> state manager
+        self.service_states: Dict[str, ServiceStateManager] = (
+            {}
+        )  # service_id -> state manager
         self.test_states: Dict[str, TestStateManager] = {}  # test_id -> state manager
 
         # Create single instances of each emitter type
@@ -122,15 +139,20 @@ class EmitterRegistry:
         return self.test_emitters[test_name]
 
     def get_emitter(self, emitter_type: str, test_name: str = "default_test"):
-        """
-        Get an emitter by type.
+        """Get an emitter by type string.
 
         Args:
-            emitter_type: The type of emitter to retrieve
-            test_name: Test name for test-specific emitters
+            emitter_type: One of ``"experiment"``, ``"service"``,
+                ``"environment"``, ``"step"``, ``"plugin"``,
+                ``"assertion"``, ``"metrics"``, or ``"test"``.
+            test_name: Test name used when ``emitter_type="test"`` to
+                retrieve or create a test-specific emitter.
 
         Returns:
-            The corresponding emitter instance
+            The corresponding emitter instance.
+
+        Raises:
+            ValueError: If *emitter_type* is not recognized.
         """
         if emitter_type == "test":
             # For test emitters, return or create a test-specific emitter

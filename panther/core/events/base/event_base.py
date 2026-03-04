@@ -1,7 +1,27 @@
-"""
-Base Event Classes
+"""Base event classes and utility functions for the PANTHER event system.
 
-This module defines the base event classes used across all entity types in PANTHER.
+This module defines the foundational event infrastructure:
+
+- :func:`create_content_based_uuid` -- Deterministic UUID5 generation for
+  event deduplication across distributed test environments.
+- :func:`create_event_signature` -- Builds a deterministic signature string
+  (excluding timestamps) for duplicate detection.
+- :class:`EventType` -- Enum that partitions events by entity domain
+  (experiment, test, service, environment, etc.).
+- :class:`BaseEvent` -- Abstract base for all events.  **Not a dataclass** --
+  uses a standard ``__init__`` constructor.  **Not frozen/immutable** --
+  ``add_data()`` mutates the data dict and regenerates the UUID.
+
+Example:
+    Basic event creation and deduplication::
+
+        from panther.core.events.base.event_base import (
+            BaseEvent, EventType, create_content_based_uuid,
+        )
+
+        e1 = BaseEvent("test.started", EventType.TEST, "t1", {"k": "v"})
+        e2 = BaseEvent("test.started", EventType.TEST, "t1", {"k": "v"})
+        assert e1.is_duplicate_of(e2)  # same content --> same UUID
 """
 
 import hashlib
@@ -36,17 +56,21 @@ def create_content_based_uuid(content: str) -> str:
 def create_event_signature(
     name: str, entity_type: str, entity_id: str, data: Dict[str, Any] = None
 ) -> str:
-    """
-    Create a signature string for event deduplication.
+    """Create a deterministic signature string for event deduplication.
+
+    Excludes timestamps so that two events with identical content but
+    different creation times produce the same signature.
 
     Args:
-        name: Event name
-        entity_type: Event entity type
-        entity_id: Entity identifier
-        data: Event data dictionary
+        name: Event name (e.g. ``"test.execution_started"``).
+        entity_type: Event entity type (e.g. ``"test"``).
+        entity_id: Unique entity identifier.
+        data: Optional event data dictionary.  Keys are sorted for
+            deterministic ordering; the ``"timestamp"`` key is excluded.
 
     Returns:
-        String signature for the event
+        Signature in the format
+        ``"{entity_type}:{name}:{entity_id}:{sorted_data}"``.
     """
     # Create deterministic signature from core event properties
     # Note: We exclude timestamp to allow duplicate detection of identical events
@@ -60,7 +84,13 @@ def create_event_signature(
 
 
 class EventType(Enum):
-    """Enumeration of core event types."""
+    """Enumeration of entity domains that events belong to.
+
+    Each member corresponds to a sub-package under ``panther.core.events``
+    that defines domain-specific event classes, emitters, and state managers.
+    Used as the ``entity_type`` field on :class:`BaseEvent` to enable O(1)
+    event filtering by domain.
+    """
 
     EXPERIMENT = "experiment"
     TEST = "test"
@@ -74,42 +104,46 @@ class EventType(Enum):
 
 
 class BaseEvent(ABC):
-    """
-    Base event class for all system events in PANTHER's event-driven architecture.
+    """Base event class for all system events in PANTHER.
 
-    This class forms the foundation of PANTHER's event system, providing deterministic
-    event identification, deduplication capabilities, and consistent event lifecycle
-    management. All domain-specific events (test, service, environment, etc.) inherit
-    from this base class.
+    Foundation of the event-driven architecture, providing deterministic event
+    identification, deduplication, serialization, and validation.  All
+    domain-specific events (test, service, environment, etc.) inherit from
+    this class.
 
-    **Architecture Role:**
-    - Central abstraction for all events in the system
-    - Enables event deduplication through content-based UUIDs
-    - Provides serialization and validation capabilities
-    - Supports event tracing and debugging through signatures
+    **Not a dataclass** -- uses a standard ``__init__``.
+    **Not frozen/immutable** -- ``add_data()`` mutates data and regenerates
+    the content-based UUID.
 
-    **Event Deduplication:**
-    Uses UUID5 with a deterministic namespace to generate identical UUIDs for events
-    with the same content, enabling sophisticated deduplication strategies in
-    distributed testing environments.
+    Integration flow::
 
-    **Integration Pattern:**
-    ```mermaid
-    graph LR
-        A[Event Producer] --> B[BaseEvent]
-        B --> C[EventEmitter]
-        C --> D[EventManager]
-        D --> E[Observers]
-    ```
+        Event Producer --> BaseEvent --> EventEmitter --> EventManager --> Observers
+
+    Event Deduplication:
+        Uses UUID5 with a deterministic namespace to generate identical UUIDs
+        for events with the same content, enabling deduplication in
+        distributed testing environments.  The ``content_signature`` excludes
+        timestamps so identical logical events always match.
 
     Attributes:
-        id (str): Unique identifier (UUID4 or content-based UUID5)
-        name (str): Event name/identifier
-        entity_type (EventType): Type of entity this event relates to
-        entity_id (str): Unique identifier of the entity
-        timestamp (datetime): Event creation timestamp
-        data (Dict[str, Any]): Additional event data
-        content_signature (str, optional): Deterministic content signature for deduplication
+        id: Unique identifier -- UUID4 (legacy) or content-based UUID5.
+        name: Event name/identifier (e.g. ``"execution_started"``).
+        entity_type: :class:`EventType` enum member for domain partitioning.
+        entity_id: Unique identifier of the entity this event relates to.
+        timestamp: Event creation timestamp (``datetime.now()``).
+        data: Additional event payload (mutable via ``add_data()``).
+        content_signature: Deterministic signature for duplicate detection,
+            or ``None`` when ``use_content_uuid=False``.
+
+    Example:
+        Create an event and check deduplication::
+
+            e1 = BaseEvent("test.started", EventType.TEST, "t1", {"k": "v"})
+            e2 = BaseEvent("test.started", EventType.TEST, "t1", {"k": "v"})
+            assert e1.is_duplicate_of(e2)
+
+            e1.add_data("extra", 42)   # mutates data, regenerates UUID
+            assert not e1.is_duplicate_of(e2)
     """
 
     def __init__(
@@ -153,7 +187,12 @@ class BaseEvent(ABC):
             self.content_signature = None
 
     def get_type(self) -> str:
-        """Get the event type identifier."""
+        """Get the event type identifier string.
+
+        Returns:
+            Composite string in the format ``"{entity_type}.{name}"``
+            (e.g. ``"test.execution_started"``).
+        """
         return f"{self.entity_type.value}.{self.name}"
 
     def get_entity_id(self) -> str:
@@ -169,7 +208,15 @@ class BaseEvent(ABC):
         return self.data.copy()
 
     def add_data(self, key: str, value: Any) -> None:
-        """Add additional data to the event."""
+        """Add additional data to the event.
+
+        Mutates ``self.data`` in place and regenerates the content-based UUID
+        (if content-based deduplication is enabled).
+
+        Args:
+            key: Data key to add.
+            value: Data value to store.
+        """
         self.data[key] = value
 
         # If using content-based UUID, regenerate it after data changes
@@ -219,7 +266,12 @@ class BaseEvent(ABC):
         return f"<{self.__class__.__name__}: {self.get_type()}({self.entity_id})>"
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert event to dictionary representation."""
+        """Convert event to dictionary representation.
+
+        Returns:
+            Dict with keys: ``id``, ``name``, ``type``, ``entity_type``,
+            ``entity_id``, ``timestamp`` (ISO format), ``data``.
+        """
         return {
             "id": self.id,
             "name": self.name,
@@ -231,11 +283,14 @@ class BaseEvent(ABC):
         }
 
     def validate(self) -> bool:
-        """
-        Validate event data.
+        """Validate event data.
 
-        Base implementation validates required fields.
-        Subclasses should override for specific validation.
+        Base implementation checks that ``name``, ``entity_type``,
+        ``entity_id``, and ``timestamp`` are not ``None``.  Subclasses
+        should override for domain-specific validation.
+
+        Returns:
+            ``True`` if all required fields are present.
         """
         return (
             self.name is not None

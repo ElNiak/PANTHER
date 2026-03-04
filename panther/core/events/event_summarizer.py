@@ -1,4 +1,22 @@
-# panther/core/events/event_summarizer.py
+"""Event summarization for log verbosity reduction.
+
+Provides :class:`EventSummarizer`, a utility that classifies events by
+importance level and produces concise summaries suitable for logging.
+High-frequency, low-importance events (e.g. ``step.progress``,
+``metrics.collected``) can be batched to reduce noise.
+
+Example:
+    Filter events before logging::
+
+        from panther.core.events.event_summarizer import (
+            EventSummarizer, EventImportance,
+        )
+
+        if EventSummarizer.should_log_event("step.progress", EventImportance.MEDIUM):
+            summary = EventSummarizer.summarize_event("step.progress", data)
+            logger.info(summary.summary)
+"""
+
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
@@ -6,7 +24,14 @@ from typing import Any, Dict, List, Optional
 
 
 class EventImportance(Enum):
-    """Event importance levels for filtering."""
+    """Event importance levels for filtering and log routing.
+
+    Members:
+        LOW: Routine events (step progress, metrics collected, plugin loaded).
+        MEDIUM: Notable events (service started, environment ready).
+        HIGH: Important events (experiment started, service error).
+        CRITICAL: Must-see events (experiment failed, service crashed).
+    """
 
     LOW = 1
     MEDIUM = 2
@@ -16,7 +41,15 @@ class EventImportance(Enum):
 
 @dataclass
 class EventSummary:
-    """Summary of an event with importance and details."""
+    """Concise summary of an event with importance classification.
+
+    Attributes:
+        importance: Importance level for log routing.
+        summary: One-line human-readable summary string.
+        details: Structured key-value details extracted from event data.
+        should_batch: If ``True``, this event type can be batched with
+            similar events to reduce log noise.
+    """
 
     importance: EventImportance
     summary: str
@@ -25,7 +58,12 @@ class EventSummary:
 
 
 class EventSummarizer:
-    """Summarize event data to reduce log verbosity."""
+    """Summarize event data to reduce log verbosity.
+
+    Classifies events by importance (see :attr:`IMPORTANT_EVENT_TYPES`) and
+    produces concise :class:`EventSummary` objects.  Events listed in
+    :attr:`BATCHABLE_EVENTS` are flagged for batching.
+    """
 
     IMPORTANT_EVENT_TYPES = {
         # Experiment events

@@ -1,8 +1,104 @@
-"""
-Events Module
+"""Events Module - Event-Driven Architecture for PANTHER.
 
-This module provides a refactored event and state management system for PANTHER.
-It organizes events and states by entity type for clearer separation of concerns.
+Provides a comprehensive, type-safe, hierarchical event system that enables
+real-time monitoring, logging, and coordination across all testing components.
+Events and states are organized by entity type (domain-driven design) for
+clear separation of concerns.
+
+Architecture::
+
+    Event Producer --> BaseEvent --> EventEmitter --> EventManager --> Observers
+
+    events/
+    +-- base/                    # Foundation classes and interfaces
+    |   +-- event_base.py       # BaseEvent, EventType, UUID generation
+    |   +-- event_emitter_base.py  # EventEmitterBase, EntityEventEmitterBase
+    |   +-- event_emitter.py    # Simple EventEmitter (uses EventManager singleton)
+    |   +-- state_base.py       # BaseState, StateManager, StateTransition
+    +-- {domain}/               # Domain-specific event implementations
+    |   +-- events.py           # Event type definitions
+    |   +-- states.py           # State management
+    |   +-- emitter.py          # Event emission logic
+    +-- emitter_registry.py     # Centralized emitter coordination + state validation
+    +-- event_summarizer.py     # Log verbosity reduction via importance filtering
+
+Event Categories:
+    - **Test Events** -- Test lifecycle, execution, and result events
+    - **Experiment Events** -- Experiment-level execution coordination
+    - **Service Events** -- Service deployment, health, and lifecycle management
+    - **Environment Events** -- Network and execution environment state changes
+    - **Step Events** -- Individual test step execution tracking
+    - **Assertion Events** -- Test assertion validation and results
+    - **Plugin Events** -- Plugin loading, initialization, and lifecycle
+    - **Metrics Events** -- Performance metrics collection and aggregation
+
+Key Design Principles:
+    - **Content-based UUID5** for deterministic event deduplication across
+      distributed test environments (see :func:`create_content_based_uuid`)
+    - **Entity-type partitioning** (test, service, environment, etc.)
+    - **Mutable event data with UUID regeneration** -- ``add_data()`` mutates
+      the data dict and regenerates the content-based UUID
+    - **State tracking** -- Each domain maintains state managers that track
+      entity lifecycle and enable workflow coordination
+    - **Memory efficiency** -- ``__slots__`` in event classes, enum-based
+      event types for O(1) filtering
+
+Event Lifecycle:
+    1. **Creation** -- Events created with deterministic UUIDs and timestamps
+    2. **Emission** -- Domain emitters broadcast events to registered observers
+    3. **Processing** -- Observers filter and handle relevant events
+    4. **State Updates** -- State managers update entity status based on events
+    5. **Persistence** -- Events stored for audit, debugging, and analytics
+
+Example:
+    Create and emit a custom event::
+
+        from panther.core.events import BaseEvent, EventType
+
+        event = BaseEvent(
+            name="test.started",
+            entity_type=EventType.TEST,
+            entity_id="t1",
+            data={"scenario": "handshake"},
+        )
+        assert event.id  # content-based UUID5
+        assert event.validate()
+
+    Use the EmitterRegistry for state-validated emission::
+
+        from panther.core.events.emitter_registry import EmitterRegistry
+        from panther.core.observer.management.event_manager import EventManager
+
+        registry = EmitterRegistry(EventManager.get_instance())
+        registry.emit_service_created_with_validation(
+            service_id="svc-1",
+            service_name="picoquic",
+            service_type="iut",
+            implementation="picoquic",
+        )
+
+    Creating custom event types (how-to)::
+
+        from dataclasses import dataclass, field
+        from enum import Enum
+        from panther.core.events.base.event_base import BaseEvent
+
+        class MyEventType(Enum):
+            STARTED = "my_domain.started"
+            COMPLETED = "my_domain.completed"
+            FAILED = "my_domain.failed"
+
+        @dataclass(frozen=True)
+        class MyEvent(BaseEvent):
+            context: dict = field(default_factory=dict)
+
+            def __post_init__(self):
+                object.__setattr__(self, 'event_type', MyEventType.STARTED)
+                super().__post_init__()
+
+See Also:
+    :mod:`panther.core.observer` -- Observer pattern implementation
+    :mod:`panther.core.events.emitter_registry` -- Centralized emitter coordination
 """
 
 from panther.core.events.assertion import (
