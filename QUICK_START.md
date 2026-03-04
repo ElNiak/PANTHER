@@ -177,7 +177,7 @@ outputs/
 | **Add formal testing**    | Add tester: `name: panther_ivy`, `test: quic_server_stream`.    |
 | **Single-container mode** | `network_environment.type: localhost_single_container`.         |
 | **Create a new plugin**   | See the [Plugin Developer Guide](panther/plugins/development.md). |
-| **Enable telemetry**     | Check the [Metrics Guide](panther/core/metrics/README.md) for performance data. |
+| **Enable telemetry**     | Check the Metrics Guide for performance data. |
 
 
 Enjoy experimenting—whether with QUIC **or any protocol you plug in**!

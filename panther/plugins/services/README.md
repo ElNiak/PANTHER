@@ -61,7 +61,7 @@ See the [QUIC implementations overview](iut/quic/README.md) for detailed compari
 | Protocol | Implementation | Base Class | Description | Documentation |
 |----------|----------------|------------|-------------|---------------|
 | **MINIP** | ping_pong | BaseMinipServiceManager | Simple ping-pong service | [Documentation](iut/minip/ping_pong/README.md) |
-| **HTTP** | *Available for development* | BaseHTTPServiceManager | HTTP implementation base | [Base class documentation](base/README.md) |
+| **HTTP** | *Available for development* | BaseHTTPServiceManager | HTTP implementation base | Base class documentation |
 
 ### Testers
 

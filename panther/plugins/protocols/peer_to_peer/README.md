@@ -17,7 +17,7 @@ Peer-to-peer protocol plugins implement communication protocols that enable dire
 
 | Protocol | Description | Documentation |
 |----------|-------------|---------------|
-| BitTorrent | Distributed file sharing protocol | [Documentation](panther/plugins/protocols/peer_to_peer/bittorrent/README.md) |
+| BitTorrent | Distributed file sharing protocol | [Documentation](bittorrent/README.md) |
 
 ## Common Configuration
 
@@ -43,4 +43,4 @@ Peer-to-peer protocol plugins integrate with:
 
 ## Development
 
-To create a new peer-to-peer protocol plugin, see the [Protocol Development Guide](panther/plugins/protocols/development.md) for instructions and best practices.
+To create a new peer-to-peer protocol plugin, see the [Protocol Development Guide](../development.md) for instructions and best practices.

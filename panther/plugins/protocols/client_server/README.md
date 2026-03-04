@@ -17,9 +17,9 @@ Client-server protocol plugins implement communication protocols following the t
 
 | Protocol | Description | Documentation |
 |----------|-------------|---------------|
-| HTTP | Hypertext Transfer Protocol | [Documentation](panther/plugins/protocols/client_server/http/README.md) |
-| QUIC | Quick UDP Internet Connections | [Documentation](panther/plugins/protocols/client_server/quic/README.md) |
-| MinIP | Minimal Internet Protocol | [Documentation](panther/plugins/protocols/client_server/minip/README.md) |
+| HTTP | Hypertext Transfer Protocol | [Documentation](http/README.md) |
+| QUIC | Quick UDP Internet Connections | [Documentation](quic/README.md) |
+| MinIP | Minimal Internet Protocol | [Documentation](minip/README.md) |
 
 ## Common Configuration
 
@@ -45,4 +45,4 @@ Client-server protocol plugins integrate with:
 
 ## Development
 
-To create a new client-server protocol plugin, see the [Protocol Development Guide](panther/plugins/protocols/development.md) for instructions and best practices.
+To create a new client-server protocol plugin, see the [Protocol Development Guide](../development.md) for instructions and best practices.

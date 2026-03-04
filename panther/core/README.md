@@ -46,13 +46,13 @@ PANTHER's core is organized into focused functional groups, each with comprehens
 |------------------|---------|---------------|
 | **Experiment Engine** | Test execution orchestration and lifecycle management | Core experiment coordination |
 | **[Configuration System](../config/README.md)** | Schema-driven configuration loading and validation | Type-safe YAML configuration |
-| **[Event System](events/README.md)** | Event-driven architecture with typed events | Entity-specific event management |
-| **[Observer Pattern](observer/README.md)** | Event-driven component communication | Decoupled architecture |
-| **[Metrics System](metrics/README.md)** | Performance monitoring and data collection | Comprehensive experiment analysis |
-| **[Command Processor](command_processor/index.md)** | Structured command generation and processing | Safe command execution |
+| **Event System** | Event-driven architecture with typed events | Entity-specific event management |
+| **Observer Pattern** | Event-driven component communication | Decoupled architecture |
+| **Metrics System** | Performance monitoring and data collection | Comprehensive experiment analysis |
+| **Command Processor** | Structured command generation and processing | Safe command execution |
 | **Reporting System** | Automatic experiment report generation | Status summaries and failure analysis |
 | **[Configuration Validation](../config/README.md)** | Advanced configuration validation and auto-fixing | Protocol-aware port management |
-| **[CLI Interface](../README.md)** | Command-line operations and user interaction | Primary user interface |
+| **CLI Interface** | Command-line operations and user interaction | Primary user interface |
 
 ---
 
