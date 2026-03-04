@@ -1,32 +1,20 @@
-# CLAUDE.md
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-## Project Overview
-
-PANTHER (Protocol Analysis and Testing Harness for Extensible Research) is a plugin-based, research-grade test harness for designing, reproducing, and analyzing network protocol experiments. It uses Docker-based isolation, event-driven architecture, and a four-phase execution model.
-
-**Current Status**: Active development. CLI uses Click (`panther/cli_click/`). Dead code and legacy features remain. ARM support incomplete.
+Notes:
+- Dead code and legacy features remain. (MUST be removed in future refactor)
+- ARM support incomplete.
 
 ## Essential Commands
 
-### Installation & Development
+ALWAYS activate the virtual environment before running any commands.
 
-Always activate the virtual environment before running any commands.
-
-Always activate Serena project environment when working on this repo. (Regular index project with `uvx --from git+https://github.com/oraios/serena serena project index`)
+Always activate Serena project environment when working on this repo.
+Regular index project with `uvx --from git+https://github.com/oraios/serena serena project index`
 
 **IMPORTANT**: PANTHER must always be installed and run inside a virtual environment.
 
 ```bash
-# Clone with submodules
-git clone --recurse-submodules https://github.com/ElNiak/PANTHER.git
-cd PANTHER
-
 # Create and activate virtual environment (REQUIRED)
 python -m venv .venv
-source .venv/bin/activate  # Linux/macOS
-# .venv\Scripts\activate   # Windows
+source .venv/bin/activate
 
 # Development install (recommended)
 python panther_builder.py package-dev
@@ -34,7 +22,6 @@ python panther_builder.py package-dev
 # Run tests
 pytest tests/ -n auto -m unit             # Fast unit tests
 pytest tests/ -n auto -m integration     # Requires Docker
-pytest tests/unit/test_core/test_docker_builder_tag_generation.py -v  # Single test file
 
 # Code quality
 black panther/                           # Format
@@ -44,20 +31,6 @@ mypy panther/                            # Type check
 ```
 
 ### Build System (`panther_builder.py`)
-```bash
-python panther_builder.py package-dev    # Editable install with all deps
-python panther_builder.py docs           # Build documentation
-python panther_builder.py clean          # Remove build artifacts
-python panther_builder.py serve-docs     # Local docs server
-```
-
-### CLI Commands (after `package-dev`)
-```bash
-panther run --config experiment-config/base/experiment_config_example_minimal.yaml     # Execute experiment
-panther config validate --config x.yaml  # Validate config
-panther plugins list                     # List plugins
-panther tools doctor                     # System check
-```
 
 
 ### Experiment Execution
@@ -175,9 +148,7 @@ pytest tests/ -n auto --cov=panther --cov-fail-under=70  # Coverage required: 70
 
 1. **ARM**: Z3 math errors, use `development-scp-refactor` branch for stability
 2. **Ivy tester**: First build ~30 minutes (slow compilation)
-3. **Docker BuildKit**: May need `force_build_docker_image: true` in config
-4. **Submodules**: Run `git submodule update --init --recursive` if panther_ivy missing
-
+3.
 ## Key Files to Understand
 
 - `workflow.md` - Detailed execution architecture
@@ -188,5 +159,4 @@ pytest tests/ -n auto --cov=panther --cov-fail-under=70  # Coverage required: 70
 ## Git Workflow
 
 - Main branch: `production`
-- Current dev branch: `panther-fix`
 - PR target: `production`
