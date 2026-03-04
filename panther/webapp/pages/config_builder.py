@@ -25,7 +25,7 @@ def content():
             ui.label("Configure your experiment using the form below.").classes(
                 "text-body2 text-grey-7 q-mb-md"
             )
-            # NiceCRUD form placeholder — Muhammad will wire up NiceCRUD here
+            # NiceCRUD form placeholder — wire up NiceCRUD here
             # Example:
             #   from niceguicrud import NiceCRUD
             #   from panther.config.core.models import GlobalConfig

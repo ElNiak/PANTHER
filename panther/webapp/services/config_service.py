@@ -7,38 +7,9 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_CONFIG_YAML = """\
-# PANTHER Experiment Configuration
-# See: panther config validate --config <file> to validate
-
-logging:
-  level: INFO
-
-docker:
-  force_build_docker_image: true
-
-tests:
-  - name: "Example Test"
-    network_environment:
-      type: docker_compose
-    services:
-      server:
-        implementation:
-          name: picoquic
-          type: iut
-        protocol:
-          name: quic
-          version: rfc9000
-          role: server
-      client:
-        implementation:
-          name: picoquic
-          type: iut
-        protocol:
-          name: quic
-          version: rfc9000
-          role: client
-"""
+DEFAULT_CONFIG_YAML = (
+    "experiment-config/base/experiment_config_example_minimal_docker.yaml"
+)
 
 
 class ConfigService:
@@ -46,7 +17,8 @@ class ConfigService:
 
     def get_default_yaml(self) -> str:
         """Return a default experiment config YAML template."""
-        return DEFAULT_CONFIG_YAML
+        with open(DEFAULT_CONFIG_YAML, "r") as f:
+            return f.read()
 
     def validate_yaml(self, yaml_content: str) -> Optional[str]:
         """Validate a YAML string as a PANTHER config.

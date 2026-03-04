@@ -12,7 +12,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from panther_ivy.api.types import (
+from panther.plugins.services.testers.panther_ivy.api.types import (
     CommandResult,
     CompileResult,
     ExecutionResult,

@@ -149,17 +149,7 @@ PANTHER's extensible plugin architecture enables seamless integration of new pro
 ### Developer Guide
 
 15. [Contributing](CONTRIBUTING.md)
-16. **Plugin Development**
-    * [Overview](panther/plugins/development.md)
-    * **Environment Plugins**
-      * [Overview](panther/plugins/environments/development.md)
-      * [Network Environment](panther/plugins/environments/network_environment/development.md)
-      * [Execution Environment](panther/plugins/environments/execution_environment/development.md)
-    * [Protocol Plugins](panther/plugins/protocols/development.md)
-    * **Service Plugins**
-      * [Overview](panther/plugins/services/development.md)
-      * [Implementation Under Tests (IUTs)](panther/plugins/services/iut/development.md)
-      * [Testing Services](panther/plugins/services/testers/development.md)
+16. [Plugin Development Guide](panther/plugins/development.md) (all plugin types)
 
 ### Project Information
 

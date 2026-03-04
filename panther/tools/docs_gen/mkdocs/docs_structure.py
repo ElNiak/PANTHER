@@ -77,39 +77,9 @@ def organize_docs():
                 "source": "panther/plugins/development.md",
                 "dest": "docs/developer_guide/plugin_development.md",
             },
-            # Plugin development guides
-            {
-                "source": "panther/plugins/services/development.md",
-                "dest": "docs/developer_guide/services_development.md",
-            },
-            {
-                "source": "panther/plugins/services/iut/development.md",
-                "dest": "docs/developer_guide/iut_development.md",
-                "optional": True,
-            },
-            {
-                "source": "panther/plugins/services/testers/development.md",
-                "dest": "docs/developer_guide/testers_development.md",
-            },
-            {
-                "source": "panther/plugins/environments/execution_environment/development.md",
-                "dest": "docs/developer_guide/execution_environment_development.md",
-            },
-            {
-                "source": "panther/plugins/environments/network_environment/development.md",
-                "dest": "docs/developer_guide/network_environment_development.md",
-            },
-            {
-                "source": "panther/plugins/protocols/development.md",
-                "dest": "docs/developer_guide/protocols_development.md",
-            },
         ],
         "reference": [
             {"source": "PACKAGING.md", "dest": "docs/reference/packaging.md"},
-            {
-                "source": "panther/plugins/plugin_template.md",
-                "dest": "docs/reference/plugin_template.md",
-            },
             {
                 "source": "tests/README.md",
                 "dest": "docs/reference/testing.md",
@@ -233,20 +203,12 @@ def organize_docs():
                     "Links": "developer_guide/documentation_links.md",
                     "Enhancements": "developer_guide/documentation_enhancements.md",
                 },
-                "Plugin Development": {
-                    "General": "developer_guide/plugin_development.md",
-                    "Services": "developer_guide/services_development.md",
-                    "IUT": "developer_guide/iut_development.md",
-                    "Testers": "developer_guide/testers_development.md",
-                    "Execution Environments": "developer_guide/execution_environment_development.md",
-                    "Network Environments": "developer_guide/network_environment_development.md",
-                    "Protocols": "developer_guide/protocols_development.md",
-                },
+                "Plugin Development": "developer_guide/plugin_development.md",
             }
         },
         {
             "Plugins": {
-                "Overview": "plugins/README.md",
+                "Overview": "plugins/plugins_overview.md",
                 "Environments": {
                     "Overview": "plugins/environments/README.md",
                     "Network Environments": "plugins/environments/network_environment/README.md",
@@ -267,15 +229,12 @@ def organize_docs():
         {
             "Panther Core": {
                 "Overview": "panther/README.md",
-                "Configuration": "panther/config/README.md",
-                "Core": "panther/core/README.md",
                 "Web Interface": "panther/webapp/webapp_interface.md",
             }
         },
         {
             "Reference": {
                 "Packaging": "reference/packaging.md",
-                "Plugin Template": "reference/plugin_template.md",
                 "Testing": "reference/testing.md",
             }
         },

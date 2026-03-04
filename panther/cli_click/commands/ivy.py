@@ -9,11 +9,20 @@ import sys
 from pathlib import Path
 
 import click
-from panther_ivy.api.compiler import generate_compile_commands, parse_compile_output
-from panther_ivy.api.discovery import detect_from_path, list_tests
-from panther_ivy.api.runner import generate_test_commands, parse_test_output
 
 from panther.cli_click.core.base import featured_example
+from panther.plugins.services.testers.panther_ivy.api.compiler import (
+    generate_compile_commands,
+    parse_compile_output,
+)
+from panther.plugins.services.testers.panther_ivy.api.discovery import (
+    detect_from_path,
+    list_tests,
+)
+from panther.plugins.services.testers.panther_ivy.api.runner import (
+    generate_test_commands,
+    parse_test_output,
+)
 
 from .ivy_executor import IvyExecutor
 

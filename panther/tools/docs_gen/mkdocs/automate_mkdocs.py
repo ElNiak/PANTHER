@@ -43,6 +43,11 @@ def automate_mkdocs_from_docstring(
     ):  # look for mkgendocs.yml in the parent file if a subdirectory is used
         repo_dir = repo_dir.parent
 
+    mkgendocs_path = Path(f"{repo_dir}/{mkgendocs_f}")
+    if not mkgendocs_path.exists():
+        print(f"Skipping mkgendocs automation: {mkgendocs_path} not found")
+        return {}
+
     functions = defaultdict(dict)
     structure = fix(defaultdict)()
     full_repo_dir = str(repo_dir) + "/"

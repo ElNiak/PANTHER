@@ -7,12 +7,12 @@ This guide provides detailed instructions for creating new plugins for the PANTH
 
 ## Development Guides
 
-Comprehensive development documentation for each plugin category:
+This guide covers all plugin types. Jump to type-specific sections:
 
-- **[Service Plugin Development](services/development.md)**: Creating IUT and tester plugins
-- **[Protocol Plugin Development](protocols/development.md)**: Adding protocol support
-- **[Environment Plugin Development](environments/development.md)**: Environment management plugins
-- **General Plugin Development**: Common plugin development patterns
+- **[Network Environment Plugins](#network-environment-plugins)**
+- **[Execution Environment Plugins](#execution-environment-plugins)**
+- **[Protocol Plugins](#protocol-plugins)**
+- **[Service Plugins (IUT & Tester)](#tester-plugins)**
 
 ## Modern Inheritance-Based Architecture (2024)
 
@@ -593,3 +593,106 @@ These arguments are useful when:
 2. Using plugins from multiple sources
 3. Testing plugins without installing them in the standard locations
 4. Using organization-specific plugin collections
+
+---
+
+## Type-Specific Development Guides
+
+### Network Environment Plugins
+
+Network environment plugins define the network topology and conditions for experiments.
+
+**Directory structure:**
+
+```text
+panther/plugins/environments/network_environment/your_plugin/
+├── __init__.py
+├── your_plugin.py      # Inherits from INetworkEnvironment
+├── config_schema.py    # Inherits from NetworkEnvironmentConfig
+└── README.md
+```
+
+**Key methods to implement:** `prepare_environment()`, `setup_environment()`, `deploy_services()`, `monitor_environment()`, `teardown_environment()`.
+
+**Reference implementations:** `docker_compose/`, `shadow_ns/`, `localhost_single_container/`
+
+### Execution Environment Plugins
+
+Execution environment plugins control the runtime context (resource monitoring, profiling).
+
+**Directory structure:**
+
+```text
+panther/plugins/environments/execution_environment/your_plugin/
+├── __init__.py
+├── your_plugin.py      # Inherits from IExecutionEnvironment
+├── config_schema.py    # Inherits from ExecutionEnvironmentConfig
+└── README.md
+```
+
+**Key methods to implement:** `setup_environment()`, `is_service_compatible()`, `generate_command()`.
+
+**Reference implementations:** `gperf_cpu/`, `gperf_heap/`, `strace/`
+
+### Protocol Plugins
+
+Protocol plugins define test scenarios, configuration parameters, and validation rules for specific network protocols.
+
+**Directory structure:**
+
+```text
+panther/plugins/protocols/client_server/your_protocol/  # or peer_to_peer/
+├── __init__.py
+├── protocol_plugin.py  # Inherits from ProtocolInterface
+├── config_schema.py    # Inherits from ProtocolConfig
+├── test_scenarios/     # Conformance, performance, interop tests
+└── README.md
+```
+
+**Key methods to implement:** `get_supported_versions()`, `get_test_scenarios()`, `validate_configuration()`, `setup_test_environment()`, `execute_test_scenario()`.
+
+**Reference implementations:** `client_server/quic/`
+
+### Tester Plugins
+
+Tester plugins validate IUT behavior through formal verification, fuzzing, or conformance testing.
+
+**Directory structure:**
+
+```text
+panther/plugins/services/testers/your_tester/
+├── __init__.py
+├── plugin.py           # Inherits from ServiceInterface
+├── config_schema.py
+└── README.md
+```
+
+**Key methods to implement:** `initialize()`, `execute()`, `get_test_results()`, `cleanup()`.
+
+**Best practices:** Provide detailed pass/fail results, ensure reproducibility, minimize IUT-specific dependencies, handle timeouts gracefully.
+
+**Reference implementation:** `panther_ivy/`
+
+### IUT (Implementation Under Test) Plugins
+
+IUT plugins represent protocol implementations being tested. Use the inheritance-based architecture described above.
+
+**Directory structure:**
+
+```text
+panther/plugins/services/iut/protocol_name/your_implementation/
+├── __init__.py
+├── your_implementation.py  # Inherits from BaseQUICServiceManager (or protocol-specific base)
+├── config_schema.py        # Inherits from ImplementationConfig
+├── Dockerfile              # Optional
+├── templates/              # Optional Jinja2 command templates
+└── README.md
+```
+
+**Language-specific base classes:**
+
+- Python: `PythonQUICServiceManager` (async/await patterns)
+- Rust: `RustQUICServiceManager` (Cargo integration)
+- C/Go: `BaseQUICServiceManager` (direct inheritance)
+
+**Reference implementations:** `iut/quic/picoquic/`, `iut/quic/aioquic/`, `iut/quic/quiche/`

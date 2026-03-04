@@ -11,7 +11,6 @@ Phase 1 Implementation: Replaces manual 85+ line build_dict with automated disco
 """
 
 __version__ = "1.0.0"
-__author__ = "ATLAS"
 
 # Make key functions available at package level
 try:

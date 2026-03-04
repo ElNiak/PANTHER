@@ -2,8 +2,6 @@
 
 Web interface for the PANTHER protocol testing framework, built on NiceGUI + NiceCRUD + FastAPI.
 
-This replaces the legacy Flask webapp. The old code lives in `_legacy/` for reference only.
-
 ## Quick Start
 
 ```bash
@@ -33,7 +31,6 @@ panther web --reload           # dev mode with hot reload
 panther/webapp/
     __init__.py
     app.py                  # NiceGUI application factory, page registration
-    _legacy/                # Old Flask code -- reference only, do not import
     pages/
         dashboard.py        # Home: experiment status cards, quick actions
         config_builder.py   # Config editor: NiceCRUD forms + YAML preview
@@ -52,8 +49,7 @@ panther/webapp/
         config_service.py       # Config loading, validation, YAML I/O
     models/
         api_models.py       # Pydantic models for API request/response
-    docs/                   # Detailed documentation (you are here)
-    static/                 # Custom CSS, images if needed
+    docs/                   # Detailed documentation
 ```
 
 ## Feature Status
@@ -64,27 +60,22 @@ panther/webapp/
 | Shared layout (sidebar, header)  | **Done**     | `components/layout.py`                        |
 | Plugin browser page              | **Done**     | `pages/plugins.py`                            |
 | Dashboard with status cards      | **Done**     | `pages/dashboard.py`, `components/stat_cards.py` |
-| Config builder (NiceCRUD forms)  | **Skeleton** | `pages/config_builder.py` — form wiring TBD  |
-| YAML editor with live sync       | **Skeleton** | `components/yaml_editor.py` — sync TBD       |
-| Experiment launch                | Planned      | Week 6 task                                   |
-| Real-time monitoring (WebObserver) | Planned    | Week 7 task                                   |
-| Results browser                  | **Done**     | `pages/results.py`, `services/results_service.py` |
-| Error handling & UX polish       | Planned      | Week 9 task                                   |
-| Tests                            | Planned      | Week 10 task                                  |
-
-## Legacy Code (`_legacy/`)
-
-The `_legacy/` directory contains the original Flask-based webapp:
-- `web_app.py` -- Flask app factory with API endpoints
-- `experiment_setup.py` -- Blueprint with WTForms-based config forms
-- `templates/` -- Jinja2 HTML templates
-- `static/` -- CSS, JS, fonts
-
-This code is kept as reference for understanding what the old webapp did. It is not imported by the new code and will be deleted once the new webapp reaches feature parity.
+| Config builder (NiceCRUD forms)  | **Skeleton** | Placeholder forms, NiceCRUD not wired yet     |
+| Dynamic plugin config discovery  | Planned      | Milestone 1 — plugins expose config schemas   |
+| YAML editor with two-way sync   | **Skeleton** | Editor works, bidirectional sync not wired     |
+| Experiment launch                | **Skeleton** | Threading works, status polling needed         |
+| Experiment monitoring (polling)  | Planned      | Milestone 2 — ui.timer-based polling           |
+| Results browser                  | **Bug**      | Detail view defined but not wired to row click |
+| Error handling & UX polish       | Planned      | Milestone 3                                    |
+| Tests                            | Planned      | Milestone 3 — service unit tests               |
 
 ## Development
 
-See `docs/SETUP.md` for environment setup and `docs/TASKS.md` for the full task breakdown.
+See `docs/GETTING_STARTED.md` for first-day orientation.
+
+See `docs/SETUP.md` for environment setup.
+
+See `docs/TASKS.md` for the milestone-based development plan.
 
 See `docs/ARCHITECTURE.md` for design decisions and integration patterns.
 
@@ -92,9 +83,9 @@ See `docs/ARCHITECTURE.md` for design decisions and integration patterns.
 
 Files you will interact with most:
 
-- **Config models**: `panther/config/core/models/` -- GlobalConfig, TestConfig, ServiceConfig (Pydantic)
-- **ExperimentManager**: `panther/core/experiment_manager.py` -- central orchestrator
-- **GUIObserver**: `panther/core/observer/impl/gui_observer.py` -- base class to subclass for web events
-- **EventManager**: `panther/core/observer/management/event_manager.py` -- event pub/sub system
-- **PluginManager**: `panther/plugins/plugin_manager.py` -- plugin discovery and metadata
-- **CLI entry**: `panther/cli_click/commands/web.py` -- the `panther web` Click command
+- **Config models**: `panther/config/core/models/` — GlobalConfig, TestConfig, ServiceConfig (Pydantic)
+- **Plugin config base**: `panther/config/core/models/plugin.py` — BasePluginConfig hierarchy
+- **Plugin configs**: `panther/plugins/*/config_schema.py` — per-plugin Pydantic config models
+- **ExperimentManager**: `panther/core/experiment_manager.py` — central orchestrator
+- **PluginManager**: `panther/plugins/plugin_manager.py` — plugin discovery and metadata
+- **CLI entry**: `panther/cli_click/commands/web.py` — the `panther web` Click command

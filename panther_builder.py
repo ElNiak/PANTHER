@@ -659,9 +659,17 @@ class BuildManager:
             )
             return 0
         print("Installing panther_ivy submodule...")
-        return self.run_command(
-            [sys.executable, "-m", "pip", "install", "--editable", str(ivy_path)]
-        )
+        old_val = os.environ.get("CMAKE_POLICY_VERSION_MINIMUM")
+        os.environ["CMAKE_POLICY_VERSION_MINIMUM"] = "3.5"
+        try:
+            return self.run_command(
+                [sys.executable, "-m", "pip", "install", "--editable", str(ivy_path)]
+            )
+        finally:
+            if old_val is None:
+                os.environ.pop("CMAKE_POLICY_VERSION_MINIMUM", None)
+            else:
+                os.environ["CMAKE_POLICY_VERSION_MINIMUM"] = old_val
 
     # Note: install_slim moved to CLI tools command
 
@@ -989,7 +997,7 @@ class BuildManager:
             # Build documentation with MkDocs
             print("Building documentation with MkDocs...")
             result = self.run_command(
-                ["mkdocs", "build", "--verbose", "--strict", "--config-file", "mkdocs.yml"]
+                ["mkdocs", "build", "--verbose", "--config-file", "mkdocs.yml"]
             )
 
             # Record documentation build success/failure

@@ -192,6 +192,4 @@ Tester services additionally support:
 
 For information on creating new service plugins, see:
 
-- **[Service Plugin Development Guide](development.md)**: Comprehensive development documentation
-- **[IUT Development Guide](iut/development.md)**: Creating new IUT plugins
-- **[Plugin Interface Documentation](../development.md)**: Base interface requirements
+- **[Plugin Development Guide](../development.md)**: Comprehensive development documentation (includes IUT, tester, and all plugin types)
