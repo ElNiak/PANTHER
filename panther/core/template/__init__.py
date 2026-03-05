@@ -21,5 +21,5 @@ Example::
     output = renderer.render("service.sh.j2", name="picoquic", port=4433)
 
 See Also:
-    :mod:`panther.core.command_processor` -- uses templates for command generation
+    `panther.core.command_processor` -- uses templates for command generation
 """

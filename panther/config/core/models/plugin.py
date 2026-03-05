@@ -120,6 +120,8 @@ class NetworkEnvironmentPluginConfig(BasePluginConfig):
 class ServicePluginConfig(BasePluginConfig):
     """Base configuration for service plugins (IUT and testers)."""
 
+    type: str = Field(..., description="Implementation type")
+
     # Common fields for services
     docker_image: Optional[str] = Field(None, description="Docker image name")
     build_from_source: bool = Field(True, description="Build from source")

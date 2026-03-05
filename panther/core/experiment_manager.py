@@ -10,18 +10,16 @@
 4. **Test Execution** – iterate test scenarios, collect metrics, teardown,
    generate reports.
 
-The manager delegates to :class:`ErrorHandlerMixin` for structured
-error recovery and :class:`FastFailHandler` for early termination on
+The manager delegates to `ErrorHandlerMixin` for structured
+error recovery and `FastFailHandler` for early termination on
 unrecoverable failures (certificate, Ivy compilation, port conflicts,
 resource exhaustion, etc.).
 
 See Also:
-    :mod:`panther.core.test_cases`
+    `panther.core.test_cases`
         Mixin-based test runners invoked by the manager.
-    :mod:`panther.core.events`
+    `panther.core.events`
         Event bus wiring configured during initialization.
-    :doc:`/panther_overview`
-        High-level architecture overview.
 """
 
 import contextlib
@@ -145,6 +143,7 @@ class ExperimentManager(
         fast_fail_enabled: bool = True,
         dry_run: bool = False,
     ):
+        """Initialize ExperimentManager."""
         # Initialize parent class
         super().__init__()
 
@@ -250,6 +249,7 @@ class ExperimentManager(
         self.test_cases: List[ITestCase] = []
 
     def configure_logging_features(self):
+        """Configure feature-level logging from global config."""
         if (
             not hasattr(self.global_config.logging, "feature_levels")
             or not self.global_config.logging.feature_levels
@@ -395,9 +395,9 @@ class ExperimentManager(
             ) from e
 
     def _validate_plugins(self):
-        """
-        Validate that all required plugins are available and compatible
-        before attempting to run the experiment.
+        """Validate that all required plugins are available and compatible.
+
+        Checks plugin availability before attempting to run the experiment.
         """
         self.logger.info("Validating plugins for experiment...")
 
@@ -938,6 +938,7 @@ class ExperimentManager(
             raise TestExecutionError(f"Failed during test execution: {str(e)}") from e
 
     def record_failed_test(self, test_case, test_error):
+        """Record a failed test case and log the error."""
         if self.global_config.progress.show_test_status:
             emoji = "❌ " if self.global_config.progress.use_emojis else ""
             self.logger.info(

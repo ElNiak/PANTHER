@@ -32,8 +32,8 @@ Components:
         Enum of generic entity states (services, tests, environments).
 
 See Also:
-    :mod:`panther.core.events` -- state change events emitted on transitions
-    :mod:`panther.core.test_cases` -- test case state machine using EntityState
+    `panther.core.events` -- state change events emitted on transitions
+    `panther.core.test_cases` -- test case state machine using EntityState
 """
 
 from panther.core.state.state_manager import EntityState, StateManager, WorkflowState

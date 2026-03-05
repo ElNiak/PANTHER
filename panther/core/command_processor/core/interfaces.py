@@ -1,10 +1,8 @@
-from typing import Any, Dict, List, Optional, Union
-
 """Interfaces for command processing in PANTHER framework.
 
 Defines the abstract contracts that all command processors and environment
 adapters must satisfy.  Concrete implementations live in
-:mod:`panther.core.command_processor.core.processor`.
+`panther.core.command_processor.core.processor`.
 """
 
 from abc import ABC, abstractmethod

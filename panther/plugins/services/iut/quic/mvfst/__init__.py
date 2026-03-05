@@ -1,4 +1,8 @@
-"""PANTHER Mvfst QUIC implementation.
+"""mvfst QUIC IUT service plugin.
 
-This package contains the Mvfst implementation of the QUIC protocol.
+Meta's QUIC implementation (C++). Focuses on performance
+and congestion control research (CCP, BBR, Copa, Cubic).
+
+See `MvfstServiceManager` for the service manager and
+`MvfstConfig` for configuration options.
 """

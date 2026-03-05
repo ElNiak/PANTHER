@@ -1,4 +1,9 @@
-"""peer_to_peer package.
+"""Peer-to-peer protocol plugins.
 
-This package is part of the PANTHER framework.
+Contains protocol definitions for peer-to-peer architectures:
+
+- **bittorrent** – BitTorrent protocol testing
+
+Each sub-package registers itself via `@register_protocol()` and
+provides a `config_schema.py` with Pydantic validation.
 """

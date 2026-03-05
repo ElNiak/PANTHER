@@ -1,7 +1,7 @@
 """Plugin core components — discovery, metadata, and factory utilities.
 
 Provides the internal machinery that the unified
-:class:`~panther.plugins.plugin_manager.PluginManager` relies on.
+`PluginManager` relies on.
 
 Architecture::
 
@@ -13,9 +13,9 @@ Architecture::
     PluginStatus          ← lifecycle state enum
 
 See Also:
-    :mod:`panther.plugins.plugin_interface`
+    `panther.plugins.plugin_interface`
         ``IPlugin`` abstract base class.
-    :mod:`panther.plugins.plugin_manager`
+    `panther.plugins.plugin_manager`
         Singleton plugin manager using these components.
 """
 

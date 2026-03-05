@@ -1,4 +1,5 @@
-"""PANTHER Mini Protocol implementations.
+"""MiniP IUT service plugins.
 
-This package contains Mini Protocol implementations that can be used for testing.
+Service managers for MiniP (Minimal Interoperability Protocol)
+implementations used for framework integration testing.
 """

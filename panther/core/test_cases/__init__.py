@@ -35,8 +35,8 @@ Module Layout::
     └── analysis/                # Post-run analysis helpers
 
 See Also:
-    :mod:`panther.core.experiment_manager` -- orchestrates test case execution
-    :mod:`panther.core.events` -- events emitted during state transitions
+    `panther.core.experiment_manager` -- orchestrates test case execution
+    `panther.core.events` -- events emitted during state transitions
 """
 
 # Import key modules for easier access

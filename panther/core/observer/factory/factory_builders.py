@@ -12,7 +12,7 @@ Builder functions:
     - ``create_default_observer_set()`` -- Create the standard observer set from config dict
 
 See Also:
-    :class:`panther.core.observer.factory.observer_factory.ObserverFactory`
+    `panther.core.observer.factory.observer_factory.ObserverFactory`
 """
 
 import logging
@@ -43,9 +43,7 @@ def create_logger(
     priority: int = 0,
     **kwargs,
 ) -> LoggerObserver:
-    """
-
-    Create an enhanced event-aware logger observer.
+    """Create an enhanced event-aware logger observer.
 
     Args:
         name: Optional name to register the observer with
@@ -112,11 +110,11 @@ def create_metrics(
     metrics_collector=None,
     **kwargs,
 ) -> MetricsObserver:
-    """
-    Create an enhanced metrics observer.
+    """Create an enhanced metrics observer.
 
     Args:
         name: Optional name to register the observer with
+        global_config: Optional global configuration object
         auto_register: Whether to automatically register the observer with the event manager
         event_types: Optional list of event types to subscribe to if auto_register is True
         priority: Priority for observer registration if auto_register is True
@@ -179,11 +177,11 @@ def create_storage(
     priority: int = 0,
     **kwargs,
 ) -> StorageObserver:
-    """
-    Create an enhanced storage observer.
+    """Create an enhanced storage observer.
 
     Args:
         name: Optional name to register the observer with
+        global_config: Optional global configuration object
         output_dir: Output directory for storage
         auto_register: Whether to automatically register the observer with the event manager
         event_types: Optional list of event types to subscribe to if auto_register is True
@@ -245,8 +243,7 @@ def create_experiment_observer(
     priority: int = 0,
     **kwargs,
 ) -> ExperimentObserver:
-    """
-    Create an enhanced experiment observer.
+    """Create an enhanced experiment observer.
 
     Args:
         name: Optional name to register the observer with
@@ -302,8 +299,7 @@ def create_experiment_observer(
 
 
 def create_default_observer_set(config: Dict[str, Any]) -> List[IObserver]:
-    """
-    Create a default set of observers based on configuration.
+    """Create a default set of observers based on configuration.
 
     Args:
         config: Framework configuration dictionary

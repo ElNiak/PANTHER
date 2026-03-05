@@ -1,4 +1,8 @@
-"""PANTHER Quic_go QUIC implementation.
+"""quic-go QUIC IUT service plugin.
 
-This package contains the Quic_go implementation of the QUIC protocol.
+Go implementation of QUIC. Pure-Go with automatic connection
+migration and multiplexed streams.
+
+See `QuicGoServiceManager` for the service manager and
+`QuicGoConfig` for configuration options.
 """

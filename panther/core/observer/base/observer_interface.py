@@ -31,8 +31,8 @@ Example:
                 self.event_count += 1
 
 See Also:
-    :class:`panther.core.observer.base.typed_observer_interface.ITypedObserver`
-    :class:`panther.core.observer.base.observer_plugin_interface.IPluginObserver`
+    `panther.core.observer.base.typed_observer_interface.ITypedObserver`
+    `panther.core.observer.base.observer_plugin_interface.IPluginObserver`
 """
 
 import logging
@@ -70,16 +70,16 @@ class IObserver(ABC):
                     self.processed_events_uuids.append(event.uuid)
 
     See Also:
-        :class:`ITypedObserver` for automatic event routing by type.
+        `ITypedObserver` for automatic event routing by type.
     """
 
     def __init__(self):
+        """Initialize IObserver."""
         self.processed_events_uuids: List[str] = []
 
     @abstractmethod
     def on_event(self, event: BaseEvent):
-        """
-        Handle an event.
+        """Handle an event.
 
         Args:
             event: The event to handle
@@ -87,8 +87,8 @@ class IObserver(ABC):
         pass
 
     def is_interested(self, event_type: str) -> bool:
-        """
-        Check if this observer is interested in an event type.
+        """Check if this observer is interested in an event type.
+
         Default implementation is interested in all events.
 
         Args:
@@ -100,8 +100,8 @@ class IObserver(ABC):
         return True
 
     def get_priority(self) -> int:
-        """
-        Get the priority for this observer.
+        """Get the priority for this observer.
+
         Higher values mean higher priority.
 
         Returns:
@@ -117,8 +117,7 @@ class IObserver(ABC):
         output_file: Optional[str] = None,
         structured_output: bool = False,
     ):
-        """
-        Set up logging for an observer.
+        """Set up logging for an observer.
 
         Args:
             logger_name: Name for the logger

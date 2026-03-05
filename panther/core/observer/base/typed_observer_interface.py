@@ -35,7 +35,7 @@ Example:
                 print(f"Test FAILED: {event.entity_id}")
 
 See Also:
-    :class:`panther.core.observer.base.observer_interface.IObserver`
+    `panther.core.observer.base.observer_interface.IObserver`
 """
 
 import logging
@@ -202,6 +202,7 @@ class ITypedObserver(IObserver):
     """
 
     def __init__(self):
+        """Initialize ITypedObserver."""
         super().__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
 

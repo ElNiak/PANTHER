@@ -3,11 +3,11 @@
 Provides the foundational abstractions that all domain-specific events,
 emitters, and state managers inherit from:
 
-- :class:`BaseEvent` -- Core event with content-based UUID deduplication
-- :class:`EventType` -- Enum partitioning events by entity domain
-- :class:`EventEmitterBase` / :class:`EntityEventEmitterBase` -- Abstract
+- `BaseEvent` -- Core event with content-based UUID deduplication
+- `EventType` -- Enum partitioning events by entity domain
+- `EventEmitterBase` / `EntityEventEmitterBase` -- Abstract
   emitter hierarchy for domain-specific event emission
-- :class:`BaseState` / :class:`StateManager` / :class:`StateTransition` --
+- `BaseState` / `StateManager` / `StateTransition` --
   State machine infrastructure for entity lifecycle tracking
 """
 

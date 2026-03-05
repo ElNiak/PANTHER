@@ -2,13 +2,13 @@
 
 This module defines the foundational event infrastructure:
 
-- :func:`create_content_based_uuid` -- Deterministic UUID5 generation for
+- `create_content_based_uuid()` -- Deterministic UUID5 generation for
   event deduplication across distributed test environments.
-- :func:`create_event_signature` -- Builds a deterministic signature string
+- `create_event_signature()` -- Builds a deterministic signature string
   (excluding timestamps) for duplicate detection.
-- :class:`EventType` -- Enum that partitions events by entity domain
+- `EventType` -- Enum that partitions events by entity domain
   (experiment, test, service, environment, etc.).
-- :class:`BaseEvent` -- Abstract base for all events.  **Not a dataclass** --
+- `BaseEvent` -- Abstract base for all events.  **Not a dataclass** --
   uses a standard ``__init__`` constructor.  **Not frozen/immutable** --
   ``add_data()`` mutates the data dict and regenerates the UUID.
 
@@ -33,8 +33,7 @@ from typing import Any, Dict, Optional
 
 
 def create_content_based_uuid(content: str) -> str:
-    """
-    Create a deterministic UUID from content for duplicate detection.
+    """Create a deterministic UUID from content for duplicate detection.
 
     This function generates a UUID5 based on the content, ensuring that
     identical content always produces the same UUID. This enables
@@ -88,7 +87,7 @@ class EventType(Enum):
 
     Each member corresponds to a sub-package under ``panther.core.events``
     that defines domain-specific event classes, emitters, and state managers.
-    Used as the ``entity_type`` field on :class:`BaseEvent` to enable O(1)
+    Used as the ``entity_type`` field on `BaseEvent` to enable O(1)
     event filtering by domain.
     """
 
@@ -128,7 +127,7 @@ class BaseEvent(ABC):
     Attributes:
         id: Unique identifier -- UUID4 (legacy) or content-based UUID5.
         name: Event name/identifier (e.g. ``"execution_started"``).
-        entity_type: :class:`EventType` enum member for domain partitioning.
+        entity_type: `EventType` enum member for domain partitioning.
         entity_id: Unique identifier of the entity this event relates to.
         timestamp: Event creation timestamp (``datetime.now()``).
         data: Additional event payload (mutable via ``add_data()``).
@@ -154,8 +153,7 @@ class BaseEvent(ABC):
         data: Optional[Dict[str, Any]] = None,
         use_content_uuid: bool = True,
     ):
-        """
-        Initialize a base event.
+        """Initialize a base event.
 
         Args:
             name: Event name/identifier
@@ -231,8 +229,7 @@ class BaseEvent(ABC):
             self.content_signature = signature
 
     def is_duplicate_of(self, other_event: "BaseEvent") -> bool:
-        """
-        Check if this event is a duplicate of another event.
+        """Check if this event is a duplicate of another event.
 
         Args:
             other_event: Another BaseEvent to compare with
@@ -260,9 +257,11 @@ class BaseEvent(ABC):
         return getattr(self, "content_signature", None)
 
     def __str__(self) -> str:
+        """Return human-readable string representation."""
         return f"{self.get_type()}({self.entity_id}) at {self.timestamp.isoformat()}"
 
     def __repr__(self) -> str:
+        """Return detailed string representation for debugging."""
         return f"<{self.__class__.__name__}: {self.get_type()}({self.entity_id})>"
 
     def to_dict(self) -> Dict[str, Any]:

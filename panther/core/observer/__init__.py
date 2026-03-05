@@ -85,10 +85,10 @@ Example:
         logger_obs = factory.create_observer("logger", auto_register=True)
 
 See Also:
-    :mod:`panther.core.events` - Event system implementation
-    :mod:`panther.core.observer.management.event_manager` - Central event coordination
-    :mod:`panther.core.observer.factory` - Observer creation and configuration
-    :mod:`panther.core.observer.workflow` - Workflow state tracking
+    `panther.core.events` - Event system implementation
+    `panther.core.observer.management.event_manager` - Central event coordination
+    `panther.core.observer.factory` - Observer creation and configuration
+    `panther.core.observer.workflow` - Workflow state tracking
 """
 
 # Base interfaces

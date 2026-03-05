@@ -1,8 +1,8 @@
 """Simple event emitter using the EventManager singleton.
 
-Provides :class:`EventEmitter`, a lightweight convenience class that emits
+Provides `EventEmitter`, a lightweight convenience class that emits
 events via ``EventManager.get_instance()`` by default.  Unlike the abstract
-:class:`~panther.core.events.base.event_emitter_base.EventEmitterBase`
+`EventEmitterBase`
 hierarchy, this class is concrete and requires no subclassing.
 
 Example:

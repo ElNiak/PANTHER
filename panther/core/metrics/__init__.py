@@ -23,7 +23,7 @@ Metric Types:
     - **STATUS** / **ERROR** / **PERFORMANCE** -- lifecycle and diagnostics
 
 Experiment Phases:
-    Phases tracked via :class:`Phase` enum: ``CONFIG_LOADING`` through
+    Phases tracked via `Phase` enum: ``CONFIG_LOADING`` through
     ``EXPERIMENT_CLEANUP``, enabling per-phase timing breakdowns.
 
 Example::
@@ -37,8 +37,8 @@ Example::
     report = MetricsReporter(collector).generate_summary()
 
 See Also:
-    :mod:`panther.core.observer` -- observers that consume metrics events
-    :mod:`panther.core.reporting` -- uses metrics for experiment reports
+    `panther.core.observer` -- observers that consume metrics events
+    `panther.core.reporting` -- uses metrics for experiment reports
 """
 
 from .data_loader import MetricsDataLoader

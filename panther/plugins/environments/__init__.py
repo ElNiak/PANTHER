@@ -5,40 +5,33 @@ Each environment plugin controls how services are launched, networked,
 health-checked, and torn down.
 
 Environment Categories:
-    Network
-        Deployment topology for services under test.
-
+    Network — deployment topology for services under test:
         - **docker_compose** – multi-container orchestration via Docker Compose
         - **shadow_ns** – deterministic replay with Shadow network simulator
         - **localhost_single_container** – single-container local execution
 
-    Execution
-        Runtime monitoring layers attached to running services.
-
+    Execution — runtime monitoring layers attached to running services:
         - **gperf_cpu** / **gperf_heap** – Google Performance Tools profiling
         - **strace** – system-call tracing
         - **memcheck** / **helgrind** – Valgrind memory and thread analysis
+        - **gdb** – automated crash analysis with GDB
+        - **iterations** – repeated execution for statistical analysis
 
-Event-Driven Lifecycle::
+Event-Driven Lifecycle:
+    Environment plugins integrate with PANTHER's event system:
 
+    ```
     EnvironmentSetupEvent
-        → EnvironmentConfigurationEvent
-        → EnvironmentReadyEvent
-        → MonitoringStartEvent / MetricsCollectionEvent
-        → EnvironmentTeardownEvent
-        (on failure → EnvironmentErrorEvent)
+      → EnvironmentConfigurationEvent
+      → EnvironmentReadyEvent
+      → MonitoringStartEvent / MetricsCollectionEvent
+      → EnvironmentTeardownEvent
+      (on failure → EnvironmentErrorEvent)
+    ```
 
-Environments generate ``ShellCommand`` objects executed via the
-command processor, which emits ``CommandExecutionEvent`` on completion.
-Background monitoring runs in a non-blocking thread with configurable
-metric types (cpu_usage, memory_usage, network_io, disk_io,
-process_stats).
-
-See Also:
-    :mod:`panther.plugins.environments.config_schema`
-        Base ``EnvironmentConfig`` dataclass.
-    :doc:`/network_environment`
-        Network environment user guide.
-    :doc:`/execution_environment`
-        Execution environment user guide.
+    Environments generate `ShellCommand` objects executed via the
+    command processor, which emits `CommandExecutionEvent` on completion.
+    Background monitoring runs in a non-blocking thread with configurable
+    metric types (cpu_usage, memory_usage, network_io, disk_io,
+    process_stats).
 """

@@ -34,7 +34,7 @@ Event Categories:
 
 Key Design Principles:
     - **Content-based UUID5** for deterministic event deduplication across
-      distributed test environments (see :func:`create_content_based_uuid`)
+      distributed test environments (see `create_content_based_uuid()`)
     - **Entity-type partitioning** (test, service, environment, etc.)
     - **Mutable event data with UUID regeneration** -- ``add_data()`` mutates
       the data dict and regenerates the content-based UUID
@@ -97,8 +97,8 @@ Example:
                 super().__post_init__()
 
 See Also:
-    :mod:`panther.core.observer` -- Observer pattern implementation
-    :mod:`panther.core.events.emitter_registry` -- Centralized emitter coordination
+    `panther.core.observer` -- Observer pattern implementation
+    `panther.core.events.emitter_registry` -- Centralized emitter coordination
 """
 
 from panther.core.events.assertion import (

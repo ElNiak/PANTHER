@@ -2,12 +2,12 @@
 
 Provides the two-tier emitter hierarchy used throughout PANTHER:
 
-- :class:`EventEmitterBase` -- Abstract base providing ``_emit_event()``,
+- `EventEmitterBase` -- Abstract base providing ``_emit_event()``,
   ``_create_and_emit_event()``, and ``_validate_required_fields()``.
-  Coordinates with the :class:`~panther.core.observer.management.event_manager.EventManager`
+  Coordinates with the `EventManager`
   to broadcast events to registered observers.
 
-- :class:`EntityEventEmitterBase` -- Extends ``EventEmitterBase`` for emitters
+- `EntityEventEmitterBase` -- Extends ``EventEmitterBase`` for emitters
   bound to a specific entity (experiment, service, test, etc.), automatically
   injecting the entity ID into emitted events.
 
@@ -39,9 +39,9 @@ class EventEmitterBase(ABC):
     """Abstract base class for domain-specific event emitters.
 
     Provides event emission coordination through the
-    :class:`~panther.core.observer.management.event_manager.EventManager`.
+    `EventManager`.
     All domain emitters (experiment, service, test, etc.) inherit from this
-    class or from :class:`EntityEventEmitterBase`.
+    class or from `EntityEventEmitterBase`.
 
     Attributes:
         event_manager: The ``EventManager`` used to broadcast events.
@@ -49,8 +49,7 @@ class EventEmitterBase(ABC):
     """
 
     def __init__(self, event_manager: "EventManager", entity_id: str = None):
-        """
-        Initialize the base event emitter.
+        """Initialize the base event emitter.
 
         Args:
             event_manager: Event manager to emit events through
@@ -60,8 +59,7 @@ class EventEmitterBase(ABC):
         self.entity_id = entity_id
 
     def _emit_event(self, event: BaseEvent) -> None:
-        """
-        Emit an event through the event manager.
+        """Emit an event through the event manager.
 
         Args:
             event: Event to emit
@@ -108,8 +106,7 @@ class EventEmitterBase(ABC):
         self._emit_event(event)
 
     def _validate_required_fields(self, **kwargs) -> None:
-        """
-        Validate that required fields are provided.
+        """Validate that required fields are provided.
 
         Args:
             **kwargs: Fields to validate
@@ -125,7 +122,7 @@ class EventEmitterBase(ABC):
 class EntityEventEmitterBase(EventEmitterBase):
     """Base class for entity-specific event emitters.
 
-    Extends :class:`EventEmitterBase` for emitters bound to a single entity
+    Extends `EventEmitterBase` for emitters bound to a single entity
     (experiment, service, test, etc.).  The ``entity_type`` is used to
     derive the entity ID field name (``{entity_type}_id``) that is
     automatically injected into emitted events.
@@ -136,8 +133,7 @@ class EntityEventEmitterBase(EventEmitterBase):
     """
 
     def __init__(self, event_manager: "EventManager", entity_id: str, entity_type: str):
-        """
-        Initialize the entity event emitter.
+        """Initialize the entity event emitter.
 
         Args:
             event_manager: Event manager to emit events through
@@ -154,7 +150,7 @@ class EntityEventEmitterBase(EventEmitterBase):
 
         Ensures the entity ID field (``{entity_type}_id``) is always included
         in *kwargs* before delegating to
-        :meth:`EventEmitterBase._create_and_emit_event`.
+        `EventEmitterBase._create_and_emit_event()`.
 
         Args:
             event_class: Class of the event to create.

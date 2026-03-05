@@ -5,23 +5,23 @@ summarization, and feature registration.
 
 Utility Groups:
     Logging:
-        - :class:`LoggerMixin` -- adds ``self.logger`` to any class
-        - :class:`LoggerFactory` -- standardized logger creation
-        - :class:`FeatureLoggerMixin` -- feature-scoped logging
+        - `LoggerMixin` -- adds ``self.logger`` to any class
+        - `LoggerFactory` -- standardized logger creation
+        - `FeatureLoggerMixin` -- feature-scoped logging
 
     Configuration:
-        - :class:`ConfigSummarizer` -- compact config display
-        - :func:`log_omega_config_summary` -- summarize OmegaConf to log
-        - :func:`log_omega_config_full` -- full config dump
+        - `ConfigSummarizer` -- compact config display
+        - `log_omega_config_summary()` -- summarize OmegaConf to log
+        - `log_omega_config_full()` -- full config dump
 
     Feature Registration:
-        - :func:`register_feature` / :func:`register_module_feature` -- declare features
-        - :func:`detect_module_feature` -- runtime feature detection
+        - `register_feature()` / `register_module_feature()` -- declare features
+        - `detect_module_feature()` -- runtime feature detection
         - ``feature_registry`` -- global feature catalog
 
 See Also:
-    :mod:`panther.core.command_processor` -- CommandEventMixin re-exported here
-    :mod:`panther.core.template` -- template utilities (imported separately to avoid circular deps)
+    `panther.core.command_processor` -- CommandEventMixin re-exported here
+    `panther.core.template` -- template utilities (imported separately to avoid circular deps)
 """
 
 # Import key modules for easier access

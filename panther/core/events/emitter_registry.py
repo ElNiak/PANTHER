@@ -1,6 +1,6 @@
 """Centralized registry for all event emitters and state managers.
 
-Provides :class:`EmitterRegistry`, the single coordination point between
+Provides `EmitterRegistry`, the single coordination point between
 event producers and the state management system.  Ensures singleton emitter
 instances per type, validates state transitions before event emission, and
 manages per-entity memory cleanup.
@@ -61,35 +61,34 @@ class EmitterRegistry:
         RUNNING --> ERROR --> STOPPED
 
     Emitter Instances (created in ``__init__``):
-        - ``experiment_emitter``: :class:`ExperimentEventEmitter`
-        - ``service_emitter``: :class:`ServiceEventEmitter`
-        - ``environment_emitter``: :class:`EnvironmentEventEmitter`
-        - ``step_emitter``: :class:`StepEventEmitter`
-        - ``plugin_emitter``: :class:`PluginEventEmitter`
-        - ``assertion_emitter``: :class:`AssertionEventEmitter`
-        - ``metrics_emitter``: :class:`MetricsEventEmitter`
+        - ``experiment_emitter``: `ExperimentEventEmitter`
+        - ``service_emitter``: `ServiceEventEmitter`
+        - ``environment_emitter``: `EnvironmentEventEmitter`
+        - ``step_emitter``: `StepEventEmitter`
+        - ``plugin_emitter``: `PluginEventEmitter`
+        - ``assertion_emitter``: `AssertionEventEmitter`
+        - ``metrics_emitter``: `MetricsEventEmitter`
         - ``test_emitters``: ``Dict[str, TestEventEmitter]`` (created on demand)
 
     State Manager Instances:
-        - ``experiment_state``: Created on demand via :meth:`get_experiment_state`
-        - ``plugin_state``: :class:`PluginStateManager` (created immediately)
+        - ``experiment_state``: Created on demand via `get_experiment_state()`
+        - ``plugin_state``: `PluginStateManager` (created immediately)
         - ``service_states``: ``Dict[str, ServiceStateManager]`` (per service)
         - ``test_states``: ``Dict[str, TestStateManager]`` (per test)
         - ``environment_states``: ``Dict[str, EnvironmentStateManager]`` (per env)
 
     Memory Management:
         - **Test emitters**: Created on-demand, cleaned up via
-          :meth:`cleanup_test_emitter` after test completion.
+          `cleanup_test_emitter()` after test completion.
         - **Service states**: Per ``service_id``, cleaned up via
-          :meth:`cleanup_service_state`.
+          `cleanup_service_state()`.
         - **Environment states**: Per ``env_id``, cleaned up via
-          :meth:`cleanup_environment_state`.
+          `cleanup_environment_state()`.
         - **Global emitters**: Persistent throughout application lifecycle.
     """
 
     def __init__(self, event_manager: EventManager):
-        """
-        Initialize the emitter registry with all required emitters and state managers.
+        """Initialize the emitter registry with all required emitters and state managers.
 
         Args:
             event_manager: The shared EventManager instance
@@ -123,8 +122,7 @@ class EmitterRegistry:
         self.test_emitters: Dict[str, TestEventEmitter] = {}
 
     def get_test_emitter(self, test_name: str) -> TestEventEmitter:
-        """
-        Get or create a test-specific emitter.
+        """Get or create a test-specific emitter.
 
         Args:
             test_name: The name of the test case
@@ -174,8 +172,7 @@ class EmitterRegistry:
         return emitter_map[emitter_type]
 
     def get_experiment_state(self, experiment_id: str) -> ExperimentStateManager:
-        """
-        Get or create the experiment state manager.
+        """Get or create the experiment state manager.
 
         Args:
             experiment_id: The unique experiment identifier
@@ -195,8 +192,7 @@ class EmitterRegistry:
         implementation: str,
         config: Optional[Dict[str, str]] = None,
     ) -> bool:
-        """
-        Emit service created event with state validation.
+        """Emit service created event with state validation.
 
         Args:
             service_id: Unique service identifier
@@ -513,8 +509,7 @@ class EmitterRegistry:
         return True
 
     def cleanup_test_emitter(self, test_name: str):
-        """
-        Remove a test-specific emitter after test completion.
+        """Remove a test-specific emitter after test completion.
 
         This helps prevent memory leaks by cleaning up test-specific
         emitters that are no longer needed.
@@ -529,8 +524,7 @@ class EmitterRegistry:
             del self.test_states[test_name]
 
     def get_service_state(self, service_id: str) -> ServiceStateManager:
-        """
-        Get or create a service-specific state manager.
+        """Get or create a service-specific state manager.
 
         Args:
             service_id: The unique service identifier
@@ -543,8 +537,7 @@ class EmitterRegistry:
         return self.service_states[service_id]
 
     def get_test_state(self, test_id: str) -> TestStateManager:
-        """
-        Get or create a test-specific state manager.
+        """Get or create a test-specific state manager.
 
         Args:
             test_id: The unique test identifier
@@ -557,8 +550,7 @@ class EmitterRegistry:
         return self.test_states[test_id]
 
     def get_environment_state(self, env_id: str) -> EnvironmentStateManager:
-        """
-        Get or create an environment-specific state manager.
+        """Get or create an environment-specific state manager.
 
         Args:
             env_id: The unique environment identifier
@@ -581,8 +573,7 @@ class EmitterRegistry:
             del self.environment_states[env_id]
 
     def get_all_emitters(self) -> Dict[str, object]:
-        """
-        Get all emitters for debugging or inspection.
+        """Get all emitters for debugging or inspection.
 
         Returns:
             Dict containing all emitter instances
@@ -599,8 +590,7 @@ class EmitterRegistry:
         }
 
     def get_all_state_managers(self) -> Dict[str, object]:
-        """
-        Get all state managers for debugging or inspection.
+        """Get all state managers for debugging or inspection.
 
         Returns:
             Dict containing all state manager instances

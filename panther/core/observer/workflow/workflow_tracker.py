@@ -21,7 +21,7 @@ must start in ``CREATED`` state. ``force_fail_workflow()`` bypasses normal
 validation for error recovery. All operations are thread-safe via RLock.
 
 See Also:
-    :class:`panther.core.observer.management.event_manager.EventManager`
+    `panther.core.observer.management.event_manager.EventManager`
 """
 
 from __future__ import annotations
@@ -121,8 +121,7 @@ class WorkflowStateTracker(LoggerMixin):
         self._max_history = 1000
 
     def set_workflow_state(self, experiment_id: str, state: WorkflowState) -> bool:
-        """
-        Set the workflow state for an experiment.
+        """Set the workflow state for an experiment.
 
         Args:
             experiment_id: Unique identifier for the experiment
@@ -174,8 +173,7 @@ class WorkflowStateTracker(LoggerMixin):
                 return False
 
     def get_workflow_state(self, experiment_id: str) -> Optional[WorkflowState]:
-        """
-        Get the current workflow state for an experiment.
+        """Get the current workflow state for an experiment.
 
         Args:
             experiment_id: Unique identifier for the experiment
@@ -189,8 +187,8 @@ class WorkflowStateTracker(LoggerMixin):
     def force_fail_workflow(
         self, experiment_id: str, reason: str = "Forced failure"
     ) -> bool:
-        """
-        Force a workflow to FAILED state regardless of current state.
+        """Force a workflow to FAILED state regardless of current state.
+
         Used for error recovery.
 
         Args:
@@ -222,8 +220,7 @@ class WorkflowStateTracker(LoggerMixin):
             return True
 
     def clear_workflow_state(self, experiment_id: str) -> None:
-        """
-        Clear the state for a specific workflow.
+        """Clear the state for a specific workflow.
 
         Args:
             experiment_id: Unique identifier for the experiment to clear
@@ -238,8 +235,7 @@ class WorkflowStateTracker(LoggerMixin):
                 self.logger.info(f"Cleared workflow state for '{experiment_id}'")
 
     def is_workflow_in_terminal_state(self, experiment_id: str) -> bool:
-        """
-        Check if a workflow is in a terminal state (COMPLETED or FAILED).
+        """Check if a workflow is in a terminal state (COMPLETED or FAILED).
 
         Args:
             experiment_id: Unique identifier for the experiment
@@ -254,8 +250,7 @@ class WorkflowStateTracker(LoggerMixin):
             return state in {WorkflowState.COMPLETED, WorkflowState.FAILED}
 
     def get_all_workflow_states(self) -> Dict[str, str]:
-        """
-        Get all current workflow states.
+        """Get all current workflow states.
 
         Returns:
             Dict[str, str]: Dictionary mapping experiment IDs to their current states
@@ -266,8 +261,7 @@ class WorkflowStateTracker(LoggerMixin):
             }
 
     def get_allowed_transitions(self, current_state_str: str) -> List[str]:
-        """
-        Get list of allowed state transitions from current state.
+        """Get list of allowed state transitions from current state.
 
         Args:
             current_state_str: Current state as string
@@ -283,8 +277,7 @@ class WorkflowStateTracker(LoggerMixin):
             return []
 
     def get_state_history(self, experiment_id: str = None) -> List[dict]:
-        """
-        Get state transition history for debugging.
+        """Get state transition history for debugging.
 
         Args:
             experiment_id: Optional experiment ID to filter by

@@ -29,8 +29,8 @@ Example::
     events = store.query(entity_type="test", limit=100)
 
 See Also:
-    :mod:`panther.core.events` -- event types stored by EventStore
-    :mod:`panther.core.observer` -- observers that trigger event storage
+    `panther.core.events` -- event types stored by EventStore
+    `panther.core.observer` -- observers that trigger event storage
 """
 
 from .event_store import EventStore

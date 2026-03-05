@@ -1,13 +1,11 @@
-"""minip package.
+"""MiniP (Minimal Interoperability Protocol) plugin.
 
-This package is part of the PANTHER framework.
+A simplified protocol designed for testing the PANTHER infrastructure
+itself. MiniP provides a minimal client-server handshake suitable for
+validating framework functionality without full protocol complexity.
+
+See `MiniPProtocol` for the protocol manager implementation.
 """
-
-"""quic package.
-
-This package is part of the PANTHER framework.
-"""
-
 
 import contextlib
 

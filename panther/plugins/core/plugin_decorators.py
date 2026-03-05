@@ -1,5 +1,4 @@
-"""
-Plugin Registration Decorators - PANTHER Plugin System
+"""Plugin Registration Decorators - PANTHER Plugin System.
 
 This module provides the core decorator infrastructure for the PANTHER plugin registration system,
 enabling automatic discovery, metadata declaration, and dependency management for all plugin types.
@@ -40,6 +39,27 @@ requiring explicit registration code.
 - **Registry Size**: Supports 1000+ plugins without performance degradation
 
 **Thread Safety**: Registration is thread-safe during module import phase
+
+**Example**::
+
+    from panther.plugins.core.plugin_decorators import register_plugin
+    from panther.plugins.core.structures.plugin_type import PluginType
+
+    @register_plugin(
+        plugin_type=PluginType.IUT,
+        name="my_implementation",
+        version="1.0.0",
+        description="My QUIC implementation",
+        supported_protocols=["quic"],
+        capabilities=["rfc9000", "0rtt"],
+        tags=["quic", "c"],
+    )
+    class MyImplementationServiceManager(BaseQUICServiceManager):
+        def _get_implementation_name(self) -> str:
+            return "my_implementation"
+
+        def _get_binary_name(self) -> str:
+            return "my_implementation_server"
 """
 
 import functools
@@ -77,102 +97,32 @@ def register_plugin(
     runtime_mode: Optional[str] = None,
     **kwargs,
 ):
-    """
+    """Decorator for registering plugin classes in the PANTHER plugin registry.
 
-    This decorator implements PANTHER's plugin registration system, enabling automatic discovery,
-    dependency resolution, and lifecycle management for all plugin types. The decorator stores
-    plugin metadata in a global registry that is accessed during system initialization.
+    Stores plugin metadata in a global registry accessed during system initialization
+    for discovery, dependency resolution, and lifecycle management.
 
-    **Architecture Integration**:
-    - **Discovery Phase**: Plugin metadata stored in _DECORATED_PLUGINS registry
-    - **Validation Phase**: Dependency and version compatibility checking
-    - **Instantiation Phase**: PluginFactory uses metadata for configuration
-    - **Runtime Phase**: EventManager coordinates plugin lifecycle events
-
-    **Dependency Management**:
-    Dependencies can be specified as strings or dictionaries:
-    - String format: "plugin_name>=1.0.0" (semantic versioning)
-    - Dict format: {"name": "plugin_name", "version_spec": ">=1.0.0", "optional": False}
-
-    **Configuration Schema**:
-    JSON Schema format for plugin configuration validation:
-    ```python
-    config_schema = {
-        "type": "object",
-        "properties": {
-            "timeout": {"type": "number", "default": 60, "minimum": 1},
-            "host": {"type": "string", "default": "localhost"},
-            "port": {"type": "number", "minimum": 1, "maximum": 65535}
-        },
-        "required": ["host", "port"]
-    }
-    ```
-
-    **Capability Declaration**:
-    Capabilities describe functional features and RFC compliance:
-    - Protocol capabilities: ["rfc9000", "0rtt", "migration", "multipath"]
-    - Functional capabilities: ["async", "tls13", "key_updates", "session_resumption"]
-    - Performance capabilities: ["high_throughput", "low_latency", "memory_efficient"]
-
-    Usage Examples:
-        # IUT (Implementation Under Test) Plugin
-        @register_plugin(
-            plugin_type=PluginType.IUT,
-            name="picoquic",
-            version="1.0.0",
-            author="PANTHER Team",
-            description="PicoQUIC - Minimalist implementation of the QUIC protocol",
-            license="MIT",
-            homepage="https://github.com/private-octopus/picoquic",
-            min_panther_version="1.0.0",
-            dependencies=["quic_protocol>=1.0.0"],
-            config_schema={
-                "type": "object",
-                "properties": {
-                    "timeout": {"type": "number", "default": 60},
-                    "certificate_file": {"type": "string", "default": "/certs/cert.pem"}
-                }
-            },
-            default_config={"timeout": 60, "generate_new_certificates": True},
-            supported_protocols=["quic"],
-            capabilities=["rfc9000", "0rtt", "migration", "async"],
-            tags=["quic", "implementation", "c"],
-            external_dependencies=["docker>=20.0", "openssl>=1.1.1"],
-            runtime_mode="minimal"
-        )
-        class PicoquicServiceManager(BaseQUICServiceManager):
-            pass
-
-        # Network Environment Plugin
-        @register_plugin(
-            plugin_type=PluginType.NETWORK_ENVIRONMENT,
-            name="docker_compose",
-            version="2.0.0",
-            description="Docker Compose network environment with service orchestration",
-            capabilities=["container_orchestration", "network_isolation", "service_discovery"],
-            external_dependencies=["docker", "docker-compose>=2.0"]
-        )
-        class DockerComposeEnvironment(BaseNetworkEnvironment):
-            pass
+    Dependencies can be strings (``"plugin>=1.0"``) or dicts
+    (``{"name": "plugin", "version_spec": ">=1.0", "optional": False}``).
 
     Args:
-        plugin_type: Type of plugin (PluginType enum value)
-        name: Plugin name (defaults to class name if not provided)
-        version: Plugin version string (semantic versioning recommended)
-        author: Plugin author/maintainer information
-        description: Human-readable plugin description
-        license: Software license identifier (e.g., "MIT", "Apache-2.0", "GPL-3.0")
-        homepage: Plugin homepage or repository URL
-        min_panther_version: Minimum PANTHER version required for compatibility
-        max_panther_version: Maximum PANTHER version supported (None = no limit)
-        dependencies: List of plugin dependencies (strings or dependency objects)
-        config_schema: JSON Schema for plugin configuration validation
-        default_config: Default configuration values for the plugin
-        supported_protocols: List of network protocols this plugin supports
-        capabilities: List of functional capabilities and features provided
-        tags: List of classification tags for discovery and categorization
-        external_dependencies: List of external system dependencies (OS packages, tools)
-        runtime_mode: Required runtime mode ("minimal", "debug", "profile", "production")
+        plugin_type: Type of plugin (`PluginType` enum value).
+        name: Plugin name (defaults to class name).
+        version: Semantic version string.
+        author: Author/maintainer information.
+        description: Human-readable description.
+        license: License identifier (e.g., ``"MIT"``).
+        homepage: Repository or homepage URL.
+        min_panther_version: Minimum compatible PANTHER version.
+        max_panther_version: Maximum compatible PANTHER version (None = no limit).
+        dependencies: Plugin dependencies (strings or dependency dicts).
+        config_schema: JSON Schema for plugin configuration validation.
+        default_config: Default configuration values.
+        supported_protocols: Network protocols this plugin supports.
+        capabilities: Functional capabilities (e.g., ``["rfc9000", "0rtt"]``).
+        tags: Classification tags for discovery.
+        external_dependencies: External system dependencies (OS packages, tools).
+        runtime_mode: Required runtime mode (``"minimal"``, ``"debug"``, etc.).
         **kwargs: Additional metadata fields for future extensibility
 
     Returns:
@@ -334,8 +284,7 @@ def register_plugin(
 
 
 def plugin_version(version: str):
-    """
-    Simple decorator to set plugin version.
+    """Simple decorator to set plugin version.
 
     Usage:
         @plugin_version("2.0.0")
@@ -351,8 +300,7 @@ def plugin_version(version: str):
 
 
 def plugin_dependency(*dependencies: str):
-    """
-    Decorator to declare plugin dependencies.
+    """Decorator to declare plugin dependencies.
 
     Usage:
         @plugin_dependency("quic_protocol>=1.0.0", "network_environment")
@@ -370,8 +318,7 @@ def plugin_dependency(*dependencies: str):
 
 
 def plugin_capability(*capabilities: str):
-    """
-    Decorator to declare plugin capabilities.
+    """Decorator to declare plugin capabilities.
 
     Usage:
         @plugin_capability("tls", "0rtt")
@@ -389,8 +336,7 @@ def plugin_capability(*capabilities: str):
 
 
 def supported_protocol(*protocols: str):
-    """
-    Decorator to declare supported protocols.
+    """Decorator to declare supported protocols.
 
     Usage:
         @supported_protocol("quic")
@@ -408,8 +354,7 @@ def supported_protocol(*protocols: str):
 
 
 def plugin_config_schema(schema: Dict[str, Any]):
-    """
-    Decorator to declare plugin configuration schema.
+    """Decorator to declare plugin configuration schema.
 
     Usage:
         @plugin_config_schema({
@@ -429,13 +374,13 @@ def plugin_config_schema(schema: Dict[str, Any]):
 
 
 def incompatible_plugin(plugin_id: str, version_spec: str = "*"):
-    """
-    Method decorator to declare that a method is incompatible with another plugin.
+    """Method decorator to declare that a method is incompatible with another plugin.
+
     Usage:
         class MyPlugin:
             @incompatible_plugin("environment:docker_compose", ">=1.0.0")
             def deploy(self):
-                pass
+                pass.
     """
 
     def decorator(func):
@@ -456,8 +401,7 @@ def incompatible_plugin(plugin_id: str, version_spec: str = "*"):
 
 
 def requires_plugin(plugin_id: str, version_spec: str = "*"):
-    """
-    Method decorator to declare that a method requires another plugin.
+    """Method decorator to declare that a method requires another plugin.
 
     Usage:
         class MyPlugin:
@@ -484,8 +428,7 @@ def requires_plugin(plugin_id: str, version_spec: str = "*"):
 
 
 def get_decorated_plugins() -> Dict[str, Tuple[type, PluginManifest]]:
-    """
-    Get all plugins registered via decorators.
+    """Get all plugins registered via decorators.
 
     Returns:
         Dictionary mapping plugin IDs to (class, manifest) tuples
@@ -496,8 +439,7 @@ def get_decorated_plugins() -> Dict[str, Tuple[type, PluginManifest]]:
 def get_plugin_by_name(
     name: str, plugin_type: Optional[str] = None
 ) -> Optional[Tuple[type, PluginManifest]]:
-    """
-    Get plugin by name, optionally filtered by type.
+    """Get plugin by name, optionally filtered by type.
 
     Args:
         name: Plugin name to search for
@@ -518,8 +460,7 @@ def get_plugin_by_name(
 
 
 def get_plugins_by_type(plugin_type: str) -> Dict[str, Tuple[type, PluginManifest]]:
-    """
-    Get all plugins of a specific type.
+    """Get all plugins of a specific type.
 
     Args:
         plugin_type: Type of plugins to retrieve (e.g., "iut", "tester", "environment")
@@ -535,8 +476,7 @@ def get_plugins_by_type(plugin_type: str) -> Dict[str, Tuple[type, PluginManifes
 
 
 def list_all_decorated_plugins() -> List[PluginManifest]:
-    """
-    Get list of all plugin manifests from decorators.
+    """Get list of all plugin manifests from decorators.
 
     Returns:
         List of all plugin manifests
@@ -545,8 +485,7 @@ def list_all_decorated_plugins() -> List[PluginManifest]:
 
 
 def validate_decorated_plugins() -> Dict[str, List[str]]:
-    """
-    Validate all decorated plugins and return error report.
+    """Validate all decorated plugins and return error report.
 
     #TODO use this to validate plugins at startup
 
@@ -596,8 +535,7 @@ def clear_decorated_plugins():
 
 
 def register_version_config(plugin_name: str, version: str, config: Dict[str, Any]):
-    """
-    Register a version-specific configuration for a plugin.
+    """Register a version-specific configuration for a plugin.
 
     This allows plugins to define different configurations for different protocol versions
     without relying on separate YAML files in version_configs/ directories.
@@ -617,8 +555,7 @@ def register_version_config(plugin_name: str, version: str, config: Dict[str, An
 
 
 def get_version_config(plugin_name: str, version: str) -> Optional[Dict[str, Any]]:
-    """
-    Get a specific version configuration for a plugin.
+    """Get a specific version configuration for a plugin.
 
     Args:
         plugin_name: Name of the plugin
@@ -631,8 +568,7 @@ def get_version_config(plugin_name: str, version: str) -> Optional[Dict[str, Any
 
 
 def version_config(version: str, **config):
-    """
-    Decorator to register a version configuration for a plugin class.
+    """Decorator to register a version configuration for a plugin class.
 
     Usage:
         @register_plugin(plugin_type="iut", name="picoquic", ...)
@@ -681,8 +617,7 @@ def register_protocol(
     tags: Optional[List[str]] = None,
     **kwargs,
 ):
-    """
-    Decorator to register a protocol plugin with version information.
+    """Decorator to register a protocol plugin with version information.
 
     Protocol plugins define the canonical list of supported versions that
     service implementations can use.
@@ -776,8 +711,7 @@ def register_protocol(
 
 
 def get_protocol_plugins() -> Dict[str, Tuple[type, Dict[str, Any]]]:
-    """
-    Get all registered protocol plugins.
+    """Get all registered protocol plugins.
 
     Returns:
         Dictionary mapping protocol IDs to (class, metadata) tuples
@@ -788,8 +722,7 @@ def get_protocol_plugins() -> Dict[str, Tuple[type, Dict[str, Any]]]:
 def get_protocol_by_name(
     name: str, protocol_type: Optional[str] = None
 ) -> Optional[Dict[str, Any]]:
-    """
-    Get protocol metadata by name.
+    """Get protocol metadata by name.
 
     Args:
         name: Protocol name
@@ -806,8 +739,7 @@ def get_protocol_by_name(
 
 
 def get_protocol_versions(protocol_name: str) -> List[str]:
-    """
-    Get supported versions for a protocol.
+    """Get supported versions for a protocol.
 
     Args:
         protocol_name: Name of the protocol

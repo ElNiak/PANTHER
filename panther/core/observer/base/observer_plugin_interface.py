@@ -20,7 +20,7 @@ Example:
         # if the event type matches.
 
 See Also:
-    :mod:`panther.core.observer.plugins` - Plugin observer factory and loading
+    `panther.core.observer.plugins` - Plugin observer factory and loading
 """
 
 import logging
@@ -53,8 +53,7 @@ class IPluginObserver(IObserver):
 
     @abstractmethod
     def register_plugin_events(self, plugin_id: str, event_types: List[str]) -> None:
-        """
-        Register event types that a plugin is interested in.
+        """Register event types that a plugin is interested in.
 
         Args:
             plugin_id: Unique identifier for the plugin
@@ -64,8 +63,7 @@ class IPluginObserver(IObserver):
 
     @abstractmethod
     def unregister_plugin(self, plugin_id: str) -> None:
-        """
-        Unregister a plugin and its event interests.
+        """Unregister a plugin and its event interests.
 
         Args:
             plugin_id: Unique identifier for the plugin
@@ -74,8 +72,7 @@ class IPluginObserver(IObserver):
 
     @abstractmethod
     def get_plugin_events(self, plugin_id: str) -> List[str]:
-        """
-        Get the event types a plugin is interested in.
+        """Get the event types a plugin is interested in.
 
         Args:
             plugin_id: Unique identifier for the plugin
@@ -87,8 +84,7 @@ class IPluginObserver(IObserver):
 
     @abstractmethod
     def get_plugins_for_event(self, event_type: str) -> List[str]:
-        """
-        Get plugins interested in a specific event type.
+        """Get plugins interested in a specific event type.
 
         Args:
             event_type: The event type to check
@@ -120,8 +116,7 @@ class PluginObserver(IPluginObserver):
         super().__init__()
 
     def register_plugin_events(self, plugin_id: str, event_types: List[str]) -> None:
-        """
-        Register event types that a plugin is interested in.
+        """Register event types that a plugin is interested in.
 
         Args:
             plugin_id: Unique identifier for the plugin
@@ -137,8 +132,7 @@ class PluginObserver(IPluginObserver):
             self.event_plugins[event_type].add(plugin_id)
 
     def unregister_plugin(self, plugin_id: str) -> None:
-        """
-        Unregister a plugin and its event interests.
+        """Unregister a plugin and its event interests.
 
         Args:
             plugin_id: Unique identifier for the plugin
@@ -160,8 +154,7 @@ class PluginObserver(IPluginObserver):
             del self.plugin_events[plugin_id]
 
     def get_plugin_events(self, plugin_id: str) -> List[str]:
-        """
-        Get the event types a plugin is interested in.
+        """Get the event types a plugin is interested in.
 
         Args:
             plugin_id: Unique identifier for the plugin
@@ -172,8 +165,7 @@ class PluginObserver(IPluginObserver):
         return list(self.plugin_events.get(plugin_id, set()))
 
     def get_plugins_for_event(self, event_type: str) -> List[str]:
-        """
-        Get plugins interested in a specific event type.
+        """Get plugins interested in a specific event type.
 
         Args:
             event_type: The event type to check
@@ -184,8 +176,7 @@ class PluginObserver(IPluginObserver):
         return list(self.event_plugins.get(event_type, set()))
 
     def on_event(self, event: Event) -> None:
-        """
-        Handle an event by notifying interested plugins.
+        """Handle an event by notifying interested plugins.
 
         Args:
             event: The event to handle
@@ -202,8 +193,7 @@ class PluginObserver(IPluginObserver):
             self._notify_plugins(event, interested_plugins)
 
     def _notify_plugins(self, event: Event, plugin_ids: List[str]) -> None:
-        """
-        Notify specific plugins about an event.
+        """Notify specific plugins about an event.
 
         This method should be overridden by concrete implementations
         to handle the actual plugin notification mechanism.
@@ -219,8 +209,7 @@ class PluginObserver(IPluginObserver):
             )
 
     def get_registered_plugins(self) -> List[str]:
-        """
-        Get a list of all registered plugin IDs.
+        """Get a list of all registered plugin IDs.
 
         Returns:
             List of registered plugin IDs
@@ -228,8 +217,7 @@ class PluginObserver(IPluginObserver):
         return list(self.plugin_events.keys())
 
     def get_event_types(self) -> List[str]:
-        """
-        Get a list of all event types that have interested plugins.
+        """Get a list of all event types that have interested plugins.
 
         Returns:
             List of event types with registered plugins

@@ -64,75 +64,21 @@ from .feature_registry import feature_registry
 
 
 class LoggerFactory:
-    """Sophisticated logger factory with feature-aware level management and comprehensive statistics.
+    """Centralized logger factory with feature-aware level management.
 
-    Implements a centralized logging infrastructure that provides consistent logger creation,
-    intelligent feature detection, dynamic level management, and comprehensive statistics
-    collection. Designed as a singleton factory to ensure unified logging configuration
-    across the entire PANTHER framework.
+    Provides consistent logger creation with automatic feature detection,
+    dynamic log level management, color terminal support, and optional
+    statistics collection. Singleton pattern ensures unified configuration.
 
-    **Core Capabilities**:
-    - **Feature-Aware Logging**: Automatic log level assignment based on component functionality
-    - **Dynamic Configuration**: Runtime updates without application restart
-    - **Color Support**: Rich terminal output with graceful fallback
-    - **Statistics Collection**: Comprehensive logging analytics and performance monitoring
-    - **Multi-Handler Support**: Coordinated console and file output with independent levels
-    - **Auto-Detection**: Intelligent feature mapping from logger names and patterns
+    Features:
+        - Feature-aware logging with automatic level assignment by component
+        - Dynamic runtime configuration updates
+        - Multi-handler support (console + file with independent levels)
+        - Optional statistics collection and export
 
-    **Architecture Overview**:
-    ```
-    LoggerFactory Components:
-    ├── Configuration Management (centralized config, feature levels)
-    ├── Feature Detection System (pattern matching, dynamic registry)
-    ├── Handler Management (console, file, statistics handlers)
-    ├── Formatter System (colored, plain, configurable formats)
-    └── Statistics Collection (real-time analytics, export capabilities)
-    ```
-
-    **Feature Detection Strategy**:
-    - **Dynamic Registry**: Runtime feature registration via feature_registry
-    - **Static Mappings**: Comprehensive predefined feature-to-component mappings
-    - **Pattern Matching**: Substring and regex-based logger name analysis
-    - **Hierarchical Lookup**: Parent-child logger relationship consideration
-
-    **Log Level Management**:
-    - **Global Default**: Framework-wide default logging level
-    - **Feature-Specific**: Per-feature log level override capability
-    - **Runtime Updates**: Dynamic level changes for existing loggers
-    - **Handler Separation**: Independent console vs file handler levels
-
-    **Statistics Integration**:
-    - **Real-Time Collection**: Live logging statistics and performance metrics
-    - **Buffered Handlers**: Configurable buffering for high-volume logging
-    - **Export Formats**: JSON, CSV, and text format statistics export
-    - **Performance Tracking**: Handler performance and message processing metrics
-
-    **Usage Patterns**:
-    ```python
-    # Basic logger creation
-    logger = LoggerFactory.get_logger(__name__)
-
-    # Feature-specific logger
-    logger = LoggerFactory.get_feature_logger("docker_builder", "docker_operations")
-
-    # Dynamic level updates
-    LoggerFactory.update_feature_level("event_system", "DEBUG")
-
-    # Statistics collection
-    LoggerFactory.enable_statistics({"enabled": True, "track_performance": True})
-    stats = LoggerFactory.get_log_statistics()
-    ```
-
-    **Performance Characteristics**:
-    - **Initialization**: <10ms for complete factory setup
-    - **Logger Creation**: <1ms per logger with feature detection
-    - **Level Updates**: O(n) where n is number of existing loggers
-    - **Statistics Overhead**: <5% performance impact when enabled
-    - **Memory Usage**: Bounded caches with automatic cleanup
-
-    **Thread Safety**: All public methods are thread-safe with proper synchronization
-    **Singleton Behavior**: Global state management with lazy initialization
-    **Backward Compatibility**: Maintains compatibility with standard logging module usage
+    Example:
+        >>> logger = LoggerFactory.get_logger(__name__)
+        >>> LoggerFactory.update_feature_level("event_system", "DEBUG")
     """
 
     _initialized = False
@@ -221,8 +167,7 @@ class LoggerFactory:
 
     @classmethod
     def initialize(cls, config: Dict[str, Any]) -> None:
-        """
-        Initialize the logger factory with configuration.
+        """Initialize the logger factory with configuration.
 
         Args:
             config: Logging configuration dictionary containing:
@@ -387,8 +332,7 @@ class LoggerFactory:
 
     @classmethod
     def get_logger(cls, name: str, feature: Optional[str] = None) -> logging.Logger:
-        """
-        Get a logger with consistent configuration and feature-aware logging level.
+        """Get a logger with consistent configuration and feature-aware logging level.
 
         Args:
             name: Logger name (usually module or class name)
@@ -458,7 +402,6 @@ class LoggerFactory:
         cls, logger_name: str, feature: Optional[str] = None
     ) -> int:
         """Get the effective logging level for a logger, considering feature mappings."""
-
         # Debug for problematic loggers (use actual logger names from log output)
         problematic_loggers = [
             "event_manager",
@@ -520,8 +463,7 @@ class LoggerFactory:
     def get_child_logger(
         cls, parent_name: str, child_name: str, feature: Optional[str] = None
     ) -> logging.Logger:
-        """
-        Get a child logger (e.g., for sub-components).
+        """Get a child logger (e.g., for sub-components).
 
         Args:
             parent_name: Parent logger name
@@ -536,8 +478,7 @@ class LoggerFactory:
 
     @classmethod
     def get_feature_logger(cls, name: str, feature: str) -> logging.Logger:
-        """
-        Get a logger explicitly configured for a specific feature.
+        """Get a logger explicitly configured for a specific feature.
 
         Args:
             name: Logger name
@@ -579,8 +520,7 @@ class LoggerFactory:
 
     @classmethod
     def update_all_feature_levels(cls, feature_levels_dict: Dict[str, str]) -> None:
-        """
-        Update all feature levels at once and apply to existing loggers.
+        """Update all feature levels at once and apply to existing loggers.
 
         This is useful when feature levels are loaded after some loggers have already been created.
 
@@ -681,8 +621,7 @@ class LoggerFactory:
     # Statistics Support
     @classmethod
     def enable_statistics(cls, config: Dict[str, Any]) -> None:
-        """
-        Enable log statistics collection with configuration.
+        """Enable log statistics collection with configuration.
 
         Args:
             config: Statistics configuration dictionary containing:
@@ -754,8 +693,7 @@ class LoggerFactory:
 
     @classmethod
     def get_log_statistics(cls) -> Optional[Dict]:
-        """
-        Get current log statistics if enabled.
+        """Get current log statistics if enabled.
 
         Returns:
             Dictionary containing current statistics or None if disabled
@@ -766,8 +704,7 @@ class LoggerFactory:
 
     @classmethod
     def generate_statistics_report(cls) -> Optional[Dict]:
-        """
-        Generate comprehensive statistics report.
+        """Generate comprehensive statistics report.
 
         Returns:
             Detailed statistics report or None if disabled
@@ -778,8 +715,7 @@ class LoggerFactory:
 
     @classmethod
     def export_statistics(cls, format: str = "json") -> Optional[str]:
-        """
-        Export statistics in specified format.
+        """Export statistics in specified format.
 
         Args:
             format: Export format ('json', 'csv', 'text')
@@ -806,8 +742,7 @@ class LoggerFactory:
 
     @classmethod
     def get_statistics_handler_stats(cls) -> Optional[Dict]:
-        """
-        Get performance statistics for the statistics handler.
+        """Get performance statistics for the statistics handler.
 
         Returns:
             Handler performance metrics or None if disabled
@@ -823,6 +758,7 @@ logging.addLevelName(TRACE, "TRACE")
 
 
 def trace(self, message, *args, **kwargs):
+    """Log a message at TRACE level."""
     if self.isEnabledFor(TRACE):
         self._log(TRACE, message, args, **kwargs)
 

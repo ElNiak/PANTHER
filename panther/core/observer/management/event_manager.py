@@ -29,8 +29,8 @@ Module-level convenience function:
     ``get_event_manager()`` -- returns the EventManager singleton.
 
 See Also:
-    :class:`panther.core.observer.base.observer_interface.IObserver`
-    :class:`panther.core.observer.factory.observer_factory.ObserverFactory`
+    `panther.core.observer.base.observer_interface.IObserver`
+    `panther.core.observer.factory.observer_factory.ObserverFactory`
 """
 
 import logging
@@ -47,79 +47,25 @@ from panther.core.utils.logging_mixin import LoggerMixin
 class EventManager(LoggerMixin):
     """Central event coordination system for PANTHER framework.
 
-    Implements a sophisticated event-driven architecture with comprehensive support for
-    observer registration, event distribution, prioritization, and monitoring. Designed
-    as a singleton to ensure consistent event management across the entire framework.
+    Singleton event bus supporting observer registration, prioritized event
+    distribution, hierarchical event matching, and duplicate detection.
 
-    **Architecture Overview**:
-    - **Singleton Pattern**: Ensures single event coordination point across framework
-    - **Observer Pattern**: Decoupled event notification system with priority support
-    - **Event Hierarchy**: Parent/child event type matching for flexible subscriptions
-    - **Duplicate Detection**: Content-based and time-based event deduplication
-    - **Scope Management**: Observer lifecycle management with automatic cleanup
+    Key features:
+        - Priority-based observer notification (high to low)
+        - Hierarchical event matching (e.g., ``test.start`` matches ``test``)
+        - Content-based and time-based event deduplication
+        - Scoped observers with automatic lifecycle cleanup
+        - Thread-safe with RLock synchronization
 
-    **Key Design Patterns**:
-    - **Priority Queue**: Observers notified in priority order (high to low)
-    - **Hierarchical Matching**: Event type inheritance (e.g., 'test.start' matches 'test')
-    - **Thread Safety**: RLock-based synchronization for concurrent access
-    - **Context Correlation**: Event correlation tracking for related events
-    - **Graceful Degradation**: Robust error handling prevents observer failures from affecting system
+    Observer categories:
+        - Global: receive all events regardless of type
+        - Type-specific: subscribe to specific event types or hierarchies
+        - Scoped: temporary observers with automatic cleanup
 
-    **Event Distribution Strategy**:
-    ```
-    Event Publication Flow:
-    ├── Event Validation & Duplicate Detection
-    ├── Observer Matching (specific + hierarchical + global)
-    ├── Priority-based Notification (highest first)
-    └── Error Isolation (observer failures don't affect others)
-    ```
-
-    **Observer Categories**:
-    - **Global Observers**: Receive all events regardless of type
-    - **Type-Specific Observers**: Subscribe to specific event types or hierarchies
-    - **Scoped Observers**: Temporary observers with automatic lifecycle management
-    - **Priority Observers**: Higher priority observers notified first
-
-    **Performance Characteristics**:
-    - **Event Processing**: O(log n) observer lookup via priority sorting
-    - **Duplicate Detection**: O(1) content-based detection with bounded cache
-    - **Memory Usage**: Bounded event history (default 1000 events) with automatic cleanup
-    - **Thread Safety**: RLock overhead ~1-5μs per event in typical usage
-
-    **Integration Points**:
-    - **ExperimentManager**: Lifecycle events and progress tracking
-    - **TestCaseManager**: Test execution events and status updates
-    - **PluginManager**: Plugin lifecycle and error events
-    - **MetricsCollector**: Performance and error metric events
-    - **ObserverFactory**: Dynamic observer creation and registration
-
-    **Event Types Supported**:
-    - **Lifecycle Events**: experiment.start, test.start, plugin.loaded
-    - **Progress Events**: step.progress, test.progress, experiment.progress
-    - **Error Events**: test.error, plugin.error, system.error
-    - **Status Events**: test.passed, test.failed, experiment.completed
-    - **Custom Events**: Framework-specific and user-defined event types
-
-    **Usage Patterns**:
-    ```python
-    # Get singleton instance
-    event_manager = EventManager.get_instance()
-
-    # Register observers
-    event_manager.register_observer(observer, ['test.start'], priority=10)
-    event_manager.register_observer_once(global_observer, 'global_obs', 'experiment')
-
-    # Publish events
-    event = TestStartEvent(test_case="basic_quic", timestamp=time.time())
-    event_manager.notify(event)
-
-    # Cleanup scoped observers
-    event_manager.cleanup_scoped_observers('experiment')
-    ```
-
-    **Thread Safety**: All public methods are thread-safe with RLock protection
-    **Singleton Lifecycle**: Reset capability for testing, production singleton guarantee
-    **Error Handling**: Observer exceptions logged but don't prevent other observers from receiving events
+    Example:
+        >>> event_manager = EventManager.get_instance()
+        >>> event_manager.register_observer(observer, ['test.start'], priority=10)
+        >>> event_manager.notify(event)
     """
 
     _instance = None
@@ -175,8 +121,7 @@ class EventManager(LoggerMixin):
 
     @classmethod
     def ensure_instance(cls):
-        """
-        Ensure EventManager singleton exists and return it.
+        """Ensure EventManager singleton exists and return it.
 
         This is a convenience method that guarantees an EventManager instance
         exists and returns it. Equivalent to get_instance() but with a clearer name.
@@ -202,8 +147,7 @@ class EventManager(LoggerMixin):
             EventManager._instance = None
 
     def _get_event_type_safely(self, event: BaseEvent) -> str:
-        """
-        Safely extract event type from BaseEvent.
+        """Safely extract event type from BaseEvent.
 
         Args:
             event: BaseEvent instance
@@ -220,8 +164,8 @@ class EventManager(LoggerMixin):
     def register_observer(
         self, observer: IObserver, event_types: List[str] = None, priority: int = 0
     ):
-        """
-        Register an observer for specific event types with priority.
+        """Register an observer for specific event types with priority.
+
         Higher priority (larger number) observers are notified first.
 
         Args:
@@ -283,8 +227,7 @@ class EventManager(LoggerMixin):
         event_types: List[str] = None,
         priority: int = 0,
     ):
-        """
-        Register an observer only if not already registered, with scope tracking.
+        """Register an observer only if not already registered, with scope tracking.
 
         Args:
             observer: The observer instance to register
@@ -334,8 +277,7 @@ class EventManager(LoggerMixin):
             return observer
 
     def unregister_observer(self, observer: IObserver, event_types: List[str] = None):
-        """
-        Unregister an observer from specific or all event types.
+        """Unregister an observer from specific or all event types.
 
         Args:
             observer: The observer instance to unregister
@@ -416,8 +358,7 @@ class EventManager(LoggerMixin):
         return False
 
     def _is_content_duplicate(self, event: BaseEvent) -> bool:
-        """
-        Check if this event is a content-based duplicate using UUID signatures.
+        """Check if this event is a content-based duplicate using UUID signatures.
 
         Args:
             event: Event to check for duplication
@@ -526,8 +467,7 @@ class EventManager(LoggerMixin):
             return cleaned_count
 
     def notify(self, event: BaseEvent) -> bool:
-        """
-        Notify all relevant observers about an event.
+        """Notify all relevant observers about an event.
 
         Args:
             event: BaseEvent to publish
@@ -670,8 +610,7 @@ class EventManager(LoggerMixin):
     def get_event_history(
         self, event_type: str = None, limit: int = None
     ) -> List[Tuple[datetime, BaseEvent]]:
-        """
-        Get recent events, optionally filtered by type.
+        """Get recent events, optionally filtered by type.
 
         Args:
             event_type: Type of events to retrieve, or None for all
@@ -692,8 +631,7 @@ class EventManager(LoggerMixin):
             return self.event_history[-limit:]
 
     def get_metrics(self) -> Dict[str, Any]:
-        """
-        Get event processing metrics.
+        """Get event processing metrics.
 
         Returns:
             dict: Event processing metrics
@@ -701,8 +639,7 @@ class EventManager(LoggerMixin):
         return self.metrics
 
     def cleanup_scoped_observers(self, scope: str):
-        """
-        Remove all observers from a specific scope.
+        """Remove all observers from a specific scope.
 
         Args:
             scope: The scope to clean up (e.g., 'test', 'experiment')
@@ -741,8 +678,7 @@ class EventManager(LoggerMixin):
             )
 
     def get_scoped_observer_count(self, scope: str = None) -> Dict[str, int]:
-        """
-        Get count of observers by scope.
+        """Get count of observers by scope.
 
         Args:
             scope: Specific scope to count, or None for all scopes
@@ -759,8 +695,7 @@ class EventManager(LoggerMixin):
                 }
 
     def has_observer(self, observer_id: str) -> bool:
-        """
-        Check if an observer with the given ID is already registered.
+        """Check if an observer with the given ID is already registered.
 
         Args:
             observer_id: Unique identifier for the observer
@@ -774,8 +709,7 @@ class EventManager(LoggerMixin):
     def get_registered_observer(
         self, observer_id: str
     ) -> Optional[Tuple[IObserver, str]]:
-        """
-        Get a registered observer by its ID.
+        """Get a registered observer by its ID.
 
         Args:
             observer_id: Unique identifier for the observer
@@ -787,8 +721,7 @@ class EventManager(LoggerMixin):
             return self._observer_registry.get(observer_id, None)
 
     def get_observer_by_type(self, observer_type):
-        """
-        Find and return an observer by its type/class.
+        """Find and return an observer by its type/class.
 
         This method searches both global and event-specific observers for
         an instance that matches the provided type. This is useful for getting
@@ -817,8 +750,7 @@ class EventManager(LoggerMixin):
 
 # Convenience function for easy importing
 def get_event_manager() -> EventManager:
-    """
-    Get the EventManager singleton instance.
+    """Get the EventManager singleton instance.
 
     This is a module-level convenience function that provides easy access
     to the EventManager singleton without needing to import the class.

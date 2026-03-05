@@ -1,6 +1,6 @@
 """Event summarization for log verbosity reduction.
 
-Provides :class:`EventSummarizer`, a utility that classifies events by
+Provides `EventSummarizer`, a utility that classifies events by
 importance level and produces concise summaries suitable for logging.
 High-frequency, low-importance events (e.g. ``step.progress``,
 ``metrics.collected``) can be batched to reduce noise.
@@ -60,9 +60,9 @@ class EventSummary:
 class EventSummarizer:
     """Summarize event data to reduce log verbosity.
 
-    Classifies events by importance (see :attr:`IMPORTANT_EVENT_TYPES`) and
-    produces concise :class:`EventSummary` objects.  Events listed in
-    :attr:`BATCHABLE_EVENTS` are flagged for batching.
+    Classifies events by importance (see `IMPORTANT_EVENT_TYPES`) and
+    produces concise `EventSummary` objects.  Events listed in
+    `BATCHABLE_EVENTS` are flagged for batching.
     """
 
     IMPORTANT_EVENT_TYPES = {

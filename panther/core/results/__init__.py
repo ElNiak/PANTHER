@@ -18,9 +18,9 @@ strings to lists of ``ResultHandler`` instances and fans results
 out through ``collect()``.
 
 See Also:
-    :mod:`panther.core.reporting`
+    `panther.core.reporting`
         Report generation from collected results.
-    :mod:`panther.core.outputs`
+    `panther.core.outputs`
         Output directory management.
 """
 

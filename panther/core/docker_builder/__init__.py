@@ -32,8 +32,8 @@ Example::
     builder.build_image(tag="panther/picoquic:latest", path="./docker")
 
 See Also:
-    :mod:`panther.core.command_processor` -- command generation for containers
-    :mod:`panther.plugins.environments` -- environment deployment using Docker
+    `panther.core.command_processor` -- command generation for containers
+    `panther.plugins.environments` -- environment deployment using Docker
 """
 
 from .docker_builder import DockerBuilder
