@@ -73,10 +73,7 @@ def organize_docs():
                 "source": "panther/tools/docs_gen/README.md",
                 "dest": "docs/developer_guide/documentation.md",
             },
-            {
-                "source": "panther/plugins/development.md",
-                "dest": "docs/developer_guide/plugin_development.md",
-            },
+            # development.md removed; plugin dev docs now in code docstrings
         ],
         "reference": [
             {"source": "PACKAGING.md", "dest": "docs/reference/packaging.md"},
@@ -203,7 +200,7 @@ def organize_docs():
                     "Links": "developer_guide/documentation_links.md",
                     "Enhancements": "developer_guide/documentation_enhancements.md",
                 },
-                "Plugin Development": "developer_guide/plugin_development.md",
+                "Plugin Development": "developer_guide/plugin_development.md",  # sourced from panther/plugins/__init__.py docstring
             }
         },
         {

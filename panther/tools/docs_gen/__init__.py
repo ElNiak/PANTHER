@@ -1,11 +1,9 @@
 # PANTHER Documentation Generation Tools
-"""
-Automated documentation generation tools for PANTHER project.
+"""Automated documentation generation tools for PANTHER project.
 
 This package provides:
 - discover_sources.py: Automated README discovery and analysis
 - generate_build_mapping.py: Integration module for panther_builder.py
-- INTEGRATION_INSTRUCTIONS.md: Complete integration guide
 
 Phase 1 Implementation: Replaces manual 85+ line build_dict with automated discovery.
 """

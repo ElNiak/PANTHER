@@ -171,9 +171,9 @@ pytest tests/ -n auto --cov=panther --cov-fail-under=70  # Coverage required: 70
 ## Key Files to Understand
 
 - `workflow.md` - Detailed execution architecture
-- `panther/core/README.md` - Core framework
-- `panther/config/README.md` - Configuration system
-- `panther/plugins/development.md` - Plugin development guide
+- `panther/core/__init__.py` - Core framework (module docstring)
+- `panther/config/__init__.py` - Configuration system (module docstring)
+- `panther/plugins/__init__.py` - Plugin development guide (module docstring)
 
 ## Git Workflow
 

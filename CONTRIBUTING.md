@@ -60,7 +60,7 @@ This guide provides standards and procedures for contributing to PANTHER documen
 PANTHER's documentation is organized into several categories:
 
 1. **Core Documentation**: Main project documents like README.md, CONTRIBUTING.md, and WORKFLOW.md
-2. **Plugin Documentation**: README.md files in each plugin directory
+2. **Code-as-Docs**: Package documentation lives in `__init__.py` module docstrings, rendered by mkdocstrings/Griffe
 3. **API Documentation**: Generated from Python docstrings
 4. **User Guides**: Step-by-step tutorials in the docs directory
 5. **Development Guides**: Technical information for contributors
@@ -73,10 +73,10 @@ All documentation should follow the established hierarchy and use relative links
 
 > [!WARNING]
 > "Plugin Development Requirements"
-> Before creating a new plugin, ensure you understand the plugin architecture by reading the [Plugin Developer Guide](panther/plugins/development.md). All plugins must implement the required interfaces and follow naming conventions.
+> Before creating a new plugin, ensure you understand the plugin architecture by reading the [Plugin System docs](panther/plugins/__init__.py) and the relevant type-specific `__init__.py` files. All plugins must implement the required interfaces and follow naming conventions.
 
-1. Create a README.md in your plugin directory using the [plugin template](panther/plugins/plugin_template.md).
-2. Add a corresponding entry in the appropriate index.md file.
+1. Add documentation as a module docstring in your plugin's `__init__.py` (see [Plugin System docs](panther/plugins/__init__.py) for examples).
+2. Add a corresponding entry in the appropriate MkDocs nav section.
 3. Ensure all examples are tested and functional.
 
 ### For Existing Components

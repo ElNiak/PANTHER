@@ -32,6 +32,7 @@ def create_symlink_or_copy(source, target):
 
 
 def main():
+    """Prepare documentation files by copying and symlinking into the docs directory."""
     # Define paths
     repo_dir = Path.cwd()
     docs_dir = repo_dir / "docs"
@@ -112,7 +113,7 @@ def main():
             f.write("## Quick Links\n\n")
             f.write("- [Installation](INSTALL.md)\n")
             f.write("- [Quick Start](QUICK_START.md)\n")
-            f.write("- [Plugin System](plugin_development.md)\n")
+            f.write("- [Plugin Development](plugin_development.md)\n")
             f.write("- [Contributing](CONTRIBUTING.md)\n")
             f.write("- [API Reference](panther/)\n")
 

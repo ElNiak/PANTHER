@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-PANTHER Build Script
+"""PANTHER Build Script.
 
 This script replaces the Makefile and provides a more portable,
 Python-based build system for the PANTHER project.
@@ -139,7 +138,7 @@ _ALL_BRACKET_RE = re.compile(r"\[([^\]]+)\]")
 
 
 def _escape_autorefs(text):
-    """Escape patterns that mkdocs_autorefs misinterprets in Ivy docs.
+    r"""Escape patterns that mkdocs_autorefs misinterprets in Ivy docs.
 
     Handles two cases:
     1. Backtick inline code (e.g. ``range``) -> ``<code>range</code>``
@@ -291,6 +290,7 @@ try:
     _build_collector = None
 
     def record(name, value, tags=None):
+        """Record a build metric with optional tags."""
         global _build_collector
         if _build_collector is None:
             import tempfile
@@ -304,6 +304,7 @@ try:
         _build_collector.record_metric(name, MetricType.PERFORMANCE, value, tags or {})
 
     def flush(kind, extra=None):
+        """Flush collected build metrics and return a run identifier."""
         global _build_collector
         if _build_collector is None:
             return "no-metrics"
@@ -312,7 +313,10 @@ try:
         return f"build-{int(time.time())}"
 
     class ResourceSampler:
+        """Samples system resource usage during builds."""
+
         def __init__(self):
+            """Initialize ResourceSampler."""
             import tempfile
             from pathlib import Path
 
@@ -324,15 +328,18 @@ try:
             self.monitor = ResourceMonitor(self.collector)
 
         def start(self):
+            """Start resource monitoring."""
             self.monitor.start()
 
         def stop(self):
+            """Stop resource monitoring and return results."""
             self.monitor.stop()
             # Return a simple dict for compatibility
             return {"status": "completed"}
 
     # Utility functions for build system
     def get_directory_size_mb(path):
+        """Calculate the total size of a directory in megabytes."""
         import os
 
         total_size = 0
@@ -344,6 +351,7 @@ try:
         return total_size / (1024 * 1024)  # Convert to MB
 
     def get_docker_image_size_mb(name):
+        """Return the size of a Docker image in megabytes, or None on failure."""
         try:
             # Use the singleton DockerBuilder for cached operations
             from panther.core.docker_builder.docker_builder import DockerBuilder
@@ -379,6 +387,7 @@ try:
             return None
 
     def find_latest_wheel(dist_dir, package_name):
+        """Find the most recently built wheel file and return its path and size."""
         from pathlib import Path
 
         dist_path = Path(dist_dir)
@@ -390,6 +399,7 @@ try:
         return latest, size_mb
 
     def cleanup_build_artifacts(path):
+        """Remove build artifacts at the given path."""
         return {"cleaned": True}
 
     METRICS_AVAILABLE = True
@@ -399,28 +409,38 @@ except ImportError:
     print("Metrics system not available. Using dummy functions.")
 
     def record(name, value, tags=None):
+        """Record a build metric (no-op fallback)."""
         pass
 
     def flush(kind, extra=None):
+        """Flush collected build metrics (no-op fallback)."""
         return "no-metrics"
 
     class ResourceSampler:
+        """Stub resource sampler used when metrics are unavailable."""
+
         def start(self):
+            """Start resource monitoring (no-op fallback)."""
             pass
 
         def stop(self):
+            """Stop resource monitoring (no-op fallback)."""
             return {}
 
     def get_directory_size_mb(path):
+        """Return directory size in megabytes (no-op fallback)."""
         return 0.0
 
     def get_docker_image_size_mb(name):
+        """Return Docker image size in megabytes (no-op fallback)."""
         return None
 
     def find_latest_wheel(dist_dir, package_name):
+        """Find the most recently built wheel file (no-op fallback)."""
         return None
 
     def cleanup_build_artifacts(path):
+        """Remove build artifacts at the given path (no-op fallback)."""
         return {}
 
     METRICS_AVAILABLE = False
@@ -430,6 +450,7 @@ class BuildManager:
     """Manages the build process for PANTHER."""
 
     def __init__(self):
+        """Initialize BuildManager."""
         self.project_root = Path(__file__).parent
         self.build_dirs = ["build", "dist"]
         self.docs_dir = ["docs", "site"]
@@ -731,7 +752,6 @@ class BuildManager:
 
     def build_docs(self) -> int:
         """Build documentation."""
-
         # Start metrics collection
         self.start_metrics_collection("build_docs")
 
@@ -782,7 +802,7 @@ class BuildManager:
             # Install documentation dependencies
             print("Installing documentation dependencies...")
             result = self.run_command(
-                [sys.executable, "-m", "pip", "install", ".[doc]"]
+                [sys.executable, "-m", "pip", "install", "-e", ".[doc]"]
             )
             if result != 0:
                 print("Warning: Could not install documentation dependencies")
@@ -854,12 +874,12 @@ class BuildManager:
                     )
                 else:
                     print(
-                        f"Warning: Source file {source} not found, creating placeholder"
+                        f"Warning: Source file {source} not found"
                     )
-                    # Create a placeholder file
-                    with open(dest_path, "w") as f:
-                        f.write(f"# {dest_path.stem.replace('_', ' ').title()}\n\n")
-                        f.write("This documentation is under development.\n")
+                    # # Create a placeholder file
+                    # with open(dest_path, "w") as f:
+                    #     f.write(f"# {dest_path.stem.replace('_', ' ').title()}\n\n")
+                    #     f.write("This documentation is under development.\n")
 
             # Copy all markdown files from panther to docs/panther (hierarchy)
             panther_docs_dir = self.project_root / "docs" / "panther"
@@ -871,7 +891,6 @@ class BuildManager:
             _skip_dirs = {
                 "submodules",  # third-party submodule content (z3, picotls, abc)
                 "template",  # mkdocs template files
-                "adr",  # architecture decision records (removed from docs)
             }
             for md_file in panther_src_dir.rglob("*.md"):
                 if md_file.is_file():

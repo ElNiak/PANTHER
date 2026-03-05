@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-PANTHER Documentation Source Discovery
+"""PANTHER Documentation Source Discovery.
 
 Automatically discovers README.md files and generates build_dict mappings
 to replace manual maintenance in panther_builder.py.
@@ -55,6 +54,7 @@ class PantherSourceDiscovery:
     """Discovers and analyzes PANTHER documentation sources."""
 
     def __init__(self, project_root: Path):
+        """Initialize PantherSourceDiscovery."""
         self.project_root = project_root
         self.panther_root = project_root / "panther"
         self.readme_files: List[ReadmeInfo] = []
@@ -74,7 +74,7 @@ class PantherSourceDiscovery:
             "tester_plugins": ["panther/plugins/services/testers"],
             "documentation": ["panther/tools/docs_gen"],
             "getting_started": ["QUICK_START.md", "INSTALL.md", "README.md"],
-            "developer": ["CONTRIBUTING.md", "development.md"],
+            "developer": ["CONTRIBUTING.md", "panther/plugins/__init__.py"],
             "project_info": ["CHANGELOG.md", "LICENSE.md", "WORKFLOW.md"],
         }
 
@@ -115,6 +115,7 @@ class PantherSourceDiscovery:
 
         # Discover root-level documentation files (non-README)
         root_doc_files = {
+            "README.md": ("getting_started", "docs/index.md", 1),
             "INSTALL.md": ("getting_started", "docs/INSTALL.md", 2),
             "QUICK_START.md": ("getting_started", "docs/QUICK_START.md", 2),
             "CONTRIBUTING.md": ("developer", "docs/contributing.md", 70),
@@ -141,24 +142,20 @@ class PantherSourceDiscovery:
                     )
                 )
 
-        # Discover development.md files in plugin directories only
-        plugins_dir = self.project_root / "panther" / "plugins"
-        for dev_md_path in plugins_dir.rglob("development.md"):
-            if any(exclude in str(dev_md_path) for exclude in exclude_patterns):
-                continue
-            relative_path = str(dev_md_path.relative_to(self.project_root))
-            doc_name = self._generate_dev_doc_name(relative_path)
+        # Plugin development docs are now in code docstrings (panther/plugins/__init__.py)
+        plugins_init = self.project_root / "panther" / "plugins" / "__init__.py"
+        if plugins_init.exists():
             try:
-                content = dev_md_path.read_text(encoding="utf-8")
+                content = plugins_init.read_text(encoding="utf-8")
             except UnicodeDecodeError:
-                content = dev_md_path.read_text(encoding="latin-1")
+                content = plugins_init.read_text(encoding="latin-1")
             content_preview = content[:200].replace("\n", " ").strip()
             readme_files.append(
                 ReadmeInfo(
-                    source_path=str(dev_md_path),
-                    relative_path=relative_path,
+                    source_path=str(plugins_init),
+                    relative_path="panther/plugins/__init__.py",
                     category="developer",
-                    suggested_doc_name=doc_name,
+                    suggested_doc_name="docs/plugin_development.md",
                     priority=60,
                     content_preview=content_preview,
                 )
@@ -191,7 +188,6 @@ class PantherSourceDiscovery:
 
     def _analyze_readme_file(self, readme_path: Path, relative_path: str) -> ReadmeInfo:
         """Analyze a single README file to determine its category and mapping."""
-
         # Read content preview
         try:
             content = readme_path.read_text(encoding="utf-8")
@@ -229,7 +225,6 @@ class PantherSourceDiscovery:
 
     def _categorize_readme(self, relative_path: str) -> str:
         """Categorize README based on its path."""
-
         for category, patterns in self.category_patterns.items():
             for pattern in patterns:
                 if pattern in relative_path:
@@ -247,7 +242,6 @@ class PantherSourceDiscovery:
 
     def _generate_doc_name(self, relative_path: str, category: str) -> str:
         """Generate appropriate documentation file name."""
-
         # Special cases for important files
         if relative_path == "README.md":
             return "docs/index.md"
@@ -296,7 +290,6 @@ class PantherSourceDiscovery:
 
     def _generate_plugin_doc_name(self, path_parts: List[str]) -> str:
         """Generate documentation name for plugin README files."""
-
         # Remove "plugins" from path parts for cleaner names
         if "plugins" in path_parts:
             idx = path_parts.index("plugins")
@@ -389,7 +382,6 @@ class PantherSourceDiscovery:
 
     def _assign_priority(self, relative_path: str, category: str) -> int:
         """Assign priority for documentation order."""
-
         # High priority (1-10): Essential project documentation
         if relative_path == "README.md":
             return 1
@@ -418,7 +410,6 @@ class PantherSourceDiscovery:
 
     def _find_module_context(self, readme_path: Path) -> Optional[str]:
         """Find associated Python module for context."""
-
         # Look for Python files in the same directory
         readme_dir = readme_path.parent
         python_files = list(readme_dir.glob("*.py"))
@@ -461,7 +452,6 @@ class PantherSourceDiscovery:
 
     def _analyze_python_file(self, py_file: Path) -> Optional[ModuleInfo]:
         """Analyze a single Python file using AST."""
-
         try:
             content = py_file.read_text(encoding="utf-8")
             tree = ast.parse(content)
@@ -544,7 +534,6 @@ class PantherSourceDiscovery:
 
     def export_analysis(self, output_file: Path) -> None:
         """Export complete analysis to JSON for further processing."""
-
         analysis_data = {
             "project_root": str(self.project_root),
             "discovery_timestamp": str(self._get_timestamp()),
@@ -566,7 +555,6 @@ class PantherSourceDiscovery:
 
 def main():
     """Main entry point for command-line usage."""
-
     # Find project root (where panther_builder.py is located)
     current_dir = Path.cwd()
     project_root = None

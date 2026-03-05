@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-PANTHER Build Mapping Generator
+"""PANTHER Build Mapping Generator.
 
 Integration module for panther_builder.py to replace manual build_dict
 with automated discovery-based generation.
@@ -21,9 +20,10 @@ from pathlib import Path
 from typing import Dict
 
 
-def get_build_dict(project_root: Path = None, use_cache: bool = True) -> Dict[str, str]:
-    """
-    Get automated build_dict for documentation generation.
+def get_build_dict(
+    project_root: Path = None, use_cache: bool = False
+) -> Dict[str, str]:
+    """Get automated build_dict for documentation generation.
 
     Args:
         project_root: Project root directory (auto-detected if None)
@@ -36,7 +36,6 @@ def get_build_dict(project_root: Path = None, use_cache: bool = True) -> Dict[st
         build_dict = get_build_dict()
         # Returns: {"README.md": "docs/index.md", ...}
     """
-
     # Auto-detect project root if not provided
     if project_root is None:
         current_dir = Path(__file__).parent
@@ -79,7 +78,6 @@ def get_build_dict(project_root: Path = None, use_cache: bool = True) -> Dict[st
 
 def _generate_fresh_build_dict(project_root: Path) -> Dict[str, str]:
     """Generate build_dict using the discovery system."""
-
     try:
         # Import discovery system
         from .discover_sources import PantherSourceDiscovery
@@ -101,7 +99,6 @@ def _generate_fresh_build_dict(project_root: Path) -> Dict[str, str]:
 
 def _cache_build_dict(project_root: Path, build_dict: Dict[str, str]) -> None:
     """Cache the generated build_dict for faster future access."""
-
     try:
         cache_file = (
             project_root / "panther" / "tools" / "docs_gen" / "generated_build_dict.py"
@@ -128,7 +125,6 @@ def _cache_build_dict(project_root: Path, build_dict: Dict[str, str]) -> None:
 
 def _get_emergency_mappings() -> Dict[str, str]:
     """Emergency fallback mappings if discovery system fails."""
-
     print("⚠️  Using emergency fallback mappings")
 
     # Core essential mappings only
@@ -146,8 +142,7 @@ def _get_emergency_mappings() -> Dict[str, str]:
 
 
 def regenerate_build_dict(project_root: Path = None) -> Dict[str, str]:
-    """
-    Force regeneration of build_dict (ignoring cache).
+    """Force regeneration of build_dict (ignoring cache).
 
     Useful for development or when README files have been added/removed.
 
@@ -157,13 +152,11 @@ def regenerate_build_dict(project_root: Path = None) -> Dict[str, str]:
     Returns:
         Freshly generated build_dict
     """
-
     return get_build_dict(project_root=project_root, use_cache=False)
 
 
 def validate_build_dict(build_dict: Dict[str, str], project_root: Path = None) -> bool:
-    """
-    Validate that all source files in build_dict exist.
+    """Validate that all source files in build_dict exist.
 
     Args:
         build_dict: The build dictionary to validate
@@ -172,7 +165,6 @@ def validate_build_dict(build_dict: Dict[str, str], project_root: Path = None) -
     Returns:
         True if all source files exist, False otherwise
     """
-
     if project_root is None:
         current_dir = Path(__file__).parent
         for parent in [current_dir] + list(current_dir.parents):
@@ -202,8 +194,7 @@ def validate_build_dict(build_dict: Dict[str, str], project_root: Path = None) -
 
 # Convenience function for direct usage
 def get_automated_build_dict() -> Dict[str, str]:
-    """
-    Convenience function that returns automated build_dict.
+    """Convenience function that returns automated build_dict.
 
     This is the main function that panther_builder.py should call
     to replace the manual build_dict.
