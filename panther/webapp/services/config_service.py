@@ -1,15 +1,25 @@
 """Service layer for configuration validation and YAML generation."""
 
 import logging
+from pathlib import Path
 from typing import Optional
 
 import yaml
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_CONFIG_YAML = (
-    "experiment-config/base/experiment_config_example_minimal_docker.yaml"
-)
+# Resolve default config relative to project root (where pyproject.toml lives)
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+_DEFAULT_CONFIG_CANDIDATES = [
+    _PROJECT_ROOT
+    / "experiment-config"
+    / "base"
+    / "experiment_config_example_minimal_docker.yaml",
+    _PROJECT_ROOT
+    / "experiment-config"
+    / "base"
+    / "experiment_config_example_minimal.yaml",
+]
 
 
 class ConfigService:
@@ -17,8 +27,12 @@ class ConfigService:
 
     def get_default_yaml(self) -> str:
         """Return a default experiment config YAML template."""
-        with open(DEFAULT_CONFIG_YAML, "r") as f:
-            return f.read()
+        for candidate in _DEFAULT_CONFIG_CANDIDATES:
+            if candidate.is_file():
+                return candidate.read_text()
+        raise FileNotFoundError(
+            f"No default config found. Searched: {[str(c) for c in _DEFAULT_CONFIG_CANDIDATES]}"
+        )
 
     def validate_yaml(self, yaml_content: str) -> Optional[str]:
         """Validate a YAML string as a PANTHER config.

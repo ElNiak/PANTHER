@@ -45,6 +45,7 @@ def content():
     ]
 
     table = ui.table(columns=columns, rows=rows, row_key="name").classes("w-full")
+    table.on("rowClick", lambda e: show_detail(e.args[1]["name"]))
 
     # Detail view
     ui.separator().classes("q-my-md")
