@@ -3,7 +3,7 @@ export default [
         files: ["**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx", "**/*.mjs", "**/*.cjs", "**/*.vue"],
         rules: {
           "valid-typeof": ["error", {"requireStringLiterals": false}],
-          "use-isnan": ["error", {"enforceForSwitchCase": true, "enforceForIndexOf": false}],
+          "use-isnan": ["error", {"enforceForIndexOf": false, "enforceForSwitchCase": true}],
           "require-yield": ["error"],
           "no-with": ["error"],
           "no-useless-escape": ["error"],

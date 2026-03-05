@@ -1,7 +1,8 @@
 # mvfst QUIC Implementation
 
-!!! warning "Development Status"
-    This plugin is currently in development phase.
+> [!WARNING]
+> "Development Status"
+> This plugin is currently in development phase.
 
 > **Plugin Type**: Service (Implementation Under Test)
 
@@ -25,8 +26,9 @@ mvfst implementation features:
 
 ## Inheritance Architecture
 
-!!! info "Inheritance-Based Implementation"
-    The mvfst plugin uses PANTHER's inheritance architecture, inheriting directly from `BaseQUICServiceManager`. This provides benefits through code reuse and consistent behavior across all QUIC implementations while maintaining Meta's production-optimized patterns.
+> [!NOTE]
+> "Inheritance-Based Implementation"
+> The mvfst plugin uses PANTHER's inheritance architecture, inheriting directly from `BaseQUICServiceManager`. This provides benefits through code reuse and consistent behavior across all QUIC implementations while maintaining Meta's production-optimized patterns.
 
 ### Inheritance Architecture
 
@@ -85,8 +87,9 @@ class MvfstServiceManager(BaseQUICServiceManager):
 
 ## Requirements and Dependencies
 
-!!! info "Base Class Dependencies"
-    The mvfst implementation automatically inherits all base class dependencies, including the Command Processor, Event System, and common QUIC utilities. No additional setup is required for these core features.
+> [!NOTE]
+> "Base Class Dependencies"
+> The mvfst implementation automatically inherits all base class dependencies, including the Command Processor, Event System, and common QUIC utilities. No additional setup is required for these core features.
 
 The plugin requires:
 

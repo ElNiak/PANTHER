@@ -29,6 +29,15 @@ Plugin Registration:
     and validation. The PluginManager provides thread-safe singleton
     access, multi-level caching, and lifecycle management.
 
+    Discovery follows five phases: Import → Discovery → Validation →
+    Instantiation → Runtime.
+
+Plugin Creation CLI::
+
+    panther --create-plugin TYPE NAME [--with-subplugins]
+    panther --create-subplugin PLUGIN_TYPE PLUGIN_NAME SUBPLUGIN_TYPE
+    panther --tutorial service|environment|protocol
+
 Directory Layout::
 
     plugins/
@@ -38,6 +47,12 @@ Directory Layout::
     ├── plugin_interface.py   # Base plugin interface
     ├── plugin_manager.py     # Plugin lifecycle management
     └── plugin_loader.py      # Plugin loading utilities
+
+See Also:
+    :doc:`/plugin_development`
+        Full plugin development guide.
+    :doc:`/plugins_inventory`
+        Inventory of all available plugins.
 
 See Also:
     ``panther/plugins/development.md`` for the plugin development guide.

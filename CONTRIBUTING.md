@@ -1,10 +1,11 @@
 # Contributing
 
-!!! info "Quick Navigation"
-    - :material-file-tree: [Project Structure](#open_file_folder-project-structure)
-    - :material-book-open: [Documentation Guidelines](#contributing-to-panther-documentation)
-    - :material-palette: [Admonitions Guide](#admonitions-usage-guide)
-    - :material-workflow: [Review Process](#documentation-review-process)
+> [!NOTE]
+> "Quick Navigation"
+> - :material-file-tree: [Project Structure](#open_file_folder-project-structure)
+> - :material-book-open: [Documentation Guidelines](#contributing-to-panther-documentation)
+> - :material-palette: [Admonitions Guide](#admonitions-usage-guide)
+> - :material-workflow: [Review Process](#documentation-review-process)
 
 ## :open_file_folder: Project Structure
 
@@ -70,8 +71,9 @@ All documentation should follow the established hierarchy and use relative links
 
 ### For New Plugins
 
-!!! warning "Plugin Development Requirements"
-    Before creating a new plugin, ensure you understand the plugin architecture by reading the [Plugin Developer Guide](panther/plugins/development.md). All plugins must implement the required interfaces and follow naming conventions.
+> [!WARNING]
+> "Plugin Development Requirements"
+> Before creating a new plugin, ensure you understand the plugin architecture by reading the [Plugin Developer Guide](panther/plugins/development.md). All plugins must implement the required interfaces and follow naming conventions.
 
 1. Create a README.md in your plugin directory using the [plugin template](panther/plugins/plugin_template.md).
 2. Add a corresponding entry in the appropriate index.md file.
@@ -147,19 +149,21 @@ The most commonly used admonition types in PANTHER documentation:
 
 ### Best Practices
 
-!!! tip "Strategic Placement Guidelines"
-    - **Maximum one admonition per screenful** to avoid visual clutter
-    - Place admonitions **before** the content they relate to
-    - Use **specific, descriptive titles** rather than generic ones
-    - Keep admonition content **concise and focused**
+> [!TIP]
+> "Strategic Placement Guidelines"
+> - **Maximum one admonition per screenful** to avoid visual clutter
+> - Place admonitions **before** the content they relate to
+> - Use **specific, descriptive titles** rather than generic ones
+> - Keep admonition content **concise and focused**
 
 ### Basic Syntax
 
 ```markdown
-!!! type "Descriptive Title"
-    Content goes here with proper 4-space indentation.
-
-    Can include multiple paragraphs and code blocks.
+> [!NOTE]
+> "Descriptive Title"
+> Content goes here with proper 4-space indentation.
+>
+> Can include multiple paragraphs and code blocks.
 ```
 
 ### Examples
@@ -167,22 +171,25 @@ The most commonly used admonition types in PANTHER documentation:
 **System Requirements:**
 
 ```markdown
-!!! info "System Requirements"
-    **Target platform:** Linux (x86-64) with Docker >= 27
+> [!NOTE]
+> "System Requirements"
+> **Target platform:** Linux (x86-64) with Docker >= 27
 ```
 
 **Best Practices:**
 
 ```markdown
-!!! tip "Recommended Setup"
-    Using a virtual environment is highly recommended.
+> [!TIP]
+> "Recommended Setup"
+> Using a virtual environment is highly recommended.
 ```
 
 **Critical Warnings:**
 
 ```markdown
-!!! danger "Common Failure Points"
-    Most issues occur during plugin loading or container builds.
+> [!CAUTION]
+> "Common Failure Points"
+> Most issues occur during plugin loading or container builds.
 ```
 
 ## Documentation Review Process

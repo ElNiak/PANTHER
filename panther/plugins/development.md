@@ -2,8 +2,9 @@
 
 This guide provides detailed instructions for creating new plugins for the PANTHER framework across all plugin types.
 
-!!! warning "Development Prerequisites"
-    Before starting plugin development, ensure you understand PANTHER's architecture by reading the [workflow.md](../../workflow.md) and have a working PANTHER installation following the [INSTALL.md](../../INSTALL.md) guide.
+> [!WARNING]
+> "Development Prerequisites"
+> Before starting plugin development, ensure you understand PANTHER's architecture by reading the [workflow.md](../../workflow.md) and have a working PANTHER installation following the [INSTALL.md](../../INSTALL.md) guide.
 
 ## Development Guides
 
@@ -16,8 +17,9 @@ This guide covers all plugin types. Jump to type-specific sections:
 
 ## Modern Inheritance-Based Architecture (2024)
 
-!!! success "Base Class System"
-    PANTHER now uses an inheritance-based architecture with specialized base classes that eliminate code duplication and provide consistent behavior. All new plugins should inherit from appropriate base classes rather than implementing functionality from scratch.
+> [!TIP]
+> "Base Class System"
+> PANTHER now uses an inheritance-based architecture with specialized base classes that eliminate code duplication and provide consistent behavior. All new plugins should inherit from appropriate base classes rather than implementing functionality from scratch.
 
 **Architectural Evolution**: The modern PANTHER plugin system has evolved from a traditional interface-based approach to a sophisticated inheritance hierarchy that provides:
 - **47.2% Average Code Reduction**: Eliminate duplicate functionality across plugin implementations
@@ -200,8 +202,9 @@ PANTHER provides tools to easily create new plugins from templates:
 
 ### Tutorial Launcher (Recommended)
 
-!!! tip "Recommended Method"
-    The tutorial launcher is the easiest way to get started with plugin development:
+> [!TIP]
+> "Recommended Method"
+> The tutorial launcher is the easiest way to get started with plugin development:
 
 ```bash
 # From the PANTHER root directory
@@ -288,8 +291,9 @@ Determine which category your plugin belongs to:
 
 ### 2. Set Up the Plugin Directory
 
-!!! note "Plugin Directory Structure"
-    This directory structure is automatically created when using the `--create-plugin` command, but you can also create it manually.
+> [!NOTE]
+> "Plugin Directory Structure"
+> This directory structure is automatically created when using the `--create-plugin` command, but you can also create it manually.
 
 Create a directory for your plugin in the appropriate location:
 

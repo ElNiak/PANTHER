@@ -1,7 +1,27 @@
-"""Experiment manager for PANTHER framework.
+"""Central orchestrator for PANTHER experiment lifecycle.
 
-This module contains the ExperimentManager class which manages the lifecycle
-of experiments including initialization, configuration, and execution.
+``ExperimentManager`` drives the four-phase execution model:
+
+1. **Initialization** – parse YAML config, set up logging, register emitters.
+2. **Plugin Loading** – discover plugins, create service managers, generate
+   commands, build Docker images.
+3. **Environment Deployment** – set up network (Docker Compose / Shadow NS),
+   deploy containers, run health checks.
+4. **Test Execution** – iterate test scenarios, collect metrics, teardown,
+   generate reports.
+
+The manager delegates to :class:`ErrorHandlerMixin` for structured
+error recovery and :class:`FastFailHandler` for early termination on
+unrecoverable failures (certificate, Ivy compilation, port conflicts,
+resource exhaustion, etc.).
+
+See Also:
+    :mod:`panther.core.test_cases`
+        Mixin-based test runners invoked by the manager.
+    :mod:`panther.core.events`
+        Event bus wiring configured during initialization.
+    :doc:`/panther_overview`
+        High-level architecture overview.
 """
 
 import contextlib

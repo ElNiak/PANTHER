@@ -5,16 +5,18 @@
 
 Environment plugins manage where and how tests execute within PANTHER. They provide abstractions for different deployment scenarios, from localhost testing to containerized environments and network simulation platforms.
 
-!!! info "Environment Types"
-    PANTHER supports two main environment categories:
-
-    - **Execution Environments**: Add monitoring, profiling, and analysis during test runs
-    - **Network Environments**: Manage network topology, containers, and simulation infrastructure
+> [!NOTE]
+> "Environment Types"
+> PANTHER supports two main environment categories:
+>
+> - **Execution Environments**: Add monitoring, profiling, and analysis during test runs
+> - **Network Environments**: Manage network topology, containers, and simulation infrastructure
 
 ## Modern Event-Driven Architecture (2024)
 
-!!! success "Event System Integration"
-    Environment plugins now integrate seamlessly with PANTHER's event-driven architecture, providing real-time monitoring, command processor integration, and comprehensive lifecycle tracking through typed events.
+> [!TIP]
+> "Event System Integration"
+> Environment plugins now integrate seamlessly with PANTHER's event-driven architecture, providing real-time monitoring, command processor integration, and comprehensive lifecycle tracking through typed events.
 
 ### Event-Driven Environment Lifecycle
 

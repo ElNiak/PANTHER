@@ -1,6 +1,27 @@
-"""PANTHER utilities package.
+"""Utilities Module - Cross-Cutting Concerns for PANTHER.
 
-This package contains utility functions and classes for the PANTHER framework.
+Shared utilities used across the framework: logging, configuration
+summarization, and feature registration.
+
+Utility Groups:
+    Logging:
+        - :class:`LoggerMixin` -- adds ``self.logger`` to any class
+        - :class:`LoggerFactory` -- standardized logger creation
+        - :class:`FeatureLoggerMixin` -- feature-scoped logging
+
+    Configuration:
+        - :class:`ConfigSummarizer` -- compact config display
+        - :func:`log_omega_config_summary` -- summarize OmegaConf to log
+        - :func:`log_omega_config_full` -- full config dump
+
+    Feature Registration:
+        - :func:`register_feature` / :func:`register_module_feature` -- declare features
+        - :func:`detect_module_feature` -- runtime feature detection
+        - ``feature_registry`` -- global feature catalog
+
+See Also:
+    :mod:`panther.core.command_processor` -- CommandEventMixin re-exported here
+    :mod:`panther.core.template` -- template utilities (imported separately to avoid circular deps)
 """
 
 # Import key modules for easier access

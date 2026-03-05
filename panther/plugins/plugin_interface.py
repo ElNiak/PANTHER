@@ -1,3 +1,37 @@
+"""Plugin Interface Module - Base Plugin Contract for PANTHER.
+
+Defines the abstract base class that all PANTHER plugins must implement.
+``IPlugin`` establishes the plugin lifecycle contract: initialization,
+event handling, configuration, and cleanup.
+
+Plugin Lifecycle::
+
+    __init__()  →  initialize(config)  →  handle_event(event)  →  cleanup()
+       │               │                       │                     │
+       │               ▼                       ▼                     ▼
+    plugin_id      is_initialized=True    dispatch to            release
+    name           config stored          handler logic          resources
+
+Contract Methods:
+    - ``initialize(config)`` -- setup with configuration, returns success bool
+    - ``handle_event(event)`` -- **abstract** -- process incoming events
+    - ``get_supported_events()`` -- declare event types of interest
+    - ``cleanup()`` -- resource teardown (optional override)
+
+Example::
+
+    from panther.plugins.plugin_interface import IPlugin
+    from panther.core.events.base.event_base import BaseEvent
+
+    class MyPlugin(IPlugin):
+        def handle_event(self, event: BaseEvent) -> None:
+            self.logger.info("Received %s", event.name)
+
+See Also:
+    :mod:`panther.plugins.plugin_manager` -- discovers and manages plugin instances
+    :mod:`panther.core.events` -- event types dispatched to plugins
+"""
+
 import logging
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional

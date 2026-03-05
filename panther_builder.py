@@ -258,12 +258,19 @@ def _copy_md_rewriting_links(
     For *flat* copies: provide ``source_rel``, ``build_dict``, ``project_root``
     to resolve links against the build dictionary.
     For *hierarchy* copies: omit those params — only non-doc links are stripped.
+
+    GitHub-style callouts (``> [!NOTE]``) are converted to MkDocs
+    admonitions (``!!! note``) automatically so source files stay
+    readable on GitHub while MkDocs renders them with proper styling.
     """
     text = _read_md_as_utf8(src)
     if source_rel is not None and build_dict is not None and project_root is not None:
         text = _rewrite_links_flat(text, source_rel, build_dict, project_root)
     else:
         text = _strip_non_doc_links(text)
+    # Convert GitHub callouts → MkDocs admonitions
+    from panther.tools.docs_gen.convert_admonitions import github_to_mkdocs
+    text = github_to_mkdocs(text)
     dst.write_text(text, encoding="utf-8")
 
 
@@ -1041,7 +1048,7 @@ class BuildManager:
             )
 
         # Serve the documentation
-        return self.run_command(["mkdocs", "serve", "--config-file", "mkdocs.yml"])
+        return self.run_command(["mkdocs", "serve", "--verbose", "--config-file", "mkdocs.yml"])
 
     def deploy_docs(self) -> int:
         """Deploy documentation to GitHub Pages."""

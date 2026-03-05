@@ -4,8 +4,9 @@
 
 PANTHER (Protocol Analysis and Testing Harness for Extensible Research) is a comprehensive testing framework for protocol implementations, particularly network protocols like QUIC. This document covers the core architecture and execution model.
 
-!!! info "Audience"
-    For getting started, see the [Quick Start Guide](QUICK_START.md). This document is for developers and contributors who need to understand internal architecture.
+> [!NOTE]
+> "Audience"
+> For getting started, see the [Quick Start Guide](QUICK_START.md). This document is for developers and contributors who need to understand internal architecture.
 
 ## Architecture Overview
 

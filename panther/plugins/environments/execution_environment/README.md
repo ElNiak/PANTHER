@@ -7,8 +7,9 @@ Execution environments in PANTHER define **where and how** your implementations 
 
 ## Modern Architecture Integration (2024)
 
-!!! success "Command Processor & Event System Integration"
-    Execution environments now integrate seamlessly with PANTHER's modern architecture, using the Command Processor for structured command generation, event-driven monitoring, and comprehensive metrics collection through the observer pattern.
+> [!TIP]
+> "Command Processor & Event System Integration"
+> Execution environments now integrate seamlessly with PANTHER's modern architecture, using the Command Processor for structured command generation, event-driven monitoring, and comprehensive metrics collection through the observer pattern.
 
 ### Event-Driven Profiler Integration
 

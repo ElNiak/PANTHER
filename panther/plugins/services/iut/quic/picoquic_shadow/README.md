@@ -48,8 +48,9 @@ The Shadow integration allows for deterministic, repeatable experiments with pre
 
 ## Inheritance Architecture
 
-!!! info "Inheritance-Based Implementation"
-    The Picoquic Shadow plugin uses PANTHER's inheritance architecture, inheriting directly from `BaseQUICServiceManager`. This provides benefits through code reuse and consistent behavior while maintaining Shadow NS-specific integration patterns for deterministic network simulation.
+> [!NOTE]
+> "Inheritance-Based Implementation"
+> The Picoquic Shadow plugin uses PANTHER's inheritance architecture, inheriting directly from `BaseQUICServiceManager`. This provides benefits through code reuse and consistent behavior while maintaining Shadow NS-specific integration patterns for deterministic network simulation.
 
 ### Inheritance Architecture
 
@@ -117,8 +118,9 @@ class PicoquicShadowServiceManager(BaseQUICServiceManager):
 
 ## Requirements and Dependencies
 
-!!! info "Base Class Dependencies"
-    The Picoquic Shadow implementation automatically inherits all base class dependencies, including the Command Processor, Event System, and common QUIC utilities. No additional setup is required for these core features.
+> [!NOTE]
+> "Base Class Dependencies"
+> The Picoquic Shadow implementation automatically inherits all base class dependencies, including the Command Processor, Event System, and common QUIC utilities. No additional setup is required for these core features.
 
 ### System Requirements
 

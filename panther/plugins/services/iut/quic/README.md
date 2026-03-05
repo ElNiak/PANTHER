@@ -4,11 +4,13 @@
 
 PANTHER provides multiple production-grade QUIC implementations that can be tested individually or compared against each other. All implementations follow consistent configuration patterns and provide the same core functionality through a modern inheritance-based architecture.
 
-!!! info "Inheritance Architecture"
-    All QUIC implementations inherit from `BaseQUICServiceManager`, providing code reuse and consistent behavior. The template method pattern allows implementation-specific customization.
+> [!NOTE]
+> "Inheritance Architecture"
+> All QUIC implementations inherit from `BaseQUICServiceManager`, providing code reuse and consistent behavior. The template method pattern allows implementation-specific customization.
 
-!!! tip "Getting Started with QUIC"
-    For your first QUIC experiment, try the [Quick Start Guide](../../../../../QUICK_START.md) which uses PicoQUIC as an example. All QUIC implementations in PANTHER follow the same configuration patterns and inherit from the same base classes.
+> [!TIP]
+> "Getting Started with QUIC"
+> For your first QUIC experiment, try the [Quick Start Guide](../../../../../QUICK_START.md) which uses PicoQUIC as an example. All QUIC implementations in PANTHER follow the same configuration patterns and inherit from the same base classes.
 
 ## Available QUIC Implementations
 
@@ -26,8 +28,9 @@ PANTHER provides multiple production-grade QUIC implementations that can be test
 
 ## Inheritance Architecture
 
-!!! info "Base Class System"
-    All QUIC implementations inherit from specialized base classes that provide common functionality through the template method pattern. This eliminates code duplication while maintaining implementation-specific customization.
+> [!NOTE]
+> "Base Class System"
+> All QUIC implementations inherit from specialized base classes that provide common functionality through the template method pattern. This eliminates code duplication while maintaining implementation-specific customization.
 
 ### Base Class Hierarchy
 

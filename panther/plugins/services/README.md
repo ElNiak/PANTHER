@@ -31,8 +31,9 @@ Services
 
 ## Service Categories
 
-!!! note "Service Types"
-    IUT services represent implementations being tested, while Tester services provide validation and analysis capabilities. Both work together to create comprehensive testing scenarios.
+> [!NOTE]
+> "Service Types"
+> IUT services represent implementations being tested, while Tester services provide validation and analysis capabilities. Both work together to create comprehensive testing scenarios.
 
 ### Implementation Under Test (IUT)
 

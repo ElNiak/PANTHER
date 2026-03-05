@@ -1,10 +1,12 @@
 # QUIC-Go Implementation
 
-!!! warning "Development Status"
-    This plugin is currently in development phase.
+> [!WARNING]
+> "Development Status"
+> This plugin is currently in development phase.
 
-!!! info "Go-based QUIC Implementation"
-    QUIC-Go is a high-performance, pure Go implementation of the QUIC protocol, ideal for cloud-native applications and microservices requiring QUIC transport capabilities.
+> [!NOTE]
+> "Go-based QUIC Implementation"
+> QUIC-Go is a high-performance, pure Go implementation of the QUIC protocol, ideal for cloud-native applications and microservices requiring QUIC transport capabilities.
 
 > **Plugin Type**: Service (Implementation Under Test)
 
@@ -26,8 +28,9 @@ The QUIC-Go implementation plugin enables:
 
 ## Inheritance Architecture
 
-!!! info "Inheritance-Based Implementation"
-    The QUIC-Go plugin uses PANTHER's inheritance architecture, inheriting directly from `BaseQUICServiceManager`. This provides benefits through code reuse and consistent behavior across all QUIC implementations while maintaining Go's goroutine-based concurrency patterns.
+> [!NOTE]
+> "Inheritance-Based Implementation"
+> The QUIC-Go plugin uses PANTHER's inheritance architecture, inheriting directly from `BaseQUICServiceManager`. This provides benefits through code reuse and consistent behavior across all QUIC implementations while maintaining Go's goroutine-based concurrency patterns.
 
 ### Inheritance Architecture
 
@@ -86,11 +89,13 @@ class QuicGoServiceManager(BaseQUICServiceManager):
 
 ## Requirements and Dependencies
 
-!!! info "Base Class Dependencies"
-    The QUIC-Go implementation automatically inherits all base class dependencies, including the Command Processor, Event System, and common QUIC utilities. No additional setup is required for these core features.
+> [!NOTE]
+> "Base Class Dependencies"
+> The QUIC-Go implementation automatically inherits all base class dependencies, including the Command Processor, Event System, and common QUIC utilities. No additional setup is required for these core features.
 
-!!! warning "Go Runtime Requirements"
-    QUIC-Go requires Go 1.19+ and active internet access for module downloads during build. Ensure your build environment has proper Go toolchain setup and module proxy access.
+> [!WARNING]
+> "Go Runtime Requirements"
+> QUIC-Go requires Go 1.19+ and active internet access for module downloads during build. Ensure your build environment has proper Go toolchain setup and module proxy access.
 
 The plugin requires:
 

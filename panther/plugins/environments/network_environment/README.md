@@ -1,7 +1,8 @@
 # Network Environment Plugins
 
-!!! info "Network Topology Management"
-    Network environment plugins define the network topology, conditions, and characteristics for experiments. They enable realistic network scenarios including containerized environments and network simulation.
+> [!NOTE]
+> "Network Topology Management"
+> Network environment plugins define the network topology, conditions, and characteristics for experiments. They enable realistic network scenarios including containerized environments and network simulation.
 
 > **Plugin Type**: Network Environment
 
@@ -13,8 +14,9 @@ Network environment plugins define the network topology, conditions, and charact
 
 ## Modern Docker Orchestration & Event Integration (2024)
 
-!!! success "Enhanced Service Coordination"
-    Network environments now provide sophisticated Docker Compose orchestration, service coordination through events, and real-time monitoring with comprehensive event tracking for improved reliability and debugging.
+> [!TIP]
+> "Enhanced Service Coordination"
+> Network environments now provide sophisticated Docker Compose orchestration, service coordination through events, and real-time monitoring with comprehensive event tracking for improved reliability and debugging.
 
 ### Docker Compose Service Coordination
 

@@ -1,7 +1,8 @@
 # Quant QUIC Implementation
 
-!!! warning "Development Status"
-    This plugin is currently in development phase.
+> [!WARNING]
+> "Development Status"
+> This plugin is currently in development phase.
 
 > **Plugin Type**: Service (Implementation Under Test)
 
@@ -23,8 +24,9 @@ The Quant implementation plugin enables:
 
 ## Inheritance Architecture
 
-!!! info "Inheritance-Based Implementation"
-    The Quant plugin uses PANTHER's inheritance architecture, inheriting directly from `BaseQUICServiceManager`. This provides benefits through code reuse and consistent behavior across all QUIC implementations while maintaining Quant's research-focused patterns and extensibility.
+> [!NOTE]
+> "Inheritance-Based Implementation"
+> The Quant plugin uses PANTHER's inheritance architecture, inheriting directly from `BaseQUICServiceManager`. This provides benefits through code reuse and consistent behavior across all QUIC implementations while maintaining Quant's research-focused patterns and extensibility.
 
 ### Inheritance Architecture
 
@@ -83,8 +85,9 @@ class QuantServiceManager(BaseQUICServiceManager):
 
 ## Requirements and Dependencies
 
-!!! info "Base Class Dependencies"
-    The Quant implementation automatically inherits all base class dependencies, including the Command Processor, Event System, and common QUIC utilities. No additional setup is required for these core features.
+> [!NOTE]
+> "Base Class Dependencies"
+> The Quant implementation automatically inherits all base class dependencies, including the Command Processor, Event System, and common QUIC utilities. No additional setup is required for these core features.
 
 The plugin requires:
 

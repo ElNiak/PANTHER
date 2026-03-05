@@ -1,7 +1,8 @@
 # Quiche QUIC Implementation
 
-!!! warning "Development Status"
-    This plugin is currently in development phase.
+> [!WARNING]
+> "Development Status"
+> This plugin is currently in development phase.
 
 > **Plugin Type**: Service (Implementation Under Test)
 
@@ -24,8 +25,9 @@ Quiche implementation features:
 
 ## Rust Inheritance Architecture
 
-!!! info "Rust-Specific Inheritance"
-    The Quiche plugin inherits from `RustQUICServiceManager` which extends `BaseQUICServiceManager`. This provides Rust-specific functionality including Cargo build integration and memory safety features.
+> [!NOTE]
+> "Rust-Specific Inheritance"
+> The Quiche plugin inherits from `RustQUICServiceManager` which extends `BaseQUICServiceManager`. This provides Rust-specific functionality including Cargo build integration and memory safety features.
 
 ### Rust Inheritance Chain
 
@@ -106,8 +108,9 @@ Inherited from `RustQUICServiceManager`:
 
 ## Requirements and Dependencies
 
-!!! info "Rust Base Class Dependencies"
-    The Quiche implementation automatically inherits all Rust-specific base class dependencies, including Cargo build system integration, Rust toolchain management, and memory profiling tools. No additional setup is required for these core Rust features.
+> [!NOTE]
+> "Rust Base Class Dependencies"
+> The Quiche implementation automatically inherits all Rust-specific base class dependencies, including Cargo build system integration, Rust toolchain management, and memory profiling tools. No additional setup is required for these core Rust features.
 
 The plugin requires:
 

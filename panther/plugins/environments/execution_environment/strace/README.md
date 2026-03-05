@@ -7,8 +7,9 @@
 
 The Strace Environment plugin enables system call tracing for PANTHER services. It leverages the Linux `strace` utility to track, log, and analyze system calls made by protocol implementations, providing deep insights into program behavior and interaction with the operating system.
 
-!!! warning "Linux-Only Tool"
-    Strace is a Linux-specific tool and requires appropriate permissions (e.g., `CAP_SYS_PTRACE`) to attach to processes. Ensure the execution environment has strace installed and accessible.
+> [!WARNING]
+> "Linux-Only Tool"
+> Strace is a Linux-specific tool and requires appropriate permissions (e.g., `CAP_SYS_PTRACE`) to attach to processes. Ensure the execution environment has strace installed and accessible.
 
 ## Configuration Options
 

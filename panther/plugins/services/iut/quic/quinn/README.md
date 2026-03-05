@@ -1,7 +1,8 @@
 # Quinn QUIC Implementation
 
-!!! warning "Development Status"
-    This plugin is currently in development phase.
+> [!WARNING]
+> "Development Status"
+> This plugin is currently in development phase.
 
 > **Plugin Type**: Service (Implementation Under Test)
 
@@ -23,8 +24,9 @@ The Quinn implementation plugin enables:
 
 ## Rust Inheritance Architecture
 
-!!! info "Rust-Specific Inheritance"
-    The Quinn plugin uses PANTHER's inheritance architecture, inheriting from `RustQUICServiceManager` which extends `BaseQUICServiceManager`. This provides Rust-specific functionality including Cargo build integration, async Tokio patterns, and memory safety validation while maintaining consistent behavior across all QUIC implementations.
+> [!NOTE]
+> "Rust-Specific Inheritance"
+> The Quinn plugin uses PANTHER's inheritance architecture, inheriting from `RustQUICServiceManager` which extends `BaseQUICServiceManager`. This provides Rust-specific functionality including Cargo build integration, async Tokio patterns, and memory safety validation while maintaining consistent behavior across all QUIC implementations.
 
 ### Rust Inheritance Chain
 
@@ -105,8 +107,9 @@ Inherited from `RustQUICServiceManager`:
 
 ## Requirements and Dependencies
 
-!!! info "Rust Base Class Dependencies"
-    The Quinn implementation automatically inherits all Rust-specific base class dependencies, including async Cargo build system integration, Tokio runtime management, and async memory profiling tools. No additional setup is required for these core async Rust features.
+> [!NOTE]
+> "Rust Base Class Dependencies"
+> The Quinn implementation automatically inherits all Rust-specific base class dependencies, including async Cargo build system integration, Tokio runtime management, and async memory profiling tools. No additional setup is required for these core async Rust features.
 
 The plugin requires:
 

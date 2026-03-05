@@ -1,7 +1,8 @@
 # Client-Server Protocol Plugins
 
-!!! info "Traditional Protocol Architecture"
-    Client-server protocol plugins implement protocols where clients initiate requests to servers in a traditional request-response pattern. These are the most common network protocol architectures.
+> [!NOTE]
+> "Traditional Protocol Architecture"
+> Client-server protocol plugins implement protocols where clients initiate requests to servers in a traditional request-response pattern. These are the most common network protocol architectures.
 
 > **Plugin Type**: Client-Server Protocol
 
