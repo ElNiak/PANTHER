@@ -1,9 +1,22 @@
-"""
-Plugin Core Components Module
+"""Plugin core components — discovery, metadata, and factory utilities.
 
-This module provides core plugin components for the PANTHER framework,
-including metadata management, factory patterns, and other utilities
-used by the unified plugin manager.
+Provides the internal machinery that the unified
+`PluginManager` relies on.
+
+Architecture::
+
+    PluginDiscovery       ← scans packages for @register_plugin decorators
+    PluginFactory         ← instantiates plugins from metadata + config
+    PluginMetadata        ← runtime metadata envelope
+    PluginMetadataLoader  ← deserialises metadata from files / decorators
+    PluginManifest        ← on-disk manifest for installed plugins
+    PluginStatus          ← lifecycle state enum
+
+See Also:
+    `panther.plugins.plugin_interface`
+        ``IPlugin`` abstract base class.
+    `panther.plugins.plugin_manager`
+        Singleton plugin manager using these components.
 """
 
 from .plugin_discovery import PluginDiscovery

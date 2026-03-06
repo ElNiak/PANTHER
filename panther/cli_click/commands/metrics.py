@@ -18,6 +18,7 @@ from termcolor import colored
 
 from panther.cli_click.core.base import (
     error_message,
+    featured_example,
     handle_errors,
     pass_context_and_setup_logging,
     warning_message,
@@ -302,6 +303,7 @@ def _display_summary_errors(summary_data: Dict[str, Any]) -> None:
 # ========== Click Commands ==========
 
 
+@featured_example("panther metrics list")
 @click.group()
 def metrics():
     """

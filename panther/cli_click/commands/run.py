@@ -15,6 +15,7 @@ from termcolor import colored
 
 from panther.cli_click.core.base import (
     error_message,
+    featured_example,
     handle_errors,
     info_message,
     pass_context_and_setup_logging,
@@ -22,6 +23,7 @@ from panther.cli_click.core.base import (
 )
 
 
+@featured_example("panther run --config experiment.yaml")
 @click.command()
 @click.option(
     "--config",
@@ -483,7 +485,9 @@ def status(ctx, experiment_name, output_dir):
         experiment_dirs = [d for d in output_dir.iterdir() if d.is_dir()]
 
         if experiment_dirs:
-            click.echo(f"📁 Found {len(experiment_dirs)} experiment(s) in {output_dir}:")
+            click.echo(
+                f"📁 Found {len(experiment_dirs)} experiment(s) in {output_dir}:"
+            )
             click.echo()
 
             for exp_dir in experiment_dirs:

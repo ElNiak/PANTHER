@@ -1,4 +1,5 @@
 """Tests for the IvyExecutor Docker/host/compose execution layer."""
+
 import pytest
 
 pytest.importorskip("panther_ivy.api", reason="panther_ivy package not installed")
@@ -7,7 +8,7 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from panther_ivy.api.types import CommandResult, ExecutionResult
+from api.types import CommandResult, ExecutionResult
 
 from panther.cli_click.commands.ivy_executor import (
     CONTAINER_BASE_PATH,

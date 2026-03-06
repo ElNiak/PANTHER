@@ -1,7 +1,25 @@
-"""Experiment manager for PANTHER framework.
+"""Central orchestrator for PANTHER experiment lifecycle.
 
-This module contains the ExperimentManager class which manages the lifecycle
-of experiments including initialization, configuration, and execution.
+``ExperimentManager`` drives the four-phase execution model:
+
+1. **Initialization** – parse YAML config, set up logging, register emitters.
+2. **Plugin Loading** – discover plugins, create service managers, generate
+   commands, build Docker images.
+3. **Environment Deployment** – set up network (Docker Compose / Shadow NS),
+   deploy containers, run health checks.
+4. **Test Execution** – iterate test scenarios, collect metrics, teardown,
+   generate reports.
+
+The manager delegates to `ErrorHandlerMixin` for structured
+error recovery and `FastFailHandler` for early termination on
+unrecoverable failures (certificate, Ivy compilation, port conflicts,
+resource exhaustion, etc.).
+
+See Also:
+    `panther.core.test_cases`
+        Mixin-based test runners invoked by the manager.
+    `panther.core.events`
+        Event bus wiring configured during initialization.
 """
 
 import contextlib
@@ -125,6 +143,7 @@ class ExperimentManager(
         fast_fail_enabled: bool = True,
         dry_run: bool = False,
     ):
+        """Initialize ExperimentManager."""
         # Initialize parent class
         super().__init__()
 
@@ -230,6 +249,7 @@ class ExperimentManager(
         self.test_cases: List[ITestCase] = []
 
     def configure_logging_features(self):
+        """Configure feature-level logging from global config."""
         if (
             not hasattr(self.global_config.logging, "feature_levels")
             or not self.global_config.logging.feature_levels
@@ -375,9 +395,9 @@ class ExperimentManager(
             ) from e
 
     def _validate_plugins(self):
-        """
-        Validate that all required plugins are available and compatible
-        before attempting to run the experiment.
+        """Validate that all required plugins are available and compatible.
+
+        Checks plugin availability before attempting to run the experiment.
         """
         self.logger.info("Validating plugins for experiment...")
 
@@ -918,6 +938,7 @@ class ExperimentManager(
             raise TestExecutionError(f"Failed during test execution: {str(e)}") from e
 
     def record_failed_test(self, test_case, test_error):
+        """Record a failed test case and log the error."""
         if self.global_config.progress.show_test_status:
             emoji = "❌ " if self.global_config.progress.use_emojis else ""
             self.logger.info(

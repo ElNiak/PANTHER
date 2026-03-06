@@ -1,8 +1,27 @@
-"""
-Service Command Builder
+"""Service Command Builder.
 
-This module provides a specialized command builder for service managers with
-common patterns used in protocol testing implementations.
+Extends ``CommandBuilder`` with protocol-testing convenience methods for
+certificate injection, ALPN/version parameters, network binding, role-specific
+(server vs. client) flags, and logging configuration.  Also accumulates
+``ShellCommand`` objects for pre/post-run phases via ``add_command`` and
+``build_commands``.
+
+Includes built-in syntax validation through ``CommandValidator`` and
+redirection-syntax checks so template-generation bugs are caught early
+(logged as warnings, non-breaking for backward compatibility).
+
+Example:
+    ::
+
+        from panther.core.command_processor.builders import ServiceCommandBuilder
+        from panther.config.core.models import ProtocolRole
+
+        builder = ServiceCommandBuilder(role=ProtocolRole.SERVER)
+        cmd = builder.build_standard_command(
+            params={"certificates": {...}, "network": {"port": 4433}},
+            base_command="picoquic_sample",
+            working_dir="/app",
+        )
 """
 
 import logging
@@ -17,11 +36,15 @@ from panther.core.command_processor.utils.shell_utils import validate_redirectio
 
 
 class ServiceCommandBuilder(CommandBuilder):
-    """
-    Specialized command builder for service managers with common patterns.
+    """Specialized command builder for service managers with common patterns.
 
-    Handles both command arguments (for main executables) and shell commands
-    (for setup, preparation, etc.).
+    Handles both command arguments (for main executables via inherited
+    ``add_argument``/``add_option``/``add_flag``) and shell commands (for
+    setup, preparation, etc. via ``add_command``/``build_commands``).
+
+    Args:
+        role: The ``ProtocolRole`` (SERVER or CLIENT) that determines which
+            role-specific parameters are injected by ``add_role_specific_params``.
     """
 
     def __init__(self, role: ProtocolRole):

@@ -229,9 +229,7 @@ class DockerImageCache(LoggerMixin):
         try:
             # Check directory permissions (should be 700)
             dir_stat = self.cache_file.parent.stat()
-            dir_perms = stat.filemode(dir_stat.st_mode)[
-                -3:
-            ]  # Last 3 chars (owner perms)
+            dir_perms = stat.filemode(dir_stat.st_mode)[1:4]  # Owner perms (chars 1-3)
 
             if dir_perms != "rwx":
                 self.logger.warning(
@@ -244,8 +242,8 @@ class DockerImageCache(LoggerMixin):
             if self.cache_file.exists():
                 file_stat = self.cache_file.stat()
                 file_perms = stat.filemode(file_stat.st_mode)[
-                    -3:
-                ]  # Last 3 chars (owner perms)
+                    1:4
+                ]  # Owner perms (chars 1-3)
 
                 if file_perms != "rw-":
                     self.logger.warning(

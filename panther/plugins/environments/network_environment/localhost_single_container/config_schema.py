@@ -6,7 +6,27 @@ from panther.config.core.models.plugin import NetworkEnvironmentPluginConfig
 
 
 class LocalhostSingleContainerConfig(NetworkEnvironmentPluginConfig):
-    """Configuration for localhost single container network environment."""
+    """Localhost single-container network environment configuration.
+
+    Lightweight testing environment where all services run in a single
+    Docker container on localhost. Ideal for simple protocol testing with
+    minimal network complexity, offering quick setup for development and
+    initial verification before moving to multi-container environments.
+
+    Services communicate directly via localhost networking within a
+    single container. Uses ``EnvironmentManagerDockerMixin`` for
+    consistent Docker operations.
+
+    Inherited from NetworkEnvironmentPluginConfig / BasePluginConfig:
+        enabled (bool): Whether the plugin is enabled. Default: True.
+
+    Example YAML::
+
+        network_environment:
+          type: localhost_single_container
+          environment:
+            DEBUG: "1"
+    """
 
     type: str = Field(
         default="localhost_single_container", description="Network environment type"

@@ -1,8 +1,16 @@
-"""
-Command Event Mixin
+"""Command Event Mixin.
 
-This module provides a mixin class for emitting command generation and Docker build events
-from service managers.
+Provides ``CommandEventMixin`` for emitting command-generation and Docker-build
+lifecycle events through the PANTHER service emitter.  Designed to be mixed
+into service manager classes that expose ``self.service_emitter``,
+``self.service_name``, ``self.implementation_name``, and optionally
+``self.protocol``.
+
+Events emitted:
+    - ``command_generation_started`` / ``command_generated`` per build phase.
+    - ``docker_build_started`` / ``docker_build_completed`` (or failed).
+    - ``command_execution_started`` / ``command_execution_completed`` as
+      generic service events.
 """
 
 from typing import TYPE_CHECKING, Optional

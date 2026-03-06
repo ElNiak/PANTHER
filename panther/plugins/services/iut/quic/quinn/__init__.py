@@ -1,4 +1,8 @@
-"""PANTHER Quinn QUIC implementation.
+"""quinn QUIC IUT service plugin.
 
-This package contains the Quinn implementation of the QUIC protocol.
+Pure-Rust async QUIC implementation. Extends
+`RustQUICServiceManager` with Tokio runtime integration.
+
+See `QuinnServiceManager` for the service manager and
+`QuinnConfig` for configuration options.
 """

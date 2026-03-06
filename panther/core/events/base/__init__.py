@@ -1,7 +1,14 @@
-"""
-Base Module
+"""Base classes for the PANTHER event system.
 
-This module exports base classes for events and state management.
+Provides the foundational abstractions that all domain-specific events,
+emitters, and state managers inherit from:
+
+- `BaseEvent` -- Core event with content-based UUID deduplication
+- `EventType` -- Enum partitioning events by entity domain
+- `EventEmitterBase` / `EntityEventEmitterBase` -- Abstract
+  emitter hierarchy for domain-specific event emission
+- `BaseState` / `StateManager` / `StateTransition` --
+  State machine infrastructure for entity lifecycle tracking
 """
 
 from .event_base import BaseEvent, EventType

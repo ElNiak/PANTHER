@@ -1,3 +1,5 @@
+"""Network environment interface for service orchestration."""
+
 import os
 from abc import abstractmethod
 from pathlib import Path
@@ -24,118 +26,35 @@ from panther.plugins.services.services_interface import IServiceManager
 
 
 class INetworkEnvironment(IEnvironmentPlugin):
-    """
-    Network Environment Interface - Service Orchestration Framework
+    """Interface for network-isolated service orchestration environments.
 
-    INetworkEnvironment extends IEnvironmentPlugin to provide network-isolated service orchestration
-    capabilities for protocol testing scenarios. This interface abstracts the complexity of managing
-    multiple services within controlled network topologies, supporting Docker Compose, Shadow NS
-    simulation, and localhost container environments.
+    Extends `IEnvironmentPlugin` to manage multiple services within controlled
+    network topologies. Supports Docker Compose, Shadow NS simulation, and
+    localhost container environments.
 
-    ## Architecture Role
+    Lifecycle:
+        1. Generate service configurations from templates
+        2. Prepare network topology and resources
+        3. Launch services in dependency order
+        4. Deploy service-specific commands
+        5. Integrate execution environments for analysis
+        6. Teardown with resource cleanup and output collection
 
-    Network environments serve as the foundation for PANTHER's protocol testing by providing:
-
-    1. **Service Lifecycle Management**: Coordinated startup, monitoring, and teardown of multiple services
-    2. **Network Isolation**: Controlled network topologies for reproducible protocol testing
-    3. **Template-Driven Configuration**: Jinja2-based configuration generation for dynamic service setup
-    4. **Execution Environment Integration**: Seamless coordination with analysis tools (strace, Valgrind)
-    5. **Event-Driven Monitoring**: Real-time environment state tracking and logging
-
-    ```mermaid
-    graph TD
-        A[Network Environment] --> B[Service Orchestration]
-        A --> C[Network Topology]
-        A --> D[Template Engine]
-        A --> E[Execution Integration]
-
-        B --> F[Docker Compose]
-        B --> G[Shadow NS]
-        B --> H[Localhost Containers]
-
-        C --> I[Network Isolation]
-        C --> J[Port Management]
-        C --> K[Service Discovery]
-
-        D --> L[Jinja2 Templates]
-        D --> M[Configuration Generation]
-        D --> N[Variable Resolution]
-
-        E --> O[Analysis Tools]
-        E --> P[Output Collection]
-        E --> Q[Lifecycle Coordination]
-    ```
-
-    ## Service Orchestration Pattern
-
-    Network environments implement a standardized service lifecycle:
-
-    1. **Generate Services**: Create service configurations from templates and test config
-    2. **Prepare Environment**: Set up network topology and resource allocation
-    3. **Launch Services**: Start services in dependency order with health monitoring
-    4. **Deploy Services**: Execute service-specific deployment commands
-    5. **Coordinate Execution**: Integrate execution environments for analysis
-    6. **Teardown**: Orderly shutdown with resource cleanup and output collection
-
-    ## Template-Driven Configuration
-
-    The Jinja2 template engine enables dynamic configuration generation:
-
-    - **Service Templates**: Docker Compose files, Shadow configuration, startup scripts
-    - **Variable Resolution**: Test config parameters, paths, timestamps, service discovery
-    - **Security Features**: Autoescape, caching disabled, controlled template access
-    - **Filter Extensions**: Path resolution, type checking, shell/YAML quoting
-
-    ## Network Environment Types
-
-    Implementations provide different network isolation strategies:
-
-    - **Docker Compose**: Container-based isolation with Docker networks
-    - **Shadow NS**: Network simulation with configurable topology and latency
-    - **Localhost Single Container**: Simplified single-service testing environment
-
-    ## Execution Environment Coordination
-
-    Network environments seamlessly integrate with execution analysis tools:
-
-    - **Plugin Setup**: Automatic execution environment initialization
-    - **Service Wrapping**: Process execution wrapped with analysis tools
-    - **Output Coordination**: Centralized collection of network and execution outputs
-    - **Lifecycle Synchronization**: Coordinated startup/teardown sequences
-
-    ## Error Handling and Resilience
-
-    Robust error handling ensures test reliability:
-
-    - **Service Failures**: Individual service failures don't crash entire environment
-    - **Template Errors**: Configuration generation errors with detailed diagnostics
-    - **Network Issues**: Network setup failures with fallback strategies
-    - **Resource Cleanup**: Guaranteed cleanup even on partial setup failures
+    Uses Jinja2 templates for dynamic configuration generation with
+    autoescape, controlled template access, and filter extensions.
 
     Attributes:
-        docker_name (str): Docker container identifier for network environment coordination
-        network_name (str): Network namespace or Docker network name for service isolation
-        execution_environment (List[IExecutionEnvironment]): Integrated execution analysis tools
-        services (Dict): Runtime service configuration and state management
-        deployment_commands (Dict): Service-specific deployment command sequences
-        timeout (int): Default timeout for service operations and health checks
-        global_config (GlobalConfig): Framework-wide configuration settings
-        test_config (TestConfig): Current test case configuration with service definitions
-        services_managers (List[IServiceManager]): Coordinated service management instances
-        jinja_env (Environment): Jinja2 template engine with security and performance configuration
-        plugin_setup (bool): Flag tracking execution plugin initialization state
-    Methods:
-        setup_execution_plugins(): Initialize and configure execution analysis environments
-        update_environment(): Apply configuration changes to active network environment
-        create_log_dir(): Ensure structured logging directories for service output
-        generate_from_template(): Jinja2-based configuration file generation with variable resolution
-        get_docker_name(): Retrieve Docker container identifier for service coordination
-        resolve_environment_variables(): Incremental environment variable resolution with conflict prevention
-        generate_environment_services(): Abstract service configuration generation
-        prepare_environment(): Abstract network topology and resource preparation
-        launch_environment_services(): Abstract service startup with dependency coordination
-        deploy_services(): Abstract service deployment command execution
-        run(): Abstract main execution loop for environment operation
+        docker_name: Docker container identifier.
+        network_name: Network namespace or Docker network name.
+        execution_environment: Integrated execution analysis tools.
+        services: Runtime service configuration and state.
+        deployment_commands: Service-specific deployment command sequences.
+        timeout: Default timeout for service operations.
+        global_config: Framework-wide configuration settings.
+        test_config: Current test case configuration.
+        services_managers: Coordinated service management instances.
+        jinja_env: Jinja2 template engine.
+        plugin_setup: Flag tracking execution plugin initialization.
     """
 
     def __init__(
@@ -146,6 +65,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
         env_sub_type: str,
         event_manager: EventManager,
     ):
+        """Initialize INetworkEnvironment."""
         super().__init__(
             env_config_to_test, output_dir, env_type, env_sub_type, event_manager
         )
@@ -179,17 +99,16 @@ class INetworkEnvironment(IEnvironmentPlugin):
         # Add regex_replace filter for Docker image name sanitization
         import re
 
-        self.jinja_env.filters[
-            "regex_replace"
-        ] = lambda value, pattern, replacement: re.sub(pattern, replacement, str(value))
+        self.jinja_env.filters["regex_replace"] = (
+            lambda value, pattern, replacement: re.sub(pattern, replacement, str(value))
+        )
         self.jinja_env.trim_blocks = True
         self.jinja_env.lstrip_blocks = True
 
         self.plugin_setup = False
 
     def setup_execution_plugins(self, timestamp):
-        """
-        Initialize and configure execution analysis environments for coordinated operation.
+        """Initialize and configure execution analysis environments for coordinated operation.
 
         This method orchestrates the setup of execution environments (strace, Valgrind, etc.)
         that will wrap service execution to provide analysis capabilities. Each execution
@@ -232,8 +151,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
         services_managers: List[IServiceManager],
         test_config: "TestConfig",
     ):
-        """
-        Apply configuration updates to active network environment state.
+        """Apply configuration updates to active network environment state.
 
         This method synchronizes the network environment with updated configuration,
         service definitions, and execution contexts. It ensures the environment
@@ -278,8 +196,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
         log_omega_config_summary(self.logger, "Global Config", self.global_config)
 
     def create_log_dir(self, service: IServiceManager):
-        """
-        Ensure structured logging directory exists for service output collection.
+        """Ensure structured logging directory exists for service output collection.
 
         Creates service-specific logging directories within the environment's log
         structure to support organized output collection and analysis. The logging
@@ -314,8 +231,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
         structured_commands=None,
         **kwargs,
     ):
-        """
-        Generate configuration files from Jinja2 templates with comprehensive variable resolution.
+        """Generate configuration files from Jinja2 templates with comprehensive variable resolution.
 
         This method transforms Jinja2 templates into environment-specific configuration files
         (Docker Compose, Shadow config, startup scripts) by resolving variables from test
@@ -432,8 +348,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
         return resolved
 
     def is_network_environment(self):
-        """
-        Network environment classification for framework orchestration.
+        """Network environment classification for framework orchestration.
 
         Returns True to indicate this is a network environment that provides
         service orchestration and network isolation capabilities, as opposed
@@ -446,8 +361,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
 
     @abstractmethod
     def generate_environment_services(self, paths: Dict[str, str], timestamp: str):
-        """
-        Generate service configurations from templates and test definition.
+        """Generate service configurations from templates and test definition.
 
         Transform test case service definitions into environment-specific service
         configurations (Docker Compose services, Shadow processes, etc.) using
@@ -467,8 +381,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
 
     @abstractmethod
     def prepare_environment(self):
-        """
-        Prepare network topology and resource allocation for service execution.
+        """Prepare network topology and resource allocation for service execution.
 
         Initialize the network environment infrastructure including:
         1. Network namespace or Docker network creation
@@ -483,8 +396,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
 
     @abstractmethod
     def launch_environment_services(self):
-        """
-        Launch services in dependency order with health monitoring.
+        """Launch services in dependency order with health monitoring.
 
         Orchestrate service startup ensuring:
         1. Service dependency resolution and ordering
@@ -499,8 +411,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
 
     @abstractmethod
     def run(self):
-        """
-        Execute main environment operation loop with service coordination.
+        """Execute main environment operation loop with service coordination.
 
         Implement the primary execution loop for environment operation including:
         1. Service monitoring and health checking
@@ -515,8 +426,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
 
     @abstractmethod
     def deploy_services(self):
-        """
-        Execute service-specific deployment commands and initialization.
+        """Execute service-specific deployment commands and initialization.
 
         Perform post-launch service deployment including:
         1. Service-specific configuration application
@@ -539,8 +449,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
         plugin_manager: "Optional[PluginManager]",
         execution_environment: List[IExecutionEnvironment],
     ):
-        """
-        Orchestrate complete network environment setup with service coordination.
+        """Orchestrate complete network environment setup with service coordination.
 
         Coordinate the full network environment initialization including:
         1. Service configuration generation and validation
@@ -563,8 +472,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
 
     @abstractmethod
     def teardown_environment(self):
-        """
-        Orchestrate complete network environment cleanup with resource deallocation.
+        """Orchestrate complete network environment cleanup with resource deallocation.
 
         Coordinate orderly environment shutdown including:
         1. Service termination and graceful shutdown

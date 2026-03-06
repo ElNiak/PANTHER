@@ -1,8 +1,41 @@
-"""
-Typed Observer Interface Module
+"""Typed Observer Interface Module - Automatic event routing for PANTHER observers.
 
-This module provides an enhanced observer interface that supports the new typed event system
-with specific handler methods for each event type.
+This module provides ``ITypedObserver``, an enhanced observer interface that
+extends ``IObserver`` with automatic event routing to typed handler methods.
+Instead of implementing a single ``on_event()`` with manual type-switching,
+subclasses override only the ``on_*`` handler methods they need.
+
+The ``on_event()`` implementation in ``ITypedObserver`` uses an internal
+``_event_handlers`` dictionary that maps event classes to handler methods.
+Unknown event types fall through to ``on_unknown_event()``.
+
+Handler categories:
+    - **Experiment**: ``on_experiment_initialized``, ``on_experiment_completed``, etc.
+    - **Test**: ``on_test_created``, ``on_test_execution_started``, ``on_test_failed``, etc.
+    - **Service**: ``on_service_created``, ``on_service_deployment_started``, etc.
+    - **Environment**: ``on_environment_created``, ``on_network_setup_started``, etc.
+    - **Step**: ``on_step_execution_started``, ``on_step_progress``, etc.
+    - **Assertion**: ``on_assertions_validation_started``, ``on_assertion_result``, etc.
+    - **Metrics**: ``on_metric_collected``, ``on_resource_metric``, etc.
+    - **Plugin**: ``on_plugin_loading_started``, ``on_plugin_error``, etc.
+
+Example:
+    Create a typed observer that only handles test lifecycle events::
+
+        from panther.core.observer.base.typed_observer_interface import ITypedObserver
+
+        class TestLifecycleObserver(ITypedObserver):
+            def on_test_created(self, event):
+                print(f"Test created: {event.entity_id}")
+
+            def on_test_completed(self, event):
+                print(f"Test completed: {event.entity_id}")
+
+            def on_test_failed(self, event):
+                print(f"Test FAILED: {event.entity_id}")
+
+See Also:
+    `panther.core.observer.base.observer_interface.IObserver`
 """
 
 import logging
@@ -132,15 +165,44 @@ from .observer_interface import IObserver
 
 
 class ITypedObserver(IObserver):
-    """
-    Enhanced observer interface with typed event handlers.
+    """Enhanced observer interface with automatic event routing to typed handlers.
 
-    This interface extends IObserver to provide specific handler methods
-    for each event type in the new typed event system. Observers can
-    implement only the handlers they need.
+    Extends ``IObserver`` to provide specific ``on_*`` handler methods for each
+    event type in the PANTHER event system. The ``on_event()`` method automatically
+    routes events to their typed handler based on ``type(event)``. Subclasses
+    override only the handlers they need; all default handlers return ``True``.
+
+    The ``is_interested()`` implementation checks whether any registered handler
+    class name contains the queried event type string (partial string matching),
+    so registering for ``ExperimentCompletedEvent`` means ``is_interested("Experiment")``
+    returns ``True``.
+
+    Error handling:
+        - Exceptions in individual handlers are caught and logged without
+          propagating to other observers.
+        - ``RecursionError`` is caught specially and printed to stderr.
+        - Error/failure event handlers (``TestFailedEvent``, ``ServiceErrorEvent``,
+          ``ExperimentFailedEvent``) print to stderr to avoid cascading events.
+
+    Attributes:
+        _event_handlers: Dict mapping event classes to their handler callables.
+            Populated during ``__init__`` with all known PANTHER event types.
+
+    Example:
+        Using match-based dispatch in a typed observer::
+
+            class MyTypedObserver(ITypedObserver):
+                def on_test_execution_started(self, event):
+                    print(f"Test started: {event.entity_id}")
+                    return True
+
+                def on_test_execution_completed(self, event):
+                    print(f"Test completed: {event.entity_id}")
+                    return True
     """
 
     def __init__(self):
+        """Initialize ITypedObserver."""
         super().__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
 
@@ -256,11 +318,17 @@ class ITypedObserver(IObserver):
         }
 
     def on_event(self, event: BaseEvent):
-        """
-        Main event handler that routes to specific typed handlers.
+        """Route an event to its specific typed handler method.
 
-        This method implements the IObserver interface and automatically
-        routes events to their specific handler methods based on type.
+        Looks up ``type(event)`` in ``_event_handlers`` to find the matching
+        handler. Falls back to ``on_unknown_event()`` for unregistered event
+        types. Catches exceptions per handler to prevent cascading failures.
+
+        Args:
+            event: The event to route and handle.
+
+        Returns:
+            The return value from the matched handler, or False on error.
         """
         # Track processed event
         if hasattr(event, "event_id"):
@@ -305,11 +373,16 @@ class ITypedObserver(IObserver):
             return False
 
     def on_unknown_event(self, event: BaseEvent) -> bool:
-        """
-        Handle unknown event types.
+        """Handle event types not in the ``_event_handlers`` mapping.
 
-        Default implementation logs a warning and returns True.
-        Override this method to handle custom event types.
+        Default implementation logs a debug warning and returns True.
+        Override this method to handle custom or unregistered event types.
+
+        Args:
+            event: The unrecognized event.
+
+        Returns:
+            True by default; override to return False to signal a problem.
         """
         self.logger.debug(
             "Received unknown event type: %s in observer: %s",
@@ -781,10 +854,18 @@ class ITypedObserver(IObserver):
         return True
 
     def is_interested(self, event_type: str) -> bool:
-        """
-        Check if this observer is interested in an event type.
+        """Check if this observer has a handler matching the event type.
 
-        This implementation checks if we have a handler for the event type.
+        Uses partial string matching: checks if any handler class name
+        contains ``event_type`` (case-insensitive). For example,
+        ``is_interested("experiment")`` returns True if any experiment
+        event handler is registered.
+
+        Args:
+            event_type: Event type string to check interest for.
+
+        Returns:
+            True if a matching handler exists.
         """
         # Convert string event type to class if possible
         for event_class in self._event_handlers:

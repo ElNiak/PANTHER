@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Interactive Protocol Plugin Tutorial for PANTHER
+"""Interactive Protocol Plugin Tutorial for PANTHER.
 
 This tutorial guides you through creating protocol plugins for PANTHER,
 covering protocol specification, test case generation, and validation rules.
@@ -17,6 +16,7 @@ class ProtocolPluginTutorial:
     """Interactive tutorial for creating PANTHER protocol plugins."""
 
     def __init__(self):
+        """Initialize ProtocolPluginTutorial."""
         self.tutorial_dir = Path(__file__).parent
         self.plugins_dir = self.tutorial_dir.parent.parent
 
@@ -87,7 +87,7 @@ class ProtocolPluginTutorial:
         print()
         print("  1. Browse existing protocol plugins for reference")
         print("  2. Read the plugin development guide:")
-        print("     panther/plugins/development.md")
+        print("     panther/plugins/__init__.py  (module docstring)")
         print("  3. Try creating a service plugin first (more mature tutorial):")
         print("     panther tutorial run service")
         print("  4. Check back for updates to this tutorial")

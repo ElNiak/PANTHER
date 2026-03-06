@@ -1,4 +1,5 @@
-"""PANTHER HTTP protocol implementations.
+"""HTTP IUT service plugins.
 
-This package contains HTTP protocol implementations that can be used as IUT.
+Service managers for HTTP server and client implementations
+used as implementations under test.
 """

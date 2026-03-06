@@ -1,4 +1,8 @@
-"""PANTHER Lsquic QUIC implementation.
+"""lsquic QUIC IUT service plugin.
 
-This package contains the Lsquic implementation of the QUIC protocol.
+LiteSpeed QUIC library (C). High-performance HTTP/3 stack with
+configurable congestion control and connection migration.
+
+See `LsquicServiceManager` for the service manager and
+`LsquicConfig` for configuration options.
 """

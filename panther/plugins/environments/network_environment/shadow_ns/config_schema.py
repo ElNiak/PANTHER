@@ -103,7 +103,45 @@ class HostsConfig(BaseModel):
 
 
 class ShadowNSConfig(NetworkEnvironmentPluginConfig):
-    """Configuration for Shadow NS network environment."""
+    """Shadow Network Simulator environment configuration.
+
+    Discrete-event network simulation using Shadow NS for reproducible
+    protocol testing with configurable topology, latency, jitter, and
+    packet loss. Runs real application binaries inside a simulated
+    network without requiring actual network hardware.
+
+    Warning:
+        Not all implementations are compatible with Shadow due to
+        missing system call support. Test compatibility before
+        deploying production experiments. See ``incompatibility``
+        field for known conflicts.
+
+    Inherited from NetworkEnvironmentPluginConfig / BasePluginConfig:
+        enabled (bool): Whether the plugin is enabled. Default: True.
+
+    Example YAML::
+
+        network_environment:
+          type: shadow_ns
+          general:
+            stop_time: "300s"
+          network:
+            latency: 10
+            jitter: 10
+            packet_loss: 0.0
+          hosts:
+            server:
+              ip_addr: "11.0.0.1"
+            client:
+              ip_addr: "11.0.0.2"
+              start_time: "5s"
+
+    Troubleshooting:
+        - **Unsupported syscall crashes**: check Shadow docs for supported calls
+        - **Slow simulation**: reduce complexity or restrict packet capture
+        - **Resource unavailable errors**: increase Docker container limits
+        - **Debug tip**: enable ``strace_logging_mode: detailed`` in experimental
+    """
 
     type: str = Field(default="shadow_ns", description="Network environment type")
     incompatibility: List[str] = Field(

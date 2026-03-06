@@ -1,7 +1,24 @@
-"""
-Event Observer Plugin Module
+"""Event Observer Plugin Module - Base class for event-observing plugins.
 
-This module provides a base class for plugins that observe events in the system.
+Provides ``EventObserverPlugin``, an abstract base class for plugins that
+want to observe events in the PANTHER system. Plugins define their event
+interests via the ``EVENT_TYPES`` class variable and implement ``on_event()``.
+Specific ``on_event_<type>`` methods are automatically dispatched.
+
+Example:
+    Create a plugin observer::
+
+        class MyPlugin(EventObserverPlugin):
+            EVENT_TYPES = ["test.started", "test.completed"]
+
+            def on_event(self, event):
+                super().on_event(event)  # handles history + dispatch
+
+            def on_event_test_started(self, event):
+                print(f"Test started: {event.entity_id}")
+
+See Also:
+    `panther.core.observer.plugins.plugin_observer_factory`
 """
 
 import logging
@@ -48,8 +65,7 @@ class EventObserverPlugin(ABC):
 
     @abstractmethod
     def on_event(self, event: Event) -> None:
-        """
-        Handle an event.
+        """Handle an event.
 
         This method is called for any event type that this plugin is registered to observe.
 
@@ -79,8 +95,7 @@ class EventObserverPlugin(ABC):
                     )
 
     def is_interested(self, event_type: str) -> bool:
-        """
-        Check if this plugin is interested in an event type.
+        """Check if this plugin is interested in an event type.
 
         Args:
             event_type: The event type to check
@@ -97,8 +112,7 @@ class EventObserverPlugin(ABC):
         return hasattr(self, handler_name)
 
     def get_event_types(self) -> List[str]:
-        """
-        Get the list of event types this plugin is interested in.
+        """Get the list of event types this plugin is interested in.
 
         Returns:
             List of event types this plugin observes
@@ -106,8 +120,7 @@ class EventObserverPlugin(ABC):
         return self.EVENT_TYPES.copy()
 
     def get_plugin_id(self) -> str:
-        """
-        Get the unique identifier for this plugin.
+        """Get the unique identifier for this plugin.
 
         Returns:
             The plugin ID
@@ -117,8 +130,7 @@ class EventObserverPlugin(ABC):
     def get_event_history(
         self, event_type: str = None, limit: int = None
     ) -> List[Event]:
-        """
-        Get the event history for this plugin.
+        """Get the event history for this plugin.
 
         Args:
             event_type: Filter by this event type, or None for all events
@@ -138,8 +150,7 @@ class EventObserverPlugin(ABC):
         return events
 
     def get_plugin_info(self) -> Dict[str, Any]:
-        """
-        Get information about this plugin.
+        """Get information about this plugin.
 
         Returns:
             Dictionary containing plugin information

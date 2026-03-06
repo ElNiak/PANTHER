@@ -1,14 +1,33 @@
-from typing import Any, List
+"""Plugin Observer Factory Module - Dynamic plugin observer generation.
 
-"""
-Plugin Observer Factory Module
+Provides ``PluginObserverFactory`` for automatically generating observers
+based on plugin interfaces. Plugins are registered with the factory, which
+extracts their event interests (from ``EVENT_TYPES``, ``on_event_*`` methods)
+and routes events to interested plugins at runtime.
 
-This module provides classes and functions for automatically generating
-plugin observers based on plugin interfaces.
+Module-level convenience functions:
+    - ``create_plugin_observer()`` -- create an observer from the global factory
+    - ``register_plugin_observer(plugin_id, plugin)`` -- register with global factory
+
+Example:
+    Register plugins and create a routing observer::
+
+        from panther.core.observer.plugins.plugin_observer_factory import (
+            register_plugin_observer, create_plugin_observer
+        )
+
+        register_plugin_observer("my_plugin", my_plugin_instance)
+        observer = create_plugin_observer()
+        event_manager.register_observer(observer)
+
+See Also:
+    `panther.core.observer.plugins.event_observer_plugin.EventObserverPlugin`
+    `panther.core.observer.base.observer_plugin_interface.IPluginObserver`
 """
 
 import inspect
 import logging
+from typing import Any, List
 
 from panther.core.events.base.event_base import BaseEvent as Event
 
@@ -16,12 +35,16 @@ from .plugin_interface import IPluginObserver
 
 
 class PluginObserverFactory:
-    """
+    """Factory for creating plugin observers with automatic event routing.
 
-    Factory for creating plugin observers.
+    Automatically generates observers based on plugin interfaces and routes
+    events to appropriate plugin handlers. Extracts event interests from
+    ``EVENT_TYPES`` attributes and ``on_event_*`` methods on registered plugins.
 
-    This factory automatically generates observers based on plugin interfaces
-    and routes events to appropriate plugin handlers.
+    Attributes:
+        _plugins: Maps plugin_id to plugin instance.
+        _plugin_events: Maps plugin_id to list of interested event types.
+        _event_plugins: Maps event_type to list of interested plugin_ids.
     """
 
     def __init__(self):
@@ -32,8 +55,7 @@ class PluginObserverFactory:
         self._event_plugins = {}  # event_type -> [plugin_ids]
 
     def register_plugin(self, plugin_id: str, plugin: Any) -> None:
-        """
-        Register a plugin with the factory.
+        """Register a plugin with the factory.
 
         Args:
             plugin_id: Unique identifier for the plugin
@@ -53,8 +75,7 @@ class PluginObserverFactory:
             self._event_plugins[event_type].append(plugin_id)
 
     def unregister_plugin(self, plugin_id: str) -> None:
-        """
-        Unregister a plugin from the factory.
+        """Unregister a plugin from the factory.
 
         Args:
             plugin_id: Unique identifier for the plugin
@@ -74,8 +95,7 @@ class PluginObserverFactory:
                 del self._plugin_events[plugin_id]
 
     def create_observer(self) -> IPluginObserver:
-        """
-        Create a new plugin observer.
+        """Create a new plugin observer.
 
         Returns:
             A dynamically created plugin observer instance
@@ -83,8 +103,7 @@ class PluginObserverFactory:
         return _PluginObserver(self)
 
     def route_event(self, event: Event) -> None:
-        """
-        Route an event to interested plugins.
+        """Route an event to interested plugins.
 
         Args:
             event: Event to route
@@ -98,8 +117,7 @@ class PluginObserverFactory:
                 self._handle_plugin_event(plugin, event)
 
     def _extract_event_interests(self, plugin: Any) -> List[str]:
-        """
-        Extract event interests from a plugin.
+        """Extract event interests from a plugin.
 
         Args:
             plugin: Plugin instance
@@ -127,8 +145,7 @@ class PluginObserverFactory:
         return event_types
 
     def _handle_plugin_event(self, plugin: Any, event: Event) -> None:
-        """
-        Handle an event for a specific plugin.
+        """Handle an event for a specific plugin.
 
         Args:
             plugin: Plugin instance
@@ -155,16 +172,14 @@ class PluginObserverFactory:
 
 
 class _PluginObserver(IPluginObserver):
-    """
-    Concrete implementation of IPluginObserver.
+    """Concrete implementation of IPluginObserver.
 
     This class is created by the PluginObserverFactory and delegates
     event handling to the factory.
     """
 
     def __init__(self, factory: PluginObserverFactory):
-        """
-        Initialize a plugin observer.
+        """Initialize a plugin observer.
 
         Args:
             factory: Reference to the factory that created this observer
@@ -173,8 +188,7 @@ class _PluginObserver(IPluginObserver):
         self.logger = logging.getLogger("PluginObserver")
 
     def on_event(self, event: Event):
-        """
-        Handle an event by routing it to appropriate plugins.
+        """Handle an event by routing it to appropriate plugins.
 
         Args:
             event: Event to handle
@@ -215,8 +229,7 @@ _factory = PluginObserverFactory()
 
 
 def create_plugin_observer() -> IPluginObserver:
-    """
-    Create a new plugin observer using the global factory.
+    """Create a new plugin observer using the global factory.
 
     Returns:
         A plugin observer instance
@@ -225,8 +238,7 @@ def create_plugin_observer() -> IPluginObserver:
 
 
 def register_plugin_observer(plugin_id: str, plugin: Any) -> None:
-    """
-    Register a plugin with the global factory.
+    """Register a plugin with the global factory.
 
     Args:
         plugin_id: Unique identifier for the plugin

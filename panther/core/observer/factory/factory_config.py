@@ -1,15 +1,35 @@
-from typing import Any, Dict, List, Optional, Union
+"""Observer Factory Configuration Module - YAML config loading and class-path instantiation.
 
-"""
-Observer Factory Configuration Module
+Handles configuration-driven observer creation from YAML files or dictionaries.
+Supports loading individual config files, entire directories of YAML files,
+and dynamic observer instantiation via Python class paths (with a security
+whitelist of allowed modules).
 
-This module handles configuration loading, validation, and helper functions
-for the observer factory system.
+YAML configuration format::
+
+    observers:
+      - id: my_logger
+        class_path: panther.core.observer.impl.logger_observer.LoggerObserver
+        enabled: true
+        params:
+          log_level: DEBUG
+        event_types: ["test.started", "test.completed"]
+        priority: 5
+
+Security:
+    ``create_observer_by_class_path()`` only allows instantiation from a fixed
+    whitelist of ``panther.core.observer.impl.*`` modules to prevent arbitrary
+    code execution from config files.
+
+See Also:
+    `panther.core.observer.factory.observer_factory`
+    `panther.core.observer.factory.factory_builders`
 """
 
 import importlib
 import logging
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
 
 try:
     import yaml
@@ -22,9 +42,7 @@ from .observer_factory import get_observer_factory
 
 
 def load_observer_config(path: Union[str, Path]) -> bool:
-    """
-
-    Convenience function to load observer configuration.
+    """Convenience function to load observer configuration.
 
     Args:
         path: Path to configuration file or directory
@@ -42,8 +60,7 @@ def load_observer_config(path: Union[str, Path]) -> bool:
 
 
 def load_config_file(config_path: Union[str, Path]) -> bool:
-    """
-    Load observer configurations from a YAML file.
+    """Load observer configurations from a YAML file.
 
     Args:
         config_path: Path to the observer configuration YAML file
@@ -77,8 +94,7 @@ def load_config_file(config_path: Union[str, Path]) -> bool:
 
 
 def load_config_directory(directory: Union[str, Path]) -> int:
-    """
-    Load observer configurations from all YAML files in directory.
+    """Load observer configurations from all YAML files in directory.
 
     Args:
         directory: Path to directory containing YAML files
@@ -103,8 +119,7 @@ def load_config_directory(directory: Union[str, Path]) -> int:
 
 
 def _load_config_dict(config_data: Dict[str, Any]) -> bool:
-    """
-    Load observer configurations from a dictionary.
+    """Load observer configurations from a dictionary.
 
     Args:
         config_data: Dictionary containing observer configuration
@@ -172,8 +187,7 @@ def _load_config_dict(config_data: Dict[str, Any]) -> bool:
 def create_observer_by_class_path(
     class_path: str, name: Optional[str] = None, **kwargs
 ) -> IObserver:
-    """
-    Create an observer by class path.
+    """Create an observer by class path.
 
     Args:
         class_path: Python import path to observer class
@@ -245,8 +259,7 @@ def create_observer_by_class_path(
 def create_and_register_observer_set(
     observer_configs: List[Dict[str, Any]]
 ) -> List[IObserver]:
-    """
-    Create and register multiple observers based on configuration dictionaries.
+    """Create and register multiple observers based on configuration dictionaries.
 
     Args:
         observer_configs: List of dictionaries with observer configurations.
@@ -300,8 +313,7 @@ def create_and_register_observer_set(
 
 # Transition functions for legacy code
 def create_observer_from_registry_type(observer_type_enum: Any, **kwargs) -> IObserver:
-    """
-    Transition function for code using ObserverType from observer_registry.
+    """Transition function for code using ObserverType from observer_registry.
 
     Args:
         observer_type_enum: ObserverType enum from observer_registry
@@ -333,8 +345,7 @@ def create_observer_from_registry_type(observer_type_enum: Any, **kwargs) -> IOb
 
 
 def convert_config_to_factory_params(observer_config: Any) -> Dict[str, Any]:
-    """
-    Convert observer_config.ObserverConfig to factory parameters.
+    """Convert observer_config.ObserverConfig to factory parameters.
 
     Args:
         observer_config: ObserverConfig from observer_config

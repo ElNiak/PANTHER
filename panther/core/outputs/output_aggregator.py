@@ -1,7 +1,4 @@
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
-
-"""
-Output Aggregator
+"""Output aggregator for collecting and merging experiment outputs.
 
 This module provides functionality to aggregate outputs from multiple execution environments
 and prepare them for tester analysis.
@@ -11,21 +8,18 @@ import logging
 import os
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from panther.core.events.environment.emitter import EnvironmentEventEmitter
 from panther.core.outputs.output_collector import IOutputCollector
 
 
 class OutputAggregator:
-    """
-    Central orchestrator for collecting and organizing outputs from PANTHER execution environments.
+    """Central orchestrator for collecting outputs from execution environments.
 
-    The OutputAggregator coordinates output collection across multiple execution environments,
-    providing event-driven progress tracking and organizing collected artifacts for efficient
-    tester analysis. It handles heterogeneous environment types (Docker Compose, localhost,
-    Shadow NS) and implements the IOutputCollector interface pattern.
-
-    ## Architecture Integration
+    Coordinates output collection across heterogeneous environments (Docker Compose,
+    localhost, Shadow NS), providing event-driven progress tracking and organizing
+    artifacts in both environment-centric and type-centric formats.
 
     ```mermaid
     sequenceDiagram
@@ -53,41 +47,14 @@ class OutputAggregator:
         OA-->>EA: collected_outputs
     ```
 
-    ## Collection Strategy
-
-    The aggregator implements a two-phase collection strategy:
-
-    1. **Active Collection**: Iterates through environments that implement `IOutputCollector`
-       interface, collecting registered outputs with full metadata
-    2. **Event Emission**: Provides real-time progress tracking through environment events
-       for monitoring collection performance and debugging failures
-
-    ## Output Organization
-
-    Collected outputs are organized in two formats:
-    - **Environment-centric**: `{env_type: {output_type: path}}` - useful for debugging
-    - **Type-centric**: `{output_type: {env_type: path}}` - optimized for tester analysis
-
-    ## Error Handling
-
-    The aggregator implements graceful error handling:
-    - Individual environment failures don't halt collection
-    - Missing files are logged with diagnostic information
-    - Partial collections are still returned for analysis
-    - Event emission continues even on collection errors
-
-    ## Performance Characteristics
-
-    - **Sequential Collection**: Environments are processed in order
-    - **Lazy Evaluation**: Only environments with `collect_outputs` method are processed
-    - **Memory Efficient**: Output paths are returned rather than file contents
+    Individual environment failures don't halt collection; partial results
+    are still returned for analysis.
     """
 
     def __init__(
         self, experiment_dir: Path, environment_emitter: EnvironmentEventEmitter
     ):
-        """
-        Initialize the OutputAggregator.
+        """Initialize the OutputAggregator.
 
         Args:
             experiment_dir: Directory where experiment outputs are stored
@@ -107,8 +74,7 @@ class OutputAggregator:
     def collect_from_environments(
         self, environments: list
     ) -> Dict[str, Dict[str, str]]:
-        """
-        Collect outputs from all execution environments that implement IOutputCollector.
+        """Collect outputs from all execution environments that implement IOutputCollector.
 
         Args:
             environments: List of environment plugins
@@ -218,8 +184,7 @@ class OutputAggregator:
     def prepare_for_testers(
         self, collected_outputs: Optional[Dict[str, Dict[str, str]]] = None
     ) -> Dict[str, Dict[str, str]]:
-        """
-        Prepare collected outputs for tester analysis.
+        """Prepare collected outputs for tester analysis.
 
         This method organizes outputs by type rather than by environment,
         making it easier for testers to find relevant data.

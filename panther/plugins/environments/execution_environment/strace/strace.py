@@ -1,9 +1,4 @@
-"""
-Refactored strace execution environment using shared command generation utilities.
-
-This demonstrates how the shared utilities work with different command patterns
-while maintaining the specific functionality of strace.
-"""
+"""Strace execution environment plugin."""
 
 import platform
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
@@ -37,173 +32,27 @@ if TYPE_CHECKING:
     runtime_mode="debug",
 )
 class StraceEnvironment(BaseExecutionEnvironment):
-    """
-    System Call Tracing Execution Environment - strace Integration
+    """System call tracing execution environment using strace.
 
-    StraceEnvironment provides comprehensive system call tracing capabilities for PANTHER protocol testing
-    using the strace tool. This execution environment wraps service execution with detailed system call
-    monitoring, enabling deep analysis of service behavior, network operations, file I/O patterns,
-    and performance characteristics.
+    Wraps service execution with strace to capture system calls, network
+    operations, file I/O, and timing data. Supports full syscall tracing
+    or network-focused subsets, child process following, and automated
+    post-processing with statistical analysis.
 
-    ## Architecture Integration
+    Configuration via ``StraceConfig``:
+        - ``strace_binary``: Path to strace executable.
+        - ``trace_all_syscalls`` / ``trace_network_syscalls``: Tracing scope.
+        - ``excluded_syscalls``: Syscalls to exclude.
+        - ``generate_detailed_analysis``: Enable post-processing reports.
 
-    The strace environment extends BaseExecutionEnvironment to provide:
-
-    1. **System Call Instrumentation**: Comprehensive tracing of all system calls made by services
-    2. **Network Analysis**: Focused monitoring of network-related system calls (socket, connect, etc.)
-    3. **Performance Insights**: Timing analysis and syscall frequency statistics
-    4. **Error Detection**: Capture and analysis of system call errors and failures
-    5. **Multi-Process Support**: Tracing of child processes and process trees
-
-    ```mermaid
-    sequenceDiagram
-        participant NE as NetworkEnvironment
-        participant SE as StraceEnvironment
-        participant ST as StraceWrapper
-        participant SV as Service
-
-        NE->>SE: setup_environment()
-        SE->>SE: configure_strace_options()
-        SE->>ST: create_wrapper_command()
-
-        NE->>SV: start_service()
-        SV->>ST: execute_with_strace()
-        ST->>ST: log_system_calls()
-
-        Note over ST,SV: Service Execution + Tracing
-
-        NE->>SE: teardown_environment()
-        SE->>SE: analyze_trace_output()
-        SE->>SE: generate_summary_reports()
-    ```
-
-    ## System Call Analysis Capabilities
-
-    ### Core Tracing Features
-    - **Complete Syscall Coverage**: Traces all system calls with arguments and return values
-    - **Timing Information**: Microsecond-precision timing for performance analysis
-    - **Process Tree Tracking**: Follows fork(), clone(), and execve() to trace child processes
-    - **Signal Monitoring**: Captures signal delivery and handling
-    - **File Descriptor Tracking**: Monitors file and socket operations with full path resolution
-
-    ### Network-Specific Analysis
-    - **Socket Operations**: Detailed tracing of socket(), bind(), listen(), accept(), connect()
-    - **Data Transfer**: Monitoring of send(), recv(), read(), write() with data sizes
-    - **Protocol Analysis**: Identifies network protocols and connection patterns
-    - **Error Detection**: Captures network errors like ECONNREFUSED, ETIMEDOUT, EADDRINUSE
-
-    ### Performance Metrics
-    - **Syscall Frequency**: Statistical analysis of most frequently called system calls
-    - **Execution Time**: Timing analysis for performance bottleneck identification
-    - **Resource Usage**: File descriptor usage, memory allocation patterns
-    - **Error Rates**: System call failure rates and error pattern analysis
-
-    ## Configuration Options
-
-    The strace environment supports extensive configuration through StraceConfig:
-
-    ### Basic Options
-    - `strace_binary`: Path to strace executable (default: "strace")
-    - `output_file`: Base output file path for trace logs
-    - `timeout`: Maximum execution time for strace (disabled by default)
-    - `include_kernel_stack`: Include kernel stack traces (x86_64 only)
-
-    ### Tracing Scope
-    - `trace_all_syscalls`: Trace all system calls vs. network-focused subset
-    - `trace_network_syscalls`: Focus on network-related system calls
-    - `excluded_syscalls`: List of system calls to exclude from tracing
-    - `additional_parameters`: Custom strace command-line parameters
-
-    ### Analysis Options
-    - `generate_detailed_analysis`: Enable comprehensive post-processing analysis
-    - Analysis includes syscall statistics, network activity summary, error analysis
-
-    ## Output Generation and Analysis
-
-    ### Primary Output Files
-    1. **strace_log**: Raw system call trace with full details
-       - File pattern: `strace_{service_name}.log`
-       - Contains: Complete syscall trace with arguments, return values, timing
-
-    2. **strace_summary**: Automated analysis summary
-       - File pattern: `strace_summary_{service_name}.txt`
-       - Contains: Top syscalls, network activity, error analysis, performance insights
-
-    3. **strace_detailed**: Extended analysis (optional)
-       - File pattern: `strace_detailed_{service_name}.detailed.txt`
-       - Contains: Complete syscall catalog, file operations, network operations
-
-    ### Automated Analysis Features
-    - **Top 20 System Calls**: Frequency analysis of most common operations
-    - **Network Activity Summary**: Count of network syscalls and I/O operations
-    - **Error Analysis**: Detection and categorization of common errors
-    - **Performance Insights**: Process lifecycle events and signal handling
-
-    ## Command Generation Architecture
-
-    Uses shared command generation utilities for consistent execution environment integration:
-
-    ### Setup Phase
-    1. **Availability Checking**: Verify strace binary and runtime dependencies
-    2. **Output Directory Creation**: Ensure trace output directories exist
-    3. **Core Dump Configuration**: Enable core dumps for debugging
-    4. **Dynamic Linker Verification**: Confirm runtime library availability
-
-    ### Wrapper Command Generation
-    1. **Option Assembly**: Build strace command with configured options
-    2. **Output Redirection**: Configure trace output to service-specific files
-    3. **Command Splitting**: Separate setup commands from main wrapper
-    4. **Argument Passthrough**: Ensure "$@" properly wraps target service commands
-
-    ### Post-Processing Integration
-    1. **Analysis Command Registration**: Register automated analysis scripts
-    2. **Summary Generation**: Create human-readable analysis summaries
-    3. **Error Extraction**: Extract and categorize system call errors
-    4. **Performance Metrics**: Generate timing and frequency statistics
-
-    ## Error Handling and Resilience
-
-    Robust error handling ensures trace collection reliability:
-
-    - **Tool Availability**: Graceful fallback if strace is not available
-    - **Permission Issues**: Detailed logging of privilege and access errors
-    - **Output Failures**: Fallback strategies for write permission problems
-    - **Process Tracking**: Continued tracing even if child processes fail
-
-    ## Plugin Registration
-
-    Registered as EXECUTION_ENVIRONMENT plugin with capabilities:
-    - syscall_tracing: Complete system call monitoring and analysis
-    - performance_analysis: Performance bottleneck identification
-    - debugging: Deep service behavior analysis and troubleshooting
-
-    ## Performance Impact
-
-    - **CPU Overhead**: 10-30% depending on syscall frequency and trace options
-    - **Memory Usage**: Minimal, trace data written directly to files
-    - **Disk I/O**: High for active services, proportional to syscall frequency
-    - **Network Impact**: None, passive monitoring of syscall interface
-
-    ## Integration with Network Environments
-
-    Seamlessly integrates with all network environment types:
-
-    - **Docker Compose**: Container-level strace with volume-mounted output
-    - **Shadow NS**: Process-level tracing within simulation environment
-    - **Localhost**: Direct process tracing with local file output
+    Output files:
+        - ``strace_log``: Raw syscall trace with arguments and return values.
+        - ``strace_summary``: Top syscalls, network activity, error analysis.
+        - ``strace_detailed``: Extended analysis (optional).
 
     Attributes:
-        target_platform (Optional[str]): Target platform for platform-specific options
-        _plugin_config (StraceConfig): Cached plugin configuration with strace options
-
-    Methods:
-        get_output_patterns(): Define strace-specific output file patterns
-        get_additional_output_discovery_patterns(): Additional output discovery patterns
-        _setup_plugin_specific_environment(): Configure strace for all services
-        _build_strace_command(): Generate strace command with configured options
-        _split_strace_command(): Split setup and wrapper commands
-        _add_strace_analysis_commands(): Add post-processing analysis commands
-        to_command(): Generate strace command for standalone execution
+        target_platform: Target platform for platform-specific options.
+        _plugin_config: Cached StraceConfig with strace options.
     """
 
     _config_class = StraceConfig
@@ -225,8 +74,7 @@ class StraceEnvironment(BaseExecutionEnvironment):
         self.target_platform = target_platform
 
     def get_output_patterns(self) -> List[Tuple[str, str]]:
-        """
-        Get strace-specific output patterns.
+        """Get strace-specific output patterns.
 
         Returns:
             List of (output_type, filename_pattern) tuples
@@ -239,8 +87,7 @@ class StraceEnvironment(BaseExecutionEnvironment):
         ]
 
     def get_additional_output_discovery_patterns(self) -> Dict[str, List[str]]:
-        """
-        Get additional strace discovery patterns.
+        """Get additional strace discovery patterns.
 
         Returns:
             Dict mapping output types to lists of glob patterns
@@ -254,8 +101,7 @@ class StraceEnvironment(BaseExecutionEnvironment):
     def _setup_plugin_specific_environment(
         self, services_managers: List[IServiceManager], timestamp: str
     ):
-        """
-        Set up strace tracing for all services using shared utilities.
+        """Set up strace tracing for all services using shared utilities.
 
         Args:
             services_managers: List of service managers to potentially modify
@@ -348,8 +194,7 @@ class StraceEnvironment(BaseExecutionEnvironment):
             )
 
     def _build_strace_command(self, output_file: str) -> str:
-        """
-        Build the strace command with configured options.
+        """Build the strace command with configured options.
 
         Args:
             output_file: Path to write strace output
@@ -413,8 +258,7 @@ class StraceEnvironment(BaseExecutionEnvironment):
     def _split_strace_command(
         self, full_strace_cmd: str, service_name: str
     ) -> Tuple[List[str], str]:
-        """
-        Split the full strace command into setup commands and main wrapper.
+        """Split the full strace command into setup commands and main wrapper.
 
         Args:
             full_strace_cmd: The complete strace command (includes setup)
@@ -472,8 +316,7 @@ fi"""
     def _add_strace_analysis_commands(
         self, command_builder, strace_output_file: str, summary_file: str
     ):
-        """
-        Add comprehensive strace analysis post-processing commands.
+        """Add comprehensive strace analysis post-processing commands.
 
         Args:
             command_builder: The command builder to add commands to
@@ -590,8 +433,7 @@ fi
     def to_command(
         self, pid: Optional[int] = None, output_file: Optional[str] = None
     ) -> str:
-        """
-        Generate the strace command for execution.
+        """Generate the strace command for execution.
 
         Args:
             pid: Optional process ID to attach to
@@ -614,8 +456,7 @@ fi
         services_managers,
         test_config,
     ) -> None:
-        """
-        Update environment for strace execution.
+        """Update environment for strace execution.
 
         This method is called to update the environment configuration
         for strace-specific requirements.

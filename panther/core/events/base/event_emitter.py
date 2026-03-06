@@ -1,4 +1,20 @@
-"""Base event emitter for unified event emission."""
+"""Simple event emitter using the EventManager singleton.
+
+Provides `EventEmitter`, a lightweight convenience class that emits
+events via ``EventManager.get_instance()`` by default.  Unlike the abstract
+`EventEmitterBase`
+hierarchy, this class is concrete and requires no subclassing.
+
+Example:
+    Emit an event with the default manager::
+
+        from panther.core.events.base.event_emitter import EventEmitter
+        from panther.core.events.base.event_base import BaseEvent, EventType
+
+        emitter = EventEmitter()
+        event = BaseEvent("test.started", EventType.TEST, "t1")
+        emitter.emit_event(event)
+"""
 
 from typing import Optional
 
@@ -7,7 +23,12 @@ from panther.core.observer.management.event_manager import EventManager
 
 
 class EventEmitter:
-    """Base class for emitting typed events in a unified way."""
+    """Simple event emitter that uses ``EventManager.get_instance()`` as default.
+
+    Emits events via ``event_manager.publish(event)``.  If no
+    ``EventManager`` is provided at construction time, the global singleton
+    is used automatically.
+    """
 
     def __init__(self, event_manager: Optional[EventManager] = None):
         """Initialize the event emitter.

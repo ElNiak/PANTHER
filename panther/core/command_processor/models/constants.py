@@ -1,7 +1,19 @@
-"""
-Constants for command processing.
+"""Constants for command processing.
 
-This module contains all the constants used across the command processor module.
+Centralizes shell-related constant lists used by ``ShellCommand``,
+``CommandValidator``, ``escape_shell_command``, and ``combine_shell_constructs``
+to ensure consistent detection and escaping behavior across the module.
+
+Constants:
+    SHELL_CONTROL_OPERATORS: Operators that chain or redirect commands
+        (``&&``, ``||``, ``;``, ``&``, ``|``, ``>``, ``>>``, ``<<``, ``<``).
+    SHELL_BUILTINS: Commands built into the shell that should not be quoted
+        (``export``, ``cd``, ``echo``, ``set``, etc.).
+    SHELL_CONTROL_STRUCTURES: Keywords that begin or delimit control-flow
+        blocks (``if``, ``then``, ``fi``, ``for``, ``done``, ``case``,
+        ``esac``, ``function``, etc.).
+    REDIRECTION_OPERATORS: I/O redirection operators that must be preserved
+        literally during escaping (``>``, ``>>``, ``2>``, ``&>``, etc.).
 """
 
 # Shell control operators that could cause issues if they appear at the end of a command

@@ -1,4 +1,7 @@
-"""bittorrrent package.
+"""BitTorrent protocol plugin.
 
-This package is part of the PANTHER framework.
+Defines protocol metadata and configuration for BitTorrent peer-to-peer
+protocol testing.
+
+See `BitTorrentProtocol` for the protocol manager implementation.
 """

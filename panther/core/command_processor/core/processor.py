@@ -1,8 +1,20 @@
-"""
-Base implementation of command processor for PANTHER framework.
+"""Base implementation of command processor for PANTHER framework.
 
-This module provides a command processor that handles command structures
-and prepares them for various environments.
+Provides ``CommandProcessor``, the concrete implementation of
+``ICommandProcessor`` with fast-fail validation, shell-construct combining,
+and high-entropy summary logging.
+
+Processing pipeline::
+
+    process_commands(dict)
+      1. _validate_command_structure()    -- type/shape checks, fast-fail
+      2. _log_processing_summary()       -- concise count-based log line
+      3. for each key:
+           run_cmd  --> _process_run_cmd()
+           others   --> process_command_list()
+                          --> _validate_and_convert_commands()
+                          --> combine_shell_constructs()
+                          --> ShellCommand.to_dict() per item
 """
 
 import logging
@@ -21,7 +33,32 @@ from panther.core.utils.feature_logger_mixin import get_feature_logger
 
 
 class CommandProcessor(ICommandProcessor, ErrorHandlerMixin):
-    """Base implementation of command processor."""
+    """Main command processor with validation, transformation, and logging.
+
+    Inherits from ``ICommandProcessor`` for the processing contract and
+    ``ErrorHandlerMixin`` for structured ``PantherException`` error handling.
+
+    Features:
+        - Fast-fail validation catches structural issues before processing.
+        - Automatic shell-construct combining via ``combine_shell_constructs``.
+        - Summary-based logging (command counts) instead of verbose dumps.
+        - Categorized errors with ``ErrorCategory.COMMAND_EXECUTION`` and
+          severity levels for integration with PANTHER's error pipeline.
+
+    Example:
+        ::
+
+            processor = CommandProcessor()
+            result = processor.process_commands({
+                "pre_run_cmds": ["echo Starting"],
+                "run_cmd": {
+                    "command_args": "python -m mymodule",
+                    "working_dir": "/app",
+                    "environment": {"ENV": "production"},
+                },
+                "post_run_cmds": ["echo Finished"],
+            })
+    """
 
     def __init__(self):
         super().__init__()

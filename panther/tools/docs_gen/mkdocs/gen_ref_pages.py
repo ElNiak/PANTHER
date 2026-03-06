@@ -8,8 +8,10 @@ import mkdocs_gen_files
 
 nav = mkdocs_gen_files.Nav()
 
-# Adjust root to be the top-level directory of the project
-root = Path(__file__).resolve().parent.parent.parent.parent
+# Use cwd (mkdocs always runs from the project root where mkdocs.yml lives).
+# Do NOT use Path(__file__).resolve() — that follows symlinks into
+# site-packages when the package is installed non-editable.
+root = Path.cwd()
 srcs = [root / "panther"]
 
 print(f"Generating reference pages in {root}")
@@ -22,12 +24,7 @@ for src in srcs:
         # Include all files except those in panther_ivy directory (with specific exceptions)
         # This is more readable with explicit exclude/include logic
         if "/panther_ivy/" in path.as_posix():
-            # Only include these specific files from panther_ivy
-            if not (
-                "/panther_ivy/panther_ivy.py" in path.as_posix()
-                or "/panther_ivy/config_schema.py" in path.as_posix()
-            ):
-                continue  # Skip this file
+            continue  # Skip entire submodule - has own docs
 
         module_path = (
             path.relative_to(root).with_suffix("").as_posix().replace("/", ".")

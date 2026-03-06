@@ -1,37 +1,7 @@
-"""
-Unified Plugin Manager for Panther Framework
+"""Unified Plugin Manager for Panther Framework.
 
-This is the single source of truth for all plugin management operations,
-implementing a comprehensive plugin ecosystem with sophisticated lifecycle management,
-caching strategies, and integration with Docker, events, and configuration systems.
-
-**Architecture Overview**:
-- **Singleton Pattern**: Ensures single plugin registry across application
-- **Plugin Discovery**: Multi-directory scanning with metadata extraction
-- **Docker Integration**: Automated container building for plugin isolation
-- **Event System**: Plugin lifecycle events for monitoring and debugging
-- **Caching Strategy**: Multi-level caching with TTL for performance optimization
-- **Error Handling**: Fast-fail integration for critical plugin failures
-
-**Key Design Patterns**:
-- **Factory Pattern**: PluginFactory for standardized plugin instantiation
-- **Observer Pattern**: Event-driven plugin lifecycle management
-- **Registry Pattern**: Centralized plugin metadata and registration tracking
-- **Catalog Pattern**: Structured plugin organization and discovery
-
-**Plugin Types Supported**:
-- **Protocol Plugins**: Network protocol implementations (QUIC, HTTP, etc.)
-- **Service Plugins**: Test services (IUT implementations, testers)
-- **Environment Plugins**: Execution and network environment management
-- **Extension Plugins**: Custom functionality extensions
-
-**Performance Characteristics**:
-- **Plugin Discovery**: ~100-500ms (initial), ~5-10ms (cached)
-- **Plugin Instantiation**: ~10-50ms per plugin
-- **Docker Integration**: ~2-10s for image building (when needed)
-- **Cache Hit Rate**: >95% for repeated operations in typical usage
-
-**Thread Safety**: Singleton with thread-safe initialization and parameter updates
+Single source of truth for plugin management: discovery, lifecycle,
+caching, Docker integration, and event coordination.
 """
 
 import time
@@ -64,68 +34,25 @@ from panther.plugins.services.services_interface import IServiceManager
 
 
 class PluginManager(LoggerMixin):
-    """
-    Unified plugin manager consolidating all plugin management functionality.
+    """Central orchestrator for PANTHER's plugin ecosystem.
 
-    This class serves as the central orchestrator for PANTHER's plugin ecosystem,
-    implementing sophisticated patterns for scalable and maintainable plugin management:
+    Thread-safe singleton managing plugin discovery, lifecycle, dependency
+    resolution, Docker integration, and multi-level caching with TTL.
 
-    **Core Responsibilities**:
-    - **Plugin Discovery**: Multi-directory scanning with intelligent metadata extraction
-    - **Lifecycle Management**: Plugin instantiation, validation, and cleanup
-    - **Dependency Resolution**: Plugin dependency tracking and validation
-    - **Version Management**: Protocol version compatibility and discovery
-    - **Docker Integration**: Automated container building and image management
-    - **Event Coordination**: Plugin lifecycle events for monitoring and debugging
-    - **Performance Optimization**: Multi-level caching with TTL and invalidation
+    Subsequent instantiation attempts update configuration parameters
+    rather than creating new instances.
 
-    **Singleton Pattern Implementation**:
-    Uses thread-safe Singleton pattern to ensure single plugin registry across
-    the application. Subsequent instantiation attempts update configuration
-    parameters rather than creating new instances.
-
-    **Caching Architecture**:
-    ```
-    Discovery Cache (TTL: 1h)
-    ├── Plugin Metadata Cache (memory)
-    ├── Version Discovery Cache (memory)
-    ├── Schema Validation Cache (memory)
-    └── Dependency Graph Cache (computed)
-    ```
-
-    **Integration Points**:
-    - **EventManager**: Plugin lifecycle event emission and handling
-    - **DockerBuilder**: Container management for plugin isolation
-    - **FastFailHandler**: Critical error management and recovery
-    - **ConfigurationManager**: Plugin configuration validation and loading
-
-    **Usage Patterns**:
-    ```python
-    # Singleton access
-    manager = PluginManager()
-
-    # Plugin discovery
-    plugins = manager.discover_plugins()
-
-    # Plugin instantiation
-    plugin = manager.create_plugin("quic_server", config)
-
-    # Version management
-    versions = manager.discover_protocol_versions("quic")
-    ```
-
-    **Error Handling Strategy**:
-    - **Graceful Degradation**: Missing plugins don't stop discovery
-    - **Fast-fail Integration**: Critical plugin failures terminate experiments
-    - **Recovery Mechanisms**: Automatic retry and fallback strategies
+    Example:
+        >>> manager = PluginManager()
+        >>> plugins = manager.discover_plugins()
+        >>> versions = manager.discover_protocol_versions("quic")
     """
 
     _instance = None
     _initialized = False
 
     def __new__(cls, *args, **kwargs):
-        """
-        Create or return the singleton instance.
+        """Create or return the singleton instance.
 
         If an instance already exists, returns it and allows updating
         configuration parameters if provided.
@@ -144,8 +71,7 @@ class PluginManager(LoggerMixin):
         cache_ttl: int = 3600,  # 1 hour TODO add parameters
         experiment_context: Optional[Any] = None,
     ):
-        """
-        Initialize the unified plugin manager.
+        """Initialize the unified plugin manager.
 
         Args:
             plugin_directories: Directories to scan for plugins
@@ -285,8 +211,7 @@ class PluginManager(LoggerMixin):
 
     @property
     def experiment_context_for_plugins(self):
-        """
-        Provide experiment context access for plugin instances.
+        """Provide experiment context access for plugin instances.
 
         This allows service managers and environments that use this
         plugin manager to access experiment context for Docker operations.
@@ -307,8 +232,7 @@ class PluginManager(LoggerMixin):
         ]
 
     def set_experiment_context(self, context: Any) -> None:
-        """
-        Set the experiment context for this plugin manager.
+        """Set the experiment context for this plugin manager.
 
         This allows service managers and environments to access the experiment context
         for Docker operations and other configurations.
@@ -441,8 +365,7 @@ class PluginManager(LoggerMixin):
     def discover_plugins(
         self, force_refresh: bool = False
     ) -> Dict[str, PluginMetadata]:
-        """
-        Discover all available plugins using PluginDiscovery.
+        """Discover all available plugins using PluginDiscovery.
 
         This method delegates to PluginDiscovery for actual discovery,
         following DRY and SOLID principles.
@@ -592,8 +515,7 @@ class PluginManager(LoggerMixin):
             return None
 
     def get_plugin(self, name: str) -> Optional[PluginMetadata]:
-        """
-        Get plugin metadata by name.
+        """Get plugin metadata by name.
 
         Args:
             name: Plugin name
@@ -606,8 +528,7 @@ class PluginManager(LoggerMixin):
         return plugins.get(name)
 
     def validate_experiment_plugins(self, experiment_config) -> Tuple[bool, List[str]]:
-        """
-        Validate that all plugins required by an experiment are available.
+        """Validate that all plugins required by an experiment are available.
 
         Delegates to PluginCatalog for actual validation implementation.
 
@@ -622,8 +543,7 @@ class PluginManager(LoggerMixin):
     def get_plugins_by_type(
         self, plugin_type: Union[str, PluginType]
     ) -> List[PluginMetadata]:
-        """
-        Get all plugins of a specific type.
+        """Get all plugins of a specific type.
 
         Args:
             plugin_type: Plugin type to filter by
@@ -649,8 +569,7 @@ class PluginManager(LoggerMixin):
         return [plugin for plugin in plugins.values() if plugin.type == type_str]
 
     def get_plugins_by_protocol(self, protocol: str) -> List[PluginMetadata]:
-        """
-        Get all plugins supporting a specific protocol.
+        """Get all plugins supporting a specific protocol.
 
         Args:
             protocol: Protocol name
@@ -666,8 +585,7 @@ class PluginManager(LoggerMixin):
         ]
 
     def validate_plugin_dependencies(self, plugin_name: str) -> Tuple[bool, List[str]]:
-        """
-        Validate plugin dependencies.
+        """Validate plugin dependencies.
 
         Delegates to PluginCatalog for actual dependency validation implementation.
 
@@ -682,8 +600,7 @@ class PluginManager(LoggerMixin):
     def discover_protocol_versions(
         self, protocol: Optional[str] = None
     ) -> Dict[str, List[str]]:
-        """
-        Discover available protocol versions.
+        """Discover available protocol versions.
 
         Delegates to PluginDiscovery for actual discovery implementation.
 
@@ -696,8 +613,7 @@ class PluginManager(LoggerMixin):
         return self.plugin_discovery.discover_protocol_versions(protocol)
 
     def discover_plugin_schemas(self) -> Dict[str, Dict[str, Any]]:
-        """
-        Discover all plugin configuration schemas.
+        """Discover all plugin configuration schemas.
 
         Delegates to PluginDiscovery for actual schema discovery implementation.
 
@@ -707,8 +623,7 @@ class PluginManager(LoggerMixin):
         return self.plugin_discovery.discover_plugin_schemas()
 
     def get_plugin_schema(self, plugin_name: str) -> Optional[Dict[str, Any]]:
-        """
-        Get schema for a specific plugin.
+        """Get schema for a specific plugin.
 
         Args:
             plugin_name: Plugin name
@@ -969,8 +884,7 @@ class PluginManager(LoggerMixin):
         return self.plugin_factory.create_observer_plugin(plugin_name, *args, **kwargs)
 
     def get_statistics(self) -> Dict[str, Any]:
-        """
-        Get plugin manager statistics.
+        """Get plugin manager statistics.
 
         Returns:
             Dictionary containing statistics
@@ -994,8 +908,7 @@ class PluginManager(LoggerMixin):
 
     @classmethod
     def reset_singleton(cls):
-        """
-        Reset the singleton instance.
+        """Reset the singleton instance.
 
         This method should only be used in testing scenarios where
         a fresh instance is needed.
@@ -1005,14 +918,14 @@ class PluginManager(LoggerMixin):
 
     @classmethod
     def get_instance(cls, *args, **kwargs) -> "PluginManager":
-        """
-        Get the singleton instance of PluginManager.
+        """Get the singleton instance of PluginManager.
 
         This method returns the singleton instance and allows updating
         configuration parameters even if the instance already exists.
 
         Args:
-            *args, **kwargs: Parameters to pass to __init__ (for updates or first creation)
+            *args: Positional arguments to pass to __init__.
+            **kwargs: Keyword arguments to pass to __init__.
 
         Returns:
             The singleton PluginManager instance (with updated parameters if provided)

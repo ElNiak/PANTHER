@@ -1,4 +1,5 @@
 """Tests for panther ivy CLI commands."""
+
 import pytest
 
 pytest.importorskip("panther_ivy.api", reason="panther_ivy package not installed")
@@ -7,14 +8,14 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from click.testing import CliRunner
-from panther_ivy.api.types import (
+from api.types import (
     CommandResult,
     CompileResult,
     DiagnosticItem,
     ExecutionResult,
     TestInfo,
 )
+from click.testing import CliRunner
 
 from panther.cli_click.commands.ivy import ivy
 

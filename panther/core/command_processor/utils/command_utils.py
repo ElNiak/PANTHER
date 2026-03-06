@@ -1,8 +1,21 @@
-"""
-Command Generation Utilities
+"""Command Generation Utilities.
 
-This module provides common command generation patterns used across service managers.
-Integrates with PANTHER's ShellCommand system and environment plugins.
+Provides ``CommandUtils`` -- a collection of static helper methods for
+common command generation patterns used across service managers -- and
+``CommandGenerationError`` for reporting generation failures.
+
+Capabilities:
+    - Create standardized command structures (``generate_basic_service_commands``,
+      ``create_run_command``).
+    - Merge multiple command structures (``merge_command_structures``).
+    - Extract working directories from ``cd DIR && CMD`` prefixes.
+    - Convert heterogeneous command lists to ``ShellCommand`` objects.
+    - Validate required keys in a command dictionary.
+    - Log command generation with smart summarization via ``CommandSummarizer``.
+
+Note:
+    Uses lazy (function-level) imports for ``ShellCommand`` to avoid circular
+    dependencies with the models sub-package.
 """
 
 import logging
@@ -19,13 +32,25 @@ if TYPE_CHECKING:
 
 
 class CommandGenerationError(Exception):
-    """Exception raised when command generation fails."""
+    """Exception raised when command generation fails.
+
+    Typically raised by ``CommandUtils.validate_command_structure`` when
+    required keys are missing or have incorrect types.
+
+    Args:
+        message: Human-readable error description.
+        command_data: Optional related command data for debugging.
+    """
 
     pass
 
 
 class CommandUtils:
-    """Utility class for common command generation patterns."""
+    """Static utility methods for common command generation patterns.
+
+    All methods are ``@staticmethod`` so the class acts as a namespace;
+    no instance state is required.
+    """
 
     def __init__(self):
         self.logger = logging.getLogger(__name__)

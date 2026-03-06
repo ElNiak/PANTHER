@@ -36,7 +36,7 @@ panther/
 │   │   ├── manager.py       # ConfigManager
 │   │   ├── components/      # Component configs
 │   │   └── mixins/          # Config mixins
-│   └── README.md
+│   └── __init__.py          # Config docs (module docstring)
 ├── core/                    # Core framework
 │   ├── experiment_manager.py    # Central orchestrator
 │   ├── experiment_strategy.py   # Strategy pattern

@@ -13,6 +13,7 @@ from termcolor import colored
 
 from panther.cli_click.core.base import (
     error_message,
+    featured_example,
     handle_errors,
     info_message,
     pass_context_and_setup_logging,
@@ -50,6 +51,7 @@ except ImportError:
             return False
 
 
+@featured_example("panther config validate --config config.yaml")
 @click.group()
 def config():
     """

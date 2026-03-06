@@ -1,3 +1,5 @@
+"""Test case implementation combining all execution mixins."""
+
 import logging
 import os
 import re
@@ -32,120 +34,25 @@ class TestCase(
     MetricsMixin,
     ObserverManagementMixin,
 ):
-    """Comprehensive test case implementation for PANTHER framework with sophisticated multi-mixin architecture.
+    """Composite test case combining service, environment, execution, metrics, and observer mixins.
 
-    Implements a highly modular test case design using the Mixin pattern to compose specialized
-    capabilities from multiple domain-specific mixins, creating a unified test execution interface
-    with comprehensive lifecycle management, resource orchestration, and observability.
-
-    **Architectural Design Patterns**:
-    - **Mixin Composition**: Combines 6 specialized mixins for modular capability composition
-    - **Observer Pattern**: Event-driven architecture with comprehensive lifecycle tracking
-    - **Strategy Pattern**: Pluggable execution strategies via plugin manager integration
-    - **Context Manager**: Automatic resource lifecycle with exception-safe cleanup
-    - **State Machine**: Explicit state transitions (PENDING → RUNNING → COLLECTING → DONE/ERROR)
-
-    **Mixin Architecture**:
-    ```
-    TestCase Composition:
-    ├── TestCaseBase (core initialization, configuration management)
-    ├── ServiceManagementMixin (Docker service orchestration, image builds)
-    ├── EnvironmentManagementMixin (network environment setup, deployment coordination)
-    ├── TestExecutionMixin (command execution, output collection, assertion validation)
-    ├── MetricsMixin (performance timing, resource monitoring, metrics emission)
-    └── ObserverManagementMixin (event observer lifecycle, notification management)
-    ```
-
-    **Execution Lifecycle**:
-    1. **Initialization**: Configuration validation, plugin setup, observer registration
-    2. **Service Setup**: Docker image builds, service configuration validation
-    3. **Environment Deployment**: Network environment creation, service deployment
-    4. **Test Execution**: Command execution, output collection, progress tracking
-    5. **Analysis & Validation**: Result analysis, assertion validation, metrics collection
-    6. **Cleanup**: Resource teardown, observer cleanup, final reporting
-
-    **Event-Driven Architecture**:
-    - **Centralized Registry**: EmitterRegistry provides typed event emitters per domain
-    - **Lifecycle Events**: Comprehensive event emission for all major state transitions
-    - **Error Recovery**: Exception-safe event emission with graceful degradation
-    - **Context Correlation**: Events include rich context for analysis and debugging
-
-    **Resource Management Strategy**:
-    - **Docker Orchestration**: Multi-service container management with health monitoring
-    - **Network Environment**: Configurable network topologies and protocol testing
-    - **Timing Precision**: Sub-millisecond timing collection for performance analysis
-    - **Memory Efficiency**: Bounded resource usage with automatic cleanup
-
-    **Error Handling & Resilience**:
-    - **Fast-Fail Detection**: Early termination on critical infrastructure failures
-    - **Timeout Management**: Cascading timeout detection and prevention
-    - **State Recovery**: Exception-safe state transitions with cleanup guarantees
-    - **Diagnostic Context**: Rich error context for debugging and analysis
-
-    **Performance Characteristics**:
-    - **Startup Time**: ~100-500ms depending on service count and configuration complexity
-    - **Memory Usage**: O(n) where n is number of services + observers + metrics
-    - **Event Latency**: <10ms event emission overhead during test execution
-    - **Cleanup Time**: ~50-200ms for complete resource teardown
-
-    **Usage Patterns**:
-    ```python
-    # Basic test execution
-    test_case = TestCase(test_config, global_config, plugin_manager, experiment_dir)
-    success = test_case.run()
-
-    # Dry-run analysis
-    is_valid = test_case.perform_dry_run()
-
-    # Manual lifecycle control
-    test_case.setup_services()
-    test_case.setup_environment()
-    test_case.execute_steps()
-    test_case.teardown_environment()
-    ```
-
-    **Thread Safety**: Not thread-safe - designed for single-threaded test execution
-    **Plugin Integration**: Full plugin manager integration for extensible test strategies
-    **Configuration Flexibility**: Supports complex multi-service, multi-environment configurations
+    Orchestrates the full test lifecycle: service setup, environment deployment,
+    test execution, result analysis, and cleanup. State transitions follow
+    PENDING -> RUNNING -> COLLECTING -> DONE/ERROR.
 
     Attributes:
-        test_name (str): Name of the test case.
-        test_experiment_dir (Path): Directory for the test experiment.
-        result_collectors (ResultCollector): Collector for test results.
-        service_managers (list): List of service managers.
-        environment_plugin_manager (list): List of environment plugin managers.
-        event_manager (EventManager): Manager for handling events.
-        execution_environment (list): List of execution environments.
-        plugin_manager (PluginManager): Manager for handling plugins.
-        services (dict): Dictionary of services defined in the test configuration.
-        test_executor (TestExecutor): Executor for test steps and assertions.
-        emitter_registry (EmitterRegistry): Registry for event emitters.
-        state (str): Current state of the test case.
-
-    Key Methods (from mixins):
-        From ServiceManagementMixin:
-        - setup_services(): Sets up the services based on the test configuration.
-        - setup_testers(): Sets up the testers based on the test configuration.
-        - setup_implementations(): Sets up the implementations based on the test configuration.
-        - prepare_services(): Prepares services (builds Docker images).
-        - teardown_services(): Stops all services managed by the service managers.
-
-        From EnvironmentManagementMixin:
-        - setup_environment(): Sets up the test environment using the plugin.
-        - teardown_environment(): Tears down the test environment using the plugin.
-        - deploy_services(): Deploys services through environment managers.
-
-        From TestExecutionMixin:
-        - execute_steps(): Executes the defined steps of a test.
-        - validate_assertions(): Validates assertions defined in the test configuration.
-        - check_service_responsiveness(): Checks if a service's endpoint is responsive.
-
-        From TestCaseBase:
-        - _setup_observers(): Registers default observers to listen to events.
-        - get_experiment_observer(): Gets the experiment observer instance.
-
-    Main Method:
-        run(): Runs the test case based on the provided configuration.
+        test_name: Name of the test case.
+        test_experiment_dir: Directory for the test experiment.
+        result_collectors: Collector for test results.
+        service_managers: List of service managers.
+        environment_plugin_manager: List of environment plugin managers.
+        event_manager: Manager for handling events.
+        execution_environment: List of execution environments.
+        plugin_manager: Manager for handling plugins.
+        services: Dictionary of services defined in the test configuration.
+        test_executor: Executor for test steps and assertions.
+        emitter_registry: Registry for event emitters.
+        state: Current state (PENDING, RUNNING, COLLECTING, DONE, ERROR).
     """
 
     def __init__(
@@ -159,6 +66,7 @@ class TestCase(
         workflow_tracker=None,
         test_index: Optional[int] = None,
     ):
+        """Initialize TestCase."""
         # Initialize mixin attributes before calling super()
         # This ensures all mixins have what they need during initialization
         self._test_executor = None
@@ -219,11 +127,12 @@ class TestCase(
 
         self._panther_dir = Path(os.path.dirname(__file__)).parent.parent.parent
 
-        self.state: Literal[
-            "PENDING", "RUNNING", "COLLECTING", "DONE", "ERROR"
-        ] = "PENDING"
+        self.state: Literal["PENDING", "RUNNING", "COLLECTING", "DONE", "ERROR"] = (
+            "PENDING"
+        )
 
     def __str__(self):
+        """Return string representation of the test case."""
         return (
             f"TestCase(name={self.test_config.name}, "
             f"description={self.test_config.description}, "
@@ -234,6 +143,7 @@ class TestCase(
         )
 
     def __repr__(self):
+        """Return detailed representation of the test case."""
         return (
             f"TestCase(name={self.test_config.name}, "
             f"description={self.test_config.description}, "
@@ -245,9 +155,11 @@ class TestCase(
 
     # Implement abstract methods by delegating to mixins
     def deploy_services(self):
-        """Deploy services through environment managers."""
-        # This method is provided by EnvironmentManagementMixin
-        # Call the mixin method directly instead of super() to avoid calling ITestCase's NotImplementedError
+        """Deploy services through environment managers.
+
+        This method is provided by EnvironmentManagementMixin
+        Call the mixin method directly instead of super() to avoid calling ITestCase's NotImplementedError
+        """
         from panther.core.test_cases.mixins.environment_management import (
             EnvironmentManagementMixin,
         )
@@ -255,156 +167,39 @@ class TestCase(
         return EnvironmentManagementMixin.deploy_services(self)
 
     def execute_steps(self):
-        """Execute the defined steps of a test case."""
-        # This method is provided by TestExecutionMixin
-        # Call the mixin method directly instead of super() to avoid calling ITestCase's NotImplementedError
+        """Execute the defined steps of a test case.
+
+        This method is provided by TestExecutionMixin
+        Call the mixin method directly instead of super() to avoid calling ITestCase's NotImplementedError
+        """
         from panther.core.test_cases.mixins.test_execution import TestExecutionMixin
 
         return TestExecutionMixin.execute_steps(self)
 
     def validate_assertions(self):
-        """Validate assertions defined in test configuration."""
-        # This method is provided by TestExecutionMixin
-        # Call the mixin method directly instead of super() to avoid calling ITestCase's NotImplementedError
+        """Validate assertions defined in test configuration.
+
+        This method is provided by TestExecutionMixin
+        Call the mixin method directly instead of super() to avoid calling ITestCase's NotImplementedError
+        """
         from panther.core.test_cases.mixins.test_execution import TestExecutionMixin
 
         return TestExecutionMixin.validate_assertions(self)
 
-    # def get_service_names_and_metadata(self):
-    #     """Get service names and metadata for deployment events."""
-    #     service_names = []
-    #     service_metadata = []
-
-    #     for s in self.service_managers:
-    #         # Get service name
-    #         service_name = (
-    #             s.service_name
-    #             if hasattr(s, "service_name")
-    #             else s.get_implementation_name()
-    #         )
-    #         service_names.append(service_name)
-
-    #         # Build metadata for each service
-    #         # Handle both enum and string types for implementation.type
-    #         service_type = "unknown"
-    #         if hasattr(s.service_config_to_test.implementation, "type"):
-    #             impl_type = s.service_config_to_test.implementation.type
-    #             if hasattr(impl_type, "value"):
-    #                 # Enum type (old system)
-    #                 service_type = impl_type.value
-    #             else:
-    #                 # String type (new system)
-    #                 service_type = str(impl_type).lower()
-
-    #         # Handle both enum and string types for protocol.role
-    #         protocol_role = "unknown"
-    #         if (hasattr(s.service_config_to_test, "protocol") and
-    #             hasattr(s.service_config_to_test.protocol, "role")):
-    #             role = s.service_config_to_test.protocol.role
-    #             if hasattr(role, "value"):
-    #                 # Enum type (old system)
-    #                 protocol_role = role.value
-    #             else:
-    #                 # String type (new system)
-    #                 protocol_role = str(role).lower()
-
-    #         metadata = {
-    #             "service_type": service_type,
-    #             "implementation": (
-    #                 s.get_implementation_name()
-    #                 if hasattr(s, "get_implementation_name")
-    #                 else s.service_config_to_test.implementation.name
-    #             ),
-    #             "config": {
-    #                 "test_case": self.test_name,
-    #                 "protocol": (
-    #                     s.service_config_to_test.protocol.name
-    #                     if hasattr(s.service_config_to_test, "protocol")
-    #                     else "unknown"
-    #                 ),
-    #                 "role": protocol_role,
-    #             },
-    #         }
-    #         service_metadata.append(metadata)
-
-    #     # Emit service setup started event
-    #     if hasattr(self, 'service_emitter') and self.service_emitter:
-    #         self.service_emitter.emit_service_setup_started(
-    #             test_case=self.test_name,
-    #             service_count=len(self.service_managers),
-    #             service_names=service_names,
-    #             service_metadata=service_metadata,
-    #         )
-
-    #     return service_names
-
     def run(self):
-        """Execute comprehensive test case lifecycle with sophisticated error handling and observability.
+        """Execute the full test lifecycle with error handling and cleanup.
 
-        Orchestrates the complete test execution workflow including service orchestration,
-        environment management, test execution, analysis, and cleanup. Implements robust
-        error handling with comprehensive event emission and metrics collection.
-
-        **Execution Flow**:
-        1. **State Initialization**: Transition to RUNNING state with event emission
-        2. **Observer Setup**: Configure event observers for comprehensive lifecycle tracking
-        3. **Service Orchestration**: Setup and preparation of Docker-based services
-        4. **Environment Deployment**: Network environment configuration and service deployment
-        5. **Test Execution**: Command execution with progress tracking and timeout management
-        6. **Analysis & Validation**: Result collection, assertion validation, tester analysis
-        7. **Resource Cleanup**: Exception-safe teardown of all managed resources
-
-        **Error Handling Strategy**:
-        - **Exception Safety**: Guaranteed resource cleanup even on failure
-        - **Event Emission**: All errors emit structured events for analysis
-        - **State Tracking**: Explicit state transitions with error context preservation
-        - **Metrics Collection**: Error categorization and performance timing
-        - **Fast-Fail Support**: Early termination on critical infrastructure failures
-
-        **Event Emission Timeline**:
-        ```
-        Test Lifecycle Events:
-        ├── test.execution.started (with step metadata)
-        ├── service.* events (setup, build, deployment)
-        ├── environment.* events (creation, configuration)
-        ├── step.* events (execution progress, results)
-        ├── assertion.* events (validation results)
-        └── test.completed/failed (with comprehensive summary)
-        ```
-
-        **Timing & Metrics**:
-        - **Phase Timing**: Each major phase timed with sub-millisecond precision
-        - **Resource Metrics**: Memory, Docker images, log sizes tracked
-        - **Error Metrics**: Exception types, frequencies, and context recorded
-        - **Performance Baselines**: Duration comparisons for regression detection
-
-        **Resource Management**:
-        - **Docker Services**: Multi-container orchestration with health monitoring
-        - **Network Environment**: Dynamic network topology management
-        - **File System**: Structured output directory organization
-        - **Observer Cleanup**: Automatic observer deregistration on completion
-
-        **State Transitions**:
-        - **PENDING** → **RUNNING**: Test execution begins
-        - **RUNNING** → **COLLECTING**: Analysis phase begins
-        - **COLLECTING** → **DONE**: Successful completion
-        - **Any State** → **ERROR**: Exception or failure occurred
+        Runs: observer setup -> service orchestration -> environment deployment ->
+        test execution -> analysis & validation -> resource cleanup.
+        All phases emit events for observability. Cleanup runs even on failure.
 
         Returns:
-            bool: True if test completed successfully, False on tester analysis failure
+            True if test completed successfully, False on tester analysis failure.
 
         Raises:
-            TestExecutionError: If test execution steps fail
-            EnvironmentSetupError: If environment deployment fails
-            ServiceSetupError: If service preparation fails
-            AssertionError: If assertion validation fails
-            Exception: Any other unexpected errors during execution
-
-        **Performance Characteristics**:
-        - **Typical Duration**: 30s-5min depending on service complexity and test scope
-        - **Memory Usage**: Peak memory correlates with service count and log volume
-        - **Event Overhead**: <1% performance impact from comprehensive event emission
-        - **Cleanup Time**: <200ms for complete resource teardown
+            TestExecutionError: If test execution steps fail.
+            EnvironmentSetupError: If environment deployment fails.
+            ServiceSetupError: If service preparation fails.
         """
         try:
             self.state = "RUNNING"
@@ -581,8 +376,7 @@ class TestCase(
             self.teardown_observers()
 
     def _perform_teardown(self):
-        """
-        Perform environment teardown with proper timing and state management.
+        """Perform environment teardown with proper timing and state management.
 
         This method is called after tester analysis to ensure environments
         are available for output collection before being torn down.
@@ -609,8 +403,7 @@ class TestCase(
             self.logger.debug("Empty directory cleanup skipped: %s", e)
 
     def perform_dry_run(self) -> bool:
-        """
-        Performs a dry-run analysis of the test case configuration without executing commands.
+        """Performs a dry-run analysis of the test case configuration without executing commands.
 
         This method analyzes what would be executed during a normal run without actually:
         - Building Docker images
