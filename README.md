@@ -34,7 +34,7 @@ PANTHER is a **plugin‑based, research‑grade test harness** that lets you des
 ---
 
 > [!WARNING]
-> CLI and core being refactored, some deadcode and legacy or unimplemented code remains.
+> CLI and core being refactored, some deadcode and legacy or unimplemented code remains. Also lit of shit I need to removed due to bad decision in the past. OMW.
 
 > [!WARNING]
 > ARM still need some works, Z3 generate maths errors and docker modules is being refactored in consequences (thus introducing potencial bugs)

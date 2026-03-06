@@ -776,20 +776,16 @@ class BuildManager:
 
             print("Building documentation...")
 
-            # Phase 1 Automated Documentation Discovery (replaces 85+ manual mappings)
-            print("🔍 Generating automated build_dict...")
-            try:
-                from panther.tools.docs_gen.generate_build_mapping import (
-                    get_automated_build_dict,
-                )
-
-                build_dict = get_automated_build_dict()
-                print(
-                    f"📚 Generated {len(build_dict)} documentation mappings automatically"
-                )
-            except Exception as e:
-                print(f"⚠️  Automated discovery failed: {e}")
-                raise e
+            # Static build_dict — maps root-level markdown to docs/ locations
+            build_dict = {
+                "INSTALL.md": "docs/INSTALL.md",
+                "QUICK_START.md": "docs/QUICK_START.md",
+                "workflow.md": "docs/workflow.md",
+                "panther/plugins/plugins_inventory.md": "docs/plugins_inventory.md",
+                "CONTRIBUTING.md": "docs/contributing.md",
+                "CHANGELOG.md": "docs/changelog.md",
+                "LICENSE.md": "docs/license.md",
+            }
 
             # Clean only docs-related build artifacts (not wheel/dist)
             print("Cleaning documentation build artifacts...")
@@ -799,13 +795,22 @@ class BuildManager:
                     print(f"Removing {dir_path}")
                     shutil.rmtree(dir_path, onerror=_rmtree_onerror)
 
-            # Install documentation dependencies
-            print("Installing documentation dependencies...")
-            result = self.run_command(
-                [sys.executable, "-m", "pip", "install", "-e", ".[doc]"]
+            # Install documentation dependencies (skip if editable install detected)
+            _is_editable = (
+                (self.project_root / "panther_net.egg-info").exists()
+                or any(
+                    Path(sys.prefix, "lib").rglob("__editable__.panther?net*")
+                )
             )
-            if result != 0:
-                print("Warning: Could not install documentation dependencies")
+            if _is_editable:
+                print("Editable install detected, skipping pip install .[doc,tests,web]")
+            else:
+                print("Installing documentation dependencies...")
+                result = self.run_command(
+                    [sys.executable, "-m", "pip", "install", ".[doc,tests,web]"]
+                )
+                if result != 0:
+                    print("Warning: Could not install documentation dependencies")
 
             # Ensure docs directory exists and is empty
             docs_dir = self.project_root / "docs"
@@ -813,23 +818,6 @@ class BuildManager:
                 print(f"Clearing {docs_dir} directory...")
                 shutil.rmtree(docs_dir)
             docs_dir.mkdir(exist_ok=True)
-
-            # Run the MkDocs automation script
-            print("Running MkDocs automation script...")
-            mkdocs_script = (
-                self.project_root
-                / "panther"
-                / "tools"
-                / "docs_gen"
-                / "mkdocs"
-                / "automate_mkdocs.py"
-            )
-            if mkdocs_script.exists():
-                result = self.run_command([sys.executable, str(mkdocs_script)])
-                if result != 0:
-                    print("Warning: MkDocs automation script failed")
-            else:
-                print(f"Warning: MkDocs automation script not found at {mkdocs_script}")
 
             # Generate plugin inventory
             print("Generating plugin inventory...")
@@ -880,6 +868,18 @@ class BuildManager:
                     # with open(dest_path, "w") as f:
                     #     f.write(f"# {dest_path.stem.replace('_', ' ').title()}\n\n")
                     #     f.write("This documentation is under development.\n")
+
+            # Copy docs_src/ to docs/ (persistent manual content pages)
+            docs_src_dir = self.project_root / "docs_src"
+            if docs_src_dir.exists():
+                print("Copying docs_src/ to docs/...")
+                for src_file in docs_src_dir.rglob("*"):
+                    if src_file.is_file():
+                        rel = src_file.relative_to(docs_src_dir)
+                        dest = docs_dir / rel
+                        dest.parent.mkdir(parents=True, exist_ok=True)
+                        print(f"Copying docs_src/{rel} -> docs/{rel}")
+                        shutil.copy2(src_file, dest)
 
             # Copy all markdown files from panther to docs/panther (hierarchy)
             panther_docs_dir = self.project_root / "docs" / "panther"

@@ -98,6 +98,8 @@ panther/webapp/
         yaml_editor.py      # CodeMirror YAML editor component.
         log_viewer.py       # Scrolling log display.
         stat_cards.py       # Stat counter cards.
+    utils/                  # Utility modules.
+        form_models.py      # strip_omega_config() -- makes PANTHER models NiceCRUD-safe.
     services/               # Business logic. Thin wrappers around PANTHER core.
         experiment_service.py
         plugin_service.py
@@ -127,8 +129,8 @@ panther/webapp/GETTING_STARTED.md # First-day walkthrough
 ## Running Tests
 
 ```bash
-# Run webapp smoke tests (once written in Week 7)
-pytest tests/unit/test_webapp/ -v
+# Run webapp tests (40 tests covering services, form models, app factory)
+pytest tests/unit/test_webapp/ -v -o "addopts=-v --tb=short"
 
 # Run all project unit tests
 pytest tests/ -n auto -m unit
@@ -165,10 +167,14 @@ Normal during hot reload. Wait 2-3 seconds for reconnection.
 Make sure you activated the venv and installed with `pip install -e ".[web]"`.
 
 **NiceCRUD `id_field` error**
-NiceCRUD requires an `id_field` parameter because PANTHER models don't have an `id` field. Use a unique field from the model:
+NiceCRUD requires (1) stripping `omega_config` fields and (2) an `id_field` parameter:
 ```python
-NiceCRUD(LoggingConfig, id_field="level")
-NiceCRUD(DockerConfig, id_field="force_build")
+from panther.webapp.utils.form_models import strip_omega_config
+FormModel = strip_omega_config(LoggingConfig)
+NiceCRUD(FormModel, id_field="level")
+
+FormModel2 = strip_omega_config(DockerConfig)
+NiceCRUD(FormModel2, id_field="force_build_docker_image")
 ```
 
 **Plugin list is empty on /plugins**

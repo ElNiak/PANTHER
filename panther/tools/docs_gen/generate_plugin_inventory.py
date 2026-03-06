@@ -358,6 +358,11 @@ def main():
         help="Output format",
     )
     parser.add_argument("--output", help="Output file (default: stdout)")
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Exit non-zero if any registered plugin lacks documentation",
+    )
     args = parser.parse_args()
 
     original_stdout = sys.stdout
@@ -365,11 +370,18 @@ def main():
         sys.stdout = open(args.output, "w", encoding="utf-8")
 
     try:
-        generate_plugin_inventory(args.root, args.format)
+        _grouped, missing_docs = generate_plugin_inventory(args.root, args.format)
     finally:
         if args.output:
             sys.stdout.close()
             sys.stdout = original_stdout
+
+    if args.check and missing_docs:
+        print(
+            f"\nFAILED: {len(missing_docs)} plugins missing documentation",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
 
 if __name__ == "__main__":

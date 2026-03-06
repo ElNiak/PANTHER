@@ -21,7 +21,7 @@ NiceGUI satisfies all three constraints with minimal glue code:
 | Pure Python (no JS build step)     | No (Jinja+JS)  | Yes            | Yes            |
 | FastAPI underneath                 | No             | No             | Yes            |
 
-The legacy Flask webapp (`_legacy/web_app.py`) required Jinja templates, WTForms, custom JavaScript, and manual WebSocket plumbing. NiceGUI eliminates all of these.
+The legacy Flask webapp has been removed. NiceGUI eliminates the need for Jinja templates, WTForms, custom JavaScript, and manual WebSocket plumbing.
 
 ### NiceCRUD for Config Forms
 
@@ -31,18 +31,36 @@ NiceCRUD takes a Pydantic model class and produces a complete CRUD interface (fo
 
 ```python
 from niceguicrud import NiceCRUD
+from panther.webapp.utils.form_models import strip_omega_config
 from panther.config.core.models.global_config import LoggingConfig
 
+# PANTHER models carry omega_config: Optional[DictConfig] which breaks JSON Schema.
+# strip_omega_config() removes it recursively, producing a NiceCRUD-safe model.
+FormModel = strip_omega_config(LoggingConfig)
+
 # id_field tells NiceCRUD which field is the unique key
-crud = NiceCRUD(LoggingConfig, id_field="level")
+crud = NiceCRUD(FormModel, id_field="level")
 ```
 
 **Tested behavior with NiceCRUD 0.1.6 + Pydantic v2:**
-- Flat models (LoggingConfig, PathsConfig): work correctly.
+- Flat models (LoggingConfig, PathsConfig): work after stripping `omega_config`.
 - Nested models (DockerConfig with sub-models): work -- NiceCRUD renders nested fields.
 - Enum fields: rendered as dropdowns automatically.
 - Optional fields: handled correctly.
 - Default values: pre-populated in forms.
+
+**Important: `omega_config` stripping is required.** All PANTHER config models inherit an `omega_config: Optional[DictConfig]` field from `BaseUnifiedModel`. OmegaConf's `DictConfig` cannot produce JSON Schema, which NiceCRUD requires internally. The utility `panther.webapp.utils.form_models.strip_omega_config()` handles this recursively.
+
+**Correct `id_field` values per model:**
+
+| Model | `id_field` |
+|-------|-----------|
+| LoggingConfig | `"level"` |
+| PathsConfig | `"output_dir"` |
+| DockerConfig | `"force_build_docker_image"` |
+| TestConfig | `"name"` |
+| GlobalConfig | `"version"` |
+| ServiceConfig | `"implementation"` |
 
 For deeply nested config trees (TestConfig -> ServiceConfig -> ProtocolConfig), compose multiple NiceCRUD instances inside `ui.expansion` accordion panels.
 
@@ -244,8 +262,8 @@ For pages that need data, create a service in `services/` that wraps core PANTHE
 ## Future Evolution
 
 After the thesis, potential improvements:
-- **FastUI migration**: Pydantic's own `pydantic.dev/fastui` for richer form generation
-- **Plugin UI extension**: Plugins contribute their own dashboard widgets via a registration API
+- **FastUI migration**: Pydantic's own `pydantic.dev/fastui` generates richer form UIs directly from models. This would replace NiceCRUD and eliminate the `strip_omega_config` workaround since FastUI handles Pydantic v2 natively. Evaluate once the core webapp is stable.
+- **Plugin UI extension**: Plugins contribute their own dashboard widgets via a registration API (e.g., `@register_plugin_widget()` decorator). Each plugin could provide a `webapp/` subdirectory with custom page components.
 - **WebSocket-based live topology**: Real-time Docker container status visualization
 
 ## Key Files Reference
