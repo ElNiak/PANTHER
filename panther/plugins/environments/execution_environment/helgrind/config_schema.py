@@ -1,11 +1,13 @@
+"""Helgrind thread error detector configuration schema."""
+
 from typing import List, Optional
 
 from pydantic import Field, validator
 
-from panther.config.core.models.plugin import ExecutionEnvironmentPluginConfig
+from panther.config.core.models.environment import ExecutionEnvironmentConfig
 
 
-class HelgrindConfig(ExecutionEnvironmentPluginConfig):
+class HelgrindConfig(ExecutionEnvironmentConfig):
     """Valgrind Helgrind configuration for thread error detection.
 
     Helgrind detects synchronization errors in multithreaded C/C++ programs:
@@ -195,39 +197,13 @@ class HelgrindConfig(ExecutionEnvironmentPluginConfig):
 
     type: str = Field(default="helgrind", description="Execution environment type")
 
-    # -- Background monitoring configuration (from EnvironmentConfig) --
+    # -- Override: helgrind uses a higher failure threshold than the base default --
 
-    enable_background_monitoring: bool = Field(
-        default=True,
-        description=(
-            "Enable background monitoring for non-blocking service "
-            "health checks. Default: True."
-        ),
-    )
-    monitoring_interval_seconds: int = Field(
-        default=5,
-        description="Health-check polling interval in seconds. Default: 5.",
-    )
     failure_threshold_count: int = Field(
         default=3,
         description=(
             "Number of consecutive health-check failures before the "
-            "service is marked unhealthy. Default: 3."
-        ),
-    )
-    allow_partial_deployment: bool = Field(
-        default=False,
-        description=(
-            "Allow experiment deployment to proceed even if some "
-            "non-critical services fail to start. Default: False."
-        ),
-    )
-    critical_services: List[str] = Field(
-        default_factory=list,
-        description=(
-            "List of service names that must be running for the "
-            "deployment to be considered successful. "
-            "Default: [] (empty)."
+            "service is marked unhealthy. Default: 3 (overrides base default of 1)."
         ),
     )
 

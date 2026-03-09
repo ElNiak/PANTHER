@@ -1,12 +1,14 @@
+"""Iterations execution environment configuration schema."""
+
 from typing import List
 
 from pydantic import Field, validator
 
 from panther.config.core.components.universal_validators import validate_integer_field
-from panther.config.core.models.plugin import ExecutionEnvironmentPluginConfig
+from panther.config.core.models.environment import ExecutionEnvironmentConfig
 
 
-class IterationsConfig(ExecutionEnvironmentPluginConfig):
+class IterationsConfig(ExecutionEnvironmentConfig):
     """Iteration runner configuration for repeated test execution.
 
     Runs a test scenario multiple times to collect statistical data, detect

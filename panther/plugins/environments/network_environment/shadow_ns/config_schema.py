@@ -1,8 +1,10 @@
+"""Shadow NS network simulator configuration schema."""
+
 from typing import List, Optional, Union
 
 from pydantic import BaseModel, Field, validator
 
-from panther.config.core.models.plugin import NetworkEnvironmentPluginConfig
+from panther.config.core.models.environment import NetworkEnvironmentConfig
 from panther.config.core.validators import shadow_time_validator
 
 
@@ -102,7 +104,7 @@ class HostsConfig(BaseModel):
     )
 
 
-class ShadowNSConfig(NetworkEnvironmentPluginConfig):
+class ShadowNSConfig(NetworkEnvironmentConfig):
     """Shadow Network Simulator environment configuration.
 
     Discrete-event network simulation using Shadow NS for reproducible

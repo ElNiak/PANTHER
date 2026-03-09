@@ -1,11 +1,13 @@
+"""Google Performance Tools CPU profiler configuration schema."""
+
 from typing import List, Optional
 
 from pydantic import Field
 
-from panther.config.core.models.plugin import ExecutionEnvironmentPluginConfig
+from panther.config.core.models.environment import ExecutionEnvironmentConfig
 
 
-class GperfCpuConfig(ExecutionEnvironmentPluginConfig):
+class GperfCpuConfig(ExecutionEnvironmentConfig):
     """Google Performance Tools (gperftools) CPU profiling configuration.
 
     Uses ``libprofiler.so`` from gperftools to perform statistical CPU profiling

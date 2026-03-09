@@ -1,12 +1,14 @@
+"""Memcheck memory error detector configuration schema."""
+
 from typing import List, Optional
 
 from pydantic import Field, validator
 
 from panther.config.core.components.universal_validators import validate_integer_field
-from panther.config.core.models.plugin import ExecutionEnvironmentPluginConfig
+from panther.config.core.models.environment import ExecutionEnvironmentConfig
 
 
-class MemcheckConfig(ExecutionEnvironmentPluginConfig):
+class MemcheckConfig(ExecutionEnvironmentConfig):
     """Valgrind Memcheck configuration for memory error detection.
 
     Memcheck detects memory management errors in C/C++ programs: uninitialized

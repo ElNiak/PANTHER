@@ -1,12 +1,14 @@
+"""Google Performance Tools heap profiler configuration schema."""
+
 from typing import List, Optional
 
 from pydantic import Field, validator
 
 from panther.config.core.components.universal_validators import validate_integer_field
-from panther.config.core.models.plugin import ExecutionEnvironmentPluginConfig
+from panther.config.core.models.environment import ExecutionEnvironmentConfig
 
 
-class GperfHeapConfig(ExecutionEnvironmentPluginConfig):
+class GperfHeapConfig(ExecutionEnvironmentConfig):
     """Google Performance Tools (gperftools) heap profiling configuration.
 
     Uses ``libtcmalloc.so`` from gperftools to profile heap memory allocation
