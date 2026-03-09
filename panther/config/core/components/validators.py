@@ -521,7 +521,10 @@ class CompatibilityValidator(BaseValidator):
     """Validator for checking legacy format compatibility."""
 
     def validate(self, config: Any) -> ValidationResult:
-        """Check for legacy format issues.
+        """Validate configuration compatibility.
+
+        All legacy format checks have been removed. This validator is retained
+        as an extension point for future compatibility checks.
 
         Args:
             config: Configuration to validate
@@ -529,29 +532,4 @@ class CompatibilityValidator(BaseValidator):
         Returns:
             Validation result
         """
-        result = ValidationResult()
-
-        # Check for deprecated fields
-        deprecated_fields = {
-            "use_docker": "docker.enabled",
-            "log_level": "logging.level",
-            "output_directory": "paths.output_dir",
-        }
-
-        config_dict = config if isinstance(config, dict) else config.to_dict()
-
-        for old_field, new_field in deprecated_fields.items():
-            if old_field in config_dict:
-                result.add_warning(
-                    old_field,
-                    f"Deprecated field '{old_field}', use '{new_field}' instead",
-                )
-
-        # Check for legacy structure
-        if "config" in config_dict and isinstance(config_dict["config"], dict):
-            result.add_warning(
-                "config",
-                "Legacy nested 'config' structure detected, consider flattening",
-            )
-
-        return result
+        return ValidationResult()
