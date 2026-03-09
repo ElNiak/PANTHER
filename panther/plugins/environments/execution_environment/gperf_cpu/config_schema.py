@@ -28,7 +28,7 @@ class GperfCpuConfig(ExecutionEnvironmentConfig):
         - Memcheck: Memory error detection (Valgrind, much slower).
         - Strace: Syscall-level tracing for I/O bottleneck analysis.
 
-    Inherited fields from ``ExecutionEnvironmentPluginConfig``:
+    Inherited fields from ``ExecutionEnvironmentConfig``:
         - ``enabled``: Whether the plugin is enabled (default: True).
         - ``collect_metrics``: Whether to collect metrics (default: True).
 

@@ -107,9 +107,11 @@ def _discover_sibling_config_model(cls: type) -> Optional[type]:
     # Import here to build the identity set; missing imports are tolerated.
     _base_classes = {BasePluginConfig}
     try:
+        from panther.config.core.models.environment import (
+            ExecutionEnvironmentConfig,
+            NetworkEnvironmentConfig,
+        )
         from panther.config.core.models.plugin import (
-            ExecutionEnvironmentPluginConfig,
-            NetworkEnvironmentPluginConfig,
             ProtocolPluginConfig,
             ServicePluginConfig,
         )
@@ -117,8 +119,8 @@ def _discover_sibling_config_model(cls: type) -> Optional[type]:
         _base_classes.update(
             {
                 ServicePluginConfig,
-                ExecutionEnvironmentPluginConfig,
-                NetworkEnvironmentPluginConfig,
+                ExecutionEnvironmentConfig,
+                NetworkEnvironmentConfig,
                 ProtocolPluginConfig,
             }
         )

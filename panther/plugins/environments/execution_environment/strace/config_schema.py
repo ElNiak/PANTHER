@@ -26,7 +26,7 @@ class StraceConfig(ExecutionEnvironmentConfig):
         - GPerf CPU: Statistical CPU profiling (higher level than strace).
         - Memcheck: Memory error detection (application level, not syscall).
 
-    Inherited fields from ``ExecutionEnvironmentPluginConfig``:
+    Inherited fields from ``ExecutionEnvironmentConfig``:
         - ``enabled``: Whether the plugin is enabled (default: True).
         - ``collect_metrics``: Whether to collect metrics (default: True).
 

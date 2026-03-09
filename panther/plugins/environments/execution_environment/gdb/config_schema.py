@@ -27,7 +27,7 @@ class GdbConfig(ExecutionEnvironmentConfig):
         - Strace: Syscall-level tracing (no debugging symbols needed).
         - GPerf CPU: CPU profiling (performance, not correctness).
 
-    Inherited fields from ``ExecutionEnvironmentPluginConfig``:
+    Inherited fields from ``ExecutionEnvironmentConfig``:
         - ``enabled``: Whether the plugin is enabled (default: True).
         - ``collect_metrics``: Whether to collect metrics (default: True).
 

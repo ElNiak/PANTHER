@@ -74,51 +74,6 @@ class BasePluginConfig(BaseConfig):
         return data
 
 
-class ExecutionEnvironmentPluginConfig(BasePluginConfig):
-    """Base configuration for execution environment plugins."""
-
-    # Common fields for execution environments
-    output_format: str = Field("json", description="Output format for results")
-    collect_metrics: bool = Field(True, description="Whether to collect metrics")
-
-    def get_plugin_type(self) -> str:
-        """Return execution environment plugin type."""
-        return "execution_environment"
-
-    def get_plugin_config(self, config_class: Type[T], validate: bool = True) -> T:
-        """Get typed plugin configuration with defaults.
-
-        For plugin configs, this method provides compatibility with environment configs
-        by returning self if the config_class matches exactly, or a new instance with defaults.
-
-        Args:
-            config_class: The plugin configuration class
-            validate: Whether to validate (currently ignored for plugin configs)
-
-        Returns:
-            Typed plugin configuration instance
-        """
-        # If the requested config class matches our exact type, return self
-        if self.__class__ == config_class:
-            return self
-
-        # Otherwise, create a new instance with defaults
-        return config_class()
-
-
-class NetworkEnvironmentPluginConfig(BasePluginConfig):
-    """Base configuration for network environment plugins."""
-
-    # Common fields for network environments
-    network_name: str = Field("panther_network", description="Network name")
-    subnet: Optional[str] = Field(None, description="Network subnet")
-    enable_ipv6: bool = Field(False, description="Enable IPv6 support")
-
-    def get_plugin_type(self) -> str:
-        """Return network environment plugin type."""
-        return "network_environment"
-
-
 class ServicePluginConfig(BasePluginConfig):
     """Base configuration for service plugins (IUT and testers)."""
 

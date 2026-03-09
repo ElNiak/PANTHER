@@ -17,11 +17,7 @@ from panther.config.core.models.environment import (
     ExecutionEnvironmentConfig,
     NetworkEnvironmentConfig,
 )
-from panther.config.core.models.plugin import (
-    ExecutionEnvironmentPluginConfig,
-    NetworkEnvironmentPluginConfig,
-    ServicePluginConfig,
-)
+from panther.config.core.models.plugin import ServicePluginConfig
 
 logger = logging.getLogger(__name__)
 
@@ -109,10 +105,10 @@ class PluginConfigResolver:
 
         # Determine base class based on category
         if env_category == "network_environment":
-            plugin_base_class = NetworkEnvironmentPluginConfig
+            plugin_base_class = NetworkEnvironmentConfig
             runtime_base_class = NetworkEnvironmentConfig
         elif env_category == "execution_environment":
-            plugin_base_class = ExecutionEnvironmentPluginConfig
+            plugin_base_class = ExecutionEnvironmentConfig
             runtime_base_class = ExecutionEnvironmentConfig
         else:
             logger.warning(f"Unknown environment category: {env_category}")

@@ -31,7 +31,7 @@ class IterationsConfig(ExecutionEnvironmentConfig):
         - Statistical profiling: collect enough data points for meaningful
           performance metrics.
 
-    Inherited fields from ``ExecutionEnvironmentPluginConfig``:
+    Inherited fields from ``ExecutionEnvironmentConfig``:
         - ``enabled``: Whether the plugin is enabled (default: True).
         - ``collect_metrics``: Whether to collect metrics (default: True).
 

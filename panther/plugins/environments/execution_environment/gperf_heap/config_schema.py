@@ -30,7 +30,7 @@ class GperfHeapConfig(ExecutionEnvironmentConfig):
         - Memcheck: Memory error detection (Valgrind, slower but finds bugs).
         - GDB: Crash debugging with AddressSanitizer integration.
 
-    Inherited fields from ``ExecutionEnvironmentPluginConfig``:
+    Inherited fields from ``ExecutionEnvironmentConfig``:
         - ``enabled``: Whether the plugin is enabled (default: True).
         - ``collect_metrics``: Whether to collect metrics (default: True).
 

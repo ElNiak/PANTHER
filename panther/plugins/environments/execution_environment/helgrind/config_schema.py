@@ -26,7 +26,7 @@ class HelgrindConfig(ExecutionEnvironmentConfig):
         - GDB: Crash debugging with stack traces (complementary).
         - Strace: Syscall tracing for I/O and synchronization analysis.
 
-    Inherited fields from ``ExecutionEnvironmentPluginConfig``:
+    Inherited fields from ``ExecutionEnvironmentConfig``:
         - ``enabled``: Whether the plugin is enabled (default: True).
         - ``collect_metrics``: Whether to collect metrics (default: True).
 
