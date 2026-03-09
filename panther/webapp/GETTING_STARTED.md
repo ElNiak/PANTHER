@@ -159,7 +159,7 @@ pytest tests/unit/test_webapp/ -v -o "addopts=-v --tb=short"
 - Charts: `ui.echart({'xAxis': ..., 'series': ...})`
 
 ### Pydantic in PANTHER
-- All config models inherit from `BaseUnifiedModel` (extends `BaseModel`)
+- All config models inherit from `BaseConfig` (extends Pydantic `BaseModel`)
 - `model.model_dump()` -> dict, `ModelClass(**data)` -> validated instance
 - Validation errors are `pydantic.ValidationError` with per-field messages
 

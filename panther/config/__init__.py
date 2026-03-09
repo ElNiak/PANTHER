@@ -1,11 +1,11 @@
 """PANTHER Configuration System.
 
-Hierarchical, plugin-based configuration management with OmegaConf validation
+Hierarchical, plugin-based configuration management with Pydantic v2 validation
 and Pydantic type safety.
 
 Key Principles:
     - Plugin-based schemas: each plugin contributes config via ``config_schema.py``
-    - Dynamic validation: schemas merged at runtime and validated with OmegaConf
+    - Dynamic validation: schemas merged at runtime and validated with Pydantic
     - Type safety: strong typing with Pydantic-based configuration models
     - Extensibility: new plugins automatically extend the configuration space
 
@@ -14,7 +14,7 @@ Architecture::
     YAML Input
         |
         v
-    ConfigLoadingMixin --> UnifiedYAMLLoader
+    ConfigLoadingMixin --> YAMLLoader
         |
         v
     Environment Variable Resolution
@@ -37,8 +37,7 @@ Core Components:
         StateManagementMixin, LoggingFeaturesMixin.
 
     BaseConfig (``core/base.py``)
-        Pydantic + OmegaConf hybrid providing type-safe validation,
-        variable interpolation (``${var}`` syntax), and serialization.
+        Pure Pydantic v2 base providing type-safe validation and serialization.
 
     Type-Safe Models (``core/models/``)
         ExperimentConfig, ServiceConfig, GlobalConfig,

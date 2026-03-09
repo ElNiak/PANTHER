@@ -21,7 +21,7 @@ NiceGUI satisfies all three constraints with minimal glue code:
 | Pure Python (no JS build step)     | No (Jinja+JS)  | Yes            | Yes            |
 | FastAPI underneath                 | No             | No             | Yes            |
 
-The legacy Flask webapp has been removed. NiceGUI eliminates the need for Jinja templates, WTForms, custom JavaScript, and manual WebSocket plumbing.
+NiceGUI eliminates the need for Jinja templates, WTForms, custom JavaScript, and manual WebSocket plumbing.
 
 ### NiceCRUD for Config Forms
 
@@ -49,7 +49,7 @@ crud = NiceCRUD(FormModel, id_field="level")
 - Optional fields: handled correctly.
 - Default values: pre-populated in forms.
 
-**Important: `omega_config` stripping is required.** All PANTHER config models inherit an `omega_config: Optional[DictConfig]` field from `BaseUnifiedModel`. OmegaConf's `DictConfig` cannot produce JSON Schema, which NiceCRUD requires internally. The utility `panther.webapp.utils.form_models.strip_omega_config()` handles this recursively.
+**Note:** All PANTHER config models inherit from `BaseConfig` (Pydantic v2). NiceCRUD works directly with Pydantic models — `build_form_model()` handles any necessary schema adaptation.
 
 **Correct `id_field` values per model:**
 

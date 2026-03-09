@@ -13,13 +13,38 @@ T = TypeVar("T", bound="BaseConfig")
 
 
 class BaseConfig(BaseModel):
-    """Base configuration class using pure Pydantic v2.
+    """Base for all PANTHER configuration models (pure Pydantic v2).
 
-    Provides:
-    - Pydantic validation and type checking
-    - YAML/JSON serialization
-    - Deep merging via pure dict operations
-    - Dot-notation field access
+    Hierarchy::
+
+        BaseConfig
+        ├── GlobalConfig, LoggingConfig, PathsConfig, DockerConfig, ...
+        ├── ExperimentConfig, TestConfig, StepsConfig, ExperimentMetadata
+        ├── ServiceConfig, ProtocolConfig, NetworkConfig, ImplementationConfig
+        ├── EnvironmentConfig
+        │   ├── NetworkEnvironmentConfig
+        │   └── ExecutionEnvironmentConfig
+        ├── ObserversConfig, BaseObserverConfig, ...
+        ├── BasePluginConfig
+        │   ├── ServicePluginConfig   (IUT/tester plugins)
+        │   ├── NetworkEnvironmentPluginConfig
+        │   ├── ExecutionEnvironmentPluginConfig
+        │   └── ProtocolPluginConfig
+        └── BaseProtocolConfig (ABC)
+            ├── ClientServerProtocolConfig
+            └── PeerToPeerProtocolConfig
+
+    model_config settings:
+        - ``extra="allow"`` — plugins add custom fields without schema changes
+        - ``validate_assignment=True`` — mutations are validated
+        - ``use_enum_values=True`` — enums serialize as values
+        - ``arbitrary_types_allowed=True`` — accepts non-standard types
+
+    Methods:
+        Serialization: to_dict, to_yaml, to_json, save, load
+        Merging: merge, update_from_dict
+        Field access: get_field, update_field, has_field
+        Introspection: get_schema, validate_config, check_extra_fields, clone
     """
 
     model_config = ConfigDict(

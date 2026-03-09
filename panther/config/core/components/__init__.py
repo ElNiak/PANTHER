@@ -1,4 +1,30 @@
-"""Configuration system components."""
+"""Configuration system components — loaders, validators, builders, merger.
+
+Components are lazy-imported to avoid circular dependencies.
+
+Loaders (YAML → dict pipeline):
+    ``YAMLLoader``        — YAML file loading with OmegaConf interpolation
+    ``VersionLoader``     — version-specific config loading
+    ``CompositeLoader``   — chains loaders with fallback
+    ``PluginConfigLoader``— plugin directory config discovery
+
+Validators:
+    ``ConfigValidator``        — orchestrates Pydantic + business rules + compatibility
+    ``SchemaValidator``        — JSON Schema validation
+    ``BusinessRulesValidator`` — domain-specific rules
+    ``CompatibilityValidator`` — cross-field compatibility
+
+Builders (dict → model):
+    ``ExperimentBuilder``  — builds ExperimentConfig from raw dict
+    ``ServiceBuilder``     — builds ServiceConfig with plugin resolution
+    ``GlobalConfigBuilder``— builds GlobalConfig with defaults
+
+Merger:
+    ``ConfigMerger``       — merges N dicts with MergeStrategy + ConflictResolution
+    ``MergeContext``       — audit trail for merge operations
+    ``MergeStrategy``      — DEEP_MERGE, SHALLOW_MERGE, REPLACE, APPEND_LISTS, UNION_LISTS
+    ``ConflictResolver``   — USE_FIRST, USE_SECOND, ERROR, COMBINE
+"""
 
 # pylint: disable-next=undefined-variable  # Variables defined dynamically via __getattr__
 __all__ = [
