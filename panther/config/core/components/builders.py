@@ -1,19 +1,11 @@
 """Configuration builders for the unified system."""
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
-
-from omegaconf import DictConfig, OmegaConf
+from typing import Any, Dict, List, Optional, Tuple
 
 from panther.core.utils.logging_mixin import LoggerMixin
 
-from ..models import (
-    ExperimentConfig,
-    GlobalConfig,
-    NetworkEnvironmentConfig,
-    ServiceConfig,
-    TestConfig,
-)
+from ..models import ExperimentConfig, GlobalConfig, ServiceConfig, TestConfig
 
 
 class BuilderContext:
@@ -728,20 +720,18 @@ class GlobalConfigBuilder(BaseBuilder):
             "PANTHER_FAST_FAIL": "fast_fail.enabled",
         }
 
-        # Create OmegaConf for easier manipulation
-        omega_config = OmegaConf.create(config_dict)
+        from ..utils.merge import dot_notation_update
 
-        # Apply environment variables
         for env_var, config_path in env_mappings.items():
             env_value = os.environ.get(env_var)
             if env_value is not None:
                 try:
-                    OmegaConf.update(omega_config, config_path, env_value, merge=False)
+                    dot_notation_update(config_dict, config_path, env_value)
                     self.context.add_fix(f"Applied {env_var} to {config_path}")
                 except Exception as e:
                     self.context.add_warning(f"Failed to apply {env_var}: {e}")
 
-        return OmegaConf.to_container(omega_config, resolve=True)
+        return config_dict
 
     def _apply_defaults(self, config_dict: Dict[str, Any]) -> Dict[str, Any]:
         """Apply default values to global config using Pydantic model defaults.
@@ -763,8 +753,6 @@ class GlobalConfigBuilder(BaseBuilder):
         # Note: Applied Pydantic model defaults for GlobalConfig
 
         # Merge with defaults (user config takes precedence)
-        merged = OmegaConf.merge(
-            OmegaConf.create(defaults), OmegaConf.create(config_dict)
-        )
+        from ..utils.merge import deep_merge
 
-        return OmegaConf.to_container(merged, resolve=False)
+        return deep_merge(defaults, config_dict)

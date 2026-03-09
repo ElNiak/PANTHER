@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, Union
 
 import yaml
-from omegaconf import DictConfig, OmegaConf
 
 from panther.core.utils.logging_mixin import LoggerMixin
 
@@ -404,19 +403,15 @@ class ConfigLoadingMixin(LoggerMixin):
 
         # 3. Apply CLI overrides (dot-notation keys)
         if cli_overrides:
-            omega_global = OmegaConf.create(global_sections)
-            omega_experiment = OmegaConf.create(experiment_sections)
+            from ..utils.merge import dot_notation_update
 
             for dot_key, value in cli_overrides.items():
                 # Determine which section owns this key
                 top_key = dot_key.split(".")[0]
                 if top_key in global_field_names:
-                    OmegaConf.update(omega_global, dot_key, value, merge=False)
+                    dot_notation_update(global_sections, dot_key, value)
                 else:
-                    OmegaConf.update(omega_experiment, dot_key, value, merge=False)
-
-            global_sections = OmegaConf.to_container(omega_global, resolve=True)
-            experiment_sections = OmegaConf.to_container(omega_experiment, resolve=True)
+                    dot_notation_update(experiment_sections, dot_key, value)
 
         # 4. Build GlobalConfig
         global_builder = GlobalConfigBuilder()
