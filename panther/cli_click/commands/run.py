@@ -300,25 +300,9 @@ def run(
                 info_message("Loading configuration...")
 
                 # Build CLI overrides (CLI > YAML > Pydantic defaults)
-                cli_overrides = {}
-                if (
-                    ctx.get_parameter_source("force_build")
-                    == click.core.ParameterSource.COMMANDLINE
-                ):
-                    cli_overrides["docker.force_build_docker_image"] = force_build
-                if no_docker_cache:
-                    cli_overrides["docker.no_docker_cache"] = True
-                    cli_overrides["docker.force_build_docker_image"] = True
-                if (
-                    ctx.get_parameter_source("enable_metrics")
-                    == click.core.ParameterSource.COMMANDLINE
-                ):
-                    cli_overrides["observers.metrics.enabled"] = enable_metrics
-                if (
-                    ctx.get_parameter_source("output_dir")
-                    == click.core.ParameterSource.COMMANDLINE
-                ):
-                    cli_overrides["paths.output_dir"] = str(output_dir)
+                from panther.config.core.utils import extract_cli_overrides
+
+                cli_overrides = extract_cli_overrides(ctx)
 
                 manager = ConfigurationManager()
                 global_config, experiment_config = manager.load_full_config(

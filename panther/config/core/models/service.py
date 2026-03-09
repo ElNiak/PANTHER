@@ -153,19 +153,7 @@ class ImplementationConfig(BaseUnifiedModel):
         """Convert string to ImplementationType enum."""
         return implementation_type_validator(cls, v)
 
-    def __init__(self, **data):
-        """Initialize with support for extra fields."""
-        # Extract known fields
-        known_fields = {"name", "type", "version"}
-        base_data = {k: v for k, v in data.items() if k in known_fields}
-        extra_data = {k: v for k, v in data.items() if k not in known_fields}
-
-        # Initialize base model
-        super().__init__(**base_data)
-
-        # Add extra fields as attributes
-        for key, value in extra_data.items():
-            setattr(self, key, value)
+    # extra="allow" inherited from BaseUnifiedModel handles plugin-specific fields
 
 
 T = TypeVar("T", bound=BasePluginConfig)

@@ -574,34 +574,20 @@ class ServiceBuilder(BaseBuilder):
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """Build implementation configuration and extract plugin-specific fields.
 
+        Uses model_fields introspection instead of hardcoded known_fields.
+
         Args:
             impl_dict: Implementation dictionary from YAML
 
         Returns:
             Tuple of (implementation_dict, plugin_config_dict)
         """
-        # Known fields for ImplementationConfig
-        # TODO: make more dynamic
-        known_fields = {
-            "name",
-            "type",
-            "version",
-            "version_config",
-            "shadow_compatible",
-            "gperf_compatible",
-        }
+        from ..models.service import ImplementationConfig
+        from ..utils.field_partition import partition_fields
 
-        # Separate known fields from plugin-specific fields
-        implementation_data = {}
-        plugin_config_data = {}
-
-        for key, value in impl_dict.items():
-            if key in known_fields:
-                implementation_data[key] = value
-            else:
-                # This is a plugin-specific field
-                plugin_config_data[key] = value
-                self.logger.debug(f"Extracted plugin-specific field: {key}")
+        implementation_data, plugin_config_data = partition_fields(
+            impl_dict, ImplementationConfig
+        )
 
         # Ensure required fields
         if "name" not in implementation_data:
