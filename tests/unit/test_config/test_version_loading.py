@@ -1,12 +1,11 @@
-"""Tests for VERSION_CLASS pattern and ServicePluginConfig.load_version()."""
+"""Tests for VERSION_CLASS pattern and ServiceConfig.load_version()."""
 
 from typing import Dict, List
 
 import pytest
 import yaml
 
-from panther.config.core.models.plugin import ServicePluginConfig
-from panther.config.core.models.service import VersionBase
+from panther.config.core.models.service import ServiceConfig, VersionBase
 
 pytestmark = [pytest.mark.unit]
 
@@ -19,17 +18,16 @@ class DummyVersion(VersionBase):
     dependencies: List[Dict[str, str]] = []
 
 
-class DummyPluginConfig(ServicePluginConfig):
+class DummyPluginConfig(ServiceConfig):
     """Plugin config with VERSION_CLASS set."""
 
     VERSION_CLASS = DummyVersion
-    type: str = "iut"
 
 
-class NoVersionPluginConfig(ServicePluginConfig):
+class NoVersionPluginConfig(ServiceConfig):
     """Plugin config without VERSION_CLASS."""
 
-    type: str = "iut"
+    pass
 
 
 class TestLoadVersionWithoutVersionClass:

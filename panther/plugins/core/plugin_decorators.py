@@ -103,20 +103,32 @@ def _discover_sibling_config_model(cls: type) -> Optional[type]:
     except ImportError:
         return None
 
-    # Known base classes to skip — only return concrete subclasses.
+    # Known base/helper classes to skip — only return concrete subclasses.
     # Import here to build the identity set; missing imports are tolerated.
     _base_classes: set[type] = {BaseConfig}
     try:
         from panther.config.core.models.environment import (
+            EnvironmentConfig,
             ExecutionEnvironmentConfig,
             NetworkEnvironmentConfig,
         )
         from panther.config.core.models.plugin import ProtocolPluginConfig
-        from panther.config.core.models.service import ServiceConfig
+        from panther.config.core.models.service import (
+            ImplementationConfig,
+            NetworkConfig,
+            ProtocolConfig,
+            ServiceConfig,
+            VersionBase,
+        )
 
         _base_classes.update(
             {
                 ServiceConfig,
+                ImplementationConfig,
+                ProtocolConfig,
+                NetworkConfig,
+                VersionBase,
+                EnvironmentConfig,
                 ExecutionEnvironmentConfig,
                 NetworkEnvironmentConfig,
                 ProtocolPluginConfig,

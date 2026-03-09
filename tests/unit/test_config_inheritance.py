@@ -7,7 +7,7 @@ from panther.config.core.models.environment import (
     ExecutionEnvironmentConfig,
     NetworkEnvironmentConfig,
 )
-from panther.config.core.models.plugin import ServicePluginConfig
+from panther.config.core.models.service import ServiceConfig
 from panther.plugins.environments.execution_environment.strace.config_schema import (
     StraceConfig,
 )
@@ -32,7 +32,7 @@ class TestConfigInheritance:
         dc_config = DockerComposeConfig()
         assert isinstance(dc_config, NetworkEnvironmentConfig)
         assert dc_config.type == "docker_compose"
-        assert hasattr(dc_config, "enabled")  # From BasePluginConfig
+        assert hasattr(dc_config, "enabled")  # From base config
         assert hasattr(dc_config, "network_name")  # From NetworkEnvironmentConfig
 
         # Localhost Single Container (now fixed)
@@ -53,18 +53,17 @@ class TestConfigInheritance:
         """Test execution environment configs inherit from ExecutionEnvironmentConfig."""
         strace_config = StraceConfig()
         assert isinstance(strace_config, ExecutionEnvironmentConfig)
-        assert hasattr(strace_config, "enabled")  # From BasePluginConfig
+        assert hasattr(strace_config, "enabled")  # From base config
         assert hasattr(
             strace_config, "output_format"
         )  # From ExecutionEnvironmentConfig
         assert hasattr(strace_config, "collect_metrics")
 
     def test_service_configs_inherit_correctly(self):
-        """Test service configs inherit from ServicePluginConfig."""
+        """Test service configs inherit from ServiceConfig."""
         picoquic_config = PicoquicConfig()
-        assert isinstance(picoquic_config, ServicePluginConfig)
-        assert hasattr(picoquic_config, "enabled")  # From BasePluginConfig
-        assert hasattr(picoquic_config, "docker_image")  # From ServicePluginConfig
+        assert isinstance(picoquic_config, ServiceConfig)
+        assert hasattr(picoquic_config, "docker_image")  # From ServiceConfig
         assert hasattr(picoquic_config, "build_from_source")
 
     def test_config_fields_are_pydantic_validated(self):

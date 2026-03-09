@@ -4,7 +4,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from panther.config.core.models.plugin import BasePluginConfig, ServicePluginConfig
+from panther.config.core.base import BaseConfig
+from panther.config.core.models.service import ServiceConfig
 from panther.plugins.core.plugin_decorators import (
     _discover_sibling_config_model,
     clear_decorated_plugins,
@@ -26,7 +27,7 @@ class TestPluginManifestConfigModel:
         assert manifest.config_model is None
 
     def test_config_model_can_be_set(self):
-        class FakeConfig(BasePluginConfig):
+        class FakeConfig(BaseConfig):
             type: str = "iut"
 
         manifest = PluginManifest(name="test", version="1.0.0", type=PluginType.IUT)
@@ -77,11 +78,11 @@ class TestDiscoverSiblingConfigModel:
             pytest.skip("Picoquic plugin not available")
 
     def test_skips_base_plugin_config(self):
-        """Should not return BasePluginConfig itself."""
+        """Should not return BaseConfig itself."""
         import types
 
         fake_module = types.ModuleType("fake.config_schema")
-        fake_module.BasePluginConfig = BasePluginConfig
+        fake_module.BaseConfig = BaseConfig
 
         class FakeClass:
             __module__ = "fake.manager"
@@ -110,7 +111,7 @@ class TestRegistryLookupFunctions:
     def test_register_plugin_populates_config_model(self):
         """Verify @register_plugin populates manifest.config_model via auto-discovery."""
 
-        class FakeConfig(ServicePluginConfig):
+        class FakeConfig(ServiceConfig):
             type: str = "iut"
 
         with patch(
@@ -126,7 +127,7 @@ class TestRegistryLookupFunctions:
         assert result is FakeConfig
 
     def test_get_all_config_models_returns_populated_entries(self):
-        class FakeConfig(ServicePluginConfig):
+        class FakeConfig(ServiceConfig):
             type: str = "iut"
 
         with patch(
@@ -156,22 +157,22 @@ class TestDiscoverySiblingEdgeCases:
         assert result is None
 
     def test_skips_intermediate_base_classes(self):
-        """Should skip known base classes like ServicePluginConfig (I3).
+        """Should skip known base classes like ServiceConfig (I3).
 
-        Uses attribute name 'AAAServicePluginConfig' to ensure it sorts
+        Uses attribute name 'AAAServiceConfig' to ensure it sorts
         before the concrete class, exposing the bug if base filtering is missing.
         """
         import types
 
-        class MyConcreteConfig(ServicePluginConfig):
+        class MyConcreteConfig(ServiceConfig):
             """The real config class."""
 
             type: str = "iut"
 
         fake_module = types.ModuleType("fake.config_schema")
         # Name sorts before MyConcreteConfig — without base_names filter,
-        # ServicePluginConfig would be returned first
-        fake_module.AAAServicePluginConfig = ServicePluginConfig
+        # ServiceConfig would be returned first
+        fake_module.AAAServiceConfig = ServiceConfig
         fake_module.MyConcreteConfig = MyConcreteConfig
 
         class FakeClass:

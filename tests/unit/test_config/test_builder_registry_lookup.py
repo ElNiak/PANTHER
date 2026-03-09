@@ -54,11 +54,11 @@ class TestBuilderRegistryLookup:
 
     def test_resolver_also_tries_registry(self):
         """PluginConfigResolver.resolve_service_config_class checks registry first."""
-        from panther.config.core.models.plugin import ServicePluginConfig
+        from panther.config.core.models.service import ServiceConfig
         from panther.plugins.core.plugin_config_resolver import PluginConfigResolver
 
-        class FakeServiceConfig(ServicePluginConfig):
-            type: str = "iut"
+        class FakeServiceConfig(ServiceConfig):
+            pass
 
         resolver = PluginConfigResolver()
 
