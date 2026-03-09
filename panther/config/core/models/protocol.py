@@ -5,10 +5,10 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import Field
 
-from .base_model import BaseUnifiedModel
+from ..base import BaseConfig
 
 
-class BaseProtocolConfig(BaseUnifiedModel, ABC):
+class BaseProtocolConfig(BaseConfig, ABC):
     """Abstract base class for protocol configurations."""
 
     name: str = Field(..., description="Protocol name")

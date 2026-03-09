@@ -5,8 +5,8 @@ from typing import Any, Dict, List, Optional, Type, TypeVar
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from ..base import BaseConfig
 from ..validators import implementation_type_validator, protocol_role_validator
-from .base_model import BaseUnifiedModel
 from .global_config import ServiceDockerOverrideConfig
 from .plugin import BasePluginConfig
 
@@ -41,7 +41,7 @@ class ProtocolRole(str, Enum):
     PEER = "peer"
 
 
-class NetworkConfig(BaseUnifiedModel):
+class NetworkConfig(BaseConfig):
     """Network configuration for services."""
 
     interface: str = Field("eth0", description="Network interface")
@@ -69,7 +69,7 @@ class NetworkConfig(BaseUnifiedModel):
         return validate_integer_field(v, "mtu")
 
 
-class ProtocolConfig(BaseUnifiedModel):
+class ProtocolConfig(BaseConfig):
     ## TODO check which verson is used in the protocol config
     """Protocol configuration."""
 
@@ -129,7 +129,7 @@ class ProtocolConfig(BaseUnifiedModel):
         return f"{port}:{port}"
 
 
-class ImplementationConfig(BaseUnifiedModel):
+class ImplementationConfig(BaseConfig):
     """Implementation configuration."""
 
     name: str = Field(..., description="Implementation name")
@@ -152,13 +152,13 @@ class ImplementationConfig(BaseUnifiedModel):
         """Convert string to ImplementationType enum."""
         return implementation_type_validator(cls, v)
 
-    # extra="allow" inherited from BaseUnifiedModel handles plugin-specific fields
+    # extra="allow" inherited from BaseConfig handles plugin-specific fields
 
 
 T = TypeVar("T", bound=BasePluginConfig)
 
 
-class ServiceConfig(BaseUnifiedModel):
+class ServiceConfig(BaseConfig):
     """Service configuration."""
 
     implementation: ImplementationConfig = Field(

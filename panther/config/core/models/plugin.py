@@ -7,12 +7,12 @@ from typing import Any, ClassVar, Dict, Optional, Type, TypeVar
 
 from pydantic import Field, field_validator
 
-from .base_model import BaseUnifiedModel
+from ..base import BaseConfig
 
-T = TypeVar("T", bound="BaseUnifiedModel")
+T = TypeVar("T", bound="BaseConfig")
 
 
-class BasePluginConfig(BaseUnifiedModel):
+class BasePluginConfig(BaseConfig):
     """Base configuration for all plugins.
 
     This class provides common configuration fields and functionality
@@ -25,7 +25,7 @@ class BasePluginConfig(BaseUnifiedModel):
     priority: int = Field(100, description="Plugin execution priority")
 
     # Allow extra fields for plugin-specific configuration
-    # (inherited from BaseUnifiedModel Config)
+    # (inherited from BaseConfig Config)
 
     def validate_plugin_specific(self) -> None:
         """Override this method to add plugin-specific validation."""

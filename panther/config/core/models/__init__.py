@@ -1,6 +1,6 @@
 """Configuration models using Pydantic and OmegaConf."""
 
-from .base_model import BaseUnifiedModel
+from ..base import BaseConfig
 from .environment import (
     EnvironmentConfig,
     ExecutionEnvironmentConfig,
@@ -56,7 +56,7 @@ from .service import (
 
 __all__ = [
     # Base
-    "BaseUnifiedModel",
+    "BaseConfig",
     # Global Config
     "GlobalConfig",
     "LoggingConfig",

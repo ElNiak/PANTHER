@@ -4,12 +4,12 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import Field, field_validator
 
-from .base_model import BaseUnifiedModel
+from ..base import BaseConfig
 from .environment import ExecutionEnvironmentConfig, NetworkEnvironmentConfig
 from .service import ServiceConfig
 
 
-class StepsConfig(BaseUnifiedModel):
+class StepsConfig(BaseConfig):
     """Test steps configuration."""
 
     pre_commands: List[str] = Field(
@@ -29,7 +29,7 @@ class StepsConfig(BaseUnifiedModel):
         return v
 
 
-class ExperimentMetadata(BaseUnifiedModel):
+class ExperimentMetadata(BaseConfig):
     """Experiment metadata."""
 
     name: Optional[str] = Field(None, description="Experiment name")
@@ -41,7 +41,7 @@ class ExperimentMetadata(BaseUnifiedModel):
     modified_at: Optional[str] = Field(None, description="Last modification timestamp")
 
 
-class TestConfig(BaseUnifiedModel):
+class TestConfig(BaseConfig):
     """Individual test configuration."""
 
     name: str = Field(..., description="Test name")
@@ -142,7 +142,7 @@ class TestConfig(BaseUnifiedModel):
         return ordered
 
 
-class ExperimentConfig(BaseUnifiedModel):
+class ExperimentConfig(BaseConfig):
     """Main experiment configuration."""
 
     tests: List[TestConfig] = Field(..., description="List of test configurations")

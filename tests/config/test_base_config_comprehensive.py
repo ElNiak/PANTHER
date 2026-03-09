@@ -1,14 +1,5 @@
 #!/usr/bin/env python3
-"""
-Comprehensive test suite for BaseConfig class - testing every method and edge case.
-
-This module provides exhaustive testing for:
-- All BaseConfig methods (to_omega, from_omega, merge, interpolate, etc.)
-- Serialization methods (to_yaml, to_json, to_dict)
-- Field manipulation methods
-- Error handling and edge cases
-- Performance characteristics
-"""
+"""Comprehensive test suite for BaseConfig class - testing every method and edge case."""
 
 import json
 import os
@@ -24,7 +15,6 @@ from omegaconf import DictConfig, OmegaConf
 from pydantic import Field, ValidationError
 
 from panther.config.core.base import BaseConfig
-from panther.config.core.models.base_model import BaseUnifiedModel
 
 # PANTHER is now available in Python path since we're in the PANTHER project
 

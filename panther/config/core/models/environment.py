@@ -2,15 +2,14 @@
 
 from typing import Any, Dict, List, Optional, Type, TypeVar
 
-from omegaconf import OmegaConf
 from pydantic import Field
 
-from .base_model import BaseUnifiedModel
+from ..base import BaseConfig
 
-T = TypeVar("T", bound="BaseUnifiedModel")
+T = TypeVar("T", bound="BaseConfig")
 
 
-class EnvironmentConfig(BaseUnifiedModel):
+class EnvironmentConfig(BaseConfig):
     """Base environment configuration."""
 
     type: str = Field(..., description="Environment type")
