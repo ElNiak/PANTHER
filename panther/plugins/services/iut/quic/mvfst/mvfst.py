@@ -1,7 +1,7 @@
 """Refactored MVFST service manager using base classes."""
 
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 from panther.core.docker_builder.plugin_mixin.service_manager_docker_mixin import (
     ServiceManagerDockerMixin,
@@ -13,7 +13,6 @@ from panther.plugins.services.iut.iut_event_mixin import IUTManagerEventMixin
 from panther.plugins.services.iut.iut_service_manager_mixin import (
     IUTServiceManagerMixin,
 )
-from panther.plugins.services.iut.quic.mvfst.config_schema import MvfstConfig
 
 
 @register_plugin(
@@ -38,22 +37,6 @@ class MvfstServiceManager(
         """Initialize MVfst service manager with dual plugin config approach."""
         super().__init__(*args, global_config=global_config, **kwargs)
 
-        # Cache plugin config for easy access
-        self._plugin_config = None
-
-    def _get_plugin_config(self) -> Optional[MvfstConfig]:
-        """Get plugin config with caching and fallback."""
-        if self._plugin_config is None:
-            try:
-                self._plugin_config = self.service_config_to_test.get_plugin_config(
-                    MvfstConfig
-                )
-            except Exception as e:
-                self.logger.debug(f"Could not get plugin config, using defaults: {e}")
-                # Create default config
-                self._plugin_config = MvfstConfig()
-        return self._plugin_config
-
     def _get_implementation_name(self) -> str:
         return "mvfst"
 
@@ -65,101 +48,40 @@ class MvfstServiceManager(
         """MVFST server specific arguments with plugin config support."""
         args = []
 
-        # Get plugin config values with fallbacks
-        plugin_config = self._get_plugin_config()
-
         # Server mode flag
         args.append("--mode=server")
 
-        # Congestion control algorithm - Check plugin_config first
+        # Congestion control algorithm - Check service config
         cc_algo = kwargs.get("congestion_control")
-        if (
-            not cc_algo
-            and hasattr(self.service_config_to_test, "plugin_config")
-            and self.service_config_to_test.plugin_config
-        ):
-            cc_algo = self.service_config_to_test.plugin_config.get(
-                "congestion_control", "cubic"
+        if not cc_algo:
+            cc_algo = getattr(
+                self.service_config_to_test, "congestion_control", "cubic"
             )
-        elif (
-            not cc_algo
-            and plugin_config
-            and hasattr(plugin_config, "version")
-            and hasattr(plugin_config.version, "server")
-        ):
-            server_params = plugin_config.version.server
-            cc_algo = (
-                server_params.get("congestion_control", "cubic")
-                if server_params
-                else "cubic"
-            )
-        else:
-            cc_algo = cc_algo or "cubic"
         args.extend(["--congestion", cc_algo])
 
-        # Transport settings - Check plugin_config first
+        # Transport settings - Check service config
         idle_timeout = kwargs.get("idle_timeout")
-        if (
-            not idle_timeout
-            and hasattr(self.service_config_to_test, "plugin_config")
-            and self.service_config_to_test.plugin_config
-        ):
-            idle_timeout = self.service_config_to_test.plugin_config.get("idle_timeout")
-        elif (
-            not idle_timeout
-            and plugin_config
-            and hasattr(plugin_config, "version")
-            and hasattr(plugin_config.version, "server")
-        ):
-            server_params = plugin_config.version.server
-            idle_timeout = server_params.get("idle_timeout") if server_params else None
+        if not idle_timeout:
+            idle_timeout = getattr(self.service_config_to_test, "idle_timeout", None)
 
         if idle_timeout:
             args.extend(["--idle_timeout", str(idle_timeout)])
 
-        # Max packet size - Check plugin_config first
+        # Max packet size - Check service config
         max_packet_size = kwargs.get("max_packet_size")
-        if (
-            not max_packet_size
-            and hasattr(self.service_config_to_test, "plugin_config")
-            and self.service_config_to_test.plugin_config
-        ):
-            max_packet_size = self.service_config_to_test.plugin_config.get(
-                "max_packet_size"
-            )
-        elif (
-            not max_packet_size
-            and plugin_config
-            and hasattr(plugin_config, "version")
-            and hasattr(plugin_config.version, "server")
-        ):
-            server_params = plugin_config.version.server
-            max_packet_size = (
-                server_params.get("max_packet_size") if server_params else None
+        if not max_packet_size:
+            max_packet_size = getattr(
+                self.service_config_to_test, "max_packet_size", None
             )
 
         if max_packet_size:
             args.extend(["--max_packet_size", str(max_packet_size)])
 
-        # Flow control settings - Check plugin_config first
+        # Flow control settings - Check service config
         flow_control_window = kwargs.get("flow_control_window")
-        if (
-            not flow_control_window
-            and hasattr(self.service_config_to_test, "plugin_config")
-            and self.service_config_to_test.plugin_config
-        ):
-            flow_control_window = self.service_config_to_test.plugin_config.get(
-                "flow_control_window"
-            )
-        elif (
-            not flow_control_window
-            and plugin_config
-            and hasattr(plugin_config, "version")
-            and hasattr(plugin_config.version, "server")
-        ):
-            server_params = plugin_config.version.server
-            flow_control_window = (
-                server_params.get("flow_control_window") if server_params else None
+        if not flow_control_window:
+            flow_control_window = getattr(
+                self.service_config_to_test, "flow_control_window", None
             )
 
         if flow_control_window:
@@ -171,102 +93,37 @@ class MvfstServiceManager(
         """MVFST client specific arguments with plugin config support."""
         args = []
 
-        # Get plugin config values with fallbacks
-        plugin_config = self._get_plugin_config()
-
         # Client mode flag
         args.append("--mode=client")
 
-        # Connection parameters - Check plugin_config first
+        # Connection parameters - Check service config
         num_requests = kwargs.get("num_requests")
-        if (
-            not num_requests
-            and hasattr(self.service_config_to_test, "plugin_config")
-            and self.service_config_to_test.plugin_config
-        ):
-            num_requests = self.service_config_to_test.plugin_config.get(
-                "num_requests", 1
-            )
-        elif (
-            not num_requests
-            and plugin_config
-            and hasattr(plugin_config, "version")
-            and hasattr(plugin_config.version, "client")
-        ):
-            client_params = plugin_config.version.client
-            num_requests = client_params.get("num_requests", 1) if client_params else 1
-        else:
-            num_requests = num_requests or 1
+        if not num_requests:
+            num_requests = getattr(self.service_config_to_test, "num_requests", 1)
         args.extend(["--num_requests", str(num_requests)])
 
-        # Request body size - Check plugin_config first
+        # Request body size - Check service config
         body_size = kwargs.get("body_size")
-        if (
-            not body_size
-            and hasattr(self.service_config_to_test, "plugin_config")
-            and self.service_config_to_test.plugin_config
-        ):
-            body_size = self.service_config_to_test.plugin_config.get("body_size")
-        elif (
-            not body_size
-            and plugin_config
-            and hasattr(plugin_config, "version")
-            and hasattr(plugin_config.version, "client")
-        ):
-            client_params = plugin_config.version.client
-            body_size = client_params.get("body_size") if client_params else None
+        if not body_size:
+            body_size = getattr(self.service_config_to_test, "body_size", None)
 
         if body_size:
             args.extend(["--body", str(body_size)])
 
-        # Congestion control - Check plugin_config first
+        # Congestion control - Check service config
         cc_algo = kwargs.get("congestion_control")
-        if (
-            not cc_algo
-            and hasattr(self.service_config_to_test, "plugin_config")
-            and self.service_config_to_test.plugin_config
-        ):
-            cc_algo = self.service_config_to_test.plugin_config.get(
-                "congestion_control", "cubic"
+        if not cc_algo:
+            cc_algo = getattr(
+                self.service_config_to_test, "congestion_control", "cubic"
             )
-        elif (
-            not cc_algo
-            and plugin_config
-            and hasattr(plugin_config, "version")
-            and hasattr(plugin_config.version, "client")
-        ):
-            client_params = plugin_config.version.client
-            cc_algo = (
-                client_params.get("congestion_control", "cubic")
-                if client_params
-                else "cubic"
-            )
-        else:
-            cc_algo = cc_algo or "cubic"
         args.extend(["--congestion", cc_algo])
 
-        # Happy Eyeballs - Check plugin_config first
+        # Happy Eyeballs - Check service config
         happy_eyeballs = kwargs.get("happy_eyeballs")
-        if (
-            happy_eyeballs is None
-            and hasattr(self.service_config_to_test, "plugin_config")
-            and self.service_config_to_test.plugin_config
-        ):
-            happy_eyeballs = self.service_config_to_test.plugin_config.get(
-                "happy_eyeballs", True
+        if happy_eyeballs is None:
+            happy_eyeballs = getattr(
+                self.service_config_to_test, "happy_eyeballs", True
             )
-        elif (
-            happy_eyeballs is None
-            and plugin_config
-            and hasattr(plugin_config, "version")
-            and hasattr(plugin_config.version, "client")
-        ):
-            client_params = plugin_config.version.client
-            happy_eyeballs = (
-                client_params.get("happy_eyeballs", True) if client_params else True
-            )
-        else:
-            happy_eyeballs = True if happy_eyeballs is None else happy_eyeballs
 
         if happy_eyeballs:
             args.append("--happy_eyeballs")
@@ -299,8 +156,7 @@ class MvfstServiceManager(
         return params
 
     def get_output_patterns(self) -> List[Tuple[str, str]]:
-        """
-        Get phase-based output patterns for MVFST service.
+        """Get phase-based output patterns for MVFST service.
 
         Returns:
             List of (output_type, filename_pattern) tuples organized by execution phases

@@ -1,7 +1,7 @@
 """Refactored quic-go service manager using base classes."""
 
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 from panther.core.docker_builder.plugin_mixin.service_manager_docker_mixin import (
     ServiceManagerDockerMixin,
@@ -13,7 +13,6 @@ from panther.plugins.services.iut.iut_event_mixin import IUTManagerEventMixin
 from panther.plugins.services.iut.iut_service_manager_mixin import (
     IUTServiceManagerMixin,
 )
-from panther.plugins.services.iut.quic.quic_go.config_schema import QuicGoConfig
 
 
 @register_plugin(
@@ -38,22 +37,6 @@ class QuicGoServiceManager(
         """Initialize QuicGo service manager with dual plugin config approach."""
         super().__init__(*args, global_config=global_config, **kwargs)
 
-        # Cache plugin config for easy access
-        self._plugin_config = None
-
-    def _get_plugin_config(self) -> Optional[QuicGoConfig]:
-        """Get plugin config with caching and fallback."""
-        if self._plugin_config is None:
-            try:
-                self._plugin_config = self.service_config_to_test.get_plugin_config(
-                    QuicGoConfig
-                )
-            except Exception as e:
-                self.logger.debug(f"Could not get plugin config, using defaults: {e}")
-                # Create default config
-                self._plugin_config = QuicGoConfig()
-        return self._plugin_config
-
     def _get_implementation_name(self) -> str:
         return "quic_go"
 
@@ -65,70 +48,29 @@ class QuicGoServiceManager(
         """quic-go server specific arguments with plugin config support."""
         args = []
 
-        # Get plugin config values with fallbacks
-        plugin_config = self._get_plugin_config()
-
-        # Document root for serving files - Check plugin_config first
+        # Document root for serving files - Check service config
         if kwargs.get("www"):
             www = kwargs["www"]
-        elif (
-            hasattr(self.service_config_to_test, "plugin_config")
-            and self.service_config_to_test.plugin_config
-        ):
-            www = self.service_config_to_test.plugin_config.get("www", "/var/www")
-        elif (
-            plugin_config
-            and hasattr(plugin_config, "version")
-            and hasattr(plugin_config.version, "server")
-        ):
-            server_params = plugin_config.version.server
-            www = server_params.get("www", "/var/www") if server_params else "/var/www"
         else:
-            www = "/var/www"
+            www = getattr(self.service_config_to_test, "www", "/var/www")
         args.extend(["-www", www])
 
-        # Certificate files - Check plugin_config first
+        # Certificate files - Check service config
         certfile = kwargs.get("certfile")
         keyfile = kwargs.get("keyfile")
 
-        if (
-            not certfile
-            and hasattr(self.service_config_to_test, "plugin_config")
-            and self.service_config_to_test.plugin_config
-        ):
-            certfile = self.service_config_to_test.plugin_config.get("certfile")
-            keyfile = self.service_config_to_test.plugin_config.get("keyfile")
-        elif (
-            not certfile
-            and plugin_config
-            and hasattr(plugin_config, "version")
-            and hasattr(plugin_config.version, "server")
-        ):
-            server_params = plugin_config.version.server
-            if server_params:
-                certfile = server_params.get("certfile")
-                keyfile = server_params.get("keyfile")
+        if not certfile:
+            certfile = getattr(self.service_config_to_test, "certfile", None)
+            keyfile = keyfile or getattr(self.service_config_to_test, "keyfile", None)
 
         if certfile and keyfile:
             args.extend(["-certfile", certfile])
             args.extend(["-keyfile", keyfile])
 
-        # Enable qlog - Check plugin_config first
+        # Enable qlog - Check service config
         qlog = kwargs.get("qlog", False)
-        if (
-            not qlog
-            and hasattr(self.service_config_to_test, "plugin_config")
-            and self.service_config_to_test.plugin_config
-        ):
-            qlog = self.service_config_to_test.plugin_config.get("qlog", False)
-        elif (
-            not qlog
-            and plugin_config
-            and hasattr(plugin_config, "version")
-            and hasattr(plugin_config.version, "server")
-        ):
-            server_params = plugin_config.version.server
-            qlog = server_params.get("qlog", False) if server_params else False
+        if not qlog:
+            qlog = getattr(self.service_config_to_test, "qlog", False)
 
         if qlog:
             args.append("-qlog")
@@ -139,33 +81,15 @@ class QuicGoServiceManager(
         """quic-go client specific arguments with plugin config support."""
         args = []
 
-        # Get plugin config values with fallbacks
-        plugin_config = self._get_plugin_config()
-
-        # Target URL - Check plugin_config first
+        # Target URL - Check service config
         host = kwargs.get("host")
         port = kwargs.get("port")
         path = kwargs.get("path")
 
-        if (
-            not host
-            and hasattr(self.service_config_to_test, "plugin_config")
-            and self.service_config_to_test.plugin_config
-        ):
-            host = self.service_config_to_test.plugin_config.get("host", "localhost")
-            port = self.service_config_to_test.plugin_config.get("port", 4443)
-            path = self.service_config_to_test.plugin_config.get("path", "/")
-        elif (
-            not host
-            and plugin_config
-            and hasattr(plugin_config, "version")
-            and hasattr(plugin_config.version, "client")
-        ):
-            client_params = plugin_config.version.client
-            if client_params:
-                host = client_params.get("host", "localhost")
-                port = client_params.get("port", 4443)
-                path = client_params.get("path", "/")
+        if not host:
+            host = getattr(self.service_config_to_test, "host", "localhost")
+            port = port or getattr(self.service_config_to_test, "port", 4443)
+            path = path or getattr(self.service_config_to_test, "path", "/")
 
         if not host:
             host = "localhost"
@@ -177,44 +101,18 @@ class QuicGoServiceManager(
         url = f"https://{host}:{port}{path}"
         args.append(url)
 
-        # Insecure mode (skip cert verification) - Check plugin_config first
+        # Insecure mode (skip cert verification) - Check service config
         insecure = kwargs.get("insecure")
-        if (
-            insecure is None
-            and hasattr(self.service_config_to_test, "plugin_config")
-            and self.service_config_to_test.plugin_config
-        ):
-            insecure = self.service_config_to_test.plugin_config.get("insecure", True)
-        elif (
-            insecure is None
-            and plugin_config
-            and hasattr(plugin_config, "version")
-            and hasattr(plugin_config.version, "client")
-        ):
-            client_params = plugin_config.version.client
-            insecure = client_params.get("insecure", True) if client_params else True
-        else:
-            insecure = True if insecure is None else insecure
+        if insecure is None:
+            insecure = getattr(self.service_config_to_test, "insecure", True)
 
         if insecure:
             args.append("-insecure")
 
-        # Enable qlog - Check plugin_config first
+        # Enable qlog - Check service config
         qlog = kwargs.get("qlog", False)
-        if (
-            not qlog
-            and hasattr(self.service_config_to_test, "plugin_config")
-            and self.service_config_to_test.plugin_config
-        ):
-            qlog = self.service_config_to_test.plugin_config.get("qlog", False)
-        elif (
-            not qlog
-            and plugin_config
-            and hasattr(plugin_config, "version")
-            and hasattr(plugin_config.version, "client")
-        ):
-            client_params = plugin_config.version.client
-            qlog = client_params.get("qlog", False) if client_params else False
+        if not qlog:
+            qlog = getattr(self.service_config_to_test, "qlog", False)
 
         if qlog:
             args.append("-qlog")
@@ -240,8 +138,7 @@ class QuicGoServiceManager(
         return params
 
     def get_output_patterns(self) -> List[Tuple[str, str]]:
-        """
-        Get phase-based output patterns for quic-go service.
+        """Get phase-based output patterns for quic-go service.
 
         Returns:
             List of (output_type, filename_pattern) tuples organized by execution phases

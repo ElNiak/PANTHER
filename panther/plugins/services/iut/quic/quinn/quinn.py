@@ -1,13 +1,12 @@
 """Refactored Quinn service manager using base classes."""
 
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 from panther.plugins.core.plugin_decorators import register_plugin
 from panther.plugins.core.structures.plugin_type import PluginType
 from panther.plugins.services.base.rust_quic_base import RustQUICServiceManager
 from panther.plugins.services.iut.iut_event_mixin import IUTManagerEventMixin
-from panther.plugins.services.iut.quic.quinn.config_schema import QuinnConfig
 
 
 @register_plugin(
@@ -30,22 +29,6 @@ class QuinnServiceManager(IUTManagerEventMixin, RustQUICServiceManager):
         # Store global configuration
         self.global_config = global_config
 
-        # Cache plugin config for easy access
-        self._plugin_config = None
-
-    def _get_plugin_config(self) -> Optional[QuinnConfig]:
-        """Get plugin config with caching and fallback."""
-        if self._plugin_config is None:
-            try:
-                self._plugin_config = self.service_config_to_test.get_plugin_config(
-                    QuinnConfig
-                )
-            except Exception as e:
-                self.logger.debug(f"Could not get plugin config, using defaults: {e}")
-                # Create default config
-                self._plugin_config = QuinnConfig()
-        return self._plugin_config
-
     def _get_implementation_name(self) -> str:
         return "quinn"
 
@@ -57,36 +40,28 @@ class QuinnServiceManager(IUTManagerEventMixin, RustQUICServiceManager):
         """Quinn server specific arguments with plugin config support."""
         args = []
 
-        # Get plugin config values with fallbacks
-        plugin_config = self._get_plugin_config()
+        # Get server params from service config
+        server_params = (
+            self.service_config_to_test.version.server
+            if hasattr(self.service_config_to_test, "version")
+            and hasattr(self.service_config_to_test.version, "server")
+            else None
+        )
 
         # Listen address and port - Modern unified approach
         listen_addr = (
             kwargs.get("listen")
-            or getattr(  # Command line override
-                plugin_config.version.server, "listen", None
-            )
-            if plugin_config.version.server
-            else None or "0.0.0.0:4443"  # Plugin config  # Default
+            or (getattr(server_params, "listen", None) if server_params else None)
+            or "0.0.0.0:4443"
         )
         args.append(listen_addr)
 
         # Certificate and key files - Modern unified approach
-        cert = (
-            kwargs.get("cert")
-            or getattr(  # Command line override
-                plugin_config.version.server, "cert", None
-            )
-            if plugin_config.version.server
-            else None  # Plugin config
+        cert = kwargs.get("cert") or (
+            getattr(server_params, "cert", None) if server_params else None
         )
-        key = (
-            kwargs.get("key")
-            or getattr(  # Command line override
-                plugin_config.version.server, "key", None
-            )
-            if plugin_config.version.server
-            else None  # Plugin config
+        key = kwargs.get("key") or (
+            getattr(server_params, "key", None) if server_params else None
         )
 
         if cert and key:
@@ -94,37 +69,18 @@ class QuinnServiceManager(IUTManagerEventMixin, RustQUICServiceManager):
             args.extend(["--key", key])
 
         # Enable keylog for debugging - Modern unified approach
-        keylog = (
-            kwargs.get("keylog")
-            or getattr(  # Command line override
-                plugin_config.version.server, "keylog", False
-            )
-            if plugin_config.version.server
-            else False  # Plugin config
+        keylog = kwargs.get("keylog") or (
+            getattr(server_params, "keylog", False) if server_params else False
         )
 
         if keylog:
             args.append("--keylog")
 
-        # Connection limits - Check plugin_config first
+        # Connection limits - Check service config
         max_concurrent_streams = kwargs.get("max_concurrent_streams")
-        if (
-            not max_concurrent_streams
-            and hasattr(self.service_config_to_test, "plugin_config")
-            and self.service_config_to_test.plugin_config
-        ):
-            max_concurrent_streams = self.service_config_to_test.plugin_config.get(
-                "max_concurrent_streams"
-            )
-        elif (
-            not max_concurrent_streams
-            and plugin_config
-            and hasattr(plugin_config, "version")
-            and hasattr(plugin_config.version, "server")
-        ):
-            server_params = plugin_config.version.server
-            max_concurrent_streams = (
-                server_params.get("max_concurrent_streams") if server_params else None
+        if not max_concurrent_streams:
+            max_concurrent_streams = getattr(
+                self.service_config_to_test, "max_concurrent_streams", None
             )
 
         if max_concurrent_streams:
@@ -136,33 +92,15 @@ class QuinnServiceManager(IUTManagerEventMixin, RustQUICServiceManager):
         """Quinn client specific arguments with plugin config support."""
         args = []
 
-        # Get plugin config values with fallbacks
-        plugin_config = self._get_plugin_config()
-
-        # Target URL (Quinn client expects full URL) - Check plugin_config first
+        # Target URL (Quinn client expects full URL) - Check service config
         host = kwargs.get("host")
         port = kwargs.get("port")
         path = kwargs.get("path")
 
-        if (
-            not host
-            and hasattr(self.service_config_to_test, "plugin_config")
-            and self.service_config_to_test.plugin_config
-        ):
-            host = self.service_config_to_test.plugin_config.get("host", "localhost")
-            port = self.service_config_to_test.plugin_config.get("port", 4443)
-            path = self.service_config_to_test.plugin_config.get("path")
-        elif (
-            not host
-            and plugin_config
-            and hasattr(plugin_config, "version")
-            and hasattr(plugin_config.version, "client")
-        ):
-            client_params = plugin_config.version.client
-            if client_params:
-                host = client_params.get("host", "localhost")
-                port = client_params.get("port", 4443)
-                path = client_params.get("path")
+        if not host:
+            host = getattr(self.service_config_to_test, "host", "localhost")
+            port = port or getattr(self.service_config_to_test, "port", 4443)
+            path = path or getattr(self.service_config_to_test, "path", None)
 
         if not host:
             host = "localhost"
@@ -177,63 +115,25 @@ class QuinnServiceManager(IUTManagerEventMixin, RustQUICServiceManager):
 
         args.append(url)
 
-        # Request count - Check plugin_config first
+        # Request count - Check service config
         requests = kwargs.get("requests")
-        if (
-            not requests
-            and hasattr(self.service_config_to_test, "plugin_config")
-            and self.service_config_to_test.plugin_config
-        ):
-            requests = self.service_config_to_test.plugin_config.get("requests", 1)
-        elif (
-            not requests
-            and plugin_config
-            and hasattr(plugin_config, "version")
-            and hasattr(plugin_config.version, "client")
-        ):
-            client_params = plugin_config.version.client
-            requests = client_params.get("requests", 1) if client_params else 1
-        else:
-            requests = 1
+        if not requests:
+            requests = getattr(self.service_config_to_test, "requests", 1)
 
         args.extend(["--requests", str(requests)])
 
-        # Concurrent requests - Check plugin_config first
+        # Concurrent requests - Check service config
         concurrent = kwargs.get("concurrent")
-        if (
-            not concurrent
-            and hasattr(self.service_config_to_test, "plugin_config")
-            and self.service_config_to_test.plugin_config
-        ):
-            concurrent = self.service_config_to_test.plugin_config.get("concurrent")
-        elif (
-            not concurrent
-            and plugin_config
-            and hasattr(plugin_config, "version")
-            and hasattr(plugin_config.version, "client")
-        ):
-            client_params = plugin_config.version.client
-            concurrent = client_params.get("concurrent") if client_params else None
+        if not concurrent:
+            concurrent = getattr(self.service_config_to_test, "concurrent", None)
 
         if concurrent:
             args.extend(["--concurrent", str(concurrent)])
 
-        # Request interval - Check plugin_config first
+        # Request interval - Check service config
         interval = kwargs.get("interval")
-        if (
-            not interval
-            and hasattr(self.service_config_to_test, "plugin_config")
-            and self.service_config_to_test.plugin_config
-        ):
-            interval = self.service_config_to_test.plugin_config.get("interval")
-        elif (
-            not interval
-            and plugin_config
-            and hasattr(plugin_config, "version")
-            and hasattr(plugin_config.version, "client")
-        ):
-            client_params = plugin_config.version.client
-            interval = client_params.get("interval") if client_params else None
+        if not interval:
+            interval = getattr(self.service_config_to_test, "interval", None)
 
         if interval:
             args.extend(["--interval", str(interval)])
@@ -259,8 +159,7 @@ class QuinnServiceManager(IUTManagerEventMixin, RustQUICServiceManager):
         return params
 
     def get_output_patterns(self) -> List[Tuple[str, str]]:
-        """
-        Get phase-based output patterns for Quinn service.
+        """Get phase-based output patterns for Quinn service.
 
         Returns:
             List of (output_type, filename_pattern) tuples organized by execution phases

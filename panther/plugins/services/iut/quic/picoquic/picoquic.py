@@ -16,7 +16,6 @@ from panther.plugins.services.iut.iut_event_mixin import IUTManagerEventMixin
 from panther.plugins.services.iut.iut_service_manager_mixin import (
     IUTServiceManagerMixin,
 )
-from panther.plugins.services.iut.quic.picoquic.config_schema import PicoquicConfig
 
 if TYPE_CHECKING:
     from panther.plugins.plugin_manager import PluginManager
@@ -56,8 +55,7 @@ class PicoquicServiceManager(
     BaseQUICServiceManager,
     ErrorHandlerMixin,
 ):
-    """
-    PicoQUIC service manager with auto-discovered version configurations.
+    """PicoQUIC service manager with auto-discovered version configurations.
 
     Version configurations are automatically loaded from the version_configs/
     directory based on the QUIC protocol plugin's defined versions.
@@ -87,8 +85,10 @@ class PicoquicServiceManager(
             protocol: Protocol configuration
             implementation_name: Implementation name (picoquic)
             event_manager: Event manager for monitoring
+            global_config: Global configuration
+            test_case: Reference to parent test case
+            **kwargs: Additional keyword arguments
         """
-
         # Extract emitter_registry from kwargs if present
         emitter_registry = kwargs.pop("emitter_registry", None)
 
@@ -114,9 +114,6 @@ class PicoquicServiceManager(
         # Initialize working directory
         self.working_dir = "/opt/picoquic"
 
-        # Cache plugin config for easy access
-        self._plugin_config = None
-
         self.standard_iut_initialization(
             service_config_to_test,
             service_type,
@@ -125,19 +122,6 @@ class PicoquicServiceManager(
             event_manager,
             plugin_dir=Path(__file__).parent,
         )
-
-    def _get_plugin_config(self) -> Optional[PicoquicConfig]:
-        """Get plugin config with caching and fallback."""
-        if self._plugin_config is None:
-            try:
-                self._plugin_config = self.service_config_to_test.get_plugin_config(
-                    PicoquicConfig
-                )
-            except Exception as e:
-                self.logger.debug(f"Could not get plugin config, using defaults: {e}")
-                # Create default config
-                self._plugin_config = PicoquicConfig()
-        return self._plugin_config
 
     def _get_implementation_name(self) -> str:
         """Return the implementation name."""
@@ -158,14 +142,11 @@ class PicoquicServiceManager(
         """
         args = []
 
-        # Get server parameters from plugin config
-        plugin_config = self._get_plugin_config()
-        if (
-            plugin_config
-            and hasattr(plugin_config, "version")
-            and hasattr(plugin_config.version, "server")
+        # Get server parameters from service config
+        if hasattr(self.service_config_to_test, "version") and hasattr(
+            self.service_config_to_test.version, "server"
         ):
-            server_params = plugin_config.version.server
+            server_params = self.service_config_to_test.version.server
 
             # Add protocol-specific parameters
             if isinstance(server_params, dict) and "protocol" in server_params:
@@ -197,14 +178,11 @@ class PicoquicServiceManager(
         """
         args = []
 
-        # Get client parameters from plugin config
-        plugin_config = self._get_plugin_config()
-        if (
-            plugin_config
-            and hasattr(plugin_config, "version")
-            and hasattr(plugin_config.version, "client")
+        # Get client parameters from service config
+        if hasattr(self.service_config_to_test, "version") and hasattr(
+            self.service_config_to_test.version, "client"
         ):
-            client_params = plugin_config.version.client
+            client_params = self.service_config_to_test.version.client
 
             # Add ticket file for 0-RTT
             if isinstance(client_params, dict) and "ticket_file" in client_params:
@@ -281,12 +259,12 @@ class PicoquicServiceManager(
             if "certificate" in role_params:
                 cert = role_params["certificate"]
                 params["cert_dir"] = cert.get("dir", params["cert_dir"])
-                params[
-                    "cert_file"
-                ] = f"{params['cert_dir']}/{cert.get('cert', 'cert.pem')}"
-                params[
-                    "key_file"
-                ] = f"{params['cert_dir']}/{cert.get('key', 'key.pem')}"
+                params["cert_file"] = (
+                    f"{params['cert_dir']}/{cert.get('cert', 'cert.pem')}"
+                )
+                params["key_file"] = (
+                    f"{params['cert_dir']}/{cert.get('key', 'key.pem')}"
+                )
 
         return params
 
@@ -296,10 +274,9 @@ class PicoquicServiceManager(
         Returns:
             Role parameters or None
         """
-        # Try to get from plugin config first
-        plugin_config = self._get_plugin_config()
-        if plugin_config and hasattr(plugin_config, "version"):
-            version = plugin_config.version
+        # Try to get version from service config
+        if hasattr(self.service_config_to_test, "version"):
+            version = self.service_config_to_test.version
             role = self.service_config_to_test.protocol.role
 
             if role == ProtocolRole.SERVER and hasattr(version, "server"):
@@ -324,14 +301,11 @@ class PicoquicServiceManager(
         """
         version_str = "latest"
 
-        # First try to get version from plugin config
-        plugin_config = self._get_plugin_config()
-        if (
-            plugin_config
-            and hasattr(plugin_config, "version")
-            and hasattr(plugin_config.version, "version")
+        # First try to get version from service config
+        if hasattr(self.service_config_to_test, "version") and hasattr(
+            self.service_config_to_test.version, "version"
         ):
-            version_str = plugin_config.version.version
+            version_str = self.service_config_to_test.version.version
         # Fallback to implementation version if available
         elif hasattr(self.service_config_to_test.implementation, "version"):
             version_obj = self.service_config_to_test.implementation.version
@@ -413,13 +387,10 @@ class PicoquicServiceManager(
             template_params["target"] = params.get("host", "localhost")
 
             # Add ticket file for 0-RTT if available
-            plugin_config = self._get_plugin_config()
-            if (
-                plugin_config
-                and hasattr(plugin_config, "version")
-                and hasattr(plugin_config.version, "client")
+            if hasattr(self.service_config_to_test, "version") and hasattr(
+                self.service_config_to_test.version, "client"
             ):
-                client_params = plugin_config.version.client
+                client_params = self.service_config_to_test.version.client
 
                 if isinstance(client_params, dict):
                     # Handle ticket file
@@ -450,9 +421,9 @@ class PicoquicServiceManager(
                     ):
                         protocol_params = client_params["protocol"]
                         if "additional_parameters" in protocol_params:
-                            template_params["protocol"][
-                                "additional_parameters"
-                            ] = protocol_params["additional_parameters"]
+                            template_params["protocol"]["additional_parameters"] = (
+                                protocol_params["additional_parameters"]
+                            )
             else:
                 # Default ticket file
                 template_params["ticket_file"] = {
@@ -466,13 +437,10 @@ class PicoquicServiceManager(
             )
         else:
             # Server-specific template parameters
-            plugin_config = self._get_plugin_config()
-            if (
-                plugin_config
-                and hasattr(plugin_config, "version")
-                and hasattr(plugin_config.version, "server")
+            if hasattr(self.service_config_to_test, "version") and hasattr(
+                self.service_config_to_test.version, "server"
             ):
-                server_params = plugin_config.version.server
+                server_params = self.service_config_to_test.version.server
 
                 if isinstance(server_params, dict) and "protocol" in server_params:
                     protocol_params = server_params["protocol"]
@@ -480,9 +448,9 @@ class PicoquicServiceManager(
                         isinstance(protocol_params, dict)
                         and "additional_parameters" in protocol_params
                     ):
-                        template_params["protocol"][
-                            "additional_parameters"
-                        ] = protocol_params["additional_parameters"]
+                        template_params["protocol"]["additional_parameters"] = (
+                            protocol_params["additional_parameters"]
+                        )
 
             # Render using server template
             command_str = self.render_commands(
@@ -514,8 +482,7 @@ class PicoquicServiceManager(
         }
 
     def get_output_patterns(self) -> List[Tuple[str, str]]:
-        """
-        Get phase-based output patterns for PicoQUIC service.
+        """Get phase-based output patterns for PicoQUIC service.
 
         Returns:
             List of (output_type, filename_pattern) tuples organized by execution phases

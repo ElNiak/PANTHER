@@ -46,11 +46,9 @@ class PingPongServiceManager(
     IImplementationManager,
     StringRepresentationMixin,
 ):
-    """
-    Service manager for Ping-Pong protocol implementation.
-    """
+    """Service manager for Ping-Pong protocol implementation."""
 
-    def __init__(
+    def __init__(  # noqa: D107
         self,
         service_config_to_test: PingPongConfig,
         service_type: str,
@@ -81,26 +79,8 @@ class PingPongServiceManager(
             plugin_dir=Path(__file__).parent,
         )
 
-        # Cache plugin config for dual plugin config approach
-        self._plugin_config = None
-
-    def _get_plugin_config(self) -> Optional[PingPongConfig]:
-        """Get plugin config with caching and fallback."""
-        if self._plugin_config is None:
-            try:
-                self._plugin_config = self.service_config_to_test.get_plugin_config(
-                    PingPongConfig
-                )
-            except Exception as e:
-                self.logger.debug(f"Could not get plugin config, using defaults: {e}")
-                # Create default config
-                self._plugin_config = PingPongConfig()
-        return self._plugin_config
-
     def generate_pre_compile_commands(self):
-        """
-        Generates pre-compile commands using structured command building.
-        """
+        """Generates pre-compile commands using structured command building."""
         # Get base commands from parent
         base_commands = super().generate_pre_compile_commands()
 
@@ -148,9 +128,7 @@ class PingPongServiceManager(
         return base_commands + builder.build()
 
     def generate_run_command(self):
-        """
-        Generates the run command using structured command building.
-        """
+        """Generates the run command using structured command building."""
         # Emit command generation started
         self.emit_command_generation_started("run")
 
@@ -192,8 +170,7 @@ class PingPongServiceManager(
         return run_command
 
     def get_output_patterns(self) -> List[Tuple[str, str]]:
-        """
-        Get phase-based output patterns for Ping-Pong service.
+        """Get phase-based output patterns for Ping-Pong service.
 
         Returns:
             List of (output_type, filename_pattern) tuples organized by execution phases
@@ -229,9 +206,7 @@ class PingPongServiceManager(
         ]
 
     def generate_post_run_commands(self):
-        """
-        Generates post-run commands with phase-based output organization.
-        """
+        """Generates post-run commands with phase-based output organization."""
         commands = super().generate_post_run_commands()
         # Create artifacts directory
         commands.append("mkdir -p /app/logs/artifacts;")
@@ -250,8 +225,7 @@ class PingPongServiceManager(
         return commands
 
     def _do_prepare(self, plugin_manager: "Optional[PluginManager]" = None):
-        """
-        Simplified prepare method - just delegate to the enhanced mixin.
+        """Simplified prepare method - just delegate to the enhanced mixin.
 
         The ServiceManagerDockerMixin now handles:
         - Building base image only once per experiment
@@ -266,9 +240,7 @@ class PingPongServiceManager(
         super().prepare(plugin_manager)
 
     def generate_deployment_commands(self) -> str:
-        """
-        Generates deployment commands using ServiceCommandBuilder and ServiceTemplateRenderer.
-        """
+        """Generates deployment commands using ServiceCommandBuilder and ServiceTemplateRenderer."""
         self.logger.debug(
             "Generating deployment commands for service: %s with service parameters: %s",
             self.service_name,
@@ -281,32 +253,19 @@ class PingPongServiceManager(
             self.service_version,
         )
 
-        # Get plugin config
-        plugin_config = self._get_plugin_config()
-
-        # Build parameters based on role - check plugin_config first
-        if (
-            hasattr(self.service_config_to_test, "plugin_config")
-            and self.service_config_to_test.plugin_config
-        ):
-            # Use dictionary access for plugin_config
-            plugin_dict = self.service_config_to_test.plugin_config
-            if self.role == ProtocolRole.SERVER:
-                params = plugin_dict.get("server", {})
-            else:
-                params = plugin_dict.get("client", {})
-        elif plugin_config and hasattr(plugin_config, "version"):
-            # Fall back to typed config
+        # Build parameters based on role - check service config
+        if hasattr(self.service_config_to_test, "version"):
+            # Fall back to typed config on service_config_to_test directly
             if self.role == ProtocolRole.SERVER:
                 params = (
-                    plugin_config.version.server
-                    if hasattr(plugin_config.version, "server")
+                    self.service_config_to_test.version.server
+                    if hasattr(self.service_config_to_test.version, "server")
                     else {}
                 )
             else:
                 params = (
-                    plugin_config.version.client
-                    if hasattr(plugin_config.version, "client")
+                    self.service_config_to_test.version.client
+                    if hasattr(self.service_config_to_test.version, "client")
                     else {}
                 )
         else:
