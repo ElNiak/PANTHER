@@ -170,7 +170,6 @@ class PluginManager(LoggerMixin):
         self._cache_timestamp = 0
         self._discovery_cache: Optional[Dict[str, PluginMetadata]] = None
         self._version_cache: Dict[str, List[str]] = {}
-        self._schema_cache: Dict[str, Dict[str, Any]] = {}
         self._dependency_graph: Dict[str, Set[str]] = {}
 
         # Statistics
@@ -612,35 +611,12 @@ class PluginManager(LoggerMixin):
         """
         return self.plugin_discovery.discover_protocol_versions(protocol)
 
-    def discover_plugin_schemas(self) -> Dict[str, Dict[str, Any]]:
-        """Discover all plugin configuration schemas.
-
-        Delegates to PluginDiscovery for actual schema discovery implementation.
-
-        Returns:
-            Dictionary mapping plugin names to schema information
-        """
-        return self.plugin_discovery.discover_plugin_schemas()
-
-    def get_plugin_schema(self, plugin_name: str) -> Optional[Dict[str, Any]]:
-        """Get schema for a specific plugin.
-
-        Args:
-            plugin_name: Plugin name
-
-        Returns:
-            Schema information or None
-        """
-        schemas = self.discover_plugin_schemas()
-        return schemas.get(plugin_name)
-
     def refresh_plugins(self):
         """Force refresh of all plugin information."""
         self.logger.info("Force refreshing plugin cache")
         self._discovery_cache = None
         self._cache_timestamp = 0
         self._version_cache.clear()
-        self._schema_cache.clear()
         self.plugin_catalog.refresh()
         self.discover_plugins(force_refresh=True)
 
