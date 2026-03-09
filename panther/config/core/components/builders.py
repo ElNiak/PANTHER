@@ -238,65 +238,38 @@ class ExperimentBuilder(BaseBuilder):
 
         return test_dict
 
-    def _build_network_environment(
-        self, env_dict: Dict[str, Any]
-    ) -> NetworkEnvironmentConfig:
+    def _build_network_environment(self, env_dict: Dict[str, Any]) -> Dict[str, Any]:
         """Build network environment configuration.
 
-        Uses the schema registry first, then falls back to hardcoded imports
-        for backwards compatibility.
+        Uses the schema registry to validate via the plugin-specific config class,
+        then returns a dict so TestConfig can construct a NetworkEnvironmentConfig
+        with extra="allow" (preserving plugin-specific fields).
 
         Args:
             env_dict: Environment configuration dictionary
 
         Returns:
-            Built NetworkEnvironmentConfig
+            Validated environment configuration dict
         """
         env_type = env_dict.get("type", "docker_compose")
 
-        # 1. Try schema registry (populated by @register_plugin auto-discovery)
+        # Schema registry lookup: validate via specific class, return dict
         try:
             from panther.plugins.core.plugin_decorators import get_config_model
 
             config_class = get_config_model(env_type)
             if config_class is not None:
-                return config_class(**env_dict)
+                validated = config_class(**env_dict)
+                return validated.model_dump()
         except ImportError:
             pass
 
-        # 2. Fallback: hardcoded imports for environments not yet registered
-        try:
-            if env_type == "docker_compose":
-                from panther.plugins.environments.network_environment.docker_compose.config_schema import (
-                    DockerComposeConfig,
-                )
-
-                config_class = DockerComposeConfig
-            elif env_type == "localhost_single_container":
-                from panther.plugins.environments.network_environment.localhost_single_container.config_schema import (
-                    LocalhostSingleContainerConfig,
-                )
-
-                config_class = LocalhostSingleContainerConfig
-            elif env_type == "shadow_ns":
-                from panther.plugins.environments.network_environment.shadow_ns.config_schema import (
-                    ShadowNSConfig,
-                )
-
-                config_class = ShadowNSConfig
-            else:
-                config_class = NetworkEnvironmentConfig
-                self.context.add_warning(
-                    f"Unknown network environment type '{env_type}', using base class"
-                )
-        except ImportError as e:
-            self.logger.error(
-                f"Failed to import config for environment type '{env_type}': {e}"
-            )
-            config_class = NetworkEnvironmentConfig
-            self.context.add_error(f"Could not load config class for '{env_type}'")
-
-        return config_class(**env_dict)
+        # Fallback to base class
+        self.context.add_warning(
+            f"No registered config schema for environment type '{env_type}', "
+            f"using base NetworkEnvironmentConfig"
+        )
+        return env_dict
 
     def _build_service(
         self, service_dict: Dict[str, Any], auto_fix: bool, service_name: str = None

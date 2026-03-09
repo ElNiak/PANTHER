@@ -1,35 +1,12 @@
 """Experiment configuration models."""
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
-from pydantic import Field, validator
+from pydantic import Field, field_validator
 
 from .base_model import BaseUnifiedModel
 from .environment import ExecutionEnvironmentConfig, NetworkEnvironmentConfig
 from .service import ServiceConfig
-
-# Import specific network environment configs for discriminated union
-try:
-    from panther.plugins.environments.network_environment.docker_compose.config_schema import (
-        DockerComposeConfig,
-    )
-    from panther.plugins.environments.network_environment.localhost_single_container.config_schema import (
-        LocalhostSingleContainerConfig,
-    )
-    from panther.plugins.environments.network_environment.shadow_ns.config_schema import (
-        ShadowNSConfig,
-    )
-
-    # Create discriminated union type
-    NetworkEnvironmentUnion = Union[
-        DockerComposeConfig,
-        LocalhostSingleContainerConfig,
-        ShadowNSConfig,
-        NetworkEnvironmentConfig,  # fallback for base type
-    ]
-except ImportError:
-    # Fallback if plugins aren't available
-    NetworkEnvironmentUnion = NetworkEnvironmentConfig
 
 
 class StepsConfig(BaseUnifiedModel):
@@ -43,7 +20,8 @@ class StepsConfig(BaseUnifiedModel):
         default_factory=list, description="Commands to run after test"
     )
 
-    @validator("wait")
+    @field_validator("wait")
+    @classmethod
     def validate_wait(cls, v):
         """Validate wait time is positive."""
         if v <= 0:
@@ -68,7 +46,7 @@ class TestConfig(BaseUnifiedModel):
 
     name: str = Field(..., description="Test name")
     description: Optional[str] = Field(None, description="Test description")
-    network_environment: NetworkEnvironmentUnion = Field(
+    network_environment: NetworkEnvironmentConfig = Field(
         ..., description="Network environment configuration"
     )
     execution_environment: List[ExecutionEnvironmentConfig] = Field(
@@ -88,21 +66,24 @@ class TestConfig(BaseUnifiedModel):
     )
     collect_artifacts: bool = Field(True, description="Collect test artifacts")
 
-    @validator("iterations")
+    @field_validator("iterations")
+    @classmethod
     def validate_iterations(cls, v):
         """Validate iterations is positive."""
         if v <= 0:
             raise ValueError("Iterations must be positive")
         return v
 
-    @validator("timeout")
+    @field_validator("timeout")
+    @classmethod
     def validate_timeout(cls, v):
         """Validate timeout is positive if set."""
         if v is not None and v <= 0:
             raise ValueError("Timeout must be positive")
         return v
 
-    @validator("services")
+    @field_validator("services")
+    @classmethod
     def validate_services(cls, v):
         """Validate services configuration."""
         if not v:
@@ -169,7 +150,8 @@ class ExperimentConfig(BaseUnifiedModel):
         None, description="Experiment metadata"
     )
 
-    @validator("tests")
+    @field_validator("tests")
+    @classmethod
     def validate_tests(cls, v):
         """Validate tests list."""
         if not v:

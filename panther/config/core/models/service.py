@@ -3,7 +3,6 @@
 from enum import Enum
 from typing import Any, Dict, List, Optional, Type, TypeVar
 
-from omegaconf import OmegaConf
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from ..validators import implementation_type_validator, protocol_role_validator
@@ -199,7 +198,7 @@ class ServiceConfig(BaseUnifiedModel):
     def get_plugin_config(self, config_class: Type[T], validate: bool = True) -> T:
         """Get typed plugin configuration with defaults.
 
-        Merges plugin_config values over config_class defaults using OmegaConf,
+        Merges plugin_config values over config_class defaults,
         then instantiates the config class with the merged result.
 
         Args:
@@ -209,6 +208,8 @@ class ServiceConfig(BaseUnifiedModel):
         Returns:
             Typed plugin configuration instance
         """
+        from ..utils.merge import deep_merge
+
         # Use protocol-aware factory if available
         if hasattr(config_class, "create_with_protocol_context"):
             default_instance = config_class.create_with_protocol_context(
@@ -219,14 +220,8 @@ class ServiceConfig(BaseUnifiedModel):
 
         default_dict = default_instance.model_dump()
 
-        # OmegaConf deep merge: plugin_config overrides defaults
-        merged = OmegaConf.to_container(
-            OmegaConf.merge(
-                OmegaConf.create(default_dict),
-                OmegaConf.create(self.plugin_config or {}),
-            ),
-            resolve=True,
-        )
+        # Pure dict deep merge: plugin_config overrides defaults
+        merged = deep_merge(default_dict, self.plugin_config or {})
 
         return config_class(**merged)
 

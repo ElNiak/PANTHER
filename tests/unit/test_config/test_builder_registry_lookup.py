@@ -29,7 +29,7 @@ class TestBuilderRegistryLookup:
             assert result is not None
 
     def test_uses_registry_when_available(self, builder):
-        """If registry has a config model, use it instead of hardcoded."""
+        """If registry has a config model, validate via it and return dict."""
 
         class FakeEnvConfig(NetworkEnvironmentConfig):
             type: str = "custom_env"
@@ -39,16 +39,18 @@ class TestBuilderRegistryLookup:
             return_value=FakeEnvConfig,
         ):
             result = builder._build_network_environment({"type": "custom_env"})
-            assert isinstance(result, FakeEnvConfig)
+            assert isinstance(result, dict)
+            assert result["type"] == "custom_env"
 
     def test_unknown_type_uses_base_class(self, builder):
-        """Unknown env type with no registry match uses base NetworkEnvironmentConfig."""
+        """Unknown env type with no registry match returns raw dict."""
         with patch(
             "panther.plugins.core.plugin_decorators.get_config_model",
             return_value=None,
         ):
             result = builder._build_network_environment({"type": "totally_unknown"})
-            assert isinstance(result, NetworkEnvironmentConfig)
+            assert isinstance(result, dict)
+            assert result["type"] == "totally_unknown"
 
     def test_resolver_also_tries_registry(self):
         """PluginConfigResolver.resolve_service_config_class checks registry first."""
