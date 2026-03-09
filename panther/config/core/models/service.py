@@ -53,7 +53,7 @@ class NetworkConfig(BaseConfig):
     @classmethod
     def validate_port(cls, v):
         """Convert string/float to integer for port."""
-        from ..components.universal_validators import validate_integer_field
+        from ..components.field_coercion import validate_integer_field
 
         return validate_integer_field(v, "port")
 
@@ -63,7 +63,7 @@ class NetworkConfig(BaseConfig):
         """Convert string/float to integer for MTU."""
         if v is None:
             return v
-        from ..components.universal_validators import validate_integer_field
+        from ..components.field_coercion import validate_integer_field
 
         return validate_integer_field(v, "mtu")
 
@@ -308,7 +308,7 @@ class ServiceConfig(BaseConfig):
     @classmethod
     def validate_timeout(cls, v):
         """Convert string/float to integer and validate timeout is positive."""
-        from ..components.universal_validators import validate_integer_field
+        from ..components.field_coercion import validate_integer_field
 
         # First convert to integer
         timeout_val = validate_integer_field(v, "timeout")
@@ -333,7 +333,7 @@ class ServiceConfig(BaseConfig):
 
             try:
                 # Use universal validator to handle decimal strings
-                from ..components.universal_validators import validate_integer_field
+                from ..components.field_coercion import validate_integer_field
 
                 host_port = validate_integer_field(
                     parts[0], f"host_port in {port_mapping}"

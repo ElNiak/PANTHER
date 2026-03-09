@@ -4,7 +4,7 @@ from typing import List, Optional
 
 from pydantic import Field, validator
 
-from panther.config.core.components.universal_validators import validate_integer_field
+from panther.config.core.components.field_coercion import validate_integer_field
 from panther.config.core.models.environment import ExecutionEnvironmentConfig
 
 
