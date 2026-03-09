@@ -1,7 +1,7 @@
 """Configuration merger for the unified system.
 
 This module implements the configuration merging subsystem used by
-``UnifiedMerger`` (the standalone component) and ``ConfigOperationsMixin``
+``ConfigMerger`` (the standalone component) and ``ConfigOperationsMixin``
 (the mixin variant in ``panther.config.core.mixins.config_operations``).
 
 Two orthogonal enums control merge behaviour:
@@ -140,7 +140,7 @@ class ConflictResolver:
         return value2
 
 
-class UnifiedMerger(LoggerMixin):
+class ConfigMerger(LoggerMixin):
     """Pure-dict configuration merger.
 
     Merges an arbitrary number of configuration dicts according to a

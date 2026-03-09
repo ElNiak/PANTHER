@@ -66,7 +66,7 @@ class BaseValidator(LoggerMixin, ABC):
         pass
 
 
-class UnifiedValidator(BaseValidator):
+class ConfigValidator(BaseValidator):
     """Main validator that combines Pydantic and business rules validation."""
 
     def __init__(self):

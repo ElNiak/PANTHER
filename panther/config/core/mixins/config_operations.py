@@ -8,7 +8,7 @@ import yaml
 from panther.core.utils.logging_mixin import LoggerMixin
 
 from ..base import BaseConfig
-from ..components.merger import ConflictResolution, MergeStrategy, UnifiedMerger
+from ..components.merger import ConfigMerger, ConflictResolution, MergeStrategy
 from ..utils.merge import deep_merge, dot_notation_update
 
 if TYPE_CHECKING:
@@ -22,7 +22,7 @@ class ConfigOperationsMixin(LoggerMixin):
         """Initialize configuration operations."""
         super().__init__()
         self._config_overrides: Dict[str, Any] = {}
-        self._merger = UnifiedMerger()
+        self._merger = ConfigMerger()
 
     def merge_configurations(
         self,

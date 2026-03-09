@@ -41,7 +41,7 @@ class BaseLoader(LoggerMixin, ABC):
         self._cache.clear()
 
 
-class UnifiedYAMLLoader(BaseLoader):
+class YAMLLoader(BaseLoader):
     """YAML configuration loader with interpolation support."""
 
     def load(self, source: Union[str, Path]) -> Dict[str, Any]:
@@ -112,7 +112,7 @@ class UnifiedYAMLLoader(BaseLoader):
         return config
 
 
-class UnifiedVersionLoader(BaseLoader):
+class VersionLoader(BaseLoader):
     """Dynamic version configuration loader."""
 
     def __init__(self, plugin_dir: Path, enable_cache: bool = True):
@@ -288,7 +288,7 @@ class UnifiedVersionLoader(BaseLoader):
         return None
 
 
-class UnifiedCompositeLoader(BaseLoader):
+class CompositeLoader(BaseLoader):
     """Composite loader that combines multiple loaders."""
 
     def __init__(self, loaders: List[BaseLoader], enable_cache: bool = True):
@@ -357,7 +357,7 @@ class PluginConfigLoader(BaseLoader):
         """
         super().__init__(enable_cache)
         self.plugin_dir = plugin_dir
-        self.yaml_loader = UnifiedYAMLLoader(enable_cache)
+        self.yaml_loader = YAMLLoader(enable_cache)
 
     def load(self, source: str) -> Dict[str, Any]:
         """Load plugin configuration.

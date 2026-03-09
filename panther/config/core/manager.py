@@ -180,20 +180,20 @@ class ConfigurationManager(
 
         # Initialize validators
         try:
-            from .components.validators import BusinessRulesValidator, UnifiedValidator
+            from .components.validators import BusinessRulesValidator, ConfigValidator
 
             self.validators = [
                 BusinessRulesValidator(),
                 # Add other validators as needed
             ]
-            self.unified_validator = UnifiedValidator()
+            self.config_validator = ConfigValidator()
 
             self.logger.debug(f"Initialized {len(self.validators)} validators")
 
         except Exception as e:
             self.logger.warning(f"Failed to initialize validators: {e}")
             self.validators = []
-            self.unified_validator = None
+            self.config_validator = None
 
         # Initialize plugin components using unified plugin manager
         try:
