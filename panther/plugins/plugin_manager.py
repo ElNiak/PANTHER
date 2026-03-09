@@ -764,34 +764,10 @@ class PluginManager(LoggerMixin):
         runtime_mode = "minimal"  # Default runtime mode
 
         # Extract build_mode from service config if available (for panther_ivy)
-        if (
-            hasattr(service_config_to_test, "plugin_config")
-            and isinstance(service_config_to_test.plugin_config, dict)
-            and "build_mode" in service_config_to_test.plugin_config
-        ):
-            build_mode = service_config_to_test.plugin_config.get("build_mode")
-        elif hasattr(service_config_to_test, "implementation") and hasattr(
-            service_config_to_test.implementation, "build_mode"
-        ):
-            build_mode = getattr(
-                service_config_to_test.implementation, "build_mode", None
-            )
+        build_mode = getattr(service_config_to_test, "build_mode", None)
 
         # Extract runtime_mode from service config if available
-        if (
-            hasattr(service_config_to_test, "plugin_config")
-            and isinstance(service_config_to_test.plugin_config, dict)
-            and "runtime_mode" in service_config_to_test.plugin_config
-        ):
-            runtime_mode = service_config_to_test.plugin_config.get(
-                "runtime_mode", "minimal"
-            )
-        elif hasattr(service_config_to_test, "implementation") and hasattr(
-            service_config_to_test.implementation, "runtime_mode"
-        ):
-            runtime_mode = getattr(
-                service_config_to_test.implementation, "runtime_mode", "minimal"
-            )
+        runtime_mode = getattr(service_config_to_test, "runtime_mode", "minimal")
 
         cache_invalidated = self._invalidate_stale_cache_for_plugin(
             implementation_name,

@@ -1,3 +1,5 @@
+"""Docker mixin for service managers."""
+
 import logging
 import os
 from pathlib import Path
@@ -17,8 +19,7 @@ if TYPE_CHECKING:
 
 
 class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
-    """
-    Complete Docker mixin for service managers.
+    """Complete Docker mixin for service managers.
 
     Combines all Docker-related functionality and integrates with
     the service manager patterns in PANTHER.
@@ -32,14 +33,13 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
     # ExperimentManager executes in a single-threaded model.
     _base_image_built = False
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs):  # noqa: D107
         super().__init__(*args, **kwargs)
         # Initialize Docker-related attributes
         self._docker_prepared = False
 
     def prepare(self, plugin_manager: Optional["PluginManager"] = None) -> None:
-        """
-        Unified prepare method using only DockerBuilder.
+        """Unified prepare method using only DockerBuilder.
 
         This method now exclusively uses DockerBuilder for all Docker operations,
         eliminating the previous dual-path complexity.
@@ -110,8 +110,7 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
             raise
 
     def _ensure_base_image_built(self, plugin_manager: "PluginManager") -> None:
-        """
-        Build base image only once per experiment session.
+        """Build base image only once per experiment session.
 
         Args:
             plugin_manager: Plugin manager for Docker operations
@@ -207,8 +206,7 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
             raise
 
     def _generate_service_docker_image(self, plugin_manager: "PluginManager") -> None:
-        """
-        Build service-specific image using plugin manager.
+        """Build service-specific image using plugin manager.
 
         Args:
             plugin_manager: Plugin manager for Docker operations
@@ -259,32 +257,7 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
             f"Auto-detected runtime_mode from execution environment: '{runtime_mode}'"
         )
         # Allow manual override if specified in config
-        if (
-            hasattr(self, "service_config_to_test")
-            and hasattr(self.service_config_to_test, "plugin_config")
-            and isinstance(self.service_config_to_test.plugin_config, dict)
-            and "runtime_mode" in self.service_config_to_test.plugin_config
-        ):
-            override_mode = self.service_config_to_test.plugin_config["runtime_mode"]
-            self.logger.debug(
-                f"Overriding auto-detected runtime_mode '{runtime_mode}' with manual config: '{override_mode}'"
-            )
-            runtime_mode = override_mode
-        elif (
-            hasattr(self, "service_config_to_test")
-            and hasattr(self.service_config_to_test, "implementation")
-            and hasattr(self.service_config_to_test.implementation, "runtime_mode")
-        ):
-            if override_mode := getattr(
-                self.service_config_to_test.implementation, "runtime_mode", None
-            ):
-                self.logger.debug(
-                    f"Overriding auto-detected runtime_mode '{runtime_mode}' with implementation config: '{override_mode}'"
-                )
-                runtime_mode = override_mode
-        elif hasattr(self, "service_config_to_test") and hasattr(
-            self.service_config_to_test, "runtime_mode"
-        ):
+        if hasattr(self, "service_config_to_test"):
             if override_mode := getattr(
                 self.service_config_to_test, "runtime_mode", None
             ):
@@ -441,7 +414,7 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
             self.logger.error(f"Failed to build service image: {str(e)}")
             raise
 
-    def load_version_config(self):
+    def load_version_config(self):  # noqa: D102
         commit = ""
         dependencies = []
         try:
@@ -512,8 +485,7 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
 
     @classmethod
     def reset_base_image_flag(cls) -> None:
-        """
-        Reset base image flag for new experiment.
+        """Reset base image flag for new experiment.
 
         This should be called at the start of each experiment to ensure
         the base image is built once for the new experiment.
@@ -521,8 +493,7 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
         cls._base_image_built = False
 
     def is_docker_prepared(self) -> bool:
-        """
-        Check if Docker preparation has been completed.
+        """Check if Docker preparation has been completed.
 
         Returns:
             bool: True if prepared
@@ -530,8 +501,7 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
         return self._docker_prepared
 
     def reset_docker_preparation(self) -> None:
-        """
-        Reset the Docker preparation state.
+        """Reset the Docker preparation state.
 
         Useful for forcing rebuild on next prepare() call.
         """
@@ -583,8 +553,7 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
     def _determine_runtime_mode_from_execution_environment(
         self, plugin_manager: Optional["PluginManager"] = None
     ) -> str:
-        """
-        Automatically determine runtime_mode based on execution environment plugin.
+        """Automatically determine runtime_mode based on execution environment plugin.
 
         Args:
             plugin_manager: Plugin manager for accessing plugin metadata
@@ -817,8 +786,7 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
             return "minimal"
 
     def _extract_env_name_from_config(self, exec_env) -> Optional[str]:
-        """
-        Extract environment name from execution environment config.
+        """Extract environment name from execution environment config.
 
         Handles both list and single object formats with multiple field names.
 
@@ -868,8 +836,7 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
         return None
 
     def _select_optimal_dockerfile(self, services_dir: Path) -> Path:
-        """
-        Select the optimal Dockerfile based on BuildKit availability and preference.
+        """Select the optimal Dockerfile based on BuildKit availability and preference.
 
         Priority order:
         1. Dockerfile.buildkit (if BuildX available and should be used)
@@ -956,8 +923,7 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
         detach: bool = True,
         remove: bool = True,
     ) -> List[str]:
-        """
-        Generate a docker run command for this service.
+        """Generate a docker run command for this service.
 
         Args:
             command: Command to run in container
