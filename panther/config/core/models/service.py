@@ -1,7 +1,7 @@
 """Service configuration models."""
 
 from enum import Enum
-from typing import Any, Dict, List, Optional, Type, TypeVar
+from typing import Any, ClassVar, Dict, List, Optional, Type, TypeVar
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -161,6 +161,8 @@ T = TypeVar("T", bound=BasePluginConfig)
 class ServiceConfig(BaseConfig):
     """Service configuration."""
 
+    VERSION_CLASS: ClassVar[Optional[type]] = None
+
     implementation: ImplementationConfig = Field(
         ..., description="Implementation configuration"
     )
@@ -190,6 +192,11 @@ class ServiceConfig(BaseConfig):
         None,
         description="Per-service Docker build overrides (inherits from global if absent)",
     )
+
+    # Service build/docker fields (merged from ServicePluginConfig)
+    docker_image: Optional[str] = Field(None, description="Docker image name")
+    build_from_source: bool = Field(True, description="Build from source")
+    source_repository: Optional[str] = Field(None, description="Source repository URL")
 
     plugin_config: Optional[Dict[str, Any]] = Field(
         default_factory=dict, description="Plugin-specific configuration"
@@ -226,6 +233,114 @@ class ServiceConfig(BaseConfig):
         return config_class(**merged)
 
     # Allow extra fields for service-specific parameters
+
+    @classmethod
+    def load_version(
+        cls,
+        version_configs_dir: Optional[str] = None,
+        version: Optional[str] = None,
+        protocol_version_override: Optional[str] = None,
+    ):
+        """Generic version loading using VERSION_CLASS.
+
+        Subclasses set ``VERSION_CLASS`` to their VersionBase subclass.
+        Default ``version_configs_dir`` is ``version_configs/`` next to the
+        subclass's ``config_schema.py``.
+
+        Args:
+            version_configs_dir: Directory containing version YAML files.
+            version: Specific version to load (e.g. ``'rfc9000'``).
+            protocol_version_override: Protocol version from experiment config.
+
+        Returns:
+            VERSION_CLASS instance, or ``None`` if VERSION_CLASS is not set.
+        """
+        import logging
+        import os
+        from pathlib import Path
+
+        if cls.VERSION_CLASS is None:
+            return None
+
+        import yaml
+
+        from ..utils.merge import deep_merge
+
+        # Determine directory
+        if version_configs_dir is None:
+            import inspect
+
+            src_file = inspect.getfile(cls)
+            version_configs_dir = str(
+                Path(os.path.dirname(src_file)) / "version_configs"
+            )
+
+        effective_version = protocol_version_override or version
+
+        if effective_version:
+            version_path = os.path.join(
+                version_configs_dir, f"{effective_version}.yaml"
+            )
+            if not os.path.exists(version_path):
+                raise FileNotFoundError(
+                    f"Version config file not found: {version_path}"
+                )
+            with open(version_path) as f:
+                raw_dict = yaml.safe_load(f) or {}
+        else:
+            # Load first YAML found (sorted for determinism)
+            if not os.path.exists(version_configs_dir):
+                logging.warning(
+                    "Version configs directory %s not found, using defaults",
+                    version_configs_dir,
+                )
+                return cls.VERSION_CLASS()
+            version_files = sorted(
+                f for f in os.listdir(version_configs_dir) if f.endswith(".yaml")
+            )
+            if not version_files:
+                logging.warning(
+                    "No version files found in %s, using defaults",
+                    version_configs_dir,
+                )
+                return cls.VERSION_CLASS()
+            version_path = os.path.join(version_configs_dir, version_files[0])
+            with open(version_path) as f:
+                raw_dict = yaml.safe_load(f) or {}
+
+        # Merge with defaults using pure dict merge
+        default_dict = cls.VERSION_CLASS().model_dump()
+        merged = deep_merge(default_dict, raw_dict)
+        return cls.VERSION_CLASS(**merged)
+
+    @classmethod
+    def create_with_protocol_context(cls, protocol=None):
+        """Create config instance with optional protocol context.
+
+        If ``VERSION_CLASS`` is set and *protocol* carries a version, the
+        matching version config is loaded automatically.
+
+        Args:
+            protocol: Optional protocol configuration for context-aware creation
+
+        Returns:
+            Configuration instance
+        """
+        if (
+            cls.VERSION_CLASS is not None
+            and protocol
+            and getattr(protocol, "version", None)
+        ):
+            try:
+                version_config = cls.load_version(
+                    protocol_version_override=protocol.version
+                )
+                return cls(version=version_config)
+            except (FileNotFoundError, ValueError) as e:
+                raise ValueError(
+                    f"Could not load protocol version {protocol.version}: {e}"
+                ) from e
+        return cls()
 
     @field_validator("timeout", mode="before")
     @classmethod
