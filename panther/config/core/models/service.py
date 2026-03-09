@@ -1,10 +1,9 @@
 """Service configuration models."""
 
-import contextlib
-import logging
 from enum import Enum
 from typing import Any, Dict, List, Optional, Type, TypeVar
 
+from omegaconf import OmegaConf
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from ..validators import implementation_type_validator, protocol_role_validator
@@ -212,10 +211,8 @@ class ServiceConfig(BaseUnifiedModel):
     def get_plugin_config(self, config_class: Type[T], validate: bool = True) -> T:
         """Get typed plugin configuration with defaults.
 
-        This method creates an instance of the plugin config class, using values
-        from plugin_config where available and defaults from the class where not.
-
-        For nested Pydantic models, it handles type conversion intelligently.
+        Merges plugin_config values over config_class defaults using OmegaConf,
+        then instantiates the config class with the merged result.
 
         Args:
             config_class: The plugin configuration class
@@ -224,208 +221,26 @@ class ServiceConfig(BaseUnifiedModel):
         Returns:
             Typed plugin configuration instance
         """
-        # For plugin configs that have complex nested defaults, we need to be careful
-        # Handle special cases where we need to pass protocol context
-        default_instance = config_class()
-        # Use protocol-aware factory method if available
+        # Use protocol-aware factory if available
         if hasattr(config_class, "create_with_protocol_context"):
-            logging.debug(
-                "Using protocol-aware factory method for plugin config: %s",
-                config_class.__name__,
-            )
             default_instance = config_class.create_with_protocol_context(
                 self.protocol if hasattr(self, "protocol") else None
             )
         else:
-            logging.debug(
-                "Using standard instantiation for plugin config: %s",
-                config_class.__name__,
-            )
-            # Fallback to standard instantiation
             default_instance = config_class()
 
-        # Get default values (handle both Pydantic v1 and v2)
-        try:
-            default_dict = default_instance.model_dump()
-        except AttributeError:
-            default_dict = default_instance.dict()
+        default_dict = default_instance.model_dump()
 
-        # Deep merge plugin_config values over defaults with type awareness
-        merged_config = self._deep_merge_with_type_conversion(
-            default_dict, self.plugin_config, config_class
+        # OmegaConf deep merge: plugin_config overrides defaults
+        merged = OmegaConf.to_container(
+            OmegaConf.merge(
+                OmegaConf.create(default_dict),
+                OmegaConf.create(self.plugin_config or {}),
+            ),
+            resolve=True,
         )
 
-        # Create final instance with merged values
-        instance = config_class(**merged_config)
-
-        # Optional validation with PluginConfigResolver
-        if validate and self.implementation:
-            try:
-                from panther.plugins.core.plugin_config_resolver import (
-                    get_plugin_config_resolver,
-                )
-
-                resolver = get_plugin_config_resolver()
-
-                # Try to find the expected config class
-                # Handle both enum and string types for implementation.type
-                service_type = (
-                    self.implementation.type.value
-                    if isinstance(self.implementation.type, ImplementationType)
-                    else self.implementation.type
-                ).lower()
-
-                expected_class = resolver.resolve_service_config_class(
-                    service_type=service_type,
-                    protocol=self.protocol.name if self.protocol else "",
-                    name=self.implementation.name,
-                )
-
-                if expected_class and expected_class != config_class:
-                    # Log warning but don't fail
-                    logging.warning(
-                        f"Plugin config class mismatch: expected {expected_class.__name__}, "
-                        f"got {config_class.__name__}"
-                    )
-            except Exception as e:
-                # Validation is optional, so we just log and continue
-                logging.debug(f"Could not validate plugin config with resolver: {e}")
-
-        return instance
-
-    def _deep_merge_configs(
-        self, defaults: Dict[str, Any], overrides: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Deep merge configuration dictionaries, preserving structure.
-
-        Args:
-            defaults: Default configuration with full structure
-            overrides: Override values that may have simplified structure
-
-        Returns:
-            Merged configuration
-        """
-        result = defaults.copy()
-
-        for key, value in overrides.items():
-            if key in result:
-                if isinstance(result[key], dict) and isinstance(value, dict):
-                    # Recursive merge for nested dicts
-                    result[key] = self._deep_merge_configs(result[key], value)
-                else:
-                    # Direct override
-                    result[key] = value
-            else:
-                # New key not in defaults
-                result[key] = value
-
-        return result
-
-    def _deep_merge_with_type_conversion(
-        self,
-        defaults: Dict[str, Any],
-        overrides: Dict[str, Any],
-        config_class: Type[Any],
-    ) -> Dict[str, Any]:
-        """Deep merge with intelligent type conversion based on schema.
-
-        This method inspects the Pydantic model's field types to determine
-        how to convert simplified YAML values to the expected types.
-
-        Args:
-            defaults: Default configuration with full structure
-            overrides: Override values that may have simplified structure
-            config_class: The Pydantic model class for type information
-
-        Returns:
-            Merged configuration with proper types
-        """
-        result = defaults.copy()
-
-        # Get field information from the Pydantic model
-        try:
-            # Pydantic v2
-            fields = config_class.model_fields
-        except AttributeError:
-            # Pydantic v1
-            fields = config_class.__fields__
-
-        for key, value in overrides.items():
-            if key in result:
-                # Get field info to understand expected type
-                field_info = fields.get(key) if fields else None
-
-                if isinstance(result[key], dict) and not isinstance(value, dict):
-                    # The default is a dict but override is a simple value
-                    # Check if this is a Pydantic model field that expects a specific format
-                    if field_info and self._is_pydantic_model_field(field_info):
-                        # Keep the default structure, just update the relevant field
-                        # For example, Parameter objects have 'value' and 'description'
-                        if "value" in result[key]:
-                            result[key]["value"] = str(value)
-                    else:
-                        # Simple override
-                        result[key] = value
-                elif isinstance(result[key], dict):
-                    # Both are dicts - recursive merge
-                    # Try to get the nested model class if this is a Pydantic field
-                    nested_class = (
-                        self._get_nested_model_class(field_info) if field_info else None
-                    )
-                    if nested_class:
-                        result[key] = self._deep_merge_with_type_conversion(
-                            result[key], value, nested_class
-                        )
-                    else:
-                        result[key] = self._deep_merge_configs(result[key], value)
-                else:
-                    # Direct override
-                    result[key] = value
-            else:
-                # New key not in defaults
-                result[key] = value
-
-        return result
-
-    def _is_pydantic_model_field(self, field_info) -> bool:
-        """Check if a field is a Pydantic model field.
-
-        Args:
-            field_info: Field information from Pydantic model
-
-        Returns:
-            True if the field is a Pydantic model
-        """
-        with contextlib.suppress(Exception):
-            if field_type := getattr(field_info, "annotation", None) or getattr(
-                field_info, "type_", None
-            ):
-                # Check if it's a Pydantic BaseModel subclass
-                return isinstance(field_type, type) and issubclass(
-                    field_type, BaseModel
-                )
-        return False
-
-    def _get_nested_model_class(self, field_info) -> Optional[Type[Any]]:
-        """Get the nested model class from field info.
-
-        Args:
-            field_info: Field information from Pydantic model
-
-        Returns:
-            Nested model class or None
-        """
-        with contextlib.suppress(Exception):
-            field_type = getattr(field_info, "annotation", None) or getattr(
-                field_info, "type_", None
-            )
-            if (
-                field_type
-                and isinstance(field_type, type)
-                and issubclass(field_type, BaseModel)
-            ):
-                return field_type
-        return None
+        return config_class(**merged)
 
     # Allow extra fields for service-specific parameters
 

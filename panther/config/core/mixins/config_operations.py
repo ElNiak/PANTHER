@@ -1,6 +1,5 @@
 """Configuration operations mixin for ConfigurationManager."""
 
-from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
@@ -9,46 +8,10 @@ from omegaconf import DictConfig, OmegaConf
 from panther.core.utils.logging_mixin import LoggerMixin
 
 from ..base import BaseConfig
+from ..components.merger import ConflictResolution, MergeStrategy
 
 if TYPE_CHECKING:
     from ..models import ExperimentConfig
-
-
-class MergeStrategy(Enum):
-    """Structural merge strategy for ``ConfigOperationsMixin.merge_configurations()``.
-
-    This is the mixin-level variant. For the extended set of strategies
-    (including ``APPEND_LISTS`` and ``UNION_LISTS``), see the component-level
-    ``panther.config.core.components.merger.MergeStrategy``.
-
-    - ``DEEP_MERGE`` -- Recursively merge nested dicts (default).
-    - ``SHALLOW_MERGE`` -- Merge top-level keys only; nested values replaced.
-    - ``REPLACE`` -- Last config wins entirely.
-    """
-
-    DEEP_MERGE = "deep_merge"
-    SHALLOW_MERGE = "shallow_merge"
-    REPLACE = "replace"
-
-
-class ConflictResolution(Enum):
-    """Scalar conflict resolution for ``ConfigOperationsMixin.merge_configurations()``.
-
-    Controls what happens when two configs define different values at the
-    same key during a merge. This is the mixin-level variant; see
-    ``panther.config.core.components.merger.ConflictResolution`` for the
-    extended set (which adds ``COMBINE``).
-
-    - ``USE_FIRST`` -- Keep the base config value.
-    - ``USE_SECOND`` -- Let the override win (default).
-    - ``ERROR`` -- Raise on any conflict.
-    - ``COMBINE_LISTS`` -- Concatenate list values; other types use second.
-    """
-
-    USE_FIRST = "use_first"
-    USE_SECOND = "use_second"
-    ERROR = "error"
-    COMBINE_LISTS = "combine_lists"
 
 
 class ConfigOperationsMixin(LoggerMixin):
@@ -318,7 +281,7 @@ class ConfigOperationsMixin(LoggerMixin):
                     elif base_val != override_val:
                         raise ValueError(f"Conflict on key: {key}")
 
-        elif conflict == ConflictResolution.COMBINE_LISTS:
+        elif conflict == ConflictResolution.COMBINE:
             # Special handling for lists
             result = OmegaConf.create({})
 

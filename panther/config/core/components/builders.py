@@ -243,6 +243,9 @@ class ExperimentBuilder(BaseBuilder):
     ) -> NetworkEnvironmentConfig:
         """Build network environment configuration.
 
+        Uses the schema registry first, then falls back to hardcoded imports
+        for backwards compatibility.
+
         Args:
             env_dict: Environment configuration dictionary
 
@@ -251,7 +254,17 @@ class ExperimentBuilder(BaseBuilder):
         """
         env_type = env_dict.get("type", "docker_compose")
 
-        # Dynamically import configs from plugin directories
+        # 1. Try schema registry (populated by @register_plugin auto-discovery)
+        try:
+            from panther.plugins.core.plugin_decorators import get_config_model
+
+            config_class = get_config_model(env_type)
+            if config_class is not None:
+                return config_class(**env_dict)
+        except ImportError:
+            pass
+
+        # 2. Fallback: hardcoded imports for environments not yet registered
         try:
             if env_type == "docker_compose":
                 from panther.plugins.environments.network_environment.docker_compose.config_schema import (
@@ -272,7 +285,6 @@ class ExperimentBuilder(BaseBuilder):
 
                 config_class = ShadowNSConfig
             else:
-                # Fallback to base class
                 config_class = NetworkEnvironmentConfig
                 self.context.add_warning(
                     f"Unknown network environment type '{env_type}', using base class"
