@@ -1,27 +1,19 @@
 """quic-go QUIC plugin configuration schema."""
 
-from typing import Optional
+from typing import ClassVar, Optional
 
 from pydantic import Field
 
-from panther.config.core.models import (
-    ImplementationType,
-    ServicePluginConfig,
+from panther.config.core.models.service import (
+    ImplementationConfig,
+    ProtocolConfig,
+    ServiceConfig,
     VersionBase,
 )
 
 
 class QuicGoVersion(VersionBase):
-    """Version information for quic-go.
-
-    Extends VersionBase with optional client/server role-specific
-    configuration loaded from YAML version files.
-
-    Inherited from VersionBase:
-        version: Git tag or release version string.
-        commit: Git commit hash for reproducible builds.
-        dependencies: Build-time dependency specifications.
-    """
+    """Version information for quic-go."""
 
     client: Optional[dict] = Field(
         default_factory=dict, description="Client configuration"
@@ -31,25 +23,13 @@ class QuicGoVersion(VersionBase):
     )
 
 
-class QuicGoConfig(ServicePluginConfig):
+class QuicGoConfig(ServiceConfig):
     """quic-go QUIC implementation configuration.
 
-    quic-go is a pure Go implementation of the QUIC protocol. It provides
-    a complete QUIC stack with HTTP/3 support, leveraging Go's built-in
-    concurrency primitives for efficient connection handling. quic-go is
-    widely used in the Go ecosystem and powers projects like Caddy and
-    Syncthing.
+    quic-go is a pure Go implementation of the QUIC protocol.
 
     Language: Go | Source: https://github.com/quic-go/quic-go
     Build time: ~3 min | Docker image: ~200MB
-
-    Inherited from ServicePluginConfig / BasePluginConfig:
-        enabled (bool): Whether the plugin is enabled. Default: True.
-        version (Optional[str]): Plugin version. Default: None.
-        priority (int): Plugin execution priority. Default: 100.
-        docker_image (Optional[str]): Docker image name. Default: None.
-        build_from_source (bool): Build from source. Default: True.
-        source_repository (Optional[str]): Source repository URL.
 
     Example YAML::
 
@@ -64,14 +44,16 @@ class QuicGoConfig(ServicePluginConfig):
               role: server
     """
 
-    VERSION_CLASS = QuicGoVersion
+    VERSION_CLASS: ClassVar[Optional[type]] = QuicGoVersion
 
-    name: str = Field(default="quic-go", description="Implementation name")
-    type: ImplementationType = Field(
-        default=ImplementationType.IUT, description="Implementation type"
+    implementation: ImplementationConfig = Field(
+        default_factory=lambda: ImplementationConfig(name="quic-go", type="iut"),
+        description="Implementation configuration",
     )
-
-    # Version configuration loaded dynamically from YAML files
+    protocol: ProtocolConfig = Field(
+        default_factory=lambda: ProtocolConfig(name="quic", role="server"),
+        description="Protocol configuration",
+    )
     version: QuicGoVersion = Field(
         default_factory=lambda: QuicGoConfig.load_version(),
         description="Version configuration",

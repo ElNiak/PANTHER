@@ -1,27 +1,19 @@
 """Quant QUIC plugin configuration schema."""
 
-from typing import Optional
+from typing import ClassVar, Optional
 
 from pydantic import Field
 
-from panther.config.core.models import (
-    ImplementationType,
-    ServicePluginConfig,
+from panther.config.core.models.service import (
+    ImplementationConfig,
+    ProtocolConfig,
+    ServiceConfig,
     VersionBase,
 )
 
 
 class QuantVersion(VersionBase):
-    """Version information for Quant.
-
-    Extends VersionBase with optional client/server role-specific
-    configuration loaded from YAML version files.
-
-    Inherited from VersionBase:
-        version: Git tag or release version string.
-        commit: Git commit hash for reproducible builds.
-        dependencies: Build-time dependency specifications.
-    """
+    """Version information for Quant."""
 
     client: Optional[dict] = Field(
         default_factory=dict, description="Client configuration"
@@ -31,25 +23,14 @@ class QuantVersion(VersionBase):
     )
 
 
-class QuantConfig(ServicePluginConfig):
+class QuantConfig(ServiceConfig):
     """Quant QUIC implementation configuration.
 
     Quant is a minimal, embeddable C implementation of QUIC developed by
-    NTAP (NetApp Advanced Technology Group). It focuses on a small code
-    footprint and low resource usage, targeting embedded systems and
-    constrained environments. Quant uses the warpcore userspace UDP/IP
-    stack for high-performance I/O.
+    NTAP (NetApp Advanced Technology Group).
 
     Language: C | Source: https://github.com/NTAP/quant
     Build time: ~5 min | Docker image: ~150MB
-
-    Inherited from ServicePluginConfig / BasePluginConfig:
-        enabled (bool): Whether the plugin is enabled. Default: True.
-        version (Optional[str]): Plugin version. Default: None.
-        priority (int): Plugin execution priority. Default: 100.
-        docker_image (Optional[str]): Docker image name. Default: None.
-        build_from_source (bool): Build from source. Default: True.
-        source_repository (Optional[str]): Source repository URL.
 
     Example YAML::
 
@@ -64,14 +45,16 @@ class QuantConfig(ServicePluginConfig):
               role: client
     """
 
-    VERSION_CLASS = QuantVersion
+    VERSION_CLASS: ClassVar[Optional[type]] = QuantVersion
 
-    name: str = Field(default="quant", description="Implementation name")
-    type: ImplementationType = Field(
-        default=ImplementationType.IUT, description="Implementation type"
+    implementation: ImplementationConfig = Field(
+        default_factory=lambda: ImplementationConfig(name="quant", type="iut"),
+        description="Implementation configuration",
     )
-
-    # Version configuration loaded dynamically from YAML files
+    protocol: ProtocolConfig = Field(
+        default_factory=lambda: ProtocolConfig(name="quic", role="server"),
+        description="Protocol configuration",
+    )
     version: QuantVersion = Field(
         default_factory=lambda: QuantConfig.load_version(),
         description="Version configuration",

@@ -1,11 +1,16 @@
 """Picoquic QUIC plugin configuration schema."""
 
-from typing import Optional
+from typing import ClassVar, Optional
 
 from pydantic import Field
 
-from panther.config.core.models.plugin import ServicePluginConfig
-from panther.config.core.models.service import ImplementationType, VersionBase
+from panther.config.core.models.service import (
+    ImplementationConfig,
+    ImplementationType,
+    ProtocolConfig,
+    ServiceConfig,
+    VersionBase,
+)
 
 
 class PicoquicVersion(VersionBase):
@@ -29,7 +34,7 @@ class PicoquicVersion(VersionBase):
     )
 
 
-class PicoquicConfig(ServicePluginConfig):
+class PicoquicConfig(ServiceConfig):
     """Picoquic QUIC implementation configuration.
 
     Picoquic is a minimal, standards-focused C implementation of QUIC
@@ -40,14 +45,6 @@ class PicoquicConfig(ServicePluginConfig):
 
     Language: C | Source: https://github.com/private-octopus/picoquic
     Build time: ~5 min | Docker image: ~200MB
-
-    Inherited from ServicePluginConfig / BasePluginConfig:
-        enabled (bool): Whether the plugin is enabled. Default: True.
-        version (Optional[str]): Plugin version. Default: None.
-        priority (int): Plugin execution priority. Default: 100.
-        docker_image (Optional[str]): Docker image name. Default: None.
-        build_from_source (bool): Build from source. Default: True.
-        source_repository (Optional[str]): Source repository URL.
 
     Example YAML::
 
@@ -62,13 +59,19 @@ class PicoquicConfig(ServicePluginConfig):
               role: server
     """
 
-    VERSION_CLASS = PicoquicVersion
+    VERSION_CLASS: ClassVar[Optional[type]] = PicoquicVersion
 
-    name: str = Field(default="picoquic", description="Implementation name")
-    type: ImplementationType = Field(
-        default_factory=lambda: ImplementationType.IUT,
-        description="Implementation type",
+    # Override required fields with plugin-specific defaults
+    implementation: ImplementationConfig = Field(
+        default_factory=lambda: ImplementationConfig(name="picoquic", type="iut"),
+        description="Implementation configuration",
     )
+    protocol: ProtocolConfig = Field(
+        default_factory=lambda: ProtocolConfig(name="quic", role="server"),
+        description="Protocol configuration",
+    )
+
+    # Typed version (loaded from version_configs/)
     version: PicoquicVersion = Field(
         default_factory=lambda: PicoquicConfig.load_version(),
         description="Version configuration",

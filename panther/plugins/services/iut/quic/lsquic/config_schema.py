@@ -4,10 +4,14 @@ from typing import Dict, Optional
 
 from pydantic import Field
 
-from panther.config.core.models.plugin import ServicePluginConfig
+from panther.config.core.models.service import (
+    ImplementationConfig,
+    ProtocolConfig,
+    ServiceConfig,
+)
 
 
-class LsquicConfig(ServicePluginConfig):
+class LsquicConfig(ServiceConfig):
     """LSQUIC QUIC implementation configuration.
 
     LSQUIC (LiteSpeed QUIC) is a high-performance C implementation of
@@ -18,14 +22,6 @@ class LsquicConfig(ServicePluginConfig):
 
     Language: C | Source: https://github.com/litespeedtech/lsquic
     Build time: ~8 min | Docker image: ~250MB
-
-    Inherited from ServicePluginConfig / BasePluginConfig:
-        enabled (bool): Whether the plugin is enabled. Default: True.
-        version (Optional[str]): Plugin version. Default: None.
-        priority (int): Plugin execution priority. Default: 100.
-        docker_image (Optional[str]): Docker image name. Default: None.
-        build_from_source (bool): Build from source. Default: True.
-        source_repository (Optional[str]): Source repository URL.
 
     Example YAML::
 
@@ -40,8 +36,15 @@ class LsquicConfig(ServicePluginConfig):
               role: server
     """
 
-    # LSQUIC-specific fields
-    name: str = Field(default="lsquic", description="Implementation name")
+    # Override required fields with plugin-specific defaults
+    implementation: ImplementationConfig = Field(
+        default_factory=lambda: ImplementationConfig(name="lsquic", type="iut"),
+        description="Implementation configuration",
+    )
+    protocol: ProtocolConfig = Field(
+        default_factory=lambda: ProtocolConfig(name="quic", role="server"),
+        description="Protocol configuration",
+    )
 
     # Server-specific options
     doc_root: str = Field(

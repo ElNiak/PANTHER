@@ -17,7 +17,7 @@ from panther.config.core.models.environment import (
     ExecutionEnvironmentConfig,
     NetworkEnvironmentConfig,
 )
-from panther.config.core.models.plugin import ServicePluginConfig
+from panther.config.core.models.service import ServiceConfig
 
 logger = logging.getLogger(__name__)
 
@@ -185,9 +185,7 @@ class PluginConfigResolver:
         else:
             module_path = f"panther.plugins.services.{service_type}.{protocol}.{name}.config_schema"
 
-        config_class = self._find_config_class_in_module(
-            module_path, ServicePluginConfig
-        )
+        config_class = self._find_config_class_in_module(module_path, ServiceConfig)
         if config_class:
             self._config_cache[cache_key] = config_class
             logger.debug(f"Found service config {config_class.__name__} for {name}")

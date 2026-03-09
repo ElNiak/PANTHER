@@ -1,27 +1,19 @@
 """Quinn QUIC plugin configuration schema."""
 
-from typing import Optional
+from typing import ClassVar, Optional
 
 from pydantic import Field
 
-from panther.config.core.models import (
-    ImplementationType,
-    ServicePluginConfig,
+from panther.config.core.models.service import (
+    ImplementationConfig,
+    ProtocolConfig,
+    ServiceConfig,
     VersionBase,
 )
 
 
 class QuinnVersion(VersionBase):
-    """Version information for Quinn.
-
-    Extends VersionBase with optional client/server role-specific
-    configuration loaded from YAML version files.
-
-    Inherited from VersionBase:
-        version: Git tag or release version string.
-        commit: Git commit hash for reproducible builds.
-        dependencies: Build-time dependency specifications.
-    """
+    """Version information for Quinn."""
 
     client: Optional[dict] = Field(
         default_factory=dict, description="Client configuration"
@@ -31,25 +23,14 @@ class QuinnVersion(VersionBase):
     )
 
 
-class QuinnConfig(ServicePluginConfig):
+class QuinnConfig(ServiceConfig):
     """Quinn QUIC implementation configuration.
 
     Quinn is a pure Rust implementation of QUIC built on the Tokio async
-    runtime. It provides an ergonomic Rust API with strong type safety
-    and uses rustls for TLS 1.3. Quinn is designed for async Rust
-    applications and integrates well with the Tokio ecosystem, supporting
-    both client and server roles.
+    runtime.
 
     Language: Rust (Tokio) | Source: https://github.com/quinn-rs/quinn
     Build time: ~10 min | Docker image: ~300MB
-
-    Inherited from ServicePluginConfig / BasePluginConfig:
-        enabled (bool): Whether the plugin is enabled. Default: True.
-        version (Optional[str]): Plugin version. Default: None.
-        priority (int): Plugin execution priority. Default: 100.
-        docker_image (Optional[str]): Docker image name. Default: None.
-        build_from_source (bool): Build from source. Default: True.
-        source_repository (Optional[str]): Source repository URL.
 
     Example YAML::
 
@@ -64,14 +45,16 @@ class QuinnConfig(ServicePluginConfig):
               role: client
     """
 
-    VERSION_CLASS = QuinnVersion
+    VERSION_CLASS: ClassVar[Optional[type]] = QuinnVersion
 
-    name: str = Field(default="quinn", description="Implementation name")
-    type: ImplementationType = Field(
-        default=ImplementationType.IUT, description="Implementation type"
+    implementation: ImplementationConfig = Field(
+        default_factory=lambda: ImplementationConfig(name="quinn", type="iut"),
+        description="Implementation configuration",
     )
-
-    # Version configuration loaded dynamically from YAML files
+    protocol: ProtocolConfig = Field(
+        default_factory=lambda: ProtocolConfig(name="quic", role="server"),
+        description="Protocol configuration",
+    )
     version: QuinnVersion = Field(
         default_factory=lambda: QuinnConfig.load_version(),
         description="Version configuration",
