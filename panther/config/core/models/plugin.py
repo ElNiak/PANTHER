@@ -172,6 +172,10 @@ class ServicePluginConfig(BasePluginConfig):
             VERSION_CLASS instance, or ``None`` if VERSION_CLASS is not set.
         """
         if cls.VERSION_CLASS is None:
+            # Intentionally returns None instead of raising NotImplementedError.
+            # Plugins like aioquic that don't set VERSION_CLASS use this in
+            # default_factory=lambda: SomeConfig.load_version(), which executes
+            # at import time.  Raising would break import of those plugins.
             return None
 
         from omegaconf import OmegaConf
