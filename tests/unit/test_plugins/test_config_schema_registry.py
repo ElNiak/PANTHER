@@ -141,3 +141,42 @@ class TestRegistryLookupFunctions:
         models = get_all_config_models()
         assert "test_plugin_2" in models
         assert models["test_plugin_2"] is FakeConfig
+
+
+class TestDiscoverySiblingEdgeCases:
+    """Test _discover_sibling_config_model edge cases (I3, I4)."""
+
+    def test_returns_none_for_dotless_module(self):
+        """Module without dots should be handled gracefully (I4)."""
+
+        class FakeClass:
+            __module__ = "standalone"
+
+        result = _discover_sibling_config_model(FakeClass)
+        assert result is None
+
+    def test_skips_intermediate_base_classes(self):
+        """Should skip known base classes like ServicePluginConfig (I3).
+
+        Uses attribute name 'AAAServicePluginConfig' to ensure it sorts
+        before the concrete class, exposing the bug if base filtering is missing.
+        """
+        import types
+
+        class MyConcreteConfig(ServicePluginConfig):
+            """The real config class."""
+
+            type: str = "iut"
+
+        fake_module = types.ModuleType("fake.config_schema")
+        # Name sorts before MyConcreteConfig — without base_names filter,
+        # ServicePluginConfig would be returned first
+        fake_module.AAAServicePluginConfig = ServicePluginConfig
+        fake_module.MyConcreteConfig = MyConcreteConfig
+
+        class FakeClass:
+            __module__ = "fake.manager"
+
+        with patch("importlib.import_module", return_value=fake_module):
+            result = _discover_sibling_config_model(FakeClass)
+            assert result is MyConcreteConfig

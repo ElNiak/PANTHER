@@ -93,11 +93,37 @@ def _discover_sibling_config_model(cls: type) -> Optional[type]:
     except ImportError:
         return None
 
-    package = cls.__module__.rsplit(".", 1)[0]
+    module = cls.__module__
+    if not module or "." not in module:
+        return None
+
+    package = module.rsplit(".", 1)[0]
     try:
         schema_mod = importlib.import_module(f"{package}.config_schema")
     except ImportError:
         return None
+
+    # Known base classes to skip — only return concrete subclasses.
+    # Import here to build the identity set; missing imports are tolerated.
+    _base_classes = {BasePluginConfig}
+    try:
+        from panther.config.core.models.plugin import (
+            ExecutionEnvironmentPluginConfig,
+            NetworkEnvironmentPluginConfig,
+            ProtocolPluginConfig,
+            ServicePluginConfig,
+        )
+
+        _base_classes.update(
+            {
+                ServicePluginConfig,
+                ExecutionEnvironmentPluginConfig,
+                NetworkEnvironmentPluginConfig,
+                ProtocolPluginConfig,
+            }
+        )
+    except ImportError:
+        pass
 
     # Scan for first concrete subclass of BasePluginConfig
     for attr_name in dir(schema_mod):
@@ -105,7 +131,7 @@ def _discover_sibling_config_model(cls: type) -> Optional[type]:
         if (
             isinstance(attr, type)
             and issubclass(attr, BasePluginConfig)
-            and attr is not BasePluginConfig
+            and attr not in _base_classes
             and attr_name.endswith("Config")
         ):
             return attr
