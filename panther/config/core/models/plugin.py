@@ -1,6 +1,9 @@
 """Plugin configuration models."""
 
-from typing import Any, Dict, Optional, Type, TypeVar
+import logging
+import os
+from pathlib import Path
+from typing import Any, ClassVar, Dict, Optional, Type, TypeVar
 
 from pydantic import Field, field_validator
 
@@ -120,6 +123,8 @@ class NetworkEnvironmentPluginConfig(BasePluginConfig):
 class ServicePluginConfig(BasePluginConfig):
     """Base configuration for service plugins (IUT and testers)."""
 
+    VERSION_CLASS: ClassVar[Optional[type]] = None
+
     type: str = Field(..., description="Implementation type")
 
     # Common fields for services
@@ -146,11 +151,82 @@ class ServicePluginConfig(BasePluginConfig):
         return v
 
     @classmethod
+    def load_version(
+        cls,
+        version_configs_dir: Optional[str] = None,
+        version: Optional[str] = None,
+        protocol_version_override: Optional[str] = None,
+    ):
+        """Generic version loading using VERSION_CLASS.
+
+        Subclasses set ``VERSION_CLASS`` to their VersionBase subclass.
+        Default ``version_configs_dir`` is ``version_configs/`` next to the
+        subclass's ``config_schema.py``.
+
+        Args:
+            version_configs_dir: Directory containing version YAML files.
+            version: Specific version to load (e.g. ``'rfc9000'``).
+            protocol_version_override: Protocol version from experiment config.
+
+        Returns:
+            VERSION_CLASS instance, or ``None`` if VERSION_CLASS is not set.
+        """
+        if cls.VERSION_CLASS is None:
+            return None
+
+        from omegaconf import OmegaConf
+
+        # Determine directory
+        if version_configs_dir is None:
+            import inspect
+
+            src_file = inspect.getfile(cls)
+            version_configs_dir = str(
+                Path(os.path.dirname(src_file)) / "version_configs"
+            )
+
+        effective_version = protocol_version_override or version
+
+        if effective_version:
+            version_path = os.path.join(
+                version_configs_dir, f"{effective_version}.yaml"
+            )
+            if not os.path.exists(version_path):
+                raise FileNotFoundError(
+                    f"Version config file not found: {version_path}"
+                )
+            raw = OmegaConf.load(version_path)
+        else:
+            # Load first YAML found (sorted for determinism)
+            if not os.path.exists(version_configs_dir):
+                logging.warning(
+                    "Version configs directory %s not found, using defaults",
+                    version_configs_dir,
+                )
+                return cls.VERSION_CLASS()
+            version_files = sorted(
+                f for f in os.listdir(version_configs_dir) if f.endswith(".yaml")
+            )
+            if not version_files:
+                logging.warning(
+                    "No version files found in %s, using defaults", version_configs_dir
+                )
+                return cls.VERSION_CLASS()
+            version_path = os.path.join(version_configs_dir, version_files[0])
+            raw = OmegaConf.load(version_path)
+
+        # Merge with defaults
+        default_dict = cls.VERSION_CLASS().model_dump()
+        merged = OmegaConf.merge(default_dict, raw)
+        version_dict = OmegaConf.to_container(merged, resolve=True)
+        return cls.VERSION_CLASS(**version_dict)
+
+    @classmethod
     def create_with_protocol_context(cls, protocol=None):
         """Create plugin config instance with optional protocol context.
 
-        Default implementation creates a standard instance.
-        Override in subclasses that need protocol-specific initialization.
+        If ``VERSION_CLASS`` is set and *protocol* carries a version, the
+        matching version config is loaded automatically.
 
         Args:
             protocol: Optional protocol configuration for context-aware creation
@@ -158,6 +234,20 @@ class ServicePluginConfig(BasePluginConfig):
         Returns:
             Plugin configuration instance
         """
+        if (
+            cls.VERSION_CLASS is not None
+            and protocol
+            and getattr(protocol, "version", None)
+        ):
+            try:
+                version_config = cls.load_version(
+                    protocol_version_override=protocol.version
+                )
+                return cls(version=version_config)
+            except (FileNotFoundError, ValueError) as e:
+                raise ValueError(
+                    f"Could not load protocol version {protocol.version}: {e}"
+                ) from e
         return cls()
 
     def get_plugin_type(self) -> str:

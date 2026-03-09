@@ -1,9 +1,7 @@
-import logging
-import os
-from pathlib import Path
+"""quic-go QUIC plugin configuration schema."""
+
 from typing import Dict, List, Optional
 
-from omegaconf import OmegaConf
 from pydantic import Field
 
 from panther.config.core.models import (
@@ -71,6 +69,8 @@ class QuicGoConfig(ServicePluginConfig):
               role: server
     """
 
+    VERSION_CLASS = QuicGoVersion
+
     name: str = Field(default="quic-go", description="Implementation name")
     type: ImplementationType = Field(
         default=ImplementationType.IUT, description="Implementation type"
@@ -78,32 +78,6 @@ class QuicGoConfig(ServicePluginConfig):
 
     # Version configuration loaded dynamically from YAML files
     version: QuicGoVersion = Field(
-        default_factory=lambda: QuicGoConfig.load_versions_from_files(),
+        default_factory=lambda: QuicGoConfig.load_version(),
         description="Version configuration",
     )
-
-    @staticmethod
-    def load_versions_from_files(
-        version_configs_dir: str = f"{Path(os.path.dirname(__file__))}/version_configs/",
-    ) -> QuicGoVersion:
-        """Load version configurations dynamically from YAML files."""
-        logging.debug(f"Loading QuicGo versions from {version_configs_dir}")
-        for version_file in os.listdir(version_configs_dir):
-            if version_file.endswith(".yaml"):
-                version_path = os.path.join(version_configs_dir, version_file)
-                raw_version_config = OmegaConf.load(version_path)
-                logging.debug(f"Loaded raw QuicGo version config: {raw_version_config}")
-                # Create default instance and merge with loaded config
-                default_version = QuicGoVersion()
-                try:
-                    # Pydantic v2
-                    default_dict = default_version.model_dump()
-                except AttributeError:
-                    # Pydantic v1
-                    default_dict = default_version.dict()
-
-                merged_config = OmegaConf.merge(default_dict, raw_version_config)
-                version_dict = OmegaConf.to_container(merged_config)
-                version_config = QuicGoVersion(**version_dict)
-                logging.debug(f"Loaded QuicGo version {version_config}")
-                return version_config
