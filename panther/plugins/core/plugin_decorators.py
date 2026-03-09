@@ -82,14 +82,14 @@ def _discover_sibling_config_model(cls: type) -> Optional[type]:
     """Discover a Pydantic config model in the same package as *cls*.
 
     Looks for a ``config_schema`` sibling module and returns the first
-    class that is a subclass of ``BasePluginConfig`` (skipping base
+    class that is a subclass of ``BaseConfig`` (skipping base
     classes themselves).
 
     Returns:
         The discovered config model class, or ``None``.
     """
     try:
-        from panther.config.core.models.plugin import BasePluginConfig
+        from panther.config.core.base import BaseConfig
     except ImportError:
         return None
 
@@ -105,20 +105,18 @@ def _discover_sibling_config_model(cls: type) -> Optional[type]:
 
     # Known base classes to skip — only return concrete subclasses.
     # Import here to build the identity set; missing imports are tolerated.
-    _base_classes = {BasePluginConfig}
+    _base_classes: set[type] = {BaseConfig}
     try:
         from panther.config.core.models.environment import (
             ExecutionEnvironmentConfig,
             NetworkEnvironmentConfig,
         )
-        from panther.config.core.models.plugin import (
-            ProtocolPluginConfig,
-            ServicePluginConfig,
-        )
+        from panther.config.core.models.plugin import ProtocolPluginConfig
+        from panther.config.core.models.service import ServiceConfig
 
         _base_classes.update(
             {
-                ServicePluginConfig,
+                ServiceConfig,
                 ExecutionEnvironmentConfig,
                 NetworkEnvironmentConfig,
                 ProtocolPluginConfig,
@@ -127,12 +125,12 @@ def _discover_sibling_config_model(cls: type) -> Optional[type]:
     except ImportError:
         pass
 
-    # Scan for first concrete subclass of BasePluginConfig
+    # Scan for first concrete subclass of BaseConfig
     for attr_name in dir(schema_mod):
         attr = getattr(schema_mod, attr_name, None)
         if (
             isinstance(attr, type)
-            and issubclass(attr, BasePluginConfig)
+            and issubclass(attr, BaseConfig)
             and attr not in _base_classes
             and attr_name.endswith("Config")
         ):

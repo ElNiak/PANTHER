@@ -332,11 +332,6 @@ class ServiceBuilder(BaseBuilder):
         # Extra implementation fields become top-level on typed subclass
         service_dict.update(extra_impl_fields)
 
-        # Backward compat: also set plugin_config for runtime code not yet migrated
-        plugin_compat = extra_impl_fields.copy()
-        plugin_compat.update(service_dict.get("implementation", {}))
-        service_dict["plugin_config"] = plugin_compat
-
         # Warn about unknown service-level fields
         # Exclude 'name' — injected by builder from YAML key, not a declared ServiceConfig field
         for field_name in config_class.check_extra_fields(
@@ -399,11 +394,6 @@ class ServiceBuilder(BaseBuilder):
 
         # Extra implementation fields become top-level on typed subclass
         service_dict.update(extra_impl_fields)
-
-        # Backward compat: also set plugin_config for runtime code not yet migrated
-        plugin_compat = extra_impl_fields.copy()
-        plugin_compat.update(service_dict.get("implementation", {}))
-        service_dict["plugin_config"] = plugin_compat
 
         # Warn about unknown service-level fields
         # Exclude 'name' — injected by builder from YAML key, not a declared ServiceConfig field

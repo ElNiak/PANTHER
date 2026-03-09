@@ -25,9 +25,7 @@ class BaseConfig(BaseModel):
         │   ├── NetworkEnvironmentConfig
         │   └── ExecutionEnvironmentConfig
         ├── ObserversConfig, BaseObserverConfig, ...
-        ├── BasePluginConfig
-        │   ├── ServicePluginConfig   (IUT/tester plugins)
-        │   └── ProtocolPluginConfig
+        ├── ProtocolPluginConfig
         └── BaseProtocolConfig (ABC)
             ├── ClientServerProtocolConfig
             └── PeerToPeerProtocolConfig

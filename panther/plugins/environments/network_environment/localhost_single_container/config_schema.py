@@ -19,7 +19,7 @@ class LocalhostSingleContainerConfig(NetworkEnvironmentConfig):
     single container. Uses ``EnvironmentManagerDockerMixin`` for
     consistent Docker operations.
 
-    Inherited from NetworkEnvironmentConfig / BasePluginConfig:
+    Inherited from NetworkEnvironmentConfig:
         enabled (bool): Whether the plugin is enabled. Default: True.
 
     Example YAML::

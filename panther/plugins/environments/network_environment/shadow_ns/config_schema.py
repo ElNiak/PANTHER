@@ -118,7 +118,7 @@ class ShadowNSConfig(NetworkEnvironmentConfig):
         deploying production experiments. See ``incompatibility``
         field for known conflicts.
 
-    Inherited from NetworkEnvironmentConfig / BasePluginConfig:
+    Inherited from NetworkEnvironmentConfig:
         enabled (bool): Whether the plugin is enabled. Default: True.
 
     Example YAML::

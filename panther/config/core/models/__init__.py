@@ -25,7 +25,7 @@ Model hierarchy — all classes inherit from ``BaseConfig``
     │   ObserversConfig, BaseObserverConfig → Logger/Metrics/Storage/Experiment
     │
     ├── Plugin bases
-    │   BasePluginConfig → ServicePluginConfig, ProtocolPluginConfig
+    │   ProtocolPluginConfig
     │
     └── Protocol schemas (ABC)
         BaseProtocolConfig → ClientServerProtocolConfig, PeerToPeerProtocolConfig
@@ -64,7 +64,7 @@ from .observer import (
     ObserversConfig,
     StorageObserverConfig,
 )
-from .plugin import BasePluginConfig, ProtocolPluginConfig, ServicePluginConfig
+from .plugin import ProtocolPluginConfig
 from .protocol import (
     BaseProtocolConfig,
     ClientServerProtocolConfig,
@@ -125,8 +125,6 @@ __all__ = [
     "ClientServerProtocolConfig",
     "PeerToPeerProtocolConfig",
     # Plugin Config
-    "BasePluginConfig",
-    "ServicePluginConfig",
     "ProtocolPluginConfig",
     # Environment Config
     "EnvironmentConfig",

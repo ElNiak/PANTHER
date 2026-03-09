@@ -1,14 +1,13 @@
 """Service configuration models."""
 
 from enum import Enum
-from typing import Any, ClassVar, Dict, List, Optional, Type, TypeVar
+from typing import Any, ClassVar, Dict, List, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from ..base import BaseConfig
 from ..validators import implementation_type_validator, protocol_role_validator
 from .global_config import ServiceDockerOverrideConfig
-from .plugin import BasePluginConfig
 
 
 class Parameter(BaseModel):
@@ -155,9 +154,6 @@ class ImplementationConfig(BaseConfig):
     # extra="allow" inherited from BaseConfig handles plugin-specific fields
 
 
-T = TypeVar("T", bound=BasePluginConfig)
-
-
 class ServiceConfig(BaseConfig):
     """Service configuration."""
 
@@ -193,44 +189,10 @@ class ServiceConfig(BaseConfig):
         description="Per-service Docker build overrides (inherits from global if absent)",
     )
 
-    # Service build/docker fields (merged from ServicePluginConfig)
+    # Service build/docker fields
     docker_image: Optional[str] = Field(None, description="Docker image name")
     build_from_source: bool = Field(True, description="Build from source")
     source_repository: Optional[str] = Field(None, description="Source repository URL")
-
-    plugin_config: Optional[Dict[str, Any]] = Field(
-        default_factory=dict, description="Plugin-specific configuration"
-    )
-
-    def get_plugin_config(self, config_class: Type[T], validate: bool = True) -> T:
-        """Get typed plugin configuration with defaults.
-
-        Merges plugin_config values over config_class defaults,
-        then instantiates the config class with the merged result.
-
-        Args:
-            config_class: The plugin configuration class
-            validate: Whether to validate using PluginConfigResolver (if available)
-
-        Returns:
-            Typed plugin configuration instance
-        """
-        from ..utils.merge import deep_merge
-
-        # Use protocol-aware factory if available
-        if hasattr(config_class, "create_with_protocol_context"):
-            default_instance = config_class.create_with_protocol_context(
-                self.protocol if hasattr(self, "protocol") else None
-            )
-        else:
-            default_instance = config_class()
-
-        default_dict = default_instance.model_dump()
-
-        # Pure dict deep merge: plugin_config overrides defaults
-        merged = deep_merge(default_dict, self.plugin_config or {})
-
-        return config_class(**merged)
 
     # Allow extra fields for service-specific parameters
 
