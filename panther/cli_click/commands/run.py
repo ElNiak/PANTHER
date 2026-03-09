@@ -1,5 +1,4 @@
-"""
-Run Command - Click Implementation
+"""Run Command - Click Implementation.
 
 Execute PANTHER experiments with enhanced user experience and error handling.
 """
@@ -153,8 +152,7 @@ def run(
     force_build,
     no_docker_cache,
 ):
-    """
-    Execute PANTHER experiments with specified configuration.
+    r"""Execute PANTHER experiments with specified configuration.
 
     Runs protocol analysis and testing experiments using Docker-based
     environments. Supports multiple network configurations, plugin
@@ -290,7 +288,7 @@ def run(
             click.echo(colored("🚀 Executing PANTHER experiment...", "green"))
 
             try:
-                from panther.config import GlobalConfig, load_experiment
+                from panther.config import ConfigurationManager
                 from panther.core.experiment_manager import ExperimentManager
                 from panther.core.metrics import (
                     MetricsCollector,
@@ -299,95 +297,32 @@ def run(
                     ResourceMonitor,
                 )
 
-                info_message(f"Loading configuration...")
+                info_message("Loading configuration...")
 
-                # Load raw YAML first to extract global settings (docker, logging, paths, etc.)
-                with open(config, "r") as f:
-                    raw_config = yaml.safe_load(f)
-
-                # Load experiment configuration using the convenience function
-                experiment_config = load_experiment(
-                    config, validate=True, auto_fix=True
-                )
-
-                # Extract global settings from raw config, with defaults
-                yaml_docker_config = raw_config.get("docker", {})
-                yaml_logging_config = raw_config.get("logging", {})
-                yaml_paths_config = raw_config.get("paths", {})
-                yaml_progress_config = raw_config.get("progress", {})
-                yaml_observers_config = raw_config.get("observers", {})
-
-                # CLI metrics flag overrides YAML observer metrics config only if
-                # explicitly passed on the command line (not just the default value)
-                if "metrics" not in yaml_observers_config:
-                    yaml_observers_config["metrics"] = {}
-                metrics_source = ctx.get_parameter_source("enable_metrics")
-                if metrics_source == click.core.ParameterSource.COMMANDLINE:
-                    yaml_observers_config["metrics"]["enabled"] = enable_metrics
-                elif "enabled" not in yaml_observers_config["metrics"]:
-                    yaml_observers_config["metrics"]["enabled"] = enable_metrics
-
-                # Merge with CLI defaults - YAML values take precedence
-                docker_config = {
-                    "build_docker_image": yaml_docker_config.get(
-                        "build_docker_image", False
-                    ),
-                    "force_build_docker_image": yaml_docker_config.get(
-                        "force_build_docker_image", False
-                    ),
-                    "log_docker_image_build": yaml_docker_config.get(
-                        "log_docker_image_build", False
-                    ),
-                    "use_buildx": yaml_docker_config.get(
-                        "use_buildx", True
-                    ),  # Default True for backwards compat
-                    "no_docker_cache": yaml_docker_config.get("no_docker_cache", False),
-                }
-
-                # CLI --force-build overrides YAML force_build_docker_image
-                force_build_source = ctx.get_parameter_source("force_build")
-                if force_build_source == click.core.ParameterSource.COMMANDLINE:
-                    docker_config["force_build_docker_image"] = force_build
-                # CLI --no-docker-cache implies --force-build and sets no_docker_cache
+                # Build CLI overrides (CLI > YAML > Pydantic defaults)
+                cli_overrides = {}
+                if (
+                    ctx.get_parameter_source("force_build")
+                    == click.core.ParameterSource.COMMANDLINE
+                ):
+                    cli_overrides["docker.force_build_docker_image"] = force_build
                 if no_docker_cache:
-                    docker_config["no_docker_cache"] = True
-                    docker_config["force_build_docker_image"] = True
-                # Add other docker config keys if present
-                for key in [
-                    "user_mapping",
-                    "build_args",
-                    "network_mode",
-                    "buildx_builder",
-                    "multi_platform",
-                    "target_platform",
-                ]:
-                    if key in yaml_docker_config:
-                        docker_config[key] = yaml_docker_config[key]
+                    cli_overrides["docker.no_docker_cache"] = True
+                    cli_overrides["docker.force_build_docker_image"] = True
+                if (
+                    ctx.get_parameter_source("enable_metrics")
+                    == click.core.ParameterSource.COMMANDLINE
+                ):
+                    cli_overrides["observers.metrics.enabled"] = enable_metrics
+                if (
+                    ctx.get_parameter_source("output_dir")
+                    == click.core.ParameterSource.COMMANDLINE
+                ):
+                    cli_overrides["paths.output_dir"] = str(output_dir)
 
-                logging_config = {
-                    "level": yaml_logging_config.get("level", "INFO"),
-                    "format": yaml_logging_config.get(
-                        "format", "%(levelname)s - %(message)s"
-                    ),
-                }
-                # Add feature_levels if present
-                if "feature_levels" in yaml_logging_config:
-                    logging_config["feature_levels"] = yaml_logging_config[
-                        "feature_levels"
-                    ]
-
-                paths_config = {
-                    "output_dir": yaml_paths_config.get("output_dir", str(output_dir)),
-                    "log_dir": yaml_paths_config.get("log_dir", f"{output_dir}/logs"),
-                }
-
-                # Create global config with merged settings
-                global_config = GlobalConfig(
-                    logging=logging_config,
-                    paths=paths_config,
-                    docker=docker_config,
-                    progress=yaml_progress_config if yaml_progress_config else None,
-                    observers=yaml_observers_config if yaml_observers_config else None,
+                manager = ConfigurationManager()
+                global_config, experiment_config = manager.load_full_config(
+                    config, cli_overrides=cli_overrides
                 )
 
                 # Set up metrics if enabled
@@ -464,8 +399,7 @@ def run(
 @handle_errors
 @pass_context_and_setup_logging
 def status(ctx, experiment_name, output_dir):
-    """
-    Show status of running or completed experiments.
+    """Show status of running or completed experiments.
 
     Displays information about experiment execution status,
     progress, and results location.
@@ -526,8 +460,7 @@ def status(ctx, experiment_name, output_dir):
 @click.option("--verbose", "-v", is_flag=True, help="Show detailed information")
 @handle_errors
 def list_experiments(output_dir, verbose):
-    """
-    List all experiments in output directory.
+    """List all experiments in output directory.
 
     Shows comprehensive list of all experiment runs with
     timestamps, status, and result information.
