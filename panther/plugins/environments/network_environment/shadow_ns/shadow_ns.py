@@ -66,8 +66,7 @@ class ShadowNsEnvironment(
     StandardOutputCollectorMixin,
     EnvironmentPluginEventMixin,
 ):
-    """
-    Shadow NS environment using base class and mixins.
+    """Shadow NS environment using base class and mixins.
 
     This implementation reduces code duplication from 305 lines to ~100 lines
     by leveraging shared functionality from the base class and mixins.
@@ -82,6 +81,7 @@ class ShadowNsEnvironment(
         event_manager: EventManager,
         target_platform: Optional[str] = None,
     ):
+        """Initialize Shadow NS environment."""
         # First initialize all parent classes including StandardOutputCollectorMixin
         super().__init__(
             env_config_to_test, output_dir, env_type, env_sub_type, event_manager
@@ -115,34 +115,6 @@ class ShadowNsEnvironment(
 
         # Initialize network resolver for placeholder resolution
         self.network_resolver = ShadowNetworkResolver()
-
-        # Initialize plugin config cache
-        self._plugin_config = None
-
-    def _get_plugin_config(self):
-        """Get plugin config with caching and fallback."""
-        # Ensure _plugin_config attribute exists (defensive initialization)
-        if not hasattr(self, "_plugin_config"):
-            self._plugin_config = None
-
-        if self._plugin_config is None:
-            try:
-                # Import here to avoid circular imports
-                from panther.plugins.environments.network_environment.shadow_ns.config_schema import (
-                    ShadowNSConfig,
-                )
-
-                self._plugin_config = self.env_config_to_test.get_plugin_config(
-                    ShadowNSConfig
-                )
-            except Exception as e:
-                self.logger.debug(f"Could not get plugin config, using defaults: {e}")
-                from panther.plugins.environments.network_environment.shadow_ns.config_schema import (
-                    ShadowNSConfig,
-                )
-
-                self._plugin_config = ShadowNSConfig()
-        return self._plugin_config
 
     def prepare_environment(self) -> bool:
         """Prepare Shadow NS environment."""
@@ -333,7 +305,6 @@ class ShadowNsEnvironment(
 
     def deploy_services(self) -> bool:
         """Deploy and monitor Shadow simulation with optional non-blocking monitoring."""
-
         # Access configuration to determine monitoring mode
         enable_background = getattr(
             self.env_config_to_test, "enable_background_monitoring", True
@@ -354,7 +325,7 @@ class ShadowNsEnvironment(
             return self._deploy_services_non_blocking()
 
     def _deploy_services_blocking(self) -> bool:
-        """Original blocking deployment - monitor simulation before returning"""
+        """Original blocking deployment - monitor simulation before returning."""
         self.logger.info("Deploying Shadow NS simulation (blocking mode)")
 
         # Monitor Shadow container
@@ -385,7 +356,7 @@ class ShadowNsEnvironment(
         return True
 
     def _deploy_services_non_blocking(self) -> bool:
-        """Non-blocking deployment - start background monitoring and return quickly"""
+        """Non-blocking deployment - start background monitoring and return quickly."""
         self.logger.info("Starting Shadow NS simulation (non-blocking mode)")
 
         config = self.env_config_to_test
@@ -433,8 +404,7 @@ class ShadowNsEnvironment(
         return True
 
     def _get_service_log_directory(self, service_name: str) -> Path:
-        """
-        Shadow NS uses simulation-specific output directories.
+        """Shadow NS uses simulation-specific output directories.
 
         Check multiple possible locations in priority order.
         """
@@ -620,47 +590,16 @@ class ShadowNsEnvironment(
             self.logger.warning(f"Could not wait for simulation completion: {e}")
 
     def _get_shadow_config(self) -> Dict[str, Any]:
-        """Get Shadow-specific configuration using dual approach."""
-        # Get plugin config
-        plugin_config = self._get_plugin_config()
-
-        # First try plugin_config dict for shadow sub-config
-        shadow_config = None
-        if (
-            hasattr(self.env_config_to_test, "plugin_config")
-            and self.env_config_to_test.plugin_config
-        ):
-            shadow_config = self.env_config_to_test.plugin_config.get("shadow")
-
-        # Second try typed config (ShadowNSConfig doesn't have a separate shadow field, return all relevant fields)
-        if shadow_config is None:
-            # Extract relevant shadow configuration from typed config
-            shadow_config = {
-                "duration": plugin_config.general.stop_time,
-                "topology": "simple",  # Default value since not in config
-                "general": (
-                    plugin_config.general.model_dump()
-                    if hasattr(plugin_config.general, "model_dump")
-                    else plugin_config.general.dict()
-                ),
-                "experimental": (
-                    plugin_config.experimental.model_dump()
-                    if hasattr(plugin_config.experimental, "model_dump")
-                    else plugin_config.experimental.dict()
-                ),
-                "network": (
-                    plugin_config.network.model_dump()
-                    if hasattr(plugin_config.network, "model_dump")
-                    else plugin_config.network.dict()
-                ),
-                "hosts": (
-                    plugin_config.hosts.model_dump()
-                    if hasattr(plugin_config.hosts, "model_dump")
-                    else plugin_config.hosts.dict()
-                ),
-            }
-
-        return shadow_config if shadow_config else {}
+        """Get Shadow-specific configuration from the typed environment config."""
+        config = self.env_config_to_test
+        return {
+            "duration": config.general.stop_time,
+            "topology": "simple",  # Default value since not in config
+            "general": config.general.model_dump(),
+            "experimental": config.experimental.model_dump(),
+            "network": config.network.model_dump(),
+            "hosts": config.hosts.model_dump(),
+        }
 
     def _prepare_shadow_services(self) -> List[Dict[str, Any]]:
         """Prepare service configurations for Shadow."""
@@ -836,8 +775,7 @@ class ShadowNsEnvironment(
         return True
 
     def _get_service_ip(self, service_name: str) -> str:
-        """
-        Get IP address for a service in Shadow NS environment.
+        """Get IP address for a service in Shadow NS environment.
 
         Args:
             service_name: Name of the service
@@ -853,8 +791,7 @@ class ShadowNsEnvironment(
     def _resolve_network_placeholders_in_commands(
         self, commands: Dict[str, List[str]], service: IServiceManager
     ) -> Dict[str, List[str]]:
-        """
-        Resolve network placeholders in service commands for Shadow NS environment.
+        """Resolve network placeholders in service commands for Shadow NS environment.
 
         Args:
             commands: Dictionary of command lists by phase
@@ -916,8 +853,7 @@ class ShadowNsEnvironment(
     def _resolve_placeholders_in_command(
         self, command: str, context: NetworkResolutionContext
     ) -> str:
-        """
-        Resolve network placeholders in a single command string.
+        """Resolve network placeholders in a single command string.
 
         Args:
             command: Command string with potential placeholders
@@ -953,8 +889,7 @@ class ShadowNsEnvironment(
             return command
 
     def _determine_architecture_mode(self, service) -> bool:
-        """
-        Determine whether to use system models (APT architecture) based on service configuration.
+        """Determine whether to use system models (APT architecture) based on service configuration.
 
         Args:
             service: Service manager instance

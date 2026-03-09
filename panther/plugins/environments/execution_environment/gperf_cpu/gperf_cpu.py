@@ -1,3 +1,5 @@
+"""Google Performance Tools CPU profiler execution environment plugin."""
+
 from typing import TYPE_CHECKING, List, Optional
 
 """
@@ -36,15 +38,11 @@ if TYPE_CHECKING:
     runtime_mode="profile",
 )
 class GperfCpuEnvironment(BaseExecutionEnvironment):
-    """
-
-    CPU profiling execution environment using gperftools.
+    """CPU profiling execution environment using gperftools.
 
     This environment uses shared command generation utilities to eliminate
     code duplication while providing comprehensive CPU profiling capabilities.
     """
-
-    _config_class = GperfCpuConfig
 
     def __init__(
         self,
@@ -65,8 +63,7 @@ class GperfCpuEnvironment(BaseExecutionEnvironment):
     def _setup_plugin_specific_environment(
         self, services_managers: List[IServiceManager], timestamp: str
     ):
-        """
-        Set up gperf CPU profiling for compatible services using shared utilities.
+        """Set up gperf CPU profiling for compatible services using shared utilities.
 
         Args:
             services_managers: List of service managers to potentially modify
@@ -182,8 +179,7 @@ class GperfCpuEnvironment(BaseExecutionEnvironment):
     def to_command(
         self, pid: Optional[int] = None, output_file: Optional[str] = None
     ) -> str:
-        """
-        Generate the gperf CPU profiling command for execution.
+        """Generate the gperf CPU profiling command for execution.
 
         Args:
             pid: Optional process ID to attach to (not supported by gperf)
@@ -230,8 +226,7 @@ class GperfCpuEnvironment(BaseExecutionEnvironment):
         services_managers,
         test_config,
     ) -> None:
-        """
-        Update environment for gperf CPU profiling execution.
+        """Update environment for gperf CPU profiling execution.
 
         Args:
             execution_environment: Current execution environment

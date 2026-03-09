@@ -1,3 +1,5 @@
+"""GDB debugger execution environment plugin."""
+
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 """
@@ -36,8 +38,7 @@ if TYPE_CHECKING:
     runtime_mode="debug",
 )
 class GdbEnvironment(BaseExecutionEnvironment):
-    """
-    GDB debugging execution environment.
+    """GDB debugging execution environment.
 
     This environment provides systematic debugging capabilities including:
     - Automatic stack traces on crashes
@@ -46,8 +47,6 @@ class GdbEnvironment(BaseExecutionEnvironment):
     - AddressSanitizer integration
     - Comprehensive crash reporting
     """
-
-    _config_class = GdbConfig
 
     def __init__(
         self,
@@ -68,8 +67,7 @@ class GdbEnvironment(BaseExecutionEnvironment):
     def _setup_plugin_specific_environment(
         self, services_managers: List[IServiceManager], timestamp: str
     ):
-        """
-        Set up GDB debugging for compatible services.
+        """Set up GDB debugging for compatible services.
 
         Args:
             services_managers: List of service managers to potentially modify
@@ -136,7 +134,7 @@ class GdbEnvironment(BaseExecutionEnvironment):
                 logger=self.logger,
             )
 
-            plugin_config = self._get_plugin_config()
+            plugin_config = self.env_config_to_test
 
             # Register output files
             gdb_log_file = command_builder.register_output_file(
@@ -224,8 +222,7 @@ class GdbEnvironment(BaseExecutionEnvironment):
     def _build_gdb_command(
         self, gdb_binary: str, gdb_script_file: str, log_file: str
     ) -> str:
-        """
-        Build the GDB command with configured options.
+        """Build the GDB command with configured options.
 
         Args:
             gdb_binary: Path to GDB binary
@@ -261,8 +258,7 @@ class GdbEnvironment(BaseExecutionEnvironment):
         gdb_script_file: str,
         service_name: str,
     ) -> Tuple[List[str], str]:
-        """
-        Split the full GDB command into setup commands and main wrapper.
+        """Split the full GDB command into setup commands and main wrapper.
 
         Args:
             full_gdb_cmd: The complete GDB command
@@ -721,8 +717,7 @@ class GdbEnvironment(BaseExecutionEnvironment):
     def to_command(
         self, pid: Optional[int] = None, output_file: Optional[str] = None
     ) -> str:
-        """
-        Generate the GDB debugging command for execution.
+        """Generate the GDB debugging command for execution.
 
         Args:
             pid: Optional process ID to attach to
@@ -761,8 +756,7 @@ class GdbEnvironment(BaseExecutionEnvironment):
         services_managers,
         test_config,
     ) -> None:
-        """
-        Update environment for GDB debugging execution.
+        """Update environment for GDB debugging execution.
 
         Args:
             execution_environment: Current execution environment

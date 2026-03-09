@@ -1,5 +1,4 @@
-"""
-Helgrind execution environment for thread error detection using Valgrind.
+"""Helgrind execution environment for thread error detection using Valgrind.
 
 This plugin provides comprehensive thread error detection capabilities including
 data race detection, lock order validation, and POSIX threads API misuse detection.
@@ -40,15 +39,11 @@ if TYPE_CHECKING:
     runtime_mode="debug",  # Set to minimal mode for reduced resource usage
 )
 class HelgrindEnvironment(BaseExecutionEnvironment):
-    """
-
-    Thread error detection execution environment using Valgrind Helgrind.
+    """Thread error detection execution environment using Valgrind Helgrind.
 
     This environment uses shared command generation utilities to eliminate
     code duplication while providing comprehensive thread error detection.
     """
-
-    _config_class = HelgrindConfig
 
     def __init__(
         self,
@@ -69,8 +64,7 @@ class HelgrindEnvironment(BaseExecutionEnvironment):
     def _setup_plugin_specific_environment(
         self, services_managers: List[IServiceManager], timestamp: str
     ):
-        """
-        Set up Helgrind thread error detection for services using shared utilities.
+        """Set up Helgrind thread error detection for services using shared utilities.
 
         Args:
             services_managers: List of service managers to potentially modify
@@ -126,8 +120,7 @@ class HelgrindEnvironment(BaseExecutionEnvironment):
             self.logger.debug("Applied modifications: %s", results)
 
     def _build_helgrind_command(self, output_file: str) -> str:
-        """
-        Build the Helgrind command with configured options.
+        """Build the Helgrind command with configured options.
 
         Args:
             output_file: Path to write Helgrind output
@@ -216,8 +209,7 @@ class HelgrindEnvironment(BaseExecutionEnvironment):
     def _add_helgrind_analysis_commands(
         self, command_builder, helgrind_output_file: str, summary_file: str
     ):
-        """
-        Add comprehensive Helgrind analysis post-processing commands.
+        """Add comprehensive Helgrind analysis post-processing commands.
 
         Args:
             command_builder: The command builder to add commands to
@@ -358,8 +350,7 @@ fi
     def to_command(
         self, pid: Optional[int] = None, output_file: Optional[str] = None
     ) -> str:
-        """
-        Generate the Helgrind command for execution.
+        """Generate the Helgrind command for execution.
 
         Args:
             pid: Optional process ID to attach to
@@ -389,8 +380,7 @@ fi
         services_managers,
         test_config,
     ) -> None:
-        """
-        Update environment for helgrind execution.
+        """Update environment for helgrind execution.
 
         Args:
             execution_environment: Current execution environment

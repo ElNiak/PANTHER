@@ -52,10 +52,7 @@ class StraceEnvironment(BaseExecutionEnvironment):
 
     Attributes:
         target_platform: Target platform for platform-specific options.
-        _plugin_config: Cached StraceConfig with strace options.
     """
-
-    _config_class = StraceConfig
 
     def __init__(
         self,

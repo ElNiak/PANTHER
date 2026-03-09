@@ -1,11 +1,10 @@
-from typing import TYPE_CHECKING, List, Optional
-
-"""
-Iterations execution environment for running tests multiple times.
+"""Iterations execution environment for running tests multiple times.
 
 This plugin creates a wrapper script that executes the original command multiple times,
 useful for statistical analysis, stress testing, and measuring performance variance.
 """
+
+from typing import TYPE_CHECKING, List, Optional
 
 from panther.core.observer.management.event_manager import EventManager
 from panther.plugins.core.plugin_decorators import register_plugin
@@ -36,16 +35,12 @@ if TYPE_CHECKING:
     runtime_mode="minimal",  # Set to minimal mode for reduced resource usage
 )
 class IterationsEnvironment(BaseExecutionEnvironment):
-    """
-
-    Iterations execution environment for running multiple test iterations.
+    """Iterations execution environment for running multiple test iterations.
 
     This environment creates a wrapper script that executes the original command
     multiple times with optional delays between iterations, collecting execution
     statistics and results.
     """
-
-    _config_class = IterationsConfig
 
     def __init__(
         self,
@@ -66,8 +61,7 @@ class IterationsEnvironment(BaseExecutionEnvironment):
     def _setup_plugin_specific_environment(
         self, services_managers: List[IServiceManager], timestamp: str
     ):
-        """
-        Set up iterative testing environment using shared utilities.
+        """Set up iterative testing environment using shared utilities.
 
         Args:
             services_managers: List of service managers to run iterations on
@@ -192,8 +186,7 @@ echo "Added iterations wrapper for {iterations} iterations" >> /app/logs/{servic
         services_managers,
         test_config,
     ) -> None:
-        """
-        Update environment for iterations execution.
+        """Update environment for iterations execution.
 
         This method is called to update the environment configuration
         for iterations-specific requirements.
@@ -208,8 +201,7 @@ echo "Added iterations wrapper for {iterations} iterations" >> /app/logs/{servic
         self.logger.debug("Updated environment for iterations execution")
 
     def to_command(self, *args, **kwargs) -> str:
-        """
-        Generate the iterations wrapper script path.
+        """Generate the iterations wrapper script path.
 
         Args:
             *args: Variable arguments (for compatibility with base class)
