@@ -40,14 +40,52 @@ class ProtocolRole(str, Enum):
     PEER = "peer"
 
 
+class RestartPolicy(str, Enum):
+    """Docker restart policy."""
+
+    NO = "no"
+    ALWAYS = "always"
+    ON_FAILURE = "on-failure"
+    UNLESS_STOPPED = "unless-stopped"
+
+
 class NetworkConfig(BaseConfig):
     """Network configuration for services."""
 
-    interface: str = Field("eth0", description="Network interface")
-    port: int = Field(4443, description="Network port")
-    host: str = Field("localhost", description="Host address")
-    bind_address: Optional[str] = Field(None, description="Bind address")
-    mtu: Optional[int] = Field(None, description="Maximum transmission unit")
+    interface: str = Field(
+        "eth0",
+        description="Network interface",
+        examples=["eth0", "lo", "br0"],
+        json_schema_extra={"category": "network"},
+    )
+    port: int = Field(
+        4443,
+        ge=1,
+        le=65535,
+        description="Network port",
+        examples=[4443, 8080, 443],
+        json_schema_extra={"widget_type": "port", "category": "network"},
+    )
+    host: str = Field(
+        "localhost",
+        description="Host address",
+        examples=["localhost", "0.0.0.0", "192.168.1.1"],
+        json_schema_extra={"category": "network"},
+    )
+    bind_address: Optional[str] = Field(
+        None,
+        description="Bind address",
+        examples=["0.0.0.0", "127.0.0.1"],
+        json_schema_extra={"category": "network"},
+    )
+    mtu: Optional[int] = Field(
+        None,
+        ge=68,
+        le=65535,
+        description="Maximum transmission unit",
+        examples=[1500, 9000],
+        json_schema_extra={"category": "network", "advanced": True},
+    )
 
     @field_validator("port", mode="before")
     @classmethod
@@ -70,9 +108,20 @@ class NetworkConfig(BaseConfig):
 
 class ProtocolConfig(BaseConfig):
     ## TODO check which verson is used in the protocol config
-    """Protocol configuration."""
+    """Protocol configuration.
 
-    name: str = Field(..., description="Protocol name (e.g., quic, http)")
+    Note: The ``version`` field here is the *protocol specification* version
+    (e.g., ``rfc9000``, ``draft-29``), distinct from ``ImplementationConfig.version``
+    which tracks the *software implementation* version.
+    """
+
+    name: str = Field(
+        ...,
+        min_length=1,
+        description="Protocol name",
+        examples=["quic", "http", "minip"],
+        json_schema_extra={"category": "protocol"},
+    )
     version: Optional[str] = Field(None, description="Protocol version")
     role: ProtocolRole = Field(..., description="Protocol role")
     target: Optional[str] = Field(None, description="Target service name (for clients)")
@@ -131,7 +180,13 @@ class ProtocolConfig(BaseConfig):
 class ImplementationConfig(BaseConfig):
     """Implementation configuration."""
 
-    name: str = Field(..., description="Implementation name")
+    name: str = Field(
+        ...,
+        min_length=1,
+        description="Implementation name",
+        examples=["picoquic", "aioquic", "quiche"],
+        json_schema_extra={"category": "implementation"},
+    )
     type: ImplementationType = Field(..., description="Implementation type")
     version: Optional[str] = Field(None, description="Implementation version")
     version_config: Optional[Dict[str, Any]] = Field(
@@ -160,33 +215,81 @@ class ServiceConfig(BaseConfig):
     VERSION_CLASS: ClassVar[Optional[type]] = None
 
     implementation: ImplementationConfig = Field(
-        ..., description="Implementation configuration"
+        ...,
+        description="Implementation configuration",
+        json_schema_extra={"category": "general"},
     )
-    protocol: ProtocolConfig = Field(..., description="Protocol configuration")
-    network: Optional[NetworkConfig] = Field(None, description="Network configuration")
+    protocol: ProtocolConfig = Field(
+        ...,
+        description="Protocol configuration",
+        json_schema_extra={"category": "general"},
+    )
+    network: Optional[NetworkConfig] = Field(
+        None,
+        description="Network configuration",
+        json_schema_extra={"category": "network"},
+    )
     environment: Dict[str, str] = Field(
-        default_factory=dict, description="Environment variables"
+        default_factory=dict,
+        description="Environment variables injected into the container",
+        examples=[{"RUST_LOG": "debug"}],
+        json_schema_extra={"widget_type": "key_value", "category": "docker"},
     )
-    timeout: int = Field(60, description="Service timeout in seconds")
+    timeout: int = Field(
+        60,
+        ge=1,
+        le=86400,
+        description="Service timeout in seconds",
+        examples=[30, 60, 120, 300],
+        json_schema_extra={
+            "widget_type": "spinner",
+            "category": "general",
+            "unit": "seconds",
+        },
+    )
     ports: List[str] = Field(
-        default_factory=list, description="Port mappings (host:container)"
+        default_factory=list,
+        description="Port mappings (host:container)",
+        examples=["4443:4443", "8080:80"],
+        json_schema_extra={"category": "network"},
     )
-    volumes: List[str] = Field(default_factory=list, description="Volume mounts")
+    volumes: List[str] = Field(
+        default_factory=list,
+        description="Volume mounts",
+        examples=["./data:/app/data"],
+        json_schema_extra={"category": "docker"},
+    )
     generate_new_certificates: bool = Field(
-        False, description="Generate new certificates"
+        False,
+        description="Generate new TLS certificates for this service",
+        json_schema_extra={"category": "security"},
     )
     command_override: Optional[str] = Field(
-        None, description="Override service command"
+        None,
+        description="Override service command",
+        json_schema_extra={"category": "docker", "advanced": True},
     )
-    working_directory: Optional[str] = Field(None, description="Working directory")
+    working_directory: Optional[str] = Field(
+        None,
+        description="Working directory inside the container",
+        json_schema_extra={"category": "docker", "advanced": True},
+    )
     depends_on: List[str] = Field(
-        default_factory=list, description="Service dependencies"
+        default_factory=list,
+        description="Service dependencies (started before this service)",
+        json_schema_extra={"category": "general"},
     )
-    restart_policy: str = Field("no", description="Restart policy")
+    restart_policy: RestartPolicy = Field(
+        RestartPolicy.NO,
+        description="Docker restart policy",
+        examples=["no", "always", "on-failure"],
+        json_schema_extra={"category": "docker"},
+    )
 
     docker: Optional[ServiceDockerOverrideConfig] = Field(
         None,
         description="Per-service Docker build overrides (inherits from global if absent)",
+        json_schema_extra={"category": "docker", "advanced": True},
     )
 
     # Service build/docker fields
@@ -304,6 +407,18 @@ class ServiceConfig(BaseConfig):
                 ) from e
         return cls()
 
+    @field_validator("restart_policy", mode="before")
+    @classmethod
+    def validate_restart_policy(cls, v):
+        """Convert string to RestartPolicy enum."""
+        if isinstance(v, str):
+            try:
+                return RestartPolicy(v.lower())
+            except ValueError:
+                valid = [e.value for e in RestartPolicy]
+                raise ValueError(f"Invalid restart policy '{v}'. Valid: {valid}")
+        return v
+
     @field_validator("timeout", mode="before")
     @classmethod
     def validate_timeout(cls, v):
@@ -390,10 +505,18 @@ class ServiceConfig(BaseConfig):
         Returns:
             Docker Compose service dictionary
         """
+        # BaseConfig has use_enum_values=True, so restart_policy is already
+        # stored as a string value. Handle both cases defensively.
+        restart_val = (
+            self.restart_policy.value
+            if isinstance(self.restart_policy, RestartPolicy)
+            else self.restart_policy
+        )
+
         service = {
             "image": f"panther/{self.implementation.name}:latest",
             "environment": self.environment.copy(),
-            "restart": self.restart_policy,
+            "restart": restart_val,
         }
 
         if self.ports:
