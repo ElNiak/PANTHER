@@ -1,6 +1,6 @@
 """Quiche QUIC plugin configuration schema."""
 
-from typing import Dict, List, Optional
+from typing import Optional
 
 from pydantic import Field
 
@@ -23,9 +23,6 @@ class QuicheVersion(VersionBase):
         dependencies: Build-time dependency specifications.
     """
 
-    version: str = Field(default="")
-    commit: str = Field(default="")
-    dependencies: List[Dict[str, str]] = Field(default_factory=list)
     client: Optional[dict] = Field(default_factory=dict)
     server: Optional[dict] = Field(default_factory=dict)
 

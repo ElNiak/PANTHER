@@ -22,9 +22,9 @@ class Parameter(BaseModel):
 class VersionBase(BaseModel):
     """Base version configuration."""
 
-    version: str
-    commit: str
-    dependencies: List[Dict[str, str]]
+    version: str = ""
+    commit: str = ""
+    dependencies: List[Dict[str, str]] = Field(default_factory=list)
 
 
 class ImplementationType(str, Enum):

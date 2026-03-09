@@ -1,6 +1,6 @@
 """quic-go QUIC plugin configuration schema."""
 
-from typing import Dict, List, Optional
+from typing import Optional
 
 from pydantic import Field
 
@@ -23,11 +23,6 @@ class QuicGoVersion(VersionBase):
         dependencies: Build-time dependency specifications.
     """
 
-    version: str = Field(default="", description="Version string")
-    commit: str = Field(default="", description="Git commit hash")
-    dependencies: List[Dict[str, str]] = Field(
-        default_factory=list, description="Dependencies list"
-    )
     client: Optional[dict] = Field(
         default_factory=dict, description="Client configuration"
     )

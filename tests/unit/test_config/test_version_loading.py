@@ -128,3 +128,14 @@ class TestLoadVersionWithVersionClass:
             protocol_version_override="override",
         )
         assert result.version == "override-ver"
+
+
+class TestVersionBaseDefaults:
+    """Test that VersionBase can be instantiated with no args."""
+
+    def test_version_base_has_defaults(self):
+        """VersionBase should have defaults for all fields."""
+        v = VersionBase()
+        assert v.version == ""
+        assert v.commit == ""
+        assert v.dependencies == []
