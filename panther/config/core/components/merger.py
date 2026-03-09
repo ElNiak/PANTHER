@@ -36,27 +36,15 @@ Two orthogonal enums control merge behaviour:
 """
 
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
-
-from omegaconf import DictConfig, OmegaConf
+from typing import Any, Dict, List
 
 from panther.core.utils.logging_mixin import LoggerMixin
 
+from ..utils.merge import deep_merge
+
 
 class MergeStrategy(Enum):
-    """Structural strategy for combining configuration trees.
-
-    Controls *how* nested structures are traversed and combined during a
-    merge operation. Choose based on the relationship between your configs:
-
-    - Use ``DEEP_MERGE`` (default) when layering overrides on top of a base.
-    - Use ``SHALLOW_MERGE`` when override configs are self-contained sections.
-    - Use ``REPLACE`` when the last config should win entirely.
-    - Use ``APPEND_LISTS`` / ``UNION_LISTS`` when list fields should accumulate
-      values across config layers (e.g., aggregating test lists).
-
-    See also: ``ConflictResolution`` for controlling scalar conflict behaviour.
-    """
+    """Structural strategy for combining configuration trees."""
 
     DEEP_MERGE = "deep_merge"
     SHALLOW_MERGE = "shallow_merge"
@@ -66,18 +54,7 @@ class MergeStrategy(Enum):
 
 
 class ConflictResolution(Enum):
-    """Strategy for resolving scalar-level conflicts during merge.
-
-    When two configuration trees define different values for the same key,
-    ``ConflictResolution`` determines the outcome. This is orthogonal to
-    ``MergeStrategy``, which controls the structural traversal.
-
-    - ``USE_FIRST`` -- Preserves the base config value (conservative).
-    - ``USE_SECOND`` -- Lets the override win (default, most common).
-    - ``ERROR`` -- Fails fast on any conflict; useful for strict validation.
-    - ``COMBINE`` -- Heuristic combination: lists concatenated, dicts deep-merged,
-      strings joined with comma, otherwise falls back to second value.
-    """
+    """Strategy for resolving scalar-level conflicts during merge."""
 
     USE_FIRST = "use_first"
     USE_SECOND = "use_second"
@@ -86,12 +63,7 @@ class ConflictResolution(Enum):
 
 
 class MergeContext:
-    """Audit trail for a single merge operation.
-
-    Records every conflict encountered, how it was resolved, which paths
-    were successfully merged, and any warnings. Call ``get_summary()`` after
-    a merge to inspect the results.
-    """
+    """Audit trail for a single merge operation."""
 
     def __init__(self):
         """Initialize merge context."""
@@ -100,40 +72,21 @@ class MergeContext:
         self.warnings: List[str] = []
 
     def add_conflict(self, path: str, value1: Any, value2: Any, resolution: str):
-        """Record a merge conflict.
-
-        Args:
-            path: Configuration path where conflict occurred
-            value1: First conflicting value
-            value2: Second conflicting value
-            resolution: How the conflict was resolved
-        """
+        """Record a merge conflict."""
         self.conflicts.append(
             {"path": path, "value1": value1, "value2": value2, "resolution": resolution}
         )
 
     def add_merged_path(self, path: str):
-        """Record a merged path.
-
-        Args:
-            path: Path that was merged
-        """
+        """Record a merged path."""
         self.merged_paths.append(path)
 
     def add_warning(self, warning: str):
-        """Add a warning message.
-
-        Args:
-            warning: Warning message
-        """
+        """Add a warning message."""
         self.warnings.append(warning)
 
     def get_summary(self) -> Dict[str, Any]:
-        """Get merge context summary.
-
-        Returns:
-            Summary dictionary
-        """
+        """Get merge context summary."""
         return {
             "conflicts_count": len(self.conflicts),
             "conflicts": self.conflicts,
@@ -143,35 +96,16 @@ class MergeContext:
 
 
 class ConflictResolver:
-    """Applies a ``ConflictResolution`` strategy to individual merge conflicts.
-
-    Used internally by ``UnifiedMerger`` during tree traversal. Each time two
-    configs define different values at the same path, the resolver is invoked
-    and the outcome is recorded in the ``MergeContext``.
-    """
+    """Applies a ``ConflictResolution`` strategy to individual merge conflicts."""
 
     def __init__(self, resolution: ConflictResolution = ConflictResolution.USE_SECOND):
-        """Initialize conflict resolver.
-
-        Args:
-            resolution: Default conflict resolution strategy
-        """
+        """Initialize conflict resolver."""
         self.resolution = resolution
 
     def resolve(
         self, path: str, value1: Any, value2: Any, context: MergeContext
     ) -> Any:
-        """Resolve a merge conflict.
-
-        Args:
-            path: Configuration path
-            value1: First value
-            value2: Second value
-            context: Merge context
-
-        Returns:
-            Resolved value
-        """
+        """Resolve a merge conflict."""
         if self.resolution == ConflictResolution.USE_FIRST:
             context.add_conflict(path, value1, value2, "used_first")
             return value1
@@ -181,7 +115,6 @@ class ConflictResolver:
         elif self.resolution == ConflictResolution.ERROR:
             raise ValueError(f"Merge conflict at {path}: {value1} vs {value2}")
         elif self.resolution == ConflictResolution.COMBINE:
-            # Try to intelligently combine values
             return self._combine_values(value1, value2, path, context)
         else:
             return value2
@@ -189,53 +122,29 @@ class ConflictResolver:
     def _combine_values(
         self, value1: Any, value2: Any, path: str, context: MergeContext
     ) -> Any:
-        """Attempt to combine conflicting values.
-
-        Args:
-            value1: First value
-            value2: Second value
-            path: Configuration path
-            context: Merge context
-
-        Returns:
-            Combined value
-        """
-        # For lists, concatenate
+        """Attempt to combine conflicting values."""
         if isinstance(value1, list) and isinstance(value2, list):
             context.add_conflict(path, value1, value2, "combined_lists")
             return value1 + value2
 
-        # For dicts, deep merge
         if isinstance(value1, dict) and isinstance(value2, dict):
             context.add_conflict(path, value1, value2, "deep_merged_dicts")
-            merged = OmegaConf.merge(OmegaConf.create(value1), OmegaConf.create(value2))
-            return OmegaConf.to_container(merged)
+            return deep_merge(value1, value2)
 
-        # For strings, concatenate with separator
         if isinstance(value1, str) and isinstance(value2, str):
             context.add_conflict(path, value1, value2, "concatenated_strings")
             return f"{value1},{value2}"
 
-        # Default to second value
         context.add_conflict(path, value1, value2, "defaulted_to_second")
         return value2
 
 
 class UnifiedMerger(LoggerMixin):
-    """OmegaConf-based configuration merger.
+    """Pure-dict configuration merger.
 
-    Standalone component that merges an arbitrary number of configuration
-    dicts or ``DictConfig`` objects according to a ``MergeStrategy`` and a
-    ``ConflictResolution`` policy. Produces a single merged ``DictConfig``
-    plus an auditable ``MergeContext``.
-
-    This is the component-level merger used by ``components/__init__.py``.
-    The mixin equivalent is ``ConfigOperationsMixin.merge_configurations()``
-    in ``panther.config.core.mixins.config_operations``, which defines its
-    own (smaller) ``MergeStrategy`` / ``ConflictResolution`` enums and
-    delegates to OmegaConf directly. Both share the same conceptual model
-    but differ in enum members (the mixin variant lacks ``APPEND_LISTS``,
-    ``UNION_LISTS``, and ``COMBINE``).
+    Merges an arbitrary number of configuration dicts according to a
+    ``MergeStrategy`` and a ``ConflictResolution`` policy. Produces a
+    single merged dict plus an auditable ``MergeContext``.
     """
 
     def __init__(self):
@@ -244,305 +153,139 @@ class UnifiedMerger(LoggerMixin):
 
     def merge(
         self,
-        *configs: Union[Dict[str, Any], DictConfig],
+        *configs: Dict[str, Any],
         strategy: MergeStrategy = MergeStrategy.DEEP_MERGE,
         conflict_resolution: ConflictResolution = ConflictResolution.USE_SECOND,
-    ) -> DictConfig:
+    ) -> Dict[str, Any]:
         """Merge multiple configurations.
 
         Args:
-            *configs: Configurations to merge
-            strategy: Merge strategy
-            conflict_resolution: Conflict resolution strategy
+            *configs: Configuration dicts to merge.
+            strategy: Merge strategy.
+            conflict_resolution: Conflict resolution strategy.
 
         Returns:
-            Merged configuration as DictConfig
+            Merged configuration dict.
         """
         if not configs:
-            return OmegaConf.create({})
+            return {}
 
         self.logger.info(
             f"Merging {len(configs)} configurations with strategy {strategy.value}"
         )
 
-        # Create merge context
+        # Ensure all inputs are plain dicts
+        dict_configs = [dict(c) if not isinstance(c, dict) else c for c in configs]
+
         context = MergeContext()
         resolver = ConflictResolver(conflict_resolution)
 
-        # Convert all to OmegaConf
-        omega_configs = []
-        for config in configs:
-            if isinstance(config, DictConfig):
-                omega_configs.append(config)
-            else:
-                omega_configs.append(OmegaConf.create(config))
-
-        # Apply merge strategy
         if strategy == MergeStrategy.DEEP_MERGE:
-            result = self._deep_merge(omega_configs, resolver, context)
+            result = self._deep_merge(dict_configs, resolver, context)
         elif strategy == MergeStrategy.SHALLOW_MERGE:
-            result = self._shallow_merge(omega_configs, resolver, context)
+            result = self._shallow_merge(dict_configs, resolver, context)
         elif strategy == MergeStrategy.REPLACE:
-            result = omega_configs[-1] if omega_configs else OmegaConf.create({})
+            result = dict_configs[-1] if dict_configs else {}
             context.add_merged_path("root")
         elif strategy == MergeStrategy.APPEND_LISTS:
-            result = self._merge_append_lists(omega_configs, resolver, context)
+            result = self._merge_with_list_strategy(
+                dict_configs, resolver, context, "append"
+            )
         elif strategy == MergeStrategy.UNION_LISTS:
-            result = self._merge_union_lists(omega_configs, resolver, context)
+            result = self._merge_with_list_strategy(
+                dict_configs, resolver, context, "union"
+            )
         else:
-            result = self._deep_merge(omega_configs, resolver, context)
+            result = self._deep_merge(dict_configs, resolver, context)
 
-        # Log merge summary
         summary = context.get_summary()
         if summary["conflicts_count"] > 0:
             self.logger.warning(
                 f"Resolved {summary['conflicts_count']} conflicts during merge"
             )
-        if summary["warnings"]:
-            for warning in summary["warnings"]:
-                self.logger.warning(warning)
+        for warning in summary["warnings"]:
+            self.logger.warning(warning)
 
         return result
 
     def _deep_merge(
         self,
-        configs: List[DictConfig],
+        configs: List[Dict[str, Any]],
         resolver: ConflictResolver,
         context: MergeContext,
-    ) -> DictConfig:
-        """Perform deep merge of configurations.
-
-        Args:
-            configs: List of configurations
-            resolver: Conflict resolver
-            context: Merge context
-
-        Returns:
-            Merged configuration
-        """
+    ) -> Dict[str, Any]:
+        """Perform deep merge of configurations."""
         if not configs:
-            return OmegaConf.create({})
-
+            return {}
         if len(configs) == 1:
             return configs[0]
 
-        # Use OmegaConf's merge with custom conflict handling
         result = configs[0]
-
         for i, config in enumerate(configs[1:], 1):
-            try:
-                # OmegaConf.merge handles deep merging
-                result = OmegaConf.merge(result, config)
-                context.add_merged_path(f"config_{i}")
-            except Exception as e:
-                # Handle merge conflicts
-                if resolver.resolution == ConflictResolution.ERROR:
-                    raise
-                else:
-                    # Manual merge with conflict resolution
-                    result = self._merge_with_resolver(
-                        result, config, resolver, context
-                    )
-
+            result = deep_merge(result, config)
+            context.add_merged_path(f"config_{i}")
         return result
 
     def _shallow_merge(
         self,
-        configs: List[DictConfig],
+        configs: List[Dict[str, Any]],
         resolver: ConflictResolver,
         context: MergeContext,
-    ) -> DictConfig:
-        """Perform shallow merge of configurations.
-
-        Args:
-            configs: List of configurations
-            resolver: Conflict resolver
-            context: Merge context
-
-        Returns:
-            Merged configuration
-        """
-        result = OmegaConf.create({})
-
+    ) -> Dict[str, Any]:
+        """Perform shallow merge of configurations."""
+        result: Dict[str, Any] = {}
         for config in configs:
             for key, value in config.items():
                 if key in result:
-                    # Resolve conflict
                     result[key] = resolver.resolve(key, result[key], value, context)
                 else:
                     result[key] = value
                     context.add_merged_path(key)
-
         return result
 
-    def _merge_append_lists(
+    def _merge_with_list_strategy(
         self,
-        configs: List[DictConfig],
+        configs: List[Dict[str, Any]],
         resolver: ConflictResolver,
         context: MergeContext,
-    ) -> DictConfig:
-        """Merge with list appending.
-
-        Args:
-            configs: List of configurations
-            resolver: Conflict resolver
-            context: Merge context
-
-        Returns:
-            Merged configuration
-        """
+        list_mode: str,
+    ) -> Dict[str, Any]:
+        """Merge with special list handling (append or union)."""
         if not configs:
-            return OmegaConf.create({})
+            return {}
 
         result = configs[0]
-
         for config in configs[1:]:
-            result = self._merge_configs_append_lists(result, config, resolver, context)
-
+            result = self._merge_lists_recursive(result, config, list_mode, context)
         return result
 
-    def _merge_union_lists(
+    def _merge_lists_recursive(
         self,
-        configs: List[DictConfig],
-        resolver: ConflictResolver,
-        context: MergeContext,
-    ) -> DictConfig:
-        """Merge with list union (unique values).
-
-        Args:
-            configs: List of configurations
-            resolver: Conflict resolver
-            context: Merge context
-
-        Returns:
-            Merged configuration
-        """
-        if not configs:
-            return OmegaConf.create({})
-
-        result = configs[0]
-
-        for config in configs[1:]:
-            result = self._merge_configs_union_lists(result, config, resolver, context)
-
-        return result
-
-    def _merge_with_resolver(
-        self,
-        base: DictConfig,
-        override: DictConfig,
-        resolver: ConflictResolver,
+        base: Dict[str, Any],
+        override: Dict[str, Any],
+        list_mode: str,
         context: MergeContext,
         path: str = "",
-    ) -> DictConfig:
-        """Merge two configs with conflict resolution.
-
-        Args:
-            base: Base configuration
-            override: Override configuration
-            resolver: Conflict resolver
-            context: Merge context
-            path: Current path in configuration
-
-        Returns:
-            Merged configuration
-        """
-        result = OmegaConf.create({})
-
-        # Add all keys from base
-        for key in base:
+    ) -> Dict[str, Any]:
+        """Recursively merge dicts with special list handling."""
+        result = base.copy()
+        for key, value in override.items():
             current_path = f"{path}.{key}" if path else key
-
-            if key in override:
-                base_val = base[key]
-                override_val = override[key]
-
-                if isinstance(base_val, DictConfig) and isinstance(
-                    override_val, DictConfig
-                ):
-                    # Recursive merge
-                    result[key] = self._merge_with_resolver(
-                        base_val, override_val, resolver, context, current_path
+            if key in result:
+                base_val = result[key]
+                if isinstance(base_val, dict) and isinstance(value, dict):
+                    result[key] = self._merge_lists_recursive(
+                        base_val, value, list_mode, context, current_path
                     )
-                elif base_val != override_val:
-                    # Conflict
-                    result[key] = resolver.resolve(
-                        current_path, base_val, override_val, context
-                    )
+                elif isinstance(base_val, list) and isinstance(value, list):
+                    if list_mode == "append":
+                        result[key] = base_val + value
+                    else:  # union
+                        result[key] = list(set(base_val + value))
+                    context.add_merged_path(current_path)
                 else:
-                    # Same value
-                    result[key] = base_val
+                    result[key] = value
             else:
-                result[key] = base[key]
-
-        # Add keys only in override
-        for key in override:
-            if key not in base:
-                current_path = f"{path}.{key}" if path else key
-                result[key] = override[key]
+                result[key] = value
                 context.add_merged_path(current_path)
-
-        return result
-
-    def _merge_configs_append_lists(
-        self,
-        base: DictConfig,
-        override: DictConfig,
-        resolver: ConflictResolver,
-        context: MergeContext,
-    ) -> DictConfig:
-        """Merge configs with list appending.
-
-        Args:
-            base: Base configuration
-            override: Override configuration
-            resolver: Conflict resolver
-            context: Merge context
-
-        Returns:
-            Merged configuration
-        """
-
-        # Convert to regular merge but handle lists specially
-        def list_merger(base_val: Any, override_val: Any) -> Any:
-            if isinstance(base_val, list) and isinstance(override_val, list):
-                return base_val + override_val
-            return None
-
-        # Use OmegaConf with custom merger
-        OmegaConf.register_new_resolver("append_lists", list_merger)
-        result = OmegaConf.merge(base, override)
-
-        return result
-
-    def _merge_configs_union_lists(
-        self,
-        base: DictConfig,
-        override: DictConfig,
-        resolver: ConflictResolver,
-        context: MergeContext,
-    ) -> DictConfig:
-        """Merge configs with list union.
-
-        Args:
-            base: Base configuration
-            override: Override configuration
-            resolver: Conflict resolver
-            context: Merge context
-
-        Returns:
-            Merged configuration
-        """
-
-        # Convert to regular merge but handle lists specially
-        def list_union(base_val: Any, override_val: Any) -> Any:
-            if isinstance(base_val, list) and isinstance(override_val, list):
-                # Create union of lists
-                return list(set(base_val + override_val))
-            return None
-
-        # Use OmegaConf with custom merger
-        OmegaConf.register_new_resolver("union_lists", list_union)
-        result = OmegaConf.merge(base, override)
-
         return result

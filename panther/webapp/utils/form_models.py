@@ -1,13 +1,9 @@
 """Utilities for creating NiceCRUD-compatible form models from PANTHER Pydantic models.
 
-PANTHER config models inherit ``omega_config: Optional[DictConfig]`` from
-``BaseUnifiedModel``.  OmegaConf's ``DictConfig`` cannot produce a JSON Schema,
-which NiceCRUD requires internally.
-
-``build_form_model`` recursively strips ``omega_config`` and unsupported types,
-keeping nested BaseModel fields intact (NiceCRUD v2.12.5+ handles them natively
-via edit-button → recursive dialog).  Union[BaseModel...] is also preserved
-(NiceCRUD model-type switcher dropdown).
+``build_form_model`` strips unsupported types and assigns defaults to required
+fields, keeping nested BaseModel fields intact (NiceCRUD v2.12.5+ handles them
+natively via edit-button → recursive dialog).  Union[BaseModel...] is also
+preserved (NiceCRUD model-type switcher dropdown).
 
 Usage::
 
@@ -66,7 +62,6 @@ _ID_FIELD_OVERRIDES: dict[str, str] = {
 def build_form_model(model_cls: type[BaseModel]) -> type[BaseModel]:
     """Create a NiceCRUD-safe copy of *model_cls*.
 
-    * Removes ``omega_config``
     * Skips unsupported types (``List[BaseModel]``, all ``Dict[...]``)
     * Keeps nested ``BaseModel`` fields intact (NiceCRUD handles recursively)
     * Keeps ``Union[BaseModel...]`` intact (NiceCRUD model switcher)
@@ -75,8 +70,6 @@ def build_form_model(model_cls: type[BaseModel]) -> type[BaseModel]:
     """
     fields: dict = {}
     for name, field_info in model_cls.model_fields.items():
-        if name == "omega_config":
-            continue
         annotation = field_info.annotation
         if _is_unsupported_for_nicecrud(annotation):
             continue
@@ -97,7 +90,7 @@ def pick_id_field(model_cls: type[BaseModel]) -> str:
     if cls_name in _ID_FIELD_OVERRIDES:
         return _ID_FIELD_OVERRIDES[cls_name]
 
-    field_names = [n for n in model_cls.model_fields if n != "omega_config"]
+    field_names = list(model_cls.model_fields.keys())
     for candidate in ("name", "id"):
         if candidate in field_names:
             return candidate
@@ -155,8 +148,6 @@ def get_complex_fields(model_cls: type[BaseModel]) -> dict[str, ComplexFieldInfo
     """
     result: dict[str, ComplexFieldInfo] = {}
     for name, field_info in model_cls.model_fields.items():
-        if name == "omega_config":
-            continue
         category = classify_complex_field(field_info.annotation)
         if category is None:
             continue
@@ -436,8 +427,6 @@ def split_simple_and_complex(
     simple_data: dict[str, Any] = {}
     complex_data: dict[str, Any] = {}
     for key, value in data.items():
-        if key == "omega_config":
-            continue
         if key in complex_names:
             complex_data[key] = value
         else:

@@ -1,14 +1,15 @@
 """Configuration operations mixin for ConfigurationManager."""
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
-from omegaconf import DictConfig, OmegaConf
+import yaml
 
 from panther.core.utils.logging_mixin import LoggerMixin
 
 from ..base import BaseConfig
-from ..components.merger import ConflictResolution, MergeStrategy
+from ..components.merger import ConflictResolution, MergeStrategy, UnifiedMerger
+from ..utils.merge import deep_merge, dot_notation_update
 
 if TYPE_CHECKING:
     from ..models import ExperimentConfig
@@ -21,51 +22,48 @@ class ConfigOperationsMixin(LoggerMixin):
         """Initialize configuration operations."""
         super().__init__()
         self._config_overrides: Dict[str, Any] = {}
+        self._merger = UnifiedMerger()
 
     def merge_configurations(
         self,
         *configs: Any,
         strategy: MergeStrategy = MergeStrategy.DEEP_MERGE,
         conflict: ConflictResolution = ConflictResolution.USE_SECOND,
-    ) -> DictConfig:
+    ) -> Dict[str, Any]:
         """Merge multiple configurations with specified strategy.
 
         Args:
-            *configs: Configurations to merge (dicts, DictConfigs, or models)
+            *configs: Configurations to merge (dicts or models)
             strategy: Merge strategy to use
             conflict: Conflict resolution strategy
 
         Returns:
-            Merged configuration as DictConfig
+            Merged configuration as dict
         """
         if not configs:
-            return OmegaConf.create({})
+            return {}
 
         self.logger.debug(
             f"Merging {len(configs)} configurations with strategy {strategy.value}"
         )
 
-        # Convert all configs to OmegaConf
-        omega_configs = []
+        # Convert all configs to plain dicts
+        dict_configs = []
         for config in configs:
-            if isinstance(config, DictConfig):
-                omega_configs.append(config)
-            elif isinstance(config, dict):
-                omega_configs.append(OmegaConf.create(config))
-            elif hasattr(config, "to_omega"):
-                omega_configs.append(config.to_omega())
+            if isinstance(config, dict):
+                dict_configs.append(config)
+            elif hasattr(config, "to_dict"):
+                dict_configs.append(config.to_dict())
+            elif hasattr(config, "model_dump"):
+                dict_configs.append(config.model_dump())
             else:
-                omega_configs.append(OmegaConf.create(config))
+                dict_configs.append(dict(config))
 
-        # Perform merge based on strategy
-        if strategy == MergeStrategy.DEEP_MERGE:
-            result = self._deep_merge(omega_configs, conflict)
-        elif strategy == MergeStrategy.SHALLOW_MERGE:
-            result = self._shallow_merge(omega_configs, conflict)
-        else:  # REPLACE
-            result = omega_configs[-1] if omega_configs else OmegaConf.create({})
-
-        return result
+        return self._merger.merge(
+            *dict_configs,
+            strategy=strategy,
+            conflict_resolution=conflict,
+        )
 
     def create_experiment_from_template(
         self, name: str, params: Dict[str, Any], output: Optional[Path] = None
@@ -82,33 +80,20 @@ class ConfigOperationsMixin(LoggerMixin):
         """
         self.logger.info(f"Creating experiment from template: {name}")
 
-        # Load template
         template_path = self._find_template(name)
         if not template_path:
             raise ValueError(f"Template not found: {name}")
 
-        # Load template content
         with open(template_path) as f:
-            import yaml
-
             template_content = yaml.safe_load(f)
 
-        # Create OmegaConf with template
-        template_config = OmegaConf.create(template_content)
+        # Deep merge template with params
+        merged = deep_merge(template_content, params)
 
-        # Apply parameters
-        param_config = OmegaConf.create(params)
-        merged = OmegaConf.merge(template_config, param_config)
-
-        # Resolve interpolations
-        resolved = OmegaConf.to_container(merged, resolve=True)
-
-        # Create ExperimentConfig
         from ..models.experiment import ExperimentConfig
 
-        experiment_config = ExperimentConfig(**resolved)
+        experiment_config = ExperimentConfig(**merged)
 
-        # Save if output specified
         if output:
             experiment_config.save(output)
             self.logger.info(f"Saved experiment configuration to: {output}")
@@ -127,15 +112,9 @@ class ConfigOperationsMixin(LoggerMixin):
         Returns:
             Patched configuration
         """
-        # Convert to OmegaConf for patching
-        base_omega = base.to_omega()
-        patch_omega = OmegaConf.create(patch)
-
-        # Apply patch
-        patched = OmegaConf.merge(base_omega, patch_omega)
-
-        # Create new instance
-        return base.__class__.from_omega(patched)
+        base_dict = base.to_dict(exclude_none=False)
+        merged = deep_merge(base_dict, patch)
+        return base.__class__(**merged)
 
     def add_configuration_override(self, key: str, value: Any) -> None:
         """Add a configuration override.
@@ -163,11 +142,7 @@ class ConfigOperationsMixin(LoggerMixin):
         self.logger.debug("Cleared all configuration overrides")
 
     def get_override_summary(self) -> Dict[str, Any]:
-        """Get summary of current overrides.
-
-        Returns:
-            Dictionary of current overrides
-        """
+        """Get summary of current overrides."""
         return self._config_overrides.copy()
 
     def apply_overrides(self, config: BaseConfig) -> BaseConfig:
@@ -184,146 +159,17 @@ class ConfigOperationsMixin(LoggerMixin):
 
         self.logger.debug(f"Applying {len(self._config_overrides)} overrides")
 
-        # Convert to OmegaConf
-        omega_config = config.to_omega()
-
-        # Apply each override
+        data = config.to_dict(exclude_none=False)
         for key, value in self._config_overrides.items():
             try:
-                OmegaConf.update(omega_config, key, value, merge=False)
+                dot_notation_update(data, key, value)
             except Exception as e:
                 self.logger.warning(f"Failed to apply override {key}: {e}")
 
-        # Create new instance
-        return config.__class__.from_omega(omega_config)
-
-    def _deep_merge(
-        self, configs: List[DictConfig], conflict: ConflictResolution
-    ) -> DictConfig:
-        """Perform deep merge of configurations.
-
-        Args:
-            configs: List of OmegaConf configs
-            conflict: Conflict resolution strategy
-
-        Returns:
-            Merged configuration
-        """
-        if not configs:
-            return OmegaConf.create({})
-
-        if len(configs) == 1:
-            return configs[0]
-
-        # OmegaConf.merge handles deep merging by default
-        # For conflict resolution, we need custom handling
-        if conflict == ConflictResolution.USE_SECOND:
-            # Default OmegaConf behavior
-            return OmegaConf.merge(*configs)
-
-        # For other strategies, we need manual merging
-        result = configs[0]
-        for config in configs[1:]:
-            result = self._merge_with_conflict_resolution(result, config, conflict)
-
-        return result
-
-    def _shallow_merge(
-        self, configs: List[DictConfig], conflict: ConflictResolution
-    ) -> DictConfig:
-        """Perform shallow merge of configurations.
-
-        Args:
-            configs: List of OmegaConf configs
-            conflict: Conflict resolution strategy
-
-        Returns:
-            Merged configuration
-        """
-        result = OmegaConf.create({})
-
-        for config in configs:
-            for key, value in config.items():
-                if key in result and conflict == ConflictResolution.ERROR:
-                    raise ValueError(f"Conflict on key: {key}")
-                elif key in result and conflict == ConflictResolution.USE_FIRST:
-                    continue
-                result[key] = value
-
-        return result
-
-    def _merge_with_conflict_resolution(
-        self, base: DictConfig, override: DictConfig, conflict: ConflictResolution
-    ) -> DictConfig:
-        """Merge with custom conflict resolution.
-
-        Args:
-            base: Base configuration
-            override: Override configuration
-            conflict: Conflict resolution strategy
-
-        Returns:
-            Merged configuration
-        """
-        if conflict == ConflictResolution.ERROR:
-            # Check for conflicts first
-            for key in override:
-                if key in base:
-                    base_val = base[key]
-                    override_val = override[key]
-                    if isinstance(base_val, DictConfig) and isinstance(
-                        override_val, DictConfig
-                    ):
-                        # Recursive check
-                        self._merge_with_conflict_resolution(
-                            base_val, override_val, conflict
-                        )
-                    elif base_val != override_val:
-                        raise ValueError(f"Conflict on key: {key}")
-
-        elif conflict == ConflictResolution.COMBINE:
-            # Special handling for lists
-            result = OmegaConf.create({})
-
-            # Add all base items
-            for key, value in base.items():
-                result[key] = value
-
-            # Merge override items
-            for key, value in override.items():
-                if key in result:
-                    base_val = result[key]
-                    if isinstance(base_val, list) and isinstance(value, list):
-                        # Combine lists
-                        result[key] = base_val + value
-                    elif isinstance(base_val, DictConfig) and isinstance(
-                        value, DictConfig
-                    ):
-                        # Recursive merge
-                        result[key] = self._merge_with_conflict_resolution(
-                            base_val, value, conflict
-                        )
-                    else:
-                        # Replace
-                        result[key] = value
-                else:
-                    result[key] = value
-
-            return result
-
-        # Default behavior (USE_FIRST or USE_SECOND)
-        return OmegaConf.merge(base, override)
+        return config.__class__(**data)
 
     def _find_template(self, name: str) -> Optional[Path]:
-        """Find template file by name.
-
-        Args:
-            name: Template name
-
-        Returns:
-            Path to template file or None
-        """
-        # Look in standard template locations
+        """Find template file by name."""
         template_dirs = [
             Path("templates"),
             Path("experiment-config/templates"),
@@ -333,7 +179,6 @@ class ConfigOperationsMixin(LoggerMixin):
 
         for template_dir in template_dirs:
             if template_dir.exists():
-                # Try with and without .yaml extension
                 for ext in ["", ".yaml", ".yml"]:
                     template_path = template_dir / f"{name}{ext}"
                     if template_path.exists():
