@@ -21,36 +21,75 @@ class LoggingLevel(str, Enum):
     CRITICAL = "CRITICAL"
 
 
+class DockerNetworkMode(str, Enum):
+    """Docker network mode."""
+
+    BRIDGE = "bridge"
+    HOST = "host"
+    NONE = "none"
+    OVERLAY = "overlay"
+
+
+class ExportFormat(str, Enum):
+    """Metrics/data export format."""
+
+    JSON = "json"
+    CSV = "csv"
+    PROMETHEUS = "prometheus"
+
+
 class FeatureLogLevelsConfig(BaseConfig):
     """Feature-specific log level configuration."""
 
-    docker_build: Optional[str] = Field(None, description="Docker build operations")
-    service_start: Optional[str] = Field(None, description="Service startup operations")
-    environment_setup: Optional[str] = Field(None, description="Environment setup")
-    test_execution: Optional[str] = Field(None, description="Test execution")
-    metrics_collection: Optional[str] = Field(None, description="Metrics collection")
-    event_processing: Optional[str] = Field(None, description="Event processing")
-    plugin_loading: Optional[str] = Field(None, description="Plugin loading")
-    configuration: Optional[str] = Field(None, description="Configuration operations")
-    validation: Optional[str] = Field(None, description="Validation operations")
-    command_generation: Optional[str] = Field(None, description="Command generation")
-    output_collection: Optional[str] = Field(None, description="Output collection")
-    error_handling: Optional[str] = Field(None, description="Error handling")
-    fast_fail: Optional[str] = Field(None, description="Fast-fail system")
-    observer: Optional[str] = Field(None, description="Observer system")
-    state_management: Optional[str] = Field(None, description="State management")
-    service_managers: Optional[str] = Field(
+    docker_build: Optional[LoggingLevel] = Field(
+        None, description="Docker build operations"
+    )
+    service_start: Optional[LoggingLevel] = Field(
+        None, description="Service startup operations"
+    )
+    environment_setup: Optional[LoggingLevel] = Field(
+        None, description="Environment setup"
+    )
+    test_execution: Optional[LoggingLevel] = Field(None, description="Test execution")
+    metrics_collection: Optional[LoggingLevel] = Field(
+        None, description="Metrics collection"
+    )
+    event_processing: Optional[LoggingLevel] = Field(
+        None, description="Event processing"
+    )
+    plugin_loading: Optional[LoggingLevel] = Field(None, description="Plugin loading")
+    configuration: Optional[LoggingLevel] = Field(
+        None, description="Configuration operations"
+    )
+    validation: Optional[LoggingLevel] = Field(
+        None, description="Validation operations"
+    )
+    command_generation: Optional[LoggingLevel] = Field(
+        None, description="Command generation"
+    )
+    output_collection: Optional[LoggingLevel] = Field(
+        None, description="Output collection"
+    )
+    error_handling: Optional[LoggingLevel] = Field(None, description="Error handling")
+    fast_fail: Optional[LoggingLevel] = Field(None, description="Fast-fail system")
+    observer: Optional[LoggingLevel] = Field(None, description="Observer system")
+    state_management: Optional[LoggingLevel] = Field(
+        None, description="State management"
+    )
+    service_managers: Optional[LoggingLevel] = Field(
         None, description="Service manager operations"
     )
 
     @field_validator("*", mode="before")
+    @classmethod
     def validate_log_level(cls, v):
-        """Validate log level values."""
+        """Validate and convert log level values to LoggingLevel enum."""
         if v is not None and isinstance(v, str):
             try:
-                LoggingLevel(v.upper())
+                return LoggingLevel(v.upper())
             except ValueError:
-                raise ValueError(f"Invalid log level: {v}")
+                valid = [e.value for e in LoggingLevel]
+                raise ValueError(f"Invalid log level: '{v}'. Valid values are: {valid}")
         return v
 
     def to_dict(self, **kwargs) -> Dict[str, Any]:
@@ -98,8 +137,22 @@ class DockerUserMappingConfig(BaseConfig):
     """Docker user mapping configuration."""
 
     run_as_host_user: bool = Field(False, description="Run containers as host user")
-    custom_uid: Optional[int] = Field(None, description="Custom user ID")
-    custom_gid: Optional[int] = Field(None, description="Custom group ID")
+    custom_uid: Optional[int] = Field(
+        None,
+        ge=0,
+        le=65534,
+        description="Custom user ID",
+        examples=[1000, 0],
+        json_schema_extra={"category": "docker"},
+    )
+    custom_gid: Optional[int] = Field(
+        None,
+        ge=0,
+        le=65534,
+        description="Custom group ID",
+        examples=[1000, 0],
+        json_schema_extra={"category": "docker"},
+    )
     user_name: str = Field("panther", description="Container user name")
     fallback_to_root: bool = Field(
         True, description="Fallback to root if user creation fails"
@@ -142,7 +195,24 @@ class DockerConfig(BaseConfig):
         default_factory=dict, description="Build arguments"
     )
     cache_from: Optional[str] = Field(None, description="Cache source for builds")
-    network_mode: str = Field("bridge", description="Docker network mode")
+    network_mode: DockerNetworkMode = Field(
+        DockerNetworkMode.BRIDGE,
+        description="Docker network mode",
+        examples=["bridge", "host", "none"],
+        json_schema_extra={"category": "docker"},
+    )
+
+    @field_validator("network_mode", mode="before")
+    @classmethod
+    def validate_network_mode(cls, v):
+        """Convert string to DockerNetworkMode enum."""
+        if isinstance(v, str):
+            try:
+                return DockerNetworkMode(v.lower())
+            except ValueError:
+                valid = [e.value for e in DockerNetworkMode]
+                raise ValueError(f"Invalid network mode '{v}'. Valid: {valid}")
+        return v
 
     # Docker Buildx configuration fields
     use_buildx: bool = Field(
@@ -226,7 +296,12 @@ class ProgressConfig(BaseConfig):
     show_test_status: bool = Field(True, description="Show test status information")
     use_emojis: bool = Field(True, description="Use emojis in progress display")
     update_interval: float = Field(
-        0.1, description="Progress update interval (seconds)"
+        0.1,
+        ge=0.01,
+        le=10.0,
+        description="Progress update interval (seconds)",
+        examples=[0.1, 0.5, 1.0],
+        json_schema_extra={"unit": "seconds"},
     )
 
 
@@ -243,7 +318,11 @@ class FastFailConfig(BaseConfig):
         True, description="Fail on Ivy compilation errors"
     )
     timeout_cascade_threshold: int = Field(
-        1, description="Consecutive timeouts before failing"
+        1,
+        ge=1,
+        le=100,
+        description="Consecutive timeouts before failing",
+        examples=[1, 3, 5],
     )
     critical_only: bool = Field(False, description="Only fail on critical errors")
 
@@ -253,9 +332,40 @@ class MetricsConfig(BaseConfig):
 
     enabled: bool = Field(True, description="Enable metrics collection")
     collect_system_metrics: bool = Field(True, description="Collect system metrics")
-    publish_interval: int = Field(30, description="Metrics publish interval (seconds)")
-    export_format: str = Field("json", description="Export format")
-    retention_days: int = Field(30, description="Metrics retention period")
+    publish_interval: int = Field(
+        30,
+        ge=1,
+        le=3600,
+        description="Metrics publish interval (seconds)",
+        examples=[10, 30, 60],
+        json_schema_extra={"unit": "seconds"},
+    )
+    export_format: ExportFormat = Field(
+        ExportFormat.JSON,
+        description="Export format for metrics data",
+        examples=["json", "csv", "prometheus"],
+        json_schema_extra={"category": "output"},
+    )
+    retention_days: int = Field(
+        30,
+        ge=1,
+        le=365,
+        description="Metrics retention period (days)",
+        examples=[7, 30, 90],
+        json_schema_extra={"unit": "days"},
+    )
+
+    @field_validator("export_format", mode="before")
+    @classmethod
+    def validate_export_format(cls, v):
+        """Convert string to ExportFormat enum."""
+        if isinstance(v, str):
+            try:
+                return ExportFormat(v.lower())
+            except ValueError:
+                valid = [e.value for e in ExportFormat]
+                raise ValueError(f"Invalid export format '{v}'. Valid: {valid}")
+        return v
 
 
 class GlobalConfig(BaseConfig):
