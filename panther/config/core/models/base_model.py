@@ -1,6 +1,6 @@
 """Base model for all configuration models."""
 
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional, Set
 
 from ..base import BaseConfig
 from ..utils.merge import deep_merge
@@ -38,3 +38,26 @@ class BaseUnifiedModel(BaseConfig):
     def clone(self) -> "BaseUnifiedModel":
         """Create a deep copy of the model."""
         return self.__class__(**self.to_dict(exclude_none=False))
+
+    @classmethod
+    def check_extra_fields(
+        cls,
+        data: Dict[str, Any],
+        context_label: str = "",
+        exclude: Optional[Set[str]] = None,
+    ) -> List[str]:
+        """Check for undeclared fields and log warnings.
+
+        Args:
+            data: Raw dictionary from YAML or user input.
+            context_label: Label for log messages; defaults to class name.
+            exclude: Field names to skip (e.g. builder-injected fields).
+
+        Returns:
+            List of extra field names found.
+        """
+        from ..utils.field_partition import warn_extra_fields
+
+        return warn_extra_fields(
+            data, cls, context_label=context_label or cls.__name__, exclude=exclude
+        )

@@ -152,6 +152,14 @@ class ExperimentBuilder(BaseBuilder):
                 test_dict["services"], auto_fix
             )
 
+        # Warn about unknown test-level fields
+        for field_name in TestConfig.check_extra_fields(
+            test_dict, context_label=f"test '{test_dict.get('name', '?')}'"
+        ):
+            self.context.add_warning(
+                f"Unknown field '{field_name}' in test configuration"
+            )
+
         return TestConfig(**test_dict)
 
     def _build_services_with_port_registry(
@@ -330,6 +338,17 @@ class ServiceBuilder(BaseBuilder):
         if plugin_config_data and "implementation" in service_dict:
             self._validate_plugin_config_with_resolver(service_dict, plugin_config_data)
 
+        # Warn about unknown service-level fields
+        # Exclude 'name' — injected by builder from YAML key, not a declared ServiceConfig field
+        for field_name in ServiceConfig.check_extra_fields(
+            service_dict,
+            context_label=f"service '{service_dict.get('name', '?')}'",
+            exclude={"name"},
+        ):
+            self.context.add_warning(
+                f"Unknown field '{field_name}' in service configuration"
+            )
+
         # Create ServiceConfig
         try:
             return ServiceConfig(**service_dict)
@@ -387,6 +406,17 @@ class ServiceBuilder(BaseBuilder):
         # Optionally validate plugin config with resolver
         if plugin_config_data and "implementation" in service_dict:
             self._validate_plugin_config_with_resolver(service_dict, plugin_config_data)
+
+        # Warn about unknown service-level fields
+        # Exclude 'name' — injected by builder from YAML key, not a declared ServiceConfig field
+        for field_name in ServiceConfig.check_extra_fields(
+            service_dict,
+            context_label=f"service '{service_dict.get('name', '?')}'",
+            exclude={"name"},
+        ):
+            self.context.add_warning(
+                f"Unknown field '{field_name}' in service configuration"
+            )
 
         # Create ServiceConfig
         try:
@@ -658,6 +688,16 @@ class ServiceBuilder(BaseBuilder):
         if proto_dict.get("role") == "client" and not proto_dict.get("target"):
             self.context.add_warning("Client service missing target")
 
+        # Warn about unknown fields
+        from ..models.service import ProtocolConfig
+
+        for field_name in ProtocolConfig.check_extra_fields(
+            proto_dict, context_label="protocol"
+        ):
+            self.context.add_warning(
+                f"Unknown field '{field_name}' in protocol configuration"
+            )
+
         return proto_dict
 
 
@@ -685,6 +725,14 @@ class GlobalConfigBuilder(BaseBuilder):
 
         # Apply defaults
         config_dict = self._apply_defaults(config_dict)
+
+        # Warn about unknown global config fields
+        for field_name in GlobalConfig.check_extra_fields(
+            config_dict, context_label="global config"
+        ):
+            self.context.add_warning(
+                f"Unknown field '{field_name}' in global configuration"
+            )
 
         # Create GlobalConfig
         try:

@@ -1,7 +1,11 @@
 """Tests for field partitioning utility."""
 
+import logging
+
 import pytest
 from pydantic import BaseModel, ConfigDict, Field
+
+from panther.config.core.utils.field_partition import warn_extra_fields
 
 
 class SampleModel(BaseModel):
@@ -79,3 +83,34 @@ class TestPartitionFields:
         assert "test" in extra
         assert "build_mode" in extra
         assert "iterations_per_test" in extra
+
+
+class TestWarnExtraFields:
+    def test_no_extras_returns_empty(self):
+        from panther.config.core.models.service import ImplementationConfig
+
+        data = {"name": "picoquic", "type": "iut"}
+        result = warn_extra_fields(data, ImplementationConfig)
+        assert result == []
+
+    def test_detects_extra_fields(self):
+        from panther.config.core.models.service import ProtocolConfig
+
+        data = {"name": "quic", "version": "rfc9000", "role": "server", "caca2": True}
+        result = warn_extra_fields(data, ProtocolConfig)
+        assert "caca2" in result
+
+    def test_logs_warning(self):
+        from unittest.mock import MagicMock
+
+        from panther.config.core.models.service import ProtocolConfig
+
+        mock_logger = MagicMock()
+        data = {"name": "quic", "role": "server", "typo": True}
+        warn_extra_fields(
+            data, ProtocolConfig, context_label="protocol", logger=mock_logger
+        )
+        mock_logger.warning.assert_called_once()
+        call_args = mock_logger.warning.call_args
+        assert "Unknown field(s)" in call_args[0][0]
+        assert "typo" in str(call_args)
