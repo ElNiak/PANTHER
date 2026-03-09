@@ -145,14 +145,14 @@ class GperfHeapEnvironment(BaseExecutionEnvironment):
         }
 
         # Add sampling frequency if configured
-        sampling_frequency = self._get_config_value("sampling_frequency")
-        if sampling_frequency:
-            env_vars["HEAP_PROFILE_ALLOCATION_INTERVAL"] = str(sampling_frequency)
+        allocation_interval = self._get_config_value("heap_profile_allocation_interval")
+        if allocation_interval:
+            env_vars["HEAP_PROFILE_ALLOCATION_INTERVAL"] = str(allocation_interval)
 
         # Add heap check level if configured
-        heap_check_level = self._get_config_value("heap_check_level")
-        if heap_check_level:
-            env_vars["HEAPCHECK"] = str(heap_check_level)
+        heap_check_type = self._get_config_value("heap_check_type")
+        if heap_check_type:
+            env_vars["HEAPCHECK"] = str(heap_check_type)
 
         # Add profile options
         profile_only_peak = self._get_config_value("profile_only_peak")

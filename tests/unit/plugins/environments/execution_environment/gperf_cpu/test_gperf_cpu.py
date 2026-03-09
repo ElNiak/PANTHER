@@ -1,25 +1,20 @@
-"""
-Comprehensive unit tests for GperfCpuEnvironment.
+"""Comprehensive unit tests for GperfCpuEnvironment.
 
 Tests CPU profiling functionality, configuration handling, and command generation.
 """
 
-from pathlib import Path
-from typing import List
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
 from panther.config.core.models.global_config import GlobalConfig
 from panther.core.observer.management.event_manager import EventManager
-from panther.plugins.environments.config_schema import EnvironmentConfig
 from panther.plugins.environments.execution_environment.gperf_cpu.config_schema import (
     GperfCpuConfig,
 )
 from panther.plugins.environments.execution_environment.gperf_cpu.gperf_cpu import (
     GperfCpuEnvironment,
 )
-from panther.plugins.services.services_interface import IServiceManager
 
 
 class TestGperfCpuEnvironmentInitialization:
@@ -45,7 +40,6 @@ class TestGperfCpuEnvironmentInitialization:
         assert env.env_type == "execution"
         assert env.env_sub_type == "gperf_cpu"
         assert env.event_manager == event_manager
-        assert env._cached_plugin_config is None  # Should be lazy-loaded
 
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
@@ -90,16 +84,19 @@ class TestGperfCpuEnvironmentInitialization:
 
 
 class TestGperfCpuConfigurationHandling:
-    """Test suite for configuration handling with dual approach."""
+    """Test suite for configuration handling."""
 
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
     )
-    def test_get_plugin_config_caching(
+    def test_config_value_from_typed_config(
         self, mock_std_init, temp_output_dir, event_manager
     ):
-        """Test that plugin config is cached correctly."""
-        config = GperfCpuConfig(sampling_frequency=200)
+        """Test that config values come directly from env_config_to_test."""
+        config = GperfCpuConfig(
+            profiler_library="/custom/path/libprofiler.so",
+            sampling_frequency=200,
+        )
 
         env = GperfCpuEnvironment(
             env_config_to_test=config,
@@ -109,56 +106,20 @@ class TestGperfCpuConfigurationHandling:
             event_manager=event_manager,
         )
 
-        # Cache should start as None
-        assert env._cached_plugin_config is None
-
-        # First call should populate cache
-        plugin_config1 = env._get_plugin_config()
-        assert env._cached_plugin_config is not None
-
-        # Second call should return same object (cached)
-        plugin_config2 = env._get_plugin_config()
-        assert plugin_config1 is plugin_config2
-
-    @patch(
-        "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
-    )
-    def test_get_plugin_config_exception_fallback(
-        self, mock_std_init, temp_output_dir, event_manager
-    ):
-        """Test fallback to default config when get_plugin_config fails."""
-        config = GperfCpuConfig()
-
-        env = GperfCpuEnvironment(
-            env_config_to_test=config,
-            output_dir=temp_output_dir,
-            env_type="execution",
-            env_sub_type="gperf_cpu",
-            event_manager=event_manager,
+        assert (
+            env._get_config_value("profiler_library") == "/custom/path/libprofiler.so"
         )
-        env.env_config_to_test = config
-
-        # Force an exception by making get_plugin_config raise
-        config.get_plugin_config = Mock(side_effect=Exception("Config error"))
-
-        mock_logger = MagicMock()
-        env._logger = mock_logger
-
-        plugin_config = env._get_plugin_config()
-
-        # Should return default config
-        assert isinstance(plugin_config, GperfCpuConfig)
-        assert plugin_config.sampling_frequency is None  # Default value
+        assert env._get_config_value("sampling_frequency") == 200
+        assert env._get_config_value("nonexistent", "default") == "default"
 
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
     )
-    def test_dual_config_approach_dict_priority(
+    def test_custom_profiler_library_in_setup(
         self, mock_std_init, temp_output_dir, event_manager
     ):
-        """Test that dict config takes priority in dual approach."""
-        config = GperfCpuConfig()
-        config.plugin_config = {"profiler_library": "/custom/path/libprofiler.so"}
+        """Test that custom profiler library is used in setup."""
+        config = GperfCpuConfig(profiler_library="/custom/path/libprofiler.so")
 
         env = GperfCpuEnvironment(
             env_config_to_test=config,
@@ -168,32 +129,25 @@ class TestGperfCpuConfigurationHandling:
             event_manager=event_manager,
         )
 
-        # Mock the typed config to have a different value
-        with patch.object(env, "_get_plugin_config") as mock_get_config:
-            typed_config = GperfCpuConfig(profiler_library="/typed/path/libprofiler.so")
-            mock_get_config.return_value = typed_config
+        mock_service = Mock()
+        mock_service.service_config_to_test.implementation.gperf_compatible = True
 
-            # Should prefer dict config over typed config
-            # This requires access to the internal logic - we'll test through setup
-            mock_service = Mock()
-            mock_service.service_config_to_test.implementation.gperf_compatible = True
+        with patch(
+            "panther.plugins.environments.execution_environment.gperf_cpu.gperf_cpu.create_execution_environment_builder"
+        ) as mock_builder:
+            mock_cmd_builder = Mock()
+            mock_cmd_builder.register_output_file.return_value = "/tmp/cpu.prof"
+            mock_cmd_builder.service_name = "test_service"
+            mock_cmd_builder.build_and_apply.return_value = []
+            mock_builder.return_value = mock_cmd_builder
 
-            with patch(
-                "panther.plugins.environments.execution_environment.gperf_cpu.gperf_cpu.create_execution_environment_builder"
-            ) as mock_builder:
-                mock_cmd_builder = Mock()
-                mock_cmd_builder.register_output_file.return_value = "/tmp/cpu.prof"
-                mock_cmd_builder.service_name = "test_service"
-                mock_cmd_builder.build_and_apply.return_value = []
-                mock_builder.return_value = mock_cmd_builder
+            env._setup_plugin_specific_environment([mock_service], "test_timestamp")
 
-                env._setup_plugin_specific_environment([mock_service], "test_timestamp")
-
-                # Verify the custom library path was used in wrapper command
-                calls = mock_cmd_builder.add_conditional_wrapper.call_args_list
-                assert len(calls) > 0
-                wrapper_command = calls[0][1]["wrapper_command"]
-                assert "/custom/path/libprofiler.so" in wrapper_command
+            # Verify the custom library path was used in wrapper command
+            calls = mock_cmd_builder.add_conditional_wrapper.call_args_list
+            assert len(calls) > 0
+            wrapper_command = calls[0][1]["wrapper_command"]
+            assert "/custom/path/libprofiler.so" in wrapper_command
 
 
 class TestGperfCpuCommandGeneration:

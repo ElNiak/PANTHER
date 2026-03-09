@@ -1,5 +1,4 @@
-"""
-Comprehensive unit tests for HelgrindEnvironment.
+"""Comprehensive unit tests for HelgrindEnvironment.
 
 Tests thread error detection functionality, configuration handling, and command generation.
 """
@@ -45,7 +44,6 @@ class TestHelgrindEnvironmentInitialization:
         assert env.env_type == "execution"
         assert env.env_sub_type == "helgrind"
         assert env.event_manager == event_manager
-        assert env._cached_plugin_config is None  # Should be lazy-loaded
 
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
@@ -92,15 +90,15 @@ class TestHelgrindEnvironmentInitialization:
 
 
 class TestHelgrindConfigurationHandling:
-    """Test suite for configuration handling with dual approach."""
+    """Test suite for configuration handling."""
 
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
     )
-    def test_get_plugin_config_caching(
+    def test_get_config_value_returns_field(
         self, mock_std_init, temp_output_dir, event_manager
     ):
-        """Test that plugin config is cached correctly."""
+        """Test that _get_config_value reads directly from env_config_to_test."""
         config = HelgrindConfig(conflict_cache_size=2000000)
 
         env = HelgrindEnvironment(
@@ -112,42 +110,9 @@ class TestHelgrindConfigurationHandling:
         )
         env.env_config_to_test = config
 
-        # First call should retrieve and cache the plugin config
-        plugin_config1 = env._get_plugin_config()
-        assert plugin_config1 is not None
-        assert env._cached_plugin_config is not None
-
-        # Second call should use cached value (same object)
-        plugin_config2 = env._get_plugin_config()
-        assert plugin_config1 is plugin_config2
-        assert plugin_config1.conflict_cache_size == 2000000
-
-    @patch(
-        "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
-    )
-    def test_get_plugin_config_exception_fallback(
-        self, mock_std_init, temp_output_dir, event_manager
-    ):
-        """Test fallback to default config when get_plugin_config fails."""
-        config = HelgrindConfig()
-
-        with patch.object(
-            config, "get_plugin_config", side_effect=Exception("Config error")
-        ):
-            env = HelgrindEnvironment(
-                env_config_to_test=config,
-                output_dir=temp_output_dir,
-                env_type="execution",
-                env_sub_type="helgrind",
-                event_manager=event_manager,
-            )
-            env.env_config_to_test = config
-
-            plugin_config = env._get_plugin_config()
-
-            # Should return default config
-            assert isinstance(plugin_config, HelgrindConfig)
-            assert plugin_config.conflict_cache_size == 1000000  # Default value
+        assert env._get_config_value("conflict_cache_size") == 2000000
+        assert env._get_config_value("valgrind_binary") == "/usr/bin/valgrind"
+        assert env._get_config_value("nonexistent_field", "fallback") == "fallback"
 
 
 class TestHelgrindCommandGeneration:
@@ -186,8 +151,7 @@ class TestHelgrindCommandGeneration:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test helgrind command generation with XML output format."""
-        config = HelgrindConfig()
-        config.plugin_config = {"output_format": "xml"}
+        config = HelgrindConfig(output_format="xml")
 
         env = HelgrindEnvironment(
             env_config_to_test=config,
@@ -209,8 +173,7 @@ class TestHelgrindCommandGeneration:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test helgrind command generation with custom history level."""
-        config = HelgrindConfig()
-        config.plugin_config = {"history_level": "approx"}
+        config = HelgrindConfig(history_level="approx")
 
         env = HelgrindEnvironment(
             env_config_to_test=config,
@@ -231,8 +194,7 @@ class TestHelgrindCommandGeneration:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test helgrind command generation with lock order tracking disabled."""
-        config = HelgrindConfig()
-        config.plugin_config = {"track_lockorders": False}
+        config = HelgrindConfig(track_lockorders=False)
 
         env = HelgrindEnvironment(
             env_config_to_test=config,
@@ -253,8 +215,7 @@ class TestHelgrindCommandGeneration:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test helgrind command generation with stack reference checking disabled."""
-        config = HelgrindConfig()
-        config.plugin_config = {"check_stack_refs": False}
+        config = HelgrindConfig(check_stack_refs=False)
 
         env = HelgrindEnvironment(
             env_config_to_test=config,
@@ -275,8 +236,7 @@ class TestHelgrindCommandGeneration:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test helgrind command generation with thread creation races ignored."""
-        config = HelgrindConfig()
-        config.plugin_config = {"ignore_thread_creation": True}
+        config = HelgrindConfig(ignore_thread_creation=True)
 
         env = HelgrindEnvironment(
             env_config_to_test=config,
@@ -297,8 +257,7 @@ class TestHelgrindCommandGeneration:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test helgrind command generation with free-as-write option."""
-        config = HelgrindConfig()
-        config.plugin_config = {"free_is_write": True}
+        config = HelgrindConfig(free_is_write=True)
 
         env = HelgrindEnvironment(
             env_config_to_test=config,
@@ -319,8 +278,7 @@ class TestHelgrindCommandGeneration:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test helgrind command generation with custom cache size."""
-        config = HelgrindConfig()
-        config.plugin_config = {"cache_size": 64}
+        config = HelgrindConfig(cache_size=64)
 
         env = HelgrindEnvironment(
             env_config_to_test=config,
@@ -341,8 +299,7 @@ class TestHelgrindCommandGeneration:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test helgrind command generation with suppression file."""
-        config = HelgrindConfig()
-        config.plugin_config = {"suppression_file": "/tmp/suppressions.supp"}
+        config = HelgrindConfig(suppression_file="/tmp/suppressions.supp")
 
         env = HelgrindEnvironment(
             env_config_to_test=config,
@@ -363,12 +320,11 @@ class TestHelgrindCommandGeneration:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test helgrind command generation with additional Valgrind options."""
-        config = HelgrindConfig()
-        config.plugin_config = {
-            "show_below_main": True,
-            "track_fds": True,
-            "time_stamp": True,
-        }
+        config = HelgrindConfig(
+            show_below_main=True,
+            track_fds=True,
+            time_stamp=True,
+        )
 
         env = HelgrindEnvironment(
             env_config_to_test=config,
@@ -391,8 +347,7 @@ class TestHelgrindCommandGeneration:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test helgrind command generation with verbosity level."""
-        config = HelgrindConfig()
-        config.plugin_config = {"verbosity": 2}
+        config = HelgrindConfig(verbosity=2)
 
         env = HelgrindEnvironment(
             env_config_to_test=config,
@@ -413,10 +368,9 @@ class TestHelgrindCommandGeneration:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test helgrind command generation with additional parameters."""
-        config = HelgrindConfig()
-        config.plugin_config = {
-            "additional_parameters": ["--show-reachable=yes", "--leak-check=full"]
-        }
+        config = HelgrindConfig(
+            additional_parameters=["--show-reachable=yes", "--leak-check=full"]
+        )
 
         env = HelgrindEnvironment(
             env_config_to_test=config,
@@ -434,10 +388,10 @@ class TestHelgrindCommandGeneration:
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
     )
-    def test_build_helgrind_command_typed_config_fallback(
+    def test_build_helgrind_command_typed_config(
         self, mock_std_init, temp_output_dir, event_manager
     ):
-        """Test helgrind command generation with typed config fallback."""
+        """Test helgrind command generation reads config fields directly."""
         config = HelgrindConfig(
             history_level="approx", conflict_cache_size=5000000, track_lockorders=False
         )
@@ -450,19 +404,11 @@ class TestHelgrindCommandGeneration:
             event_manager=event_manager,
         )
 
-        # Mock typed config to test fallback
-        with patch.object(env, "_get_plugin_config") as mock_get_config:
-            typed_config = HelgrindConfig()
-            typed_config.history_level = "approx"
-            typed_config.conflict_cache_size = 5000000
-            typed_config.track_lockorders = False
-            mock_get_config.return_value = typed_config
+        command = env._build_helgrind_command("/tmp/helgrind.log")
 
-            command = env._build_helgrind_command("/tmp/helgrind.log")
-
-            assert "--history-level=approx" in command
-            assert "--conflict-cache-size=5000000" in command
-            assert "--track-lockorders=no" in command
+        assert "--history-level=approx" in command
+        assert "--conflict-cache-size=5000000" in command
+        assert "--track-lockorders=no" in command
 
 
 class TestHelgrindCommandInterface:
@@ -611,7 +557,9 @@ class TestHelgrindAnalysisCommands:
     ):
         """Test helgrind analysis with detailed analysis enabled."""
         config = HelgrindConfig()
-        config.plugin_config = {"generate_detailed_analysis": True}
+        # generate_detailed_analysis is not a declared field; set it as an
+        # extra attribute so _get_config_value (getattr) picks it up.
+        config.generate_detailed_analysis = True  # type: ignore[attr-defined]
 
         env = HelgrindEnvironment(
             env_config_to_test=config,
@@ -643,11 +591,14 @@ class TestHelgrindAnalysisCommands:
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
     )
-    def test_add_helgrind_analysis_commands_typed_config_fallback(
+    def test_add_helgrind_analysis_commands_with_generate_detailed(
         self, mock_std_init, temp_output_dir, event_manager
     ):
-        """Test helgrind analysis with typed config fallback for detailed analysis."""
+        """Test helgrind analysis triggers detailed analysis via config attribute."""
         config = HelgrindConfig()
+        # Set generate_detailed_analysis as extra attribute on the config
+        config.generate_detailed_analysis = True  # type: ignore[attr-defined]
+
         env = HelgrindEnvironment(
             env_config_to_test=config,
             output_dir=temp_output_dir,
@@ -656,25 +607,17 @@ class TestHelgrindAnalysisCommands:
             event_manager=event_manager,
         )
 
-        # Mock typed config with generate_detailed_analysis attribute
-        with patch.object(env, "_get_plugin_config") as mock_get_config:
-            typed_config = Mock()
-            typed_config.generate_detailed_analysis = True
-            mock_get_config.return_value = typed_config
+        # Create mock command builder
+        mock_builder = Mock()
+        mock_builder.service_name = "test_service"
+        mock_builder.register_output_file.return_value = "/tmp/helgrind_detailed.txt"
 
-            # Create mock command builder
-            mock_builder = Mock()
-            mock_builder.service_name = "test_service"
-            mock_builder.register_output_file.return_value = (
-                "/tmp/helgrind_detailed.txt"
-            )
+        env._add_helgrind_analysis_commands(
+            mock_builder, "/tmp/helgrind.log", "/tmp/helgrind_summary.txt"
+        )
 
-            env._add_helgrind_analysis_commands(
-                mock_builder, "/tmp/helgrind.log", "/tmp/helgrind_summary.txt"
-            )
-
-            # Should generate detailed analysis
-            assert mock_builder.add_post_processing.call_count == 2
+        # Should generate detailed analysis
+        assert mock_builder.add_post_processing.call_count == 2
 
 
 class TestHelgrindPluginSpecificSetup:
@@ -1025,22 +968,6 @@ class TestHelgrindIntegration:
             verbosity=2,
             additional_parameters=["--show-reachable=yes"],
         )
-        config.plugin_config = {
-            "output_format": "xml",
-            "history_level": "approx",
-            "conflict_cache_size": 5000000,
-            "track_lockorders": False,
-            "check_stack_refs": False,
-            "ignore_thread_creation": True,
-            "free_is_write": True,
-            "cache_size": 64,
-            "suppression_file": "/tmp/suppressions.supp",
-            "show_below_main": True,
-            "track_fds": True,
-            "time_stamp": True,
-            "verbosity": 2,
-            "additional_parameters": ["--show-reachable=yes"],
-        }
 
         env = HelgrindEnvironment(
             env_config_to_test=config,

@@ -1,18 +1,12 @@
-"""
-Comprehensive unit tests for IterationsEnvironment.
+"""Comprehensive unit tests for IterationsEnvironment.
 
 Tests iterative testing functionality, configuration handling, and wrapper script generation.
 """
 
-from pathlib import Path
-from typing import List
-from unittest.mock import MagicMock, Mock, call, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from panther.config.core.models.global_config import GlobalConfig
-from panther.core.observer.management.event_manager import EventManager
-from panther.plugins.environments.config_schema import EnvironmentConfig
 from panther.plugins.environments.execution_environment.iterations.config_schema import (
     IterationsConfig,
 )
@@ -45,7 +39,6 @@ class TestIterationsEnvironmentInitialization:
         assert env.env_type == "execution"
         assert env.env_sub_type == "iterations"
         assert env.event_manager == event_manager
-        assert env._cached_plugin_config is None  # Should be lazy-loaded
 
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
@@ -89,69 +82,6 @@ class TestIterationsEnvironmentInitialization:
 
         assert isinstance(env, BaseExecutionEnvironment)
         assert isinstance(env, IterationsEnvironment)
-
-
-class TestIterationsConfigurationHandling:
-    """Test suite for configuration handling with dual approach."""
-
-    @patch(
-        "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
-    )
-    def test_get_plugin_config_caching(
-        self, mock_std_init, temp_output_dir, event_manager
-    ):
-        """Test that plugin config is cached correctly."""
-        config = IterationsConfig(iterations=5, delay_between_iterations=10)
-
-        env = IterationsEnvironment(
-            env_config_to_test=config,
-            output_dir=temp_output_dir,
-            env_type="execution",
-            env_sub_type="iterations",
-            event_manager=event_manager,
-        )
-
-        # Cache should start as None
-        assert env._cached_plugin_config is None
-
-        # First call should populate cache
-        plugin_config1 = env._get_plugin_config()
-        assert env._cached_plugin_config is not None
-
-        # Second call should return same object (cached)
-        plugin_config2 = env._get_plugin_config()
-        assert plugin_config1 is plugin_config2
-
-    @patch(
-        "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
-    )
-    def test_get_plugin_config_exception_fallback(
-        self, mock_std_init, temp_output_dir, event_manager
-    ):
-        """Test fallback to default config when get_plugin_config fails."""
-        config = IterationsConfig()
-
-        env = IterationsEnvironment(
-            env_config_to_test=config,
-            output_dir=temp_output_dir,
-            env_type="execution",
-            env_sub_type="iterations",
-            event_manager=event_manager,
-        )
-        env.env_config_to_test = config
-
-        # Force an exception by making get_plugin_config raise
-        config.get_plugin_config = Mock(side_effect=Exception("Config error"))
-
-        mock_logger = MagicMock()
-        env._logger = mock_logger
-
-        plugin_config = env._get_plugin_config()
-
-        # Should return default config
-        assert isinstance(plugin_config, IterationsConfig)
-        assert plugin_config.iterations == 1  # Default value
-        assert plugin_config.delay_between_iterations == 0  # Default value
 
 
 class TestIterationsPluginSpecificSetup:
@@ -209,8 +139,7 @@ class TestIterationsPluginSpecificSetup:
         self, mock_std_init, mock_builder, temp_output_dir, event_manager
     ):
         """Test setup with multiple iterations."""
-        config = IterationsConfig()
-        config.plugin_config = {"iterations": 3, "delay_between_iterations": 5}
+        config = IterationsConfig(iterations=3, delay_between_iterations=5)
 
         env = IterationsEnvironment(
             env_config_to_test=config,
@@ -265,8 +194,7 @@ class TestIterationsPluginSpecificSetup:
         self, mock_std_init, mock_builder, temp_output_dir, event_manager
     ):
         """Test that wrapper script contains correct content."""
-        config = IterationsConfig()
-        config.plugin_config = {"iterations": 3, "delay_between_iterations": 2}
+        config = IterationsConfig(iterations=3, delay_between_iterations=2)
 
         env = IterationsEnvironment(
             env_config_to_test=config,
@@ -320,8 +248,7 @@ class TestIterationsPluginSpecificSetup:
         self, mock_std_init, mock_builder, temp_output_dir, event_manager
     ):
         """Test setup with multiple services."""
-        config = IterationsConfig()
-        config.plugin_config = {"iterations": 2}
+        config = IterationsConfig(iterations=2)
 
         env = IterationsEnvironment(
             env_config_to_test=config,
@@ -364,7 +291,7 @@ class TestIterationsPluginSpecificSetup:
     def test_setup_typed_config_fallback(
         self, mock_std_init, mock_builder, temp_output_dir, event_manager
     ):
-        """Test setup with typed config fallback."""
+        """Test setup reads config values directly from env_config_to_test."""
         config = IterationsConfig(iterations=4, delay_between_iterations=3)
 
         env = IterationsEnvironment(
@@ -383,26 +310,19 @@ class TestIterationsPluginSpecificSetup:
 
         service = self.create_mock_service()
 
-        # Mock typed config to test fallback
-        with patch.object(env, "_get_plugin_config") as mock_get_config:
-            typed_config = IterationsConfig()
-            typed_config.iterations = 4
-            typed_config.delay_between_iterations = 3
-            mock_get_config.return_value = typed_config
+        mock_logger = MagicMock()
+        env._logger = mock_logger
 
-            mock_logger = MagicMock()
-            env._logger = mock_logger
+        with patch.object(env, "register_output_file"):
+            with patch.object(env, "modify_service_commands"):
+                env._setup_plugin_specific_environment([service], "test_timestamp")
 
-            with patch.object(env, "register_output_file"):
-                with patch.object(env, "modify_service_commands"):
-                    env._setup_plugin_specific_environment([service], "test_timestamp")
-
-                    # Should log the correct configuration values
-                    mock_logger.info.assert_any_call(
-                        "Setting up iterations environment for %d iterations with %ds delay",
-                        4,
-                        3,
-                    )
+                # Should log the correct configuration values
+                mock_logger.info.assert_any_call(
+                    "Setting up iterations environment for %d iterations with %ds delay",
+                    4,
+                    3,
+                )
 
     @patch(
         "panther.plugins.environments.execution_environment.iterations.iterations.create_execution_environment_builder"
@@ -414,8 +334,7 @@ class TestIterationsPluginSpecificSetup:
         self, mock_std_init, mock_builder, temp_output_dir, event_manager
     ):
         """Test setup with zero iterations (should skip setup)."""
-        config = IterationsConfig()
-        config.plugin_config = {"iterations": 0}
+        config = IterationsConfig(iterations=0)
 
         env = IterationsEnvironment(
             env_config_to_test=config,
@@ -450,8 +369,7 @@ class TestIterationsPluginSpecificSetup:
         self, mock_std_init, mock_builder, temp_output_dir, event_manager
     ):
         """Test setup with empty services list."""
-        config = IterationsConfig()
-        config.plugin_config = {"iterations": 3}
+        config = IterationsConfig(iterations=3)
 
         env = IterationsEnvironment(
             env_config_to_test=config,
@@ -492,16 +410,10 @@ class TestIterationsToCommand:
             event_manager=event_manager,
         )
 
-        # Mock typed config
-        with patch.object(env, "_get_plugin_config") as mock_get_config:
-            typed_config = IterationsConfig()
-            typed_config.iterations = 1
-            mock_get_config.return_value = typed_config
+        command = env.to_command()
 
-            command = env.to_command()
-
-            # Should return empty string for single iteration
-            assert command == ""
+        # Should return empty string for single iteration
+        assert command == ""
 
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
@@ -510,8 +422,7 @@ class TestIterationsToCommand:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test to_command with multiple iterations returns wrapper script path."""
-        config = IterationsConfig()
-        config.plugin_config = {"iterations": 3}
+        config = IterationsConfig(iterations=3)
 
         env = IterationsEnvironment(
             env_config_to_test=config,
@@ -533,8 +444,7 @@ class TestIterationsToCommand:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test to_command with service_name in kwargs."""
-        config = IterationsConfig()
-        config.plugin_config = {"iterations": 5}
+        config = IterationsConfig(iterations=5)
 
         env = IterationsEnvironment(
             env_config_to_test=config,
@@ -556,8 +466,7 @@ class TestIterationsToCommand:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test to_command with service_name in args."""
-        config = IterationsConfig()
-        config.plugin_config = {"iterations": 2}
+        config = IterationsConfig(iterations=2)
 
         env = IterationsEnvironment(
             env_config_to_test=config,
@@ -579,8 +488,7 @@ class TestIterationsToCommand:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test to_command with non-string args (should be ignored)."""
-        config = IterationsConfig()
-        config.plugin_config = {"iterations": 2}
+        config = IterationsConfig(iterations=2)
 
         env = IterationsEnvironment(
             env_config_to_test=config,
@@ -601,7 +509,7 @@ class TestIterationsToCommand:
     def test_to_command_typed_config_fallback(
         self, mock_std_init, temp_output_dir, event_manager
     ):
-        """Test to_command with typed config fallback."""
+        """Test to_command reads iterations directly from env_config_to_test."""
         config = IterationsConfig(iterations=4)
 
         env = IterationsEnvironment(
@@ -612,16 +520,10 @@ class TestIterationsToCommand:
             event_manager=event_manager,
         )
 
-        # Mock typed config to test fallback
-        with patch.object(env, "_get_plugin_config") as mock_get_config:
-            typed_config = IterationsConfig()
-            typed_config.iterations = 4
-            mock_get_config.return_value = typed_config
+        command = env.to_command()
 
-            command = env.to_command()
-
-            # Should return wrapper script path for multiple iterations
-            assert command == "/tmp/iterations_wrapper.sh"
+        # Should return wrapper script path for multiple iterations
+        assert command == "/tmp/iterations_wrapper.sh"
 
 
 class TestIterationsWrapperScriptGeneration:
@@ -634,8 +536,7 @@ class TestIterationsWrapperScriptGeneration:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test the structure and content of generated wrapper script."""
-        config = IterationsConfig()
-        config.plugin_config = {"iterations": 3, "delay_between_iterations": 5}
+        config = IterationsConfig(iterations=3, delay_between_iterations=5)
 
         env = IterationsEnvironment(
             env_config_to_test=config,
@@ -685,8 +586,7 @@ class TestIterationsErrorHandling:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test handling service without service_name attribute."""
-        config = IterationsConfig()
-        config.plugin_config = {"iterations": 3}
+        config = IterationsConfig(iterations=3)
 
         env = IterationsEnvironment(
             env_config_to_test=config,
@@ -773,7 +673,6 @@ class TestIterationsIntegration:
             vary_parameters=False,
             aggregate_results=True,
         )
-        config.plugin_config = {"iterations": 5, "delay_between_iterations": 3}
 
         env = IterationsEnvironment(
             env_config_to_test=config,
@@ -801,13 +700,5 @@ class TestIterationsIntegration:
             event_manager=event_manager,
         )
 
-        with patch.object(env_single, "_get_plugin_config") as mock_get_config:
-            typed_config = IterationsConfig()
-            typed_config.iterations = 1
-            mock_get_config.return_value = typed_config
-
-            command_single = env_single.to_command()
-            assert command_single == ""
-
-        # Should complete without errors
-        assert True
+        command_single = env_single.to_command()
+        assert command_single == ""
