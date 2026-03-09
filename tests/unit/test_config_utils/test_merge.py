@@ -64,3 +64,8 @@ class TestDotNotationUpdate:
         d = {"a": {"b": 1, "x": 9}}
         dot_notation_update(d, "a.b", 2)
         assert d == {"a": {"b": 2, "x": 9}}
+
+    def test_overwrites_scalar_with_nested_path(self):
+        d = {"a": 42}
+        dot_notation_update(d, "a.b", "value")
+        assert d == {"a": {"b": "value"}}

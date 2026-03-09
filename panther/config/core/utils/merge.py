@@ -42,6 +42,8 @@ def dot_notation_update(data: dict, dot_key: str, value: Any) -> dict:
     keys = dot_key.split(".")
     current = data
     for key in keys[:-1]:
-        current = current.setdefault(key, {})
+        if key not in current or not isinstance(current[key], dict):
+            current[key] = {}
+        current = current[key]
     current[keys[-1]] = value
     return data

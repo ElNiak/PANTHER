@@ -35,6 +35,7 @@ Two orthogonal enums control merge behaviour:
 ``ConflictResolver`` applies the chosen ``ConflictResolution`` strategy.
 """
 
+from collections.abc import Hashable
 from enum import Enum
 from typing import Any, Dict, List
 
@@ -281,7 +282,19 @@ class UnifiedMerger(LoggerMixin):
                     if list_mode == "append":
                         result[key] = base_val + value
                     else:  # union
-                        result[key] = list(set(base_val + value))
+                        seen = set()
+                        merged_list = []
+                        for item in base_val + value:
+                            try:
+                                key_repr = (
+                                    item if isinstance(item, Hashable) else id(item)
+                                )
+                            except TypeError:
+                                key_repr = id(item)
+                            if key_repr not in seen:
+                                seen.add(key_repr)
+                                merged_list.append(item)
+                        result[key] = merged_list
                     context.add_merged_path(current_path)
                 else:
                     result[key] = value

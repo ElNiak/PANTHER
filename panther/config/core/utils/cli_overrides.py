@@ -43,13 +43,16 @@ def extract_cli_overrides(
         mapping = CLI_CONFIG_MAP
 
     overrides: Dict[str, Any] = {}
+    explicit: Dict[str, Any] = {}
     for param_name, dot_path in mapping.items():
         if param_name not in ctx.params:
             continue
         if ctx.get_parameter_source(param_name) == ParameterSource.COMMANDLINE:
-            overrides[dot_path] = ctx.params[param_name]
-            # Apply implied overrides
+            explicit[dot_path] = ctx.params[param_name]
+            # Collect implied overrides
             if param_name in _IMPLIES:
                 overrides.update(_IMPLIES[param_name])
+    # Explicit CLI values always win over implications
+    overrides.update(explicit)
 
     return overrides

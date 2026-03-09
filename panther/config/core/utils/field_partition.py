@@ -13,6 +13,9 @@ def partition_fields(
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """Split data into (declared_fields, extra_fields) using model introspection.
 
+    Note: Uses Python field names, not serialization aliases. If ``model_cls``
+    uses ``Field(alias=...)``, the alias won't be recognized as a declared field.
+
     Fields declared on ``model_cls`` go into the first dict.
     Everything else goes into the second dict (plugin-specific fields).
 

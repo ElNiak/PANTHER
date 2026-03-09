@@ -690,9 +690,6 @@ class GlobalConfigBuilder(BaseBuilder):
         try:
             global_config = GlobalConfig(**config_dict)
 
-            # Resolve paths
-            global_config = global_config.resolve_paths()
-
             return global_config
         except Exception as e:
             self.context.add_error(str(e))

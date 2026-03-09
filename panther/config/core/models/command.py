@@ -56,18 +56,13 @@ class ProcessingResult(BaseModel):
     )
 
     @model_validator(mode="after")
-    def validate_total_count(self):
-        """Ensure total count matches actual processed commands."""
+    def validate_counts(self):
+        """Validate count consistency."""
         actual_count = sum(len(cmds) for cmds in self.processed_commands.values())
         if self.total_count != actual_count:
             raise ValueError(
                 f"Total count {self.total_count} doesn't match actual {actual_count}"
             )
-        return self
-
-    @model_validator(mode="after")
-    def validate_success_count(self):
-        """Ensure success count doesn't exceed total count."""
         if self.success_count > self.total_count:
             raise ValueError("Success count cannot exceed total count")
         return self

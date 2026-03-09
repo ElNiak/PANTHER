@@ -63,3 +63,12 @@ class TestExtractCliOverrides:
         ctx = _make_ctx({"unknown_param": "value"})
         result = extract_cli_overrides(ctx)
         assert result == {}  # unknown_param not in CLI_CONFIG_MAP
+
+    def test_explicit_overrides_implication(self):
+        from panther.config.core.utils.cli_overrides import extract_cli_overrides
+
+        ctx = _make_ctx({"no_docker_cache": True, "force_build": False})
+        result = extract_cli_overrides(ctx)
+        # Explicit force_build=False should win over no_docker_cache implication
+        assert result["docker.force_build_docker_image"] is False
+        assert result["docker.no_docker_cache"] is True

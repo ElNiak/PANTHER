@@ -32,11 +32,8 @@ class BaseUnifiedModel(BaseConfig):
 
     def has_field(self, field_path: str) -> bool:
         """Check if a field exists using dot notation."""
-        try:
-            self.get_field(field_path)
-            return True
-        except Exception:
-            return False
+        sentinel = object()
+        return self.get_field(field_path, default=sentinel) is not sentinel
 
     def clone(self) -> "BaseUnifiedModel":
         """Create a deep copy of the model."""

@@ -131,23 +131,15 @@ class ServicePluginConfig(BasePluginConfig):
     build_from_source: bool = Field(True, description="Build from source")
     source_repository: Optional[str] = Field(None, description="Source repository URL")
 
-    @field_validator("type", mode="before", check_fields=False)
+    @field_validator("type", mode="before")
     @classmethod
     def validate_type(cls, v):
-        """Convert string to ImplementationType enum with case-insensitive handling.
+        """Convert string to ImplementationType enum."""
+        from panther.config.core.validators.universal_validators import (
+            implementation_type_validator,
+        )
 
-        Note: check_fields=False allows inheritance by subclasses that define 'type' field.
-        """
-        if isinstance(v, str):
-            # Case-insensitive mapping to enum values
-            v_upper = v.upper()
-            if v_upper == "IUT":
-                return "iut"
-            elif v_upper == "TESTERS":
-                return "testers"
-            else:
-                return v.lower()
-        return v
+        return implementation_type_validator(cls, v)
 
     @classmethod
     def load_version(

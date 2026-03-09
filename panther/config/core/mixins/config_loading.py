@@ -361,7 +361,7 @@ class ConfigLoadingMixin(LoggerMixin):
         """Single entry point: YAML -> split global/experiment -> validate -> return.
 
         Pipeline:
-        1. Load YAML via OmegaConf
+        1. Load YAML via yaml.safe_load
         2. Split into global sections (GlobalConfig fields) vs test sections
         3. Apply cli_overrides with CLI > YAML > defaults precedence
         4. Build GlobalConfig via GlobalConfigBuilder

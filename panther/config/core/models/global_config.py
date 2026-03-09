@@ -284,16 +284,6 @@ class GlobalConfig(BaseUnifiedModel):
         default_factory=ObserversConfig, description="Observer configurations"
     )
 
-    def resolve_paths(self) -> "GlobalConfig":
-        """Resolve path interpolations.
-
-        Returns:
-            GlobalConfig with resolved paths
-        """
-        # Interpolation is handled at the YAML boundary (EnvironmentHandlingMixin).
-        # By the time resolve_paths is called, values are already resolved.
-        return self
-
     def apply_overrides(self, overrides: Dict[str, Any]) -> "GlobalConfig":
         """Apply configuration overrides.
 
