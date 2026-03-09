@@ -27,6 +27,19 @@ class PluginManagerUtils(LoggerMixin):
     """
 
     @classmethod
+    def _compute_package_path(cls, file_path: Path) -> Optional[str]:
+        """Compute dotted package path by walking up from file_path's parent."""
+        parts = []
+        current = file_path.parent
+        while (current / "__init__.py").exists():
+            parts.append(current.name)
+            current = current.parent
+        if parts:
+            parts.reverse()
+            return ".".join(parts)
+        return None
+
+    @classmethod
     def load_module_from_file(
         cls, file_path: Path, module_name: Optional[str] = None
     ) -> Any:
@@ -49,29 +62,49 @@ class PluginManagerUtils(LoggerMixin):
         if module_name is None:
             module_name = file_path.stem
 
-        # If module_name has no dots (bare name), derive full package path.
-        # This enables relative imports within the panther package, matching
-        # the logic in plugin_discovery._import_module_file().
-        if "." not in module_name:
-            try:
-                panther_root = Path(__file__).parent.parent.parent  # -> panther/
-                relative_path = file_path.relative_to(panther_root)
-                module_name = "panther." + str(relative_path).replace("/", ".").replace(
-                    "\\", "."
-                ).replace(".py", "")
-            except ValueError:
-                pass  # File outside panther package, keep bare name
+        # Compute fully-qualified module name for proper relative import support
+        package_path = cls._compute_package_path(file_path)
+        if package_path:
+            fq_module_name = f"{package_path}.{file_path.stem}"
+        else:
+            fq_module_name = module_name
 
         # Return cached module if already loaded (avoids re-execution)
-        if module_name in sys.modules:
-            return sys.modules[module_name]
+        if fq_module_name in sys.modules:
+            return sys.modules[fq_module_name]
 
-        spec = importlib.util.spec_from_file_location(module_name, file_path)
+        spec = importlib.util.spec_from_file_location(fq_module_name, file_path)
         if spec is None or spec.loader is None:
             raise ImportError(f"Could not find module at {file_path}")
 
         module = importlib.util.module_from_spec(spec)
+
+        # Set __package__ to enable relative imports within plugin packages
+        if package_path:
+            module.__package__ = package_path
+            # Ensure parent package is in sys.modules for import resolution
+            if package_path not in sys.modules:
+                parent_init = file_path.parent / "__init__.py"
+                if parent_init.exists():
+                    parent_spec = importlib.util.spec_from_file_location(
+                        package_path,
+                        parent_init,
+                        submodule_search_locations=[str(file_path.parent)],
+                    )
+                    if parent_spec and parent_spec.loader:
+                        parent_mod = importlib.util.module_from_spec(parent_spec)
+                        parent_mod.__package__ = package_path
+                        sys.modules[package_path] = parent_mod
+                        try:
+                            parent_spec.loader.exec_module(parent_mod)
+                        except Exception:
+                            pass  # Stub entry is sufficient for relative imports
+
+        # Register under both simple and qualified names for compatibility
         sys.modules[module_name] = module
+        if fq_module_name != module_name:
+            sys.modules[fq_module_name] = module
+
         spec.loader.exec_module(module)
 
         return module
