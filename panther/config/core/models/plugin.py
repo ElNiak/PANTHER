@@ -51,7 +51,6 @@ class BasePluginConfig(BaseUnifiedModel):
         data = super().to_dict(**kwargs)
         # Include extra fields but exclude Pydantic internals
         excluded_keys = {
-            "omega_config",
             "model_fields",
             "model_config",
             "model_fields_set",
@@ -178,7 +177,9 @@ class ServicePluginConfig(BasePluginConfig):
             # at import time.  Raising would break import of those plugins.
             return None
 
-        from omegaconf import OmegaConf
+        import yaml
+
+        from ..utils.merge import deep_merge
 
         # Determine directory
         if version_configs_dir is None:
@@ -199,7 +200,8 @@ class ServicePluginConfig(BasePluginConfig):
                 raise FileNotFoundError(
                     f"Version config file not found: {version_path}"
                 )
-            raw = OmegaConf.load(version_path)
+            with open(version_path) as f:
+                raw_dict = yaml.safe_load(f) or {}
         else:
             # Load first YAML found (sorted for determinism)
             if not os.path.exists(version_configs_dir):
@@ -217,13 +219,13 @@ class ServicePluginConfig(BasePluginConfig):
                 )
                 return cls.VERSION_CLASS()
             version_path = os.path.join(version_configs_dir, version_files[0])
-            raw = OmegaConf.load(version_path)
+            with open(version_path) as f:
+                raw_dict = yaml.safe_load(f) or {}
 
-        # Merge with defaults
+        # Merge with defaults using pure dict merge
         default_dict = cls.VERSION_CLASS().model_dump()
-        merged = OmegaConf.merge(default_dict, raw)
-        version_dict = OmegaConf.to_container(merged, resolve=True)
-        return cls.VERSION_CLASS(**version_dict)
+        merged = deep_merge(default_dict, raw_dict)
+        return cls.VERSION_CLASS(**merged)
 
     @classmethod
     def create_with_protocol_context(cls, protocol=None):

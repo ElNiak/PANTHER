@@ -290,9 +290,9 @@ class GlobalConfig(BaseUnifiedModel):
         Returns:
             GlobalConfig with resolved paths
         """
-        # Use OmegaConf to resolve interpolations
-        resolved = self.interpolate()
-        return resolved
+        # Interpolation is handled at the YAML boundary (EnvironmentHandlingMixin).
+        # By the time resolve_paths is called, values are already resolved.
+        return self
 
     def apply_overrides(self, overrides: Dict[str, Any]) -> "GlobalConfig":
         """Apply configuration overrides.
