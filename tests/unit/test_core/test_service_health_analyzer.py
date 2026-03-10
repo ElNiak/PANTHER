@@ -269,3 +269,58 @@ class TestServiceHealthAnalyzer:
         assert result.compilation_succeeded
         assert result.exit_code is None
         assert not result.crashed
+
+
+class TestServiceHealthDeduplication:
+    """Tests for deduplication of service health entries."""
+
+    def test_dedup_keeps_result_with_most_data(self):
+        from panther.core.outputs.service_health_analyzer import ServiceHealth
+
+        # Simulate two results for the same service from different environments
+        empty_result = ServiceHealth(
+            service_name="ivy_client",
+            service_type="tester",
+            phases_completed={},
+            log_size_bytes=0,
+        )
+        real_result = ServiceHealth(
+            service_name="ivy_client",
+            service_type="tester",
+            phases_completed={"compile": True, "runtime": True},
+            log_size_bytes=283233,
+            compilation_succeeded=False,
+        )
+
+        # Dedup function should keep the one with more data
+        results = [empty_result, real_result]
+        seen = {}
+        for h in results:
+            if (
+                h.service_name not in seen
+                or h.log_size_bytes > seen[h.service_name].log_size_bytes
+            ):
+                seen[h.service_name] = h
+        deduplicated = list(seen.values())
+
+        assert len(deduplicated) == 1
+        assert deduplicated[0].log_size_bytes == 283233
+        assert deduplicated[0].compilation_succeeded is False
+
+    def test_dedup_two_different_services_kept(self):
+        from panther.core.outputs.service_health_analyzer import ServiceHealth
+
+        h1 = ServiceHealth(service_name="ivy_client", service_type="tester")
+        h2 = ServiceHealth(service_name="picoquic_server", service_type="iut")
+
+        results = [h1, h2]
+        seen = {}
+        for h in results:
+            if (
+                h.service_name not in seen
+                or h.log_size_bytes > seen[h.service_name].log_size_bytes
+            ):
+                seen[h.service_name] = h
+        deduplicated = list(seen.values())
+
+        assert len(deduplicated) == 2

@@ -336,6 +336,18 @@ class OutputAnalyzer:
                 )
                 health_results.extend(results)
 
+            # Deduplicate by service_name — multiple environments share the same
+            # services_managers, causing duplicate analysis. Prefer the result
+            # with the most log data (highest log_size_bytes).
+            seen: dict = {}
+            for h in health_results:
+                if (
+                    h.service_name not in seen
+                    or h.log_size_bytes > seen[h.service_name].log_size_bytes
+                ):
+                    seen[h.service_name] = h
+            health_results = list(seen.values())
+
             self._save_service_health(health_results)
             self.logger.info(
                 "Service health analysis complete: %d services analyzed",
