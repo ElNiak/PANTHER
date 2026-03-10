@@ -264,6 +264,34 @@ class TestFastFailDetection:
         assert ff.enabled is False
         assert ff.triggered is False
 
+    def test_enabled_from_config_yaml(self, tmp_path):
+        """Fast-fail enabled should be detected from experiment_config.yaml."""
+        import yaml
+
+        config = {
+            "fast_fail": {"enabled": True, "test_level": True},
+            "tests": [],
+        }
+        (tmp_path / "experiment_config.yaml").write_text(yaml.dump(config))
+        (tmp_path / "experiment.log").write_text(
+            "2024-01-01 00:00:00 Starting experiment\n"
+        )
+        collector = _make_collector(tmp_path)
+        ff = collector._extract_fast_fail_info()
+        assert ff.enabled is True
+        assert ff.test_level is True
+
+    def test_enabled_from_config_yaml_no_log_match(self, tmp_path):
+        """Config YAML should work even when log doesn't contain fast_fail repr."""
+        import yaml
+
+        config = {"fast_fail": {"enabled": True}}
+        (tmp_path / "experiment_config.yaml").write_text(yaml.dump(config))
+        (tmp_path / "experiment.log").write_text("2024-01-01 00:00:00 No mention\n")
+        collector = _make_collector(tmp_path)
+        ff = collector._extract_fast_fail_info()
+        assert ff.enabled is True
+
 
 # ---------------------------------------------------------------------------
 # TestResourceUsageExtraction

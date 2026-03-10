@@ -392,6 +392,23 @@ class StatusCollector:
             except Exception as e:
                 self.logger.warning(f"Failed to extract fast-fail info: {e}")
 
+        # Fallback: check experiment_config.yaml (more reliable than log parsing)
+        config_file = self.experiment_dir / "experiment_config.yaml"
+        if config_file.exists():
+            try:
+                import yaml
+
+                with open(config_file, "r", encoding="utf-8") as f:
+                    config = yaml.safe_load(f)
+                ff_config = config.get("fast_fail", {}) if config else {}
+                if isinstance(ff_config, dict):
+                    if ff_config.get("enabled"):
+                        fast_fail_info.enabled = True
+                    if ff_config.get("test_level"):
+                        fast_fail_info.test_level = True
+            except Exception as e:
+                self.logger.debug(f"Failed to parse config YAML for fast-fail: {e}")
+
         return fast_fail_info
 
     def _extract_resource_usage(self) -> ResourceUsage:
