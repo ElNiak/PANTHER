@@ -126,8 +126,7 @@ class ExperimentReporter:
     """
 
     def __init__(self, experiment_dir: Path, experiment_name: Optional[str] = None):
-        """
-        Initialize experiment reporter.
+        """Initialize experiment reporter.
 
         Args:
             experiment_dir: Path to experiment output directory
@@ -145,15 +144,14 @@ class ExperimentReporter:
                 loader=FileSystemLoader(templates_dir),
                 trim_blocks=True,
                 lstrip_blocks=True,
-                autoescape=True,
+                autoescape=False,
             )
         else:
             self.jinja_env = None
             self.logger.warning("Jinja2 not available - using basic templates")
 
     def generate_reports(self) -> Dict[str, bool]:
-        """
-        Generate all experiment reports.
+        """Generate all experiment reports.
 
         Returns:
             Dict[str, bool]: Success status for each report type
@@ -518,8 +516,7 @@ class ExperimentReporter:
         return "Development"
 
     def generate_quick_summary(self) -> Optional[str]:
-        """
-        Generate a quick one-line summary for logging.
+        """Generate a quick one-line summary for logging.
 
         Returns:
             str: Quick summary string
