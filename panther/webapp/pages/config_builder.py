@@ -1,4 +1,4 @@
-"""Config builder page — NiceCRUD forms + YAML editor."""
+"""Config builder page — PydanticForm forms + YAML editor."""
 
 import logging
 from typing import Any
@@ -13,48 +13,24 @@ logger = logging.getLogger(__name__)
 
 def _populate_forms_from_dict(cruds: dict[str, Any], config_dict: dict) -> None:
     """Populate all form panels from a parsed config dict."""
-    from pydantic import BaseModel
-
-    from panther.config.core.models.experiment import ExperimentMetadata, TestConfig
-    from panther.config.core.models.global_config import GlobalConfig
-    from panther.webapp.utils.form_models import (
-        dict_to_form_instance,
-        populate_panel_from_dict,
-        split_simple_and_complex,
-    )
-
     # Global sections
     for field_name, panel in cruds.get("global", {}).items():
         section_data = config_dict.get(field_name)
         if section_data and isinstance(section_data, dict):
-            annotation = GlobalConfig.model_fields[field_name].annotation
-            if isinstance(annotation, type) and issubclass(annotation, BaseModel):
-                populate_panel_from_dict(panel, annotation, section_data)
+            panel.form.set_value(section_data)
 
     # Tests
     tests = config_dict.get("tests")
     tests_panel = cruds.get("tests")
     if tests and isinstance(tests, list) and tests_panel:
-        models = []
-        for t in tests:
-            if isinstance(t, dict):
-                simple, _ = split_simple_and_complex(TestConfig, t)
-                instance = dict_to_form_instance(TestConfig, simple)
-                models.append(instance)
-        if models:
-            tests_panel.crud.basemodels = models
-        # Populate widgets from first test's complex fields
         if isinstance(tests[0], dict):
-            _, complex_data = split_simple_and_complex(TestConfig, tests[0])
-            for fname, widget in tests_panel.widgets.items():
-                if fname in complex_data:
-                    widget.set_value(complex_data[fname])
+            tests_panel.form.set_value(tests[0])
 
     # Metadata
     meta = config_dict.get("metadata")
     meta_panel = cruds.get("metadata")
     if meta and isinstance(meta, dict) and meta_panel:
-        populate_panel_from_dict(meta_panel, ExperimentMetadata, meta)
+        meta_panel.form.set_value(meta)
 
 
 def content():
@@ -119,23 +95,14 @@ def content():
 
 
 def _render_config_forms(yaml_editor_ref: dict):
-    """Render NiceCRUD panels for all config models with auto-sync to YAML."""
-    from niceguicrud import NiceCRUD, NiceCRUDConfig
+    """Render PydanticForm panels for all config models with auto-sync to YAML."""
     from pydantic import BaseModel
 
     from panther.config.core.models.experiment import ExperimentMetadata, TestConfig
     from panther.config.core.models.global_config import GlobalConfig
-    from panther.webapp.components.config_form_panel import (
-        FormPanelResult,
-        config_form_panel,
-    )
-    from panther.webapp.components.dict_list_widgets import create_widget_for_field
+    from panther.webapp.components.config_form_panel import config_form_panel
     from panther.webapp.components.error_boundary import error_boundary
-    from panther.webapp.utils.form_models import (
-        GLOBAL_SECTION_META,
-        build_form_model,
-        get_complex_fields,
-    )
+    from panther.webapp.utils.form_models import GLOBAL_SECTION_META
 
     cruds: dict[str, Any] = {"global": {}}
 
@@ -159,33 +126,20 @@ def _render_config_forms(yaml_editor_ref: dict):
                     title=title,
                     icon=icon,
                     description=desc,
-                    pre_populate=True,
-                    singleton=True,
                 )
 
-    # === TestConfig (auto-generated from model) ===
+    # === TestConfig ===
     with ui.card().classes("w-full q-mb-md"):
         ui.label("Test Configuration").classes("text-h6")
         ui.label("Test parameters. Add tests and configure their settings.").classes(
             "text-caption text-grey-7 q-mb-sm"
         )
         with error_boundary("Test Config"):
-            TestFormModel = build_form_model(TestConfig)
-            test_widgets: dict[str, Any] = {}
-            with ui.expansion("Test Settings", icon="science").classes("w-full"):
-                test_crud = NiceCRUD(
-                    TestFormModel,
-                    basemodels=[],
-                    config=NiceCRUDConfig(id_field="name"),
-                )
-                # Render custom widgets for complex TestConfig fields
-                complex = get_complex_fields(TestConfig)
-                if complex:
-                    ui.separator().classes("q-my-sm")
-                    for fname, info in complex.items():
-                        test_widgets[fname] = create_widget_for_field(fname, info)
-
-            cruds["tests"] = FormPanelResult(crud=test_crud, widgets=test_widgets)
+            cruds["tests"] = config_form_panel(
+                TestConfig,
+                title="Test Settings",
+                icon="science",
+            )
 
     # === ExperimentMetadata ===
     with ui.card().classes("w-full q-mb-md"):
@@ -195,8 +149,6 @@ def _render_config_forms(yaml_editor_ref: dict):
                 title="Experiment Metadata",
                 icon="info",
                 description="Optional experiment metadata (name, author, tags).",
-                pre_populate=True,
-                singleton=True,
             )
 
     # === Plugin Config (dynamic) ===
@@ -215,38 +167,26 @@ def _render_config_forms(yaml_editor_ref: dict):
             editor = yaml_editor_ref.get("editor")
             if editor is None:
                 return
-            # Skip one sync cycle after import/load to preserve full YAML
             if yaml_editor_ref.pop("skip_sync", False):
                 return
             config: dict[str, Any] = {}
 
-            # Global sections — each is a single pre-populated instance
             for section_name, panel in cruds.get("global", {}).items():
-                items = panel.crud.basemodels
-                if items:
-                    data = items[0].model_dump()
-                    for wf_name, widget in panel.widgets.items():
-                        data[wf_name] = widget.get_value()
+                data = panel.form.get_value()
+                if data:
                     config[section_name] = data
 
-            # Tests — list of dicts
             tests_panel = cruds.get("tests")
-            if tests_panel and tests_panel.crud.basemodels:
-                tests_list = []
-                for item in tests_panel.crud.basemodels:
-                    test_data = item.model_dump()
-                    for wf_name, widget in tests_panel.widgets.items():
-                        test_data[wf_name] = widget.get_value()
-                    tests_list.append(test_data)
-                config["tests"] = tests_list
+            if tests_panel:
+                data = tests_panel.form.get_value()
+                if data:
+                    config["tests"] = [data]
 
-            # Metadata
             meta_panel = cruds.get("metadata")
-            if meta_panel and meta_panel.crud.basemodels:
-                data = meta_panel.crud.basemodels[0].model_dump()
-                for wf_name, widget in meta_panel.widgets.items():
-                    data[wf_name] = widget.get_value()
-                config["metadata"] = data
+            if meta_panel:
+                data = meta_panel.form.get_value()
+                if data:
+                    config["metadata"] = data
 
             if config:
                 import yaml
@@ -255,13 +195,14 @@ def _render_config_forms(yaml_editor_ref: dict):
                     config, default_flow_style=False, sort_keys=False
                 )
         except Exception:
-            logger.debug("Form-to-YAML sync error", exc_info=True)
+            logger.warning("Form-to-YAML sync error", exc_info=True)
 
     ui.timer(1.0, _sync_forms_to_yaml)
 
 
 def _render_plugin_config_section():
     """Render a dropdown of available plugins and their config forms."""
+    from panther.webapp.components.pydantic_form import PydanticForm
     from panther.webapp.utils.plugin_forms import (
         get_plugin_form_info,
         list_available_plugins,
@@ -293,22 +234,7 @@ def _render_plugin_config_section():
                     ui.label(info.description).classes(
                         "text-caption text-grey-7 q-mb-sm"
                     )
-                from niceguicrud import NiceCRUD, NiceCRUDConfig
-
-                NiceCRUD(
-                    info.form_model,
-                    basemodels=[info.form_model()],
-                    config=NiceCRUDConfig(id_field=info.id_field),
-                )
-                # Render custom widgets for complex fields
-                if info.complex_fields:
-                    from panther.webapp.components.dict_list_widgets import (
-                        create_widget_for_field,
-                    )
-
-                    ui.separator().classes("q-my-sm")
-                    for fname, finfo in info.complex_fields.items():
-                        create_widget_for_field(fname, finfo)
+                PydanticForm(info.config_model)
         except Exception as exc:
             with form_container:
                 ui.label(f"Error loading plugin '{name}': {exc}").classes(
