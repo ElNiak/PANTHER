@@ -118,6 +118,7 @@ class LoggingConfig(BaseConfig):
     )
 
     @field_validator("level", mode="before")
+    @classmethod
     def validate_level(cls, v):
         """Convert string to LoggingLevel enum."""
         return logging_level_validator(cls, v)
@@ -127,7 +128,7 @@ class PathsConfig(BaseConfig):
     """Paths configuration."""
 
     output_dir: str = Field("outputs", description="Output directory")
-    log_dir: str = Field("${paths.output_dir}/logs", description="Log directory")
+    log_dir: str = Field("outputs/logs", description="Log directory")
     plugin_dir: str = Field("panther/plugins", description="Plugin directory")
     cert_dir: Optional[str] = Field(None, description="Certificate directory")
     temp_dir: Optional[str] = Field("/tmp/panther", description="Temporary directory")

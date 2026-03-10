@@ -126,7 +126,7 @@ class ClientServerProtocolConfig(BaseProtocolConfig):
         default_factory=dict, description="HTTP response headers"
     )
     body_size: Optional[int] = Field(None, ge=0, description="HTTP body size")
-    method: Optional[HttpMethod] = Field(
+    method: HttpMethod = Field(
         HttpMethod.GET,
         description="HTTP method",
         examples=["GET", "POST", "PUT", "DELETE"],
