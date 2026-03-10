@@ -46,11 +46,14 @@
 {% if summary.services %}
 ## Service Health Summary
 
-{%- set iut_services = summary.services|selectattr("service_type", "equalto", "iut")|list %}
-{%- set tester_services = summary.services|selectattr("service_type", "equalto", "tester")|list %}
+{% for test_name, test_services in summary.services|groupby("test_name") %}
+### Test: {{ test_name or "Unknown" }}
+
+{%- set iut_services = test_services|selectattr("service_type", "equalto", "iut")|list %}
+{%- set tester_services = test_services|selectattr("service_type", "equalto", "tester")|list %}
 
 {% if iut_services %}
-### IUT Services ({{ iut_services|length }})
+#### IUT Services ({{ iut_services|length }})
 | Service | Status | Compilation | Phases | Exit Code | Errors |
 |---------|--------|-------------|--------|-----------|--------|
 {% for svc in iut_services %}
@@ -59,13 +62,15 @@
 {% endif %}
 
 {% if tester_services %}
-### Tester Services ({{ tester_services|length }})
+#### Tester Services ({{ tester_services|length }})
 | Service | Status | Compilation | Phases | Exit Code | Errors |
 |---------|--------|-------------|--------|-----------|--------|
 {% for svc in tester_services %}
 | {{ svc.service_name }} | {{ svc.status }} | {{ 'OK' if svc.compilation_succeeded else 'FAIL' }} | {{ svc.phases_completed.values()|select|list|length }}/{{ svc.phases_completed|length }} | {{ svc.exit_code if svc.exit_code is not none else 'N/A' }} | {{ svc.error_summary or 'None' }} |
 {% endfor %}
 {% endif %}
+
+{% endfor %}
 {% endif %}
 
 ## Fast-Fail Analysis
@@ -133,22 +138,25 @@
 
 This experiment failed. Key points to investigate:
 
+{% set ns = namespace(step=1) %}
 {% if summary.fast_fail.triggered %}
-1. **Fast-fail was triggered**: {{ summary.fast_fail.reason }}
+{{ ns.step }}. **Fast-fail was triggered**: {{ summary.fast_fail.reason }}
 {%- if summary.fast_fail.error_category %}
    - Error category: {{ summary.fast_fail.error_category }}
 {% endif %}
+{% set ns.step = ns.step + 1 %}
 {% endif %}
 
 {% set failed_tests = summary.tests|rejectattr("status.value", "equalto", "passed")|list %}
 {% if failed_tests %}
-2. **Failed tests to investigate**:
+{{ ns.step }}. **Failed tests to investigate**:
 {% for test in failed_tests %}
    - {{ test.name }}: Check `./{{ test.logs_path }}/test.log`
 {% endfor %}
+{% set ns.step = ns.step + 1 %}
 {% endif %}
 
-3. **Next steps**:
+{{ ns.step }}. **Next steps**:
    - Review the main experiment log: `./experiment.log`
    - Check individual test logs for detailed error information
    - Verify configuration parameters in `experiment_config.yaml`
@@ -161,10 +169,10 @@ This experiment failed. Key points to investigate:
 
 Experiment completed successfully! All tests passed.
 
-{%- if summary.duration %}
+{% if summary.duration %}
 - **Total execution time**: {{ duration_str }}
 {% endif %}
-{%- if summary.success_rate == 100.0 %}
+{% if summary.success_rate == 100.0 %}
 - **Perfect success rate**: 100%
 {% endif %}
 

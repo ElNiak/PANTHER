@@ -732,16 +732,7 @@ class ExperimentManager(
                                 self.logger.info(
                                     f"{emoji}Failed: {test_case.test_config.name} - Test analysis failed"
                                 )
-                            # Emit test failed event
-                            test_specific_emitter.emit_failed(
-                                error_message="Test analysis failed",
-                                error_type="TestAnalysisFailure",
-                                phase="analysis",
-                                summary={
-                                    "test_name": test_case.test_config.name,
-                                    "reason": "Tester analysis determined test failure",
-                                },
-                            )
+                            # TestCase.run() already emitted TestFailedEvent
                             continue
 
                         successful_tests += 1
@@ -754,13 +745,7 @@ class ExperimentManager(
                                 f"{emoji}Completed: {test_case.test_config.name}"
                             )
 
-                        # Emit test completed successfully event
-                        test_specific_emitter.emit_completed(
-                            summary={
-                                "status": "success",
-                                "test_name": test_case.test_config.name,
-                            }
-                        )
+                        # TestCase.run() already emitted TestCompletedEvent
 
                     except (KeyboardInterrupt, SystemExit):
                         # Handle interrupted test - Click progress bar handles iteration automatically

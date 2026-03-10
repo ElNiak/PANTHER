@@ -304,38 +304,52 @@ class ExperimentReporter:
                             lines.append("  - ⚡ Fast-fail triggered")
                     lines.append("")
 
-            # Service health summary (if available)
+            # Service health summary (if available), grouped by test
             if summary.services:
                 lines.extend(["## Service Health Summary", ""])
-                iut_svcs = [s for s in summary.services if s.service_type == "iut"]
-                tester_svcs = [
-                    s for s in summary.services if s.service_type == "tester"
-                ]
 
-                for label, svcs in [
-                    ("IUT Services", iut_svcs),
-                    ("Tester Services", tester_svcs),
-                ]:
-                    if svcs:
-                        lines.append(f"### {label} ({len(svcs)})")
-                        lines.append(
-                            "| Service | Status | Compilation | Exit Code | Errors |"
-                        )
-                        lines.append(
-                            "|---------|--------|-------------|-----------|--------|"
-                        )
-                        for svc in svcs:
-                            comp = "OK" if svc.compilation_succeeded else "FAIL"
-                            ec = (
-                                str(svc.exit_code)
-                                if svc.exit_code is not None
-                                else "N/A"
-                            )
-                            err = svc.error_summary or "None"
+                # Group services by test_name
+                from itertools import groupby as _groupby
+
+                sorted_services = sorted(
+                    summary.services, key=lambda s: s.test_name or ""
+                )
+                for test_name, test_services_iter in _groupby(
+                    sorted_services, key=lambda s: s.test_name or "Unknown"
+                ):
+                    test_services = list(test_services_iter)
+                    lines.append(f"### Test: {test_name}")
+                    lines.append("")
+
+                    iut_svcs = [s for s in test_services if s.service_type == "iut"]
+                    tester_svcs = [
+                        s for s in test_services if s.service_type == "tester"
+                    ]
+
+                    for label, svcs in [
+                        ("IUT Services", iut_svcs),
+                        ("Tester Services", tester_svcs),
+                    ]:
+                        if svcs:
+                            lines.append(f"#### {label} ({len(svcs)})")
                             lines.append(
-                                f"| {svc.service_name} | {svc.status} | {comp} | {ec} | {err} |"
+                                "| Service | Status | Compilation | Exit Code | Errors |"
                             )
-                        lines.append("")
+                            lines.append(
+                                "|---------|--------|-------------|-----------|--------|"
+                            )
+                            for svc in svcs:
+                                comp = "OK" if svc.compilation_succeeded else "FAIL"
+                                ec = (
+                                    str(svc.exit_code)
+                                    if svc.exit_code is not None
+                                    else "N/A"
+                                )
+                                err = svc.error_summary or "None"
+                                lines.append(
+                                    f"| {svc.service_name} | {svc.status} | {comp} | {ec} | {err} |"
+                                )
+                            lines.append("")
 
             # Fast-fail analysis
             lines.extend(

@@ -167,10 +167,14 @@ class TestMetricsObserver:
         assert metrics.steps_skipped == 1
 
     def test_is_interested_in_metrics_events(self, real_metrics_observer):
-        """is_interested returns True for metrics.* event types."""
+        """is_interested returns True for metrics.*, test.*, and step.* event types."""
         assert real_metrics_observer.is_interested("metrics.summary") is True
         assert real_metrics_observer.is_interested("metrics.collected") is True
-        assert real_metrics_observer.is_interested("test.started") is False
+        assert real_metrics_observer.is_interested("test.started") is True
+        assert real_metrics_observer.is_interested("test.completed") is True
+        assert real_metrics_observer.is_interested("step.execution_completed") is True
+        assert real_metrics_observer.is_interested("environment.created") is False
+        assert real_metrics_observer.is_interested("service.started") is False
 
     def test_aggregator_initialized(self, real_metrics_observer):
         """MetricsObserver has a MetricsAggregator for trend analysis."""

@@ -22,6 +22,8 @@ from panther.core.events.experiment.events import (
 )
 from panther.core.events.metrics.events import MetricCollectedEvent
 from panther.core.events.service.events import (
+    DockerBuildCompletedEvent,
+    DockerBuildStartedEvent,
     ServiceDeploymentFailedEvent,
     ServiceDestroyedEvent,
     ServiceEvent,
@@ -35,10 +37,20 @@ from panther.core.events.step.events import (
     StepProgressEvent,
 )
 from panther.core.events.test.events import (
+    TestAssertionsCompletedEvent,
+    TestAssertionsStartedEvent,
     TestCompletedEvent,
+    TestCreatedEvent,
+    TestDeploymentCompletedEvent,
+    TestDeploymentStartedEvent,
     TestExecutionCompletedEvent,
     TestExecutionFailedEvent,
     TestExecutionStartedEvent,
+    TestFailedEvent,
+    TestSetupCompletedEvent,
+    TestSetupStartedEvent,
+    TestTeardownCompletedEvent,
+    TestTeardownStartedEvent,
 )
 from panther.core.observer.base.observer_interface import IObserver
 
@@ -65,6 +77,7 @@ class ExperimentObserver(IObserver):
         track_steps: bool = True,
         global_config: Any = None,
         log_level: str = "INFO",
+        log_unhandled_events: bool = False,
     ) -> None:
         """Initialize the experiment observer with optional configuration.
 
@@ -76,6 +89,7 @@ class ExperimentObserver(IObserver):
             track_steps: Whether to track step completion
             global_config: Global configuration object with logging settings
             log_level: Log level string (default "INFO")
+            log_unhandled_events: Whether to log unhandled event types at DEBUG level
         """
         # Track what we've observed for logging purposes only
         self.observed_environments: Set[str] = set()  # Just track what we've seen
@@ -110,6 +124,7 @@ class ExperimentObserver(IObserver):
         self.track_timing = track_timing
         self.track_steps = track_steps
         self.global_config = global_config
+        self.log_unhandled_events = log_unhandled_events
 
         # Track experiment state (guarded by _state_lock for cross-thread access)
         self._state_lock = threading.Lock()
@@ -141,8 +156,21 @@ class ExperimentObserver(IObserver):
             TestExecutionFailedEvent: self._handle_test_execution_failed,
             TestExecutionStartedEvent: self._handle_test_execution_started,
             TestCompletedEvent: self._handle_test_completed,
+            TestFailedEvent: self._handle_test_failed,
             TestExecutionCompletedEvent: self._handle_test_execution_completed,
             MetricCollectedEvent: self._handle_metric_collected,
+            # Lifecycle events handled silently (no logging needed)
+            TestCreatedEvent: self._handle_noop,
+            TestSetupStartedEvent: self._handle_noop,
+            TestSetupCompletedEvent: self._handle_noop,
+            TestDeploymentStartedEvent: self._handle_noop,
+            TestDeploymentCompletedEvent: self._handle_noop,
+            TestTeardownStartedEvent: self._handle_noop,
+            TestTeardownCompletedEvent: self._handle_noop,
+            TestAssertionsStartedEvent: self._handle_noop,
+            TestAssertionsCompletedEvent: self._handle_noop,
+            DockerBuildStartedEvent: self._handle_noop,
+            DockerBuildCompletedEvent: self._handle_noop,
         }
 
     def on_event(self, event: BaseEvent) -> bool:
@@ -181,7 +209,12 @@ class ExperimentObserver(IObserver):
             return best_match(event)
 
         # Default handling for unrecognized events
-        self.logger.debug("Unhandled event type: %s", event.__class__.__name__)
+        if self.log_unhandled_events:
+            self.logger.debug("Unhandled event type: %s", event.__class__.__name__)
+        return True
+
+    def _handle_noop(self, event: BaseEvent) -> bool:
+        """Silently acknowledge known lifecycle events that need no processing."""
         return True
 
     def _handle_experiment_finished_early(
@@ -755,7 +788,8 @@ class ExperimentObserver(IObserver):
         """
         self.current_phase = "test_completed"
         test_name = event.data.get("test_name")
-        success = event.data.get("success", False)
+        # TestCompletedEvent inherently means success; failures use TestFailedEvent
+        success = True
         result = event.data.get("result") or {}
 
         self.logger.info(
@@ -772,6 +806,23 @@ class ExperimentObserver(IObserver):
         if result:
             for key, value in result.items():
                 self.logger.debug(f"  {key}: {value}")
+
+        return True
+
+    def _handle_test_failed(self, event: TestFailedEvent) -> bool:
+        """Handle test failed events."""
+        self.current_phase = "test_failed"
+        test_name = event.data.get("test_name")
+        error_message = event.data.get("error_message", "Unknown")
+
+        self.logger.info("Test completed: %s - Failed", test_name)
+        self.logger.debug("  Failure reason: %s", error_message[:200])
+
+        # Clean up step progress bars for this test
+        self._cleanup_step_progress_bars(test_name)
+
+        if self.track_timing:
+            self._record_timing_info("test_failed", self.start_time)
 
         return True
 

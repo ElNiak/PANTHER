@@ -583,9 +583,9 @@ class MetricsObserver(ITypedObserver):
         return True
 
     def is_interested(self, event_type: str) -> bool:
-        """Check if this observer is interested in metrics events."""
-        # We're interested in all metrics events
-        return event_type.startswith("metrics.")
+        """Check if this observer is interested in metrics and test lifecycle events."""
+        interested_prefixes = ("metrics.", "test.", "step.")
+        return any(event_type.startswith(p) for p in interested_prefixes)
 
     def _ensure_metrics_collector(self) -> bool:
         """Ensure a metrics collector is available, creating one lazily if needed.
