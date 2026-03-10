@@ -85,7 +85,7 @@ class ExperimentService:
             try:
                 cb(line)
             except Exception:
-                pass
+                logger.warning("Log callback failed", exc_info=True)
 
     def _emit_status(self, s: str):
         self._status = s
@@ -93,7 +93,7 @@ class ExperimentService:
             try:
                 cb(s)
             except Exception:
-                pass
+                logger.warning("Status callback failed", exc_info=True)
 
     async def run_experiment(
         self,
