@@ -20,12 +20,11 @@ def _populate_forms_from_dict(panels: dict[str, Any], config_dict: dict) -> None
         if section_data and isinstance(section_data, dict):
             panel.form.set_value(section_data)
 
-    # Tests
+    # Tests — load all tests (not just the first)
     tests = config_dict.get("tests")
-    tests_panel = panels.get("tests")
-    if tests and isinstance(tests, list) and tests_panel:
-        if isinstance(tests[0], dict):
-            tests_panel.form.set_value(tests[0])
+    test_editor = panels.get("tests")
+    if tests and isinstance(tests, list) and test_editor:
+        test_editor.set_value([t for t in tests if isinstance(t, dict)])
 
     # Metadata
     meta = config_dict.get("metadata")
@@ -99,7 +98,7 @@ def _render_config_forms(yaml_editor_ref: dict):
     """Render PydanticForm panels for all config models with auto-sync to YAML."""
     from pydantic import BaseModel
 
-    from panther.config.core.models.experiment import ExperimentMetadata, TestConfig
+    from panther.config.core.models.experiment import ExperimentMetadata
     from panther.config.core.models.global_config import GlobalConfig
     from panther.webapp.components.config_form_panel import config_form_panel
     from panther.webapp.components.error_boundary import error_boundary
@@ -129,18 +128,18 @@ def _render_config_forms(yaml_editor_ref: dict):
                     description=desc,
                 )
 
-    # === TestConfig ===
+    # === TestConfig (multi-test accordion) ===
     with ui.card().classes("w-full q-mb-md"):
         ui.label("Test Configuration").classes("text-h6")
-        ui.label("Test parameters. Add tests and configure their settings.").classes(
-            "text-caption text-grey-7 q-mb-sm"
-        )
+        ui.label(
+            "Configure tests. Expand a panel to edit, use buttons to add/remove/duplicate."
+        ).classes("text-caption text-grey-7 q-mb-sm")
         with error_boundary("Test Config"):
-            panels["tests"] = config_form_panel(
-                TestConfig,
-                title="Test Settings",
-                icon="science",
-            )
+            from panther.webapp.components.test_list_editor import TestListEditor
+
+            test_editor = TestListEditor()
+            test_editor.set_value([{}])  # Start with one empty test
+            panels["tests"] = test_editor
 
     # === ExperimentMetadata ===
     with ui.card().classes("w-full q-mb-md"):
@@ -172,11 +171,24 @@ def _render_config_forms(yaml_editor_ref: dict):
                 if data:
                     config[section_name] = data
 
-            tests_panel = panels.get("tests")
-            if tests_panel:
-                data = tests_panel.form.get_value()
-                if data:
-                    config["tests"] = [data]
+            test_editor = panels.get("tests")
+            if test_editor:
+                tests_data = test_editor.get_value()
+                if tests_data:
+                    for i, td in enumerate(tests_data):
+                        if not td.get("name", "").strip():
+                            generated = ConfigService.generate_test_name(td)
+                            if generated:
+                                td["name"] = generated
+                                test_editor.update_form_field(i, "name", generated)
+                        if not td.get("description", "").strip():
+                            generated = ConfigService.generate_test_description(td)
+                            if generated:
+                                td["description"] = generated
+                                test_editor.update_form_field(
+                                    i, "description", generated
+                                )
+                    config["tests"] = tests_data
 
             meta_panel = panels.get("metadata")
             if meta_panel:

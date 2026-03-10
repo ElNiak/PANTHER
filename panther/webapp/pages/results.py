@@ -159,7 +159,7 @@ def content():
     date_to.on_value_change(lambda _: _refresh_table())
 
     # --- Detail dialog ---
-    detail_dialog = ui.dialog().props("full-width").style("max-height: 90vh")
+    detail_dialog = ui.dialog().props("full-width")
 
     def _on_row_click(e):
         row = e.args[1]
@@ -189,9 +189,17 @@ def _show_detail(dialog: ui.dialog, results_svc: ResultsService, row: dict):
     exp_path = row.get("path", "")
 
     with dialog:
-        with ui.card().classes("w-full"):
+        with (
+            ui.card()
+            .classes("w-full")
+            .style("display: flex; flex-direction: column; height: 90vh")
+        ):
             # Header row with close button
-            with ui.row().classes("justify-between items-center w-full q-mb-sm"):
+            with (
+                ui.row()
+                .classes("justify-between items-center w-full q-mb-sm")
+                .style("flex-shrink: 0")
+            ):
                 ui.label(f"Experiment: {name}").classes("text-h6")
                 ui.button(icon="close", on_click=dialog.close).props("flat round")
 
@@ -199,14 +207,18 @@ def _show_detail(dialog: ui.dialog, results_svc: ResultsService, row: dict):
             if not detail:
                 ui.label("No details available").classes("text-grey-7")
             else:
-                with ui.tabs().classes("w-full") as tabs:
+                with ui.tabs().classes("w-full").style("flex-shrink: 0") as tabs:
                     summary_tab = ui.tab("Summary", icon="analytics")
                     tests_tab = ui.tab("Tests", icon="science")
                     logs_tab = ui.tab("Logs", icon="terminal")
                     events_tab = ui.tab("Events", icon="event")
                     artifacts_tab = ui.tab("Artifacts", icon="folder_open")
 
-                with ui.tab_panels(tabs, value=summary_tab).classes("w-full"):
+                with (
+                    ui.tab_panels(tabs, value=summary_tab)
+                    .classes("w-full")
+                    .style("flex: 1 1 auto; overflow-y: auto")
+                ):
                     with ui.tab_panel(summary_tab):
                         _render_summary_tab(results_svc, detail, exp_path)
                     with ui.tab_panel(tests_tab):

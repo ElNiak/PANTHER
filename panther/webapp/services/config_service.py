@@ -428,6 +428,85 @@ class ConfigService:
         return _resolve(result, result)
 
     @staticmethod
+    def generate_test_name(test_data: dict) -> str:
+        """Generate a test name from services, protocol, and environment info.
+
+        Follows project naming conventions, e.g.:
+        ``"QUIC Client-Server Communication Test"``
+        ``"Strace - Shadow QUIC Client-Server Communication Test"``
+        """
+        services = test_data.get("services", {})
+        if not services:
+            return ""
+
+        protocols: set[str] = set()
+        role_parts: list[str] = []
+        for svc_data in services.values():
+            svc = svc_data if isinstance(svc_data, dict) else {}
+            proto = svc.get("protocol", {})
+            proto_name = proto.get("name", "") if isinstance(proto, dict) else ""
+            if proto_name:
+                protocols.add(proto_name.upper())
+            role = (
+                proto.get("role", "unknown") if isinstance(proto, dict) else "unknown"
+            )
+            role_parts.append(role.title())
+
+        proto_str = "-".join(sorted(protocols)) if protocols else "Protocol"
+        role_str = "-".join(role_parts) if role_parts else ""
+
+        # Execution environment prefix (e.g. "Strace - ")
+        exec_envs = test_data.get("execution_environment", [])
+        exec_prefix = ""
+        if isinstance(exec_envs, list) and exec_envs:
+            exec_types = [
+                e.get("type", "")
+                for e in exec_envs
+                if isinstance(e, dict) and e.get("type")
+            ]
+            if exec_types:
+                exec_prefix = " ".join(t.title() for t in exec_types) + " - "
+
+        # Network environment prefix (only for non-default environments)
+        net_env = test_data.get("network_environment", {})
+        net_type = net_env.get("type", "") if isinstance(net_env, dict) else ""
+        net_prefix = ""
+        if net_type and net_type not in ("docker_compose", ""):
+            net_prefix = net_type.replace("_", " ").title() + " "
+
+        return f"{exec_prefix}{net_prefix}{proto_str} {role_str} Communication Test".strip()
+
+    @staticmethod
+    def generate_test_description(test_data: dict) -> str:
+        """Generate a test description from services and environment info."""
+        services = test_data.get("services", {})
+        if not services:
+            return ""
+
+        svc_parts: list[str] = []
+        for svc_name, svc_data in services.items():
+            svc = svc_data if isinstance(svc_data, dict) else {}
+            impl = svc.get("implementation", {})
+            proto = svc.get("protocol", {})
+            impl_name = (
+                impl.get("name", svc_name) if isinstance(impl, dict) else svc_name
+            )
+            role = proto.get("role", "") if isinstance(proto, dict) else ""
+            svc_parts.append(f"{impl_name} ({role})" if role else impl_name)
+
+        svc_str = " and ".join(svc_parts)
+
+        net_env = test_data.get("network_environment", {})
+        net_type = (
+            net_env.get("type", "network") if isinstance(net_env, dict) else "network"
+        )
+
+        return (
+            f"Verify communication between {svc_str}"
+            f" over {net_type.replace('_', ' ')} network."
+        )
+
+    @staticmethod
     def _deep_merge(base: dict, overlay: dict) -> dict:
         """Recursively merge overlay into a copy of base."""
         result = copy.deepcopy(base)

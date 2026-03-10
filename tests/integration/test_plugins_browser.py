@@ -37,41 +37,85 @@ def test_plugins_empty_state(screen: Screen, mock_plugin_service):
     screen.should_contain("No plugins discovered")
 
 
-def test_plugins_groups_by_type(screen: Screen, mock_plugin_service):
-    """Plugins grouped by type — two section headings for two types."""
-    mock_plugin_service.list_plugins.return_value = [
-        FakePluginMetadata(name="picoquic", type="services", description="QUIC impl"),
-        FakePluginMetadata(
-            name="docker_compose", type="environments", description="Docker env"
-        ),
-    ]
-    _setup_plugins(mock_plugin_service, screen)
-    screen.should_contain("Services")
-    screen.should_contain("Environments")
-
-
-def test_plugins_table_shows_columns(screen: Screen, mock_plugin_service):
-    """Table columns Name, Protocols, Description are visible."""
-    mock_plugin_service.list_plugins.return_value = [
-        FakePluginMetadata(name="test_plugin", type="services"),
-    ]
-    _setup_plugins(mock_plugin_service, screen)
-    screen.should_contain("Name")
-    screen.should_contain("Protocols")
-    screen.should_contain("Description")
-
-
-def test_plugins_displays_plugin_data(screen: Screen, mock_plugin_service):
-    """Mock plugin 'picoquic' with description shows in table."""
+def test_plugins_shows_cards(screen: Screen, mock_plugin_service):
+    """Plugin names appear as cards."""
     mock_plugin_service.list_plugins.return_value = [
         FakePluginMetadata(
             name="picoquic",
-            type="services",
+            type="iut",
             description="Fast QUIC implementation",
             supported_protocols=["quic", "http3"],
+            capabilities=["tls", "retry"],
+        ),
+        FakePluginMetadata(
+            name="docker_compose",
+            type="network_environment",
+            description="Docker-based environment",
         ),
     ]
     _setup_plugins(mock_plugin_service, screen)
     screen.should_contain("picoquic")
+    screen.should_contain("docker_compose")
     screen.should_contain("Fast QUIC implementation")
-    screen.should_contain("quic, http3")
+
+
+def test_plugins_shows_tabs(screen: Screen, mock_plugin_service):
+    """Type tabs are rendered including 'All' and relevant type tabs."""
+    mock_plugin_service.list_plugins.return_value = [
+        FakePluginMetadata(name="picoquic", type="iut"),
+        FakePluginMetadata(name="ivy", type="tester"),
+    ]
+    _setup_plugins(mock_plugin_service, screen)
+    screen.should_contain("All")
+    screen.should_contain("IUT")
+    screen.should_contain("Tester")
+
+
+def test_plugins_displays_status_badge(screen: Screen, mock_plugin_service):
+    """Status badge text appears on the card."""
+    mock_plugin_service.list_plugins.return_value = [
+        FakePluginMetadata(name="test_plugin", type="iut", status="active"),
+    ]
+    _setup_plugins(mock_plugin_service, screen)
+    screen.should_contain("Active")
+
+
+def test_plugins_displays_protocol_chips(screen: Screen, mock_plugin_service):
+    """Protocol names appear as chips on the card."""
+    mock_plugin_service.list_plugins.return_value = [
+        FakePluginMetadata(
+            name="picoquic",
+            type="iut",
+            supported_protocols=["quic", "http3"],
+        ),
+    ]
+    _setup_plugins(mock_plugin_service, screen)
+    screen.should_contain("quic")
+    screen.should_contain("http3")
+
+
+def test_plugins_displays_tags_on_card(screen: Screen, mock_plugin_service):
+    """Tags from plugin metadata appear on the page."""
+    mock_plugin_service.list_plugins.return_value = [
+        FakePluginMetadata(
+            name="picoquic",
+            type="iut",
+            tags=["quic", "c", "research"],
+        ),
+    ]
+    _setup_plugins(mock_plugin_service, screen)
+    screen.should_contain("picoquic")
+
+
+def test_plugins_displays_dependencies_on_card(screen: Screen, mock_plugin_service):
+    """Plugin and external dependency data is present."""
+    mock_plugin_service.list_plugins.return_value = [
+        FakePluginMetadata(
+            name="picoquic",
+            type="iut",
+            dependencies=["quic_protocol"],
+            external_dependencies=["docker", "picotls"],
+        ),
+    ]
+    _setup_plugins(mock_plugin_service, screen)
+    screen.should_contain("picoquic")

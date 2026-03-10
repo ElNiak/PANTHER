@@ -118,6 +118,11 @@ class FakePluginMetadata:
     tags: list = None
     status: str = "active"
     path: str = ""
+    author: str = ""
+    dependencies: list = None
+    external_dependencies: list = None
+    runtime_mode: str = ""
+    extra_fields: dict = None
 
     def __post_init__(self):  # noqa: D105
         if self.supported_protocols is None:
@@ -126,6 +131,12 @@ class FakePluginMetadata:
             self.capabilities = []
         if self.tags is None:
             self.tags = []
+        if self.dependencies is None:
+            self.dependencies = []
+        if self.external_dependencies is None:
+            self.external_dependencies = []
+        if self.extra_fields is None:
+            self.extra_fields = {}
 
     def to_dict(self):
         return {
@@ -142,6 +153,7 @@ def mock_plugin_service(monkeypatch):
     """Mock PluginService for browser tests — returns fake plugin data."""
     mock_svc = Mock()
     mock_svc.list_plugins.return_value = []
+    mock_svc.get_plugin_manifest.return_value = None
     monkeypatch.setattr(
         "panther.webapp.services.plugin_service.PluginService",
         lambda *a, **kw: mock_svc,
