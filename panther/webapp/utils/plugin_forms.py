@@ -1,7 +1,7 @@
 """Bridge between the PANTHER plugin system and the webapp form layer.
 
 Provides helpers to discover plugins, extract their config schemas,
-and produce NiceCRUD-compatible form info for the student's UI layer.
+and produce form info for the student's UI layer.
 """
 
 from __future__ import annotations
@@ -13,12 +13,7 @@ from typing import Any, get_args, get_origin
 
 from pydantic import BaseModel
 
-from panther.webapp.utils.form_models import (
-    ComplexFieldInfo,
-    build_form_model,
-    get_complex_fields,
-    pick_id_field,
-)
+from panther.webapp.utils.form_models import ComplexFieldInfo, get_complex_fields
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +23,8 @@ class PluginFormInfo:
     """Everything the UI layer needs to render forms for a plugin config."""
 
     plugin_name: str
-    form_model: type[BaseModel]  # NiceCRUD-safe
+    config_model: type[BaseModel]  # Original config class
     defaults: dict[str, Any]
-    id_field: str
     enum_choices: dict[str, list[str]]  # field_name -> allowed values
     complex_fields: dict[str, ComplexFieldInfo]
     description: str = ""
@@ -102,17 +96,14 @@ def get_plugin_form_info(plugin_name: str) -> PluginFormInfo | None:
     if config_cls is None:
         return None
 
-    form_model = build_form_model(config_cls)
-    id_field = pick_id_field(config_cls)
     complex = get_complex_fields(config_cls)
     enum_choices = _extract_enum_choices(config_cls)
 
     try:
-        defaults = form_model().model_dump()
+        defaults = config_cls().model_dump(mode="json")
     except Exception:
         defaults = {}
 
-    # Try to get description and protocols from decorator metadata
     description = ""
     protocols: list[str] = []
     try:
@@ -130,9 +121,8 @@ def get_plugin_form_info(plugin_name: str) -> PluginFormInfo | None:
 
     return PluginFormInfo(
         plugin_name=plugin_name,
-        form_model=form_model,
+        config_model=config_cls,
         defaults=defaults,
-        id_field=id_field,
         enum_choices=enum_choices,
         complex_fields=complex,
         description=description,
@@ -146,6 +136,13 @@ def list_available_plugins(plugin_type: str | None = None) -> list[dict[str, str
     Returns ``[{"name", "type", "description", "protocols"}]``.
     Catches PluginManager errors gracefully (returns ``[]``).
     """
+    try:
+        from panther.plugins.core.plugin_discovery import PluginDiscovery
+
+        PluginDiscovery.discover_plugins()
+    except Exception:
+        logger.debug("Plugin discovery failed", exc_info=True)
+
     try:
         from panther.plugins.core.plugin_decorators import get_decorated_plugins
 
