@@ -11,7 +11,6 @@ from typing import Any, Dict, List, Optional
 
 import pytest
 import yaml
-from omegaconf import DictConfig, OmegaConf
 from pydantic import Field, ValidationError
 
 from panther.config.core.base import BaseConfig
@@ -103,141 +102,6 @@ class TestBaseConfigCore:
         assert config.database.database == "test"  # Default
 
 
-class TestBaseConfigOmegaConversion:
-    """Test OmegaConf conversion methods."""
-
-    def test_to_omega_simple_config(self):
-        """Test conversion of simple config to OmegaConf."""
-
-        class SimpleConfig(BaseConfig):
-            name: str = "test"
-            value: int = 42
-            enabled: bool = True
-
-        config = SimpleConfig()
-        omega = config.to_omega()
-
-        assert isinstance(omega, DictConfig)
-        assert omega.name == "test"
-        assert omega.value == 42
-        assert omega.enabled is True
-
-    def test_to_omega_nested_config(self):
-        """Test conversion of nested config to OmegaConf."""
-
-        class DatabaseConfig(BaseConfig):
-            host: str = "localhost"
-            port: int = 5432
-
-        class AppConfig(BaseConfig):
-            app_name: str = "myapp"
-            database: DatabaseConfig = DatabaseConfig()
-
-        config = AppConfig()
-        omega = config.to_omega()
-
-        assert isinstance(omega, DictConfig)
-        assert omega.app_name == "myapp"
-        assert omega.database.host == "localhost"
-        assert omega.database.port == 5432
-
-    def test_from_omega_simple_config(self):
-        """Test creation of config from OmegaConf."""
-
-        class SimpleConfig(BaseConfig):
-            name: str = "test"
-            value: int = 42
-            enabled: bool = True
-
-        omega_dict = {"name": "from_omega", "value": 100, "enabled": False}
-        omega = OmegaConf.create(omega_dict)
-
-        config = SimpleConfig.from_omega(omega)
-        assert config.name == "from_omega"
-        assert config.value == 100
-        assert config.enabled is False
-
-    def test_from_omega_nested_config(self):
-        """Test creation of nested config from OmegaConf."""
-
-        class DatabaseConfig(BaseConfig):
-            host: str = "localhost"
-            port: int = 5432
-
-        class AppConfig(BaseConfig):
-            app_name: str = "myapp"
-            database: DatabaseConfig = DatabaseConfig()
-
-        omega_dict = {
-            "app_name": "omega_app",
-            "database": {"host": "omega_host", "port": 3306},
-        }
-        omega = OmegaConf.create(omega_dict)
-
-        config = AppConfig.from_omega(omega)
-        assert config.app_name == "omega_app"
-        assert config.database.host == "omega_host"
-        assert config.database.port == 3306
-
-    def test_round_trip_conversion(self):
-        """Test round-trip conversion: config -> omega -> config."""
-
-        class ComplexConfig(BaseConfig):
-            name: str = "test"
-            values: List[int] = [1, 2, 3]
-            metadata: Dict[str, Any] = {"key": "value"}
-
-        original = ComplexConfig(
-            name="round_trip",
-            values=[10, 20, 30],
-            metadata={"test": "data", "number": 42},
-        )
-
-        # Convert to omega and back
-        omega = original.to_omega()
-        restored = ComplexConfig.from_omega(omega)
-
-        assert restored.name == original.name
-        assert restored.values == original.values
-        assert restored.metadata == original.metadata
-
-    def test_from_omega_with_missing_fields(self):
-        """Test from_omega with missing fields uses defaults."""
-
-        class ConfigWithDefaults(BaseConfig):
-            required_field: str
-            optional_field: str = "default_value"
-            numeric_field: int = 100
-
-        omega_dict = {"required_field": "provided"}
-        omega = OmegaConf.create(omega_dict)
-
-        config = ConfigWithDefaults.from_omega(omega)
-        assert config.required_field == "provided"
-        assert config.optional_field == "default_value"
-        assert config.numeric_field == 100
-
-    def test_from_omega_with_extra_fields(self):
-        """Test from_omega ignores extra fields."""
-
-        class SimpleConfig(BaseConfig):
-            name: str = "test"
-            value: int = 42
-
-        omega_dict = {
-            "name": "test_name",
-            "value": 200,
-            "extra_field": "ignored",
-            "another_extra": 999,
-        }
-        omega = OmegaConf.create(omega_dict)
-
-        config = SimpleConfig.from_omega(omega)
-        assert config.name == "test_name"
-        assert config.value == 200
-        # Extra fields should be ignored, not cause errors
-
-
 class TestBaseConfigMerging:
     """Test configuration merging functionality."""
 
@@ -298,23 +162,6 @@ class TestBaseConfigMerging:
         assert original.name == "original"  # Unchanged
         assert merged.name == "changed"
         assert original is not merged  # Different instances
-
-    def test_merge_with_omega_config(self):
-        """Test merging with OmegaConf DictConfig."""
-
-        class SimpleConfig(BaseConfig):
-            name: str = "original"
-            value: int = 42
-            enabled: bool = True
-
-        config = SimpleConfig()
-        override_omega = OmegaConf.create({"name": "omega_merged", "enabled": False})
-
-        merged = config.merge(override_omega)
-
-        assert merged.name == "omega_merged"
-        assert merged.value == 42  # Unchanged
-        assert merged.enabled is False
 
     def test_merge_deep_nested_structures(self):
         """Test merging deeply nested structures."""
@@ -700,21 +547,6 @@ class TestBaseConfigErrorHandling:
         with pytest.raises(ValidationError):
             RequiredFieldConfig(optional_value=100)  # Missing required_name
 
-    def test_from_omega_with_invalid_data(self):
-        """Test from_omega with invalid data types."""
-
-        class TypedConfig(BaseConfig):
-            name: str = "test"
-            count: int = 42
-
-        # Invalid data in omega config
-        invalid_omega = OmegaConf.create(
-            {"name": 123, "count": "not_a_number"}  # Should be string  # Should be int
-        )
-
-        with pytest.raises((ValidationError, ValueError)):
-            TypedConfig.from_omega(invalid_omega)
-
     def test_merge_with_invalid_override(self):
         """Test merge with invalid override data."""
 
@@ -776,12 +608,6 @@ if __name__ == "__main__":
         test_core.test_basic_initialization()
         test_core.test_nested_config_initialization()
         print("✓ Core functionality tests passed")
-
-        # Test OmegaConf conversion
-        test_omega = TestBaseConfigOmegaConversion()
-        test_omega.test_to_omega_simple_config()
-        test_omega.test_round_trip_conversion()
-        print("✓ OmegaConf conversion tests passed")
 
         # Test merging
         test_merge = TestBaseConfigMerging()

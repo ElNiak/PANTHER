@@ -33,7 +33,7 @@ class TestJsonSchemaExtra:
         """Every field in ServiceConfig should have a description."""
         for field_name, field_info in ServiceConfig.model_fields.items():
             # Skip internal/excluded fields
-            if field_name.startswith("_") or field_name == "omega_config":
+            if field_name.startswith("_"):
                 continue
             if field_info.exclude:
                 continue
