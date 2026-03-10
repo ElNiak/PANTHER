@@ -35,6 +35,14 @@ _DEFAULT_CONFIG_CANDIDATES = [
 ]
 
 
+def _validate_config_path(path_str) -> Path:
+    """Sanitize config path: resolve traversal and ensure YAML extension."""
+    resolved = Path(str(path_str)).resolve()
+    if resolved.suffix.lower() not in (".yaml", ".yml"):
+        raise ValueError(f"Path '{path_str}' must be a YAML file (.yaml/.yml)")
+    return resolved
+
+
 class ConfigService:
     """Service for config validation, YAML generation, and form model adaptation."""
 
@@ -93,8 +101,8 @@ class ConfigService:
         return yaml.dump(data, default_flow_style=False, sort_keys=False)
 
     def load_config(self, path) -> dict:
-        """Load and parse a YAML config file. Raises FileNotFoundError/ValueError."""
-        p = Path(path)
+        """Load and parse a YAML config file. Validates path for traversal."""
+        p = _validate_config_path(path)
         if not p.exists():
             raise FileNotFoundError(f"Config file not found: {path}")
         try:
@@ -106,8 +114,8 @@ class ConfigService:
         return data
 
     def save_config(self, path, data: dict) -> None:
-        """Save a config dict to a YAML file, creating parent dirs."""
-        p = Path(path)
+        """Save a config dict to a YAML file. Validates path for traversal."""
+        p = _validate_config_path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(yaml.dump(data, default_flow_style=False, sort_keys=False))
 
@@ -173,14 +181,38 @@ class ConfigService:
         return self._deep_merge(base, overlay)
 
     def resolve_interpolations(self, data: dict) -> dict:
-        """Resolve ${var} interpolations in config data."""
-        try:
-            from omegaconf import OmegaConf
+        """Resolve ${section.key} interpolations in config values."""
+        import re
 
-            cfg = OmegaConf.create(data)
-            return OmegaConf.to_container(cfg, resolve=True)
-        except Exception:
-            return dict(data)
+        result = copy.deepcopy(data)
+        pattern = re.compile(r"\$\{([^}]+)\}")
+
+        def _lookup(keys_str, root):
+            node = root
+            for k in keys_str.split("."):
+                if isinstance(node, dict) and k in node:
+                    node = node[k]
+                else:
+                    return None
+            return node if not isinstance(node, dict) else None
+
+        def _resolve(value, root):
+            if isinstance(value, str):
+                return pattern.sub(
+                    lambda m: (
+                        str(v)
+                        if (v := _lookup(m.group(1), root)) is not None
+                        else m.group(0)
+                    ),
+                    value,
+                )
+            elif isinstance(value, dict):
+                return {k: _resolve(v, root) for k, v in value.items()}
+            elif isinstance(value, list):
+                return [_resolve(v, root) for v in value]
+            return value
+
+        return _resolve(result, result)
 
     @staticmethod
     def _deep_merge(base: dict, overlay: dict) -> dict:
