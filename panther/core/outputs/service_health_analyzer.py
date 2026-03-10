@@ -221,21 +221,58 @@ class ServiceHealthAnalyzer:
         return total
 
     def _check_compilation(self, log_dir: Path) -> bool:
-        compile_stderr = log_dir / "compile" / "stderr.log"
-        if not compile_stderr.exists():
-            # No compile phase = no compilation needed or didn't run
+        """Check if compilation succeeded using multiple sources.
+
+        Checks (in priority order):
+        1. compilation_status.txt -- explicit success/failure marker
+        2. stdout.log -- exit codes from command execution
+        3. stderr.log -- error pattern matching (original logic)
+        """
+        compile_dir = log_dir / "compile"
+        if not compile_dir.exists():
             return True
-        try:
-            content = compile_stderr.read_text(errors="replace")
-            fail_indicators = [
-                "error:",
-                "fatal error",
-                "compilation failed",
-                "make: ***",
-            ]
-            return not any(ind in content.lower() for ind in fail_indicators)
-        except OSError:
-            return True
+
+        # 1. Check compilation_status.txt (most authoritative)
+        status_file = compile_dir / "compilation_status.txt"
+        if status_file.exists():
+            try:
+                content = status_file.read_text(errors="replace").lower()
+                if "failed" in content:
+                    return False
+                if "succeeded" in content:
+                    return True
+            except OSError:
+                pass
+
+        # 2. Check stdout.log for non-zero exit codes (last 8KB for performance)
+        stdout_log = compile_dir / "stdout.log"
+        if stdout_log.exists():
+            try:
+                content = stdout_log.read_text(errors="replace")[-8192:]
+                # Look for "completed with exit code: N" where N != 0
+                for match in re.finditer(r"completed with exit code:\s*(\d+)", content):
+                    if int(match.group(1)) != 0:
+                        return False
+            except OSError:
+                pass
+
+        # 3. Check stderr.log for error patterns (original logic)
+        stderr_log = compile_dir / "stderr.log"
+        if stderr_log.exists():
+            try:
+                content = stderr_log.read_text(errors="replace")
+                fail_indicators = [
+                    "error:",
+                    "fatal error",
+                    "compilation failed",
+                    "make: ***",
+                ]
+                if any(ind in content.lower() for ind in fail_indicators):
+                    return False
+            except OSError:
+                pass
+
+        return True
 
     def _extract_exit_info(self, log_dir: Path) -> Tuple[Optional[int], bool]:
         """Extract exit code and crash status from runtime/test logs."""

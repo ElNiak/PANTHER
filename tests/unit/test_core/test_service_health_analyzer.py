@@ -213,6 +213,52 @@ class TestServiceHealthAnalyzer:
         assert results[0].service_name == "server"
         assert results[1].service_name == "client"
 
+    def test_compilation_failure_from_stdout_exit_code(self, analyzer, service_log_dir):
+        """Detect compilation failure from exit code in stdout.log."""
+        (service_log_dir / "compile" / "stderr.log").write_text(
+            "++ cd /some/path\n++ echo /usr/bin\n"
+        )
+        (service_log_dir / "compile" / "stdout.log").write_text(
+            "[2026-03-09 18:08:33] Command 23 completed with exit code: 0\n"
+            "[2026-03-09 18:08:46] Command 24 completed with exit code: 1\n"
+        )
+        result = analyzer.analyze_service("svc", "tester", service_log_dir)
+        assert result.compilation_succeeded is False
+
+    def test_compilation_failure_from_status_file(self, analyzer, service_log_dir):
+        """Detect compilation failure from compilation_status.txt."""
+        (service_log_dir / "compile" / "stderr.log").write_text("")
+        (service_log_dir / "compile" / "stdout.log").write_text("ok")
+        (service_log_dir / "compile" / "compilation_status.txt").write_text(
+            "Compilation failed with code 1"
+        )
+        result = analyzer.analyze_service("svc", "tester", service_log_dir)
+        assert result.compilation_succeeded is False
+
+    def test_compilation_success_from_status_file(self, analyzer, service_log_dir):
+        """Confirm compilation success from compilation_status.txt."""
+        (service_log_dir / "compile" / "stderr.log").write_text("")
+        (service_log_dir / "compile" / "stdout.log").write_text("ok")
+        (service_log_dir / "compile" / "compilation_status.txt").write_text(
+            "Compilation succeeded"
+        )
+        result = analyzer.analyze_service("svc", "tester", service_log_dir)
+        assert result.compilation_succeeded is True
+
+    def test_compilation_failure_no_stderr_errors_but_exit_code(
+        self, analyzer, service_log_dir
+    ):
+        """Even if stderr has no known error patterns, nonzero exit code = failure."""
+        (service_log_dir / "compile" / "stderr.log").write_text(
+            "++ some bash trace output\n++ more trace\n"
+        )
+        (service_log_dir / "compile" / "stdout.log").write_text(
+            "[2026-03-09 18:08:46] Command 24 completed with exit code: 1\n"
+        )
+        result = analyzer.analyze_service("svc", "tester", service_log_dir)
+        assert result.compilation_succeeded is False
+        assert result.status == "failed"
+
     def test_healthy_service_full(self, analyzer, service_log_dir):
         """A service with runtime output and no errors is healthy."""
         (service_log_dir / "compile" / "stdout.log").write_text("Build successful")
