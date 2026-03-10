@@ -17,14 +17,14 @@ class TestEnvironmentConstraints:
 
 
 class TestPluginConstraints:
-    def test_port_too_high(self):
-        with pytest.raises(Exception):
-            ProtocolPluginConfig(protocol_version="1.0", default_port=70000)
-
-    def test_port_zero(self):
-        with pytest.raises(Exception):
-            ProtocolPluginConfig(protocol_version="1.0", default_port=0)
-
     def test_priority_negative(self):
         with pytest.raises(Exception):
-            ProtocolPluginConfig(protocol_version="1.0", default_port=443, priority=-1)
+            ProtocolPluginConfig(priority=-1)
+
+    def test_priority_too_high(self):
+        with pytest.raises(Exception):
+            ProtocolPluginConfig(priority=1001)
+
+    def test_priority_valid(self):
+        config = ProtocolPluginConfig(priority=50)
+        assert config.priority == 50
