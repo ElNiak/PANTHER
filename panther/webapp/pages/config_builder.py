@@ -255,7 +255,7 @@ def _render_config_forms(yaml_editor_ref: dict):
                     config, default_flow_style=False, sort_keys=False
                 )
         except Exception:
-            pass  # Silent fail — YAML preview is secondary
+            logger.debug("Form-to-YAML sync error", exc_info=True)
 
     ui.timer(1.0, _sync_forms_to_yaml)
 
