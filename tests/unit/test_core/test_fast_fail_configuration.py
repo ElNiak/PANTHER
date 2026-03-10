@@ -1,5 +1,4 @@
-"""
-Tests for fast-fail configuration and behavior customization.
+"""Tests for fast-fail configuration and behavior customization.
 
 This module tests:
 - FastFailConfig schema and validation
@@ -337,12 +336,14 @@ class TestConfigurationValidation:
     """Test configuration validation and edge cases."""
 
     def test_negative_threshold_values(self):
-        """Test handling of negative configuration values."""
-        # FastFailConfig should handle negative values gracefully
-        config = FastFailConfig(timeout_cascade_threshold=-1)
+        """Test that negative threshold values are rejected by ge=1 constraint."""
+        from pydantic import ValidationError
 
-        # Negative should be accepted (validation could convert to 0 in practice)
-        assert config.timeout_cascade_threshold == -1
+        with pytest.raises(ValidationError):
+            FastFailConfig(timeout_cascade_threshold=-1)
+
+        with pytest.raises(ValidationError):
+            FastFailConfig(timeout_cascade_threshold=0)
 
     def test_conflicting_configurations(self):
         """Test handling of conflicting configuration settings."""

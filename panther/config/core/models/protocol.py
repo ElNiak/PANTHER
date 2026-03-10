@@ -1,11 +1,50 @@
 """Protocol configuration models."""
 
 from abc import ABC, abstractmethod
+from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from ..base import BaseConfig
+
+
+class HttpMethod(str, Enum):
+    """HTTP request method."""
+
+    GET = "GET"
+    POST = "POST"
+    PUT = "PUT"
+    DELETE = "DELETE"
+    PATCH = "PATCH"
+    HEAD = "HEAD"
+    OPTIONS = "OPTIONS"
+
+
+class HttpVersion(str, Enum):
+    """HTTP version."""
+
+    HTTP_1_0 = "1.0"
+    HTTP_1_1 = "1.1"
+    HTTP_2 = "2"
+    HTTP_3 = "3"
+
+
+class TlsVerifyMode(str, Enum):
+    """TLS certificate verification mode."""
+
+    NONE = "none"
+    OPTIONAL = "optional"
+    REQUIRED = "required"
+
+
+class CongestionControl(str, Enum):
+    """Congestion control algorithm."""
+
+    RENO = "reno"
+    CUBIC = "cubic"
+    BBR = "bbr"
+    BBR2 = "bbr2"
 
 
 class BaseProtocolConfig(BaseConfig, ABC):
@@ -38,23 +77,27 @@ class ClientServerProtocolConfig(BaseProtocolConfig):
 
     # QUIC-specific parameters
     quic_version: Optional[str] = Field(None, description="QUIC version string")
-    initial_max_data: Optional[int] = Field(10485760, description="Initial max data")
+    initial_max_data: Optional[int] = Field(
+        10485760, ge=0, description="Initial max data"
+    )
     initial_max_stream_data_bidi_local: Optional[int] = Field(
-        1048576, description="Initial max stream data bidi local"
+        1048576, ge=0, description="Initial max stream data bidi local"
     )
     initial_max_stream_data_bidi_remote: Optional[int] = Field(
-        1048576, description="Initial max stream data bidi remote"
+        1048576, ge=0, description="Initial max stream data bidi remote"
     )
     initial_max_stream_data_uni: Optional[int] = Field(
-        1048576, description="Initial max stream data uni"
+        1048576, ge=0, description="Initial max stream data uni"
     )
     initial_max_streams_bidi: Optional[int] = Field(
-        100, description="Initial max streams bidi"
+        100, ge=0, description="Initial max streams bidi"
     )
     initial_max_streams_uni: Optional[int] = Field(
-        100, description="Initial max streams uni"
+        100, ge=0, description="Initial max streams uni"
     )
-    max_idle_timeout: Optional[int] = Field(30000, description="Max idle timeout in ms")
+    max_idle_timeout: Optional[int] = Field(
+        30000, ge=0, description="Max idle timeout in ms"
+    )
 
     # TLS parameters
     alpn_protocols: List[str] = Field(
@@ -64,32 +107,102 @@ class ClientServerProtocolConfig(BaseProtocolConfig):
     key_file: Optional[str] = Field(None, description="TLS key file path")
     cert_file: Optional[str] = Field(None, description="TLS certificate file path")
     ca_file: Optional[str] = Field(None, description="CA certificate file path")
-    verify_mode: Optional[str] = Field(None, description="TLS verify mode")
+    verify_mode: Optional[TlsVerifyMode] = Field(
+        None,
+        description="TLS verify mode",
+        examples=["none", "optional", "required"],
+    )
 
     # HTTP-specific parameters
-    http_version: Optional[str] = Field(None, description="HTTP version (1.1, 2, 3)")
+    http_version: Optional[HttpVersion] = Field(
+        None,
+        description="HTTP version",
+        examples=["1.0", "1.1", "2", "3"],
+    )
     request_headers: Dict[str, str] = Field(
         default_factory=dict, description="HTTP request headers"
     )
     response_headers: Dict[str, str] = Field(
         default_factory=dict, description="HTTP response headers"
     )
-    body_size: Optional[int] = Field(None, description="HTTP body size")
-    method: Optional[str] = Field("GET", description="HTTP method")
+    body_size: Optional[int] = Field(None, ge=0, description="HTTP body size")
+    method: Optional[HttpMethod] = Field(
+        HttpMethod.GET,
+        description="HTTP method",
+        examples=["GET", "POST", "PUT", "DELETE"],
+    )
     path: Optional[str] = Field("/", description="HTTP path")
 
     # Connection parameters
     connection_timeout: Optional[int] = Field(
-        10000, description="Connection timeout in ms"
+        10000, ge=0, description="Connection timeout in ms"
     )
     keep_alive: Optional[bool] = Field(True, description="Enable keep-alive")
-    retry_count: Optional[int] = Field(3, description="Connection retry count")
+    retry_count: Optional[int] = Field(
+        3, ge=0, le=100, description="Connection retry count"
+    )
 
     # Performance parameters
-    congestion_control: Optional[str] = Field(
-        None, description="Congestion control algorithm"
+    congestion_control: Optional[CongestionControl] = Field(
+        None,
+        description="Congestion control algorithm",
+        examples=["reno", "cubic", "bbr", "bbr2"],
     )
     pacing: Optional[bool] = Field(True, description="Enable pacing")
+
+    @field_validator("method", mode="before")
+    @classmethod
+    def validate_method(cls, v):
+        """Convert string to HttpMethod enum."""
+        if isinstance(v, str):
+            try:
+                return HttpMethod(v.upper())
+            except ValueError:
+                valid = [e.value for e in HttpMethod]
+                raise ValueError(f"Invalid HTTP method '{v}'. Valid: {valid}")
+        return v
+
+    @field_validator("http_version", mode="before")
+    @classmethod
+    def validate_http_version(cls, v):
+        """Convert string to HttpVersion enum."""
+        if v is None:
+            return v
+        if isinstance(v, str):
+            try:
+                return HttpVersion(v)
+            except ValueError:
+                valid = [e.value for e in HttpVersion]
+                raise ValueError(f"Invalid HTTP version '{v}'. Valid: {valid}")
+        return v
+
+    @field_validator("verify_mode", mode="before")
+    @classmethod
+    def validate_verify_mode(cls, v):
+        """Convert string to TlsVerifyMode enum."""
+        if v is None:
+            return v
+        if isinstance(v, str):
+            try:
+                return TlsVerifyMode(v.lower())
+            except ValueError:
+                valid = [e.value for e in TlsVerifyMode]
+                raise ValueError(f"Invalid TLS verify mode '{v}'. Valid: {valid}")
+        return v
+
+    @field_validator("congestion_control", mode="before")
+    @classmethod
+    def validate_congestion_control(cls, v):
+        """Convert string to CongestionControl enum."""
+        if v is None:
+            return v
+        if isinstance(v, str):
+            try:
+                return CongestionControl(v.lower())
+            except ValueError:
+                valid = [e.value for e in CongestionControl]
+                raise ValueError(f"Invalid congestion control '{v}'. Valid: {valid}")
+        return v
 
     def get_default_parameters(self) -> Dict[str, Any]:
         """Get default parameters based on protocol."""
@@ -165,12 +278,18 @@ class PeerToPeerProtocolConfig(BaseProtocolConfig):
     # Discovery parameters
     enable_mdns: bool = Field(True, description="Enable mDNS discovery")
     enable_dht: bool = Field(True, description="Enable DHT")
-    discovery_interval: int = Field(30, description="Discovery interval in seconds")
+    discovery_interval: int = Field(
+        30, ge=1, le=86400, description="Discovery interval in seconds"
+    )
 
     # Connection parameters
-    max_peers: int = Field(50, description="Maximum number of peers")
-    connection_timeout: int = Field(30, description="Connection timeout in seconds")
-    ping_interval: int = Field(60, description="Ping interval in seconds")
+    max_peers: int = Field(50, ge=1, le=10000, description="Maximum number of peers")
+    connection_timeout: int = Field(
+        30, ge=1, le=3600, description="Connection timeout in seconds"
+    )
+    ping_interval: int = Field(
+        60, ge=1, le=86400, description="Ping interval in seconds"
+    )
 
     # Security parameters
     enable_encryption: bool = Field(True, description="Enable encryption")

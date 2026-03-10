@@ -1,17 +1,16 @@
-"""Standalone validation functions for direct use in PANTHER configuration code.
+"""Standalone field coercion functions for direct use in PANTHER configuration code.
 
-This module provides pure validation functions that accept a value and field name,
+This module provides pure validation/coercion functions that accept a value and field name,
 then return the validated/converted result or raise ``ValueError``. They are intended
 for imperative call-sites where you need to validate a single value outside of a
 Pydantic model context.
 
-Contrast with ``panther.config.core.validators.universal_validators``, which provides
-*factory functions* that return Pydantic-compatible validator callables (suitable for
-use with ``@field_validator`` or ``@validator`` decorators on Pydantic models).
+Contrast with ``panther.config.core.validators.pydantic_factories``, which provides
+*factory functions* that return Pydantic-compatible validator callables.
 
 Typical usage::
 
-    from panther.config.core.components.universal_validators import (
+    from panther.config.core.components.field_coercion import (
         validate_integer_field,
         validate_time_field,
         validate_enum_field,
@@ -20,13 +19,6 @@ Typical usage::
 
     port = validate_integer_field(raw_value, "port")
     timeout = validate_time_field(raw_value, "timeout")
-    level = validate_enum_field(raw_value, "level", ["debug", "info", "warning"])
-    enabled = validate_boolean_field(raw_value, "enabled")
-
-Each function:
-- Accepts flexible input types (str, int, float, etc.) and coerces them.
-- Logs warnings via the ``logging`` module when lossy conversions occur.
-- Raises ``ValueError`` with a descriptive message on invalid input.
 """
 
 import logging

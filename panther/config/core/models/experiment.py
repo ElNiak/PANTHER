@@ -15,18 +15,17 @@ class StepsConfig(BaseConfig):
     pre_commands: List[str] = Field(
         default_factory=list, description="Commands to run before test"
     )
-    wait: int = Field(60, description="Wait time in seconds")
+    wait: int = Field(
+        60,
+        ge=1,
+        le=86400,
+        description="Wait time between steps in seconds",
+        examples=[30, 60, 120, 300],
+        json_schema_extra={"unit": "seconds"},
+    )
     post_commands: List[str] = Field(
         default_factory=list, description="Commands to run after test"
     )
-
-    @field_validator("wait")
-    @classmethod
-    def validate_wait(cls, v):
-        """Validate wait time is positive."""
-        if v <= 0:
-            raise ValueError("Wait time must be positive")
-        return v
 
 
 class ExperimentMetadata(BaseConfig):
@@ -44,7 +43,12 @@ class ExperimentMetadata(BaseConfig):
 class TestConfig(BaseConfig):
     """Individual test configuration."""
 
-    name: str = Field(..., description="Test name")
+    name: str = Field(
+        ...,
+        min_length=1,
+        description="Test name",
+        examples=["quic-handshake", "http3-transfer"],
+    )
     description: Optional[str] = Field(None, description="Test description")
     network_environment: NetworkEnvironmentConfig = Field(
         ..., description="Network environment configuration"
@@ -56,8 +60,21 @@ class TestConfig(BaseConfig):
         ..., description="Service configurations"
     )
     steps: StepsConfig = Field(default_factory=StepsConfig, description="Test steps")
-    iterations: int = Field(1, description="Number of iterations")
-    timeout: Optional[int] = Field(None, description="Test timeout in seconds")
+    iterations: int = Field(
+        1,
+        ge=1,
+        le=1000,
+        description="Number of test iterations",
+        examples=[1, 5, 10],
+    )
+    timeout: Optional[int] = Field(
+        None,
+        ge=1,
+        le=86400,
+        description="Test timeout in seconds",
+        examples=[60, 120, 300],
+        json_schema_extra={"unit": "seconds"},
+    )
     fast_fail_enabled: Optional[bool] = Field(
         None, description="Override fast-fail for this test"
     )
@@ -65,22 +82,6 @@ class TestConfig(BaseConfig):
         False, description="Continue test on service failures"
     )
     collect_artifacts: bool = Field(True, description="Collect test artifacts")
-
-    @field_validator("iterations")
-    @classmethod
-    def validate_iterations(cls, v):
-        """Validate iterations is positive."""
-        if v <= 0:
-            raise ValueError("Iterations must be positive")
-        return v
-
-    @field_validator("timeout")
-    @classmethod
-    def validate_timeout(cls, v):
-        """Validate timeout is positive if set."""
-        if v is not None and v <= 0:
-            raise ValueError("Timeout must be positive")
-        return v
 
     @field_validator("services")
     @classmethod

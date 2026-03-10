@@ -1,8 +1,8 @@
-"""Tests for ServiceConfig after PR2 field merge."""
+"""Tests for ServiceConfig after PR2 field merge, plus enums, constraints, and metadata."""
 
 import pytest
 
-from panther.config.core.models.service import ServiceConfig
+from panther.config.core.models.service import RestartPolicy, ServiceConfig
 
 
 class TestServiceConfigMergedFields:
@@ -46,3 +46,70 @@ class TestOldClassesRemoved:
         from panther.config.core.models import plugin
 
         assert not hasattr(plugin, "BasePluginConfig")
+
+
+class TestRestartPolicyEnum:
+    def test_valid_values(self):
+        for val in ["no", "always", "on-failure", "unless-stopped"]:
+            assert RestartPolicy(val) == RestartPolicy(val)
+
+    def test_invalid_value(self):
+        with pytest.raises(ValueError):
+            RestartPolicy("invalid")
+
+    def test_service_config_accepts_string(self):
+        sc = ServiceConfig(
+            implementation={"name": "test", "type": "iut"},
+            protocol={"name": "quic", "role": "server"},
+            restart_policy="always",
+        )
+        # BaseConfig has use_enum_values=True, so the value is stored as a string
+        assert sc.restart_policy == RestartPolicy.ALWAYS.value
+
+    def test_service_config_default(self):
+        sc = ServiceConfig(
+            implementation={"name": "test", "type": "iut"},
+            protocol={"name": "quic", "role": "server"},
+        )
+        # BaseConfig has use_enum_values=True, so the value is stored as a string
+        assert sc.restart_policy == RestartPolicy.NO.value
+
+
+class TestServiceFieldConstraints:
+    def test_port_too_high(self):
+        with pytest.raises(Exception):
+            ServiceConfig(
+                implementation={"name": "test", "type": "iut"},
+                protocol={"name": "quic", "role": "server"},
+                network={"port": 99999},
+            )
+
+    def test_port_zero(self):
+        with pytest.raises(Exception):
+            ServiceConfig(
+                implementation={"name": "test", "type": "iut"},
+                protocol={"name": "quic", "role": "server"},
+                network={"port": 0},
+            )
+
+    def test_timeout_too_high(self):
+        with pytest.raises(Exception):
+            ServiceConfig(
+                implementation={"name": "test", "type": "iut"},
+                protocol={"name": "quic", "role": "server"},
+                timeout=100000,
+            )
+
+    def test_protocol_name_empty(self):
+        with pytest.raises(Exception):
+            ServiceConfig(
+                implementation={"name": "test", "type": "iut"},
+                protocol={"name": "", "role": "server"},
+            )
+
+    def test_impl_name_empty(self):
+        with pytest.raises(Exception):
+            ServiceConfig(
+                implementation={"name": "", "type": "iut"},
+                protocol={"name": "quic", "role": "server"},
+            )

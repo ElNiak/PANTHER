@@ -18,9 +18,20 @@ class EnvironmentConfig(BaseConfig):
         True, description="Enable background monitoring"
     )
     monitoring_interval_seconds: int = Field(
-        5, description="Monitoring interval in seconds"
+        5,
+        ge=1,
+        le=3600,
+        description="Monitoring interval in seconds",
+        examples=[5, 10, 30],
+        json_schema_extra={"unit": "seconds"},
     )
-    failure_threshold_count: int = Field(1, description="Failure threshold count")
+    failure_threshold_count: int = Field(
+        1,
+        ge=1,
+        le=100,
+        description="Failure threshold count",
+        examples=[1, 3, 5],
+    )
     allow_partial_deployment: bool = Field(
         False, description="Allow partial deployment"
     )

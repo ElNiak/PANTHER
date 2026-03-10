@@ -21,49 +21,49 @@ __all__ = [
 def __getattr__(name):  # pylint: disable=invalid-name
     """Lazy import implementation to avoid circular imports."""
     if name == "create_enum_validator":
-        from .universal_validators import (  # pylint: disable=import-outside-toplevel
+        from .pydantic_factories import (  # pylint: disable=import-outside-toplevel
             create_enum_validator,
         )
 
         return create_enum_validator
     elif name == "create_time_string_validator":
-        from .universal_validators import (  # pylint: disable=import-outside-toplevel
+        from .pydantic_factories import (  # pylint: disable=import-outside-toplevel
             create_time_string_validator,
         )
 
         return create_time_string_validator
     elif name == "create_case_insensitive_string_validator":
-        from .universal_validators import (  # pylint: disable=import-outside-toplevel
+        from .pydantic_factories import (  # pylint: disable=import-outside-toplevel
             create_case_insensitive_string_validator,
         )
 
         return create_case_insensitive_string_validator
     elif name == "create_type_conversion_validator":
-        from .universal_validators import (  # pylint: disable=import-outside-toplevel
+        from .pydantic_factories import (  # pylint: disable=import-outside-toplevel
             create_type_conversion_validator,
         )
 
         return create_type_conversion_validator
     elif name == "protocol_role_validator":
-        from .universal_validators import (  # pylint: disable=import-outside-toplevel
+        from .pydantic_factories import (  # pylint: disable=import-outside-toplevel
             protocol_role_validator,
         )
 
         return protocol_role_validator
     elif name == "implementation_type_validator":
-        from .universal_validators import (  # pylint: disable=import-outside-toplevel
+        from .pydantic_factories import (  # pylint: disable=import-outside-toplevel
             implementation_type_validator,
         )
 
         return implementation_type_validator
     elif name == "logging_level_validator":
-        from .universal_validators import (  # pylint: disable=import-outside-toplevel
+        from .pydantic_factories import (  # pylint: disable=import-outside-toplevel
             logging_level_validator,
         )
 
         return logging_level_validator
     elif name == "shadow_time_validator":
-        from .universal_validators import (  # pylint: disable=import-outside-toplevel
+        from .pydantic_factories import (  # pylint: disable=import-outside-toplevel
             shadow_time_validator,
         )
 
