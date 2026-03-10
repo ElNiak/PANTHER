@@ -1,8 +1,11 @@
 """WebObserver - Bridges PANTHER events to NiceGUI UI callbacks."""
 
+import logging
 from typing import Callable, List
 
 from panther.core.events.base.event_base import BaseEvent
+
+logger = logging.getLogger(__name__)
 from panther.core.observer.impl.gui_observer import GUIObserver
 
 
@@ -26,7 +29,11 @@ class WebObserver(GUIObserver):
             try:
                 cb(event)
             except Exception:
-                pass
+                logger.warning(
+                    "GUI subscriber callback failed for %s",
+                    type(event).__name__,
+                    exc_info=True,
+                )
 
     def update(self, subject) -> None:
         """Legacy compat - no-op."""

@@ -141,3 +141,37 @@ class TestFieldLevelValidation:
         assert err.path == "tests[0].name"
         assert err.message == "required"
         assert err.severity == "error"
+
+
+@pytest.mark.unit
+class TestConfigServiceSecurity:
+    def test_load_config_rejects_non_yaml(self):
+        from panther.webapp.services.config_service import ConfigService
+
+        svc = ConfigService()
+        with pytest.raises(ValueError, match="must be a YAML file"):
+            svc.load_config("/etc/passwd")
+
+    def test_save_config_rejects_non_yaml(self, tmp_path):
+        from panther.webapp.services.config_service import ConfigService
+
+        svc = ConfigService()
+        with pytest.raises(ValueError, match="must be a YAML file"):
+            svc.save_config(str(tmp_path / "evil.txt"), {"x": 1})
+
+    def test_load_config_accepts_yaml_extension(self, tmp_path):
+        from panther.webapp.services.config_service import ConfigService
+
+        cfg_file = tmp_path / "test.yaml"
+        cfg_file.write_text("logging:\n  level: DEBUG\ntests:\n  - name: t1\n")
+        svc = ConfigService()
+        data = svc.load_config(str(cfg_file))
+        assert data["logging"]["level"] == "DEBUG"
+
+    def test_save_config_accepts_yml_extension(self, tmp_path):
+        from panther.webapp.services.config_service import ConfigService
+
+        svc = ConfigService()
+        out = tmp_path / "out.yml"
+        svc.save_config(str(out), {"x": 1})
+        assert out.exists()

@@ -31,6 +31,7 @@ class ExperimentService:
         self._running = False
         self._stop_requested = False
         self._log_lines: list[str] = []
+        self._max_log_lines: int = 10000
         self._status: str = "Idle"
         self._config_path: str = ""
         self._log_callbacks: list[Callable[[str], None]] = []
@@ -78,11 +79,13 @@ class ExperimentService:
 
     def _emit_log(self, line: str):
         self._log_lines.append(line)
+        if len(self._log_lines) > self._max_log_lines:
+            self._log_lines = self._log_lines[-self._max_log_lines :]
         for cb in list(self._log_callbacks):
             try:
                 cb(line)
             except Exception:
-                pass
+                logger.warning("Log callback failed", exc_info=True)
 
     def _emit_status(self, s: str):
         self._status = s
@@ -90,7 +93,7 @@ class ExperimentService:
             try:
                 cb(s)
             except Exception:
-                pass
+                logger.warning("Status callback failed", exc_info=True)
 
     async def run_experiment(
         self,
@@ -115,7 +118,7 @@ class ExperimentService:
                     raise _StopRequested()
 
             try:
-                from omegaconf import OmegaConf
+                import yaml as _yaml
 
                 from panther.config import GlobalConfig, load_experiment
                 from panther.core.experiment_manager import ExperimentManager
@@ -128,8 +131,10 @@ class ExperimentService:
                 )
 
                 # 2. Load raw YAML for global settings
-                raw = OmegaConf.load(config_path)
-                config_dict = OmegaConf.to_container(raw, resolve=True)
+                with open(config_path) as f:
+                    config_dict = _yaml.safe_load(f)
+                if not isinstance(config_dict, dict):
+                    config_dict = {}
 
                 # 3. Build GlobalConfig from YAML sections (matching CLI pattern)
                 global_config = GlobalConfig(

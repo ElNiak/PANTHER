@@ -1,12 +1,25 @@
 """Service layer for configuration validation and YAML generation."""
 
+import copy
 import logging
+from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
 import yaml
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class FieldError:
+    """Validation error with location and severity."""
+
+    path: str
+    message: str
+    severity: str = "error"  # "error" | "warning"
+
 
 # Resolve default config relative to project root (where pyproject.toml lives)
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -20,6 +33,14 @@ _DEFAULT_CONFIG_CANDIDATES = [
     / "base"
     / "experiment_config_example_minimal.yaml",
 ]
+
+
+def _validate_config_path(path_str) -> Path:
+    """Sanitize config path: resolve traversal and ensure YAML extension."""
+    resolved = Path(str(path_str)).resolve()
+    if resolved.suffix.lower() not in (".yaml", ".yml"):
+        raise ValueError(f"Path '{path_str}' must be a YAML file (.yaml/.yml)")
+    return resolved
 
 
 class ConfigService:
@@ -78,3 +99,132 @@ class ConfigService:
     def dict_to_yaml(self, data: dict) -> str:
         """Convert a dict to YAML string."""
         return yaml.dump(data, default_flow_style=False, sort_keys=False)
+
+    def load_config(self, path) -> dict:
+        """Load and parse a YAML config file. Validates path for traversal."""
+        p = _validate_config_path(path)
+        if not p.exists():
+            raise FileNotFoundError(f"Config file not found: {path}")
+        try:
+            data = yaml.safe_load(p.read_text())
+        except yaml.YAMLError as e:
+            raise ValueError(f"Invalid YAML: {e}") from e
+        if not isinstance(data, dict):
+            raise ValueError("Config must be a YAML mapping")
+        return data
+
+    def save_config(self, path, data: dict) -> None:
+        """Save a config dict to a YAML file. Validates path for traversal."""
+        p = _validate_config_path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(yaml.dump(data, default_flow_style=False, sort_keys=False))
+
+    def list_configs(self, directory=None) -> list[dict]:
+        """List YAML config files in a directory.
+
+        Returns [{name, path, modified}]. Defaults to experiment-config/base/.
+        """
+        if directory is None:
+            directory = _PROJECT_ROOT / "experiment-config" / "base"
+        d = Path(directory)
+        if not d.exists():
+            return []
+        results = []
+        for f in sorted(d.iterdir()):
+            if f.is_file() and f.suffix in (".yaml", ".yml"):
+                results.append(
+                    {
+                        "name": f.name,
+                        "path": str(f),
+                        "modified": datetime.fromtimestamp(f.stat().st_mtime),
+                    }
+                )
+        return results
+
+    def validate_config_detailed(self, data: dict) -> list["FieldError"]:
+        """Field-level validation against Pydantic models.
+
+        Returns list of FieldError with path/message/severity.
+        """
+        errors: list[FieldError] = []
+
+        if "tests" not in data:
+            errors.append(
+                FieldError(path="tests", message="'tests' section is required")
+            )
+            return errors
+
+        tests = data.get("tests")
+        if not isinstance(tests, list) or len(tests) == 0:
+            errors.append(
+                FieldError(
+                    path="tests",
+                    message="'tests' must be a non-empty list",
+                    severity="warning",
+                )
+            )
+
+        logging_data = data.get("logging")
+        if logging_data and isinstance(logging_data, dict):
+            try:
+                from panther.config.core.models import GlobalConfig
+
+                GlobalConfig(logging=logging_data)
+            except Exception as e:
+                for err_line in str(e).splitlines()[:5]:
+                    errors.append(FieldError(path="logging", message=err_line.strip()))
+
+        return errors
+
+    def merge_configs(self, base: dict, overlay: dict) -> dict:
+        """Deep merge overlay into base (overlay wins on conflicts)."""
+        return self._deep_merge(base, overlay)
+
+    def resolve_interpolations(self, data: dict) -> dict:
+        """Resolve ${section.key} interpolations in config values."""
+        import re
+
+        result = copy.deepcopy(data)
+        pattern = re.compile(r"\$\{([^}]+)\}")
+
+        def _lookup(keys_str, root):
+            node = root
+            for k in keys_str.split("."):
+                if isinstance(node, dict) and k in node:
+                    node = node[k]
+                else:
+                    return None
+            return node if not isinstance(node, dict) else None
+
+        def _resolve(value, root):
+            if isinstance(value, str):
+                return pattern.sub(
+                    lambda m: (
+                        str(v)
+                        if (v := _lookup(m.group(1), root)) is not None
+                        else m.group(0)
+                    ),
+                    value,
+                )
+            elif isinstance(value, dict):
+                return {k: _resolve(v, root) for k, v in value.items()}
+            elif isinstance(value, list):
+                return [_resolve(v, root) for v in value]
+            return value
+
+        return _resolve(result, result)
+
+    @staticmethod
+    def _deep_merge(base: dict, overlay: dict) -> dict:
+        """Recursively merge overlay into a copy of base."""
+        result = copy.deepcopy(base)
+        for key, value in overlay.items():
+            if (
+                key in result
+                and isinstance(result[key], dict)
+                and isinstance(value, dict)
+            ):
+                result[key] = ConfigService._deep_merge(result[key], value)
+            else:
+                result[key] = copy.deepcopy(value)
+        return result

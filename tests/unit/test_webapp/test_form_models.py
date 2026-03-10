@@ -550,6 +550,20 @@ class TestPopulateFormsFromDict:
             cruds, {"unknown_section": {"foo": "bar"}, "another": 123}
         )
 
+    def test_clean_annotation_optional_basemodel(self):
+        """Cleaning Optional[SomeModel] should return Optional[cleaned], not Union[(model,)]."""
+        from panther.webapp.utils.form_models import build_form_model
+
+        class Inner(BaseModel):
+            name: str  # required field -> will be cleaned
+
+        class Outer(BaseModel):
+            child: Optional[Inner] = None
+
+        FormModel = build_form_model(Outer)
+        instance = FormModel()
+        assert instance.child is None
+
     def test_tests_with_non_dict_entries_skipped(self):
         from panther.webapp.pages.config_builder import _populate_forms_from_dict
 

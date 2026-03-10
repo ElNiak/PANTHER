@@ -89,8 +89,18 @@ class KeyValueEditor:
             self._refresh()
 
     def get_value(self) -> dict[str, str]:
-        """Return current data as a dict (skips empty keys)."""
-        return {r["key"]: r["value"] for r in self._rows if r["key"]}
+        """Return current data as a dict (skips empty keys, warns on duplicates)."""
+        seen: dict[str, str] = {}
+        for r in self._rows:
+            if r["key"]:
+                if r["key"] in seen:
+                    logger.warning(
+                        "Duplicate key '%s' in %s — last value wins",
+                        r["key"],
+                        self.field_name,
+                    )
+                seen[r["key"]] = r["value"]
+        return seen
 
     def set_value(self, data: dict):
         """Load data from a dict."""
@@ -123,7 +133,9 @@ class KeyedModelEditor:
                     try:
                         self._entries[k] = self.FormModel(**v)
                     except Exception:
-                        logger.debug("Failed to parse %s entry %s", field_name, k)
+                        logger.warning(
+                            "Failed to parse %s entry %s", field_name, k, exc_info=True
+                        )
                 elif isinstance(v, BaseModel):
                     self._entries[k] = v
 
@@ -244,7 +256,7 @@ class KeyedModelEditor:
                 try:
                     self._entries[k] = self.FormModel(**v)
                 except Exception:
-                    logger.debug("Failed to parse entry %s", k)
+                    logger.warning("Failed to parse entry %s", k, exc_info=True)
         self._refresh()
 
 
@@ -273,7 +285,9 @@ class ModelListEditor:
                     try:
                         basemodels.append(self.FormModel(**item))
                     except Exception:
-                        logger.debug("Failed to parse %s list item", field_name)
+                        logger.warning(
+                            "Failed to parse %s list item", field_name, exc_info=True
+                        )
                 elif isinstance(item, BaseModel):
                     basemodels.append(item)
 
@@ -301,7 +315,11 @@ class ModelListEditor:
                 try:
                     models.append(self.FormModel(**item))
                 except Exception:
-                    logger.debug("Failed to parse list item for %s", self.field_name)
+                    logger.warning(
+                        "Failed to parse list item for %s",
+                        self.field_name,
+                        exc_info=True,
+                    )
         self.crud.basemodels = models
 
 

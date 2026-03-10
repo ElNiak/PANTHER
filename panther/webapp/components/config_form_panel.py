@@ -54,7 +54,6 @@ def config_form_panel(
     with ui.expansion(title, icon=icon).classes("w-full"):
         if description:
             ui.label(description).classes("text-caption text-grey-7 q-mb-sm")
-        _render_field_help(model_cls)
 
         if singleton:
             # Inline form — no table, no search, no add/delete buttons
@@ -79,16 +78,25 @@ def config_form_panel(
             for field_name, info in complex_fields.items():
                 widgets[field_name] = create_widget_for_field(field_name, info)
 
+        # Field help — after widgets so we can include complex field descriptions
+        _render_field_help(FormModel, complex_fields)
+
     return FormPanelResult(crud=crud, widgets=widgets)
 
 
-def _render_field_help(model_cls: type[BaseModel]):
+def _render_field_help(form_model: type[BaseModel], complex_fields: dict | None = None):
     """Render collapsible field descriptions from Pydantic Field metadata."""
     descriptions = {}
-    for name, field_info in model_cls.model_fields.items():
+    for name, field_info in form_model.model_fields.items():
         desc = field_info.description
         if desc:
             descriptions[name] = desc
+
+    # Include complex field descriptions (rendered by widgets, not NiceCRUD)
+    if complex_fields:
+        for name, info in complex_fields.items():
+            if info.description:
+                descriptions[name] = f"{info.description} (custom widget)"
 
     if not descriptions:
         return

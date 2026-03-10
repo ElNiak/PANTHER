@@ -291,10 +291,16 @@ def _clean_annotation(annotation):
     """Recursively create form-safe versions of nested model annotations."""
     origin = get_origin(annotation)
 
-    if origin in (Optional, Union):
+    if origin is Union:
         args = get_args(annotation)
         cleaned = tuple(_clean_annotation(a) for a in args)
-        return Union[cleaned]  # type: ignore[valid-type]
+        # Single non-None member: return Optional[T] (e.g., Optional unwrap)
+        non_none = [a for a in cleaned if a is not type(None)]
+        if len(non_none) == 1 and type(None) in cleaned:
+            return Optional[non_none[0]]
+        if len(cleaned) == 1:
+            return cleaned[0]
+        return Union[tuple(cleaned)]  # type: ignore[valid-type]
 
     if isinstance(annotation, type) and issubclass(annotation, BaseModel):
         # Create form-safe version for any BaseModel with required fields

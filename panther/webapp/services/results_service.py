@@ -7,6 +7,16 @@ from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
+_MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+
+
+def _read_text_bounded(path: Path, max_bytes: int = _MAX_FILE_SIZE) -> str:
+    """Read text file with size limit to prevent OOM."""
+    if path.stat().st_size > max_bytes:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            return f.read(max_bytes)
+    return path.read_text(encoding="utf-8", errors="replace")
+
 
 class ResultsService:
     """Scans the outputs directory for past experiment results."""
@@ -14,6 +24,7 @@ class ResultsService:
     def __init__(self, output_dir: str = "outputs"):
         """Initialize with the root outputs directory path."""
         self.output_dir = Path(output_dir)
+        self._summary_cache: dict[str, dict] = {}
 
     def count_experiments(self) -> int:
         """Count the number of experiment result directories."""
@@ -136,7 +147,7 @@ class ResultsService:
             logs = list(exp_dir.glob(pattern))
             if logs:
                 try:
-                    lines = logs[0].read_text().splitlines()
+                    lines = _read_text_bounded(logs[0]).splitlines()
                     return lines[-tail:]
                 except OSError:
                     pass
@@ -153,7 +164,7 @@ class ResultsService:
             report = exp_dir / name
             if report.exists():
                 try:
-                    return report.read_text()
+                    return _read_text_bounded(report)
                 except OSError:
                     pass
         return None
@@ -167,13 +178,18 @@ class ResultsService:
         return artifacts
 
     def get_experiment_summary(self, experiment_path: str) -> Optional[dict]:
-        """Parse ExperimentSummary using core StatusCollector."""
+        """Parse ExperimentSummary using core StatusCollector (cached)."""
+        if experiment_path in self._summary_cache:
+            return self._summary_cache[experiment_path]
+
         from panther.core.reporting.status_collector import StatusCollector
 
         try:
             collector = StatusCollector(Path(experiment_path))
             summary = collector.collect_experiment_summary()
-            return summary.to_dict()
+            result = summary.to_dict()
+            self._summary_cache[experiment_path] = result
+            return result
         except Exception as e:
             logger.warning("Failed to collect experiment summary: %s", e)
             return None

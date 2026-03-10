@@ -60,7 +60,9 @@ def _discover_config_class(plugin_name: str) -> type[BaseModel] | None:
             _CONFIG_CLASS_CACHE[plugin_name] = config_class
             return config_class
     except Exception:
-        logger.debug("Failed to look up plugin %s in schema registry", plugin_name)
+        logger.warning(
+            "Failed to look up plugin %s in schema registry", plugin_name, exc_info=True
+        )
 
     return None
 
@@ -122,7 +124,9 @@ def get_plugin_form_info(plugin_name: str) -> PluginFormInfo | None:
             description = getattr(manifest, "description", "")
             protocols = getattr(manifest, "supported_protocols", [])
     except Exception:
-        pass
+        logger.warning(
+            "Failed to load plugin metadata for %s", plugin_name, exc_info=True
+        )
 
     return PluginFormInfo(
         plugin_name=plugin_name,
@@ -166,7 +170,7 @@ def list_available_plugins(plugin_type: str | None = None) -> list[dict[str, str
             )
         return results
     except Exception:
-        logger.debug("Failed to list plugins", exc_info=True)
+        logger.warning("Failed to list plugins", exc_info=True)
         return []
 
 
@@ -181,6 +185,7 @@ def get_protocol_choices() -> list[str]:
                 protocols.add(p)
         return sorted(protocols)
     except Exception:
+        logger.warning("Failed to get protocol choices", exc_info=True)
         return []
 
 
@@ -205,4 +210,5 @@ def get_implementation_choices(protocol: str | None = None) -> list[str]:
             names.append(manifest.name)
         return sorted(names)
     except Exception:
+        logger.warning("Failed to get implementation choices", exc_info=True)
         return []
