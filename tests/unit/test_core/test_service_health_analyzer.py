@@ -92,6 +92,15 @@ class TestServiceHealth:
         )
         assert h.output_completeness == 0.0
 
+    def test_failed_on_compilation_failure(self):
+        h = ServiceHealth(
+            service_name="svc",
+            service_type="tester",
+            phases_completed={"compile": True, "runtime": True},
+            compilation_succeeded=False,
+        )
+        assert h.status == "failed"
+
     def test_to_dict_includes_derived_fields(self):
         h = ServiceHealth(
             service_name="svc",
@@ -204,6 +213,52 @@ class TestServiceHealthAnalyzer:
         assert results[0].service_name == "server"
         assert results[1].service_name == "client"
 
+    def test_compilation_failure_from_stdout_exit_code(self, analyzer, service_log_dir):
+        """Detect compilation failure from exit code in stdout.log."""
+        (service_log_dir / "compile" / "stderr.log").write_text(
+            "++ cd /some/path\n++ echo /usr/bin\n"
+        )
+        (service_log_dir / "compile" / "stdout.log").write_text(
+            "[2026-03-09 18:08:33] Command 23 completed with exit code: 0\n"
+            "[2026-03-09 18:08:46] Command 24 completed with exit code: 1\n"
+        )
+        result = analyzer.analyze_service("svc", "tester", service_log_dir)
+        assert result.compilation_succeeded is False
+
+    def test_compilation_failure_from_status_file(self, analyzer, service_log_dir):
+        """Detect compilation failure from compilation_status.txt."""
+        (service_log_dir / "compile" / "stderr.log").write_text("")
+        (service_log_dir / "compile" / "stdout.log").write_text("ok")
+        (service_log_dir / "compile" / "compilation_status.txt").write_text(
+            "Compilation failed with code 1"
+        )
+        result = analyzer.analyze_service("svc", "tester", service_log_dir)
+        assert result.compilation_succeeded is False
+
+    def test_compilation_success_from_status_file(self, analyzer, service_log_dir):
+        """Confirm compilation success from compilation_status.txt."""
+        (service_log_dir / "compile" / "stderr.log").write_text("")
+        (service_log_dir / "compile" / "stdout.log").write_text("ok")
+        (service_log_dir / "compile" / "compilation_status.txt").write_text(
+            "Compilation succeeded"
+        )
+        result = analyzer.analyze_service("svc", "tester", service_log_dir)
+        assert result.compilation_succeeded is True
+
+    def test_compilation_failure_no_stderr_errors_but_exit_code(
+        self, analyzer, service_log_dir
+    ):
+        """Even if stderr has no known error patterns, nonzero exit code = failure."""
+        (service_log_dir / "compile" / "stderr.log").write_text(
+            "++ some bash trace output\n++ more trace\n"
+        )
+        (service_log_dir / "compile" / "stdout.log").write_text(
+            "[2026-03-09 18:08:46] Command 24 completed with exit code: 1\n"
+        )
+        result = analyzer.analyze_service("svc", "tester", service_log_dir)
+        assert result.compilation_succeeded is False
+        assert result.status == "failed"
+
     def test_healthy_service_full(self, analyzer, service_log_dir):
         """A service with runtime output and no errors is healthy."""
         (service_log_dir / "compile" / "stdout.log").write_text("Build successful")
@@ -214,3 +269,58 @@ class TestServiceHealthAnalyzer:
         assert result.compilation_succeeded
         assert result.exit_code is None
         assert not result.crashed
+
+
+class TestServiceHealthDeduplication:
+    """Tests for deduplication of service health entries."""
+
+    def test_dedup_keeps_result_with_most_data(self):
+        from panther.core.outputs.service_health_analyzer import ServiceHealth
+
+        # Simulate two results for the same service from different environments
+        empty_result = ServiceHealth(
+            service_name="ivy_client",
+            service_type="tester",
+            phases_completed={},
+            log_size_bytes=0,
+        )
+        real_result = ServiceHealth(
+            service_name="ivy_client",
+            service_type="tester",
+            phases_completed={"compile": True, "runtime": True},
+            log_size_bytes=283233,
+            compilation_succeeded=False,
+        )
+
+        # Dedup function should keep the one with more data
+        results = [empty_result, real_result]
+        seen = {}
+        for h in results:
+            if (
+                h.service_name not in seen
+                or h.log_size_bytes > seen[h.service_name].log_size_bytes
+            ):
+                seen[h.service_name] = h
+        deduplicated = list(seen.values())
+
+        assert len(deduplicated) == 1
+        assert deduplicated[0].log_size_bytes == 283233
+        assert deduplicated[0].compilation_succeeded is False
+
+    def test_dedup_two_different_services_kept(self):
+        from panther.core.outputs.service_health_analyzer import ServiceHealth
+
+        h1 = ServiceHealth(service_name="ivy_client", service_type="tester")
+        h2 = ServiceHealth(service_name="picoquic_server", service_type="iut")
+
+        results = [h1, h2]
+        seen = {}
+        for h in results:
+            if (
+                h.service_name not in seen
+                or h.log_size_bytes > seen[h.service_name].log_size_bytes
+            ):
+                seen[h.service_name] = h
+        deduplicated = list(seen.values())
+
+        assert len(deduplicated) == 2
