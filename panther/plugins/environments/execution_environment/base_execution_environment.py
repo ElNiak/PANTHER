@@ -1,5 +1,4 @@
-"""
-Base execution environment class that eliminates code duplication across execution environment plugins.
+"""Base execution environment class that eliminates code duplication across execution environment plugins.
 
 This module provides a standardized base class that combines all common mixins and interfaces,
 implements boilerplate methods, and defines the template for execution environment plugins.
@@ -36,9 +35,7 @@ class BaseExecutionEnvironment(
     StringRepresentationMixin,
     ABC,
 ):
-    """
-
-    Base class for all execution environment plugins.
+    """Base class for all execution environment plugins.
 
     This class eliminates code duplication by providing common implementations
     of boilerplate methods and standardizing the plugin structure.
@@ -64,8 +61,7 @@ class BaseExecutionEnvironment(
         env_sub_type: str,
         event_manager: EventManager,
     ):
-        """
-        Initialize the base execution environment.
+        """Initialize the base execution environment.
 
         Args:
             env_config_to_test: Configuration specific to the environment
@@ -89,8 +85,7 @@ class BaseExecutionEnvironment(
         event_manager: EventManager,
         global_config: GlobalConfig,
     ):
-        """
-        Initialize the execution environment with configuration settings.
+        """Initialize the execution environment with configuration settings.
 
         Args:
             test_config: Test configuration to use for this environment
@@ -107,85 +102,12 @@ class BaseExecutionEnvironment(
 
     # --- Plugin config helpers ---
 
-    _config_class: type = None  # Subclasses set this to their config class
-    _cached_plugin_config: Any = None
-
-    def _get_plugin_config(self):
-        """
-        Get the plugin-specific config from env_config_to_test, with caching.
-
-        Uses self._config_class (set by subclasses) to retrieve the
-        correct typed config via env_config_to_test.get_plugin_config().
-        Falls back to a default instance of _config_class if retrieval fails.
-
-        Returns:
-            Plugin-specific configuration object, or None if _config_class
-            is not set.
-        """
-        if self._cached_plugin_config is not None:
-            return self._cached_plugin_config
-
-        config_class = self._config_class
-        if config_class is None:
-            return None
-
-        try:
-            self._cached_plugin_config = self.env_config_to_test.get_plugin_config(
-                config_class
-            )
-        except Exception as e:
-            self.logger.debug(
-                "Could not get plugin config for %s, using defaults: %s",
-                config_class.__name__,
-                e,
-            )
-            self._cached_plugin_config = config_class()
-
-        return self._cached_plugin_config
-
     def _get_config_value(self, field_name: str, default: Any = None) -> Any:
-        """
-        Get a configuration value with dual-lookup: plugin_config dict first,
-        then typed plugin config, then env_config_to_test fallback.
-
-        This implements the common "dual approach" pattern used across
-        execution environment plugins to retrieve config values.
-
-        Args:
-            field_name: Name of the config field to retrieve
-            default: Default value if field not found in any config source
-
-        Returns:
-            Config value from plugin_config dict, typed config, env config,
-            or the provided default.
-        """
-        # First try plugin_config dict on env_config_to_test
-        if (
-            hasattr(self.env_config_to_test, "plugin_config")
-            and self.env_config_to_test.plugin_config
-        ):
-            value = self.env_config_to_test.plugin_config.get(field_name)
-            if value is not None:
-                return value
-
-        # Second try typed plugin config
-        plugin_config = self._get_plugin_config()
-        if plugin_config and hasattr(plugin_config, field_name):
-            value = getattr(plugin_config, field_name)
-            if value is not None:
-                return value
-
-        # Fallback to env_config_to_test attributes
-        if hasattr(self.env_config_to_test, field_name):
-            value = getattr(self.env_config_to_test, field_name)
-            if value is not None:
-                return value
-
-        return default
+        """Get a config value directly from env_config_to_test."""
+        return getattr(self.env_config_to_test, field_name, default)
 
     def _do_deploy_services(self):
-        """
-        Implementation of service deployment.
+        """Implementation of service deployment.
 
         For execution environments, deployment is typically handled
         by the network environment, so this is usually a no-op.
@@ -195,14 +117,11 @@ class BaseExecutionEnvironment(
         )
 
     def _do_teardown_environment(self):
-        """
-        Implementation of environment teardown.
-        """
+        """Implementation of environment teardown."""
         self.logger.debug(f"{self.__class__.__name__} teardown: cleaning up resources")
 
     def handle_event(self, event):
-        """
-        Handle events sent to this execution environment.
+        """Handle events sent to this execution environment.
 
         Args:
             event: The event to handle
@@ -228,8 +147,7 @@ class BaseExecutionEnvironment(
         timestamp: str,
         plugin_manager: "PluginManager",
     ):
-        """
-        Default implementation of environment setup.
+        """Default implementation of environment setup.
 
         This method provides common setup patterns and can be extended by subclasses.
 
@@ -267,8 +185,7 @@ class BaseExecutionEnvironment(
         )
 
     def get_output_patterns(self) -> List[Tuple[str, str]]:
-        """
-        Get output patterns specific to this execution environment.
+        """Get output patterns specific to this execution environment.
 
         Override this method in subclasses to provide custom patterns.
 
@@ -283,8 +200,7 @@ class BaseExecutionEnvironment(
         ]
 
     def get_additional_output_discovery_patterns(self) -> Dict[str, List[str]]:
-        """
-        Get additional patterns for discovering outputs.
+        """Get additional patterns for discovering outputs.
 
         Override this in subclasses to provide custom discovery patterns.
 
@@ -297,8 +213,7 @@ class BaseExecutionEnvironment(
     def _setup_plugin_specific_environment(
         self, services_managers: List[IServiceManager], timestamp: str
     ):
-        """
-        Plugin-specific environment setup logic.
+        """Plugin-specific environment setup logic.
 
         This method must be implemented by each plugin to provide its specific
         environment configuration and service modifications.
@@ -313,8 +228,7 @@ class BaseExecutionEnvironment(
 
     @abstractmethod
     def to_command(self, *args, **kwargs) -> str:
-        """
-        Generate the environment-specific command.
+        """Generate the environment-specific command.
 
         This method must be implemented by each plugin to provide its specific
         command generation logic.

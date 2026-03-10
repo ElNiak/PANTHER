@@ -1,58 +1,94 @@
 """NiceCRUD panel wrapper for PANTHER config models."""
 
-from typing import Callable, Optional
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any, Optional
 
 from nicegui import ui
 from niceguicrud import NiceCRUD, NiceCRUDConfig
 from pydantic import BaseModel
 
-from panther.webapp.utils.form_models import strip_omega_config
+from panther.webapp.components.dict_list_widgets import create_widget_for_field
+from panther.webapp.components.singleton_crud import SingletonForm
+from panther.webapp.utils.form_models import (
+    build_form_model,
+    get_complex_fields,
+    pick_id_field,
+)
+
+
+@dataclass
+class FormPanelResult:
+    """Result from ``config_form_panel`` — holds NiceCRUD + custom widgets."""
+
+    crud: Any  # NiceCRUD or SingletonForm
+    widgets: dict[str, Any] = field(default_factory=dict)
 
 
 def config_form_panel(
     model_cls: type[BaseModel],
-    id_field: str,
     title: str,
     icon: str = "settings",
     description: str = "",
-    on_change: Optional[Callable[[dict], None]] = None,
-) -> NiceCRUD:
-    """Render a NiceCRUD instance inside a ui.expansion panel.
+    pre_populate: bool = True,
+    id_field: Optional[str] = None,
+    singleton: bool = False,
+) -> FormPanelResult:
+    """Render a NiceCRUD instance + custom widgets inside a ui.expansion panel.
 
     Args:
-        model_cls: Pydantic model class (will be auto-stripped of omega_config).
-        id_field: Primary key field for NiceCRUD.
+        model_cls: Pydantic model class (will be auto-cleaned for NiceCRUD).
         title: Expansion panel title.
         icon: Material icon name.
         description: Help text shown above the form.
-        on_change: Optional callback when form data changes.
+        pre_populate: Start with one default instance so users edit instead of adding.
+        id_field: Primary key field for NiceCRUD (auto-detected if None).
+        singleton: Use SingletonCRUD (no add/delete buttons) for single-instance configs.
     """
-    FormModel = strip_omega_config(model_cls)
+    FormModel = build_form_model(model_cls)
+    resolved_id = id_field or pick_id_field(model_cls)
+
+    widgets: dict[str, Any] = {}
+
     with ui.expansion(title, icon=icon).classes("w-full"):
         if description:
             ui.label(description).classes("text-caption text-grey-7 q-mb-sm")
         _render_field_help(model_cls)
-        crud = NiceCRUD(FormModel, config=NiceCRUDConfig(id_field=id_field))
-    return crud
+
+        if singleton:
+            # Inline form — no table, no search, no add/delete buttons
+            instance = FormModel()
+            crud = SingletonForm(
+                FormModel,
+                instance=instance,
+                config=NiceCRUDConfig(id_field=resolved_id),
+            )
+        else:
+            basemodels = [FormModel()] if pre_populate else []
+            crud = NiceCRUD(
+                FormModel,
+                basemodels=basemodels,
+                config=NiceCRUDConfig(id_field=resolved_id),
+            )
+
+        # Render custom widgets for Dict/List fields below the NiceCRUD form
+        complex_fields = get_complex_fields(model_cls)
+        if complex_fields:
+            ui.separator().classes("q-my-sm")
+            for field_name, info in complex_fields.items():
+                widgets[field_name] = create_widget_for_field(field_name, info)
+
+    return FormPanelResult(crud=crud, widgets=widgets)
 
 
 def _render_field_help(model_cls: type[BaseModel]):
     """Render collapsible field descriptions from Pydantic Field metadata."""
     descriptions = {}
     for name, field_info in model_cls.model_fields.items():
-        if name == "omega_config":
-            continue
         desc = field_info.description
         if desc:
             descriptions[name] = desc
-        # Also check nested models for flattened field descriptions
-        annotation = field_info.annotation
-        if isinstance(annotation, type) and issubclass(annotation, BaseModel):
-            for sub_name, sub_info in annotation.model_fields.items():
-                if sub_name == "omega_config":
-                    continue
-                if sub_info.description:
-                    descriptions[f"{name}.{sub_name}"] = sub_info.description
 
     if not descriptions:
         return

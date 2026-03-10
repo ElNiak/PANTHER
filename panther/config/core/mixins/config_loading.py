@@ -1,10 +1,9 @@
 """Configuration loading mixin for ConfigurationManager."""
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, Union
 
 import yaml
-from omegaconf import DictConfig, OmegaConf
 
 from panther.core.utils.logging_mixin import LoggerMixin
 
@@ -353,6 +352,82 @@ class ConfigLoadingMixin(LoggerMixin):
         self.current_global_config = global_config
 
         return global_config
+
+    def load_full_config(
+        self,
+        yaml_path: str,
+        cli_overrides: Optional[Dict[str, Any]] = None,
+    ) -> Tuple["GlobalConfig", "ExperimentConfig"]:
+        """Single entry point: YAML -> split global/experiment -> validate -> return.
+
+        Pipeline:
+        1. Load YAML via yaml.safe_load
+        2. Split into global sections (GlobalConfig fields) vs test sections
+        3. Apply cli_overrides with CLI > YAML > defaults precedence
+        4. Build GlobalConfig via GlobalConfigBuilder
+        5. Build ExperimentConfig via ExperimentBuilder
+        6. Return (GlobalConfig, ExperimentConfig)
+
+        Args:
+            yaml_path: Path to the experiment YAML file.
+            cli_overrides: Optional dot-notation overrides (CLI > YAML > defaults).
+
+        Returns:
+            Tuple of (GlobalConfig, ExperimentConfig).
+
+        Raises:
+            FileNotFoundError: If yaml_path does not exist.
+            ValueError: If validation fails.
+        """
+        from ..components.builders import ExperimentBuilder, GlobalConfigBuilder
+        from ..models.global_config import GlobalConfig
+
+        source_path = Path(yaml_path)
+        if not source_path.exists():
+            raise FileNotFoundError(f"Configuration file not found: {source_path}")
+
+        # 1. Load raw YAML
+        with open(source_path, "r") as f:
+            raw_config = yaml.safe_load(f) or {}
+
+        # 2. Split global vs experiment sections
+        global_field_names = set(GlobalConfig.model_fields.keys())
+        global_sections = {}
+        experiment_sections = {}
+
+        for key, value in raw_config.items():
+            if key in global_field_names:
+                global_sections[key] = value
+            else:
+                experiment_sections[key] = value
+
+        # 3. Apply CLI overrides (dot-notation keys)
+        if cli_overrides:
+            from ..utils.merge import dot_notation_update
+
+            for dot_key, value in cli_overrides.items():
+                # Determine which section owns this key
+                top_key = dot_key.split(".")[0]
+                if top_key in global_field_names:
+                    dot_notation_update(global_sections, dot_key, value)
+                else:
+                    dot_notation_update(experiment_sections, dot_key, value)
+
+        # 4. Build GlobalConfig
+        global_builder = GlobalConfigBuilder()
+        global_config = global_builder.build(global_sections, resolve_env=True)
+
+        # 5. Build ExperimentConfig
+        experiment_builder = ExperimentBuilder(
+            plugin_dir=getattr(self, "panther_dir", None)
+        )
+        experiment_config = experiment_builder.build(experiment_sections, auto_fix=True)
+
+        # Store references
+        self.current_global_config = global_config
+        self.current_experiment_config = experiment_config
+
+        return global_config, experiment_config
 
     def reload_configuration(self) -> "ExperimentConfig":
         """Reload configuration with hot-reload support.

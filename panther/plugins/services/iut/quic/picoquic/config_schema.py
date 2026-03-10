@@ -1,13 +1,16 @@
-import logging
-import os
-from pathlib import Path
-from typing import Dict, List, Optional
+"""Picoquic QUIC plugin configuration schema."""
 
-from omegaconf import OmegaConf
-from pydantic import BaseModel, Field
+from typing import ClassVar, Optional
 
-from panther.config.core.models.plugin import ServicePluginConfig
-from panther.config.core.models.service import ImplementationType, VersionBase
+from pydantic import Field
+
+from panther.config.core.models.service import (
+    ImplementationConfig,
+    ImplementationType,
+    ProtocolConfig,
+    ServiceConfig,
+    VersionBase,
+)
 
 
 class PicoquicVersion(VersionBase):
@@ -22,13 +25,6 @@ class PicoquicVersion(VersionBase):
         dependencies: Build-time dependency specifications.
     """
 
-    # Provide defaults for required base fields
-    version: str = Field(default="", description="Version string")
-    commit: str = Field(default="", description="Git commit hash")
-    dependencies: List[Dict[str, str]] = Field(
-        default_factory=list, description="List of dependencies"
-    )
-
     # Additional fields beyond VersionBase
     client: Optional[dict] = Field(
         default_factory=dict, description="Client-specific configuration"
@@ -38,7 +34,7 @@ class PicoquicVersion(VersionBase):
     )
 
 
-class PicoquicConfig(ServicePluginConfig):
+class PicoquicConfig(ServiceConfig):
     """Picoquic QUIC implementation configuration.
 
     Picoquic is a minimal, standards-focused C implementation of QUIC
@@ -49,14 +45,6 @@ class PicoquicConfig(ServicePluginConfig):
 
     Language: C | Source: https://github.com/private-octopus/picoquic
     Build time: ~5 min | Docker image: ~200MB
-
-    Inherited from ServicePluginConfig / BasePluginConfig:
-        enabled (bool): Whether the plugin is enabled. Default: True.
-        version (Optional[str]): Plugin version. Default: None.
-        priority (int): Plugin execution priority. Default: 100.
-        docker_image (Optional[str]): Docker image name. Default: None.
-        build_from_source (bool): Build from source. Default: True.
-        source_repository (Optional[str]): Source repository URL.
 
     Example YAML::
 
@@ -71,13 +59,21 @@ class PicoquicConfig(ServicePluginConfig):
               role: server
     """
 
-    name: str = Field(default="picoquic", description="Implementation name")
-    type: ImplementationType = Field(
-        default_factory=lambda: ImplementationType.IUT,
-        description="Implementation type",
+    VERSION_CLASS: ClassVar[Optional[type]] = PicoquicVersion
+
+    # Override required fields with plugin-specific defaults
+    implementation: ImplementationConfig = Field(
+        default_factory=lambda: ImplementationConfig(name="picoquic", type="iut"),
+        description="Implementation configuration",
     )
+    protocol: ProtocolConfig = Field(
+        default_factory=lambda: ProtocolConfig(name="quic", role="server"),
+        description="Protocol configuration",
+    )
+
+    # Typed version (loaded from version_configs/)
     version: PicoquicVersion = Field(
-        default_factory=lambda: PicoquicConfig.load_versions_from_files(),
+        default_factory=lambda: PicoquicConfig.load_version(),
         description="Version configuration",
     )
 
@@ -92,100 +88,3 @@ class PicoquicConfig(ServicePluginConfig):
     max_data: Optional[int] = Field(
         default=None, description="Maximum connection data in bytes"
     )
-
-    @staticmethod
-    def load_versions_from_files(
-        version_configs_dir: str = f"{Path(os.path.dirname(__file__))}/version_configs/",
-        version: Optional[str] = None,
-        protocol_version_override: Optional[str] = None,
-    ) -> PicoquicVersion:
-        """Load version configurations dynamically from YAML files.
-
-        Args:
-            version_configs_dir: Directory containing version YAML files
-            version: Specific version to load (e.g., 'rfc9000'). If None, loads first found.
-            protocol_version_override: Protocol version from experiment config to use as override
-
-        Returns:
-            PicoquicVersion configuration
-
-        Raises:
-            FileNotFoundError: If specified version file not found
-            ValueError: If no version files found
-        """
-        logging.debug("Loading Picoquic versions from %s", version_configs_dir)
-
-        # Use protocol version override if provided, otherwise use explicit version
-        effective_version = protocol_version_override or version
-
-        if effective_version:
-            # Load specific version file
-            version_file = f"{effective_version}.yaml"
-            version_path = os.path.join(version_configs_dir, version_file)
-
-            if not os.path.exists(version_path):
-                raise FileNotFoundError(
-                    f"Version config file not found: {version_path}"
-                )
-
-            logging.debug(f"Loading specific Picoquic version: {effective_version}")
-            raw_version_config = OmegaConf.load(version_path)
-            logging.debug(f"Loaded raw Picoquic version config: {raw_version_config}")
-
-            # Convert OmegaConf to dict and create Pydantic model
-            version_dict = OmegaConf.to_container(raw_version_config)
-            version_config = PicoquicVersion(**version_dict)
-            logging.debug(f"Loaded Picoquic version {version_config}")
-            return version_config
-
-        else:
-            # Legacy behavior: load first found file (sorted for deterministic order)
-            version_files = sorted(
-                [f for f in os.listdir(version_configs_dir) if f.endswith(".yaml")]
-            )
-
-            if not version_files:
-                raise ValueError(
-                    f"No version config files found in {version_configs_dir}"
-                )
-
-            version_file = version_files[0]
-            logging.warning(
-                f"No version specified, loading first found: {version_file}"
-            )
-            version_path = os.path.join(version_configs_dir, version_file)
-
-            raw_version_config = OmegaConf.load(version_path)
-            logging.debug(f"Loaded raw Picoquic version config: {raw_version_config}")
-
-            # Convert OmegaConf to dict and create Pydantic model
-            version_dict = OmegaConf.to_container(raw_version_config)
-            version_config = PicoquicVersion(**version_dict)
-            logging.debug(f"Loaded Picoquic version {version_config}")
-            return version_config
-
-    @classmethod
-    def create_with_protocol_context(cls, protocol=None):
-        """Create PicoquicConfig instance with optional protocol context.
-
-        If protocol version is provided, loads version-specific configuration.
-        Otherwise creates standard instance.
-
-        Args:
-            protocol: Optional protocol configuration containing version info
-
-        Returns:
-            PicoquicConfig instance with appropriate version configuration
-        """
-        logging.debug("Creaol context")
-        if protocol and hasattr(protocol, "version") and protocol.version:
-            try:
-                version_config = cls.load_versions_from_files(
-                    protocol_version_override=protocol.version
-                )
-                return cls(version=version_config)
-            except (FileNotFoundError, ValueError) as e:
-                raise ValueError(
-                    f"Could not load protocol version {protocol.version}: {e}"
-                ) from e
-        return cls()

@@ -2,10 +2,10 @@ from typing import List, Optional
 
 from pydantic import Field
 
-from panther.config.core.models.plugin import ExecutionEnvironmentPluginConfig
+from panther.config.core.models.environment import ExecutionEnvironmentConfig
 
 
-class GperfCpuConfig(ExecutionEnvironmentPluginConfig):
+class GperfCpuConfig(ExecutionEnvironmentConfig):
     """
     Configuration for gperf command generation.
     """

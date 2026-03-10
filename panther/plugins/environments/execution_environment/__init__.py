@@ -24,16 +24,16 @@ Creating a New Execution Environment Plugin:
         plugins/environments/execution_environment/your_plugin/
         +-- __init__.py
         +-- your_plugin.py      # Inherits from BaseExecutionEnvironment
-        +-- config_schema.py    # Pydantic config (set _config_class on your class)
+        +-- config_schema.py    # Pydantic config passed as env_config_to_test
 
     Key methods to implement:
         - ``setup_environment()`` -- install/configure the tool in the container
         - ``is_service_compatible()`` -- check if a service can use this env
         - ``generate_command()`` -- wrap the service command with instrumentation
 
-    Subclasses set ``_config_class = YourConfig`` and use inherited
-    ``_get_plugin_config()`` / ``_get_config_value()`` helpers from
-    ``BaseExecutionEnvironment``.
+    Subclasses access configuration directly via ``self.env_config_to_test``
+    (the typed config object). The convenience helper ``_get_config_value()``
+    delegates to ``getattr(self.env_config_to_test, field_name, default)``.
 
     Reference implementations: ``gperf_cpu/``, ``strace/``, ``memcheck/``.
 """

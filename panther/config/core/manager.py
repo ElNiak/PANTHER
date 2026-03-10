@@ -180,20 +180,20 @@ class ConfigurationManager(
 
         # Initialize validators
         try:
-            from .components.validators import BusinessRulesValidator, UnifiedValidator
+            from .components.validators import BusinessRulesValidator, ConfigValidator
 
             self.validators = [
                 BusinessRulesValidator(),
                 # Add other validators as needed
             ]
-            self.unified_validator = UnifiedValidator()
+            self.config_validator = ConfigValidator()
 
             self.logger.debug(f"Initialized {len(self.validators)} validators")
 
         except Exception as e:
             self.logger.warning(f"Failed to initialize validators: {e}")
             self.validators = []
-            self.unified_validator = None
+            self.config_validator = None
 
         # Initialize plugin components using unified plugin manager
         try:
@@ -306,15 +306,23 @@ class ConfigurationManager(
                     "parameters": [param.to_dict() for param in metadata.parameters],
                 }
 
-            # Try schema discovery for parameters
-            schema_info = self.plugin_discovery.get_plugin_schema(name)
-            if schema_info and "properties" in schema_info.get("schema", {}):
-                return {
-                    "plugin": name,
-                    "type": plugin_type,
-                    "protocol": protocol,
-                    "parameters": schema_info["schema"]["properties"],
-                }
+            # Try schema registry for config model
+            try:
+                from panther.plugins.core.plugin_decorators import get_config_model
+
+                config_model = get_config_model(name)
+                if config_model is not None:
+                    return {
+                        "plugin": name,
+                        "type": plugin_type,
+                        "protocol": protocol,
+                        "parameters": {
+                            k: str(v.annotation)
+                            for k, v in config_model.model_fields.items()
+                        },
+                    }
+            except ImportError:
+                pass
 
         return {"error": f"Plugin '{name}' not found or plugin discovery not available"}
 
@@ -390,15 +398,18 @@ class ConfigurationManager(
             return self.plugin_discovery.discover_protocol_versions(protocol)
         return {}
 
-    def get_plugin_schemas(self) -> Dict[str, Dict[str, Any]]:
-        """Get all plugin schemas.
+    def get_plugin_schemas(self) -> Dict[str, type]:
+        """Get all plugin config model classes from the schema registry.
 
         Returns:
-            Dictionary mapping plugin names to schema info
+            Dictionary mapping plugin names to config model classes
         """
-        if self.plugin_discovery:
-            return self.plugin_discovery.discover_plugin_schemas()
-        return {}
+        try:
+            from panther.plugins.core.plugin_decorators import get_all_config_models
+
+            return get_all_config_models()
+        except ImportError:
+            return {}
 
 
 # Global instance management

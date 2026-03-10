@@ -1,3 +1,5 @@
+"""Valgrind Memcheck memory error detector execution environment plugin."""
+
 from typing import TYPE_CHECKING, List, Optional
 
 """
@@ -40,15 +42,11 @@ if TYPE_CHECKING:
     runtime_mode="debug",  # Set to debug mode for comprehensive error detection
 )
 class MemcheckEnvironment(BaseExecutionEnvironment):
-    """
-
-    Memory error detection execution environment using Valgrind Memcheck.
+    """Memory error detection execution environment using Valgrind Memcheck.
 
     This environment uses shared command generation utilities to eliminate
     code duplication while providing comprehensive memory error detection.
     """
-
-    _config_class = MemcheckConfig
 
     def __init__(
         self,
@@ -69,8 +67,7 @@ class MemcheckEnvironment(BaseExecutionEnvironment):
     def _setup_plugin_specific_environment(
         self, services_managers: List[IServiceManager], timestamp: str
     ):
-        """
-        Set up Valgrind Memcheck memory error detection for services using shared utilities.
+        """Set up Valgrind Memcheck memory error detection for services using shared utilities.
 
         Args:
             services_managers: List of service managers to potentially modify
@@ -126,8 +123,7 @@ class MemcheckEnvironment(BaseExecutionEnvironment):
             self.logger.debug("Applied modifications: %s", results)
 
     def _build_memcheck_command(self, output_file: str) -> str:
-        """
-        Build the Memcheck command with configured options.
+        """Build the Memcheck command with configured options.
 
         Args:
             output_file: Path to write Memcheck output
@@ -257,8 +253,7 @@ class MemcheckEnvironment(BaseExecutionEnvironment):
     def _add_memcheck_analysis_commands(
         self, command_builder, memcheck_output_file: str, summary_file: str
     ):
-        """
-        Add comprehensive Memcheck analysis post-processing commands.
+        """Add comprehensive Memcheck analysis post-processing commands.
 
         Args:
             command_builder: The command builder to add commands to
@@ -410,8 +405,7 @@ fi
     def to_command(
         self, pid: Optional[int] = None, output_file: Optional[str] = None
     ) -> str:
-        """
-        Generate the Memcheck command for execution.
+        """Generate the Memcheck command for execution.
 
         Args:
             pid: Optional process ID to attach to
@@ -443,8 +437,7 @@ fi
         services_managers,
         test_config,
     ) -> None:
-        """
-        Update environment for memcheck execution.
+        """Update environment for memcheck execution.
 
         Args:
             execution_environment: Current execution environment

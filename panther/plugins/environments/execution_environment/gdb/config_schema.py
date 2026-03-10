@@ -1,12 +1,14 @@
+"""GDB execution environment configuration schema."""
+
 from typing import List, Optional
 
 from pydantic import Field, validator
 
 from panther.config.core.components.universal_validators import validate_integer_field
-from panther.config.core.models.plugin import ExecutionEnvironmentPluginConfig
+from panther.config.core.models.environment import ExecutionEnvironmentConfig
 
 
-class GdbConfig(ExecutionEnvironmentPluginConfig):
+class GdbConfig(ExecutionEnvironmentConfig):
     """GDB debugging configuration for automated crash analysis.
 
     Wraps GDB (GNU Debugger) to provide systematic, automated debugging of
@@ -25,7 +27,7 @@ class GdbConfig(ExecutionEnvironmentPluginConfig):
         - Strace: Syscall-level tracing (no debugging symbols needed).
         - GPerf CPU: CPU profiling (performance, not correctness).
 
-    Inherited fields from ``ExecutionEnvironmentPluginConfig``:
+    Inherited fields from ``ExecutionEnvironmentConfig``:
         - ``enabled``: Whether the plugin is enabled (default: True).
         - ``collect_metrics``: Whether to collect metrics (default: True).
 

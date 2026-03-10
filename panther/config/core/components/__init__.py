@@ -1,14 +1,40 @@
-"""Configuration system components."""
+"""Configuration system components — loaders, validators, builders, merger.
+
+Components are lazy-imported to avoid circular dependencies.
+
+Loaders (YAML → dict pipeline):
+    ``YAMLLoader``        — YAML file loading with OmegaConf interpolation
+    ``VersionLoader``     — version-specific config loading
+    ``CompositeLoader``   — chains loaders with fallback
+    ``PluginConfigLoader``— plugin directory config discovery
+
+Validators:
+    ``ConfigValidator``        — orchestrates Pydantic + business rules + compatibility
+    ``SchemaValidator``        — JSON Schema validation
+    ``BusinessRulesValidator`` — domain-specific rules
+    ``CompatibilityValidator`` — cross-field compatibility
+
+Builders (dict → model):
+    ``ExperimentBuilder``  — builds ExperimentConfig from raw dict
+    ``ServiceBuilder``     — builds ServiceConfig with plugin resolution
+    ``GlobalConfigBuilder``— builds GlobalConfig with defaults
+
+Merger:
+    ``ConfigMerger``       — merges N dicts with MergeStrategy + ConflictResolution
+    ``MergeContext``       — audit trail for merge operations
+    ``MergeStrategy``      — DEEP_MERGE, SHALLOW_MERGE, REPLACE, APPEND_LISTS, UNION_LISTS
+    ``ConflictResolver``   — USE_FIRST, USE_SECOND, ERROR, COMBINE
+"""
 
 # pylint: disable-next=undefined-variable  # Variables defined dynamically via __getattr__
 __all__ = [
     # Loaders
-    "UnifiedYAMLLoader",
-    "UnifiedVersionLoader",
-    "UnifiedCompositeLoader",
+    "YAMLLoader",
+    "VersionLoader",
+    "CompositeLoader",
     "PluginConfigLoader",
     # Validators
-    "UnifiedValidator",
+    "ConfigValidator",
     "SchemaValidator",
     "BusinessRulesValidator",
     "CompatibilityValidator",
@@ -17,7 +43,7 @@ __all__ = [
     "ServiceBuilder",
     "GlobalConfigBuilder",
     # Merger
-    "UnifiedMerger",
+    "ConfigMerger",
     "MergeContext",
     "MergeStrategy",
     "ConflictResolver",
@@ -27,24 +53,18 @@ __all__ = [
 def __getattr__(name):  # pylint: disable=invalid-name
     """Lazy import implementation to avoid circular imports."""
     # Loaders
-    if name == "UnifiedYAMLLoader":
-        from .loaders import (  # pylint: disable=import-outside-toplevel
-            UnifiedYAMLLoader,
-        )
+    if name == "YAMLLoader":
+        from .loaders import YAMLLoader  # pylint: disable=import-outside-toplevel
 
-        return UnifiedYAMLLoader
-    elif name == "UnifiedVersionLoader":
-        from .loaders import (  # pylint: disable=import-outside-toplevel
-            UnifiedVersionLoader,
-        )
+        return YAMLLoader
+    elif name == "VersionLoader":
+        from .loaders import VersionLoader  # pylint: disable=import-outside-toplevel
 
-        return UnifiedVersionLoader
-    elif name == "UnifiedCompositeLoader":
-        from .loaders import (  # pylint: disable=import-outside-toplevel
-            UnifiedCompositeLoader,
-        )
+        return VersionLoader
+    elif name == "CompositeLoader":
+        from .loaders import CompositeLoader  # pylint: disable=import-outside-toplevel
 
-        return UnifiedCompositeLoader
+        return CompositeLoader
     elif name == "PluginConfigLoader":
         from .loaders import (  # pylint: disable=import-outside-toplevel
             PluginConfigLoader,
@@ -53,12 +73,12 @@ def __getattr__(name):  # pylint: disable=invalid-name
         return PluginConfigLoader
 
     # Validators
-    elif name == "UnifiedValidator":
+    elif name == "ConfigValidator":
         from .validators import (  # pylint: disable=import-outside-toplevel
-            UnifiedValidator,
+            ConfigValidator,
         )
 
-        return UnifiedValidator
+        return ConfigValidator
     elif name == "SchemaValidator":
         from .validators import (  # pylint: disable=import-outside-toplevel
             SchemaValidator,
@@ -97,10 +117,10 @@ def __getattr__(name):  # pylint: disable=invalid-name
         return GlobalConfigBuilder
 
     # Merger
-    elif name == "UnifiedMerger":
-        from .merger import UnifiedMerger  # pylint: disable=import-outside-toplevel
+    elif name == "ConfigMerger":
+        from .merger import ConfigMerger  # pylint: disable=import-outside-toplevel
 
-        return UnifiedMerger
+        return ConfigMerger
     elif name == "MergeContext":
         from .merger import MergeContext  # pylint: disable=import-outside-toplevel
 

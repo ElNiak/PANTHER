@@ -133,9 +133,6 @@ class DockerComposeEnvironment(
         # Initialize IObserver explicitly (in case not properly called by super())
         IObserver.__init__(self)
 
-        # Initialize plugin config cache
-        self._plugin_config = None
-
         # Explicitly ensure StandardOutputCollectorMixin is initialized
         # This ensures output_files dictionary is created
         if not hasattr(self, "output_files"):
@@ -184,27 +181,6 @@ class DockerComposeEnvironment(
             self.logger.debug(
                 "DockerComposeEnvironment registered as observer for deployment_completed events"
             )
-
-    def _get_plugin_config(self):
-        """Get plugin config with caching and fallback."""
-        if self._plugin_config is None:
-            try:
-                # Import here to avoid circular imports
-                from panther.plugins.environments.network_environment.docker_compose.config_schema import (
-                    DockerComposeConfig,
-                )
-
-                self._plugin_config = self.env_config_to_test.get_plugin_config(
-                    DockerComposeConfig
-                )
-            except Exception as e:
-                self.logger.debug(f"Could not get plugin config, using defaults: {e}")
-                from panther.plugins.environments.network_environment.docker_compose.config_schema import (
-                    DockerComposeConfig,
-                )
-
-                self._plugin_config = DockerComposeConfig()
-        return self._plugin_config
 
     def prepare_environment(self) -> bool:
         """Prepare Docker Compose environment with enhanced checks."""
@@ -578,19 +554,19 @@ class DockerComposeEnvironment(
         if not hasattr(self, "global_config"):
             self.global_config = global_config
 
-        # Override timeout from plugin config if available
-        plugin_config = self._get_plugin_config()
-        if hasattr(plugin_config, "deploy_timeout"):
-            self.timeout = plugin_config.deploy_timeout
-            self.logger.debug(
-                f"Deploy timeout set to {self.timeout}s from plugin config"
-            )
+        # Override timeout from environment config
+        self.timeout = self.env_config_to_test.deploy_timeout
+        self.logger.debug(
+            f"Deploy timeout set to {self.timeout}s from environment config"
+        )
 
         # Auto-scale timeout when execution environments (strace, gdb, etc.)
         # are present, since debug images are significantly larger and slower
         # to start, especially under platform emulation (e.g. amd64 on ARM).
         if self.execution_environment:
-            multiplier = getattr(plugin_config, "deploy_timeout_debug_multiplier", 2.0)
+            multiplier = getattr(
+                self.env_config_to_test, "deploy_timeout_debug_multiplier", 2.0
+            )
             if multiplier != 1.0:
                 original_timeout = self.timeout
                 self.timeout = int(self.timeout * multiplier)
@@ -806,22 +782,7 @@ class DockerComposeEnvironment(
         This method is called when deployment_completed event is received
         to ensure containers are fully ready before health checks begin.
         """
-        # Check if background monitoring is enabled using dual approach
-        plugin_config = self._get_plugin_config()
-
-        # First try plugin_config dict
-        enable_background = None
-        if (
-            hasattr(self.env_config_to_test, "plugin_config")
-            and self.env_config_to_test.plugin_config
-        ):
-            enable_background = self.env_config_to_test.plugin_config.get(
-                "enable_background_monitoring"
-            )
-
-        # Second try typed config
-        if enable_background is None:
-            enable_background = plugin_config.enable_background_monitoring
+        enable_background = self.env_config_to_test.enable_background_monitoring
 
         if (
             enable_background

@@ -1,7 +1,7 @@
 """Refactored PicoQUIC Shadow service manager using base classes."""
 
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 from panther.core.docker_builder.plugin_mixin.service_manager_docker_mixin import (
     ServiceManagerDockerMixin,
@@ -12,9 +12,6 @@ from panther.plugins.services.base.quic_service_base import BaseQUICServiceManag
 from panther.plugins.services.iut.iut_event_mixin import IUTManagerEventMixin
 from panther.plugins.services.iut.iut_service_manager_mixin import (
     IUTServiceManagerMixin,
-)
-from panther.plugins.services.iut.quic.picoquic_shadow.config_schema import (
-    PicoquicShadowConfig,
 )
 
 
@@ -40,22 +37,6 @@ class PicoquicShadowServiceManager(
         """Initialize PicoQUIC Shadow service manager with dual plugin config approach."""
         super().__init__(*args, global_config=global_config, **kwargs)
 
-        # Cache plugin config for easy access
-        self._plugin_config = None
-
-    def _get_plugin_config(self) -> Optional[PicoquicShadowConfig]:
-        """Get plugin config with caching and fallback."""
-        if self._plugin_config is None:
-            try:
-                self._plugin_config = self.service_config_to_test.get_plugin_config(
-                    PicoquicShadowConfig
-                )
-            except Exception as e:
-                self.logger.debug(f"Could not get plugin config, using defaults: {e}")
-                # Create default config
-                self._plugin_config = PicoquicShadowConfig()
-        return self._plugin_config
-
     def _get_implementation_name(self) -> str:
         return "picoquic_shadow"
 
@@ -66,52 +47,21 @@ class PicoquicShadowServiceManager(
         """PicoQUIC Shadow server arguments with plugin config support."""
         args = []
 
-        # Get plugin config values with fallbacks
-        plugin_config = self._get_plugin_config()
-
-        # Shadow-specific network interface binding - Check plugin_config first
+        # Shadow-specific network interface binding - Check service config
         shadow_interface = kwargs.get("shadow_interface")
-        if (
-            not shadow_interface
-            and hasattr(self.service_config_to_test, "plugin_config")
-            and self.service_config_to_test.plugin_config
-        ):
-            shadow_interface = self.service_config_to_test.plugin_config.get(
-                "shadow_interface"
-            )
-        elif (
-            not shadow_interface
-            and plugin_config
-            and hasattr(plugin_config, "version")
-            and hasattr(plugin_config.version, "server")
-        ):
-            server_params = plugin_config.version.server
-            shadow_interface = (
-                server_params.get("shadow_interface") if server_params else None
+        if not shadow_interface:
+            shadow_interface = getattr(
+                self.service_config_to_test, "shadow_interface", None
             )
 
         if shadow_interface:
             args.extend(["-i", shadow_interface])
 
-        # Shadow hostname binding - Check plugin_config first
+        # Shadow hostname binding - Check service config
         shadow_hostname = kwargs.get("shadow_hostname")
-        if (
-            not shadow_hostname
-            and hasattr(self.service_config_to_test, "plugin_config")
-            and self.service_config_to_test.plugin_config
-        ):
-            shadow_hostname = self.service_config_to_test.plugin_config.get(
-                "shadow_hostname"
-            )
-        elif (
-            not shadow_hostname
-            and plugin_config
-            and hasattr(plugin_config, "version")
-            and hasattr(plugin_config.version, "server")
-        ):
-            server_params = plugin_config.version.server
-            shadow_hostname = (
-                server_params.get("shadow_hostname") if server_params else None
+        if not shadow_hostname:
+            shadow_hostname = getattr(
+                self.service_config_to_test, "shadow_hostname", None
             )
 
         if shadow_hostname:
@@ -123,53 +73,20 @@ class PicoquicShadowServiceManager(
         """PicoQUIC Shadow client arguments with plugin config support."""
         args = []
 
-        # Get plugin config values with fallbacks
-        plugin_config = self._get_plugin_config()
-
-        # Shadow-specific target resolution - Check plugin_config first
+        # Shadow-specific target resolution - Check service config
         shadow_target = kwargs.get("shadow_target")
-        if (
-            not shadow_target
-            and hasattr(self.service_config_to_test, "plugin_config")
-            and self.service_config_to_test.plugin_config
-        ):
-            shadow_target = self.service_config_to_test.plugin_config.get(
-                "shadow_target"
-            )
-        elif (
-            not shadow_target
-            and plugin_config
-            and hasattr(plugin_config, "version")
-            and hasattr(plugin_config.version, "client")
-        ):
-            client_params = plugin_config.version.client
-            shadow_target = (
-                client_params.get("shadow_target") if client_params else None
-            )
+        if not shadow_target:
+            shadow_target = getattr(self.service_config_to_test, "shadow_target", None)
 
         if shadow_target:
             # Replace localhost with shadow target
             return args
 
-        # Multiple connection attempts for shadow timing - Check plugin_config first
+        # Multiple connection attempts for shadow timing - Check service config
         connection_attempts = kwargs.get("connection_attempts")
-        if (
-            not connection_attempts
-            and hasattr(self.service_config_to_test, "plugin_config")
-            and self.service_config_to_test.plugin_config
-        ):
-            connection_attempts = self.service_config_to_test.plugin_config.get(
-                "connection_attempts"
-            )
-        elif (
-            not connection_attempts
-            and plugin_config
-            and hasattr(plugin_config, "version")
-            and hasattr(plugin_config.version, "client")
-        ):
-            client_params = plugin_config.version.client
-            connection_attempts = (
-                client_params.get("connection_attempts") if client_params else None
+        if not connection_attempts:
+            connection_attempts = getattr(
+                self.service_config_to_test, "connection_attempts", None
             )
 
         if connection_attempts:
@@ -193,8 +110,7 @@ class PicoquicShadowServiceManager(
         return params
 
     def get_output_patterns(self) -> List[Tuple[str, str]]:
-        """
-        Get phase-based output patterns for PicoQUIC Shadow service.
+        """Get phase-based output patterns for PicoQUIC Shadow service.
 
         Returns:
             List of (output_type, filename_pattern) tuples organized by execution phases

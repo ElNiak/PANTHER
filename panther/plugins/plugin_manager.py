@@ -170,7 +170,6 @@ class PluginManager(LoggerMixin):
         self._cache_timestamp = 0
         self._discovery_cache: Optional[Dict[str, PluginMetadata]] = None
         self._version_cache: Dict[str, List[str]] = {}
-        self._schema_cache: Dict[str, Dict[str, Any]] = {}
         self._dependency_graph: Dict[str, Set[str]] = {}
 
         # Statistics
@@ -612,35 +611,12 @@ class PluginManager(LoggerMixin):
         """
         return self.plugin_discovery.discover_protocol_versions(protocol)
 
-    def discover_plugin_schemas(self) -> Dict[str, Dict[str, Any]]:
-        """Discover all plugin configuration schemas.
-
-        Delegates to PluginDiscovery for actual schema discovery implementation.
-
-        Returns:
-            Dictionary mapping plugin names to schema information
-        """
-        return self.plugin_discovery.discover_plugin_schemas()
-
-    def get_plugin_schema(self, plugin_name: str) -> Optional[Dict[str, Any]]:
-        """Get schema for a specific plugin.
-
-        Args:
-            plugin_name: Plugin name
-
-        Returns:
-            Schema information or None
-        """
-        schemas = self.discover_plugin_schemas()
-        return schemas.get(plugin_name)
-
     def refresh_plugins(self):
         """Force refresh of all plugin information."""
         self.logger.info("Force refreshing plugin cache")
         self._discovery_cache = None
         self._cache_timestamp = 0
         self._version_cache.clear()
-        self._schema_cache.clear()
         self.plugin_catalog.refresh()
         self.discover_plugins(force_refresh=True)
 
@@ -788,34 +764,10 @@ class PluginManager(LoggerMixin):
         runtime_mode = "minimal"  # Default runtime mode
 
         # Extract build_mode from service config if available (for panther_ivy)
-        if (
-            hasattr(service_config_to_test, "plugin_config")
-            and isinstance(service_config_to_test.plugin_config, dict)
-            and "build_mode" in service_config_to_test.plugin_config
-        ):
-            build_mode = service_config_to_test.plugin_config.get("build_mode")
-        elif hasattr(service_config_to_test, "implementation") and hasattr(
-            service_config_to_test.implementation, "build_mode"
-        ):
-            build_mode = getattr(
-                service_config_to_test.implementation, "build_mode", None
-            )
+        build_mode = getattr(service_config_to_test, "build_mode", None)
 
         # Extract runtime_mode from service config if available
-        if (
-            hasattr(service_config_to_test, "plugin_config")
-            and isinstance(service_config_to_test.plugin_config, dict)
-            and "runtime_mode" in service_config_to_test.plugin_config
-        ):
-            runtime_mode = service_config_to_test.plugin_config.get(
-                "runtime_mode", "minimal"
-            )
-        elif hasattr(service_config_to_test, "implementation") and hasattr(
-            service_config_to_test.implementation, "runtime_mode"
-        ):
-            runtime_mode = getattr(
-                service_config_to_test.implementation, "runtime_mode", "minimal"
-            )
+        runtime_mode = getattr(service_config_to_test, "runtime_mode", "minimal")
 
         cache_invalidated = self._invalidate_stale_cache_for_plugin(
             implementation_name,

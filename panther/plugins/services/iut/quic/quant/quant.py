@@ -1,7 +1,7 @@
 """Refactored Quant service manager using base classes."""
 
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 from panther.core.docker_builder.plugin_mixin.service_manager_docker_mixin import (
     ServiceManagerDockerMixin,
@@ -13,7 +13,6 @@ from panther.plugins.services.iut.iut_event_mixin import IUTManagerEventMixin
 from panther.plugins.services.iut.iut_service_manager_mixin import (
     IUTServiceManagerMixin,
 )
-from panther.plugins.services.iut.quic.quant.config_schema import QuantConfig
 
 
 @register_plugin(
@@ -38,22 +37,6 @@ class QuantServiceManager(
         """Initialize Quant service manager with dual plugin config approach."""
         super().__init__(*args, global_config=global_config, **kwargs)
 
-        # Cache plugin config for easy access
-        self._plugin_config = None
-
-    def _get_plugin_config(self) -> Optional[QuantConfig]:
-        """Get plugin config with caching and fallback."""
-        if self._plugin_config is None:
-            try:
-                self._plugin_config = self.service_config_to_test.get_plugin_config(
-                    QuantConfig
-                )
-            except Exception as e:
-                self.logger.debug(f"Could not get plugin config, using defaults: {e}")
-                # Create default config
-                self._plugin_config = QuantConfig()
-        return self._plugin_config
-
     def _get_implementation_name(self) -> str:
         return "quant"
 
@@ -65,48 +48,17 @@ class QuantServiceManager(
         """Quant server specific arguments with plugin config support."""
         args = []
 
-        # Get plugin config values with fallbacks
-        plugin_config = self._get_plugin_config()
-
-        # Document root - First try kwargs, then plugin_config, then default
+        # Document root - First try kwargs, then service config, then default
         if kwargs.get("root"):
             root = kwargs["root"]
-        elif (
-            hasattr(self.service_config_to_test, "plugin_config")
-            and self.service_config_to_test.plugin_config
-        ):
-            root = self.service_config_to_test.plugin_config.get(
-                "server_root", "/var/www"
-            )
-        elif (
-            plugin_config
-            and hasattr(plugin_config, "version")
-            and hasattr(plugin_config.version, "server")
-        ):
-            server_params = plugin_config.version.server
-            root = (
-                server_params.get("root", "/var/www") if server_params else "/var/www"
-            )
         else:
-            root = "/var/www"
+            root = getattr(self.service_config_to_test, "server_root", "/var/www")
         args.extend(["-d", root])
 
-        # Verbose logging - Check plugin_config dictionary first, then typed config
+        # Verbose logging - Check service config
         verbose = kwargs.get("verbose", False)
-        if (
-            not verbose
-            and hasattr(self.service_config_to_test, "plugin_config")
-            and self.service_config_to_test.plugin_config
-        ):
-            verbose = self.service_config_to_test.plugin_config.get("verbose", False)
-        elif (
-            not verbose
-            and plugin_config
-            and hasattr(plugin_config, "version")
-            and hasattr(plugin_config.version, "server")
-        ):
-            server_params = plugin_config.version.server
-            verbose = server_params.get("verbose", False) if server_params else False
+        if not verbose:
+            verbose = getattr(self.service_config_to_test, "verbose", False)
 
         if verbose:
             args.append("-v")
@@ -117,67 +69,26 @@ class QuantServiceManager(
         """Quant client specific arguments with plugin config support."""
         args = []
 
-        # Get plugin config values with fallbacks
-        plugin_config = self._get_plugin_config()
-
-        # Request URL path - First try kwargs, then plugin_config, then default
+        # Request URL path - First try kwargs, then service config, then default
         if kwargs.get("path"):
             path = kwargs["path"]
-        elif (
-            hasattr(self.service_config_to_test, "plugin_config")
-            and self.service_config_to_test.plugin_config
-        ):
-            path = self.service_config_to_test.plugin_config.get("request_path", "/")
-        elif (
-            plugin_config
-            and hasattr(plugin_config, "version")
-            and hasattr(plugin_config.version, "client")
-        ):
-            client_params = plugin_config.version.client
-            path = client_params.get("path", "/") if client_params else "/"
         else:
-            path = "/"
+            path = getattr(self.service_config_to_test, "request_path", "/")
         args.extend(["-u", path])
 
-        # Verbose logging - Check plugin_config dictionary first, then typed config
+        # Verbose logging - Check service config
         verbose = kwargs.get("verbose", False)
-        if (
-            not verbose
-            and hasattr(self.service_config_to_test, "plugin_config")
-            and self.service_config_to_test.plugin_config
-        ):
-            verbose = self.service_config_to_test.plugin_config.get("verbose", False)
-        elif (
-            not verbose
-            and plugin_config
-            and hasattr(plugin_config, "version")
-            and hasattr(plugin_config.version, "client")
-        ):
-            client_params = plugin_config.version.client
-            verbose = client_params.get("verbose", False) if client_params else False
+        if not verbose:
+            verbose = getattr(self.service_config_to_test, "verbose", False)
 
         if verbose:
             args.append("-v")
 
-        # Connection count - First try kwargs, then plugin_config, then default
+        # Connection count - First try kwargs, then service config, then default
         if kwargs.get("connections"):
             connections = kwargs["connections"]
-        elif (
-            hasattr(self.service_config_to_test, "plugin_config")
-            and self.service_config_to_test.plugin_config
-        ):
-            connections = self.service_config_to_test.plugin_config.get(
-                "connections", 1
-            )
-        elif (
-            plugin_config
-            and hasattr(plugin_config, "version")
-            and hasattr(plugin_config.version, "client")
-        ):
-            client_params = plugin_config.version.client
-            connections = client_params.get("connections", 1) if client_params else 1
         else:
-            connections = 1
+            connections = getattr(self.service_config_to_test, "connections", 1)
 
         if connections > 1:
             args.extend(["-n", str(connections)])
@@ -185,8 +96,7 @@ class QuantServiceManager(
         return args
 
     def get_output_patterns(self) -> List[Tuple[str, str]]:
-        """
-        Get phase-based output patterns for Quant service.
+        """Get phase-based output patterns for Quant service.
 
         Returns:
             List of (output_type, filename_pattern) tuples organized by execution phases

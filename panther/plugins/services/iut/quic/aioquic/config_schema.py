@@ -4,10 +4,14 @@ from typing import Optional
 
 from pydantic import Field
 
-from panther.config.core.models.plugin import ServicePluginConfig
+from panther.config.core.models.service import (
+    ImplementationConfig,
+    ProtocolConfig,
+    ServiceConfig,
+)
 
 
-class AioquicConfig(ServicePluginConfig):
+class AioquicConfig(ServiceConfig):
     """Aioquic QUIC implementation configuration.
 
     Aioquic is a pure-Python QUIC and HTTP/3 implementation built on
@@ -17,14 +21,6 @@ class AioquicConfig(ServicePluginConfig):
 
     Language: Python (asyncio) | Source: https://github.com/aiortc/aioquic
     Build time: ~2 min | Docker image: ~150MB
-
-    Inherited from ServicePluginConfig / BasePluginConfig:
-        enabled (bool): Whether the plugin is enabled. Default: True.
-        version (Optional[str]): Plugin version. Default: None.
-        priority (int): Plugin execution priority. Default: 100.
-        docker_image (Optional[str]): Docker image name. Default: None.
-        build_from_source (bool): Build from source. Default: True.
-        source_repository (Optional[str]): Source repository URL.
 
     Example YAML::
 
@@ -39,8 +35,15 @@ class AioquicConfig(ServicePluginConfig):
               role: client
     """
 
-    # Aioquic-specific fields
-    name: str = Field(default="aioquic", description="Implementation name")
+    # Override required fields with plugin-specific defaults
+    implementation: ImplementationConfig = Field(
+        default_factory=lambda: ImplementationConfig(name="aioquic", type="iut"),
+        description="Implementation configuration",
+    )
+    protocol: ProtocolConfig = Field(
+        default_factory=lambda: ProtocolConfig(name="quic", role="server"),
+        description="Protocol configuration",
+    )
 
     # Server-specific options
     server_root: str = Field(

@@ -1,12 +1,14 @@
+"""Google Performance Tools heap profiler configuration schema."""
+
 from typing import List, Optional
 
 from pydantic import Field, validator
 
 from panther.config.core.components.universal_validators import validate_integer_field
-from panther.config.core.models.plugin import ExecutionEnvironmentPluginConfig
+from panther.config.core.models.environment import ExecutionEnvironmentConfig
 
 
-class GperfHeapConfig(ExecutionEnvironmentPluginConfig):
+class GperfHeapConfig(ExecutionEnvironmentConfig):
     """Google Performance Tools (gperftools) heap profiling configuration.
 
     Uses ``libtcmalloc.so`` from gperftools to profile heap memory allocation
@@ -28,7 +30,7 @@ class GperfHeapConfig(ExecutionEnvironmentPluginConfig):
         - Memcheck: Memory error detection (Valgrind, slower but finds bugs).
         - GDB: Crash debugging with AddressSanitizer integration.
 
-    Inherited fields from ``ExecutionEnvironmentPluginConfig``:
+    Inherited fields from ``ExecutionEnvironmentConfig``:
         - ``enabled``: Whether the plugin is enabled (default: True).
         - ``collect_metrics``: Whether to collect metrics (default: True).
 

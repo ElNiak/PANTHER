@@ -1,3 +1,5 @@
+"""Google Performance Tools heap profiler execution environment plugin."""
+
 from typing import TYPE_CHECKING, List, Optional
 
 """
@@ -38,16 +40,12 @@ if TYPE_CHECKING:
     runtime_mode="profile",  # Set to debug mode for comprehensive analysis
 )
 class GperfHeapEnvironment(BaseExecutionEnvironment):
-    """
-
-    Memory heap profiling execution environment using Google Performance Tools.
+    """Memory heap profiling execution environment using Google Performance Tools.
 
     This environment wraps services with gperf heap profiling to collect
     memory usage data and generate heap analysis reports. Uses shared command
     generation utilities for consistent and maintainable command building.
     """
-
-    _config_class = GperfHeapConfig
 
     def __init__(
         self,
@@ -68,8 +66,7 @@ class GperfHeapEnvironment(BaseExecutionEnvironment):
     def _setup_plugin_specific_environment(
         self, services_managers: List[IServiceManager], timestamp: str
     ):
-        """
-        Set up gperf heap profiling for all services using shared utilities.
+        """Set up gperf heap profiling for all services using shared utilities.
 
         Args:
             services_managers: List of service managers to potentially modify
@@ -134,8 +131,7 @@ class GperfHeapEnvironment(BaseExecutionEnvironment):
             command_builder.build_and_apply(self)
 
     def _build_heap_environment_vars(self, heap_profile_file: str) -> dict:
-        """
-        Build the environment variables for gperf heap profiling.
+        """Build the environment variables for gperf heap profiling.
 
         Args:
             heap_profile_file: Path to write heap profile data
@@ -149,14 +145,14 @@ class GperfHeapEnvironment(BaseExecutionEnvironment):
         }
 
         # Add sampling frequency if configured
-        sampling_frequency = self._get_config_value("sampling_frequency")
-        if sampling_frequency:
-            env_vars["HEAP_PROFILE_ALLOCATION_INTERVAL"] = str(sampling_frequency)
+        allocation_interval = self._get_config_value("heap_profile_allocation_interval")
+        if allocation_interval:
+            env_vars["HEAP_PROFILE_ALLOCATION_INTERVAL"] = str(allocation_interval)
 
         # Add heap check level if configured
-        heap_check_level = self._get_config_value("heap_check_level")
-        if heap_check_level:
-            env_vars["HEAPCHECK"] = str(heap_check_level)
+        heap_check_type = self._get_config_value("heap_check_type")
+        if heap_check_type:
+            env_vars["HEAPCHECK"] = str(heap_check_type)
 
         # Add profile options
         profile_only_peak = self._get_config_value("profile_only_peak")
@@ -168,8 +164,7 @@ class GperfHeapEnvironment(BaseExecutionEnvironment):
     def _build_post_processing_command(
         self, heap_profile_file: str, heap_analysis_file: str, service_name: str
     ) -> str:
-        """
-        Build the post-processing command for generating heap analysis.
+        """Build the post-processing command for generating heap analysis.
 
         Args:
             heap_profile_file: Path to heap profile file
@@ -211,8 +206,7 @@ echo "Heap analysis completed for {service_name}" >> /app/logs/{service_name}_he
 """.strip()
 
     def to_command(self, output_file: Optional[str] = None) -> str:
-        """
-        Generate the gperf heap profiling command for execution.
+        """Generate the gperf heap profiling command for execution.
 
         Args:
             output_file: Optional output file path
@@ -236,8 +230,7 @@ echo "Heap analysis completed for {service_name}" >> /app/logs/{service_name}_he
         services_managers,
         test_config,
     ) -> None:
-        """
-        Update environment for gperf heap profiling execution.
+        """Update environment for gperf heap profiling execution.
 
         Args:
             execution_environment: Current execution environment

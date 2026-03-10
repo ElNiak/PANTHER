@@ -1,3 +1,5 @@
+"""Plugin manifest and metadata definitions for PANTHER plugins."""
+
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from panther.plugins.core.structures.plugin_dependency import PluginDependency
@@ -7,13 +9,6 @@ from panther.plugins.core.structures.plugin_type import PluginType
 if TYPE_CHECKING:
     from panther.plugins.core.docker_metadata import DockerRequirements
 
-"""
-Plugin Manifest and Metadata Definitions
-
-This module provides the core data structures for plugin metadata,
-versioning, and dependency management in PANTHER.
-"""
-
 from dataclasses import dataclass, field
 
 from packaging import version
@@ -21,8 +16,7 @@ from packaging import version
 
 @dataclass
 class PluginManifest:
-    """
-    Complete metadata for a plugin including versioning and dependencies.
+    """Complete metadata for a plugin including versioning and dependencies.
 
     This structure is used for plugin discovery, validation, and loading.
     """
@@ -49,12 +43,15 @@ class PluginManifest:
     config_schema: Dict[str, Any] = field(default_factory=dict)
     default_config: Dict[str, Any] = field(default_factory=dict)
 
+    # Runtime-only: Pydantic config model class discovered during registration
+    config_model: Optional[type] = None
+
     # Runtime information
     entry_point: Optional[str] = None  # Module path to main class
     file_path: Optional[str] = None  # Physical file location
-    runtime_mode: Optional[
-        str
-    ] = None  # Required runtime mode (minimal, debug, profile)
+    runtime_mode: Optional[str] = (
+        None  # Required runtime mode (minimal, debug, profile)
+    )
 
     # Feature declarations
     supported_protocols: List[str] = field(default_factory=list)

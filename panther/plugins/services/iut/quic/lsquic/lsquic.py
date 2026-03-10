@@ -56,18 +56,16 @@ class LsquicServiceManager(
         enable_push = kwargs.get("enable_push", True)
         max_conns = kwargs.get("max_conns")
 
-        # If we have access to service config, check plugin_config
-        if hasattr(self, "service_config"):
-            plugin_config = getattr(self.service_config, "plugin_config", {})
-            if plugin_config:
-                # Use plugin config values as fallbacks
-                doc_root = doc_root or plugin_config.get("doc_root", "/var/www")
-                enable_push = (
-                    enable_push
-                    if kwargs.get("enable_push") is not None
-                    else plugin_config.get("enable_push", True)
-                )
-                max_conns = max_conns or plugin_config.get("max_conns")
+        # Use direct attribute access on service_config_to_test as fallbacks
+        doc_root = doc_root or getattr(
+            self.service_config_to_test, "doc_root", "/var/www"
+        )
+        enable_push = (
+            enable_push
+            if kwargs.get("enable_push") is not None
+            else getattr(self.service_config_to_test, "enable_push", True)
+        )
+        max_conns = max_conns or getattr(self.service_config_to_test, "max_conns", None)
 
         # Document root for serving files
         if doc_root:
@@ -95,23 +93,21 @@ class LsquicServiceManager(
         headers = kwargs.get("headers", {})
         output_file = kwargs.get("output_file")
 
-        # If we have access to service config, check plugin_config
-        if hasattr(self, "service_config"):
-            plugin_config = getattr(self.service_config, "plugin_config", {})
-            if plugin_config:
-                # Use plugin config values as fallbacks
-                request_path = (
-                    request_path
-                    if kwargs.get("request_path") is not None
-                    else plugin_config.get("request_path", "/")
-                )
-                method = (
-                    method
-                    if kwargs.get("method") is not None
-                    else plugin_config.get("method", "GET")
-                )
-                headers = headers or plugin_config.get("headers", {})
-                output_file = output_file or plugin_config.get("output_file")
+        # Use direct attribute access on service_config_to_test as fallbacks
+        request_path = (
+            request_path
+            if kwargs.get("request_path") is not None
+            else getattr(self.service_config_to_test, "request_path", "/")
+        )
+        method = (
+            method
+            if kwargs.get("method") is not None
+            else getattr(self.service_config_to_test, "method", "GET")
+        )
+        headers = headers or getattr(self.service_config_to_test, "headers", {})
+        output_file = output_file or getattr(
+            self.service_config_to_test, "output_file", None
+        )
 
         # Request path
         path = request_path
@@ -141,12 +137,11 @@ class LsquicServiceManager(
         library_path = "/opt/lsquic/lib"
         logs_dir = "/app/logs/artifacts"
 
-        # If we have access to service config, check plugin_config
-        if hasattr(self, "service_config"):
-            plugin_config = getattr(self.service_config, "plugin_config", {})
-            if plugin_config:
-                library_path = plugin_config.get("library_path", library_path)
-                logs_dir = plugin_config.get("logs_dir", logs_dir)
+        # Use direct attribute access on service_config_to_test
+        library_path = getattr(
+            self.service_config_to_test, "library_path", library_path
+        )
+        logs_dir = getattr(self.service_config_to_test, "logs_dir", logs_dir)
 
         # LSQUIC uses different environment variables
         params["library_path"] = library_path
@@ -173,8 +168,7 @@ class LsquicServiceManager(
         return f"{env_prefix} {command}"
 
     def get_output_patterns(self) -> List[Tuple[str, str]]:
-        """
-        Get phase-based output patterns for LSQUIC service.
+        """Get phase-based output patterns for LSQUIC service.
 
         Returns:
             List of (output_type, filename_pattern) tuples organized by execution phases
@@ -246,13 +240,6 @@ class LsquicServiceManager(
         push = True
         priority = True
         multipath = False  # Not yet supported
-
-        # If we have access to service config, check plugin_config
-        if hasattr(self, "service_config"):
-            plugin_config = getattr(self.service_config, "plugin_config", {})
-            if plugin_config:
-                # LSQUIC doesn't have feature toggles in config, but we could add them
-                pass
 
         # LSQUIC has excellent HTTP/3 support
         features.update(

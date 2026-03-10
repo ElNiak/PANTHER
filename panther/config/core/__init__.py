@@ -1,7 +1,7 @@
 """Core configuration system for PANTHER.
 
 This package provides the primary configuration management system using
-Pydantic models and OmegaConf for advanced configuration handling.
+Pydantic v2 models for type-safe configuration handling.
 
 Architecture at a Glance
 ========================
@@ -38,12 +38,12 @@ Configuration Merge System
 --------------------------
 Two levels of merge support exist:
 
-1. **Component level** -- ``components.merger.UnifiedMerger`` with five
+1. **Component level** -- ``components.merger.ConfigMerger`` with five
    ``MergeStrategy`` values and four ``ConflictResolution`` values, plus
    ``MergeContext`` for audit trails.
 2. **Mixin level** -- ``mixins.config_operations.ConfigOperationsMixin`` with
    a smaller ``MergeStrategy`` / ``ConflictResolution`` enum set that
-   delegates to OmegaConf directly.
+   delegates to the merger component.
 
 Both share the same conceptual model (strategy + conflict resolution) but
 the component variant is richer and produces auditable merge contexts.
@@ -51,7 +51,7 @@ the component variant is richer and produces auditable merge contexts.
 Key Entry Points
 ----------------
 - ``panther.config.core.manager.ConfigurationManager`` -- primary API
-- ``panther.config.core.base.BaseConfig`` -- Pydantic + OmegaConf hybrid base
+- ``panther.config.core.base.BaseConfig`` -- pure Pydantic v2 base for all config models
 - ``panther.config.core.components`` -- loaders, validators, builders, merger
 - ``panther.config.core.models`` -- typed Pydantic configuration models
 - ``panther.config.core.validators`` -- multi-layer validation framework

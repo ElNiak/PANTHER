@@ -1,3 +1,5 @@
+"""Localhost single-container network environment plugin."""
+
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from panther.config.core.models.network_resolution import NetworkResolutionContext
@@ -73,8 +75,7 @@ class LocalhostSingleContainerEnvironment(
     StandardOutputCollectorMixin,
     EnvironmentPluginEventMixin,
 ):
-    """
-    localhost single container environment using base class and mixins.
+    """localhost single container environment using base class and mixins.
 
     This environment is designed to run a single container on localhost
     with minimal configuration and fast deployment capabilities.
@@ -97,6 +98,7 @@ class LocalhostSingleContainerEnvironment(
         event_manager: EventManager,
         target_platform: Optional[str] = None,
     ):
+        """Initialize localhost single-container environment."""
         # First initialize all parent classes including StandardOutputCollectorMixin
         super().__init__(
             env_config_to_test, output_dir, env_type, env_sub_type, event_manager
@@ -128,33 +130,8 @@ class LocalhostSingleContainerEnvironment(
         # Initialize network resolver for placeholder resolution
         self.network_resolver = LocalhostNetworkResolver()
 
-        # Initialize plugin config cache
-        self._plugin_config = None
-
-    def _get_plugin_config(self):
-        """Get plugin config with caching and fallback."""
-        if self._plugin_config is None:
-            try:
-                # Import here to avoid circular imports
-                from panther.plugins.environments.network_environment.localhost_single_container.config_schema import (
-                    LocalhostSingleContainerConfig,
-                )
-
-                self._plugin_config = self.env_config_to_test.get_plugin_config(
-                    LocalhostSingleContainerConfig
-                )
-            except Exception as e:
-                self.logger.debug(f"Could not get plugin config, using defaults: {e}")
-                from panther.plugins.environments.network_environment.localhost_single_container.config_schema import (
-                    LocalhostSingleContainerConfig,
-                )
-
-                self._plugin_config = LocalhostSingleContainerConfig()
-        return self._plugin_config
-
     def _get_safe_test_name(self) -> str:
-        """
-        Get a Docker-safe test name for container naming.
+        """Get a Docker-safe test name for container naming.
 
         Returns:
             str: Sanitized test name suitable for Docker container names
@@ -320,9 +297,9 @@ class LocalhostSingleContainerEnvironment(
 
             # Get standard redirections
             if hasattr(service, "get_standard_redirections"):
-                service_data[
-                    "output_redirections"
-                ] = service.get_standard_redirections()
+                service_data["output_redirections"] = (
+                    service.get_standard_redirections()
+                )
                 self.logger.debug(
                     f"Service {service.service_name} redirections: {service_data['output_redirections']}"
                 )
@@ -440,7 +417,6 @@ class LocalhostSingleContainerEnvironment(
 
     def deploy_services(self) -> bool:
         """Deploy and monitor services in container with optional non-blocking monitoring."""
-
         # Access configuration to determine monitoring mode
         # Handle case where env_config_to_test is None
         if self.env_config_to_test is None:
@@ -451,22 +427,7 @@ class LocalhostSingleContainerEnvironment(
                 "env_config_to_test was None, initialized with default configuration"
             )
 
-        # Get enable_background_monitoring using dual approach
-        plugin_config = self._get_plugin_config()
-
-        # First try plugin_config dict
-        enable_background = None
-        if (
-            hasattr(self.env_config_to_test, "plugin_config")
-            and self.env_config_to_test.plugin_config
-        ):
-            enable_background = self.env_config_to_test.plugin_config.get(
-                "enable_background_monitoring"
-            )
-
-        # Second try typed config
-        if enable_background is None:
-            enable_background = plugin_config.enable_background_monitoring
+        enable_background = self.env_config_to_test.enable_background_monitoring
         self.logger.info(
             f"Container deployment monitoring enabled: {enable_background}"
         )
@@ -485,7 +446,7 @@ class LocalhostSingleContainerEnvironment(
             return self._deploy_services_non_blocking()
 
     def _deploy_services_blocking(self) -> bool:
-        """Original blocking deployment - monitor container before returning"""
+        """Original blocking deployment - monitor container before returning."""
         self.logger.info("Deploying services in localhost container (blocking mode)")
 
         # Monitor container status
@@ -520,7 +481,7 @@ class LocalhostSingleContainerEnvironment(
         return True
 
     def _deploy_services_non_blocking(self) -> bool:
-        """Non-blocking deployment - start background monitoring and return quickly"""
+        """Non-blocking deployment - start background monitoring and return quickly."""
         self.logger.info("Checking container status (non-blocking mode)")
 
         config = self.env_config_to_test
@@ -535,20 +496,7 @@ class LocalhostSingleContainerEnvironment(
             )
 
         # Quick initial check - wait briefly for container to start
-        # Get monitoring_interval_seconds using dual approach
-        plugin_config = self._get_plugin_config()
-
-        # First try plugin_config dict
-        monitoring_interval = None
-        if hasattr(config, "plugin_config") and config.plugin_config:
-            monitoring_interval = config.plugin_config.get(
-                "monitoring_interval_seconds"
-            )
-
-        # Second try typed config
-        if monitoring_interval is None:
-            monitoring_interval = plugin_config.monitoring_interval_seconds
-
+        monitoring_interval = self.env_config_to_test.monitoring_interval_seconds
         initial_wait = min(5, monitoring_interval)
         self.logger.info(
             f"Waiting {initial_wait} seconds for initial container startup..."
@@ -775,8 +723,7 @@ class LocalhostSingleContainerEnvironment(
         return True
 
     def _determine_architecture_mode(self, service) -> bool:
-        """
-        Determine whether to use system models (APT architecture) based on service configuration.
+        """Determine whether to use system models (APT architecture) based on service configuration.
 
         Args:
             service: Service manager instance
@@ -824,8 +771,7 @@ class LocalhostSingleContainerEnvironment(
     def _resolve_network_placeholders_in_commands(
         self, commands: Dict[str, List[str]], service: IServiceManager
     ) -> Dict[str, List[str]]:
-        """
-        Resolve network placeholders in service commands for localhost environment.
+        """Resolve network placeholders in service commands for localhost environment.
 
         Args:
             commands: Dictionary of command lists by phase
@@ -879,8 +825,7 @@ class LocalhostSingleContainerEnvironment(
     def _resolve_placeholders_in_command(
         self, command: str, context: NetworkResolutionContext
     ) -> str:
-        """
-        Resolve network placeholders in a single command string.
+        """Resolve network placeholders in a single command string.
 
         Args:
             command: Command string with potential placeholders
@@ -916,8 +861,7 @@ class LocalhostSingleContainerEnvironment(
             return command
 
     def _get_service_ip(self, service_name: str) -> str:
-        """
-        Get the IP address for a service in localhost single container environment.
+        """Get the IP address for a service in localhost single container environment.
 
         In a localhost single container environment, all services run in the same container
         and communicate via the loopback interface.

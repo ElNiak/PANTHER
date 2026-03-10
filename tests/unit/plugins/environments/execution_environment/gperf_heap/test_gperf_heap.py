@@ -1,25 +1,20 @@
-"""
-Comprehensive unit tests for GperfHeapEnvironment.
+"""Comprehensive unit tests for GperfHeapEnvironment.
 
 Tests memory heap profiling functionality, configuration handling, and command generation.
 """
 
-from pathlib import Path
-from typing import List
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
 from panther.config.core.models.global_config import GlobalConfig
 from panther.core.observer.management.event_manager import EventManager
-from panther.plugins.environments.config_schema import EnvironmentConfig
 from panther.plugins.environments.execution_environment.gperf_heap.config_schema import (
     GperfHeapConfig,
 )
 from panther.plugins.environments.execution_environment.gperf_heap.gperf_heap import (
     GperfHeapEnvironment,
 )
-from panther.plugins.services.services_interface import IServiceManager
 
 
 class TestGperfHeapEnvironmentInitialization:
@@ -45,7 +40,6 @@ class TestGperfHeapEnvironmentInitialization:
         assert env.env_type == "execution"
         assert env.env_sub_type == "gperf_heap"
         assert env.event_manager == event_manager
-        assert env._cached_plugin_config is None  # Should be lazy-loaded
 
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
@@ -91,68 +85,6 @@ class TestGperfHeapEnvironmentInitialization:
         assert isinstance(env, GperfHeapEnvironment)
 
 
-class TestGperfHeapConfigurationHandling:
-    """Test suite for configuration handling with dual approach."""
-
-    @patch(
-        "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
-    )
-    def test_get_plugin_config_caching(
-        self, mock_std_init, temp_output_dir, event_manager
-    ):
-        """Test that plugin config is cached correctly."""
-        config = GperfHeapConfig(heap_profile_allocation_interval=1024)
-
-        env = GperfHeapEnvironment(
-            env_config_to_test=config,
-            output_dir=temp_output_dir,
-            env_type="execution",
-            env_sub_type="gperf_heap",
-            event_manager=event_manager,
-        )
-
-        # Cache should start as None
-        assert env._cached_plugin_config is None
-
-        # First call should populate cache
-        plugin_config1 = env._get_plugin_config()
-        assert env._cached_plugin_config is not None
-
-        # Second call should return same object (cached)
-        plugin_config2 = env._get_plugin_config()
-        assert plugin_config1 is plugin_config2
-
-    @patch(
-        "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
-    )
-    def test_get_plugin_config_exception_fallback(
-        self, mock_std_init, temp_output_dir, event_manager
-    ):
-        """Test fallback to default config when get_plugin_config fails."""
-        config = GperfHeapConfig()
-
-        env = GperfHeapEnvironment(
-            env_config_to_test=config,
-            output_dir=temp_output_dir,
-            env_type="execution",
-            env_sub_type="gperf_heap",
-            event_manager=event_manager,
-        )
-        env.env_config_to_test = config
-
-        # Force an exception by making get_plugin_config raise
-        config.get_plugin_config = Mock(side_effect=Exception("Config error"))
-
-        mock_logger = MagicMock()
-        env._logger = mock_logger
-
-        plugin_config = env._get_plugin_config()
-
-        # Should return default config
-        assert isinstance(plugin_config, GperfHeapConfig)
-        assert plugin_config.heap_profile_allocation_interval is None  # Default value
-
-
 class TestGperfHeapEnvironmentVariableGeneration:
     """Test suite for environment variable generation."""
 
@@ -183,12 +115,11 @@ class TestGperfHeapEnvironmentVariableGeneration:
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
     )
-    def test_build_heap_environment_vars_with_sampling_frequency(
+    def test_build_heap_environment_vars_with_allocation_interval(
         self, mock_std_init, temp_output_dir, event_manager
     ):
-        """Test environment variable generation with sampling frequency."""
-        config = GperfHeapConfig()
-        config.plugin_config = {"sampling_frequency": 2048}
+        """Test environment variable generation with allocation interval."""
+        config = GperfHeapConfig(heap_profile_allocation_interval=2048)
 
         env = GperfHeapEnvironment(
             env_config_to_test=config,
@@ -209,9 +140,8 @@ class TestGperfHeapEnvironmentVariableGeneration:
     def test_build_heap_environment_vars_with_heap_check(
         self, mock_std_init, temp_output_dir, event_manager
     ):
-        """Test environment variable generation with heap check level."""
-        config = GperfHeapConfig()
-        config.plugin_config = {"heap_check_level": "strict"}
+        """Test environment variable generation with heap check type."""
+        config = GperfHeapConfig(heap_check_type="strict")
 
         env = GperfHeapEnvironment(
             env_config_to_test=config,
@@ -233,8 +163,7 @@ class TestGperfHeapEnvironmentVariableGeneration:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test environment variable generation with profile only peak option."""
-        config = GperfHeapConfig()
-        config.plugin_config = {"profile_only_peak": True}
+        config = GperfHeapConfig(profile_only_peak=True)
 
         env = GperfHeapEnvironment(
             env_config_to_test=config,
@@ -252,15 +181,14 @@ class TestGperfHeapEnvironmentVariableGeneration:
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
     )
-    def test_build_heap_environment_vars_typed_config_fallback(
+    def test_build_heap_environment_vars_typed_config(
         self, mock_std_init, temp_output_dir, event_manager
     ):
-        """Test environment variable generation with typed config fallback."""
-        # Create typed config with specific values
+        """Test environment variable generation with typed config values."""
         config = GperfHeapConfig(
             heap_profile_allocation_interval=4096,
             heap_check_type="normal",
-            profile_only_mmap=True,
+            profile_only_peak=True,
         )
 
         env = GperfHeapEnvironment(
@@ -271,23 +199,14 @@ class TestGperfHeapEnvironmentVariableGeneration:
             event_manager=event_manager,
         )
 
-        # Mock the plugin config to test fallback mechanism
-        with patch.object(env, "_get_plugin_config") as mock_get_config:
-            typed_config = GperfHeapConfig()
-            typed_config.sampling_frequency = 4096
-            typed_config.heap_check_level = "normal"
-            typed_config.profile_only_peak = True
-            mock_get_config.return_value = typed_config
+        env_vars = env._build_heap_environment_vars("/tmp/heap.prof")
 
-            env_vars = env._build_heap_environment_vars("/tmp/heap.prof")
-
-            # Should use values from typed config since no plugin_config dict
-            assert "HEAP_PROFILE_ALLOCATION_INTERVAL" in env_vars
-            assert env_vars["HEAP_PROFILE_ALLOCATION_INTERVAL"] == "4096"
-            assert "HEAPCHECK" in env_vars
-            assert env_vars["HEAPCHECK"] == "normal"
-            assert "HEAP_PROFILE_ONLY_PEAK" in env_vars
-            assert env_vars["HEAP_PROFILE_ONLY_PEAK"] == "1"
+        assert "HEAP_PROFILE_ALLOCATION_INTERVAL" in env_vars
+        assert env_vars["HEAP_PROFILE_ALLOCATION_INTERVAL"] == "4096"
+        assert "HEAPCHECK" in env_vars
+        assert env_vars["HEAPCHECK"] == "normal"
+        assert "HEAP_PROFILE_ONLY_PEAK" in env_vars
+        assert env_vars["HEAP_PROFILE_ONLY_PEAK"] == "1"
 
 
 class TestGperfHeapPostProcessingCommand:
@@ -330,8 +249,7 @@ class TestGperfHeapPostProcessingCommand:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test post-processing command with custom pprof binary."""
-        config = GperfHeapConfig()
-        config.plugin_config = {"pprof_binary": "/custom/bin/pprof"}
+        config = GperfHeapConfig(pprof_binary="/custom/bin/pprof")
 
         env = GperfHeapEnvironment(
             env_config_to_test=config,
@@ -352,11 +270,11 @@ class TestGperfHeapPostProcessingCommand:
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
     )
-    def test_build_post_processing_command_typed_config_fallback(
+    def test_build_post_processing_command_typed_config(
         self, mock_std_init, temp_output_dir, event_manager
     ):
-        """Test post-processing command with typed config fallback for pprof binary."""
-        config = GperfHeapConfig()
+        """Test post-processing command with typed config pprof binary."""
+        config = GperfHeapConfig(pprof_binary="/typed/bin/pprof")
         env = GperfHeapEnvironment(
             env_config_to_test=config,
             output_dir=temp_output_dir,
@@ -365,18 +283,12 @@ class TestGperfHeapPostProcessingCommand:
             event_manager=event_manager,
         )
 
-        # Mock typed config with pprof_binary attribute
-        with patch.object(env, "_get_plugin_config") as mock_get_config:
-            typed_config = Mock()
-            typed_config.pprof_binary = "/typed/bin/pprof"
-            mock_get_config.return_value = typed_config
+        command = env._build_post_processing_command(
+            "/tmp/heap.prof", "/tmp/heap_analysis.txt", "test_service"
+        )
 
-            command = env._build_post_processing_command(
-                "/tmp/heap.prof", "/tmp/heap_analysis.txt", "test_service"
-            )
-
-            # Should use typed config pprof binary
-            assert "/typed/bin/pprof --text --lines" in command
+        # Should use typed config pprof binary
+        assert "/typed/bin/pprof --text --lines" in command
 
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
@@ -394,19 +306,13 @@ class TestGperfHeapPostProcessingCommand:
             event_manager=event_manager,
         )
 
-        # Mock typed config without pprof_binary attribute
-        with patch.object(env, "_get_plugin_config") as mock_get_config:
-            typed_config = Mock()
-            del typed_config.pprof_binary  # Remove attribute to test hasattr check
-            mock_get_config.return_value = typed_config
+        command = env._build_post_processing_command(
+            "/tmp/heap.prof", "/tmp/heap_analysis.txt", "test_service"
+        )
 
-            command = env._build_post_processing_command(
-                "/tmp/heap.prof", "/tmp/heap_analysis.txt", "test_service"
-            )
-
-            # Should use default "pprof"
-            assert "pprof --text --lines" in command
-            assert "/typed/bin/pprof" not in command
+        # Should use default "pprof"
+        assert "pprof --text --lines" in command
+        assert "/typed/bin/pprof" not in command
 
 
 class TestGperfHeapCommandGeneration:
@@ -466,12 +372,11 @@ class TestGperfHeapCommandGeneration:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test command generation with all environment variables."""
-        config = GperfHeapConfig()
-        config.plugin_config = {
-            "sampling_frequency": 1024,
-            "heap_check_level": "strict",
-            "profile_only_peak": True,
-        }
+        config = GperfHeapConfig(
+            heap_profile_allocation_interval=1024,
+            heap_check_type="strict",
+            profile_only_peak=True,
+        )
 
         env = GperfHeapEnvironment(
             env_config_to_test=config,
@@ -787,14 +692,10 @@ class TestGperfHeapIntegration:
         """Test a full workflow simulation."""
         config = GperfHeapConfig(
             heap_profile_allocation_interval=2048,
+            heap_check_type="normal",
             generate_pdf=True,
             enable_leak_check=True,
         )
-        config.plugin_config = {
-            "sampling_frequency": 2048,
-            "heap_check_level": "normal",
-            "profile_only_peak": False,
-        }
 
         env = GperfHeapEnvironment(
             env_config_to_test=config,

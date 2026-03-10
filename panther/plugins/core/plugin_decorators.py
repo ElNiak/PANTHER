@@ -63,6 +63,7 @@ requiring explicit registration code.
 """
 
 import functools
+import importlib
 import logging
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -77,6 +78,78 @@ _DECORATED_PLUGINS: Dict[str, Tuple[type, PluginManifest]] = {}
 _VERSION_CONFIGS: Dict[str, Dict[str, Any]] = {}
 
 
+def _discover_sibling_config_model(cls: type) -> Optional[type]:
+    """Discover a Pydantic config model in the same package as *cls*.
+
+    Looks for a ``config_schema`` sibling module and returns the first
+    class that is a subclass of ``BaseConfig`` (skipping base
+    classes themselves).
+
+    Returns:
+        The discovered config model class, or ``None``.
+    """
+    try:
+        from panther.config.core.base import BaseConfig
+    except ImportError:
+        return None
+
+    module = cls.__module__
+    if not module or "." not in module:
+        return None
+
+    package = module.rsplit(".", 1)[0]
+    try:
+        schema_mod = importlib.import_module(f"{package}.config_schema")
+    except ImportError:
+        return None
+
+    # Known base/helper classes to skip — only return concrete subclasses.
+    # Import here to build the identity set; missing imports are tolerated.
+    _base_classes: set[type] = {BaseConfig}
+    try:
+        from panther.config.core.models.environment import (
+            EnvironmentConfig,
+            ExecutionEnvironmentConfig,
+            NetworkEnvironmentConfig,
+        )
+        from panther.config.core.models.plugin import ProtocolPluginConfig
+        from panther.config.core.models.service import (
+            ImplementationConfig,
+            NetworkConfig,
+            ProtocolConfig,
+            ServiceConfig,
+            VersionBase,
+        )
+
+        _base_classes.update(
+            {
+                ServiceConfig,
+                ImplementationConfig,
+                ProtocolConfig,
+                NetworkConfig,
+                VersionBase,
+                EnvironmentConfig,
+                ExecutionEnvironmentConfig,
+                NetworkEnvironmentConfig,
+                ProtocolPluginConfig,
+            }
+        )
+    except ImportError:
+        pass
+
+    # Scan for first concrete subclass of BaseConfig
+    for attr_name in dir(schema_mod):
+        attr = getattr(schema_mod, attr_name, None)
+        if (
+            isinstance(attr, type)
+            and issubclass(attr, BaseConfig)
+            and attr not in _base_classes
+            and attr_name.endswith("Config")
+        ):
+            return attr
+    return None
+
+
 def register_plugin(
     plugin_type: PluginType,
     name: Optional[str] = None,
@@ -88,8 +161,6 @@ def register_plugin(
     min_panther_version: str = "1.0.0",
     max_panther_version: Optional[str] = None,
     dependencies: Optional[List[Union[str, dict]]] = None,
-    config_schema: Optional[Dict[str, Any]] = None,
-    default_config: Optional[Dict[str, Any]] = None,
     supported_protocols: Optional[List[str]] = None,
     capabilities: Optional[List[str]] = None,
     tags: Optional[List[str]] = None,
@@ -116,8 +187,6 @@ def register_plugin(
         min_panther_version: Minimum compatible PANTHER version.
         max_panther_version: Maximum compatible PANTHER version (None = no limit).
         dependencies: Plugin dependencies (strings or dependency dicts).
-        config_schema: JSON Schema for plugin configuration validation.
-        default_config: Default configuration values.
         supported_protocols: Network protocols this plugin supports.
         capabilities: Functional capabilities (e.g., ``["rfc9000", "0rtt"]``).
         tags: Classification tags for discovery.
@@ -178,8 +247,6 @@ def register_plugin(
             min_panther_version=min_panther_version,
             max_panther_version=max_panther_version,
             dependencies=parsed_deps,
-            config_schema=config_schema or {},
-            default_config=default_config or {},
             supported_protocols=supported_protocols or [],
             capabilities=capabilities or [],
             tags=tags or [],
@@ -196,6 +263,12 @@ def register_plugin(
 
         # Add manifest as class attribute
         cls._PLUGIN_MANIFEST = manifest
+
+        # Auto-discover sibling config model
+        config_model = _discover_sibling_config_model(cls)
+        if config_model is not None:
+            manifest.config_model = config_model
+            cls._config_class = config_model
 
         # Process any pending version configs
         if hasattr(cls, "_PENDING_VERSION_CONFIGS"):
@@ -457,6 +530,35 @@ def get_plugin_by_name(
         ),
         None,
     )
+
+
+def get_config_model(
+    plugin_name: str, plugin_type: Optional[str] = None
+) -> Optional[type]:
+    """Get the Pydantic config model class for a registered plugin.
+
+    Args:
+        plugin_name: Plugin name to look up
+        plugin_type: Optional plugin type filter
+
+    Returns:
+        Config model class if found, None otherwise
+    """
+    for _pid, (cls, manifest) in _DECORATED_PLUGINS.items():
+        if manifest.name == plugin_name and (
+            plugin_type is None or manifest.type.value == plugin_type
+        ):
+            return manifest.config_model
+    return None
+
+
+def get_all_config_models() -> Dict[str, type]:
+    """Return ``{plugin_name: config_model_class}`` for all plugins with schemas."""
+    return {
+        manifest.name: manifest.config_model
+        for _pid, (_cls, manifest) in _DECORATED_PLUGINS.items()
+        if manifest.config_model is not None
+    }
 
 
 def get_plugins_by_type(plugin_type: str) -> Dict[str, Tuple[type, PluginManifest]]:

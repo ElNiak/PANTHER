@@ -1,18 +1,14 @@
-"""
-Comprehensive unit tests for MemcheckEnvironment.
+"""Comprehensive unit tests for MemcheckEnvironment.
 
 Tests memory error detection functionality, configuration handling, and command generation.
 """
 
-from pathlib import Path
-from typing import List
-from unittest.mock import MagicMock, Mock, call, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
 from panther.config.core.models.global_config import GlobalConfig
 from panther.core.observer.management.event_manager import EventManager
-from panther.plugins.environments.config_schema import EnvironmentConfig
 from panther.plugins.environments.execution_environment.memcheck.config_schema import (
     MemcheckConfig,
 )
@@ -45,7 +41,6 @@ class TestMemcheckEnvironmentInitialization:
         assert env.env_type == "execution"
         assert env.env_sub_type == "memcheck"
         assert env.event_manager == event_manager
-        assert env._cached_plugin_config is None  # Should be lazy-loaded
 
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
@@ -92,16 +87,16 @@ class TestMemcheckEnvironmentInitialization:
 
 
 class TestMemcheckConfigurationHandling:
-    """Test suite for configuration handling with dual approach."""
+    """Test suite for configuration handling."""
 
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
     )
-    def test_get_plugin_config_caching(
+    def test_get_config_value_helper(
         self, mock_std_init, temp_output_dir, event_manager
     ):
-        """Test that plugin config is cached correctly."""
-        config = MemcheckConfig(freelist_vol=30000000)
+        """Test _get_config_value reads directly from env_config_to_test."""
+        config = MemcheckConfig(leak_check="full", track_origins=True)
 
         env = MemcheckEnvironment(
             env_config_to_test=config,
@@ -111,67 +106,6 @@ class TestMemcheckConfigurationHandling:
             event_manager=event_manager,
         )
 
-        # Cache should start as None
-        assert env._cached_plugin_config is None
-
-        # First call should populate cache
-        plugin_config1 = env._get_plugin_config()
-        assert env._cached_plugin_config is not None
-
-        # Second call should return same object (cached)
-        plugin_config2 = env._get_plugin_config()
-        assert plugin_config1 is plugin_config2
-
-    @patch(
-        "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
-    )
-    def test_get_plugin_config_exception_fallback(
-        self, mock_std_init, temp_output_dir, event_manager
-    ):
-        """Test fallback to default config when get_plugin_config fails."""
-        config = MemcheckConfig()
-
-        env = MemcheckEnvironment(
-            env_config_to_test=config,
-            output_dir=temp_output_dir,
-            env_type="execution",
-            env_sub_type="memcheck",
-            event_manager=event_manager,
-        )
-        env.env_config_to_test = config
-
-        # Force an exception by making get_plugin_config raise
-        original_get = config.get_plugin_config
-        config.get_plugin_config = Mock(side_effect=Exception("Config error"))
-
-        mock_logger = MagicMock()
-        env._logger = mock_logger
-
-        plugin_config = env._get_plugin_config()
-
-        # Should return default config
-        assert isinstance(plugin_config, MemcheckConfig)
-        assert plugin_config.freelist_vol == 20000000  # Default value
-
-    @patch(
-        "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
-    )
-    def test_get_config_value_helper_plugin_config_dict(
-        self, mock_std_init, temp_output_dir, event_manager
-    ):
-        """Test _get_config_value helper with plugin_config dict."""
-        config = MemcheckConfig()
-        config.plugin_config = {"leak_check": "full", "track_origins": True}
-
-        env = MemcheckEnvironment(
-            env_config_to_test=config,
-            output_dir=temp_output_dir,
-            env_type="execution",
-            env_sub_type="memcheck",
-            event_manager=event_manager,
-        )
-
-        # Should get values from plugin_config dict first
         assert env._get_config_value("leak_check") == "full"
         assert env._get_config_value("track_origins") is True
         assert env._get_config_value("nonexistent", "default") == "default"
@@ -179,10 +113,10 @@ class TestMemcheckConfigurationHandling:
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
     )
-    def test_get_config_value_helper_typed_config_fallback(
+    def test_get_config_value_with_defaults(
         self, mock_std_init, temp_output_dir, event_manager
     ):
-        """Test _get_config_value helper with typed config fallback."""
+        """Test _get_config_value returns config defaults."""
         config = MemcheckConfig(leak_check="summary", undef_value_errors=False)
 
         env = MemcheckEnvironment(
@@ -193,15 +127,8 @@ class TestMemcheckConfigurationHandling:
             event_manager=event_manager,
         )
 
-        with patch.object(env, "_get_plugin_config") as mock_get_config:
-            typed_config = Mock()
-            typed_config.leak_check = "summary"
-            typed_config.undef_value_errors = False
-            mock_get_config.return_value = typed_config
-
-            # Should fall back to typed config when no plugin_config dict
-            assert env._get_config_value("leak_check") == "summary"
-            assert env._get_config_value("undef_value_errors") is False
+        assert env._get_config_value("leak_check") == "summary"
+        assert env._get_config_value("undef_value_errors") is False
 
 
 class TestMemcheckCommandGeneration:
@@ -245,8 +172,7 @@ class TestMemcheckCommandGeneration:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test memcheck command generation with XML output format."""
-        config = MemcheckConfig()
-        config.plugin_config = {"output_format": "xml", "xml_user_comment": "Test run"}
+        config = MemcheckConfig(output_format="xml", xml_user_comment="Test run")
 
         env = MemcheckEnvironment(
             env_config_to_test=config,
@@ -269,14 +195,13 @@ class TestMemcheckCommandGeneration:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test memcheck command generation with leak checking options."""
-        config = MemcheckConfig()
-        config.plugin_config = {
-            "leak_check": "full",
-            "leak_resolution": "med",
-            "show_leak_kinds": "all",
-            "errors_for_leak_kinds": "definite,indirect",
-            "leak_check_heuristics": "stdstring,length64",
-        }
+        config = MemcheckConfig(
+            leak_check="full",
+            leak_resolution="med",
+            show_leak_kinds="all",
+            errors_for_leak_kinds="definite,indirect",
+            leak_check_heuristics="stdstring,length64",
+        )
 
         env = MemcheckEnvironment(
             env_config_to_test=config,
@@ -301,8 +226,7 @@ class TestMemcheckCommandGeneration:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test memcheck command generation with optional leak flags."""
-        config = MemcheckConfig()
-        config.plugin_config = {"show_reachable": "yes", "show_possibly_lost": "no"}
+        config = MemcheckConfig(show_reachable="yes", show_possibly_lost="no")
 
         env = MemcheckEnvironment(
             env_config_to_test=config,
@@ -324,11 +248,7 @@ class TestMemcheckCommandGeneration:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test memcheck command generation with XTree leak output."""
-        config = MemcheckConfig()
-        config.plugin_config = {
-            "xtree_leak": True,
-            "xtree_leak_file": "custom_xtleak.kcg",
-        }
+        config = MemcheckConfig(xtree_leak=True, xtree_leak_file="custom_xtleak.kcg")
 
         env = MemcheckEnvironment(
             env_config_to_test=config,
@@ -350,14 +270,13 @@ class TestMemcheckCommandGeneration:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test memcheck command generation with error detection options."""
-        config = MemcheckConfig()
-        config.plugin_config = {
-            "undef_value_errors": False,
-            "track_origins": True,
-            "partial_loads_ok": False,
-            "expensive_definedness_checks": "yes",
-            "keep_stacktraces": "alloc",
-        }
+        config = MemcheckConfig(
+            undef_value_errors=False,
+            track_origins=True,
+            partial_loads_ok=False,
+            expensive_definedness_checks="yes",
+            keep_stacktraces="alloc",
+        )
 
         env = MemcheckEnvironment(
             env_config_to_test=config,
@@ -382,11 +301,7 @@ class TestMemcheckCommandGeneration:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test memcheck command generation with memory management options."""
-        config = MemcheckConfig()
-        config.plugin_config = {
-            "freelist_vol": 50000000,
-            "freelist_big_blocks": 2000000,
-        }
+        config = MemcheckConfig(freelist_vol=50000000, freelist_big_blocks=2000000)
 
         env = MemcheckEnvironment(
             env_config_to_test=config,
@@ -408,14 +323,13 @@ class TestMemcheckCommandGeneration:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test memcheck command generation with special handling options."""
-        config = MemcheckConfig()
-        config.plugin_config = {
-            "workaround_gcc296_bugs": True,
-            "ignore_range_below_sp": "8192-8189",
-            "show_mismatched_frees": False,
-            "show_realloc_size_zero": False,
-            "ignore_ranges": "0xPP-0xQQ,0xRR-0xSS",
-        }
+        config = MemcheckConfig(
+            workaround_gcc296_bugs=True,
+            ignore_range_below_sp="8192-8189",
+            show_mismatched_frees=False,
+            show_realloc_size_zero=False,
+            ignore_ranges="0xPP-0xQQ,0xRR-0xSS",
+        )
 
         env = MemcheckEnvironment(
             env_config_to_test=config,
@@ -440,8 +354,7 @@ class TestMemcheckCommandGeneration:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test memcheck command generation with fill options."""
-        config = MemcheckConfig()
-        config.plugin_config = {"malloc_fill": "0xAA", "free_fill": "0xBB"}
+        config = MemcheckConfig(malloc_fill="0xAA", free_fill="0xBB")
 
         env = MemcheckEnvironment(
             env_config_to_test=config,
@@ -463,11 +376,10 @@ class TestMemcheckCommandGeneration:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test memcheck command generation with suppression options."""
-        config = MemcheckConfig()
-        config.plugin_config = {
-            "suppression_file": "/tmp/suppressions.supp",
-            "generate_suppressions": True,
-        }
+        config = MemcheckConfig(
+            suppression_file="/tmp/suppressions.supp",
+            generate_suppressions=True,
+        )
 
         env = MemcheckEnvironment(
             env_config_to_test=config,
@@ -489,10 +401,9 @@ class TestMemcheckCommandGeneration:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test memcheck command generation with additional parameters."""
-        config = MemcheckConfig()
-        config.plugin_config = {
-            "additional_parameters": ["--show-below-main=yes", "--time-stamp=yes"]
-        }
+        config = MemcheckConfig(
+            additional_parameters=["--show-below-main=yes", "--time-stamp=yes"]
+        )
 
         env = MemcheckEnvironment(
             env_config_to_test=config,
@@ -510,10 +421,10 @@ class TestMemcheckCommandGeneration:
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
     )
-    def test_build_memcheck_command_typed_config_fallback(
+    def test_build_memcheck_command_typed_config(
         self, mock_std_init, temp_output_dir, event_manager
     ):
-        """Test memcheck command generation with typed config fallback."""
+        """Test memcheck command generation with typed config values."""
         config = MemcheckConfig(
             leak_check="full", track_origins=True, freelist_vol=40000000
         )
@@ -526,19 +437,11 @@ class TestMemcheckCommandGeneration:
             event_manager=event_manager,
         )
 
-        # Mock typed config to test fallback
-        with patch.object(env, "_get_plugin_config") as mock_get_config:
-            typed_config = MemcheckConfig()
-            typed_config.leak_check = "full"
-            typed_config.track_origins = True
-            typed_config.freelist_vol = 40000000
-            mock_get_config.return_value = typed_config
+        command = env._build_memcheck_command("/tmp/memcheck.log")
 
-            command = env._build_memcheck_command("/tmp/memcheck.log")
-
-            assert "--leak-check=full" in command
-            assert "--track-origins=yes" in command
-            assert "--freelist-vol=40000000" in command
+        assert "--leak-check=full" in command
+        assert "--track-origins=yes" in command
+        assert "--freelist-vol=40000000" in command
 
 
 class TestMemcheckCommandInterface:
@@ -693,8 +596,7 @@ class TestMemcheckAnalysisCommands:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test memcheck analysis with full leak check enabled."""
-        config = MemcheckConfig()
-        config.plugin_config = {"leak_check": "full"}
+        config = MemcheckConfig(leak_check="full")
 
         env = MemcheckEnvironment(
             env_config_to_test=config,
@@ -730,8 +632,7 @@ class TestMemcheckAnalysisCommands:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test memcheck analysis with 'yes' leak check."""
-        config = MemcheckConfig()
-        config.plugin_config = {"leak_check": "yes"}
+        config = MemcheckConfig(leak_check="yes")
 
         env = MemcheckEnvironment(
             env_config_to_test=config,
@@ -760,8 +661,7 @@ class TestMemcheckAnalysisCommands:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test memcheck analysis with no leak check."""
-        config = MemcheckConfig()
-        config.plugin_config = {"leak_check": "no"}
+        config = MemcheckConfig(leak_check="no")
 
         env = MemcheckEnvironment(
             env_config_to_test=config,
@@ -1117,21 +1017,6 @@ class TestMemcheckIntegration:
             generate_suppressions=True,
             additional_parameters=["--show-below-main=yes"],
         )
-        config.plugin_config = {
-            "leak_check": "full",
-            "leak_resolution": "high",
-            "show_leak_kinds": "all",
-            "errors_for_leak_kinds": "definite,indirect",
-            "track_origins": True,
-            "undef_value_errors": True,
-            "freelist_vol": 50000000,
-            "freelist_big_blocks": 2000000,
-            "output_format": "xml",
-            "xml_user_comment": "Integration test",
-            "suppression_file": "/tmp/suppressions.supp",
-            "generate_suppressions": True,
-            "additional_parameters": ["--show-below-main=yes"],
-        }
 
         env = MemcheckEnvironment(
             env_config_to_test=config,

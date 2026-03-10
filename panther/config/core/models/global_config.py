@@ -6,8 +6,8 @@ from typing import Any, Dict, Optional
 
 from pydantic import Field, field_validator
 
+from ..base import BaseConfig
 from ..validators import logging_level_validator
-from .base_model import BaseUnifiedModel
 from .observer import ObserversConfig
 
 
@@ -21,7 +21,7 @@ class LoggingLevel(str, Enum):
     CRITICAL = "CRITICAL"
 
 
-class FeatureLogLevelsConfig(BaseUnifiedModel):
+class FeatureLogLevelsConfig(BaseConfig):
     """Feature-specific log level configuration."""
 
     docker_build: Optional[str] = Field(None, description="Docker build operations")
@@ -60,7 +60,7 @@ class FeatureLogLevelsConfig(BaseUnifiedModel):
         return {k: v for k, v in data.items() if v is not None}
 
 
-class LoggingConfig(BaseUnifiedModel):
+class LoggingConfig(BaseConfig):
     """Logging configuration."""
 
     level: LoggingLevel = Field(LoggingLevel.INFO, description="Global log level")
@@ -84,7 +84,7 @@ class LoggingConfig(BaseUnifiedModel):
         return logging_level_validator(cls, v)
 
 
-class PathsConfig(BaseUnifiedModel):
+class PathsConfig(BaseConfig):
     """Paths configuration."""
 
     output_dir: str = Field("outputs", description="Output directory")
@@ -94,7 +94,7 @@ class PathsConfig(BaseUnifiedModel):
     temp_dir: Optional[str] = Field("/tmp/panther", description="Temporary directory")
 
 
-class DockerUserMappingConfig(BaseUnifiedModel):
+class DockerUserMappingConfig(BaseConfig):
     """Docker user mapping configuration."""
 
     run_as_host_user: bool = Field(False, description="Run containers as host user")
@@ -106,7 +106,7 @@ class DockerUserMappingConfig(BaseUnifiedModel):
     )
 
 
-class ServiceDockerOverrideConfig(BaseUnifiedModel):
+class ServiceDockerOverrideConfig(BaseConfig):
     """Per-service Docker build overrides. None = inherit from global DockerConfig."""
 
     force_build_docker_image: Optional[bool] = Field(
@@ -126,7 +126,7 @@ class ServiceDockerOverrideConfig(BaseUnifiedModel):
     )
 
 
-class DockerConfig(BaseUnifiedModel):
+class DockerConfig(BaseConfig):
     """Docker configuration."""
 
     force_build_docker_image: bool = Field(True, description="Build Docker images")
@@ -217,7 +217,7 @@ def resolve_docker_build_config(
     return resolved
 
 
-class ProgressConfig(BaseUnifiedModel):
+class ProgressConfig(BaseConfig):
     """Progress display configuration."""
 
     enable_progress_bar: bool = Field(True, description="Enable progress bars")
@@ -230,7 +230,7 @@ class ProgressConfig(BaseUnifiedModel):
     )
 
 
-class FastFailConfig(BaseUnifiedModel):
+class FastFailConfig(BaseConfig):
     """Fast-fail configuration."""
 
     enabled: bool = Field(True, description="Enable fast-fail system")
@@ -248,7 +248,7 @@ class FastFailConfig(BaseUnifiedModel):
     critical_only: bool = Field(False, description="Only fail on critical errors")
 
 
-class MetricsConfig(BaseUnifiedModel):
+class MetricsConfig(BaseConfig):
     """Metrics collection configuration."""
 
     enabled: bool = Field(True, description="Enable metrics collection")
@@ -258,7 +258,7 @@ class MetricsConfig(BaseUnifiedModel):
     retention_days: int = Field(30, description="Metrics retention period")
 
 
-class GlobalConfig(BaseUnifiedModel):
+class GlobalConfig(BaseConfig):
     """Global configuration container."""
 
     version: str = Field("1.0", description="Configuration version")
@@ -283,16 +283,6 @@ class GlobalConfig(BaseUnifiedModel):
     observers: ObserversConfig = Field(
         default_factory=ObserversConfig, description="Observer configurations"
     )
-
-    def resolve_paths(self) -> "GlobalConfig":
-        """Resolve path interpolations.
-
-        Returns:
-            GlobalConfig with resolved paths
-        """
-        # Use OmegaConf to resolve interpolations
-        resolved = self.interpolate()
-        return resolved
 
     def apply_overrides(self, overrides: Dict[str, Any]) -> "GlobalConfig":
         """Apply configuration overrides.

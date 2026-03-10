@@ -1,5 +1,4 @@
-"""
-Comprehensive unit tests for StraceEnvironment.
+"""Comprehensive unit tests for StraceEnvironment.
 
 Tests system call tracing functionality, configuration handling, and command generation.
 """
@@ -45,7 +44,6 @@ class TestStraceEnvironmentInitialization:
         assert env.env_type == "execution"
         assert env.env_sub_type == "strace"
         assert env.event_manager == event_manager
-        assert env._cached_plugin_config is None  # Should be lazy-loaded
 
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
@@ -89,15 +87,15 @@ class TestStraceEnvironmentInitialization:
 
 
 class TestStraceConfigurationHandling:
-    """Test suite for configuration handling with dual approach."""
+    """Test suite for configuration handling."""
 
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
     )
-    def test_get_plugin_config_caching(
+    def test_get_config_value_returns_field(
         self, mock_std_init, temp_output_dir, event_manager
     ):
-        """Test that plugin config is cached correctly."""
+        """Test that _get_config_value reads directly from env_config_to_test."""
         config = StraceConfig(timeout=120)
 
         env = StraceEnvironment(
@@ -107,49 +105,11 @@ class TestStraceConfigurationHandling:
             env_sub_type="strace",
             event_manager=event_manager,
         )
-        # Ensure env_config_to_test is set (mocked standardized_environment_initialization skips this)
         env.env_config_to_test = config
 
-        # First call should retrieve and cache the plugin config
-        plugin_config1 = env._get_plugin_config()
-        assert plugin_config1 is not None
-        assert env._cached_plugin_config is not None
-
-        # Second call should use cached value (same object)
-        plugin_config2 = env._get_plugin_config()
-        assert plugin_config1 is plugin_config2
-        assert plugin_config1.timeout == 120
-
-    @patch(
-        "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
-    )
-    def test_get_plugin_config_exception_fallback(
-        self, mock_std_init, temp_output_dir, event_manager
-    ):
-        """Test fallback to default config when get_plugin_config fails."""
-        config = StraceConfig()
-
-        with patch.object(
-            config, "get_plugin_config", side_effect=Exception("Config error")
-        ):
-            env = StraceEnvironment(
-                env_config_to_test=config,
-                output_dir=temp_output_dir,
-                env_type="execution",
-                env_sub_type="strace",
-                event_manager=event_manager,
-            )
-            # Ensure env_config_to_test is set (mocked standardized_environment_initialization skips this)
-            env.env_config_to_test = config
-
-            plugin_config = env._get_plugin_config()
-
-            # Should return default config
-            assert isinstance(plugin_config, StraceConfig)
-            assert plugin_config.timeout == 100  # Default value
-
-            # Should log debug message about fallback
-            # (logger is set by LoggerMixin, not easily mockable after init)
+        assert env._get_config_value("timeout") == 120
+        assert env._get_config_value("strace_binary") == "/usr/bin/strace"
+        assert env._get_config_value("nonexistent_field", "fallback") == "fallback"
 
 
 class TestStraceOutputPatterns:
@@ -243,8 +203,7 @@ class TestStraceCommandGeneration:
     ):
         """Test strace command generation with kernel stack enabled on x86_64."""
         mock_platform.machine.return_value = "x86_64"
-        config = StraceConfig()
-        config.plugin_config = {"include_kernel_stack": True}
+        config = StraceConfig(include_kernel_stack=True)
 
         env = StraceEnvironment(
             env_config_to_test=config,
@@ -265,8 +224,7 @@ class TestStraceCommandGeneration:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test strace command generation with excluded syscalls."""
-        config = StraceConfig()
-        config.plugin_config = {"excluded_syscalls": ["nanosleep", "gettimeofday"]}
+        config = StraceConfig(excluded_syscalls=["nanosleep", "gettimeofday"])
 
         env = StraceEnvironment(
             env_config_to_test=config,
@@ -287,12 +245,11 @@ class TestStraceCommandGeneration:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test strace command generation with network syscalls focus."""
-        config = StraceConfig()
         # Must disable trace_all_syscalls to allow network-focused tracing
-        config.plugin_config = {
-            "trace_network_syscalls": True,
-            "trace_all_syscalls": False,
-        }
+        config = StraceConfig(
+            trace_network_syscalls=True,
+            trace_all_syscalls=False,
+        )
 
         env = StraceEnvironment(
             env_config_to_test=config,
@@ -316,8 +273,7 @@ class TestStraceCommandGeneration:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test strace command generation with timeout (timeout wrapper disabled)."""
-        config = StraceConfig()
-        config.plugin_config = {"timeout": 30}
+        config = StraceConfig(timeout=30)
 
         env = StraceEnvironment(
             env_config_to_test=config,
@@ -340,8 +296,7 @@ class TestStraceCommandGeneration:
         self, mock_std_init, temp_output_dir, event_manager
     ):
         """Test strace command generation with additional parameters."""
-        config = StraceConfig()
-        config.plugin_config = {"additional_parameters": ["-f", "-v"]}
+        config = StraceConfig(additional_parameters=["-f", "-v"])
 
         env = StraceEnvironment(
             env_config_to_test=config,
@@ -359,10 +314,10 @@ class TestStraceCommandGeneration:
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
     )
     @patch("panther.plugins.environments.execution_environment.strace.strace.platform")
-    def test_build_strace_command_typed_config_fallback(
+    def test_build_strace_command_typed_config(
         self, mock_platform, mock_std_init, temp_output_dir, event_manager
     ):
-        """Test strace command generation with typed config fallback."""
+        """Test strace command generation reads config fields directly."""
         mock_platform.machine.return_value = "x86_64"
         config = StraceConfig(
             include_kernel_stack=True, timeout=45, additional_parameters=["-c"]
@@ -376,19 +331,11 @@ class TestStraceCommandGeneration:
             event_manager=event_manager,
         )
 
-        # Mock typed config to test fallback
-        with patch.object(env, "_get_plugin_config") as mock_get_config:
-            typed_config = StraceConfig()
-            typed_config.include_kernel_stack = True
-            typed_config.timeout = 45
-            typed_config.additional_parameters = ["-c"]
-            mock_get_config.return_value = typed_config
+        command = env._build_strace_command("/tmp/strace.log")
 
-            command = env._build_strace_command("/tmp/strace.log")
-
-            assert "-k" in command
-            # Timeout wrapper is disabled in source - service-level timeout handles this
-            assert "-c" in command
+        assert "-k" in command
+        # Timeout wrapper is disabled in source - service-level timeout handles this
+        assert "-c" in command
 
 
 class TestStraceCommandInterface:
@@ -430,15 +377,9 @@ class TestStraceCommandInterface:
             event_manager=event_manager,
         )
 
-        # Mock typed config to test fallback
-        with patch.object(env, "_get_plugin_config") as mock_get_config:
-            typed_config = StraceConfig()
-            typed_config.output_file = "/custom/strace.log"
-            mock_get_config.return_value = typed_config
+        command = env.to_command()
 
-            command = env.to_command()
-
-            assert "-o /custom/strace.log" in command
+        assert "-o /custom/strace.log" in command
 
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
@@ -456,23 +397,10 @@ class TestStraceCommandInterface:
             event_manager=event_manager,
         )
 
-        # Mock typed config without output_file to test fallback
-        with patch.object(env, "_get_plugin_config") as mock_get_config:
-            typed_config = Mock(spec=StraceConfig)
-            typed_config.output_file = None
-            typed_config.strace_binary = "/usr/bin/strace"
-            typed_config.include_kernel_stack = False
-            typed_config.excluded_syscalls = None
-            typed_config.trace_all_syscalls = True
-            typed_config.trace_network_syscalls = False
-            typed_config.timeout = None
-            typed_config.additional_parameters = None
-            mock_get_config.return_value = typed_config
+        command = env.to_command()
 
-            command = env.to_command()
-
-            # Falls back to env_config_to_test.output_file default
-            assert "-o /app/logs/strace.log" in command
+        # Falls back to env_config_to_test.output_file default
+        assert "-o /app/logs/strace.log" in command
 
 
 class TestStraceAnalysisCommands:
@@ -525,7 +453,9 @@ class TestStraceAnalysisCommands:
     ):
         """Test strace analysis with detailed analysis enabled."""
         config = StraceConfig()
-        config.plugin_config = {"generate_detailed_analysis": True}
+        # generate_detailed_analysis is not a declared field; set it as an
+        # extra attribute so _get_config_value (getattr) picks it up.
+        config.generate_detailed_analysis = True  # type: ignore[attr-defined]
 
         env = StraceEnvironment(
             env_config_to_test=config,
@@ -557,11 +487,14 @@ class TestStraceAnalysisCommands:
     @patch(
         "panther.plugins.environments.execution_environment.base_execution_environment.BaseExecutionEnvironment.standardized_environment_initialization"
     )
-    def test_add_strace_analysis_commands_typed_config_fallback(
+    def test_add_strace_analysis_commands_with_generate_detailed(
         self, mock_std_init, temp_output_dir, event_manager
     ):
-        """Test strace analysis with typed config fallback for detailed analysis."""
+        """Test strace analysis triggers detailed analysis via config attribute."""
         config = StraceConfig()
+        # Set generate_detailed_analysis as extra attribute on the config
+        config.generate_detailed_analysis = True  # type: ignore[attr-defined]
+
         env = StraceEnvironment(
             env_config_to_test=config,
             output_dir=temp_output_dir,
@@ -570,23 +503,17 @@ class TestStraceAnalysisCommands:
             event_manager=event_manager,
         )
 
-        # Mock typed config with generate_detailed_analysis attribute
-        with patch.object(env, "_get_plugin_config") as mock_get_config:
-            typed_config = Mock()
-            typed_config.generate_detailed_analysis = True
-            mock_get_config.return_value = typed_config
+        # Create mock command builder
+        mock_builder = Mock()
+        mock_builder.service_name = "test_service"
+        mock_builder.register_output_file.return_value = "/tmp/detailed.txt"
 
-            # Create mock command builder
-            mock_builder = Mock()
-            mock_builder.service_name = "test_service"
-            mock_builder.register_output_file.return_value = "/tmp/detailed.txt"
+        env._add_strace_analysis_commands(
+            mock_builder, "/tmp/strace.log", "/tmp/summary.txt"
+        )
 
-            env._add_strace_analysis_commands(
-                mock_builder, "/tmp/strace.log", "/tmp/summary.txt"
-            )
-
-            # Should generate detailed analysis
-            assert mock_builder.add_post_processing.call_count == 2
+        # Should generate detailed analysis
+        assert mock_builder.add_post_processing.call_count == 2
 
 
 class TestStracePluginSpecificSetup:
@@ -903,14 +830,6 @@ class TestStraceIntegration:
             excluded_syscalls=["nanosleep", "gettimeofday"],
             additional_parameters=["-f"],
         )
-        config.plugin_config = {
-            "timeout": 30,
-            "include_kernel_stack": True,
-            "trace_all_syscalls": False,
-            "trace_network_syscalls": True,
-            "excluded_syscalls": ["nanosleep", "gettimeofday"],
-            "additional_parameters": ["-f"],
-        }
 
         env = StraceEnvironment(
             env_config_to_test=config,

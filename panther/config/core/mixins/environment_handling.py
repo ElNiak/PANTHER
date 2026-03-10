@@ -31,10 +31,8 @@ class EnvironmentHandlingMixin(LoggerMixin):
         Returns:
             Configuration with environment variables applied
         """
-        # Convert to OmegaConf for easier manipulation
-        omega_config = OmegaConf.create(config)
+        from ..utils.merge import dot_notation_update
 
-        # Apply environment variable mappings
         for env_var, config_path in self.ENV_MAPPINGS.items():
             env_value = os.environ.get(env_var)
             if env_value is not None:
@@ -44,27 +42,21 @@ class EnvironmentHandlingMixin(LoggerMixin):
                 if config_path.endswith(".enabled") or config_path.endswith(
                     ".build_docker_image"
                 ):
-                    # Boolean conversion
                     env_value = env_value.lower() in ("true", "1", "yes", "on")
                 elif env_var == "PANTHER_LOG_LEVEL":
-                    # Keep as string for log level
                     env_value = env_value.upper()
 
-                # Update config
                 try:
-                    OmegaConf.update(omega_config, config_path, env_value, merge=False)
+                    dot_notation_update(config, config_path, env_value)
                 except Exception as e:
                     self.logger.warning(f"Failed to apply {env_var}: {e}")
 
-        # Support OmegaConf environment variable interpolation
-        # This allows ${oc.env:VAR_NAME,default} syntax in configs
-        omega_config = self._enable_env_interpolation(omega_config)
-
-        # Resolve and return
-        return OmegaConf.to_container(omega_config, resolve=True)
+        return config
 
     def _resolve_interpolations(self, config: Any) -> Any:
         """Resolve all interpolations in configuration.
+
+        Uses OmegaConf only at the boundary for ${} resolution.
 
         Args:
             config: Configuration object (dict, DictConfig, or model)
@@ -77,22 +69,17 @@ class EnvironmentHandlingMixin(LoggerMixin):
         elif isinstance(config, DictConfig):
             omega_config = config
         else:
-            # Assume it's a model with to_omega method
-            omega_config = config.to_omega()
+            # Convert model to dict first, then to OmegaConf
+            omega_config = OmegaConf.create(config.model_dump())
 
-        # Enable environment variable interpolation
         omega_config = self._enable_env_interpolation(omega_config)
-
-        # Resolve all interpolations
         resolved = OmegaConf.to_container(omega_config, resolve=True)
 
-        # Return in appropriate format
         if isinstance(config, dict):
             return resolved
         elif isinstance(config, DictConfig):
             return OmegaConf.create(resolved)
         else:
-            # Recreate model instance
             return config.__class__(**resolved)
 
     def _enable_env_interpolation(self, omega_config: DictConfig) -> DictConfig:

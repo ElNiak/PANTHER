@@ -1,19 +1,11 @@
 """Configuration builders for the unified system."""
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
-
-from omegaconf import DictConfig, OmegaConf
+from typing import Any, Dict, List, Optional, Tuple, Type
 
 from panther.core.utils.logging_mixin import LoggerMixin
 
-from ..models import (
-    ExperimentConfig,
-    GlobalConfig,
-    NetworkEnvironmentConfig,
-    ServiceConfig,
-    TestConfig,
-)
+from ..models import ExperimentConfig, GlobalConfig, ServiceConfig, TestConfig
 
 
 class BuilderContext:
@@ -160,6 +152,14 @@ class ExperimentBuilder(BaseBuilder):
                 test_dict["services"], auto_fix
             )
 
+        # Warn about unknown test-level fields
+        for field_name in TestConfig.check_extra_fields(
+            test_dict, context_label=f"test '{test_dict.get('name', '?')}'"
+        ):
+            self.context.add_warning(
+                f"Unknown field '{field_name}' in test configuration"
+            )
+
         return TestConfig(**test_dict)
 
     def _build_services_with_port_registry(
@@ -238,53 +238,38 @@ class ExperimentBuilder(BaseBuilder):
 
         return test_dict
 
-    def _build_network_environment(
-        self, env_dict: Dict[str, Any]
-    ) -> NetworkEnvironmentConfig:
+    def _build_network_environment(self, env_dict: Dict[str, Any]) -> Dict[str, Any]:
         """Build network environment configuration.
+
+        Uses the schema registry to validate via the plugin-specific config class,
+        then returns a dict so TestConfig can construct a NetworkEnvironmentConfig
+        with extra="allow" (preserving plugin-specific fields).
 
         Args:
             env_dict: Environment configuration dictionary
 
         Returns:
-            Built NetworkEnvironmentConfig
+            Validated environment configuration dict
         """
         env_type = env_dict.get("type", "docker_compose")
 
-        # Dynamically import configs from plugin directories
+        # Schema registry lookup: validate via specific class, return dict
         try:
-            if env_type == "docker_compose":
-                from panther.plugins.environments.network_environment.docker_compose.config_schema import (
-                    DockerComposeConfig,
-                )
+            from panther.plugins.core.plugin_decorators import get_config_model
 
-                config_class = DockerComposeConfig
-            elif env_type == "localhost_single_container":
-                from panther.plugins.environments.network_environment.localhost_single_container.config_schema import (
-                    LocalhostSingleContainerConfig,
-                )
+            config_class = get_config_model(env_type)
+            if config_class is not None:
+                validated = config_class(**env_dict)
+                return validated.model_dump()
+        except ImportError:
+            pass
 
-                config_class = LocalhostSingleContainerConfig
-            elif env_type == "shadow_ns":
-                from panther.plugins.environments.network_environment.shadow_ns.config_schema import (
-                    ShadowNSConfig,
-                )
-
-                config_class = ShadowNSConfig
-            else:
-                # Fallback to base class
-                config_class = NetworkEnvironmentConfig
-                self.context.add_warning(
-                    f"Unknown network environment type '{env_type}', using base class"
-                )
-        except ImportError as e:
-            self.logger.error(
-                f"Failed to import config for environment type '{env_type}': {e}"
-            )
-            config_class = NetworkEnvironmentConfig
-            self.context.add_error(f"Could not load config class for '{env_type}'")
-
-        return config_class(**env_dict)
+        # Fallback to base class
+        self.context.add_warning(
+            f"No registered config schema for environment type '{env_type}', "
+            f"using base NetworkEnvironmentConfig"
+        )
+        return env_dict
 
     def _build_service(
         self, service_dict: Dict[str, Any], auto_fix: bool, service_name: str = None
@@ -333,29 +318,34 @@ class ServiceBuilder(BaseBuilder):
         if auto_fix:
             service_dict = self._apply_auto_fixes(service_dict)
 
-        # Extract plugin config from implementation before building
-        plugin_config_data = {}
+        # Resolve typed config class and extract plugin-specific fields
+        config_class = ServiceConfig
+        extra_impl_fields = {}
         if "implementation" in service_dict:
-            (
-                service_dict["implementation"],
-                plugin_config_data,
-            ) = self._build_implementation_with_plugin_config(
-                service_dict["implementation"]
+            config_class, extra_impl_fields = (
+                self._build_implementation_and_resolve_class(service_dict)
             )
 
         if "protocol" in service_dict:
             service_dict["protocol"] = self._build_protocol(service_dict["protocol"])
 
-        # Set plugin_config field
-        service_dict["plugin_config"] = plugin_config_data
+        # Extra implementation fields become top-level on typed subclass
+        service_dict.update(extra_impl_fields)
 
-        # Optionally validate plugin config with resolver
-        if plugin_config_data and "implementation" in service_dict:
-            self._validate_plugin_config_with_resolver(service_dict, plugin_config_data)
+        # Warn about unknown service-level fields
+        # Exclude 'name' — injected by builder from YAML key, not a declared ServiceConfig field
+        for field_name in config_class.check_extra_fields(
+            service_dict,
+            context_label=f"service '{service_dict.get('name', '?')}'",
+            exclude={"name"},
+        ):
+            self.context.add_warning(
+                f"Unknown field '{field_name}' in service configuration"
+            )
 
-        # Create ServiceConfig
+        # Create typed service config
         try:
-            return ServiceConfig(**service_dict)
+            return config_class(**service_dict)
         except Exception as e:
             self.context.add_error(str(e))
             raise ValueError(f"Failed to build service configuration: {e}")
@@ -391,29 +381,34 @@ class ServiceBuilder(BaseBuilder):
                 service_dict, service_name, port_registry
             )
 
-        # Extract plugin config from implementation before building
-        plugin_config_data = {}
+        # Resolve typed config class and extract plugin-specific fields
+        config_class = ServiceConfig
+        extra_impl_fields = {}
         if "implementation" in service_dict:
-            (
-                service_dict["implementation"],
-                plugin_config_data,
-            ) = self._build_implementation_with_plugin_config(
-                service_dict["implementation"]
+            config_class, extra_impl_fields = (
+                self._build_implementation_and_resolve_class(service_dict)
             )
 
         if "protocol" in service_dict:
             service_dict["protocol"] = self._build_protocol(service_dict["protocol"])
 
-        # Set plugin_config field
-        service_dict["plugin_config"] = plugin_config_data
+        # Extra implementation fields become top-level on typed subclass
+        service_dict.update(extra_impl_fields)
 
-        # Optionally validate plugin config with resolver
-        if plugin_config_data and "implementation" in service_dict:
-            self._validate_plugin_config_with_resolver(service_dict, plugin_config_data)
+        # Warn about unknown service-level fields
+        # Exclude 'name' — injected by builder from YAML key, not a declared ServiceConfig field
+        for field_name in config_class.check_extra_fields(
+            service_dict,
+            context_label=f"service '{service_dict.get('name', '?')}'",
+            exclude={"name"},
+        ):
+            self.context.add_warning(
+                f"Unknown field '{field_name}' in service configuration"
+            )
 
-        # Create ServiceConfig
+        # Create typed service config
         try:
-            return ServiceConfig(**service_dict)
+            return config_class(**service_dict)
         except Exception as e:
             self.context.add_error(str(e))
             raise ValueError(f"Failed to build service configuration: {e}")
@@ -557,39 +552,25 @@ class ServiceBuilder(BaseBuilder):
 
         return impl_dict
 
-    def _build_implementation_with_plugin_config(
-        self, impl_dict: Dict[str, Any]
-    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-        """Build implementation configuration and extract plugin-specific fields.
+    def _build_implementation_and_resolve_class(
+        self, service_dict: Dict[str, Any]
+    ) -> Tuple[Type, Dict[str, Any]]:
+        """Extract implementation fields and resolve typed service config class.
 
         Args:
-            impl_dict: Implementation dictionary from YAML
+            service_dict: Full service configuration dictionary (mutated in place
+                to set ``service_dict["implementation"]``)
 
         Returns:
-            Tuple of (implementation_dict, plugin_config_dict)
+            Tuple of (config_class, extra_impl_fields)
         """
-        # Known fields for ImplementationConfig
-        # TODO: make more dynamic
-        known_fields = {
-            "name",
-            "type",
-            "version",
-            "version_config",
-            "shadow_compatible",
-            "gperf_compatible",
-        }
+        from ..models.service import ImplementationConfig
+        from ..utils.field_partition import partition_fields
 
-        # Separate known fields from plugin-specific fields
-        implementation_data = {}
-        plugin_config_data = {}
-
-        for key, value in impl_dict.items():
-            if key in known_fields:
-                implementation_data[key] = value
-            else:
-                # This is a plugin-specific field
-                plugin_config_data[key] = value
-                self.logger.debug(f"Extracted plugin-specific field: {key}")
+        impl_dict = service_dict.get("implementation", {})
+        implementation_data, extra_fields = partition_fields(
+            impl_dict, ImplementationConfig
+        )
 
         # Ensure required fields
         if "name" not in implementation_data:
@@ -600,78 +581,58 @@ class ServiceBuilder(BaseBuilder):
             implementation_data["type"] = "iut"
             self.context.add_fix("Added default implementation type")
 
-        # Copy all implementation fields to plugin config as well
-        # This allows plugins to access standard fields through their config
-        plugin_config_data.update(implementation_data)
+        service_dict["implementation"] = implementation_data
 
-        # Add protocol information if available (for testers that need it)
-        if hasattr(self, "_current_protocol"):
-            plugin_config_data["protocol"] = self._current_protocol
+        # Resolve typed config class
+        config_class = ServiceConfig
+        impl_name = implementation_data.get("name")
+        impl_type = str(implementation_data.get("type", "iut"))
 
-        return implementation_data, plugin_config_data
+        protocol_data = service_dict.get("protocol", {})
+        protocol_name = (
+            protocol_data.get("name")
+            if isinstance(protocol_data, dict)
+            else getattr(protocol_data, "name", None)
+        )
 
-    def _validate_plugin_config_with_resolver(
-        self, service_dict: Dict[str, Any], plugin_config_data: Dict[str, Any]
-    ):
-        """Validate plugin configuration using PluginConfigResolver if available.
-
-        This is optional validation that logs warnings but doesn't fail the build.
-
-        Args:
-            service_dict: Full service configuration
-            plugin_config_data: Extracted plugin configuration
-        """
-        try:
-            from panther.plugins.core.plugin_config_resolver import (
-                get_plugin_config_resolver,
-            )
-
-            resolver = get_plugin_config_resolver()
-
-            # Get implementation details
-            impl = service_dict.get("implementation", {})
-            impl_name = impl.get("name", "")
-            impl_type = impl.get("type", "").lower()
-
-            # Get protocol for service resolution
-            protocol_name = ""
-            if "protocol" in service_dict:
-                protocol = service_dict["protocol"]
-                if isinstance(protocol, dict):
-                    protocol_name = protocol.get("name", "")
-                elif hasattr(protocol, "name"):
-                    protocol_name = protocol.name
-
-            if expected_class := resolver.resolve_service_config_class(
-                service_type=impl_type, protocol=protocol_name, name=impl_name
-            ):
-                # Try to instantiate with the plugin config data
-                try:
-                    # Create instance to validate structure
-                    self.logger.debug(
-                        f"Validating plugin config for {impl_name} against {expected_class.__name__} with data: {plugin_config_data}"
-                    )
-                    expected_class(**plugin_config_data)
-                    self.logger.debug(
-                        f"Plugin config for {impl_name} validated against {expected_class.__name__}"
-                    )
-                except Exception as e:
-                    # Log validation issues but don't fail
-                    self.logger.warning(
-                        f"Plugin config for {impl_name} may have issues: {e}. "
-                        f"This won't prevent the service from running."
-                    )
-            else:
-                self.logger.debug(
-                    f"No plugin config schema found for {impl_name}, skipping validation"
+        if impl_name:
+            try:
+                from panther.plugins.core.plugin_config_resolver import (
+                    get_plugin_config_resolver,
                 )
 
-        except ImportError:
-            # PluginConfigResolver not available, skip validation
-            self.logger.debug("PluginConfigResolver not available, skipping validation")
-        except Exception as e:
-            # Any other error, log and continue
-            self.logger.debug(f"Could not validate plugin config: {e}")
+                resolver = get_plugin_config_resolver()
+                resolved = resolver.resolve_service_config_class(
+                    impl_type, protocol_name or "", impl_name
+                )
+                if resolved:
+                    config_class = resolved
+            except Exception as e:
+                self.context.add_warning(
+                    f"Could not resolve config class for {impl_name}: {e}"
+                )
+
+        # Handle version loading with protocol context
+        protocol_version = (
+            protocol_data.get("version")
+            if isinstance(protocol_data, dict)
+            else getattr(protocol_data, "version", None)
+        )
+        if (
+            hasattr(config_class, "VERSION_CLASS")
+            and config_class.VERSION_CLASS is not None
+            and protocol_version
+        ):
+            try:
+                version_data = config_class.load_version(
+                    protocol_version_override=protocol_version
+                )
+                if version_data:
+                    extra_fields["version"] = version_data
+            except Exception as e:
+                self.context.add_warning(f"Could not load version for {impl_name}: {e}")
+
+        return config_class, extra_fields
 
     def _build_protocol(self, proto_dict: Dict[str, Any]) -> Dict[str, Any]:
         """Build protocol configuration.
@@ -694,6 +655,16 @@ class ServiceBuilder(BaseBuilder):
         # Fix client target
         if proto_dict.get("role") == "client" and not proto_dict.get("target"):
             self.context.add_warning("Client service missing target")
+
+        # Warn about unknown fields
+        from ..models.service import ProtocolConfig
+
+        for field_name in ProtocolConfig.check_extra_fields(
+            proto_dict, context_label="protocol"
+        ):
+            self.context.add_warning(
+                f"Unknown field '{field_name}' in protocol configuration"
+            )
 
         return proto_dict
 
@@ -723,12 +694,17 @@ class GlobalConfigBuilder(BaseBuilder):
         # Apply defaults
         config_dict = self._apply_defaults(config_dict)
 
+        # Warn about unknown global config fields
+        for field_name in GlobalConfig.check_extra_fields(
+            config_dict, context_label="global config"
+        ):
+            self.context.add_warning(
+                f"Unknown field '{field_name}' in global configuration"
+            )
+
         # Create GlobalConfig
         try:
             global_config = GlobalConfig(**config_dict)
-
-            # Resolve paths
-            global_config = global_config.resolve_paths()
 
             return global_config
         except Exception as e:
@@ -757,20 +733,18 @@ class GlobalConfigBuilder(BaseBuilder):
             "PANTHER_FAST_FAIL": "fast_fail.enabled",
         }
 
-        # Create OmegaConf for easier manipulation
-        omega_config = OmegaConf.create(config_dict)
+        from ..utils.merge import dot_notation_update
 
-        # Apply environment variables
         for env_var, config_path in env_mappings.items():
             env_value = os.environ.get(env_var)
             if env_value is not None:
                 try:
-                    OmegaConf.update(omega_config, config_path, env_value, merge=False)
+                    dot_notation_update(config_dict, config_path, env_value)
                     self.context.add_fix(f"Applied {env_var} to {config_path}")
                 except Exception as e:
                     self.context.add_warning(f"Failed to apply {env_var}: {e}")
 
-        return OmegaConf.to_container(omega_config, resolve=True)
+        return config_dict
 
     def _apply_defaults(self, config_dict: Dict[str, Any]) -> Dict[str, Any]:
         """Apply default values to global config using Pydantic model defaults.
@@ -792,8 +766,6 @@ class GlobalConfigBuilder(BaseBuilder):
         # Note: Applied Pydantic model defaults for GlobalConfig
 
         # Merge with defaults (user config takes precedence)
-        merged = OmegaConf.merge(
-            OmegaConf.create(defaults), OmegaConf.create(config_dict)
-        )
+        from ..utils.merge import deep_merge
 
-        return OmegaConf.to_container(merged, resolve=False)
+        return deep_merge(defaults, config_dict)

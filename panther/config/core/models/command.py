@@ -1,13 +1,12 @@
-"""
-Pydantic configuration models for command processor.
+"""Pydantic configuration models for command processor.
 
 This module provides modern validation models using Pydantic for type safety
 and configuration validation in the command processor.
 """
 
-from typing import Dict, List, Optional
+from typing import Dict, List
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class CommandProcessorConfig(BaseModel):
@@ -28,7 +27,8 @@ class CommandProcessorConfig(BaseModel):
     )
     log_commands: bool = Field(True, description="Whether to log processed commands")
 
-    @validator("blocked_commands")
+    @field_validator("blocked_commands", mode="before")
+    @classmethod
     def validate_blocked_commands(cls, v):
         """Ensure blocked commands list is not empty and contains valid patterns."""
         if not v:
@@ -55,23 +55,17 @@ class ProcessingResult(BaseModel):
         0, ge=0, description="Number of commands that failed processing"
     )
 
-    @validator("total_count")
-    def validate_total_count(cls, v, values):
-        """Ensure total count matches actual processed commands."""
-        if "processed_commands" in values:
-            actual_count = sum(
-                len(cmds) for cmds in values["processed_commands"].values()
+    @model_validator(mode="after")
+    def validate_counts(self):
+        """Validate count consistency."""
+        actual_count = sum(len(cmds) for cmds in self.processed_commands.values())
+        if self.total_count != actual_count:
+            raise ValueError(
+                f"Total count {self.total_count} doesn't match actual {actual_count}"
             )
-            if v != actual_count:
-                raise ValueError(f"Total count {v} doesn't match actual {actual_count}")
-        return v
-
-    @validator("success_count")
-    def validate_success_count(cls, v, values):
-        """Ensure success count doesn't exceed total count."""
-        if "total_count" in values and v > values["total_count"]:
+        if self.success_count > self.total_count:
             raise ValueError("Success count cannot exceed total count")
-        return v
+        return self
 
 
 class CommandValidationConfig(BaseModel):

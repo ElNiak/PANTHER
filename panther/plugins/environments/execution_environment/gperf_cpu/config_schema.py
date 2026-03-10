@@ -1,11 +1,13 @@
+"""Google Performance Tools CPU profiler configuration schema."""
+
 from typing import List, Optional
 
 from pydantic import Field
 
-from panther.config.core.models.plugin import ExecutionEnvironmentPluginConfig
+from panther.config.core.models.environment import ExecutionEnvironmentConfig
 
 
-class GperfCpuConfig(ExecutionEnvironmentPluginConfig):
+class GperfCpuConfig(ExecutionEnvironmentConfig):
     """Google Performance Tools (gperftools) CPU profiling configuration.
 
     Uses ``libprofiler.so`` from gperftools to perform statistical CPU profiling
@@ -26,7 +28,7 @@ class GperfCpuConfig(ExecutionEnvironmentPluginConfig):
         - Memcheck: Memory error detection (Valgrind, much slower).
         - Strace: Syscall-level tracing for I/O bottleneck analysis.
 
-    Inherited fields from ``ExecutionEnvironmentPluginConfig``:
+    Inherited fields from ``ExecutionEnvironmentConfig``:
         - ``enabled``: Whether the plugin is enabled (default: True).
         - ``collect_metrics``: Whether to collect metrics (default: True).
 

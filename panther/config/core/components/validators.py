@@ -8,18 +8,20 @@ from pydantic import ValidationError as PydanticValidationError
 
 from panther.core.utils.logging_mixin import LoggerMixin
 
-from ..models.base_model import BaseUnifiedModel
+from ..base import BaseConfig
 
 
 class ValidationError:
     """Validation error details."""
 
     def __init__(self, field: str, message: str, severity: str = "error"):
+        """Initialize validation error."""
         self.field = field
         self.message = message
         self.severity = severity
 
     def __str__(self):
+        """Return formatted error string."""
         return f"{self.severity.upper()}: {self.field} - {self.message}"
 
 
@@ -27,6 +29,7 @@ class ValidationResult:
     """Validation result container."""
 
     def __init__(self, is_valid: bool = True):
+        """Initialize validation result."""
         self.is_valid = is_valid
         self.errors: List[ValidationError] = []
         self.warnings: List[ValidationError] = []
@@ -63,7 +66,7 @@ class BaseValidator(LoggerMixin, ABC):
         pass
 
 
-class UnifiedValidator(BaseValidator):
+class ConfigValidator(BaseValidator):
     """Main validator that combines Pydantic and business rules validation."""
 
     def __init__(self):
@@ -205,7 +208,7 @@ class PydanticValidator(BaseValidator):
         result = ValidationResult()
 
         # If it's already a Pydantic model, validate it
-        if isinstance(config, BaseUnifiedModel):
+        if isinstance(config, BaseConfig):
             try:
                 config.model_validate(config.model_dump())
             except PydanticValidationError as e:

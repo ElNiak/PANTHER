@@ -1,6 +1,41 @@
-"""Configuration models using Pydantic and OmegaConf."""
+"""Typed Pydantic configuration models for PANTHER.
 
-from .base_model import BaseUnifiedModel
+Model hierarchy — all classes inherit from ``BaseConfig``
+(``panther.config.core.base``)::
+
+    BaseConfig
+    │
+    ├── Global settings
+    │   GlobalConfig, LoggingConfig, FeatureLogLevelsConfig, PathsConfig,
+    │   DockerConfig, DockerUserMappingConfig, ServiceDockerOverrideConfig,
+    │   ProgressConfig, FastFailConfig, MetricsConfig
+    │
+    ├── Experiment structure
+    │   ExperimentConfig → TestConfig → ServiceConfig
+    │   StepsConfig, ExperimentMetadata
+    │
+    ├── Service details
+    │   ServiceConfig, ImplementationConfig, ProtocolConfig, NetworkConfig,
+    │   Parameter, VersionBase (plain BaseModel — not part of config tree)
+    │
+    ├── Environments
+    │   EnvironmentConfig → NetworkEnvironmentConfig, ExecutionEnvironmentConfig
+    │
+    ├── Observers
+    │   ObserversConfig, BaseObserverConfig → Logger/Metrics/Storage/Experiment
+    │
+    ├── Plugin bases
+    │   ProtocolPluginConfig
+    │
+    └── Protocol schemas (ABC)
+        BaseProtocolConfig → ClientServerProtocolConfig, PeerToPeerProtocolConfig
+
+Import guide:
+    Prefer importing from this module (``panther.config.core.models``)
+    rather than individual sub-modules.
+"""
+
+from ..base import BaseConfig
 from .environment import (
     EnvironmentConfig,
     ExecutionEnvironmentConfig,
@@ -29,13 +64,7 @@ from .observer import (
     ObserversConfig,
     StorageObserverConfig,
 )
-from .plugin import (
-    BasePluginConfig,
-    ExecutionEnvironmentPluginConfig,
-    NetworkEnvironmentPluginConfig,
-    ProtocolPluginConfig,
-    ServicePluginConfig,
-)
+from .plugin import ProtocolPluginConfig
 from .protocol import (
     BaseProtocolConfig,
     ClientServerProtocolConfig,
@@ -56,7 +85,7 @@ from .service import (
 
 __all__ = [
     # Base
-    "BaseUnifiedModel",
+    "BaseConfig",
     # Global Config
     "GlobalConfig",
     "LoggingConfig",
@@ -96,10 +125,6 @@ __all__ = [
     "ClientServerProtocolConfig",
     "PeerToPeerProtocolConfig",
     # Plugin Config
-    "BasePluginConfig",
-    "ExecutionEnvironmentPluginConfig",
-    "NetworkEnvironmentPluginConfig",
-    "ServicePluginConfig",
     "ProtocolPluginConfig",
     # Environment Config
     "EnvironmentConfig",

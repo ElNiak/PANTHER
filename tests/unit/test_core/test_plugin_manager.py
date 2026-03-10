@@ -1,5 +1,4 @@
-"""
-Unit tests for PluginManager - the core plugin orchestration component of PANTHER.
+"""Unit tests for PluginManager - the core plugin orchestration component of PANTHER.
 
 Tests exercise the real PluginManager singleton with Docker mocked at the IO boundary.
 All fake class fallbacks have been removed in favour of the ``real_plugin_manager``
@@ -318,28 +317,6 @@ class TestProtocolVersionDiscovery:
 # ---------------------------------------------------------------------------
 # Plugin schema discovery
 # ---------------------------------------------------------------------------
-
-
-class TestPluginSchemaDiscovery:
-    """Verify discover_plugin_schemas() delegation."""
-
-    def test_discover_plugin_schemas_returns_dict(self, real_plugin_manager):
-        """discover_plugin_schemas returns a dict."""
-        schemas = real_plugin_manager.discover_plugin_schemas()
-        assert isinstance(schemas, dict)
-
-    def test_get_plugin_schema_existing(self, real_plugin_manager):
-        """get_plugin_schema returns schema for a discovered plugin."""
-        schemas = real_plugin_manager.discover_plugin_schemas()
-        if schemas:
-            name = next(iter(schemas))
-            result = real_plugin_manager.get_plugin_schema(name)
-            assert result is not None
-
-    def test_get_plugin_schema_nonexistent(self, real_plugin_manager):
-        """get_plugin_schema returns None for unknown plugin."""
-        result = real_plugin_manager.get_plugin_schema("__nonexistent__")
-        assert result is None
 
 
 # ---------------------------------------------------------------------------

@@ -1,12 +1,14 @@
+"""Strace system call tracer configuration schema."""
+
 from typing import List, Optional
 
 from pydantic import Field, validator
 
 from panther.config.core.components.universal_validators import validate_integer_field
-from panther.config.core.models.plugin import ExecutionEnvironmentPluginConfig
+from panther.config.core.models.environment import ExecutionEnvironmentConfig
 
 
-class StraceConfig(ExecutionEnvironmentPluginConfig):
+class StraceConfig(ExecutionEnvironmentConfig):
     """Strace configuration for system call tracing.
 
     Strace traces system calls and signals made by a process, recording
@@ -24,7 +26,7 @@ class StraceConfig(ExecutionEnvironmentPluginConfig):
         - GPerf CPU: Statistical CPU profiling (higher level than strace).
         - Memcheck: Memory error detection (application level, not syscall).
 
-    Inherited fields from ``ExecutionEnvironmentPluginConfig``:
+    Inherited fields from ``ExecutionEnvironmentConfig``:
         - ``enabled``: Whether the plugin is enabled (default: True).
         - ``collect_metrics``: Whether to collect metrics (default: True).
 
@@ -220,39 +222,13 @@ class StraceConfig(ExecutionEnvironmentPluginConfig):
 
     type: str = Field(default="strace", description="Execution environment type")
 
-    # -- Background monitoring configuration (from EnvironmentConfig) --
+    # -- Override: strace uses a higher failure threshold than the base default --
 
-    enable_background_monitoring: bool = Field(
-        default=True,
-        description=(
-            "Enable background monitoring for non-blocking service "
-            "health checks. Default: True."
-        ),
-    )
-    monitoring_interval_seconds: int = Field(
-        default=5,
-        description="Health-check polling interval in seconds. Default: 5.",
-    )
     failure_threshold_count: int = Field(
         default=3,
         description=(
             "Number of consecutive health-check failures before the "
-            "service is marked unhealthy. Default: 3."
-        ),
-    )
-    allow_partial_deployment: bool = Field(
-        default=False,
-        description=(
-            "Allow experiment deployment to proceed even if some "
-            "non-critical services fail to start. Default: False."
-        ),
-    )
-    critical_services: List[str] = Field(
-        default_factory=list,
-        description=(
-            "List of service names that must be running for the "
-            "deployment to be considered successful. "
-            "Default: [] (empty)."
+            "service is marked unhealthy. Default: 3 (overrides base default of 1)."
         ),
     )
 
@@ -261,16 +237,6 @@ class StraceConfig(ExecutionEnvironmentPluginConfig):
     def validate_timeout(cls, v):
         """Convert string/float to integer for timeout."""
         return validate_integer_field(v, "timeout")
-
-    @validator("monitoring_interval_seconds", pre=True)
-    def validate_monitoring_interval(cls, v):
-        """Convert string/float to integer for monitoring interval."""
-        return validate_integer_field(v, "monitoring_interval_seconds")
-
-    @validator("failure_threshold_count", pre=True)
-    def validate_failure_threshold(cls, v):
-        """Convert string/float to integer for failure threshold."""
-        return validate_integer_field(v, "failure_threshold_count")
 
     @validator("buffer_size", pre=True)
     def validate_buffer_size(cls, v):

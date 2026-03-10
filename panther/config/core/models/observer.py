@@ -4,10 +4,10 @@ from typing import Optional
 
 from pydantic import Field
 
-from .base_model import BaseUnifiedModel
+from ..base import BaseConfig
 
 
-class BaseObserverConfig(BaseUnifiedModel):
+class BaseObserverConfig(BaseConfig):
     """Base configuration for all observers."""
 
     enabled: bool = Field(True, description="Whether this observer is enabled")
@@ -111,7 +111,7 @@ class ExperimentObserverConfig(BaseObserverConfig):
     )
 
 
-class ObserversConfig(BaseUnifiedModel):
+class ObserversConfig(BaseConfig):
     """Container for all observer configurations."""
 
     logger: Optional[LoggerObserverConfig] = Field(

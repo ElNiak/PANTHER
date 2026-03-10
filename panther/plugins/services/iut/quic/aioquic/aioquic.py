@@ -42,14 +42,14 @@ class AioquicServiceManager(IUTManagerEventMixin, PythonQUICServiceManager):
         )
 
     def _get_binary_name(self) -> str:
-        """aioquic uses example scripts."""
+        """Aioquic uses example scripts."""
         if self.role == "server":
             return "python /opt/aioquic/examples/http3_server.py"
         else:
             return "python /opt/aioquic/examples/http3_client.py"
 
     def _get_server_specific_args(self, **kwargs) -> List[str]:
-        """aioquic server specific arguments."""
+        """Aioquic server specific arguments."""
         args = []
 
         # Listen host and port
@@ -65,23 +65,21 @@ class AioquicServiceManager(IUTManagerEventMixin, PythonQUICServiceManager):
         secrets_log = kwargs.get("secrets_log")
         session_ticket_store = kwargs.get("session_ticket_store")
 
-        # If we have access to service config, check plugin_config
-        if hasattr(self, "service_config"):
-            plugin_config = getattr(self.service_config, "plugin_config", {})
-            if plugin_config:
-                # Use plugin config values as fallbacks
-                certificate = certificate or plugin_config.get(
-                    "server_certificate", "/certs/cert.pem"
-                )
-                private_key = private_key or plugin_config.get(
-                    "server_private_key", "/certs/key.pem"
-                )
-                root = root or plugin_config.get("server_root", "/var/www")
-                verbose = verbose or plugin_config.get("verbose", False)
-                secrets_log = secrets_log or plugin_config.get("secrets_log")
-                session_ticket_store = session_ticket_store or plugin_config.get(
-                    "session_ticket_store"
-                )
+        # Use direct attribute access on service_config_to_test as fallbacks
+        certificate = certificate or getattr(
+            self.service_config_to_test, "server_certificate", "/certs/cert.pem"
+        )
+        private_key = private_key or getattr(
+            self.service_config_to_test, "server_private_key", "/certs/key.pem"
+        )
+        root = root or getattr(self.service_config_to_test, "server_root", "/var/www")
+        verbose = verbose or getattr(self.service_config_to_test, "verbose", False)
+        secrets_log = secrets_log or getattr(
+            self.service_config_to_test, "secrets_log", None
+        )
+        session_ticket_store = session_ticket_store or getattr(
+            self.service_config_to_test, "session_ticket_store", None
+        )
 
         # Certificate and key
         if certificate and private_key:
@@ -113,7 +111,7 @@ class AioquicServiceManager(IUTManagerEventMixin, PythonQUICServiceManager):
         return args
 
     def _get_client_specific_args(self, **kwargs) -> List[str]:
-        """aioquic client specific arguments."""
+        """Aioquic client specific arguments."""
         args = []
 
         # Target URL
@@ -134,24 +132,22 @@ class AioquicServiceManager(IUTManagerEventMixin, PythonQUICServiceManager):
         include = kwargs.get("include", False)
         legacy_http = kwargs.get("legacy_http")
 
-        # If we have access to service config, check plugin_config
-        if hasattr(self, "service_config"):
-            plugin_config = getattr(self.service_config, "plugin_config", {})
-            if plugin_config:
-                # Use plugin config values as fallbacks
-                output_dir = output_dir or plugin_config.get(
-                    "client_output_dir", "/app/logs/artifacts"
-                )
-                verbose = verbose or plugin_config.get("verbose", False)
-                secrets_log = secrets_log or plugin_config.get("secrets_log")
-                insecure = (
-                    insecure
-                    if kwargs.get("insecure") is not None
-                    else plugin_config.get("client_insecure", True)
-                )
-                legacy_http = legacy_http or plugin_config.get(
-                    "client_legacy_http", False
-                )
+        # Use direct attribute access on service_config_to_test as fallbacks
+        output_dir = output_dir or getattr(
+            self.service_config_to_test, "client_output_dir", "/app/logs/artifacts"
+        )
+        verbose = verbose or getattr(self.service_config_to_test, "verbose", False)
+        secrets_log = secrets_log or getattr(
+            self.service_config_to_test, "secrets_log", None
+        )
+        insecure = (
+            insecure
+            if kwargs.get("insecure") is not None
+            else getattr(self.service_config_to_test, "client_insecure", True)
+        )
+        legacy_http = legacy_http or getattr(
+            self.service_config_to_test, "client_legacy_http", False
+        )
 
         # Output directory
         if output_dir:
@@ -197,12 +193,11 @@ class AioquicServiceManager(IUTManagerEventMixin, PythonQUICServiceManager):
         python_path = "/opt/aioquic"
         examples_dir = "/opt/aioquic/examples"
 
-        # If we have access to service config, check plugin_config
-        if hasattr(self, "service_config"):
-            plugin_config = getattr(self.service_config, "plugin_config", {})
-            if plugin_config:
-                python_path = plugin_config.get("python_path", python_path)
-                examples_dir = plugin_config.get("examples_dir", examples_dir)
+        # Use direct attribute access on service_config_to_test
+        python_path = getattr(self.service_config_to_test, "python_path", python_path)
+        examples_dir = getattr(
+            self.service_config_to_test, "examples_dir", examples_dir
+        )
 
         # aioquic-specific paths
         params["python_path"] = python_path
@@ -223,8 +218,7 @@ class AioquicServiceManager(IUTManagerEventMixin, PythonQUICServiceManager):
         return f"{env_prefix} {command}"
 
     def get_output_patterns(self) -> List[Tuple[str, str]]:
-        """
-        Get phase-based output patterns for aioquic service.
+        """Get phase-based output patterns for aioquic service.
 
         Returns:
             List of (output_type, filename_pattern) tuples organized by execution phases
@@ -263,7 +257,7 @@ class AioquicServiceManager(IUTManagerEventMixin, PythonQUICServiceManager):
         ]
 
     def generate_post_run_commands(self) -> List[str]:
-        """aioquic post-run cleanup with phase-based output organization."""
+        """Aioquic post-run cleanup with phase-based output organization."""
         return [
             # Create artifacts directory
             "mkdir -p /app/logs/artifacts;",
@@ -299,15 +293,14 @@ class AioquicServiceManager(IUTManagerEventMixin, PythonQUICServiceManager):
         push = True
         datagram = True
 
-        # If we have access to service config, check plugin_config
-        if hasattr(self, "service_config"):
-            plugin_config = getattr(self.service_config, "plugin_config", {})
-            if plugin_config:
-                http3 = plugin_config.get("enable_http3", http3)
-                websockets = plugin_config.get("enable_websockets", websockets)
-                priority = plugin_config.get("enable_priority", priority)
-                push = plugin_config.get("enable_push", push)
-                datagram = plugin_config.get("enable_datagram", datagram)
+        # Use direct attribute access on service_config_to_test
+        http3 = getattr(self.service_config_to_test, "enable_http3", http3)
+        websockets = getattr(
+            self.service_config_to_test, "enable_websockets", websockets
+        )
+        priority = getattr(self.service_config_to_test, "enable_priority", priority)
+        push = getattr(self.service_config_to_test, "enable_push", push)
+        datagram = getattr(self.service_config_to_test, "enable_datagram", datagram)
 
         # aioquic has excellent Python async and HTTP/3 support
         features.update(

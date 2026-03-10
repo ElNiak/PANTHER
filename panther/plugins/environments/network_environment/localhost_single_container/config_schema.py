@@ -1,11 +1,13 @@
+"""Localhost single-container network environment configuration schema."""
+
 from typing import Dict, Optional
 
 from pydantic import Field
 
-from panther.config.core.models.plugin import NetworkEnvironmentPluginConfig
+from panther.config.core.models.environment import NetworkEnvironmentConfig
 
 
-class LocalhostSingleContainerConfig(NetworkEnvironmentPluginConfig):
+class LocalhostSingleContainerConfig(NetworkEnvironmentConfig):
     """Localhost single-container network environment configuration.
 
     Lightweight testing environment where all services run in a single
@@ -17,7 +19,7 @@ class LocalhostSingleContainerConfig(NetworkEnvironmentPluginConfig):
     single container. Uses ``EnvironmentManagerDockerMixin`` for
     consistent Docker operations.
 
-    Inherited from NetworkEnvironmentPluginConfig / BasePluginConfig:
+    Inherited from NetworkEnvironmentConfig:
         enabled (bool): Whether the plugin is enabled. Default: True.
 
     Example YAML::

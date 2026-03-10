@@ -1,5 +1,4 @@
-"""
-Plugin Discovery Module
+"""Plugin Discovery Module.
 
 This module provides plugin discovery functionality for the PANTHER framework,
 using the decorator registry to identify available plugins.
@@ -15,8 +14,7 @@ from panther.plugins.core.structures.plugin_metadata import PluginMetadata
 
 
 class PluginDiscovery(LoggerMixin):
-    """
-    Discovers plugins in the PANTHER framework using the decorator registry.
+    """Discovers plugins in the PANTHER framework using the decorator registry.
 
     This class provides a clean interface for plugin discovery, following
     the Single Responsibility Principle by focusing only on discovery logic.
@@ -44,15 +42,13 @@ class PluginDiscovery(LoggerMixin):
         self.cache_ttl = cache_ttl
         self._cache_timestamp = 0
         self._version_cache: Dict[str, List[str]] = {}
-        self._schema_cache: Dict[str, Dict[str, Any]] = {}
 
     def discover_plugins(
         self,
         force_refresh: bool = False,
         external_plugin_paths: Optional[List[str]] = None,
     ) -> Dict[str, PluginMetadata]:
-        """
-        Discover all plugins from the decorator registry.
+        """Discover all plugins from the decorator registry.
 
         Args:
             force_refresh: If True, refresh the plugin list
@@ -180,8 +176,7 @@ class PluginDiscovery(LoggerMixin):
         ]
 
     def scan_and_import_plugins(self) -> None:
-        """
-        Optimized plugin scanning using naming conventions.
+        """Optimized plugin scanning using naming conventions.
 
         Instead of walking all files, directly check for expected plugin patterns:
         plugin_directory/plugin_name/plugin_name.py
@@ -257,8 +252,7 @@ class PluginDiscovery(LoggerMixin):
                     self._scan_nested_plugin_directory(environments_dir)
 
     def scan_external_plugins(self, external_plugin_paths: List[str]) -> None:
-        """
-        Scan external plugin directories.
+        """Scan external plugin directories.
 
         External plugins should follow the same naming convention as core plugins:
         plugin_directory/plugin_name/plugin_name.py
@@ -290,8 +284,7 @@ class PluginDiscovery(LoggerMixin):
                     self._scan_plugin_type_directory(external_path_obj)
 
     def _scan_plugin_type_directory(self, directory: Path):
-        """
-        Optimized scan for plugins in a plugin type directory.
+        """Optimized scan for plugins in a plugin type directory.
 
         Directly checks for plugin_name/plugin_name.py pattern instead of
         walking all files.
@@ -327,8 +320,7 @@ class PluginDiscovery(LoggerMixin):
             self.logger.debug(f"Error scanning plugin type directory {directory}: {e}")
 
     def _scan_nested_plugin_directory(self, directory: Path):
-        """
-        Scan nested plugin directories (e.g., services/iut/quic/*).
+        """Scan nested plugin directories (e.g., services/iut/quic/*).
 
         Args:
             directory: Directory containing nested plugin structures
@@ -359,8 +351,7 @@ class PluginDiscovery(LoggerMixin):
             self.logger.debug(f"Error scanning nested directory {directory}: {e}")
 
     def _import_module_file(self, file_path: Path):
-        """
-        Import a single Python module file.
+        """Import a single Python module file.
 
         Args:
             file_path: Path to the Python file
@@ -438,8 +429,7 @@ class PluginDiscovery(LoggerMixin):
     def discover_protocol_versions(
         self, protocol: Optional[str] = None
     ) -> Dict[str, List[str]]:
-        """
-        Discover available protocol versions.
+        """Discover available protocol versions.
 
         Args:
             protocol: Optional protocol to filter by
@@ -549,58 +539,3 @@ class PluginDiscovery(LoggerMixin):
                     versions.append(v)
 
         return versions
-
-    def discover_plugin_schemas(self) -> Dict[str, Dict[str, Any]]:
-        """
-        Discover all plugin configuration schemas.
-
-        Returns:
-            Dictionary mapping plugin names to schema information
-        """
-        if self._schema_cache and self._is_cache_valid():
-            return self._schema_cache.copy()
-
-        self.logger.info("Discovering plugin schemas")
-
-        schemas = {}
-        plugins = self.discover_plugins()
-
-        for plugin_name, plugin in plugins.items():
-            if (
-                hasattr(plugin, "config_schema_path")
-                and plugin.config_schema_path
-                and plugin.config_schema_path.exists()
-            ):
-                try:
-                    schema_info = self._load_schema(plugin.config_schema_path)
-                    if schema_info:
-                        schemas[plugin_name] = {
-                            "schema": schema_info,
-                            "path": str(plugin.config_schema_path),
-                            "type": plugin.type,
-                            "protocol": getattr(plugin, "protocol", None),
-                        }
-                except Exception as e:
-                    self.logger.warning(f"Failed to load schema for {plugin_name}: {e}")
-
-        self._schema_cache = schemas
-        return schemas.copy()
-
-    def _load_schema(self, schema_path: Path) -> Optional[Dict[str, Any]]:
-        """Load schema from file."""
-        try:
-            with open(schema_path) as f:
-                if schema_path.suffix.lower() in [".yaml", ".yml"]:
-                    import yaml
-
-                    return yaml.safe_load(f)
-                elif schema_path.suffix.lower() == ".json":
-                    import json
-
-                    return json.load(f)
-                elif schema_path.suffix.lower() == ".py":
-                    # For Python schema files - simplified extraction
-                    return {"type": "python_schema", "path": str(schema_path)}
-        except Exception:
-            pass
-        return None
