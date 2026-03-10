@@ -1,5 +1,4 @@
-"""
-Status collector for aggregating experiment and test results.
+"""Status collector for aggregating experiment and test results.
 
 This module provides functionality to collect and aggregate test results,
 execution times, failure information, and resource usage from experiment outputs.
@@ -120,6 +119,7 @@ class ServiceHealthSummary:
     output_completeness: float = 0.0
 
     def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary representation."""
         return asdict(self)
 
 
@@ -212,8 +212,7 @@ class StatusCollector:
     """Collects and aggregates experiment and test status information."""
 
     def __init__(self, experiment_dir: Path):
-        """
-        Initialize status collector.
+        """Initialize status collector.
 
         Args:
             experiment_dir: Path to experiment output directory
@@ -222,8 +221,7 @@ class StatusCollector:
         self.logger = logging.getLogger(__name__)
 
     def collect_experiment_summary(self) -> ExperimentSummary:
-        """
-        Collect complete experiment summary.
+        """Collect complete experiment summary.
 
         Returns:
             ExperimentSummary: Complete experiment information
@@ -410,7 +408,7 @@ class StatusCollector:
                     if ff_config.get("test_level"):
                         fast_fail_info.test_level = True
             except Exception as e:
-                self.logger.debug(f"Failed to parse config YAML for fast-fail: {e}")
+                self.logger.warning("Failed to parse config YAML for fast-fail: %s", e)
 
         return fast_fail_info
 

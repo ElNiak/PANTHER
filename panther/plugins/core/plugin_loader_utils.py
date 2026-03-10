@@ -1,5 +1,4 @@
-"""
-Plugin Loader Utilities
+"""Plugin Loader Utilities.
 
 This module provides utilities for loading plugins dynamically, reducing duplication
 across plugin loading operations in PANTHER.
@@ -8,6 +7,7 @@ across plugin loading operations in PANTHER.
 from __future__ import annotations
 
 import importlib.util
+import logging
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -15,13 +15,13 @@ from typing import Any, List, Optional, TypeVar
 
 from panther.core.utils.logging_mixin import LoggerMixin
 
+logger = logging.getLogger(__name__)
+
 T = TypeVar("T")
 
 
 class PluginManagerUtils(LoggerMixin):
-    """
-
-    Utility class for common plugin loading operations.
+    """Utility class for common plugin loading operations.
 
     Reduces duplication in dynamic module loading and class instantiation.
     """
@@ -43,8 +43,7 @@ class PluginManagerUtils(LoggerMixin):
     def load_module_from_file(
         cls, file_path: Path, module_name: Optional[str] = None
     ) -> Any:
-        """
-        Load a Python module from a file path.
+        """Load a Python module from a file path.
 
         Args:
             file_path: Path to the Python file
@@ -97,8 +96,12 @@ class PluginManagerUtils(LoggerMixin):
                         sys.modules[package_path] = parent_mod
                         try:
                             parent_spec.loader.exec_module(parent_mod)
-                        except Exception:
-                            pass  # Stub entry is sufficient for relative imports
+                        except Exception as exc:
+                            logger.warning(
+                                "Failed to execute parent module %s: %s",
+                                package_path,
+                                exc,
+                            )
 
         # Register under both simple and qualified names for compatibility
         sys.modules[module_name] = module
@@ -113,8 +116,7 @@ class PluginManagerUtils(LoggerMixin):
     def get_class_from_module(
         cls, module: Any, class_name: str, base_class: Optional[type[T]] = None
     ) -> type[T]:
-        """
-        Get a class from a module with optional type checking.
+        """Get a class from a module with optional type checking.
 
         Args:
             module: The module to search in
@@ -149,8 +151,7 @@ class PluginManagerUtils(LoggerMixin):
         base_class: Optional[type[T]] = None,
         name_transform: Optional[Callable] = None,
     ) -> type[T]:
-        """
-        Load a plugin class using standard naming conventions.
+        """Load a plugin class using standard naming conventions.
 
         Args:
             plugin_path: Path to plugin directory or file
@@ -185,8 +186,7 @@ class PluginManagerUtils(LoggerMixin):
 
     @classmethod
     def instantiate_plugin(cls, plugin_class: type[T], *args, **kwargs) -> T:
-        """
-        Instantiate a plugin class with error handling.
+        """Instantiate a plugin class with error handling.
 
         Args:
             plugin_class: The plugin class to instantiate
@@ -210,8 +210,7 @@ class PluginManagerUtils(LoggerMixin):
     def discover_plugins(
         cls, base_path: Path, pattern: str = "*.py", exclude: Optional[List[str]] = None
     ) -> List[Path]:
-        """
-        Discover plugin files in a directory.
+        """Discover plugin files in a directory.
 
         Args:
             base_path: Base directory to search
