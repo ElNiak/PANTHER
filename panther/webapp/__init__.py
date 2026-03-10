@@ -1,7 +1,7 @@
 """PANTHER web application.
 
 This package provides a web dashboard for PANTHER experiment management,
-built on NiceGUI + NiceCRUD + FastAPI.
+built on NiceGUI + PydanticForm + FastAPI.
 
 Install with: pip install panther-net[web]
 Run with: panther web
