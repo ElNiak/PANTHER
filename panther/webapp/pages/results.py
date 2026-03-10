@@ -319,10 +319,8 @@ def _render_logs_tab(results_svc: ResultsService, exp_path: str):
             .classes("w-full q-mb-sm")
         )
 
-        code_display = ui.code("\n".join(log_lines)).classes("w-full")
-
         with ui.scroll_area().style("max-height: 600px"):
-            pass  # scroll_area wraps the code display above conceptually
+            code_display = ui.code("\n".join(log_lines)).classes("w-full")
 
         def _on_filter_change():
             query = (log_filter.value or "").lower()
