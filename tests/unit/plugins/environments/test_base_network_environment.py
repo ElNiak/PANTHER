@@ -857,16 +857,16 @@ class TestBaseNetworkEnvironmentComplexMethods:
 
                     # Basic service information
                     service_vars[f"{service_name.upper()}_NAME"] = service_name
-                    service_vars[
-                        f"{service_name.upper()}_TYPE"
-                    ] = manager.service_config.implementation.type
+                    service_vars[f"{service_name.upper()}_TYPE"] = (
+                        manager.service_config.implementation.type
+                    )
 
                     # Protocol-specific variables
                     protocol = manager.service_config.protocol
                     service_vars[f"{service_name.upper()}_PROTOCOL"] = protocol.name
-                    service_vars[
-                        f"{service_name.upper()}_PROTOCOL_VERSION"
-                    ] = protocol.version
+                    service_vars[f"{service_name.upper()}_PROTOCOL_VERSION"] = (
+                        protocol.version
+                    )
                     service_vars[f"{service_name.upper()}_ROLE"] = protocol.role
 
                     # System models detection (APT vs standard)

@@ -231,7 +231,9 @@ class TestNetworkNameValidation:
         env._log_context = {}
         env.execution_environment = []
         env.env_sub_type = "docker_compose"
-        # Pre-cache plugin config to avoid needing env_config_to_test
+        # Set env_config_to_test (normally set by __init__ chain)
+        env.env_config_to_test = DockerComposeConfig()
+        # Pre-cache plugin config
         env._plugin_config = DockerComposeConfig()
         return env
 
