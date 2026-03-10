@@ -14,6 +14,7 @@ class ResultsService:
     def __init__(self, output_dir: str = "outputs"):
         """Initialize with the root outputs directory path."""
         self.output_dir = Path(output_dir)
+        self._summary_cache: dict[str, dict] = {}
 
     def count_experiments(self) -> int:
         """Count the number of experiment result directories."""
@@ -167,13 +168,18 @@ class ResultsService:
         return artifacts
 
     def get_experiment_summary(self, experiment_path: str) -> Optional[dict]:
-        """Parse ExperimentSummary using core StatusCollector."""
+        """Parse ExperimentSummary using core StatusCollector (cached)."""
+        if experiment_path in self._summary_cache:
+            return self._summary_cache[experiment_path]
+
         from panther.core.reporting.status_collector import StatusCollector
 
         try:
             collector = StatusCollector(Path(experiment_path))
             summary = collector.collect_experiment_summary()
-            return summary.to_dict()
+            result = summary.to_dict()
+            self._summary_cache[experiment_path] = result
+            return result
         except Exception as e:
             logger.warning("Failed to collect experiment summary: %s", e)
             return None

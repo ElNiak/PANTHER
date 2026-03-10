@@ -296,6 +296,12 @@ class TestExperimentService:
         svc.stop()
         assert svc._stop_requested is True
 
+    def test_log_buffer_default(self):
+        from panther.webapp.services.experiment_service import ExperimentService
+
+        svc = ExperimentService()
+        assert svc._max_log_lines == 10000
+
     def test_log_buffer_capped(self):
         from panther.webapp.services.experiment_service import ExperimentService
 
@@ -306,3 +312,37 @@ class TestExperimentService:
         assert len(svc._log_lines) == 10
         assert svc._log_lines[0] == "line 15"
         assert svc._log_lines[-1] == "line 24"
+
+
+@pytest.mark.unit
+class TestResultsServiceCaching:
+    def test_get_experiment_summary_cached(self, tmp_path):
+        """Second call to get_experiment_summary should use cache."""
+        from unittest.mock import MagicMock, patch
+
+        from panther.webapp.services.results_service import ResultsService
+
+        svc = ResultsService(str(tmp_path))
+        original_summary = {"status": "completed", "tests": {"total": 5}}
+
+        mock_summary = MagicMock()
+        mock_summary.to_dict.return_value = original_summary
+
+        with patch(
+            "panther.core.reporting.status_collector.StatusCollector"
+        ) as MockCollector:
+            MockCollector.return_value.collect_experiment_summary.return_value = (
+                mock_summary
+            )
+            result1 = svc.get_experiment_summary(str(tmp_path))
+            result2 = svc.get_experiment_summary(str(tmp_path))
+
+        assert result1 == result2 == original_summary
+        # StatusCollector should only be instantiated once (cached on second call)
+        assert MockCollector.call_count == 1
+
+    def test_summary_cache_initialized(self):
+        from panther.webapp.services.results_service import ResultsService
+
+        svc = ResultsService()
+        assert svc._summary_cache == {}
