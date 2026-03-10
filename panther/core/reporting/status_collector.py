@@ -14,6 +14,9 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+# Pattern to strip ANSI escape sequences from log content
+_ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
+
 
 class TestStatus(Enum):
     """Test execution status."""
@@ -688,6 +691,7 @@ class StatusCollector:
 
     def _extract_error_message(self, content: str) -> Optional[str]:
         """Extract error message from log content."""
+        content = _ANSI_ESCAPE.sub("", content)
         lines = content.split("\n")
 
         # Look for lines containing error keywords

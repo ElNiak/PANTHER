@@ -368,3 +368,34 @@ class TestExperimentSummary:
         summary = self._make_summary([])
         assert summary.success_rate == 0.0
         assert summary.total_tests == 0
+
+
+# ---------------------------------------------------------------------------
+# TestExtractErrorMessage
+# ---------------------------------------------------------------------------
+
+
+class TestExtractErrorMessage:
+    """Verify _extract_error_message strips ANSI codes and extracts clean messages."""
+
+    def test_strips_ansi_codes(self, tmp_path):
+        content = "\x1b[31m2024-01-01 00:00:00 [ERROR] - Something failed\x1b[0m\n"
+        collector = _make_collector(tmp_path)
+        msg = collector._extract_error_message(content)
+        assert msg is not None
+        assert "\x1b" not in msg
+        assert "Something failed" in msg
+
+    def test_strips_multiple_ansi_sequences(self, tmp_path):
+        content = "\x1b[36m2024-01-01 00:00:00\x1b[0m \x1b[31m[ERROR]\x1b[0m - Tester failed: compilation error\n"
+        collector = _make_collector(tmp_path)
+        msg = collector._extract_error_message(content)
+        assert msg is not None
+        assert "\x1b" not in msg
+        assert "failed" in msg.lower()
+
+    def test_returns_none_for_no_errors(self, tmp_path):
+        content = "2024-01-01 00:00:00 [INFO] - All good\n"
+        collector = _make_collector(tmp_path)
+        msg = collector._extract_error_message(content)
+        assert msg is None
