@@ -295,3 +295,14 @@ class TestExperimentService:
         svc = ExperimentService()
         svc.stop()
         assert svc._stop_requested is True
+
+    def test_log_buffer_capped(self):
+        from panther.webapp.services.experiment_service import ExperimentService
+
+        svc = ExperimentService()
+        svc._max_log_lines = 10
+        for i in range(25):
+            svc._emit_log(f"line {i}")
+        assert len(svc._log_lines) == 10
+        assert svc._log_lines[0] == "line 15"
+        assert svc._log_lines[-1] == "line 24"

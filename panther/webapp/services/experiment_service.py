@@ -31,6 +31,7 @@ class ExperimentService:
         self._running = False
         self._stop_requested = False
         self._log_lines: list[str] = []
+        self._max_log_lines: int = 10000
         self._status: str = "Idle"
         self._config_path: str = ""
         self._log_callbacks: list[Callable[[str], None]] = []
@@ -78,6 +79,8 @@ class ExperimentService:
 
     def _emit_log(self, line: str):
         self._log_lines.append(line)
+        if len(self._log_lines) > self._max_log_lines:
+            self._log_lines = self._log_lines[-self._max_log_lines :]
         for cb in list(self._log_callbacks):
             try:
                 cb(line)
