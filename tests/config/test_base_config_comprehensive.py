@@ -384,7 +384,7 @@ class TestBaseConfigFileOperations:
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             try:
-                config.save_to_file(f.name, format="yaml")
+                config.save(f.name, format="yaml")
 
                 # Verify file contents
                 with open(f.name, "r") as read_file:
@@ -409,7 +409,7 @@ class TestBaseConfigFileOperations:
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             try:
-                config.save_to_file(f.name, format="json")
+                config.save(f.name, format="json")
 
                 # Verify file contents
                 with open(f.name, "r") as read_file:
@@ -439,7 +439,7 @@ class TestBaseConfigFileOperations:
                 f.flush()
 
                 # Load config from file
-                config = SimpleConfig.load_from_file(f.name)
+                config = SimpleConfig.load(f.name)
 
                 assert config.name == "loaded_from_yaml"
                 assert config.value == 500
@@ -465,7 +465,7 @@ class TestBaseConfigFileOperations:
                 f.flush()
 
                 # Load config from file
-                config = SimpleConfig.load_from_file(f.name)
+                config = SimpleConfig.load(f.name)
 
                 assert config.name == "loaded_from_json"
                 assert config.value == 600
@@ -486,7 +486,7 @@ class TestBaseConfigFileOperations:
         # Test YAML autodetection
         with tempfile.NamedTemporaryFile(suffix=".yaml", delete=False) as f:
             try:
-                config.save_to_file(f.name)  # No format specified
+                config.save(f.name)  # No format specified
 
                 with open(f.name, "r") as read_file:
                     content = read_file.read()
@@ -498,7 +498,7 @@ class TestBaseConfigFileOperations:
         # Test JSON autodetection
         with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
             try:
-                config.save_to_file(f.name)  # No format specified
+                config.save(f.name)  # No format specified
 
                 with open(f.name, "r") as read_file:
                     content = json.load(read_file)
@@ -575,11 +575,11 @@ class TestBaseConfigErrorHandling:
 
         # Try to save to invalid path
         with pytest.raises((IOError, OSError, PermissionError)):
-            config.save_to_file("/invalid/path/that/does/not/exist.yaml")
+            config.save("/invalid/path/that/does/not/exist.yaml")
 
         # Try to load from non-existent file
         with pytest.raises((FileNotFoundError, IOError)):
-            SimpleConfig.load_from_file("/non/existent/file.yaml")
+            SimpleConfig.load("/non/existent/file.yaml")
 
     def test_unsupported_file_format(self):
         """Test file operations with unsupported formats."""
@@ -592,7 +592,7 @@ class TestBaseConfigErrorHandling:
         with tempfile.NamedTemporaryFile(suffix=".xml", delete=False) as f:
             try:
                 with pytest.raises((ValueError, NotImplementedError)):
-                    config.save_to_file(f.name, format="xml")
+                    config.save(f.name, format="xml")
 
             finally:
                 os.unlink(f.name)

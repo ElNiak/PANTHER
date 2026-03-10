@@ -60,6 +60,7 @@ class BaseConfig(BaseModel):
         """Convert to standard dictionary."""
         excluded_fields = {"model_fields", "model_config", "model_fields_set"}
         return self.model_dump(
+            mode="json",
             exclude_none=exclude_none,
             exclude_defaults=exclude_defaults,
             exclude=excluded_fields,
@@ -87,10 +88,12 @@ class BaseConfig(BaseModel):
         """Get JSON schema for this configuration."""
         return self.model_json_schema()
 
-    def save(self, path: Union[str, Path], format: str = "yaml") -> None:
+    def save(self, path: Union[str, Path], format: Optional[str] = None) -> None:
         """Save configuration to file."""
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
+        if format is None:
+            format = "json" if path.suffix == ".json" else "yaml"
         if format == "yaml":
             content = self.to_yaml()
         elif format == "json":

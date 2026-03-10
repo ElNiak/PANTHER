@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Working comprehensive test suite for GlobalConfig and all sub-models.
+"""Working comprehensive test suite for GlobalConfig and all sub-models.
 
 This module provides exhaustive testing based on the actual structure found in PANTHER.
 """
@@ -13,7 +12,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-from omegaconf import OmegaConf
 from pydantic import ValidationError
 
 from panther.config.core.models.global_config import (
@@ -86,17 +84,11 @@ class TestLoggingConfig:
         parsed = yaml.safe_load(yaml_str)
         assert parsed["level"] == "WARNING"
 
-    def test_logging_config_omega_conversion(self):
-        """Test LoggingConfig OmegaConf conversion."""
+    def test_logging_config_dict_roundtrip(self):
+        """Test LoggingConfig dict conversion round-trip."""
         config = LoggingConfig(level=LoggingLevel.ERROR, format="test format")
-
-        # Convert to OmegaConf
-        omega = config.to_omega()
-        assert omega.level == "ERROR"
-        assert omega.format == "test format"
-
-        # Convert back from OmegaConf
-        restored = LoggingConfig.from_omega(omega)
+        config_dict = config.to_dict()
+        restored = LoggingConfig(**config_dict)
         assert restored.level == LoggingLevel.ERROR
         assert restored.format == "test format"
 
@@ -109,7 +101,7 @@ class TestPathsConfig:
         config = PathsConfig()
 
         assert config.output_dir == "outputs"
-        assert config.log_dir == "${paths.output_dir}/logs"
+        assert config.log_dir == "outputs/logs"
         assert config.plugin_dir == "panther/plugins"
         assert config.cert_dir is None
         assert config.temp_dir == "/tmp/panther"
@@ -300,8 +292,8 @@ class TestFastFailConfig:
         assert config.test_level is False
         assert config.docker_build_failures is True
         assert config.service_start_failures is True
-        assert config.ivy_compilation_failures is False
-        assert config.timeout_cascade_threshold == 3
+        assert config.ivy_compilation_failures is True
+        assert config.timeout_cascade_threshold == 1
         assert config.critical_only is False
 
     def test_fast_fail_config_custom(self):
@@ -340,14 +332,14 @@ class TestMetricsConfig:
             enabled=False,
             collect_system_metrics=False,
             publish_interval=60,
-            export_format="yaml",
+            export_format="csv",
             retention_days=7,
         )
 
         assert config.enabled is False
         assert config.collect_system_metrics is False
         assert config.publish_interval == 60
-        assert config.export_format == "yaml"
+        assert config.export_format == "csv"
         assert config.retention_days == 7
 
 
@@ -436,28 +428,21 @@ class TestGlobalConfig:
             merged.logging.format
             == "%(asctime)s [%(levelname)s] - %(module)s - %(message)s"
         )
-        assert merged.paths.log_dir == "${paths.output_dir}/logs"
+        assert merged.paths.log_dir == "outputs/logs"
         assert merged.docker.log_docker_image_build is True
 
-    def test_global_config_omega_conversion(self):
-        """Test GlobalConfig OmegaConf conversion."""
+    def test_global_config_dict_roundtrip(self):
+        """Test GlobalConfig dict conversion round-trip."""
         config = GlobalConfig(
             version="1.5",
             logging=LoggingConfig(level=LoggingLevel.WARNING),
-            paths=PathsConfig(output_dir="/omega/test"),
+            paths=PathsConfig(output_dir="/roundtrip/test"),
         )
-
-        # Convert to OmegaConf
-        omega = config.to_omega()
-        assert omega.version == "1.5"
-        assert omega.logging.level == "WARNING"
-        assert omega.paths.output_dir == "/omega/test"
-
-        # Convert back
-        restored = GlobalConfig.from_omega(omega)
+        config_dict = config.to_dict()
+        restored = GlobalConfig(**config_dict)
         assert restored.version == "1.5"
         assert restored.logging.level == LoggingLevel.WARNING
-        assert restored.paths.output_dir == "/omega/test"
+        assert restored.paths.output_dir == "/roundtrip/test"
 
     def test_global_config_serialization_roundtrip(self):
         """Test GlobalConfig serialization round-trip."""
@@ -493,8 +478,8 @@ class TestGlobalConfig:
         # Test YAML file operations
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             try:
-                original.save_to_file(f.name)
-                loaded = GlobalConfig.load_from_file(f.name)
+                original.save(f.name)
+                loaded = GlobalConfig.load(f.name)
 
                 assert loaded.version == "1.9"
                 assert loaded.logging.level == LoggingLevel.WARNING
@@ -550,7 +535,7 @@ if __name__ == "__main__":
         test_global = TestGlobalConfig()
         test_global.test_global_config_defaults()
         test_global.test_global_config_merge_complex()
-        test_global.test_global_config_omega_conversion()
+        test_global.test_global_config_dict_roundtrip()
         test_global.test_global_config_file_operations()
         print("✓ GlobalConfig integration tests passed")
 

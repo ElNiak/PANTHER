@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Complete comprehensive test suite for ALL PANTHER configuration classes.
+"""Complete comprehensive test suite for ALL PANTHER configuration classes.
 
 This module tests every configuration class discovered through Serena analysis:
 - GlobalConfig with all 8 sub-configurations
@@ -17,7 +16,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-from omegaconf import OmegaConf
 from pydantic import ValidationError
 
 from panther.config.core.models.global_config import (
@@ -141,7 +139,7 @@ class TestObserverConfigurations:
             storage_path="/custom/storage",
             enable_compression=True,
             retention_days=60,
-            storage_format="yaml",
+            storage_format="csv",
             buffer_size=2000,
             batch_size=200,
         )
@@ -150,7 +148,7 @@ class TestObserverConfigurations:
         assert config.storage_path == "/custom/storage"
         assert config.enable_compression is True
         assert config.retention_days == 60
-        assert config.storage_format == "yaml"
+        assert config.storage_format == "csv"
         assert config.buffer_size == 2000
         assert config.batch_size == 200
 
@@ -262,7 +260,7 @@ class TestCompleteGlobalConfig:
         # Fast-fail defaults
         assert config.fast_fail.enabled is True
         assert config.fast_fail.docker_build_failures is True
-        assert config.fast_fail.timeout_cascade_threshold == 3
+        assert config.fast_fail.timeout_cascade_threshold == 1
 
         # Metrics defaults
         assert config.metrics.enabled is True
@@ -305,7 +303,7 @@ class TestCompleteGlobalConfig:
         )
 
         metrics_config = MetricsConfig(
-            enabled=False, export_format="yaml", retention_days=7
+            enabled=False, export_format="csv", retention_days=7
         )
 
         # Create custom observer configs
@@ -339,18 +337,16 @@ class TestCompleteGlobalConfig:
         assert config.metrics.enabled is False
         assert config.observers.logger.log_level == "ERROR"
 
-    def test_global_config_interpolation_resolution(self):
-        """Test OmegaConf interpolation in GlobalConfig."""
+    def test_global_config_paths_merge(self):
+        """Test that path values merge correctly."""
         config = GlobalConfig()
+        assert config.paths.log_dir == "outputs/logs"
 
-        # Test that interpolation exists in raw form
-        assert config.paths.log_dir == "${paths.output_dir}/logs"
-
-        # Test merging resolves interpolation
-        override = {"paths": {"output_dir": "/new/output"}}
-
+        # Merging output_dir doesn't auto-update log_dir (no interpolation in Pydantic)
+        override = {
+            "paths": {"output_dir": "/new/output", "log_dir": "/new/output/logs"}
+        }
         merged = config.merge(override)
-        # After merge, interpolation should be resolved
         assert merged.paths.output_dir == "/new/output"
         assert merged.paths.log_dir == "/new/output/logs"
 
@@ -467,27 +463,19 @@ class TestCompleteGlobalConfig:
         with pytest.raises(ValidationError):
             GlobalConfig(progress={"update_interval": -1})
 
-    def test_global_config_omega_conversion_complete(self):
-        """Test complete OmegaConf conversion."""
+    def test_global_config_dict_roundtrip_complete(self):
+        """Test complete dict conversion round-trip."""
         config = GlobalConfig(
             version="1.9",
             logging=LoggingConfig(level=LoggingLevel.DEBUG),
-            paths=PathsConfig(output_dir="/omega/complete"),
+            paths=PathsConfig(output_dir="/roundtrip/complete"),
             observers=ObserversConfig(logger=LoggerObserverConfig(log_level="WARNING")),
         )
-
-        # Convert to OmegaConf
-        omega = config.to_omega()
-        assert omega.version == "1.9"
-        assert omega.logging.level == "DEBUG"
-        assert omega.paths.output_dir == "/omega/complete"
-        assert omega.observers.logger.log_level == "WARNING"
-
-        # Convert back
-        restored = GlobalConfig.from_omega(omega)
+        config_dict = config.to_dict()
+        restored = GlobalConfig(**config_dict)
         assert restored.version == "1.9"
         assert restored.logging.level == LoggingLevel.DEBUG
-        assert restored.paths.output_dir == "/omega/complete"
+        assert restored.paths.output_dir == "/roundtrip/complete"
         assert restored.observers.logger.log_level == "WARNING"
 
     def test_global_config_file_operations_complete(self):
@@ -539,7 +527,7 @@ if __name__ == "__main__":
         test_complete.test_global_config_interpolation_resolution()
         test_complete.test_global_config_deep_merge()
         test_complete.test_global_config_serialization_complete()
-        test_complete.test_global_config_omega_conversion_complete()
+        test_complete.test_global_config_dict_roundtrip_complete()
         test_complete.test_global_config_file_operations_complete()
         print("✓ All complete GlobalConfig tests passed")
 

@@ -1,5 +1,4 @@
-"""
-Shared fixtures and configuration for PANTHER config subsystem tests.
+"""Shared fixtures and configuration for PANTHER config subsystem tests.
 
 This module provides fixtures for testing configuration loading, validation,
 and environment overrides with comprehensive mocking to ensure deterministic,
@@ -36,20 +35,14 @@ def valid_cfg_dict():
         "paths": {
             "output_dir": "outputs",
             "log_dir": "outputs/logs",
-            "config_dir": "configs",
-            "plugin_dir": "plugins",
+            "plugin_dir": "panther/plugins",
         },
         "docker": {
-            "build_docker_image": True,
-            "remove_docker_image": True,
-            "remove_docker_container": True,
-            "remove_docker_network": True,
-            "remove_docker_volume": True,
+            "force_build_docker_image": True,
+            "log_docker_image_build": True,
         },
-        "features": {
-            "logger_observer": True,
-            "storage_handler": True,
-            "fast_fail": True,
+        "fast_fail": {
+            "enabled": True,
         },
     }
 
@@ -186,7 +179,7 @@ def sample_invalid_configs():
         "malformed_docker": {
             "logging": {"level": "DEBUG"},
             "paths": {"output_dir": "outputs"},
-            "docker": {"build_docker_image": "not_a_boolean"},
+            "docker": {"force_build_docker_image": "not_a_boolean"},
         },
     }
 
@@ -196,13 +189,6 @@ def mock_yaml_loader():
     """Mock YAML loader to control file loading behavior."""
     with patch("yaml.safe_load") as mock_load:
         yield mock_load
-
-
-@pytest.fixture
-def mock_omegaconf():
-    """Mock OmegaConf for controlled configuration object creation."""
-    with patch("omegaconf.OmegaConf") as mock_omega:
-        yield mock_omega
 
 
 @pytest.fixture

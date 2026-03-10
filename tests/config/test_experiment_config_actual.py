@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Comprehensive test suite for actual PANTHER ExperimentConfig and related models.
+"""Comprehensive test suite for actual PANTHER ExperimentConfig and related models.
 
 This module tests the real configuration structure as discovered through Serena analysis.
 """
@@ -11,7 +10,6 @@ from typing import Any, Dict, List
 
 import pytest
 import yaml
-from omegaconf import OmegaConf
 from pydantic import ValidationError
 
 from panther.config.core.models.environment import (
