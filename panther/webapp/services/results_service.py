@@ -111,8 +111,8 @@ class ResultsService:
                     (d / "test_config.yaml").exists() or (d / "test.log").exists()
                 ):
                     count += 1
-        except OSError:
-            pass
+        except OSError as e:
+            logger.warning("Error counting tests in %s: %s", exp_dir, e)
         return count
 
     def _detect_status(self, exp_dir: Path) -> str:
@@ -146,8 +146,8 @@ class ResultsService:
                 try:
                     lines = _read_text_bounded(logs[0]).splitlines()
                     return lines[-tail:]
-                except OSError:
-                    pass
+                except OSError as e:
+                    logger.warning("Error reading log file %s: %s", logs[0], e)
         return []
 
     def _read_log(self, exp_dir: Path) -> Optional[str]:
@@ -162,8 +162,8 @@ class ResultsService:
             if report.exists():
                 try:
                     return _read_text_bounded(report)
-                except OSError:
-                    pass
+                except OSError as e:
+                    logger.warning("Error reading report %s: %s", report, e)
         return None
 
     def _list_artifacts(self, exp_dir: Path) -> list[dict[str, str]]:
@@ -213,8 +213,6 @@ class ResultsService:
                     "has_analysis": (
                         (test_dir / "analysis").is_dir()
                         and any((test_dir / "analysis").iterdir())
-                        if (test_dir / "analysis").is_dir()
-                        else False
                     ),
                     "service_count": self._count_services(test_dir),
                 }
@@ -434,8 +432,8 @@ class ResultsService:
             if comp_status.exists():
                 try:
                     phase_data["compilation_status"] = _read_text_bounded(comp_status)
-                except OSError:
-                    pass
+                except OSError as e:
+                    logger.warning("Error reading %s: %s", comp_status, e)
 
             if any(v for v in phase_data.values()):
                 result[phase_dir.name] = phase_data

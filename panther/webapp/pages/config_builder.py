@@ -12,24 +12,24 @@ from panther.webapp.services.config_service import ConfigService
 logger = logging.getLogger(__name__)
 
 
-def _populate_forms_from_dict(cruds: dict[str, Any], config_dict: dict) -> None:
+def _populate_forms_from_dict(panels: dict[str, Any], config_dict: dict) -> None:
     """Populate all form panels from a parsed config dict."""
     # Global sections
-    for field_name, panel in cruds.get("global", {}).items():
+    for field_name, panel in panels.get("global", {}).items():
         section_data = config_dict.get(field_name)
         if section_data and isinstance(section_data, dict):
             panel.form.set_value(section_data)
 
     # Tests
     tests = config_dict.get("tests")
-    tests_panel = cruds.get("tests")
+    tests_panel = panels.get("tests")
     if tests and isinstance(tests, list) and tests_panel:
         if isinstance(tests[0], dict):
             tests_panel.form.set_value(tests[0])
 
     # Metadata
     meta = config_dict.get("metadata")
-    meta_panel = cruds.get("metadata")
+    meta_panel = panels.get("metadata")
     if meta and isinstance(meta, dict) and meta_panel:
         meta_panel.form.set_value(meta)
 
@@ -105,7 +105,7 @@ def _render_config_forms(yaml_editor_ref: dict):
     from panther.webapp.components.error_boundary import error_boundary
     from panther.webapp.utils.form_models import GLOBAL_SECTION_META
 
-    cruds: dict[str, Any] = {"global": {}}
+    panels: dict[str, Any] = {"global": {}}
 
     # === Auto-walk GlobalConfig fields ===
     for field_name, field_info in GlobalConfig.model_fields.items():
@@ -122,7 +122,7 @@ def _render_config_forms(yaml_editor_ref: dict):
 
         with ui.card().classes("w-full q-mb-md"):
             with error_boundary(f"{title} Config"):
-                cruds["global"][field_name] = config_form_panel(
+                panels["global"][field_name] = config_form_panel(
                     annotation,
                     title=title,
                     icon=icon,
@@ -136,7 +136,7 @@ def _render_config_forms(yaml_editor_ref: dict):
             "text-caption text-grey-7 q-mb-sm"
         )
         with error_boundary("Test Config"):
-            cruds["tests"] = config_form_panel(
+            panels["tests"] = config_form_panel(
                 TestConfig,
                 title="Test Settings",
                 icon="science",
@@ -145,7 +145,7 @@ def _render_config_forms(yaml_editor_ref: dict):
     # === ExperimentMetadata ===
     with ui.card().classes("w-full q-mb-md"):
         with error_boundary("Experiment Metadata"):
-            cruds["metadata"] = config_form_panel(
+            panels["metadata"] = config_form_panel(
                 ExperimentMetadata,
                 title="Experiment Metadata",
                 icon="info",
@@ -153,9 +153,9 @@ def _render_config_forms(yaml_editor_ref: dict):
             )
 
     # Prefill metadata form with sensible defaults (name, author, timestamps)
-    cruds["metadata"].form.set_value(ExperimentMetadata().model_dump())
+    panels["metadata"].form.set_value(ExperimentMetadata().model_dump())
 
-    yaml_editor_ref["cruds"] = cruds
+    yaml_editor_ref["panels"] = panels
     yaml_editor_ref["_last_yaml"] = None
 
     def _sync_forms_to_yaml():
@@ -167,18 +167,18 @@ def _render_config_forms(yaml_editor_ref: dict):
                 return
             config: dict[str, Any] = {}
 
-            for section_name, panel in cruds.get("global", {}).items():
+            for section_name, panel in panels.get("global", {}).items():
                 data = panel.form.get_value()
                 if data:
                     config[section_name] = data
 
-            tests_panel = cruds.get("tests")
+            tests_panel = panels.get("tests")
             if tests_panel:
                 data = tests_panel.form.get_value()
                 if data:
                     config["tests"] = [data]
 
-            meta_panel = cruds.get("metadata")
+            meta_panel = panels.get("metadata")
             if meta_panel:
                 data = meta_panel.form.get_value()
                 if data:
@@ -273,9 +273,9 @@ def _import_yaml_dialog(config_svc: ConfigService, yaml_editor_ref: dict):
                 editor.value = text
             # Populate forms from the imported YAML
             data = config_svc.yaml_to_dict(text)
-            cruds = yaml_editor_ref.get("cruds")
-            if data and cruds:
-                _populate_forms_from_dict(cruds, data)
+            panels = yaml_editor_ref.get("panels")
+            if data and panels:
+                _populate_forms_from_dict(panels, data)
             yaml_editor_ref["skip_sync"] = True
             dialog.close()
             ui.notify("Configuration imported into forms", type="positive")
@@ -323,9 +323,9 @@ def _load_config_dialog(config_svc: ConfigService, yaml_editor_ref: dict):
                 if editor:
                     editor.value = yaml_str
                 # Populate forms from loaded data
-                cruds = yaml_editor_ref.get("cruds")
-                if cruds:
-                    _populate_forms_from_dict(cruds, data)
+                panels = yaml_editor_ref.get("panels")
+                if panels:
+                    _populate_forms_from_dict(panels, data)
                 yaml_editor_ref["skip_sync"] = True
                 dialog.close()
                 ui.notify(f"Loaded: {path}", type="positive")

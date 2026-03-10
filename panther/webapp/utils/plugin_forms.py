@@ -17,6 +17,23 @@ from panther.webapp.utils.form_models import ComplexFieldInfo, get_complex_field
 
 logger = logging.getLogger(__name__)
 
+# ── Cached plugin discovery ───────────────────────────────────────────
+_discovery_done = False
+
+
+def _ensure_plugins_discovered():
+    """Run plugin discovery once per process; subsequent calls are no-ops."""
+    global _discovery_done
+    if _discovery_done:
+        return
+    try:
+        from panther.plugins.core.plugin_discovery import PluginDiscovery
+
+        PluginDiscovery().discover_plugins()
+        _discovery_done = True
+    except Exception:
+        logger.warning("Plugin discovery failed", exc_info=True)
+
 
 @dataclass
 class PluginFormInfo:
@@ -136,12 +153,7 @@ def list_available_plugins(plugin_type: str | None = None) -> list[dict[str, str
     Returns ``[{"name", "type", "description", "protocols"}]``.
     Catches PluginManager errors gracefully (returns ``[]``).
     """
-    try:
-        from panther.plugins.core.plugin_discovery import PluginDiscovery
-
-        PluginDiscovery().discover_plugins()
-    except Exception:
-        logger.debug("Plugin discovery failed", exc_info=True)
+    _ensure_plugins_discovered()
 
     try:
         from panther.plugins.core.plugin_decorators import get_decorated_plugins
@@ -173,12 +185,7 @@ def list_available_plugins(plugin_type: str | None = None) -> list[dict[str, str
 
 def get_protocol_choices() -> list[str]:
     """Return available protocol names from the decorator registry."""
-    try:
-        from panther.plugins.core.plugin_discovery import PluginDiscovery
-
-        PluginDiscovery().discover_plugins()
-    except Exception:
-        logger.debug("Plugin discovery failed", exc_info=True)
+    _ensure_plugins_discovered()
     try:
         from panther.plugins.core.plugin_decorators import get_decorated_plugins
 
@@ -202,12 +209,7 @@ def get_implementation_choices(
         service_type: Filter by plugin type (``"iut"`` or ``"tester"``).
             When ``None``, returns both IUT and tester implementations.
     """
-    try:
-        from panther.plugins.core.plugin_discovery import PluginDiscovery
-
-        PluginDiscovery().discover_plugins()
-    except Exception:
-        logger.debug("Plugin discovery failed", exc_info=True)
+    _ensure_plugins_discovered()
     try:
         from panther.plugins.core.plugin_decorators import get_decorated_plugins
 
@@ -240,12 +242,7 @@ def get_implementation_choices(
 
 def get_version_choices(protocol_name: str) -> list[str]:
     """Return supported versions for a protocol from the protocol registry."""
-    try:
-        from panther.plugins.core.plugin_discovery import PluginDiscovery
-
-        PluginDiscovery().discover_plugins()
-    except Exception:
-        logger.debug("Plugin discovery failed", exc_info=True)
+    _ensure_plugins_discovered()
     try:
         from panther.plugins.core.plugin_decorators import get_protocol_versions
 

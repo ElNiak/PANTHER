@@ -40,6 +40,8 @@ def _validate_config_path(path_str) -> Path:
     resolved = Path(str(path_str)).resolve()
     if resolved.suffix.lower() not in (".yaml", ".yml"):
         raise ValueError(f"Path '{path_str}' must be a YAML file (.yaml/.yml)")
+    if not resolved.is_relative_to(_PROJECT_ROOT):
+        raise ValueError(f"Path must be within the project directory ({_PROJECT_ROOT})")
     return resolved
 
 
@@ -178,6 +180,7 @@ class ConfigService:
         try:
             data = yaml.safe_load(path.read_text())
         except Exception:
+            logger.warning("Failed to parse config file %s", path, exc_info=True)
             return {
                 "test_count": 0,
                 "test_names": [],

@@ -19,7 +19,7 @@ from enum import Enum
 from typing import Any, Callable, Literal, Union, get_args, get_origin
 
 from nicegui import ui
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from pydantic_core import PydanticUndefined
 
 from panther.webapp.components.dict_list_widgets import create_widget_for_field
@@ -146,11 +146,12 @@ class PydanticForm:
         try:
             validated = self._model_cls(**raw)
             return validated.model_dump(mode="json")
-        except Exception:
-            logger.debug(
-                "Validation failed for %s, returning raw values",
+        except (ValidationError, ValueError) as exc:
+            logger.warning(
+                "Validation failed for %s, returning raw values: %s",
                 self._model_cls.__name__,
-                exc_info=False,
+                exc,
+                exc_info=True,
             )
             return raw
 
@@ -254,6 +255,26 @@ class PydanticForm:
             default = None
         extra = field_info.json_schema_extra or {}
 
+        # Specialized widget_type overrides (checked before type-based dispatch)
+        if isinstance(extra, dict) and extra.get("widget_type") == "protocol_select":
+            self._render_protocol_select(name, field_info, default)
+            return
+
+        if (
+            isinstance(extra, dict)
+            and extra.get("widget_type") == "implementation_select"
+        ):
+            self._render_implementation_select(name, field_info, default)
+            return
+
+        if isinstance(extra, dict) and extra.get("widget_type") == "plugin_select":
+            self._render_plugin_select(name, field_info, default, extra)
+            return
+
+        if isinstance(extra, dict) and extra.get("widget_type") == "port":
+            self._render_port(name, field_info, default, extra)
+            return
+
         # Unwrap Optional[T]
         inner, is_optional = self._unwrap_optional(annotation)
 
@@ -284,26 +305,6 @@ class PydanticForm:
             if not (isinstance(elem, type) and issubclass(elem, BaseModel)):
                 self._render_list_scalar(name, field_info, default)
                 return
-
-        # Specialized widget_type
-        if isinstance(extra, dict) and extra.get("widget_type") == "protocol_select":
-            self._render_protocol_select(name, field_info, default)
-            return
-
-        if (
-            isinstance(extra, dict)
-            and extra.get("widget_type") == "implementation_select"
-        ):
-            self._render_implementation_select(name, field_info, default)
-            return
-
-        if isinstance(extra, dict) and extra.get("widget_type") == "plugin_select":
-            self._render_plugin_select(name, field_info, default, extra)
-            return
-
-        if isinstance(extra, dict) and extra.get("widget_type") == "port":
-            self._render_port(name, field_info, default, extra)
-            return
 
         # Scalars
         if inner is bool or inner == bool:
@@ -612,6 +613,7 @@ class PydanticForm:
         )
 
         sub_form_ref: dict[str, PydanticForm | None] = {"form": None}
+        _pending_value: list[dict] = []
 
         with ui.column().classes(f"w-full {self._prefix}-section"):
             # Toggle FIRST — correct DOM order (above sub-container)
@@ -623,20 +625,34 @@ class PydanticForm:
             # Sub-container AFTER toggle
             sub_container = ui.column().classes("w-full")
 
-            # Callback uses closure variable (not default arg)
-            def _on_toggle(e):
+            def _create_sub_form():
+                """Create sub-form, clearing any previous one."""
                 for child in list(sub_container):
                     child.delete()
                 sub_container.clear()
                 sub_form_ref["form"] = None
+                sub_container.set_visibility(True)
+                with sub_container:
+                    sub_form_ref["form"] = PydanticForm(
+                        model_cls, instance=initial, config=self._config
+                    )
+                # Apply any pending value stored by _setter
+                if _pending_value:
+                    sub_form_ref["form"].set_value(_pending_value.pop())
+
+            def _destroy_sub_form():
+                """Remove sub-form and hide container."""
+                for child in list(sub_container):
+                    child.delete()
+                sub_container.clear()
+                sub_form_ref["form"] = None
+                sub_container.set_visibility(False)
+
+            def _on_toggle(e):
                 if e.value:
-                    sub_container.set_visibility(True)
-                    with sub_container:
-                        sub_form_ref["form"] = PydanticForm(
-                            model_cls, instance=initial, config=self._config
-                        )
+                    _create_sub_form()
                 else:
-                    sub_container.set_visibility(False)
+                    _destroy_sub_form()
 
             # Use on_value_change (post-creation)
             toggle.on_value_change(_on_toggle)
@@ -656,11 +672,17 @@ class PydanticForm:
 
         def _setter(v):
             if v is not None and isinstance(v, dict):
+                _pending_value.clear()
+                _pending_value.append(v)
                 toggle.value = True
+                # If toggle callback fired synchronously, _pending_value was
+                # consumed by _create_sub_form. If form already existed and
+                # callback didn't fire, apply directly.
                 f = sub_form_ref["form"]
-                if f is not None:
-                    f.set_value(v)
+                if f is not None and _pending_value:
+                    f.set_value(_pending_value.pop())
             else:
+                _pending_value.clear()
                 toggle.value = False
 
         self._field_bindings[name] = FieldBinding(

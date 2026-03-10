@@ -1,5 +1,6 @@
 """Experiment configuration models."""
 
+import functools
 import os
 import subprocess
 from datetime import datetime
@@ -12,6 +13,7 @@ from .environment import ExecutionEnvironmentConfig, NetworkEnvironmentConfig
 from .service import ServiceConfig
 
 
+@functools.lru_cache(maxsize=1)
 def _detect_author() -> Optional[str]:
     """Try git user.name, fall back to OS username."""
     try:

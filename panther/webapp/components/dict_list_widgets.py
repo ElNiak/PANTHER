@@ -221,6 +221,7 @@ class KeyedModelEditor:
                     self._entries[key] = self.value_type(**data)
                 except Exception:
                     logger.warning("Failed to create entry", exc_info=True)
+                    ui.notify("Failed to create entry", type="negative")
                     return
                 dialog.close()
                 self._refresh()
@@ -256,6 +257,7 @@ class KeyedModelEditor:
                     self._entries[key] = self.value_type(**data)
                 except Exception:
                     logger.warning("Failed to update entry %s", key, exc_info=True)
+                    ui.notify(f"Failed to update entry '{key}'", type="negative")
                     return
                 dialog.close()
                 self._refresh()
@@ -370,6 +372,7 @@ class ModelListEditor:
                     self._entries.append(self.element_type(**data))
                 except Exception:
                     logger.warning("Failed to add list entry", exc_info=True)
+                    ui.notify("Failed to add entry", type="negative")
                     return
                 dialog.close()
                 self._refresh()
@@ -395,6 +398,7 @@ class ModelListEditor:
                     self._entries[idx] = self.element_type(**data)
                 except Exception:
                     logger.warning("Failed to update list entry %d", idx, exc_info=True)
+                    ui.notify("Failed to update entry", type="negative")
                     return
                 dialog.close()
                 self._refresh()
