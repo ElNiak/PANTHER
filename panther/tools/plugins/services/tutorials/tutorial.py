@@ -1,26 +1,23 @@
 #!/usr/bin/env python3
-from typing import Any, Dict, List, Optional, Union
-
-"""
-Interactive Service Plugin Tutorial
-
-This tutorial walks you through creating a complete PANTHER service plugin,
-from basic structure to advanced features and integration.
-"""
-
+"""Interactive service plugin tutorial for creating PANTHER service plugins."""
 import argparse
 import sys
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
 
 
 class ServicePluginTutorial:
+    """Interactive tutorial for creating PANTHER service plugins."""
+
     def __init__(self):
+        """Initialize ServicePluginTutorial."""
         self.tutorial_dir = Path(__file__).parent
         self.plugin_name = None
         self.plugin_type = None
         self.plugin_dir = None
 
     def welcome(self):
+        """Display the tutorial welcome message."""
         print("=" * 60)
         print("🚀 PANTHER Service Plugin Development Tutorial")
         print("=" * 60)
@@ -33,8 +30,7 @@ class ServicePluginTutorial:
         print("\nLet's get started!\n")
 
     def create_new_plugin(self, plugin_name):
-        """
-        Creates a new service plugin with the specified name
+        """Creates a new service plugin with the specified name.
 
         Args:
             plugin_name: The name of the plugin to create
@@ -57,6 +53,7 @@ class ServicePluginTutorial:
         return self.create_plugin_structure()
 
     def choose_plugin_type(self):
+        """Prompt the user to select a plugin type."""
         print("📋 Step 1: Choose Your Plugin Type")
         print("-" * 40)
         print("Service plugins can be:")
@@ -82,6 +79,7 @@ class ServicePluginTutorial:
                 print("❌ Invalid choice. Please enter 1, 2, or 3.")
 
     def get_plugin_details(self):
+        """Prompt the user to enter plugin configuration details."""
         print("\n📝 Step 2: Plugin Configuration")
         print("-" * 40)
 
@@ -96,6 +94,7 @@ class ServicePluginTutorial:
         print(f"✅ Plugin name: {self.plugin_name}")
 
     def create_plugin_structure(self):
+        """Create the plugin directory structure and required files."""
         print("\n🏗️  Step 3: Creating Plugin Structure")
         print("-" * 40)
 
@@ -126,8 +125,7 @@ class ServicePluginTutorial:
         self.plugin_dir = plugin_dir
 
     def create_file_content(self, file_path, file_name):
-        """Generate appropriate content for each file"""
-
+        """Generate appropriate content for each file."""
         if file_name == "__init__.py":
             content = f'"""PANTHER {self.plugin_type} plugin: {self.plugin_name}"""\n'
 
@@ -152,6 +150,7 @@ class ServicePluginTutorial:
         file_path.write_text(content)
 
     def generate_main_plugin_file(self):
+        """Generate the main plugin module source code."""
         class_name = f"{self.plugin_name.title()}ServiceManager"
         config_class = f"{self.plugin_name.title()}Config"
 
@@ -263,6 +262,7 @@ from typing import ListVersion-specific configuration for {self.plugin_name}"""
 '''
 
     def generate_config_schema(self):
+        """Generate the configuration schema source code."""
         config_class = f"{self.plugin_name.title()}Config"
         version_class = f"{self.plugin_name.title()}Version"
 
@@ -338,6 +338,7 @@ class {config_class}(ImplementationConfig):
 '''
 
     def generate_dockerfile(self):
+        """Generate a Dockerfile for the plugin."""
         return f"""# Dockerfile for {self.plugin_name} {self.plugin_type} plugin
 
 FROM --platform=linux/amd64 panther_base_service:latest
@@ -376,6 +377,7 @@ ENTRYPOINT ["./entrypoint.sh"]
 """
 
     def generate_readme(self):
+        """Generate a README for the plugin."""
         return f"""# {self.plugin_name.title()} Plugin
 
 > **Plugin Type**: Service ({self.plugin_type.upper()})
@@ -479,7 +481,7 @@ panther test --plugin {self.plugin_name}
 
 ## Related Documentation
 
-- [Service Plugin Development Guide](../development.md)
+- [Plugin Development Guide](../../__init__.py) (module docstring)
 - [PANTHER Plugin System](../../README.md)
 - [Configuration Schema Documentation](../config_schema.py)
 
@@ -489,6 +491,7 @@ panther test --plugin {self.plugin_name}
 """
 
     def generate_version_config(self):
+        """Generate a default version configuration YAML."""
         return f"""# Default version configuration for {self.plugin_name}
 
 version: "main"
@@ -506,6 +509,7 @@ server:
 """
 
     def demonstrate_integration(self):
+        """Demonstrate plugin integration with a test configuration."""
         print("\n🔗 Step 4: Testing Plugin Integration")
         print("-" * 40)
 
@@ -536,6 +540,7 @@ tests:
         print("4. Run integration tests")
 
     def show_next_steps(self):
+        """Display next steps and additional resources."""
         print("\n🎉 Tutorial Complete!")
         print("=" * 60)
         print(f"Your {self.plugin_name} plugin has been created at:")
@@ -561,7 +566,7 @@ tests:
         print("• Testing Framework Integration")
 
     def run(self, args=None):
-        """Run the interactive tutorial"""
+        """Run the interactive tutorial."""
         try:
             # Check if we're creating a new plugin directly
             if args and args.create:

@@ -1,10 +1,34 @@
-from typing import Any, Callable, Dict, List, Optional, Set, TypeVar, Union
+"""Results Manager Module - Test result collection, aggregation, and export.
 
-"""
-Results manager for handling test results in the event system.
+Provides three cooperating classes for comprehensive test result management:
 
-This module provides a comprehensive solution for collecting, aggregating,
-and exporting test results from the event system.
+- **ResultAggregator**: Thread-safe collection and aggregation of test results
+  from multiple test runs, with category/tag-based grouping and statistics.
+- **ResultsExporter**: Multi-format export (JSON, CSV, HTML, Markdown) of
+  aggregated results for reporting and CI/CD integration.
+- **ResultsManager**: An ``IObserver`` that combines aggregation and export,
+  automatically collecting ``TestResultEvent`` and ``EnhancedResultEvent``
+  instances from the event stream.
+
+Export formats:
+    - ``json`` -- Full results with summary, pretty-printed
+    - ``csv`` -- Flattened row-per-result, all data fields as columns
+    - ``html`` -- Styled HTML table with pass/fail coloring
+    - ``md`` -- Markdown table suitable for CI reports
+
+Example:
+    Using ResultsManager as an observer::
+
+        from panther.core.observer.management.results_manager import ResultsManager
+
+        mgr = ResultsManager(output_dir="./reports")
+        event_manager.register_observer(mgr, priority=10)
+        # ... run tests, events flow through ...
+        mgr.export_results("json")  # writes ./reports/test_results_<ts>.json
+        summary = mgr.get_summary()
+
+See Also:
+    `panther.core.observer.management.event_manager.EventManager`
 """
 
 import csv
@@ -15,6 +39,7 @@ import os
 import threading
 from collections.abc import Callable
 from datetime import datetime
+from typing import Any, Callable, Dict, List, Optional, Set, TypeVar, Union
 
 from panther.core.events.base.event_base import BaseEvent as Event
 from panther.core.events.test.events import EnhancedResultEvent, TestResultEvent
@@ -25,12 +50,23 @@ T = TypeVar("T")
 
 
 class ResultAggregator:
-    """
+    """Aggregates test results from multiple test runs with thread safety.
 
-    Aggregates test results from multiple test runs.
+    Collects, tracks, and aggregates test results across multiple test runs
+    or sessions. Supports grouping by test name, category, and tags, with
+    automatic success/failure counting and timing.
 
-    This class provides functionality for collecting, tracking, and
-    aggregating test results across multiple test runs or sessions.
+    Attributes:
+        results: All collected result dictionaries.
+        result_by_test: Results grouped by test name.
+        result_by_category: Results grouped by category.
+        success_count: Number of successful results.
+        failure_count: Number of failed results.
+        start_time: Earliest result timestamp seen.
+        end_time: Latest result timestamp seen.
+        tags: Maps test names to their tag sets.
+        tag_stats: Per-tag success/failure counts.
+        category_stats: Per-category success/failure counts.
     """
 
     def __init__(self):
@@ -43,15 +79,14 @@ class ResultAggregator:
         self.start_time: Optional[datetime] = None
         self.end_time: Optional[datetime] = None
         self.tags: Dict[str, Set[str]] = {}  # Maps test names to their tags
-        self.tag_stats: Dict[
-            str, Dict[str, int]
-        ] = {}  # Statistics by tag: {tag: {"success": 0, "failure": 0}}
+        self.tag_stats: Dict[str, Dict[str, int]] = (
+            {}
+        )  # Statistics by tag: {tag: {"success": 0, "failure": 0}}
         self.category_stats: Dict[str, Dict[str, int]] = {}  # Statistics by category
         self.lock = threading.RLock()
 
     def _ensure_iso_format(self, timestamp_str: str) -> str:
-        """
-        Ensures a timestamp string is in ISO format.
+        """Ensures a timestamp string is in ISO format.
 
         Args:
             timestamp_str: The timestamp string to check/convert
@@ -81,8 +116,7 @@ class ResultAggregator:
     def _extract_result_data(
         self, result: Union[TestResultEvent, EnhancedResultEvent, Dict[str, Any]]
     ) -> Dict[str, Any]:
-        """
-        Extract standardized result data from various result sources.
+        """Extract standardized result data from various result sources.
 
         Args:
             result: The result source (event or dictionary)
@@ -141,8 +175,7 @@ class ResultAggregator:
     def add_result(
         self, result: Union[TestResultEvent, EnhancedResultEvent, Dict[str, Any]]
     ):
-        """
-        Add a test result to the aggregator.
+        """Add a test result to the aggregator.
 
         Args:
             result: Test result event or result data dictionary
@@ -212,8 +245,7 @@ class ResultAggregator:
                 self.end_time = now
 
     def get_summary(self) -> Dict[str, Any]:
-        """
-        Get a summary of all test results.
+        """Get a summary of all test results.
 
         Returns:
             Dict[str, Any]: Result summary
@@ -236,8 +268,7 @@ class ResultAggregator:
         }
 
     def get_results_by_test(self, test_name: str) -> List[Dict[str, Any]]:
-        """
-        Get all results for a specific test.
+        """Get all results for a specific test.
 
         Args:
             test_name: Name of the test
@@ -248,8 +279,7 @@ class ResultAggregator:
         return self.result_by_test.get(test_name, [])
 
     def get_all_results(self) -> List[Dict[str, Any]]:
-        """
-        Get all collected test results.
+        """Get all collected test results.
 
         Returns:
             List[Dict[str, Any]]: All test results
@@ -267,18 +297,20 @@ class ResultAggregator:
 
 
 class ResultsExporter:
-    """
-    Exports test results in various formats.
+    """Exports test results in JSON, CSV, HTML, and Markdown formats.
 
-    This class provides functionality for exporting test results
-    to different file formats for reporting and analysis.
+    Wraps a ``ResultAggregator`` and provides format-specific export methods
+    for generating report files from collected test results.
+
+    Attributes:
+        SUPPORTED_FORMATS: List of format strings (``json``, ``csv``, ``html``, ``md``).
+        aggregator: The ``ResultAggregator`` providing result data.
     """
 
     SUPPORTED_FORMATS = ["json", "csv", "html", "md"]
 
     def __init__(self, results_aggregator: ResultAggregator):
-        """
-        Initialize a new ResultsExporter.
+        """Initialize a new ResultsExporter.
 
         Args:
             results_aggregator: The aggregator with results to export
@@ -287,8 +319,7 @@ class ResultsExporter:
         self.logger = logging.getLogger("ResultsExporter")
 
     def export_to_json(self, output_path: str, pretty: bool = True) -> bool:
-        """
-        Export results to JSON format.
+        """Export results to JSON format.
 
         Args:
             output_path: Path to write the JSON file
@@ -316,8 +347,7 @@ class ResultsExporter:
             return False
 
     def export_to_csv(self, output_path: str) -> bool:
-        """
-        Export results to CSV format.
+        """Export results to CSV format.
 
         Args:
             output_path: Path to write the CSV file
@@ -361,9 +391,9 @@ class ResultsExporter:
             return False
 
     def export_to_html(self, output_path: str) -> bool:
-        """
-        Export results to HTML format.
-        # TODO: use jinja
+        """Export results to HTML format.
+
+        # TODO: use jinja.
 
         Args:
             output_path: Path to write the HTML file
@@ -433,8 +463,7 @@ class ResultsExporter:
             return False
 
     def export_to_markdown(self, output_path: str) -> bool:
-        """
-        Export results to Markdown format.
+        """Export results to Markdown format.
 
         Args:
             output_path: Path to write the Markdown file
@@ -476,8 +505,7 @@ class ResultsExporter:
             return False
 
     def export(self, format_type: str, output_path: str) -> bool:
-        """
-        Export results to the specified format.
+        """Export results to the specified format.
 
         Args:
             format_type: Format to export to ('json', 'csv', 'html', 'md')
@@ -505,18 +533,32 @@ class ResultsExporter:
 
 
 class ResultsManager(IObserver):
-    """
-    Comprehensive manager for test results.
+    """Comprehensive test result observer combining collection, aggregation, and export.
 
-    This class combines result collection, aggregation, and export capabilities
-    to provide a complete solution for managing test results in the event system.
-    It supports both legacy TestResultEvents and EnhancedResultEvents with more
-    advanced features like result categorization and tag-based filtering.
+    Implements ``IObserver`` to automatically collect ``TestResultEvent`` and
+    ``EnhancedResultEvent`` instances from the event stream. Provides result
+    categorization, tag-based filtering, callback registration, and multi-format
+    export. Uses priority 10 for early result processing.
+
+    Interested event types:
+        ``test.result``, ``test.case.result``, ``test.suite.result``,
+        ``enhanced.result``, and any prefixed variants.
+
+    Attributes:
+        aggregator: ``ResultAggregator`` for collecting and grouping results.
+        exporter: ``ResultsExporter`` for file output in multiple formats.
+        callbacks: Registered callbacks by event type (use ``"*"`` for wildcard).
+
+    Example:
+        Register callbacks for real-time result processing::
+
+            mgr = ResultsManager(output_dir="./reports")
+            mgr.register_callback("test.result", lambda e: print(e.test_name))
+            mgr.register_callback("*", lambda e: log_result(e))
     """
 
     def __init__(self, output_dir: str = None):
-        """
-        Initialize a new ResultsManager.
+        """Initialize a new ResultsManager.
 
         Args:
             output_dir: Directory for result exports (or None to use CWD)
@@ -542,8 +584,7 @@ class ResultsManager(IObserver):
         self.callbacks: Dict[str, List[Callable]] = {}
 
     def on_event(self, event: Event):
-        """
-        Handle an event, specifically looking for test result events.
+        """Handle an event, specifically looking for test result events.
 
         Supports both legacy TestResultEvent and enhanced EnhancedResultEvent
         types, as well as converting generic events to result events.
@@ -617,8 +658,7 @@ class ResultsManager(IObserver):
                 self.logger.error("Error processing result event: %s", e)
 
     def is_interested(self, event_type: str) -> bool:
-        """
-        Check if this observer is interested in an event type.
+        """Check if this observer is interested in an event type.
 
         Args:
             event_type: Type of event to check interest for
@@ -633,8 +673,7 @@ class ResultsManager(IObserver):
         )
 
     def get_priority(self) -> int:
-        """
-        Get the priority for this observer.
+        """Get the priority for this observer.
 
         Returns:
             int: Observer priority (default: 10 for early result processing)
@@ -642,8 +681,7 @@ class ResultsManager(IObserver):
         return 10
 
     def register_callback(self, event_type: str, callback: Union[Callable, None]):
-        """
-        Register a callback for a specific result event type.
+        """Register a callback for a specific result event type.
 
         Args:
             event_type: Event type to register for
@@ -657,8 +695,7 @@ class ResultsManager(IObserver):
     def _trigger_callbacks(
         self, event_type: str, event: Union[TestResultEvent, EnhancedResultEvent]
     ):
-        """
-        Trigger registered callbacks for an event type.
+        """Trigger registered callbacks for an event type.
 
         Args:
             event_type: Type of event that occurred
@@ -679,8 +716,7 @@ class ResultsManager(IObserver):
                 self.logger.error("Error in wildcard result callback: %s", e)
 
     def export_results(self, format_type: str, filename: str = None) -> str:
-        """
-        Export collected results to a file.
+        """Export collected results to a file.
 
         Args:
             format_type: Format to export to ('json', 'csv', 'html', 'md')
@@ -700,8 +736,7 @@ class ResultsManager(IObserver):
         return ""
 
     def export_all_formats(self, basename: str = None) -> Dict[str, str]:
-        """
-        Export results to all supported formats.
+        """Export results to all supported formats.
 
         Args:
             basename: Base filename to use (or None for auto-generated name)
@@ -728,8 +763,7 @@ class ResultsManager(IObserver):
         self.aggregator.clear()
 
     def get_summary(self) -> Dict[str, Any]:
-        """
-        Get a summary of all test results.
+        """Get a summary of all test results.
 
         Returns:
             Dict[str, Any]: Result summary
@@ -737,8 +771,7 @@ class ResultsManager(IObserver):
         return self.aggregator.get_summary()
 
     def get_all_results(self) -> List[Dict[str, Any]]:
-        """
-        Get all collected test results.
+        """Get all collected test results.
 
         Returns:
             List[Dict[str, Any]]: All test results
@@ -746,8 +779,7 @@ class ResultsManager(IObserver):
         return self.aggregator.get_all_results()
 
     def get_results_by_category(self, category: str) -> List[Dict[str, Any]]:
-        """
-        Get all results for a specific category.
+        """Get all results for a specific category.
 
         Args:
             category: Category to filter results by
@@ -758,8 +790,7 @@ class ResultsManager(IObserver):
         return self.aggregator.result_by_category.get(category, [])
 
     def get_results_by_tag(self, tag: str) -> List[Dict[str, Any]]:
-        """
-        Get all results that contain a specific tag.
+        """Get all results that contain a specific tag.
 
         Args:
             tag: Tag to filter results by
@@ -774,8 +805,7 @@ class ResultsManager(IObserver):
         return results
 
     def get_category_stats(self) -> Dict[str, Dict[str, int]]:
-        """
-        Get statistics by category.
+        """Get statistics by category.
 
         Returns:
             Dict[str, Dict[str, int]]: Map of categories to their success/failure counts
@@ -783,8 +813,7 @@ class ResultsManager(IObserver):
         return self.aggregator.category_stats
 
     def get_tag_stats(self) -> Dict[str, Dict[str, int]]:
-        """
-        Get statistics by tag.
+        """Get statistics by tag.
 
         Returns:
             Dict[str, Dict[str, int]]: Map of tags to their success/failure counts

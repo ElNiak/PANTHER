@@ -16,7 +16,6 @@
 
 PANTHER is a **plugin‑based, research‑grade test harness** that lets you design, reproduce, and analyse complex **network‑protocol experiments** without hand‑rolling scripts or bespoke infrastructure.
 
-[comment]: <> (TODO -> > "[!WARNING]", ... must be replaced temporary by "!!! warning" for the online documentation)
 
 > [!NOTE]
 >  "What PANTHER Solves"
@@ -35,7 +34,7 @@ PANTHER is a **plugin‑based, research‑grade test harness** that lets you des
 ---
 
 > [!WARNING]
-> CLI and core being refactored, some deadcode and legacy or unimplemented code remains.
+> CLI and core being refactored, some deadcode and legacy or unimplemented code remains. Also lit of shit I need to removed due to bad decision in the past. OMW.
 
 > [!WARNING]
 > ARM still need some works, Z3 generate maths errors and docker modules is being refactored in consequences (thus introducing potencial bugs)
@@ -107,36 +106,35 @@ For detailed workflow documentation, see [workflow.md](workflow.md).
 
 1. [Installation Guide](INSTALL.md)
 2. [Quick Start](QUICK_START.md)
-3. [Configuration](panther/config/README.md)
+3. [Configuration](panther/config/__init__.py) — module docstring
 4. [Workflows](workflow.md)
-5. [Core](panther/core/README.md)
-6. [Web Application Workflows](panther/webapp/README.md)
+5. [Core](panther/core/__init__.py) — module docstring
 
 ### System Features
 
-7. [Configuration Management](panther/config/README.md) - Advanced configuration validation, auto-fixing, and protocol-aware port management
-8. [Core Architecture](panther/core/README.md) - Experiment orchestration, fast-fail system, and reporting
+6. [Configuration Management](panther/config/__init__.py) — validation, auto-fixing, protocol-aware port management
+7. [Core Architecture](panther/core/__init__.py) — experiment orchestration, fast-fail system, reporting
 
 ### Plugins
 
-PANTHER's extensible plugin architecture enables seamless integration of new protocols, implementations, testing frameworks, and environments. The modern inheritance-based system provides 47.2% average code reduction while ensuring consistent behavior across all plugin types.
+PANTHER's extensible plugin architecture enables seamless integration of new protocols, implementations, testing frameworks, and environments.
 
 **Core Plugin Categories:**
 
-10. [Overview](panther/plugins/README.md) - Architecture and design patterns
-11. [Inventory](panther/plugins/plugins_inventory.md) - Complete plugin catalog
-12. **Environment Plugins** - Network simulation and execution environments
-   * [Overview](panther/plugins/environments/README.md) - Environment plugin architecture
-   * [Network Environment](panther/plugins/environments/network_environment/README.md) - Docker Compose, localhost, Shadow NS
-   * [Execution Environment](panther/plugins/environments/execution_environment/README.md) - Performance profiling and analysis
-13. **Protocol Plugins** - Protocol definitions and behavioral specifications
-    * [Overview](panther/plugins/protocols/README.md) - Protocol plugin patterns
-    * [Client-Server Protocols](panther/plugins/protocols/client_server/README.md) - QUIC, HTTP, TCP/UDP variants
-    * [Peer-to-Peer Protocols](panther/plugins/protocols/peer_to_peer/README.md) - BitTorrent, WebRTC protocols
-14. **Service Plugins** - Implementation testing and verification services
-    * [Overview](panther/plugins/services/README.md) - Service plugin architecture
-    * [Implementation Under Tests (IUTs)](panther/plugins/services/iut/README.md) - picoquic, aioquic, quiche, quinn
-    * [Testing Services](panther/plugins/services/testers/README.md) - Ivy formal verification, custom testers
+8. [Overview](panther/plugins/__init__.py) — architecture and design patterns (module docstring)
+9. [Inventory](panther/plugins/plugins_inventory.md) — complete plugin catalog
+10. **Environment Plugins** — network simulation and execution environments
+    * [Overview](panther/plugins/environments/__init__.py) — environment plugin architecture
+    * [Network Environment](panther/plugins/environments/network_environment/__init__.py) — Docker Compose, localhost, Shadow NS
+    * [Execution Environment](panther/plugins/environments/execution_environment/__init__.py) — performance profiling and analysis
+11. **Protocol Plugins** — protocol definitions and behavioral specifications
+    * [Overview](panther/plugins/protocols/__init__.py) — protocol plugin patterns
+    * [Client-Server Protocols](panther/plugins/protocols/client_server/__init__.py) — QUIC, HTTP, TCP/UDP variants
+    * [Peer-to-Peer Protocols](panther/plugins/protocols/peer_to_peer/__init__.py) — BitTorrent, WebRTC protocols
+12. **Service Plugins** — implementation testing and verification services
+    * [Overview](panther/plugins/services/__init__.py) — service plugin architecture
+    * [Implementation Under Test (IUTs)](panther/plugins/services/iut/__init__.py) — picoquic, aioquic, quiche, quinn
+    * [Testing Services](panther/plugins/services/testers/__init__.py) — Ivy formal verification, custom testers
 
 **Plugin System Features:**
 - **Automatic Discovery**: Decorator-based registration with metadata validation
@@ -144,28 +142,17 @@ PANTHER's extensible plugin architecture enables seamless integration of new pro
 - **Version Configurations**: Protocol version-specific configurations (RFC9000, draft-29, etc.)
 - **Event Integration**: Built-in event emission and coordination across plugin lifecycle
 - **Configuration Schema**: JSON Schema-based validation with auto-fixing capabilities
-- **Performance Optimization**: Class caching and lazy loading for improved startup time
 
 ### Developer Guide
 
-15. [Contributing](CONTRIBUTING.md)
-16. **Plugin Development**
-    * [Overview](panther/plugins/development.md)
-    * **Environment Plugins**
-      * [Overview](panther/plugins/environments/development.md)
-      * [Network Environment](panther/plugins/environments/network_environment/development.md)
-      * [Execution Environment](panther/plugins/environments/execution_environment/development.md)
-    * [Protocol Plugins](panther/plugins/protocols/development.md)
-    * **Service Plugins**
-      * [Overview](panther/plugins/services/development.md)
-      * [Implementation Under Tests (IUTs)](panther/plugins/services/iut/development.md)
-      * [Testing Services](panther/plugins/services/testers/development.md)
+13. [Contributing](CONTRIBUTING.md)
+14. [Plugin Development Guide](panther/plugins/__init__.py) — module docstring covers all plugin types
 
 ### Project Information
 
-17. [Changelog](CHANGELOG.md)
-18. [License](LICENSE.md)
-19. [Code Reference](https://elniak.github.io/PANTHER/panther/)
+15. [Changelog](CHANGELOG.md)
+16. [License](LICENSE.md)
+17. [Code Reference (online)](https://elniak.github.io/PANTHER/panther/)
 
 
 ## Documentation

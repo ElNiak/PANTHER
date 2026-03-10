@@ -1,4 +1,8 @@
-"""PANTHER Picoquic_shadow QUIC implementation.
+"""picoquic Shadow NS IUT service plugin.
 
-This package contains the Picoquic_shadow implementation of the QUIC protocol.
+Specialised picoquic variant for deterministic network simulation
+underShadow NS. Generates Shadow-compatible YAML configuration.
+
+See `PicoquicShadowServiceManager` for the service manager and
+`PicoquicShadowConfig` for configuration options.
 """

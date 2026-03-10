@@ -1,8 +1,25 @@
-"""
-Command Builder Base Class
+"""Command Builder Base Class.
 
-This module provides a base class for building commands in a standardized way,
-reducing duplication across service implementations.
+Provides a fluent interface for accumulating command arguments and environment
+variables, then emitting them as a list of strings (``build_args``) or a dict
+(``build_env``), or as a fully-formed ``ShellCommand`` (``build_structured_command``).
+
+Example:
+    ::
+
+        builder = CommandBuilder()
+        args = (
+            builder
+            .reset()
+            .add_argument("picoquic_sample")
+            .add_flag("-l", condition=True)
+            .add_option("-p", "4433")
+            .add_environment("SSLKEYLOGFILE", "/tmp/keys.log")
+            .build_args()
+        )
+        env = builder.build_env()
+        # args == ["picoquic_sample", "-l", "-p", "4433"]
+        # env  == {"SSLKEYLOGFILE": "/tmp/keys.log"}
 """
 
 from typing import Any, Dict, List, Optional
@@ -12,11 +29,16 @@ from panther.core.utils.logging_mixin import LoggerMixin
 
 
 class CommandBuilder(LoggerMixin):
-    """
+    """Base class for building commands with common patterns.
 
-    Base class for building commands with common patterns.
+    Uses the builder (fluent) pattern so callers can chain ``add_*`` calls
+    and finish with ``build_args()`` / ``build_env()`` /
+    ``build_structured_command()``.  All ``add_*`` methods accept an optional
+    ``condition`` flag so arguments are only appended when the condition is met,
+    eliminating if/else boilerplate in callers.
 
-    Reduces duplication in command argument construction across service managers.
+    Subclass ``ServiceCommandBuilder`` for protocol-testing helpers such as
+    certificate, ALPN, and role-specific parameter injection.
     """
 
     def __init__(self):

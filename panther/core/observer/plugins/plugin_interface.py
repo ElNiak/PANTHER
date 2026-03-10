@@ -1,5 +1,7 @@
-"""
-Plugin interface for observer plugins.
+"""Plugin interface for observer plugins.
+
+Defines the minimal abstract contract that all plugin-based observers must
+implement: ``on_event()``, ``get_priority()``, and ``is_interested()``.
 """
 
 from abc import ABC, abstractmethod
@@ -7,9 +9,13 @@ from typing import Any
 
 
 class IPluginObserver(ABC):
-    """
+    """Abstract interface for observer plugins.
 
-    from typing import Any, AnyInterface for observer plugins."""
+    Defines the contract for plugin observers that participate in the
+    event notification system. Implementations must handle events,
+    declare their priority, and indicate which event types they
+    are interested in.
+    """
 
     @abstractmethod
     def on_event(self, event: Any) -> bool:

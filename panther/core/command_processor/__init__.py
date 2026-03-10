@@ -1,8 +1,44 @@
-"""
-Command Processor module for structured command processing across PANTHER framework.
+"""Command Processor Module - Safe Command Generation for PANTHER.
 
-This module provides utilities for processing command structures in a standardized way
-across different environments and service managers.
+Provides structured command processing: parsing, validation, transformation,
+and environment-specific adaptation for shell commands in protocol testing.
+
+Architecture::
+
+    ICommandProcessor (interface)
+         |
+    CommandProcessor (core impl + ErrorHandlerMixin)
+         |
+         +--> ShellCommand + CommandMetadata   (models)
+         +--> CommandBuilder --> ServiceCommandBuilder   (builders)
+         +--> CommandEventMixin / CommandModificationMixin   (mixins)
+         +--> CommandUtils / ShellUtils / CommandSummarizer   (utils)
+
+    5-layer design:
+    1. Interfaces    -- ICommandProcessor, IEnvironmentCommandAdapter
+    2. Models        -- ShellCommand, CommandMetadata, shell constants
+    3. Builders      -- fluent command construction
+    4. Utilities     -- escaping, parsing, combining, summarization
+    5. Mixins        -- event emission, command modification
+
+Key design principles:
+    - Injection-safe command construction via ShellCommand validation
+    - Multi-stage validation pipeline (structure, syntax, security)
+    - Automatic detection of shell constructs
+    - Shell-construct combining for split multiline commands
+    - High-entropy summary logging instead of verbose command dumps
+
+Example:
+    Process a command dictionary::
+
+        from panther.core.command_processor import CommandProcessor
+        processor = CommandProcessor()
+        processed = processor.process_commands(commands, target_format="generic")
+
+    Build a command with the fluent builder::
+
+        from panther.core.command_processor import CommandBuilder
+        args = CommandBuilder().reset().add_argument("cmd").add_option("-p", "4433").build_args()
 """
 
 from panther.core.command_processor.builders import (

@@ -1,8 +1,66 @@
-"""PANTHER configuration package.
+"""PANTHER Configuration System.
 
-This package contains configuration management for the PANTHER framework.
+Hierarchical, plugin-based configuration management with OmegaConf validation
+and Pydantic type safety.
 
-The package provides a unified configuration system based on ConfigurationManager.
+Key Principles:
+    - Plugin-based schemas: each plugin contributes config via ``config_schema.py``
+    - Dynamic validation: schemas merged at runtime and validated with OmegaConf
+    - Type safety: strong typing with Pydantic-based configuration models
+    - Extensibility: new plugins automatically extend the configuration space
+
+Architecture::
+
+    YAML Input
+        |
+        v
+    ConfigLoadingMixin --> UnifiedYAMLLoader
+        |
+        v
+    Environment Variable Resolution
+        |
+        v
+    Plugin Schema Discovery & Merge
+        |
+        v
+    Schema Validation --> Business Rules --> Auto-Fix
+        |
+        v
+    Validated Configuration (cached)
+
+Core Components:
+    ConfigurationManager
+        Central orchestrator using 8 mixin composition:
+        ConfigLoadingMixin, ValidationOperationsMixin,
+        ConfigOperationsMixin, EnvironmentHandlingMixin,
+        PluginManagementMixin, CachingMixin,
+        StateManagementMixin, LoggingFeaturesMixin.
+
+    BaseConfig (``core/base.py``)
+        Pydantic + OmegaConf hybrid providing type-safe validation,
+        variable interpolation (``${var}`` syntax), and serialization.
+
+    Type-Safe Models (``core/models/``)
+        ExperimentConfig, ServiceConfig, GlobalConfig,
+        EnvironmentConfig, and plugin-specific schemas.
+
+Configuration Structure (YAML)::
+
+    logging:
+      level: INFO
+    tests:
+      - name: "Test Name"
+        network_environment:
+          type: docker_compose
+        services:
+          server:
+            implementation:
+              name: picoquic
+              type: iut
+            protocol:
+              name: quic
+              version: rfc9000
+              role: server
 """
 
 # Define the public API - but use lazy imports to avoid circular dependencies

@@ -19,6 +19,6 @@ PANTHER is a comprehensive framework for protocol analysis and formal network th
 - **[User Guide](user_guide/overview.md)**: How to use PANTHER for protocol testing
 - **[Developer Guide](developer_guide/contributing.md)**: How to contribute to PANTHER
 - **[Plugins](plugins/README.md)**: Documentation for available plugins
-- **[Panther Core](panther/README.md)**: Core framework documentation
+- **Panther Core**: Core framework documentation
 - **[Reference](reference/packaging.md)**: Technical reference material
 - **[Project](project/changelog.md)**: Project information and changelog

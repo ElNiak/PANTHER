@@ -1,12 +1,31 @@
-from typing import TYPE_CHECKING, Optional, Type, TypeVar
+"""Base event emitter abstractions for domain-specific event emission.
 
-"""
-Base Event Emitter
+Provides the two-tier emitter hierarchy used throughout PANTHER:
 
-This module provides a base class for all event emitters to reduce code duplication.
+- `EventEmitterBase` -- Abstract base providing ``_emit_event()``,
+  ``_create_and_emit_event()``, and ``_validate_required_fields()``.
+  Coordinates with the `EventManager`
+  to broadcast events to registered observers.
+
+- `EntityEventEmitterBase` -- Extends ``EventEmitterBase`` for emitters
+  bound to a specific entity (experiment, service, test, etc.), automatically
+  injecting the entity ID into emitted events.
+
+Example:
+    Creating a custom entity emitter::
+
+        class MyEmitter(EntityEventEmitterBase):
+            def __init__(self, event_manager, entity_id):
+                super().__init__(event_manager, entity_id, "my_domain")
+
+            def emit_started(self, context=None):
+                self._create_and_emit_entity_event(
+                    MyStartedEvent, context=context or {}
+                )
 """
 
 from abc import ABC
+from typing import TYPE_CHECKING, Optional, Type, TypeVar
 
 if TYPE_CHECKING:
     from panther.core.observer.management.event_manager import EventManager
@@ -17,17 +36,20 @@ EventType = TypeVar("EventType", bound=BaseEvent)
 
 
 class EventEmitterBase(ABC):
-    """
+    """Abstract base class for domain-specific event emitters.
 
-    Base class for all event emitters.
+    Provides event emission coordination through the
+    `EventManager`.
+    All domain emitters (experiment, service, test, etc.) inherit from this
+    class or from `EntityEventEmitterBase`.
 
-    This class provides common functionality for event emission,
-    reducing duplication across specific emitter implementations.
+    Attributes:
+        event_manager: The ``EventManager`` used to broadcast events.
+        entity_id: Optional identifier for the entity this emitter handles.
     """
 
     def __init__(self, event_manager: "EventManager", entity_id: str = None):
-        """
-        Initialize the base event emitter.
+        """Initialize the base event emitter.
 
         Args:
             event_manager: Event manager to emit events through
@@ -37,8 +59,7 @@ class EventEmitterBase(ABC):
         self.entity_id = entity_id
 
     def _emit_event(self, event: BaseEvent) -> None:
-        """
-        Emit an event through the event manager.
+        """Emit an event through the event manager.
 
         Args:
             event: Event to emit
@@ -46,12 +67,16 @@ class EventEmitterBase(ABC):
         self.event_manager.notify(event)
 
     def _create_and_emit_event(self, event_class: Type[EventType], **kwargs) -> None:
-        """
-        Create and emit an event with the given parameters.
+        """Create an event from the given class and emit it.
+
+        Automatically injects ``entity_id`` into the appropriate ID field
+        name (e.g. ``experiment_id``, ``service_id``, ``test_id``,
+        ``plugin_id``) if not already provided in *kwargs*.  Field detection
+        uses dataclass field introspection or constructor signature inspection.
 
         Args:
-            event_class: Class of the event to create
-            **kwargs: Keyword arguments to pass to the event constructor
+            event_class: Class of the event to create.
+            **kwargs: Keyword arguments forwarded to the event constructor.
         """
         # Add entity_id if it's provided and not already in kwargs
         if self.entity_id is not None and "entity_id" not in kwargs:
@@ -81,8 +106,7 @@ class EventEmitterBase(ABC):
         self._emit_event(event)
 
     def _validate_required_fields(self, **kwargs) -> None:
-        """
-        Validate that required fields are provided.
+        """Validate that required fields are provided.
 
         Args:
             **kwargs: Fields to validate
@@ -96,16 +120,20 @@ class EventEmitterBase(ABC):
 
 
 class EntityEventEmitterBase(EventEmitterBase):
-    """
-    Base class for entity-specific event emitters.
+    """Base class for entity-specific event emitters.
 
-    This class extends EventEmitterBase for emitters that are tied to
-    a specific entity (experiment, service, test, etc.).
+    Extends `EventEmitterBase` for emitters bound to a single entity
+    (experiment, service, test, etc.).  The ``entity_type`` is used to
+    derive the entity ID field name (``{entity_type}_id``) that is
+    automatically injected into emitted events.
+
+    Attributes:
+        entity_type: String identifying the entity domain (e.g.
+            ``"experiment"``, ``"service"``).
     """
 
     def __init__(self, event_manager: "EventManager", entity_id: str, entity_type: str):
-        """
-        Initialize the entity event emitter.
+        """Initialize the entity event emitter.
 
         Args:
             event_manager: Event manager to emit events through
@@ -118,12 +146,15 @@ class EntityEventEmitterBase(EventEmitterBase):
     def _create_and_emit_entity_event(
         self, event_class: Type[EventType], **kwargs
     ) -> None:
-        """
-        Create and emit an entity-specific event.
+        """Create and emit an entity-specific event.
+
+        Ensures the entity ID field (``{entity_type}_id``) is always included
+        in *kwargs* before delegating to
+        `EventEmitterBase._create_and_emit_event()`.
 
         Args:
-            event_class: Class of the event to create
-            **kwargs: Keyword arguments to pass to the event constructor
+            event_class: Class of the event to create.
+            **kwargs: Keyword arguments forwarded to the event constructor.
         """
         # Ensure entity_id is always included
         entity_id_field = f"{self.entity_type}_id"

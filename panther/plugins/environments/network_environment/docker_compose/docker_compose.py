@@ -60,7 +60,7 @@ from panther.plugins.environments.network_environment.docker_compose.docker_netw
 
 
 class DockerComposeState(Enum):
-    """State management for Docker Compose deployment phases"""
+    """State management for Docker Compose deployment phases."""
 
     INITIALIZING = "initializing"
     STARTING_COMPOSE = "starting_compose"
@@ -88,172 +88,32 @@ class DockerComposeEnvironment(
     StandardOutputCollectorMixin,
     IObserver,
 ):
-    """
-    Docker Compose Network Environment - Container Orchestration Platform
+    """Docker Compose network environment for container-based protocol testing.
 
-    DockerComposeEnvironment provides comprehensive container orchestration for PANTHER protocol testing
-    using Docker Compose as the underlying platform. This implementation combines multiple mixins to deliver
-    a fully-featured network environment supporting service discovery, port management, template-driven
-    configuration, background monitoring, and execution environment integration.
+    Orchestrates multi-service Docker Compose deployments with network isolation,
+    template-driven configuration (Jinja2), background health monitoring, and
+    execution environment integration (strace, Valgrind, etc.).
 
-    ## Architecture Integration
+    Lifecycle: Docker setup -> network creation -> docker-compose.yml generation ->
+    container startup -> deployment & analysis -> monitoring -> teardown.
 
-    The class inherits from multiple specialized mixins to provide comprehensive functionality:
-
-    - **BaseNetworkEnvironment**: Core network environment lifecycle and service coordination
-    - **SubprocessExecutorMixin**: Docker command execution and process management
-    - **ConfigurationProcessorMixin**: Configuration processing and validation
-    - **StatusMonitorMixin**: Service health checking and status tracking
-    - **ErrorHandlerMixin**: Robust error handling and recovery strategies
-    - **StandardOutputCollectorMixin**: Output file collection and organization
-    - **IObserver**: Event-driven monitoring and lifecycle management
-
-    ```mermaid
-    graph TD
-        A[DockerComposeEnvironment] --> B[Service Orchestration]
-        A --> C[Container Management]
-        A --> D[Network Isolation]
-        A --> E[Template Processing]
-        A --> F[Background Monitoring]
-
-        B --> G[Service Discovery]
-        B --> H[Dependency Management]
-        B --> I[Health Checking]
-
-        C --> J[Docker Commands]
-        C --> K[Image Building]
-        C --> L[Container Lifecycle]
-
-        D --> M[Docker Networks]
-        D --> N[Port Management]
-        D --> O[Service Communication]
-
-        E --> P[Jinja2 Templates]
-        E --> Q[Configuration Generation]
-        E --> R[Environment Variables]
-
-        F --> S[Service Health Monitoring]
-        F --> T[Event Processing]
-        F --> U[Automatic Recovery]
-    ```
-
-    ## Core Capabilities
-
-    ### Container Orchestration
-    - **Service Coordination**: Docker Compose services with dependency management
-    - **Network Isolation**: Docker networks for controlled service communication
-    - **Volume Management**: Container volumes for data persistence and sharing
-    - **Resource Management**: CPU, memory, and disk resource allocation
-
-    ### Dynamic Configuration
-    - **Template-Driven Setup**: Jinja2 templates for docker-compose.yml generation
-    - **Service Discovery**: Automatic service name resolution and networking
-    - **Port Conflict Resolution**: Dynamic port allocation and conflict prevention
-    - **Environment Variable Management**: Comprehensive environment variable resolution
-
-    ### Execution Environment Integration
-    - **Analysis Tool Wrapping**: Seamless integration with strace, Valgrind, etc.
-    - **Per-Service Configuration**: Individual service execution environment setup
-    - **Command Generation**: Dynamic entrypoint script generation for analysis tools
-    - **Output Coordination**: Centralized collection of service and analysis outputs
-
-    ### Background Monitoring
-    - **Health Checking**: Continuous service health monitoring during test execution
-    - **Event-Driven Updates**: Real-time status updates through event system
-    - **Automatic Recovery**: Service restart and failure recovery strategies
-    - **Performance Metrics**: Resource utilization and performance tracking
-
-    ## Lifecycle Management
-
-    The Docker Compose environment follows a structured lifecycle:
-
-    1. **Initialization**: Docker client setup, template engine configuration
-    2. **Preparation**: Network creation, port allocation, certificate setup
-    3. **Service Generation**: docker-compose.yml and entrypoint script creation
-    4. **Service Launch**: Container startup with dependency coordination
-    5. **Deployment**: Service configuration and analysis tool integration
-    6. **Monitoring**: Background health checking and event processing
-    7. **Teardown**: Container cleanup, network removal, output collection
-
-    ## Template System
-
-    Uses Jinja2 templates for dynamic configuration generation:
-
-    - **docker-compose.yml.jinja**: Main service orchestration configuration
-    - **entrypoint.sh.jinja**: Per-service startup script generation
-    - **Variable Resolution**: Test config, service definitions, network topology
-    - **Security**: Template sandboxing and input validation
-
-    ## Network Resolution
-
-    Provides sophisticated network placeholder resolution:
-
-    - **Service Discovery**: Automatic resolution of service names to network addresses
-    - **Port Mapping**: Dynamic port allocation and container-to-host mapping
-    - **Network Topology**: Docker network creation and service interconnection
-    - **Protocol Support**: HTTP, HTTPS, custom protocol endpoint resolution
-
-    ## Error Handling Strategy
-
-    Implements comprehensive error handling:
-
-    - **Pre-deployment Validation**: Resource availability, port conflicts, disk space
-    - **Service Failure Recovery**: Individual service restart without environment rebuild
-    - **Network Issue Resolution**: Network connectivity problems and resolution
-    - **Resource Exhaustion**: Graceful degradation and resource cleanup
-
-    ## Output Management
-
-    Centralized output collection and organization:
-
-    - **Service Logs**: Container logs with structured organization
-    - **Analysis Artifacts**: Tool-specific output collection (traces, profiles, etc.)
-    - **Certificate Management**: SSL/TLS certificate generation and organization
-    - **Metadata Collection**: Service configuration and runtime metadata
-
-    ## Configuration Sources
-
-    Integrates multiple configuration sources:
-
-    - **DockerComposeConfig**: Plugin-specific configuration (networking, monitoring, etc.)
-    - **TestConfig**: Test case service definitions and protocols
-    - **GlobalConfig**: Framework-wide Docker and path configuration
-    - **Service Definitions**: Individual service configuration and requirements
-
-    ## Plugin Registration
-
-    Registered as NETWORK_ENVIRONMENT plugin with capabilities:
-    - container_orchestration: Full Docker container lifecycle management
-    - network_isolation: Docker network creation and service isolation
-    - service_discovery: Automatic service name resolution and networking
-
-    ## Performance Characteristics
-
-    - **Startup Time**: ~10-30 seconds depending on image availability and service count
-    - **Resource Usage**: Moderate CPU/memory overhead for Docker daemon coordination
-    - **Scalability**: Supports 10+ concurrent services with proper resource allocation
-    - **Monitoring Overhead**: <5% CPU impact for background health checking
+    Combines ``BaseNetworkEnvironment`` for service coordination,
+    ``SubprocessExecutorMixin`` for Docker CLI, ``ConfigurationProcessorMixin``
+    for config processing, ``StatusMonitorMixin`` for health checks,
+    ``ErrorHandlerMixin`` for recovery, ``StandardOutputCollectorMixin`` for
+    output collection, and ``IObserver`` for event-driven monitoring.
 
     Attributes:
-        name (str): Environment instance identifier for Docker Compose coordination
-        env_name (str): Environment name for template variable resolution
-        template_renderer (TemplateRenderer): Jinja2 template processing engine
-        network_resolver (DockerComposeNetworkResolver): Network placeholder resolution
-        port_manager (DockerComposePortManager): Port conflict detection and resolution
-        output_manager (DockerComposeOutputManager): Output collection and organization
-        lifecycle_manager (DockerComposeLifecycleManager): Service lifecycle coordination
-        background_monitor (BackgroundServiceMonitor): Real-time health monitoring
-        plugin_setup (bool): Plugin initialization state tracking
-        output_registered (bool): Output collection registration state
-
-    Methods:
-        prepare_environment(): Docker environment preparation with validation
-        generate_environment_services(): docker-compose.yml generation from templates
-        setup_execution_plugins_for_service(): Per-service execution environment setup
-        generate_entrypoint_with_structured_args(): Dynamic entrypoint script generation
-        launch_environment_services(): Service startup with dependency coordination
-        deploy_services_monitoring(): Background monitoring setup and activation
-        remove_service_monitoring(): Background monitoring cleanup and deactivation
+        name: Environment instance identifier.
+        env_name: Environment name for template variable resolution.
+        template_renderer: Jinja2 template processing engine.
+        network_resolver: Docker network placeholder resolution.
+        port_manager: Port conflict detection and resolution.
+        output_manager: Output collection and organization.
+        lifecycle_manager: Service lifecycle coordination.
+        background_monitor: Real-time health monitoring.
+        plugin_setup: Plugin initialization state tracking.
+        output_registered: Output collection registration state.
     """
 
     def __init__(
@@ -265,6 +125,7 @@ class DockerComposeEnvironment(
         event_manager: EventManager,
         target_platform: str = None,
     ):
+        """Initialize DockerComposeEnvironment."""
         # First initialize all parent classes including StandardOutputCollectorMixin and IObserver
         super().__init__(
             env_config_to_test, output_dir, env_type, env_sub_type, event_manager
@@ -489,8 +350,7 @@ class DockerComposeEnvironment(
     def setup_execution_plugins_for_service(
         self, service: IServiceManager, timestamp: str
     ) -> None:
-        """
-        Set up execution environment plugins for a single service.
+        """Set up execution environment plugins for a single service.
 
         This method applies execution environment modifications to one service at a time,
         allowing for per-service configuration and direct command wrapping.
@@ -558,8 +418,7 @@ class DockerComposeEnvironment(
         output_path: Path,
         template_path: Path,
     ):
-        """
-        Generates an entrypoint script with properly structured and quoted command arguments.
+        """Generates an entrypoint script with properly structured and quoted command arguments.
 
         This method uses a command processor to handle command arguments and environment variables,
         ensuring proper escaping of special characters in shell commands.
@@ -1069,8 +928,7 @@ class DockerComposeEnvironment(
             return {}
 
     def _get_service_ip(self, service_name: str) -> str:
-        """
-        Get IP address for a service in Docker Compose environment.
+        """Get IP address for a service in Docker Compose environment.
 
         Docker Compose uses service names for internal DNS resolution,
         so we return the service name which Docker will resolve to the
@@ -1089,8 +947,7 @@ class DockerComposeEnvironment(
     def _resolve_network_placeholders_in_commands(
         self, commands: Dict[str, List[str]], service: IServiceManager
     ) -> Dict[str, List[str]]:
-        """
-        Resolve network placeholders in service commands.
+        """Resolve network placeholders in service commands.
 
         Args:
             commands: Dictionary of command lists by phase
@@ -1118,28 +975,28 @@ class DockerComposeEnvironment(
                     for key, value in command_data.items():
                         if key == "command_args" and isinstance(value, str):
                             # Resolve placeholders in command args
-                            resolved_commands[phase][
-                                key
-                            ] = self._resolve_placeholders_in_command(value, context)
+                            resolved_commands[phase][key] = (
+                                self._resolve_placeholders_in_command(value, context)
+                            )
                         elif key == "command_binary" and isinstance(value, str):
                             # Also resolve placeholders in command binary if present
-                            resolved_commands[phase][
-                                key
-                            ] = self._resolve_placeholders_in_command(value, context)
+                            resolved_commands[phase][key] = (
+                                self._resolve_placeholders_in_command(value, context)
+                            )
                         elif key == "working_dir" and isinstance(value, str):
                             # Resolve placeholders in working directory
-                            resolved_commands[phase][
-                                key
-                            ] = self._resolve_placeholders_in_command(value, context)
+                            resolved_commands[phase][key] = (
+                                self._resolve_placeholders_in_command(value, context)
+                            )
                         elif key == "environment" and isinstance(value, dict):
                             # Resolve placeholders in environment variables
                             resolved_env = {}
                             for env_key, env_value in value.items():
                                 if isinstance(env_value, str):
-                                    resolved_env[
-                                        env_key
-                                    ] = self._resolve_placeholders_in_command(
-                                        env_value, context
+                                    resolved_env[env_key] = (
+                                        self._resolve_placeholders_in_command(
+                                            env_value, context
+                                        )
                                     )
                                 else:
                                     resolved_env[env_key] = env_value
@@ -1185,8 +1042,7 @@ class DockerComposeEnvironment(
     def _resolve_placeholders_in_command(
         self, command: str, context: NetworkResolutionContext
     ) -> str:
-        """
-        Resolve network placeholders in a single command string.
+        """Resolve network placeholders in a single command string.
 
         Args:
             command: Command string with potential placeholders

@@ -13,10 +13,10 @@ import click
 from termcolor import colored
 
 from panther import __version__
-from panther.cli_click.core.base import setup_logging
+from panther.cli_click.core.base import PantherGroup, setup_logging
 
 
-@click.group()
+@click.group(cls=PantherGroup)
 @click.option(
     "--debug/--no-debug",
     default=False,
@@ -39,22 +39,6 @@ def cli(ctx, debug, verbose):
     🌐 Network simulation and testing
     📊 Comprehensive metrics and reporting
     🔧 Extensible plugin architecture
-
-    \b
-    Examples:
-      panther run --config experiment.yaml          # Run experiment
-      panther config validate --config config.yaml # Validate configuration
-      panther plugins list                          # List available plugins
-      panther create plugin service my_service      # Create new service plugin
-      panther tutorial run service                  # Run service tutorial
-      panther tutorial interactive                  # Interactive tutorial mode
-      panther check --all                           # Run all code quality checks
-      panther metrics list                          # List available metrics
-      panther admin status                          # Show system status
-      panther admin docker --images-all             # Clean Docker images
-      panther tools install-slim                    # Install Docker optimization tool
-
-    Use 'panther COMMAND --help' for detailed information on each command.
     """
     # Ensure context object exists
     ctx.ensure_object(dict)
@@ -181,6 +165,7 @@ def register_commands():
         ("check", "panther.cli_click.commands.check", "check"),
         ("metrics", "panther.cli_click.commands.metrics", "metrics"),
         ("ivy", "panther.cli_click.commands.ivy", "ivy"),
+        ("web", "panther.cli_click.commands.web", "web"),
     ]
 
     missing_commands = []

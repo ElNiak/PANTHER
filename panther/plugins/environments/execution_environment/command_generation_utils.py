@@ -1,5 +1,4 @@
-"""
-Shared command generation utilities for execution environment plugins.
+"""Shared command generation utilities for execution environment plugins.
 
 This module provides reusable utilities to eliminate code duplication in
 execution environment plugin command generation, including:
@@ -57,8 +56,7 @@ class OutputFileManager:
     def __init__(
         self, register_output_callback, logger: Optional[logging.Logger] = None
     ):
-        """
-        Initialize the output file manager.
+        """Initialize the output file manager.
 
         Args:
             register_output_callback: Callback function to register output files
@@ -76,8 +74,7 @@ class OutputFileManager:
         extension: str,
         base_dir: str = "/app/logs",
     ) -> str:
-        """
-        Generate a standardized output file path.
+        """Generate a standardized output file path.
 
         Args:
             service_name: Name of the service
@@ -100,8 +97,7 @@ class OutputFileManager:
         description: Optional[str] = None,
         is_primary: bool = True,
     ) -> OutputFileSpec:
-        """
-        Register an output file with the environment.
+        """Register an output file with the environment.
 
         Args:
             file_type: Type identifier for the file
@@ -134,8 +130,7 @@ class OutputFileManager:
     def get_registered_files(
         self, service_name: Optional[str] = None
     ) -> List[OutputFileSpec]:
-        """
-        Get all registered output files, optionally filtered by service.
+        """Get all registered output files, optionally filtered by service.
 
         Args:
             service_name: Optional service name to filter by
@@ -152,8 +147,7 @@ class WrapperCommandGenerator:
     """Generates common wrapper command patterns for execution environments."""
 
     def __init__(self, logger: Optional[logging.Logger] = None):
-        """
-        Initialize the wrapper command generator.
+        """Initialize the wrapper command generator.
 
         Args:
             logger: Optional logger instance
@@ -167,8 +161,7 @@ class WrapperCommandGenerator:
         service_name: str,
         additional_env_vars: Optional[Dict[str, str]] = None,
     ) -> str:
-        """
-        Generate a standard environment wrapper setup command.
+        """Generate a standard environment wrapper setup command.
 
         Args:
             environment_name: Name of the execution environment
@@ -203,8 +196,7 @@ echo "Completed {environment_name} wrapper for {service_name}" >> /app/logs/{ser
         service_name: str,
         fallback_message: Optional[str] = None,
     ) -> str:
-        """
-        Generate a conditional wrapper setup command.
+        """Generate a conditional wrapper setup command.
 
         Args:
             condition: Shell condition for wrapper setup
@@ -238,8 +230,7 @@ fi
         description: str,
         error_message: Optional[str] = None,
     ) -> str:
-        """
-        Generate a standard post-processing command.
+        """Generate a standard post-processing command.
 
         Args:
             input_file: Path to input file to process
@@ -266,209 +257,26 @@ fi
 
 
 class ExecutionEnvironmentCommandBuilder:
-    """
-    Execution Environment Command Builder - Unified Command Generation Framework
+    """Unified command builder for execution environment tool wrappers.
 
-    ExecutionEnvironmentCommandBuilder provides a high-level, unified framework for generating
-    and applying analysis tool wrapper commands to services in PANTHER execution environments.
-    This class abstracts the complexity of command generation, output file management, and
-    service integration, enabling consistent execution environment implementation across
-    different analysis tools (strace, Valgrind, GDB, etc.).
+    Generates and applies analysis tool wrapper commands (strace, Valgrind, GDB,
+    etc.) to services. Handles two-phase command generation (setup + wrapper),
+    output file management, deduplication via MD5 fingerprinting, and
+    post-processing pipeline registration.
 
-    ## Architecture Integration
-
-    The command builder serves as the central coordination point between execution environments
-    and services, providing:
-
-    1. **Command Generation**: Unified wrapper command creation with setup and execution phases
-    2. **Output Management**: Automated output file registration and path management
-    3. **Service Integration**: Seamless integration with service command structures
-    4. **Deduplication**: Intelligent wrapper deduplication to prevent command conflicts
-    5. **Post-Processing**: Automated analysis and summary generation
-
-    ```mermaid
-    graph TD
-        A[ExecutionEnvironment] --> B[CommandBuilder]
-        B --> C[WrapperGeneration]
-        B --> D[OutputManagement]
-        B --> E[ServiceIntegration]
-
-        C --> F[SetupCommands]
-        C --> G[MainWrapper]
-        C --> H[ConditionalLogic]
-
-        D --> I[FileRegistration]
-        D --> J[PathGeneration]
-        D --> K[TypeCategorization]
-
-        E --> L[CommandModification]
-        E --> M[EnvironmentVariables]
-        E --> N[ServiceCommandBuilder]
-    ```
-
-    ## Command Generation Architecture
-
-    ### Two-Phase Command Structure
-    1. **Setup Phase**: Preparation commands executed before service startup
-       - Tool availability verification
-       - Output directory creation
-       - Configuration file generation
-       - Runtime environment preparation
-
-    2. **Wrapper Phase**: Service execution wrapping
-       - Command wrapping with analysis tools
-       - Output redirection and logging
-       - Error handling and recovery
-       - Process monitoring and control
-
-    ### Modern Wrapper Architecture
-    The builder supports both legacy and modern wrapper architectures:
-
-    #### Legacy Mode
-    - Single wrapper command string
-    - Mixed setup and execution logic
-    - Limited flexibility for complex tools
-
-    #### Modern Mode (Recommended)
-    - Separated setup commands and main wrapper
-    - Flexible command composition
-    - Proper argument passthrough with "$@"
-    - Enhanced error handling and logging
-
-    ## Output File Management
-
-    ### Automated File Registration
-    - **Type-Based Organization**: Files categorized by type (logs, traces, profiles, etc.)
-    - **Consistent Naming**: Standardized naming patterns with service and timestamp
-    - **Path Generation**: Automatic path generation with conflict resolution
-    - **Metadata Tracking**: File descriptions and categorization for post-processing
-
-    ### Output Types
-    Standard output categories supported:
-    - `primary_log`: Main tool output (strace logs, Valgrind reports, etc.)
-    - `summary`: Analysis summaries and statistics
-    - `detailed`: Extended analysis reports
-    - `error`: Error logs and debugging information
-    - `metadata`: Tool configuration and runtime metadata
-
-    ## Service Integration Patterns
-
-    ### Command Modification Callback
-    The builder uses a callback pattern for service modification:
-
-    ```python
-    def modify_service_commands(service, modification_type, commands):
-        # Apply commands to service structure
-        # Return modification results
-    ```
-
-    ### Service Command Structure Integration
-    - **pre_run_cmds**: Setup commands executed before service startup
-    - **run_cmd**: Main service execution command (potentially wrapped)
-    - **post_run_cmds**: Cleanup and analysis commands executed after service completion
-    - **environment**: Additional environment variables for tool configuration
-
-    ## Deduplication and Safety
-
-    ### Wrapper Deduplication
-    - **Command Fingerprinting**: MD5 hashing of command structure prevents duplicates
-    - **Environment Awareness**: Considers environment variables and setup commands
-    - **Safe Reapplication**: Prevents wrapper conflicts during multiple setup phases
-
-    ### Error Prevention
-    - **Command Validation**: Syntax and structure validation before application
-    - **Dependency Checking**: Verification of tool availability and prerequisites
-    - **Graceful Fallbacks**: Fallback strategies for missing tools or configuration errors
-
-    ## Post-Processing Integration
-
-    ### Automated Analysis
-    - **Template-Based Processing**: Standardized analysis command templates
-    - **Input/Output Coordination**: Automatic file dependency management
-    - **Error Handling**: Robust error handling for analysis failures
-    - **Multi-Stage Processing**: Support for complex analysis pipelines
-
-    ### Analysis Types
-    Common post-processing patterns:
-    - **Statistical Analysis**: Frequency counts, timing analysis, resource usage
-    - **Error Extraction**: System call errors, tool failures, performance issues
-    - **Summary Generation**: Human-readable reports and dashboards
-    - **Data Transformation**: Format conversion and data normalization
-
-    ## Performance Optimization
-
-    ### Command Summarization
-    - **Smart Logging**: Intelligent command summarization for debug output
-    - **Content Truncation**: Large command truncation with preserved semantics
-    - **Batch Processing**: Efficient handling of multiple command modifications
-
-    ### Resource Management
-    - **Memory Efficiency**: Minimal memory footprint for command storage
-    - **File Handle Management**: Proper cleanup of temporary files and resources
-    - **Process Isolation**: Isolated execution contexts for different tools
-
-    ## Usage Patterns
-
-    ### Basic Wrapper Application
-    ```python
-    builder = create_execution_environment_builder(service, "strace", timestamp, callback, logger)
-    output_file = builder.register_output_file("trace_log", "log", "System call trace")
-    builder.add_wrapper_command(
-        setup_commands=["mkdir -p /tmp/traces"],
-        main_command_wrapper=f'strace -o {output_file} -- "$@"'
-    )
-    results = builder.build_and_apply(modify_service_commands)
-    ```
-
-    ### Conditional Tool Setup
-    ```python
-    builder.add_conditional_wrapper(
-        condition="command -v valgrind >/dev/null 2>&1",
-        wrapper_command="valgrind --tool=memcheck --log-file=memcheck.log",
-        fallback_message="Valgrind not available, skipping memory analysis"
-    )
-    ```
-
-    ### Post-Processing Integration
-    ```python
-    builder.add_post_processing(
-        input_file=trace_file,
-        output_file=summary_file,
-        processing_command="analyze_trace.sh",
-        description="System call analysis",
-        file_type="trace_summary"
-    )
-    ```
-
-    ## Error Handling Strategy
-
-    ### Command Validation
-    - **Syntax Checking**: Shell command syntax validation
-    - **Dependency Verification**: Tool and library availability checking
-    - **Permission Validation**: File system permission verification
-
-    ### Runtime Safety
-    - **Graceful Degradation**: Continued operation despite tool failures
-    - **Error Isolation**: Tool failures don't affect service execution
-    - **Diagnostic Logging**: Comprehensive error diagnosis and debugging
+    Uses callback pattern for service command modification (``pre_run_cmds``,
+    ``run_cmd``, ``post_run_cmds``, environment variables).
 
     Attributes:
-        service (IServiceManager): Target service for command modification
-        environment_name (str): Name of the execution environment (strace, valgrind, etc.)
-        timestamp (str): Unique timestamp for output file naming and coordination
-        output_file_manager (OutputFileManager): Manager for output file registration and paths
-        wrapper_generator (WrapperCommandGenerator): Generator for wrapper command creation
-        service_name (str): Extracted service name for logging and file naming
-        service_role (ProtocolRole): Service role (client/server) for context-aware generation
-        command_builder (ServiceCommandBuilder): Underlying command structure builder
-        _applied_wrappers (set): Set of applied wrapper fingerprints for deduplication
-
-    Methods:
-        add_wrapper_command(): Add execution environment wrapper with setup and main phases
-        add_conditional_wrapper(): Add wrapper with conditional tool availability checking
-        add_post_processing(): Add automated analysis and post-processing commands
-        register_output_file(): Register output files with type categorization and path generation
-        build_and_apply(): Build all commands and apply to service through callback
+        service: Target service for command modification.
+        environment_name: Execution environment name (strace, valgrind, etc.).
+        timestamp: Unique timestamp for output file naming.
+        output_file_manager: Manages output file registration and paths.
+        wrapper_generator: Generates wrapper commands.
+        service_name: Extracted service name for logging and file naming.
+        service_role: Service role (client/server) for context-aware generation.
+        command_builder: Underlying ServiceCommandBuilder.
+        _applied_wrappers: Applied wrapper fingerprints for deduplication.
     """
 
     def __init__(
@@ -480,8 +288,7 @@ class ExecutionEnvironmentCommandBuilder:
         wrapper_generator: WrapperCommandGenerator,
         logger: Optional[logging.Logger] = None,
     ):
-        """
-        Initialize the execution environment command builder.
+        """Initialize the execution environment command builder.
 
         Args:
             service: The service manager to build commands for
@@ -520,8 +327,7 @@ class ExecutionEnvironmentCommandBuilder:
         setup_commands: Optional[List[str]] = None,
         main_command_wrapper: Optional[str] = None,
     ) -> "ExecutionEnvironmentCommandBuilder":
-        """
-        Add a wrapper command for the execution environment.
+        """Add a wrapper command for the execution environment.
 
         Args:
             wrapper_command: The wrapper command to add (legacy - for backward compatibility)
@@ -621,8 +427,7 @@ class ExecutionEnvironmentCommandBuilder:
         return self
 
     def _generate_wrapper_file_command(self, main_command_wrapper: str) -> str:
-        """
-        Generate a command to write the main command wrapper to the wrapper file.
+        """Generate a command to write the main command wrapper to the wrapper file.
 
         This command writes the wrapper immediately during setup phase, ensuring
         the wrapper file exists before the entrypoint script tries to read it.
@@ -656,8 +461,7 @@ ls -la {wrapper_file} >> /app/logs/{self.service_name}_exec_env_setup.log 2>/dev
         fallback_message: Optional[str] = None,
         is_critical: bool = False,
     ) -> "ExecutionEnvironmentCommandBuilder":
-        """
-        Add a conditional wrapper command.
+        """Add a conditional wrapper command.
 
         Args:
             condition: Shell condition for wrapper setup
@@ -698,8 +502,7 @@ ls -la {wrapper_file} >> /app/logs/{self.service_name}_exec_env_setup.log 2>/dev
         file_type: Optional[str] = None,
         error_message: Optional[str] = None,
     ) -> "ExecutionEnvironmentCommandBuilder":
-        """
-        Add a post-processing command.
+        """Add a post-processing command.
 
         Args:
             input_file: Path to input file to process
@@ -745,8 +548,7 @@ ls -la {wrapper_file} >> /app/logs/{self.service_name}_exec_env_setup.log 2>/dev
         description: Optional[str] = None,
         base_dir: str = "/app/logs",
     ) -> str:
-        """
-        Register an output file and return its path.
+        """Register an output file and return its path.
 
         Args:
             file_type: Type identifier for the file
@@ -768,8 +570,7 @@ ls -la {wrapper_file} >> /app/logs/{self.service_name}_exec_env_setup.log 2>/dev
         return file_path
 
     def build_and_apply(self, command_modifier_callback) -> Dict[str, Any]:
-        """
-        Build all commands and apply them to the service.
+        """Build all commands and apply them to the service.
 
         Args:
             command_modifier_callback: Callback to modify service commands
@@ -899,8 +700,7 @@ class CommandGenerationUtilsFactory:
         register_output_callback,
         logger: Optional[logging.Logger] = None,
     ) -> ExecutionEnvironmentCommandBuilder:
-        """
-        Create a complete ExecutionEnvironmentCommandBuilder with all utilities.
+        """Create a complete ExecutionEnvironmentCommandBuilder with all utilities.
 
         Args:
             service: The service manager to build commands for
@@ -937,8 +737,7 @@ def create_execution_environment_builder(
     register_output_callback,
     logger: Optional[logging.Logger] = None,
 ) -> ExecutionEnvironmentCommandBuilder:
-    """
-    Convenience function to create an ExecutionEnvironmentCommandBuilder.
+    """Convenience function to create an ExecutionEnvironmentCommandBuilder.
 
     Args:
         service: The service manager to build commands for

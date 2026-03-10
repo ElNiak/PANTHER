@@ -1,7 +1,38 @@
-"""
-Observer Interface Module
+"""Observer Interface Module - Core observer contract for PANTHER.
 
-This module defines the core interface for all observer implementations in the PANTHER framework.
+This module defines the base ``IObserver`` abstract class that all observer
+implementations must extend. It provides the foundational contract for event
+processing with built-in deduplication protection, interest-based filtering,
+and priority-based notification ordering.
+
+Key contracts:
+    - ``on_event(event)`` -- abstract, must be implemented by all subclasses
+    - ``is_interested(event_type)`` -- override to filter events (default: all)
+    - ``get_priority()`` -- override to control notification order (default: 0)
+
+Example:
+    Create a custom observer that tracks test events::
+
+        from panther.core.observer.base.observer_interface import IObserver
+        from panther.core.events.base.event_base import BaseEvent
+
+        class TestTracker(IObserver):
+            def __init__(self):
+                super().__init__()
+                self.event_count = 0
+
+            def is_interested(self, event_type: str) -> bool:
+                return event_type.startswith("test.")
+
+            def on_event(self, event: BaseEvent):
+                if event.uuid in self.processed_events_uuids:
+                    return  # Skip duplicate
+                self.processed_events_uuids.append(event.uuid)
+                self.event_count += 1
+
+See Also:
+    `panther.core.observer.base.typed_observer_interface.ITypedObserver`
+    `panther.core.observer.base.observer_plugin_interface.IPluginObserver`
 """
 
 import logging
@@ -18,18 +49,37 @@ except ImportError:
 
 
 class IObserver(ABC):
-    """
-    Enhanced observer interface with interest checking and prioritization.
-    This extends the original IObserver interface with additional capabilities.
+    """Core interface for all observer implementations in PANTHER.
+
+    Defines the contract for event processing with deduplication protection
+    and interest-based filtering. All observers must implement ``on_event()``
+    and may optionally override ``is_interested()`` and ``get_priority()``.
+
+    Attributes:
+        processed_events_uuids: List of UUIDs for events already processed
+            by this observer, used for deduplication.
+
+    Example:
+        Minimal observer implementation::
+
+            class MinimalObserver(IObserver):
+                def on_event(self, event: BaseEvent):
+                    if event.uuid in self.processed_events_uuids:
+                        return
+                    # process event ...
+                    self.processed_events_uuids.append(event.uuid)
+
+    See Also:
+        `ITypedObserver` for automatic event routing by type.
     """
 
     def __init__(self):
+        """Initialize IObserver."""
         self.processed_events_uuids: List[str] = []
 
     @abstractmethod
     def on_event(self, event: BaseEvent):
-        """
-        Handle an event.
+        """Handle an event.
 
         Args:
             event: The event to handle
@@ -37,8 +87,8 @@ class IObserver(ABC):
         pass
 
     def is_interested(self, event_type: str) -> bool:
-        """
-        Check if this observer is interested in an event type.
+        """Check if this observer is interested in an event type.
+
         Default implementation is interested in all events.
 
         Args:
@@ -50,8 +100,8 @@ class IObserver(ABC):
         return True
 
     def get_priority(self) -> int:
-        """
-        Get the priority for this observer.
+        """Get the priority for this observer.
+
         Higher values mean higher priority.
 
         Returns:
@@ -67,8 +117,7 @@ class IObserver(ABC):
         output_file: Optional[str] = None,
         structured_output: bool = False,
     ):
-        """
-        Set up logging for an observer.
+        """Set up logging for an observer.
 
         Args:
             logger_name: Name for the logger
@@ -99,7 +148,12 @@ class IObserver(ABC):
         return logger
 
     def _add_lazy_file_handler(self, logger, output_file):
-        """Add a lazy file handler that only creates files when content is written."""
+        """Add a lazy file handler that only creates the file on first write.
+
+        Args:
+            logger: Logger instance to attach the handler to.
+            output_file: Path to the output log file.
+        """
         import logging
         from pathlib import Path
 

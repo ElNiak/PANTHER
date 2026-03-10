@@ -1,5 +1,4 @@
-"""
-Base Network Environment Implementation - PANTHER Plugin Architecture
+"""Base Network Environment Implementation - PANTHER Plugin Architecture.
 
 This module provides the foundational base class for all network environment implementations
 in PANTHER, implementing shared functionality and defining the contract for network-based
@@ -74,71 +73,22 @@ if TYPE_CHECKING:
 
 
 class BaseNetworkEnvironment(INetworkEnvironment, StringRepresentationMixin):
-    """
-    Base implementation of INetworkEnvironment with comprehensive shared functionality.
+    """Base implementation of `INetworkEnvironment` using the Template Method pattern.
 
-    This abstract base class implements the Template Method pattern, providing a complete
-    framework for network environment management while allowing subclasses to customize
-    environment-specific behavior. It handles the full lifecycle of network environments
-    from initialization through teardown.
+    Provides shared functionality for network environment management including
+    configuration processing, directory management, service coordination,
+    event integration, and resource cleanup. Subclasses override abstract
+    template methods for environment-specific behavior.
 
-    **Inherited Functionality**:
-    - **Configuration Processing**: YAML/OmegaConf configuration validation and normalization
-    - **Directory Management**: Automatic creation and management of output directories
-    - **Service Coordination**: Integration with PluginManager for service discovery
-    - **Event Integration**: Automatic event emission through EnvironmentPluginEventMixin
-    - **Error Handling**: Comprehensive error handling with FastFail integration
-    - **Status Monitoring**: Real-time environment status tracking and reporting
-    - **Output Collection**: Centralized collection of logs, metrics, and artifacts
-    - **Resource Cleanup**: Automatic resource cleanup and environment teardown
+    Template methods to override:
+        - `setup_environment()`: Environment-specific setup logic.
+        - `teardown_environment()`: Environment-specific cleanup logic.
+        - `_setup_network_resolution()`: Configure network address resolution.
+        - `_monitor_services()`: Monitor service health and readiness.
 
-    **Template Methods to Override**:
-    ```python
-    # Required abstract methods
-    def setup_environment(self) -> None:
-        '''Environment-specific setup logic'''
-
-    def teardown_environment(self) -> None:
-        '''Environment-specific cleanup logic'''
-
-    def _setup_network_resolution(self) -> None:
-        '''Configure network address resolution'''
-
-    def _monitor_services(self) -> None:
-        '''Monitor service health and readiness'''
-    ```
-
-    **Configuration Schema**:
-    The base class expects environment configurations to include:
-    - `environment_dir`: Path to environment templates and configuration
-    - `network_settings`: Network configuration parameters
-    - `service_configs`: List of services to deploy in this environment
-    - `monitoring_config`: Optional monitoring and health check configuration
-
-    **Event Integration**:
-    Automatically emits environment lifecycle events:
-    - `environment_setup_started`
-    - `environment_setup_completed`
-    - `environment_teardown_started`
-    - `environment_teardown_completed`
-    - `environment_error_occurred`
-
-    **Usage Example**:
-    ```python
-    class MyNetworkEnvironment(BaseNetworkEnvironment):
-        def setup_environment(self) -> None:
-            # Implement environment-specific setup
-            self.create_network_infrastructure()
-            self.deploy_services()
-
-        def teardown_environment(self) -> None:
-            # Implement environment-specific cleanup
-            self.stop_services()
-            self.cleanup_network_infrastructure()
-    ```
-
-    **Thread Safety**: All public methods are thread-safe for concurrent access
-    **Resource Management**: Automatic cleanup on object destruction or exception
+    Automatically emits lifecycle events: ``environment_setup_started``,
+    ``environment_setup_completed``, ``environment_teardown_started``,
+    ``environment_teardown_completed``, ``environment_error_occurred``.
     """
 
     def __init__(
@@ -192,8 +142,7 @@ class BaseNetworkEnvironment(INetworkEnvironment, StringRepresentationMixin):
         self._early_termination_details = None
 
     def _get_user_mapping_config(self) -> Optional[str]:
-        """
-        Get user mapping configuration for containers.
+        """Get user mapping configuration for containers.
 
         Returns:
             Optional[str]: User mapping string in format 'uid:gid' or None for root
@@ -241,8 +190,7 @@ class BaseNetworkEnvironment(INetworkEnvironment, StringRepresentationMixin):
         plugin_manager: Optional["PluginManager"],
         execution_environment: List["IExecutionEnvironment"],
     ) -> bool:
-        """
-        Common setup workflow for network environments.
+        """Common setup workflow for network environments.
 
         This method provides the standard setup sequence while allowing
         subclasses to customize specific steps.
@@ -316,8 +264,7 @@ class BaseNetworkEnvironment(INetworkEnvironment, StringRepresentationMixin):
             raise
 
     def teardown_environment(self) -> None:
-        """
-        Common teardown workflow for network environments.
+        """Common teardown workflow for network environments.
 
         This method provides the standard teardown sequence while allowing
         subclasses to customize specific steps.
@@ -375,8 +322,7 @@ class BaseNetworkEnvironment(INetworkEnvironment, StringRepresentationMixin):
 
     @abstractmethod
     def _teardown_environment(self) -> None:
-        """
-        Perform environment-specific teardown.
+        """Perform environment-specific teardown.
 
         Subclasses must implement this method for their specific teardown logic.
         """
@@ -384,8 +330,7 @@ class BaseNetworkEnvironment(INetworkEnvironment, StringRepresentationMixin):
 
     @abstractmethod
     def _get_service_log_directory(self, service_name: str) -> Path:
-        """
-        Get the log directory for a specific service.
+        """Get the log directory for a specific service.
 
         Args:
             service_name: Name of the service
@@ -410,8 +355,7 @@ class BaseNetworkEnvironment(INetworkEnvironment, StringRepresentationMixin):
         self.processes.clear()
 
     def _safe_cleanup(self) -> None:
-        """
-        Perform safe cleanup in case of errors.
+        """Perform safe cleanup in case of errors.
 
         This method should not raise exceptions.
         """
@@ -421,8 +365,7 @@ class BaseNetworkEnvironment(INetworkEnvironment, StringRepresentationMixin):
             self.logger.error(f"Error during safe cleanup: {e}")
 
     def run(self) -> bool:
-        """
-        Common run implementation.
+        """Common run implementation.
 
         Most network environments have similar run logic.
         """
@@ -456,8 +399,7 @@ class BaseNetworkEnvironment(INetworkEnvironment, StringRepresentationMixin):
             raise
 
     def prepare(self) -> bool:
-        """
-        Common prepare implementation.
+        """Common prepare implementation.
 
         Most network environments have similar prepare logic.
         """
@@ -484,8 +426,7 @@ class BaseNetworkEnvironment(INetworkEnvironment, StringRepresentationMixin):
             return False
 
     def __add_volumes_to_services(self) -> None:
-        """
-        Add shared volumes to all services.
+        """Add shared volumes to all services.
 
         This method injects shared volumes into each service's configuration
         to ensure they can access common resources.
@@ -506,8 +447,7 @@ class BaseNetworkEnvironment(INetworkEnvironment, StringRepresentationMixin):
             )
 
     def __add_wait_for_testers(self) -> None:
-        """
-        Add wait commands for all services to ensure they are ready before running tests.
+        """Add wait commands for all services to ensure they are ready before running tests.
 
         This method injects wait commands into each service's pre_run_cmds
         to ensure they are ready before proceeding with the experiment.
@@ -612,8 +552,7 @@ class BaseNetworkEnvironment(INetworkEnvironment, StringRepresentationMixin):
                 )
 
     def _add_packet_capture_commands(self) -> None:
-        """
-        Add packet capture commands to all services.
+        """Add packet capture commands to all services.
 
         This method injects tshark commands into each service's pre_run_cmds
         to enable packet capture for network analysis.
@@ -661,8 +600,7 @@ class BaseNetworkEnvironment(INetworkEnvironment, StringRepresentationMixin):
                 )
 
     def _ip_to_decimal(self, ip: str) -> str:
-        """
-        Convert IP address to decimal format.
+        """Convert IP address to decimal format.
 
         Args:
             ip: IP address in dotted notation (e.g., "192.168.1.1")
@@ -683,8 +621,7 @@ class BaseNetworkEnvironment(INetworkEnvironment, StringRepresentationMixin):
             return "0"
 
     def _get_service_port(self, service: IServiceManager) -> int:
-        """
-        Extract port from service configuration.
+        """Extract port from service configuration.
 
         Args:
             service: Service manager instance
@@ -719,8 +656,7 @@ class BaseNetworkEnvironment(INetworkEnvironment, StringRepresentationMixin):
 
     @abstractmethod
     def _get_service_ip(self, service_name: str) -> str:
-        """
-        Get IP address for a service.
+        """Get IP address for a service.
 
         This method must be implemented by each network environment to provide
         the appropriate IP resolution mechanism.
@@ -750,8 +686,7 @@ class BaseNetworkEnvironment(INetworkEnvironment, StringRepresentationMixin):
 
     @abstractmethod
     def _get_service_log_directory(self, service_name: str) -> Path:
-        """
-        Get the log directory for a specific service.
+        """Get the log directory for a specific service.
 
         This method must be implemented by each environment to provide
         the correct path mapping for service log directories.
@@ -773,16 +708,21 @@ class BaseNetworkEnvironment(INetworkEnvironment, StringRepresentationMixin):
         raise NotImplementedError
 
     def initialize(self, test_config, output_dir, event_manager, global_config):
+        """Initialize the network environment."""
         raise NotImplementedError
 
     def generate_environment_services(self, paths, timestamp):
+        """Generate environment service configurations."""
         raise NotImplementedError
 
     def prepare_environment(self):
+        """Prepare the network environment for deployment."""
         raise NotImplementedError
 
     def launch_environment_services(self):
+        """Launch all environment services."""
         raise NotImplementedError
 
     def deploy_services(self):
+        """Deploy services into the environment."""
         raise NotImplementedError

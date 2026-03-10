@@ -14,6 +14,14 @@ from panther.config.core.models import (
 
 
 class PingPongVersion(VersionBase):
+    """Version information for Ping-Pong MinIP implementation.
+
+    Inherited from VersionBase:
+        version: Git tag or release version string.
+        commit: Git commit hash for reproducible builds.
+        dependencies: Build-time dependency specifications.
+    """
+
     version: str = Field(default="")
     commit: str = Field(default="")
     dependencies: List[Dict[str, str]] = Field(default_factory=list)
@@ -22,7 +30,36 @@ class PingPongVersion(VersionBase):
 
 
 class PingPongConfig(ServicePluginConfig):
-    """Configuration for ping-pong minimal protocol implementation."""
+    """Ping-Pong MinIP implementation configuration.
+
+    Simple client-server protocol for testing basic network communication
+    patterns. Demonstrates essential MinIP protocol components through
+    straightforward ping-pong request-response exchange.
+
+    Multiple variants are available via version configuration:
+
+    - **Functional** -- correct implementation for baseline conformance testing
+    - **Vulnerable** -- intentional security flaws for security testing
+    - **Flaky** -- intermittently unreliable for fault tolerance testing
+    - **Random** -- non-deterministic behavior for stress testing
+    - **Fail** -- consistently fails for negative testing
+
+    Language: C | Build time: <1 min | Docker image: ~100MB
+
+    Inherited from ServicePluginConfig / BasePluginConfig:
+        enabled (bool): Whether the plugin is enabled. Default: True.
+
+    Example YAML::
+
+        services:
+          server:
+            implementation:
+              name: ping-pong
+              type: iut
+            protocol:
+              name: minip
+              role: server
+    """
 
     name: str = Field(default="ping-pong", description="Implementation name")
     type: ImplementationType = Field(

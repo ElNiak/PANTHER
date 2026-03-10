@@ -12,14 +12,15 @@ from termcolor import colored
 
 from panther.cli_click.core.base import (
     error_message,
+    featured_example,
     handle_errors,
     info_message,
     pass_context_and_setup_logging,
     success_message,
-    warning_message,
 )
 
 
+@featured_example("panther admin status")
 @click.group()
 def admin():
     """
@@ -134,30 +135,6 @@ def teardown(ctx, force):
 
             click.echo(traceback.format_exc(), err=True)
         raise click.Abort()
-
-
-@admin.command()
-@click.option(
-    "--port", type=int, default=8080, help="Port to run web application (default: 8080)"
-)
-@click.option(
-    "--host",
-    default="localhost",
-    help="Host to bind web application (default: localhost)",
-)
-@handle_errors
-@pass_context_and_setup_logging
-def webapp(ctx, port, host):
-    """
-    Start web application interface.
-
-    ⚠️  Note: Web application feature has been deprecated.
-    Use 'panther admin status' for system monitoring instead.
-    """
-    warning_message("Web application feature has been removed")
-    info_message("This feature was incomplete and has been deprecated")
-    info_message("Use 'panther admin status' for system monitoring instead")
-    raise click.Abort()
 
 
 @admin.command()
@@ -844,7 +821,9 @@ def docker(
                     try:
                         processed = operation_func()
                         total_processed += processed
-                        click.echo(f"  ✅ {operation_name}: {processed} items processed")
+                        click.echo(
+                            f"  ✅ {operation_name}: {processed} items processed"
+                        )
                     except Exception as e:
                         click.echo(f"  ⚠️ {operation_name}: {e}")
 

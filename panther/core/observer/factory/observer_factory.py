@@ -1,13 +1,40 @@
-from typing import Any, Dict, List, Optional, Tuple, Union
+"""Observer Factory Module - Centralized observer creation and management.
 
-"""
-Observer Factory Module
+Provides the ``ObserverFactory`` class for creating, configuring, and managing
+observer instances. Supports both programmatic creation and YAML configuration
+file loading via the companion ``factory_config`` module.
 
-Core factory class for creating and managing observer instances.
+Default observer types registered at initialization:
+    - ``"logger"`` / ``"event_logger"`` --> ``LoggerObserver``
+    - ``"metrics"`` --> ``MetricsObserver``
+    - ``"storage"`` --> ``StorageObserver``
+    - ``"experiment"`` --> ``ExperimentObserver``
+
+Module-level convenience functions:
+    - ``get_observer_factory()`` -- get/create the global factory singleton
+    - ``create_observer(type, **kwargs)`` -- shorthand for factory creation
+    - ``create_default_observers(config)`` -- create a standard observer set
+
+Example:
+    Programmatic observer creation::
+
+        factory = get_observer_factory()
+        factory.register_observer_type("custom", MyCustomObserver)
+        obs = factory.create_observer("custom", auto_register=True, priority=5)
+
+    Configuration-driven creation::
+
+        factory = get_observer_factory(global_config)
+        logger_obs = factory.create_observer("logger", log_level="DEBUG")
+
+See Also:
+    `panther.core.observer.factory.factory_builders` - Builder helpers
+    `panther.core.observer.factory.factory_config` - YAML config loading
 """
 
 import logging
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from panther.config.core.models import BaseObserverConfig
 from panther.core.events.base.event_base import BaseEvent as Event
@@ -22,12 +49,25 @@ from panther.core.observer.management.event_manager import EventManager
 
 
 class ObserverFactory:
-    """
+    """Factory for creating and managing observer instances.
 
-    Factory class for creating observer instances with enhanced capabilities.
+    Provides centralized observer creation with type registration, named
+    instance tracking, configuration management, and optional auto-registration
+    with the ``EventManager``.
 
-    This factory provides a centralized way to create observers with proper
-    configuration and enhanced features.
+    Attributes:
+        _registered_types: Maps type name strings to observer classes.
+        _observer_instances: Maps instance names to live observer instances.
+        _configurations: Default configuration dicts per observer type.
+        _event_manager: Optional EventManager for auto-registration.
+        _observer_config: Global ``BaseObserverConfig`` for default values.
+
+    Example:
+        Register a custom type and create an instance::
+
+            factory = ObserverFactory()
+            factory.register_observer_type("my_type", MyObserver)
+            obs = factory.create_observer("my_type", name="obs1", priority=5)
     """
 
     def __init__(
@@ -35,6 +75,7 @@ class ObserverFactory:
         event_manager: Optional[EventManager] = None,
         observer_config: Optional[BaseObserverConfig] = None,
     ):
+        """Initialize ObserverFactory."""
         self.logger = logging.getLogger(__name__)
         self._registered_types: Dict[str, type[IObserver]] = {}  # Observer class types
         self._observer_instances: Dict[str, IObserver] = {}  # Named observer instances
@@ -59,8 +100,7 @@ class ObserverFactory:
         )
 
     def set_event_manager(self, event_manager: EventManager) -> None:
-        """
-        Set the event manager for this factory.
+        """Set the event manager for this factory.
 
         Args:
             event_manager: Event manager instance for registering observers
@@ -82,8 +122,7 @@ class ObserverFactory:
         priority: int = 0,
         **kwargs,
     ) -> IObserver:
-        """
-        Create an observer instance of the specified type.
+        """Create an observer instance of the specified type.
 
         Args:
             observer_type: Type of observer to create
@@ -151,8 +190,7 @@ class ObserverFactory:
             raise
 
     def register_observer(self, name: str, observer: IObserver) -> None:
-        """
-        Register an existing observer instance with a name.
+        """Register an existing observer instance with a name.
 
         Args:
             name: Name to register the observer with
@@ -162,8 +200,7 @@ class ObserverFactory:
         self.logger.debug("Registered observer instance with name: %s", name)
 
     def unregister_observer(self, name: str) -> bool:
-        """
-        Unregister a named observer.
+        """Unregister a named observer.
 
         Args:
             name: Name of the observer to unregister
@@ -178,8 +215,7 @@ class ObserverFactory:
         return False
 
     def get_observer(self, name: str) -> Optional[IObserver]:
-        """
-        Get a registered observer by name.
+        """Get a registered observer by name.
 
         Args:
             name: Name of the observer to retrieve
@@ -190,8 +226,7 @@ class ObserverFactory:
         return self._observer_instances.get(name, None)
 
     def get_all_observers(self) -> Dict[str, IObserver]:
-        """
-        Get all registered observers.
+        """Get all registered observers.
 
         Returns:
             Dict[str, IObserver]: Dictionary of named observer instances
@@ -205,8 +240,7 @@ class ObserverFactory:
     def configure_observer_type(
         self, observer_type: str, config: Dict[str, Any]
     ) -> None:
-        """
-        Configure default parameters for an observer type.
+        """Configure default parameters for an observer type.
 
         Args:
             observer_type: Type of observer to configure
@@ -221,8 +255,7 @@ class ObserverFactory:
         event_types: Optional[List[Union[str, Event]]] = None,
         priority: int = 0,
     ) -> None:
-        """
-        Register an observer with the event manager.
+        """Register an observer with the event manager.
 
         Args:
             observer: Observer instance to register
@@ -241,8 +274,7 @@ class ObserverFactory:
         )
 
     def unregister_from_event_manager(self, observer: IObserver) -> None:
-        """
-        Unregister an observer from the event manager.
+        """Unregister an observer from the event manager.
 
         Args:
             observer: Observer instance to unregister
@@ -257,8 +289,7 @@ class ObserverFactory:
         self.logger.debug("Unregistered observer from event manager")
 
     def set_observer_config(self, observer_config: BaseObserverConfig) -> None:
-        """
-        Set the observer configuration for this factory.
+        """Set the observer configuration for this factory.
 
         Args:
             observer_config: Observer configuration instance
@@ -269,8 +300,7 @@ class ObserverFactory:
     def batch_register_with_event_manager(
         self, observers: list[tuple[IObserver, list[str | Event] | None, int]]
     ) -> None:
-        """
-        Register multiple observers with the event manager in a single call.
+        """Register multiple observers with the event manager in a single call.
 
         Args:
             observers: List of tuples containing (observer, event_types, priority)
@@ -297,8 +327,7 @@ _observer_factory = None
 
 
 def get_observer_factory(global_config=None) -> ObserverFactory:
-    """
-    Get the global observer factory instance.
+    """Get the global observer factory instance.
 
     Args:
         global_config: Optional global configuration object containing observer configs

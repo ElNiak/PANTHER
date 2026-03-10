@@ -1,8 +1,16 @@
-"""
-Core command processing functionality.
+"""Core command processing functionality.
 
-This module contains the main command processor implementation, interfaces,
-and validation components.
+Contains the main ``CommandProcessor`` implementation, abstract interfaces
+(``ICommandProcessor``, ``IEnvironmentCommandAdapter``), and the
+``CommandValidator`` / ``ValidationResult`` security-checking pipeline.
+
+Processing flow::
+
+    commands dict
+        --> _validate_command_structure()   (fast-fail on bad types)
+        --> process_command_list()          (per-list normalization)
+        --> combine_shell_constructs()      (merge split multiline blocks)
+        --> ShellCommand.to_dict()          (final structured output)
 """
 
 from panther.core.command_processor.core.interfaces import (

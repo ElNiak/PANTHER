@@ -1,5 +1,4 @@
-"""
-Central Plugin Factory - PANTHER Plugin Architecture
+"""Central Plugin Factory - PANTHER Plugin Architecture.
 
 This module provides the centralized plugin factory system that consolidates service
 creation, environment management, and plugin instantiation across all PANTHER plugin types.
@@ -69,65 +68,19 @@ from panther.plugins.core.structures.plugin_type import PluginType
 
 
 class PluginFactory(LoggerMixin):
-    """
-    Central factory for creating all types of plugin instances with comprehensive lifecycle management.
+    """Central factory for creating plugin instances with lifecycle management.
 
-    This factory consolidates service creation, environment management, observer plugins, and protocol
-    definitions into a single, coherent interface. It serves as the primary plugin instantiation point
-    in PANTHER, providing dependency injection, configuration resolution, error handling, and performance
-    optimization through intelligent caching.
+    Consolidates service, environment, observer, and protocol plugin creation
+    into a unified interface. Provides dependency injection, configuration
+    resolution, and performance optimization through class caching.
 
-    **Unified Factory Architecture**:
-    The PluginFactory replaces the previously separate ServiceFactory and EnvironmentFactory with a
-    single, type-aware factory that can instantiate any plugin type while maintaining backward
-    compatibility with existing plugin interfaces.
+    Supported plugin types:
+        - Service plugins (IUT, TESTER) with Docker integration
+        - Network and execution environment plugins
+        - Observer and metrics collection plugins
+        - Protocol definition plugins with version-specific configs
 
-    **Factory Capabilities**:
-    - **Service Management**: Create IUT, TESTER, and generic service plugins with automatic dependency injection
-    - **Environment Orchestration**: Instantiate network and execution environment plugins with proper configuration
-    - **Observer Integration**: Create monitoring and metrics collection plugins with event coordination
-    - **Protocol Handling**: Support for protocol definition plugins with version-specific configurations
-    - **Configuration Resolution**: Automatic schema resolution and validation for all plugin types
-    - **Version Management**: Dynamic loading of version-specific configurations for protocol compatibility
-
-    **Plugin Discovery Integration**:
-    The factory integrates seamlessly with PluginManager's discovery system:
-    ```python
-    # Automatic plugin discovery and instantiation
-    plugin_metadata = self.plugin_manager.get_plugin(plugin_name)
-    plugin_class = self._load_plugin_class(plugin_metadata)
-    instance = plugin_class(*args, event_manager=self.event_manager, **kwargs)
-    ```
-
-    **Error Handling Strategy**:
-    - **Fast-Fail Integration**: Automatic coordination with FastFailHandler for critical errors
-    - **Graceful Degradation**: Fallback mechanisms for missing dependencies or configurations
-    - **Comprehensive Logging**: Detailed error reporting with context for debugging
-    - **Type Validation**: Pre-instantiation validation of plugin types and interfaces
-
-    **Performance Optimizations**:
-    - **Class Caching**: Plugin classes cached after first load for 50-90% faster subsequent creation
-    - **Lazy Loading**: Plugin modules loaded only when instances are requested
-    - **Metadata Caching**: Plugin metadata cached in PluginManager for fast lookups
-    - **Dependency Reuse**: Common dependencies (EventManager, etc.) reused across instances
-
-    **Backward Compatibility**:
-    The factory maintains full backward compatibility with existing ServiceFactory and
-    EnvironmentFactory interfaces, allowing seamless migration of existing code:
-    ```python
-    # Legacy ServiceFactory interface supported
-    service_manager = factory.create_service_manager(
-        protocol, implementation, implementation_dir, service_config_to_test
-    )
-
-    # Legacy EnvironmentFactory interface supported
-    env_manager = factory.create_environment_manager(
-        environment, test_config, environment_dir, output_dir, event_manager
-    )
-    ```
-
-    **Thread Safety**: Not thread-safe. Assumes single-threaded initialization.
-    If concurrent access is needed, external synchronization must be provided.
+    Not thread-safe; assumes single-threaded initialization.
     """
 
     def __init__(
@@ -137,8 +90,7 @@ class PluginFactory(LoggerMixin):
         event_manager: Optional[EventManager] = None,
         fast_fail_handler: Optional[FastFailHandler] = None,
     ):
-        """
-        Initialize the plugin factory.
+        """Initialize the plugin factory.
 
         Args:
             plugin_manager: Reference to the central plugin manager
@@ -169,8 +121,7 @@ class PluginFactory(LoggerMixin):
     def create_plugin_instance(
         self, plugin_name: str, plugin_type: Union[str, PluginType], *args, **kwargs
     ) -> Any:
-        """
-        Create a plugin instance of any type.
+        """Create a plugin instance of any type.
 
         Args:
             plugin_name: Name of the plugin
@@ -266,8 +217,7 @@ class PluginFactory(LoggerMixin):
             ) from e
 
     def _find_plugin_file(self, plugin_name: str, plugin_type: str) -> Path:
-        """
-        Find the plugin file based on plugin name and type.
+        """Find the plugin file based on plugin name and type.
 
         Args:
             plugin_name: Name of the plugin
@@ -337,8 +287,7 @@ class PluginFactory(LoggerMixin):
         experiment_context=None,
         test_case=None,  # Reference to parent test case for execution environment access
     ):
-        """
-        Create a service manager instance using the exact interface from ServiceFactory.
+        """Create a service manager instance using the exact interface from ServiceFactory.
 
         Args:
             protocol: Protocol configuration (ProtocolConfig)
@@ -348,6 +297,8 @@ class PluginFactory(LoggerMixin):
             event_manager: Event manager instance
             emitter_registry: Emitter registry for events
             global_config: Global configuration (GlobalConfig)
+            experiment_context: Optional experiment context for the service manager.
+            test_case: Reference to parent test case for execution environment access.
 
         Returns:
             Service manager instance (IServiceManager)
@@ -558,8 +509,7 @@ class PluginFactory(LoggerMixin):
         event_manager: EventManager,
         target_platform: Optional[str] = None,
     ):
-        """
-        Create an environment manager instance using the exact interface from EnvironmentFactory.
+        """Create an environment manager instance using the exact interface from EnvironmentFactory.
 
         Args:
             environment: Environment name (matches EnvironmentFactory signature)
@@ -567,6 +517,7 @@ class PluginFactory(LoggerMixin):
             environment_dir: Directory containing environment files
             output_dir: Output directory for environment data
             event_manager: Event manager instance
+            target_platform: Optional target platform identifier.
 
         Returns:
             Environment manager instance (IEnvironmentPlugin)
@@ -786,8 +737,7 @@ class PluginFactory(LoggerMixin):
             raise PluginLoadException(error, environment, "environment") from e
 
     def create_observer_plugin(self, plugin_name: str, *args, **kwargs):
-        """
-        Create an observer plugin instance.
+        """Create an observer plugin instance.
 
         Args:
             plugin_name: Name of the observer plugin
@@ -813,8 +763,7 @@ class PluginFactory(LoggerMixin):
             )
 
     def _load_plugin_class(self, plugin_metadata: PluginMetadata) -> Type:
-        """
-        Load plugin class from metadata.
+        """Load plugin class from metadata.
 
         Args:
             plugin_metadata: Plugin metadata
@@ -892,8 +841,7 @@ class PluginFactory(LoggerMixin):
             raise PluginLoadException(error, plugin_metadata.name, type_value) from e
 
     def _get_module_path(self, plugin_metadata: PluginMetadata) -> str:
-        """
-        Get module import path for plugin.
+        """Get module import path for plugin.
 
         Args:
             plugin_metadata: Plugin metadata
@@ -992,8 +940,7 @@ class PluginFactory(LoggerMixin):
         return final_module_path
 
     def _validate_plugin_class(self, plugin_class: Type, plugin_type: PluginType):
-        """
-        Validate that plugin class implements expected interface.
+        """Validate that plugin class implements expected interface.
 
         Args:
             plugin_class: Plugin class to validate
@@ -1021,8 +968,7 @@ class PluginFactory(LoggerMixin):
                 )
 
     def _get_required_methods(self, plugin_type: PluginType) -> List[str]:
-        """
-        Get required methods for plugin type.
+        """Get required methods for plugin type.
 
         Args:
             plugin_type: Plugin type
@@ -1043,8 +989,7 @@ class PluginFactory(LoggerMixin):
             return []
 
     def _handle_plugin_error(self, error_message: str, severity: ErrorSeverity):
-        """
-        Handle plugin loading errors.
+        """Handle plugin loading errors.
 
         Args:
             error_message: Error description
@@ -1068,8 +1013,7 @@ class PluginFactory(LoggerMixin):
         self._class_cache.clear()
 
     def get_cached_classes(self) -> Dict[str, Type]:
-        """
-        Get currently cached plugin classes.
+        """Get currently cached plugin classes.
 
         Returns:
             Dictionary of cached classes
@@ -1077,8 +1021,7 @@ class PluginFactory(LoggerMixin):
         return self._class_cache.copy()
 
     def preload_plugins(self, plugin_names: Optional[List[str]] = None):
-        """
-        Preload plugin classes into cache.
+        """Preload plugin classes into cache.
 
         Args:
             plugin_names: Optional list of plugin names to preload.

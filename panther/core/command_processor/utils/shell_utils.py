@@ -1,4 +1,41 @@
-"""Shell command utility functions."""
+"""Shell command utility functions.
+
+Low-level functions for escaping, parsing, normalizing, splitting, and
+combining shell command strings.  These are used internally by
+``ShellCommand`` and ``CommandProcessor`` but are also exported from the
+package for direct use.
+
+Functions:
+    escape_shell_command:
+        Context-aware escaping that preserves variable assignments, builtins,
+        control structures, and redirections while quoting everything else.
+    parse_command_with_redirections:
+        Split a command into its base part and a list of ``(operator, target)``
+        redirection tuples.
+    reconstruct_command_with_redirections:
+        Rejoin a base command with its redirection tuples using conventional
+        shell formatting (e.g., ``2>/dev/null`` without spaces).
+    validate_redirection_syntax:
+        Detect malformed redirections like ``2/dev/null`` (missing ``>``).
+    normalize_command_ending:
+        Strip trailing ``&&``, ``&``, or ``;`` from a command string.
+    split_complex_command:
+        Split a compound command on ``&&``, ``||``, and ``;`` respecting quotes.
+    combine_shell_constructs:
+        Merge consecutive list elements that form a single multiline shell
+        construct (for/done, if/fi, while/done, case/esac, function/{/}).
+
+Example:
+    ::
+
+        from panther.core.command_processor.utils.shell_utils import (
+            combine_shell_constructs,
+        )
+
+        fragments = ["for f in *.pcap", "do", "  tshark -r $f", "done"]
+        combined = combine_shell_constructs(fragments)
+        # combined == ["for f in *.pcap\\ndo\\n  tshark -r $f\\ndone"]
+"""
 
 import logging
 import re

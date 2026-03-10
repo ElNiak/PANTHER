@@ -1,5 +1,4 @@
-"""
-Enhanced Metrics Observer Module
+"""Enhanced Metrics Observer Module.
 
 This module provides a comprehensive observer implementation that connects the metrics
 collection system with the event system, allowing metrics to be published as events
@@ -260,8 +259,7 @@ class MetricsAggregator:
     """Aggregates and analyzes metrics over time."""
 
     def __init__(self, window_size: int = 100):
-        """
-        Initialize metrics aggregator.
+        """Initialize metrics aggregator.
 
         Args:
             window_size: Maximum number of metrics to keep in memory
@@ -306,77 +304,21 @@ class MetricsAggregator:
 
 
 class MetricsObserver(ITypedObserver):
-    """
-    Comprehensive metrics observer with real-time monitoring and advanced analytics.
+    """Metrics observer with real-time monitoring and analytics.
 
-    This observer implements a sophisticated metrics collection system that integrates
-    with PANTHER's event architecture to provide real-time performance monitoring,
-    resource tracking, and statistical analysis for test execution environments.
+    Integrates with PANTHER's event architecture to provide real-time
+    performance monitoring, resource tracking, and statistical analysis
+    during test execution.
 
-    **Architecture Overview:**
-    ```mermaid
-    graph TB
-        subgraph "MetricsObserver Core"
-            MO[MetricsObserver]
-            SMC[SystemMetricsCollector]
-            TMC[TestMetricsCollector]
-            MA[MetricsAggregator]
-        end
+    Collects:
+        - Process and system CPU/memory utilization
+        - Disk and network I/O operations
+        - Test step execution statistics
+        - Custom application-specific metrics
 
-        subgraph "Monitoring Layer"
-            RM[ResourceMonitor]
-            RT[Real-time Thread]
-            LFH[Lazy File Handlers]
-        end
-
-        subgraph "Data Structures"
-            MS[MetricsSnapshot]
-            TCM[TestCaseMetrics]
-            TH[Timeseries History]
-        end
-
-        subgraph "Event Integration"
-            TE[Test Events]
-            SE[Step Events]
-            ME[Metrics Events]
-        end
-
-        MO --> SMC
-        MO --> TMC
-        MO --> MA
-        MO --> RM
-        MO --> RT
-        MO --> LFH
-
-        SMC --> MS
-        TMC --> TCM
-        MA --> TH
-
-        TE --> MO
-        SE --> MO
-        ME --> MO
-    ```
-
-    **Key Capabilities:**
-    - **Real-time Resource Monitoring**: CPU, memory, disk I/O, network tracking
-    - **Test Lifecycle Analytics**: Complete test execution performance profiling
-    - **Statistical Analysis**: Mean, median, standard deviation calculations
-    - **Trend Detection**: Historical analysis with trend identification
-    - **Memory-Efficient Collection**: Windowed data collection with cleanup
-    - **Multi-threaded Monitoring**: Background collection without blocking tests
-
-    **Performance Metrics Collected:**
-    - Process and system CPU utilization
-    - Memory usage (RSS, virtual, system-wide)
-    - Disk I/O operations (read/write bytes)
-    - Network I/O traffic (sent/received bytes)
-    - Test step execution statistics
-    - Custom application-specific metrics
-
-    **Integration with Event System:**
-    The observer automatically responds to test lifecycle events, creating comprehensive
-    metrics profiles for each test execution while maintaining low overhead through
-    intelligent batching and lazy file creation.
+    Responds automatically to test lifecycle events, creating metrics
+    profiles for each test execution with low overhead through intelligent
+    batching and lazy file creation.
     """
 
     def __init__(
@@ -391,8 +333,7 @@ class MetricsObserver(ITypedObserver):
         output_dir: str = None,
         metrics_collector=None,
     ):
-        """
-        Initialize the enhanced metrics observer.
+        """Initialize the enhanced metrics observer.
 
         Args:
             publish_metrics: Whether to publish metrics as events
@@ -624,9 +565,9 @@ class MetricsObserver(ITypedObserver):
             and hasattr(event, "metric_name")
             and hasattr(event, "metric_value")
         ):
-            self.current_test_metrics.custom_metrics[
-                event.metric_name
-            ] = event.metric_value
+            self.current_test_metrics.custom_metrics[event.metric_name] = (
+                event.metric_value
+            )
             self.logger.debug(
                 "Recorded custom metric: %s = %s", event.metric_name, event.metric_value
             )
@@ -740,8 +681,7 @@ class MetricsObserver(ITypedObserver):
             self.last_publish_time = current_time
 
     def start_monitoring(self):
-        """
-        Start real-time resource monitoring.
+        """Start real-time resource monitoring.
 
         This method activates the real-time monitoring of system resources,
         which will collect metrics at regular intervals and can trigger alerts
@@ -795,9 +735,7 @@ class MetricsObserver(ITypedObserver):
             self.logger.debug("Started monitoring thread")
 
     def stop_monitoring(self):
-        """
-        Stop real-time resource monitoring.
-        """
+        """Stop real-time resource monitoring."""
         if not self.monitoring_active:
             self.logger.debug("Monitoring not active")
             return
@@ -901,8 +839,7 @@ class MetricsObserver(ITypedObserver):
                 )
 
     def publish_metrics_summary(self):
-        """
-        Publish a summary of collected metrics.
+        """Publish a summary of collected metrics.
 
         This method aggregates and publishes a summary of all collected metrics,
         which can be useful for monitoring and debugging purposes.
@@ -960,9 +897,7 @@ class MetricsObserver(ITypedObserver):
                         )
 
     def _monitoring_loop(self):
-        """
-        Background loop for periodic metrics collection when not using MetricsCollector's thread.
-        """
+        """Background loop for periodic metrics collection when not using MetricsCollector's thread."""
         self.logger.debug("Metrics observer monitoring loop started")
         import time
 
@@ -989,8 +924,7 @@ class MetricsObserver(ITypedObserver):
         self.logger.debug("Metrics observer monitoring loop stopped")
 
     def initialize_resource_monitor(self):
-        """
-        Initialize the ResourceMonitor if metrics_collector is available.
+        """Initialize the ResourceMonitor if metrics_collector is available.
 
         This method creates and configures a ResourceMonitor instance that will
         collect detailed system resource metrics at regular intervals.

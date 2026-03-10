@@ -1,4 +1,10 @@
-"""PANTHER environment plugins.
+"""Localhost single-container network environment plugin.
 
-This package contains environment plugins for different testing environments.
+Runs all services inside a single Docker container on localhost.
+Useful for rapid iteration and debugging without multi-container overhead.
+
+Key features:
+    - Single container deployment (all services share a network namespace)
+    - Minimal Docker overhead
+    - Simplified debugging with direct process access
 """

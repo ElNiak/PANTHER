@@ -1,8 +1,16 @@
-"""
-Command processing utilities.
+"""Command processing utilities.
 
-This module contains utility functions and helper classes for command
-processing, shell operations, and command summarization.
+Aggregates utility functions and helper classes:
+
+- ``CommandUtils``       -- static helpers for creating, merging, and validating
+  command structures; working-directory extraction from ``cd ... &&`` prefixes;
+  and smart log summarization.
+- ``CommandGenerationError`` -- exception for command generation failures.
+- ``CommandSummarizer``  -- pattern-based classification, sensitive-info masking,
+  and compact summarization for log output.
+- Shell utilities        -- ``escape_shell_command``, ``normalize_command_ending``,
+  ``parse_command_with_redirections``, ``split_complex_command``,
+  ``combine_shell_constructs``, and related helpers.
 """
 
 from panther.core.command_processor.utils.command_utils import (

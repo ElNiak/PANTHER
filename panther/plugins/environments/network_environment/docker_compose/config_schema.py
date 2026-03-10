@@ -6,7 +6,35 @@ from panther.config.core.models.plugin import NetworkEnvironmentPluginConfig
 
 
 class DockerComposeConfig(NetworkEnvironmentPluginConfig):
-    """Configuration for Docker Compose network environment."""
+    """Docker Compose network environment configuration.
+
+    Multi-container deployment using Docker Compose for isolated protocol
+    testing with per-service containers, configurable networking, and
+    background health monitoring.
+
+    Requires Docker Engine (27.03.0+) and Docker Compose (v1.27.0+).
+    Ensure your user has proper Docker permissions.
+
+    Inherited from NetworkEnvironmentPluginConfig / BasePluginConfig:
+        enabled (bool): Whether the plugin is enabled. Default: True.
+
+    Example YAML::
+
+        network_environment:
+          type: docker_compose
+          version: "3.8"
+          enable_background_monitoring: true
+          monitoring_interval_seconds: 10
+          deploy_timeout: 300
+
+    Troubleshooting:
+        - **Network conflicts**: ensure unique network names or use ``service_prefix``
+        - **Permission issues**: run with appropriate Docker permissions
+        - **Container communication failures**: check Docker network settings
+        - **Startup timeouts**: increase ``deploy_timeout`` value
+        - **Debug tip**: set ``logging.level: DEBUG`` and use
+          ``docker compose logs`` to view container logs
+    """
 
     type: str = Field(default="docker_compose", description="Network environment type")
     version: str = Field(default="3.8", description="Docker Compose file version")

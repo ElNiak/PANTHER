@@ -1,8 +1,10 @@
-"""
-Command builder functionality.
+"""Command builder functionality.
 
-This module contains classes for building and constructing commands
-with various patterns and configurations.
+Provides the builder pattern for fluent, injection-safe command construction:
+
+- ``CommandBuilder``        -- base builder for argument/env accumulation.
+- ``ServiceCommandBuilder`` -- protocol-testing extension with certificate,
+  network, role, and logging parameter helpers.
 """
 
 from panther.core.command_processor.builders.base_builder import CommandBuilder

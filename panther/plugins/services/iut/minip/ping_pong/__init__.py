@@ -1,4 +1,5 @@
-"""PANTHER Ping Pong protocol.
+"""Ping-Pong MiniP IUT service plugin.
 
-This package contains the Ping Pong protocol implementation.
+A minimal client-server echo implementation for verifying the
+PANTHER service manager lifecycle without protocol complexity.
 """

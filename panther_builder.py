@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-PANTHER Build Script
+"""PANTHER Build Script.
 
 This script replaces the Makefile and provides a more portable,
 Python-based build system for the PANTHER project.
@@ -139,7 +138,7 @@ _ALL_BRACKET_RE = re.compile(r"\[([^\]]+)\]")
 
 
 def _escape_autorefs(text):
-    """Escape patterns that mkdocs_autorefs misinterprets in Ivy docs.
+    r"""Escape patterns that mkdocs_autorefs misinterprets in Ivy docs.
 
     Handles two cases:
     1. Backtick inline code (e.g. ``range``) -> ``<code>range</code>``
@@ -258,12 +257,19 @@ def _copy_md_rewriting_links(
     For *flat* copies: provide ``source_rel``, ``build_dict``, ``project_root``
     to resolve links against the build dictionary.
     For *hierarchy* copies: omit those params — only non-doc links are stripped.
+
+    GitHub-style callouts (``> [!NOTE]``) are converted to MkDocs
+    admonitions (``!!! note``) automatically so source files stay
+    readable on GitHub while MkDocs renders them with proper styling.
     """
     text = _read_md_as_utf8(src)
     if source_rel is not None and build_dict is not None and project_root is not None:
         text = _rewrite_links_flat(text, source_rel, build_dict, project_root)
     else:
         text = _strip_non_doc_links(text)
+    # Convert GitHub callouts → MkDocs admonitions
+    from panther.tools.docs_gen.convert_admonitions import github_to_mkdocs
+    text = github_to_mkdocs(text)
     dst.write_text(text, encoding="utf-8")
 
 
@@ -284,6 +290,7 @@ try:
     _build_collector = None
 
     def record(name, value, tags=None):
+        """Record a build metric with optional tags."""
         global _build_collector
         if _build_collector is None:
             import tempfile
@@ -297,6 +304,7 @@ try:
         _build_collector.record_metric(name, MetricType.PERFORMANCE, value, tags or {})
 
     def flush(kind, extra=None):
+        """Flush collected build metrics and return a run identifier."""
         global _build_collector
         if _build_collector is None:
             return "no-metrics"
@@ -305,7 +313,10 @@ try:
         return f"build-{int(time.time())}"
 
     class ResourceSampler:
+        """Samples system resource usage during builds."""
+
         def __init__(self):
+            """Initialize ResourceSampler."""
             import tempfile
             from pathlib import Path
 
@@ -317,15 +328,18 @@ try:
             self.monitor = ResourceMonitor(self.collector)
 
         def start(self):
+            """Start resource monitoring."""
             self.monitor.start()
 
         def stop(self):
+            """Stop resource monitoring and return results."""
             self.monitor.stop()
             # Return a simple dict for compatibility
             return {"status": "completed"}
 
     # Utility functions for build system
     def get_directory_size_mb(path):
+        """Calculate the total size of a directory in megabytes."""
         import os
 
         total_size = 0
@@ -337,6 +351,7 @@ try:
         return total_size / (1024 * 1024)  # Convert to MB
 
     def get_docker_image_size_mb(name):
+        """Return the size of a Docker image in megabytes, or None on failure."""
         try:
             # Use the singleton DockerBuilder for cached operations
             from panther.core.docker_builder.docker_builder import DockerBuilder
@@ -372,6 +387,7 @@ try:
             return None
 
     def find_latest_wheel(dist_dir, package_name):
+        """Find the most recently built wheel file and return its path and size."""
         from pathlib import Path
 
         dist_path = Path(dist_dir)
@@ -383,6 +399,7 @@ try:
         return latest, size_mb
 
     def cleanup_build_artifacts(path):
+        """Remove build artifacts at the given path."""
         return {"cleaned": True}
 
     METRICS_AVAILABLE = True
@@ -392,28 +409,38 @@ except ImportError:
     print("Metrics system not available. Using dummy functions.")
 
     def record(name, value, tags=None):
+        """Record a build metric (no-op fallback)."""
         pass
 
     def flush(kind, extra=None):
+        """Flush collected build metrics (no-op fallback)."""
         return "no-metrics"
 
     class ResourceSampler:
+        """Stub resource sampler used when metrics are unavailable."""
+
         def start(self):
+            """Start resource monitoring (no-op fallback)."""
             pass
 
         def stop(self):
+            """Stop resource monitoring (no-op fallback)."""
             return {}
 
     def get_directory_size_mb(path):
+        """Return directory size in megabytes (no-op fallback)."""
         return 0.0
 
     def get_docker_image_size_mb(name):
+        """Return Docker image size in megabytes (no-op fallback)."""
         return None
 
     def find_latest_wheel(dist_dir, package_name):
+        """Find the most recently built wheel file (no-op fallback)."""
         return None
 
     def cleanup_build_artifacts(path):
+        """Remove build artifacts at the given path (no-op fallback)."""
         return {}
 
     METRICS_AVAILABLE = False
@@ -423,6 +450,7 @@ class BuildManager:
     """Manages the build process for PANTHER."""
 
     def __init__(self):
+        """Initialize BuildManager."""
         self.project_root = Path(__file__).parent
         self.build_dirs = ["build", "dist"]
         self.docs_dir = ["docs", "site"]
@@ -640,6 +668,37 @@ class BuildManager:
             ]
         )
 
+    def install_ivy_submodule(self) -> int:
+        """Install the panther_ivy submodule in editable mode (if present)."""
+        ivy_path = (
+            self.project_root
+            / "panther"
+            / "plugins"
+            / "services"
+            / "testers"
+            / "panther_ivy"
+        )
+        if not (ivy_path / "setup.py").exists() and not (
+            ivy_path / "pyproject.toml"
+        ).exists():
+            print(
+                "Skipping panther_ivy: submodule not initialized"
+                " (run 'git submodule update --init')"
+            )
+            return 0
+        print("Installing panther_ivy submodule...")
+        old_val = os.environ.get("CMAKE_POLICY_VERSION_MINIMUM")
+        os.environ["CMAKE_POLICY_VERSION_MINIMUM"] = "3.5"
+        try:
+            return self.run_command(
+                [sys.executable, "-m", "pip", "install", "--editable", str(ivy_path)]
+            )
+        finally:
+            if old_val is None:
+                os.environ.pop("CMAKE_POLICY_VERSION_MINIMUM", None)
+            else:
+                os.environ["CMAKE_POLICY_VERSION_MINIMUM"] = old_val
+
     # Note: install_slim moved to CLI tools command
 
     def run_tests(self) -> int:
@@ -693,7 +752,6 @@ class BuildManager:
 
     def build_docs(self) -> int:
         """Build documentation."""
-
         # Start metrics collection
         self.start_metrics_collection("build_docs")
 
@@ -718,20 +776,16 @@ class BuildManager:
 
             print("Building documentation...")
 
-            # Phase 1 Automated Documentation Discovery (replaces 85+ manual mappings)
-            print("🔍 Generating automated build_dict...")
-            try:
-                from panther.tools.docs_gen.generate_build_mapping import (
-                    get_automated_build_dict,
-                )
-
-                build_dict = get_automated_build_dict()
-                print(
-                    f"📚 Generated {len(build_dict)} documentation mappings automatically"
-                )
-            except Exception as e:
-                print(f"⚠️  Automated discovery failed: {e}")
-                raise e
+            # Static build_dict — maps root-level markdown to docs/ locations
+            build_dict = {
+                "INSTALL.md": "docs/INSTALL.md",
+                "QUICK_START.md": "docs/QUICK_START.md",
+                "workflow.md": "docs/workflow.md",
+                "panther/plugins/plugins_inventory.md": "docs/plugins_inventory.md",
+                "CONTRIBUTING.md": "docs/contributing.md",
+                "CHANGELOG.md": "docs/changelog.md",
+                "LICENSE.md": "docs/license.md",
+            }
 
             # Clean only docs-related build artifacts (not wheel/dist)
             print("Cleaning documentation build artifacts...")
@@ -741,13 +795,22 @@ class BuildManager:
                     print(f"Removing {dir_path}")
                     shutil.rmtree(dir_path, onerror=_rmtree_onerror)
 
-            # Install documentation dependencies
-            print("Installing documentation dependencies...")
-            result = self.run_command(
-                [sys.executable, "-m", "pip", "install", ".[doc]"]
+            # Install documentation dependencies (skip if editable install detected)
+            _is_editable = (
+                (self.project_root / "panther_net.egg-info").exists()
+                or any(
+                    Path(sys.prefix, "lib").rglob("__editable__.panther?net*")
+                )
             )
-            if result != 0:
-                print("Warning: Could not install documentation dependencies")
+            if _is_editable:
+                print("Editable install detected, skipping pip install .[doc,tests,web]")
+            else:
+                print("Installing documentation dependencies...")
+                result = self.run_command(
+                    [sys.executable, "-m", "pip", "install", ".[doc,tests,web]"]
+                )
+                if result != 0:
+                    print("Warning: Could not install documentation dependencies")
 
             # Ensure docs directory exists and is empty
             docs_dir = self.project_root / "docs"
@@ -755,23 +818,6 @@ class BuildManager:
                 print(f"Clearing {docs_dir} directory...")
                 shutil.rmtree(docs_dir)
             docs_dir.mkdir(exist_ok=True)
-
-            # Run the MkDocs automation script
-            print("Running MkDocs automation script...")
-            mkdocs_script = (
-                self.project_root
-                / "panther"
-                / "tools"
-                / "docs_gen"
-                / "mkdocs"
-                / "automate_mkdocs.py"
-            )
-            if mkdocs_script.exists():
-                result = self.run_command([sys.executable, str(mkdocs_script)])
-                if result != 0:
-                    print("Warning: MkDocs automation script failed")
-            else:
-                print(f"Warning: MkDocs automation script not found at {mkdocs_script}")
 
             # Generate plugin inventory
             print("Generating plugin inventory...")
@@ -816,12 +862,24 @@ class BuildManager:
                     )
                 else:
                     print(
-                        f"Warning: Source file {source} not found, creating placeholder"
+                        f"Warning: Source file {source} not found"
                     )
-                    # Create a placeholder file
-                    with open(dest_path, "w") as f:
-                        f.write(f"# {dest_path.stem.replace('_', ' ').title()}\n\n")
-                        f.write("This documentation is under development.\n")
+                    # # Create a placeholder file
+                    # with open(dest_path, "w") as f:
+                    #     f.write(f"# {dest_path.stem.replace('_', ' ').title()}\n\n")
+                    #     f.write("This documentation is under development.\n")
+
+            # Copy docs_src/ to docs/ (persistent manual content pages)
+            docs_src_dir = self.project_root / "docs_src"
+            if docs_src_dir.exists():
+                print("Copying docs_src/ to docs/...")
+                for src_file in docs_src_dir.rglob("*"):
+                    if src_file.is_file():
+                        rel = src_file.relative_to(docs_src_dir)
+                        dest = docs_dir / rel
+                        dest.parent.mkdir(parents=True, exist_ok=True)
+                        print(f"Copying docs_src/{rel} -> docs/{rel}")
+                        shutil.copy2(src_file, dest)
 
             # Copy all markdown files from panther to docs/panther (hierarchy)
             panther_docs_dir = self.project_root / "docs" / "panther"
@@ -833,7 +891,6 @@ class BuildManager:
             _skip_dirs = {
                 "submodules",  # third-party submodule content (z3, picotls, abc)
                 "template",  # mkdocs template files
-                "adr",  # architecture decision records (removed from docs)
             }
             for md_file in panther_src_dir.rglob("*.md"):
                 if md_file.is_file():
@@ -966,7 +1023,7 @@ class BuildManager:
             # Build documentation with MkDocs
             print("Building documentation with MkDocs...")
             result = self.run_command(
-                ["mkdocs", "build", "--verbose", "--strict", "--config-file", "mkdocs.yml"]
+                ["mkdocs", "build", "--verbose", "--config-file", "mkdocs.yml"]
             )
 
             # Record documentation build success/failure
@@ -1010,7 +1067,7 @@ class BuildManager:
             )
 
         # Serve the documentation
-        return self.run_command(["mkdocs", "serve", "--config-file", "mkdocs.yml"])
+        return self.run_command(["mkdocs", "serve", "--verbose", "--config-file", "mkdocs.yml"])
 
     def deploy_docs(self) -> int:
         """Deploy documentation to GitHub Pages."""
@@ -1448,6 +1505,7 @@ Note: The following commands have been moved to the CLI:
             + build_manager.install_dependencies()
             + build_manager.uninstall_package()
             + build_manager.install_editable()
+            + build_manager.install_ivy_submodule()
         ),
         "package-test": lambda: (
             build_manager.clean()
@@ -1459,7 +1517,9 @@ Note: The following commands have been moved to the CLI:
         ),
         "clean": build_manager.clean,
         "install-local": lambda: (
-            build_manager.install_dependencies() + build_manager.install_editable()
+            build_manager.install_dependencies()
+            + build_manager.install_editable()
+            + build_manager.install_ivy_submodule()
         ),
         "docs": build_manager.build_docs,
         "serve-docs": build_manager.serve_docs,

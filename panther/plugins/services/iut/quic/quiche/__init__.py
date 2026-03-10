@@ -1,4 +1,9 @@
-"""PANTHER Quiche QUIC implementation.
+"""quiche QUIC IUT service plugin.
 
-This package contains the Quiche implementation of the QUIC protocol.
+Cloudflare's Rust QUIC implementation. Extends
+`RustQUICServiceManager` with Cargo build integration.
+Focuses on performance and HTTP/3.
+
+See `QuicheServiceManager` for the service manager and
+`QuicheConfig` for configuration options.
 """
