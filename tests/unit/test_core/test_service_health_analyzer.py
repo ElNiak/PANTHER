@@ -92,6 +92,15 @@ class TestServiceHealth:
         )
         assert h.output_completeness == 0.0
 
+    def test_failed_on_compilation_failure(self):
+        h = ServiceHealth(
+            service_name="svc",
+            service_type="tester",
+            phases_completed={"compile": True, "runtime": True},
+            compilation_succeeded=False,
+        )
+        assert h.status == "failed"
+
     def test_to_dict_includes_derived_fields(self):
         h = ServiceHealth(
             service_name="svc",

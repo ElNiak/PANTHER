@@ -62,6 +62,8 @@ class ServiceHealth:
         """Derive overall status from health indicators."""
         if self.crashed or self.exit_code not in (None, 0):
             return "failed"
+        if not self.compilation_succeeded:
+            return "failed"
         if self.stderr_errors:
             return "degraded"
         if not any(self.phases_completed.values()):
