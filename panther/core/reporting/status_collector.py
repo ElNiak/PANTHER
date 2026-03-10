@@ -573,6 +573,14 @@ class StatusCollector:
                 logs_path=str(test_dir.relative_to(self.experiment_dir)),
             )
 
+    # Patterns indicating actual test execution start (not initialization)
+    _EXECUTION_START_PATTERNS = [
+        re.compile(r"Starting Test:", re.IGNORECASE),
+        re.compile(r"Test execution started", re.IGNORECASE),
+        re.compile(r"Deploying environment", re.IGNORECASE),
+        re.compile(r"Environment setup started", re.IGNORECASE),
+    ]
+
     def _extract_test_timing(
         self, content: str
     ) -> Tuple[Optional[datetime], Optional[datetime], float]:
@@ -582,8 +590,18 @@ class StatusCollector:
         end_time = None
         duration = 0.0
 
-        # Extract start time (first log entry)
-        if lines:
+        # Look for actual execution start marker first
+        for line in lines:
+            if any(p.search(line) for p in self._EXECUTION_START_PATTERNS):
+                start_match = re.search(r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})", line)
+                if start_match:
+                    start_time = datetime.strptime(
+                        start_match.group(1), "%Y-%m-%d %H:%M:%S"
+                    )
+                    break
+
+        # Fallback: use first log entry timestamp
+        if start_time is None and lines:
             start_match = re.search(r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})", lines[0])
             if start_match:
                 start_time = datetime.strptime(
