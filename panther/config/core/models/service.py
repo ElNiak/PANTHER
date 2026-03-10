@@ -425,12 +425,7 @@ class ServiceConfig(BaseConfig):
         """Convert string/float to integer and validate timeout is positive."""
         from ..components.field_coercion import validate_integer_field
 
-        # First convert to integer
-        timeout_val = validate_integer_field(v, "timeout")
-        # Then validate it's positive
-        if timeout_val <= 0:
-            raise ValueError("Timeout must be positive")
-        return timeout_val
+        return validate_integer_field(v, "timeout")
 
     @field_validator("ports")
     @classmethod
@@ -489,6 +484,10 @@ class ServiceConfig(BaseConfig):
             host_port: Host port number
             container_port: Container port number
         """
+        if not (1 <= host_port <= 65535) or not (1 <= container_port <= 65535):
+            raise ValueError(
+                f"Port numbers must be 1-65535, got {host_port}:{container_port}"
+            )
         self.ports.append(f"{host_port}:{container_port}")
 
     def get_service_name(self) -> str:
@@ -497,7 +496,7 @@ class ServiceConfig(BaseConfig):
         Returns:
             Service name
         """
-        return f"{self.implementation.name}_{self.protocol.role.value}"
+        return f"{self.implementation.name}_{self.protocol.role}"
 
     def to_docker_service(self) -> Dict[str, Any]:
         """Convert to Docker Compose service format.
