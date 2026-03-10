@@ -8,6 +8,7 @@ All widgets expose a common interface:
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from typing import Any
 
 from nicegui import ui
@@ -112,9 +113,15 @@ class KeyedModelEditor:
         value_type: type[BaseModel],
         description: str = "",
         initial: dict | None = None,
+        key_generator: Callable[[dict], str] | None = None,
+        dialog_factory: Callable | None = None,
+        edit_dialog_factory: Callable | None = None,
     ):
         self.field_name = field_name
         self.value_type = value_type
+        self._key_generator = key_generator
+        self._dialog_factory = dialog_factory
+        self._edit_dialog_factory = edit_dialog_factory
         self._entries: dict[str, BaseModel] = {}
         if initial:
             for k, v in initial.items():
@@ -176,15 +183,34 @@ class KeyedModelEditor:
         return ", ".join(parts) if parts else "(empty)"
 
     def _open_add_dialog(self):
+        if self._dialog_factory:
+            self._dialog_factory(
+                value_type=self.value_type,
+                entries=self._entries,
+                key_generator=self._key_generator,
+                on_add=self._refresh,
+            )
+            return
+
         from panther.webapp.components.pydantic_form import PydanticForm
 
         with ui.dialog() as dialog, ui.card().classes("w-[600px]"):
             ui.label("Add entry").classes("text-h6")
-            key_input = ui.input("Key").classes("w-full")
+            if self._key_generator is None:
+                key_input = ui.input("Key").classes("w-full")
+            else:
+                key_input = None
+                ui.label("Key auto-generated from implementation + role").classes(
+                    "text-caption text-grey-6"
+                )
             form = PydanticForm(self.value_type)
 
             def _save():
-                key = key_input.value
+                data = form.get_value()
+                if self._key_generator:
+                    key = self._key_generator(data)
+                else:
+                    key = key_input.value
                 if not key:
                     ui.notify("Key is required", type="warning")
                     return
@@ -192,7 +218,6 @@ class KeyedModelEditor:
                     ui.notify(f"Key '{key}' already exists", type="warning")
                     return
                 try:
-                    data = form.get_value()
                     self._entries[key] = self.value_type(**data)
                 except Exception:
                     logger.warning("Failed to create entry", exc_info=True)
@@ -206,6 +231,16 @@ class KeyedModelEditor:
         dialog.open()
 
     def _open_edit_dialog(self, key: str):
+        if self._edit_dialog_factory:
+            self._edit_dialog_factory(
+                value_type=self.value_type,
+                entries=self._entries,
+                key_generator=self._key_generator,
+                on_save=self._refresh,
+                edit_key=key,
+            )
+            return
+
         from panther.webapp.components.pydantic_form import PydanticForm
 
         model = self._entries.get(key)
@@ -394,6 +429,204 @@ class ModelListEditor:
         self._refresh()
 
 
+def _build_service_dialog(
+    value_type: type[BaseModel],
+    entries: dict,
+    key_generator: Callable | None,
+    on_add: Callable | None = None,
+    on_save: Callable | None = None,
+    edit_key: str | None = None,
+) -> None:
+    """Custom reactive dialog for adding or editing a service entry.
+
+    Provides protocol-filtered implementation/version dropdowns and
+    IUT/tester type selection instead of the generic PydanticForm.
+
+    When *edit_key* is provided the dialog opens in edit mode: dropdowns
+    are pre-populated from the existing entry and saving updates in-place.
+    """
+    from panther.webapp.components.pydantic_form import FormConfig, PydanticForm
+    from panther.webapp.utils.plugin_forms import (
+        get_implementation_choices,
+        get_protocol_choices,
+        get_version_choices,
+    )
+
+    # Accept both on_add (add-mode) and on_save (edit-mode) callbacks
+    _callback = on_save or on_add
+
+    # ── Resolve initial values from existing entry ───────────────
+    existing = entries.get(edit_key) if edit_key else None
+    if existing:
+        existing_data = existing.model_dump()
+        init_proto = existing_data.get("protocol", {}).get("name")
+        init_ver = existing_data.get("protocol", {}).get("version")
+        init_type = existing_data.get("implementation", {}).get("type", "iut")
+        init_role = existing_data.get("protocol", {}).get("role", "server")
+        init_impl = existing_data.get("implementation", {}).get("name")
+        init_target = existing_data.get("protocol", {}).get("target", "")
+    else:
+        init_proto = None
+        init_ver = None
+        init_type = "iut"
+        init_role = "server"
+        init_impl = None
+        init_target = ""
+
+    is_edit = edit_key is not None and existing is not None
+    title = f"Edit Service: {edit_key}" if is_edit else "Add Service"
+
+    with ui.dialog() as dialog, ui.card().classes("w-[700px]"):
+        ui.label(title).classes("text-h6")
+
+        # ── Key dropdowns ────────────────────────────────────────────
+        with ui.row().classes("w-full gap-4"):
+            proto_select = ui.select(
+                get_protocol_choices(),
+                value=init_proto,
+                label="Protocol",
+            ).classes("flex-grow")
+            ver_select = ui.select([], label="Version").classes("flex-grow")
+
+        with ui.row().classes("w-full gap-4"):
+            type_select = ui.select(
+                {"iut": "IUT", "testers": "Tester"},
+                value=init_type,
+                label="Service Type",
+            ).classes("flex-grow")
+            role_select = ui.select(
+                {"server": "Server", "client": "Client", "peer": "Peer"},
+                value=init_role,
+                label="Role",
+            ).classes("flex-grow")
+
+        impl_select = ui.select([], label="Implementation").classes("w-full")
+
+        # Build target choices from sibling services (excluding self in edit mode)
+        _target_choices = [k for k in entries.keys() if k != edit_key]
+        target_select = ui.select(
+            _target_choices,
+            value=init_target if init_target in entries else None,
+            label="Target service",
+            with_input=True,
+        ).classes("w-full")
+        target_select.set_visibility(init_role == "client")
+
+        # ── Reactive handlers ────────────────────────────────────────
+        def _update_versions():
+            proto = proto_select.value
+            choices = get_version_choices(proto) if proto else []
+            ver_select.options = choices
+            ver_select.update()
+
+        def _update_implementations():
+            choices = get_implementation_choices(
+                protocol=proto_select.value or None,
+                service_type=type_select.value or None,
+            )
+            impl_select.options = choices
+            impl_select.update()
+
+        def _on_protocol_change(_e):
+            _update_versions()
+            _update_implementations()
+
+        def _on_type_change(_e):
+            _update_implementations()
+
+        def _on_role_change(e):
+            target_select.set_visibility(e.value == "client")
+
+        proto_select.on_value_change(_on_protocol_change)
+        type_select.on_value_change(_on_type_change)
+        role_select.on_value_change(_on_role_change)
+
+        # Populate version/implementation options, then set initial values
+        _update_versions()
+        _update_implementations()
+        if init_ver:
+            ver_select.value = init_ver
+        if init_impl:
+            impl_select.value = init_impl
+
+        # ── Remaining fields (timeout, network, etc.) ────────────────
+        handled = frozenset({"implementation", "protocol"})
+        remaining_config = FormConfig(
+            exclude_fields=handled,
+            show_advanced=False,
+        )
+        with ui.expansion("Additional Settings", icon="tune").classes("w-full"):
+            remaining_form = PydanticForm(
+                value_type,
+                instance=existing if is_edit else None,
+                config=remaining_config,
+            )
+
+        # ── Save ─────────────────────────────────────────────────────
+        def _save():
+            if not impl_select.value:
+                ui.notify("Select an implementation", type="warning")
+                return
+            if not proto_select.value:
+                ui.notify("Select a protocol", type="warning")
+                return
+
+            protocol_data: dict[str, Any] = {
+                "name": proto_select.value,
+                "role": role_select.value,
+            }
+            if ver_select.value:
+                protocol_data["version"] = ver_select.value
+            if role_select.value == "client" and target_select.value:
+                protocol_data["target"] = target_select.value
+
+            data: dict[str, Any] = {
+                "implementation": {
+                    "name": impl_select.value,
+                    "type": type_select.value,
+                },
+                "protocol": protocol_data,
+                **remaining_form.get_value(),
+            }
+
+            if is_edit:
+                # Edit mode: update existing entry in-place
+                try:
+                    entries[edit_key] = value_type(**data)
+                except Exception:
+                    logger.warning("Failed to update service entry", exc_info=True)
+                    ui.notify("Invalid configuration", type="negative")
+                    return
+            else:
+                # Add mode: generate key & check uniqueness
+                key = key_generator(data) if key_generator else impl_select.value
+                if not key:
+                    ui.notify("Key is required", type="warning")
+                    return
+                if key in entries:
+                    ui.notify(f"Key '{key}' already exists", type="warning")
+                    return
+                try:
+                    entries[key] = value_type(**data)
+                except Exception:
+                    logger.warning("Failed to create service entry", exc_info=True)
+                    ui.notify("Invalid configuration", type="negative")
+                    return
+
+            dialog.close()
+            if _callback:
+                _callback()
+
+        with ui.row().classes("justify-end w-full q-mt-sm"):
+            ui.button("Cancel", on_click=dialog.close).props("flat")
+            ui.button(
+                "Save" if is_edit else "Add",
+                on_click=_save,
+            ).props("color=primary")
+
+    dialog.open()
+
+
 def create_widget_for_field(
     field_name: str,
     info: ComplexFieldInfo,
@@ -407,11 +640,25 @@ def create_widget_for_field(
             initial=initial_value,
         )
     elif info.category == "dict_model":
+        key_gen = None
+        dialog_factory = None
+        edit_dialog_factory = None
+        extra = info.json_schema_extra or {}
+        if extra.get("key_generator") == "service_name":
+            key_gen = lambda data: (
+                f"{data.get('implementation', {}).get('name', 'svc')}"
+                f"_{data.get('protocol', {}).get('role', 'unknown')}"
+            )
+            dialog_factory = _build_service_dialog
+            edit_dialog_factory = _build_service_dialog
         return KeyedModelEditor(
             field_name=field_name,
             value_type=info.value_type,
             description=info.description,
             initial=initial_value,
+            key_generator=key_gen,
+            dialog_factory=dialog_factory,
+            edit_dialog_factory=edit_dialog_factory,
         )
     elif info.category == "list_model":
         return ModelListEditor(

@@ -1,5 +1,8 @@
 """Experiment configuration models."""
 
+import os
+import subprocess
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from pydantic import Field, field_validator
@@ -7,6 +10,25 @@ from pydantic import Field, field_validator
 from ..base import BaseConfig
 from .environment import ExecutionEnvironmentConfig, NetworkEnvironmentConfig
 from .service import ServiceConfig
+
+
+def _detect_author() -> Optional[str]:
+    """Try git user.name, fall back to OS username."""
+    try:
+        result = subprocess.run(
+            ["git", "config", "user.name"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+    except Exception:
+        pass
+    try:
+        return os.getlogin()
+    except Exception:
+        return None
 
 
 class StepsConfig(BaseConfig):
@@ -31,13 +53,21 @@ class StepsConfig(BaseConfig):
 class ExperimentMetadata(BaseConfig):
     """Experiment metadata."""
 
-    name: Optional[str] = Field(None, description="Experiment name")
+    name: Optional[str] = Field("new_experiment", description="Experiment name")
     description: Optional[str] = Field(None, description="Experiment description")
-    author: Optional[str] = Field(None, description="Experiment author")
-    version: Optional[str] = Field(None, description="Experiment version")
+    author: Optional[str] = Field(
+        default_factory=_detect_author, description="Experiment author"
+    )
+    version: Optional[str] = Field("1.0.0", description="Experiment version")
     tags: List[str] = Field(default_factory=list, description="Experiment tags")
-    created_at: Optional[str] = Field(None, description="Creation timestamp")
-    modified_at: Optional[str] = Field(None, description="Last modification timestamp")
+    created_at: Optional[str] = Field(
+        default_factory=lambda: datetime.now().isoformat(),
+        description="Creation timestamp",
+    )
+    modified_at: Optional[str] = Field(
+        default_factory=lambda: datetime.now().isoformat(),
+        description="Last modification timestamp",
+    )
 
 
 class TestConfig(BaseConfig):
@@ -57,7 +87,9 @@ class TestConfig(BaseConfig):
         default_factory=list, description="Execution environment configurations"
     )
     services: Dict[str, ServiceConfig] = Field(
-        ..., description="Service configurations"
+        ...,
+        description="Service configurations",
+        json_schema_extra={"key_generator": "service_name"},
     )
     steps: StepsConfig = Field(default_factory=StepsConfig, description="Test steps")
     iterations: int = Field(
@@ -88,7 +120,7 @@ class TestConfig(BaseConfig):
     def validate_services(cls, v):
         """Validate services configuration."""
         if not v:
-            raise ValueError("At least one service must be defined")
+            raise ValueError("Services dictionary cannot be empty")
 
         # Check for service targets
         for service_name, service in v.items():

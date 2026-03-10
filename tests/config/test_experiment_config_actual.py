@@ -80,13 +80,13 @@ class TestExperimentMetadata:
         """Test ExperimentMetadata with defaults."""
         metadata = ExperimentMetadata()
 
-        assert metadata.name is None
+        assert metadata.name == "new_experiment"
         assert metadata.description is None
-        assert metadata.author is None
-        assert metadata.version is None
+        assert metadata.author is not None  # git user.name or OS username
+        assert metadata.version == "1.0.0"
         assert metadata.tags == []
-        assert metadata.created_at is None
-        assert metadata.modified_at is None
+        assert metadata.created_at is not None  # auto-populated ISO timestamp
+        assert metadata.modified_at is not None  # auto-populated ISO timestamp
 
     def test_experiment_metadata_custom(self):
         """Test ExperimentMetadata with custom values."""
@@ -620,6 +620,177 @@ class TestExperimentConfig:
         assert len(json_dict["tests"]) == 1
         assert json_dict["tests"][0]["name"] == "Roundtrip Test"
         assert json_dict["metadata"]["name"] == "Roundtrip Experiment"
+
+
+class TestBusinessRulesValidation:
+    """Test BusinessRulesValidator service validation rules."""
+
+    def _make_test_config(self, services_dict):
+        """Helper to create a TestConfig with given services."""
+        services = {}
+        for name, (impl_type, role, target) in services_dict.items():
+            proto_kwargs = {"name": "quic", "role": role}
+            if target:
+                proto_kwargs["target"] = target
+            services[name] = ServiceConfig(
+                implementation=ImplementationConfig(
+                    name=f"{name}_impl", type=impl_type
+                ),
+                protocol=ProtocolConfig(**proto_kwargs),
+            )
+        return TestConfig(
+            name="Test",
+            network_environment=NetworkEnvironmentConfig(type="docker_compose"),
+            services=services,
+        )
+
+    def _validate(self, test_config):
+        """Run BusinessRulesValidator on a TestConfig."""
+        from panther.config.core.components.validators import BusinessRulesValidator
+
+        validator = BusinessRulesValidator()
+        return validator._validate_test_rules(test_config)
+
+    def test_single_service_produces_error(self):
+        """Rule 1: Single service should produce an error."""
+        tc = self._make_test_config({"svc": ("iut", "server", None)})
+        result = self._validate(tc)
+        assert not result.is_valid
+        error_msgs = [e.message for e in result.errors]
+        assert any("At least 2 services" in m for m in error_msgs)
+
+    def test_two_services_no_count_error(self):
+        """Rule 1: Two services should not produce a count error."""
+        tc = self._make_test_config(
+            {
+                "client": ("iut", "client", "server"),
+                "server": ("iut", "server", None),
+            }
+        )
+        result = self._validate(tc)
+        error_msgs = [e.message for e in result.errors]
+        assert not any("At least 2 services" in m for m in error_msgs)
+
+    def test_no_tester_produces_warning(self):
+        """Rule 2: No tester service should produce a warning."""
+        tc = self._make_test_config(
+            {
+                "client": ("iut", "client", "server"),
+                "server": ("iut", "server", None),
+            }
+        )
+        result = self._validate(tc)
+        warning_msgs = [w.message for w in result.warnings]
+        assert any("No tester service" in m for m in warning_msgs)
+
+    def test_with_tester_no_tester_warning(self):
+        """Rule 2: Tester present should not produce tester warning."""
+        tc = self._make_test_config(
+            {
+                "iut_server": ("iut", "server", None),
+                "tester_client": ("testers", "client", "iut_server"),
+            }
+        )
+        result = self._validate(tc)
+        warning_msgs = [w.message for w in result.warnings]
+        assert not any("No tester service" in m for m in warning_msgs)
+
+    def test_no_iut_produces_warning(self):
+        """Rule 5: No IUT service should produce a warning."""
+        tc = self._make_test_config(
+            {
+                "tester1": ("testers", "client", "tester2"),
+                "tester2": ("testers", "server", None),
+            }
+        )
+        result = self._validate(tc)
+        warning_msgs = [w.message for w in result.warnings]
+        assert any("No IUT service" in m for m in warning_msgs)
+
+    def test_with_iut_no_iut_warning(self):
+        """Rule 5: IUT present should not produce IUT warning."""
+        tc = self._make_test_config(
+            {
+                "iut_server": ("iut", "server", None),
+                "tester_client": ("testers", "client", "iut_server"),
+            }
+        )
+        result = self._validate(tc)
+        warning_msgs = [w.message for w in result.warnings]
+        assert not any("No IUT service" in m for m in warning_msgs)
+
+    def test_client_without_server_produces_warning(self):
+        """Rule 3: Client without server should produce a warning."""
+        # Pydantic requires clients to have a target, so we point them at each other
+        tc = self._make_test_config(
+            {
+                "client1": ("iut", "client", "client2"),
+                "client2": ("testers", "client", "client1"),
+            }
+        )
+        result = self._validate(tc)
+        warning_msgs = [w.message for w in result.warnings]
+        assert any("no server service" in m for m in warning_msgs)
+
+    def test_server_without_client_produces_warning(self):
+        """Rule 3: Server without client should produce a warning."""
+        tc = self._make_test_config(
+            {
+                "server1": ("iut", "server", None),
+                "server2": ("testers", "server", None),
+            }
+        )
+        result = self._validate(tc)
+        warning_msgs = [w.message for w in result.warnings]
+        assert any("no client service" in m for m in warning_msgs)
+
+    def test_client_and_server_no_counterpart_warning(self):
+        """Rule 3: Both client and server should not produce counterpart warning."""
+        tc = self._make_test_config(
+            {
+                "client": ("iut", "client", "server"),
+                "server": ("testers", "server", None),
+            }
+        )
+        result = self._validate(tc)
+        warning_msgs = [w.message for w in result.warnings]
+        assert not any("no server service" in m for m in warning_msgs)
+        assert not any("no client service" in m for m in warning_msgs)
+
+    def test_client_without_target_covered_by_pydantic(self):
+        """Rule 4: Pydantic enforces that clients must have a target.
+
+        The 'client without target' business rule is a defensive check
+        that only triggers for raw dicts (webapp). ProtocolConfig's
+        validator prevents creating a client without a target, so we
+        verify that the Pydantic constraint works.
+        """
+        with pytest.raises(
+            ValidationError, match="Client services must specify a target"
+        ):
+            self._make_test_config(
+                {
+                    "client": ("iut", "client", None),
+                    "server": ("testers", "server", None),
+                }
+            )
+
+    def test_client_targeting_non_server_produces_warning(self):
+        """Rule 4: Client targeting a peer should produce a warning."""
+        tc = self._make_test_config(
+            {
+                "client": ("iut", "client", "peer_svc"),
+                "peer_svc": ("testers", "peer", None),
+            }
+        )
+        result = self._validate(tc)
+        warning_msgs = [w.message for w in result.warnings]
+        assert any("expected role='server'" in m for m in warning_msgs)
+
+    def test_single_service_testconfig_construction_works(self):
+        """Pydantic-level construction should still allow 1 service."""
+        tc = self._make_test_config({"svc": ("iut", "server", None)})
+        assert len(tc.services) == 1
 
 
 if __name__ == "__main__":

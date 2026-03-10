@@ -10,7 +10,14 @@ from ..base import BaseConfig
 class EnvironmentConfig(BaseConfig):
     """Base environment configuration."""
 
-    type: str = Field(..., description="Environment type")
+    type: str = Field(
+        ...,
+        description="Environment type",
+        json_schema_extra={
+            "widget_type": "plugin_select",
+            "plugin_type": "network_environment",
+        },
+    )
     enabled: bool = Field(True, description="Whether this environment is enabled")
 
     # Background monitoring configuration
@@ -51,6 +58,15 @@ class NetworkEnvironmentConfig(EnvironmentConfig):
 
 class ExecutionEnvironmentConfig(EnvironmentConfig):
     """Base execution environment configuration."""
+
+    type: str = Field(
+        ...,
+        description="Execution environment type",
+        json_schema_extra={
+            "widget_type": "plugin_select",
+            "plugin_type": "execution_environment",
+        },
+    )
 
     # Fields merged from former ExecutionEnvironmentPluginConfig
     output_format: str = Field("json", description="Output format for results")

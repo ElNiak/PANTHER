@@ -1,5 +1,4 @@
-"""
-Comprehensive pytest configuration and fixtures for PANTHER testing.
+"""Comprehensive pytest configuration and fixtures for PANTHER testing.
 
 This module provides shared fixtures and utilities for testing all aspects
 of the PANTHER framework, including mocked dependencies, temporary environments,
@@ -23,14 +22,22 @@ logging.getLogger("urllib3").setLevel(logging.WARNING)
 # Conditionally enable the metrics plugin (skip if running with -p no:panther_metrics)
 import sys
 
+pytest_plugins = []
+
 if not any("no:panther_metrics" in arg for arg in sys.argv):
     try:
         import panther.metrics.pytest_plugin
 
-        pytest_plugins = ["panther.metrics.pytest_plugin"]
+        pytest_plugins.append("panther.metrics.pytest_plugin")
     except ImportError:
-        # Plugin not available, skip loading
         pass
+
+try:
+    import nicegui.testing.screen_plugin
+
+    pytest_plugins.append("nicegui.testing.screen_plugin")
+except ImportError:
+    pass
 
 
 # ===== PYTEST CONFIGURATION =====
@@ -148,7 +155,23 @@ def sample_experiment_config():
                 "generate_new_certificates": False,
                 "volumes": [],
                 "directories_to_start": [],
-            }
+            },
+            "server": {
+                "name": "server",
+                "timeout": 100,
+                "implementation": {
+                    "name": "test_impl",
+                    "type": "iut",
+                },
+                "protocol": {
+                    "name": "test_protocol",
+                    "version": "1.0",
+                    "role": "server",
+                },
+                "ports": [],
+                "generate_new_certificates": False,
+                "volumes": [],
+            },
         },
         "steps": None,
         "assertions": None,
@@ -203,11 +226,24 @@ def valid_experiment_cfg_dict():
                             "name": "test_protocol",
                             "version": "1.0",
                             "role": "client",
+                            "target": "test_server",
                         },
                         "ports": [8080, 8081],
                         "timeout": 30,
                         "generate_new_certificates": False,
-                    }
+                    },
+                    "test_server": {
+                        "name": "test_server",
+                        "implementation": {"name": "test_impl", "type": "iut"},
+                        "protocol": {
+                            "name": "test_protocol",
+                            "version": "1.0",
+                            "role": "server",
+                        },
+                        "ports": [8082],
+                        "timeout": 30,
+                        "generate_new_certificates": False,
+                    },
                 },
                 "steps": {"wait": 10, "record_pcap": True},
                 "assertions": [
@@ -915,6 +951,12 @@ def pytest_addoption(parser):
         action="store_true",
         default=False,
         help="run tests that require Docker",
+    )
+    parser.addoption(
+        "--headed",
+        action="store_true",
+        default=False,
+        help="Run browser tests with visible Chrome window",
     )
 
 

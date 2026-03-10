@@ -157,7 +157,8 @@ class ExperimentService:
                 # 4. Use context manager for proper cleanup
                 with ExperimentManager(
                     global_config=global_config,
-                    experiment_name=config_dict.get("name", "web_experiment"),
+                    experiment_name=(config_dict.get("metadata") or {}).get("name")
+                    or "web_experiment",
                 ) as manager:
                     # Register web observer with EventManager as global observer
                     event_manager = get_event_manager()

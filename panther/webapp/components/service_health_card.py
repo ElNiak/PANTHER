@@ -9,7 +9,8 @@ def service_health_card(service: dict):
     """Card showing service name, status badge, exit code, error summary.
 
     Args:
-        service: Dict with keys: service_name, service_type, status, exit_code, error_summary
+        service: Dict with keys: service_name, service_type, status, exit_code,
+                 error_summary, and optionally test_name.
     """
     with ui.card().classes("w-full q-pa-sm"):
         with ui.row().classes("items-center gap-2"):
@@ -17,6 +18,11 @@ def service_health_card(service: dict):
             status_badge(service.get("status", "unknown"))
 
         with ui.column().classes("gap-1 q-mt-xs"):
+            test_name = service.get("test_name")
+            if test_name:
+                ui.badge(test_name, color="blue-grey").props("outline").classes(
+                    "text-caption q-mb-xs"
+                )
             ui.label(f"Type: {service.get('service_type', 'N/A')}").classes(
                 "text-caption text-grey-7"
             )

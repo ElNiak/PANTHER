@@ -10,10 +10,10 @@ class YamlEditor:
     """CodeMirror-based YAML editor with form synchronization.
 
     Provides a YAML text editor that can sync bi-directionally with
-    a Pydantic model / NiceCRUD form.
+    a Pydantic model / PydanticForm.
     """
 
-    def __init__(
+    def __init__(  # noqa: D107
         self,
         initial_value: str = "",
         on_change: Optional[Callable[[str], None]] = None,
@@ -29,7 +29,7 @@ class YamlEditor:
             self.editor.on_value_change(lambda e: on_change(e.value))
 
     @property
-    def value(self) -> str:
+    def value(self) -> str:  # noqa: D102
         return self.editor.value
 
     @value.setter

@@ -139,7 +139,7 @@ def list_available_plugins(plugin_type: str | None = None) -> list[dict[str, str
     try:
         from panther.plugins.core.plugin_discovery import PluginDiscovery
 
-        PluginDiscovery.discover_plugins()
+        PluginDiscovery().discover_plugins()
     except Exception:
         logger.debug("Plugin discovery failed", exc_info=True)
 
@@ -174,6 +174,12 @@ def list_available_plugins(plugin_type: str | None = None) -> list[dict[str, str
 def get_protocol_choices() -> list[str]:
     """Return available protocol names from the decorator registry."""
     try:
+        from panther.plugins.core.plugin_discovery import PluginDiscovery
+
+        PluginDiscovery().discover_plugins()
+    except Exception:
+        logger.debug("Plugin discovery failed", exc_info=True)
+    try:
         from panther.plugins.core.plugin_decorators import get_decorated_plugins
 
         protocols: set[str] = set()
@@ -186,11 +192,32 @@ def get_protocol_choices() -> list[str]:
         return []
 
 
-def get_implementation_choices(protocol: str | None = None) -> list[str]:
-    """Return implementation names, optionally filtered by protocol."""
+def get_implementation_choices(
+    protocol: str | None = None, service_type: str | None = None
+) -> list[str]:
+    """Return implementation names, optionally filtered by protocol and service type.
+
+    Args:
+        protocol: Filter to implementations supporting this protocol.
+        service_type: Filter by plugin type (``"iut"`` or ``"tester"``).
+            When ``None``, returns both IUT and tester implementations.
+    """
+    try:
+        from panther.plugins.core.plugin_discovery import PluginDiscovery
+
+        PluginDiscovery().discover_plugins()
+    except Exception:
+        logger.debug("Plugin discovery failed", exc_info=True)
     try:
         from panther.plugins.core.plugin_decorators import get_decorated_plugins
 
+        _config_to_plugin_type = {"testers": "tester"}
+        normalized = (
+            _config_to_plugin_type.get(service_type, service_type)
+            if service_type
+            else None
+        )
+        allowed_types = {normalized} if normalized else {"iut", "tester"}
         names: list[str] = []
         for _, (_cls, manifest) in get_decorated_plugins().items():
             ptype = (
@@ -198,7 +225,7 @@ def get_implementation_choices(protocol: str | None = None) -> list[str]:
                 if hasattr(manifest.type, "value")
                 else str(manifest.type)
             )
-            if ptype != "iut":
+            if ptype not in allowed_types:
                 continue
             if protocol:
                 supported = getattr(manifest, "supported_protocols", [])
@@ -208,4 +235,23 @@ def get_implementation_choices(protocol: str | None = None) -> list[str]:
         return sorted(names)
     except Exception:
         logger.warning("Failed to get implementation choices", exc_info=True)
+        return []
+
+
+def get_version_choices(protocol_name: str) -> list[str]:
+    """Return supported versions for a protocol from the protocol registry."""
+    try:
+        from panther.plugins.core.plugin_discovery import PluginDiscovery
+
+        PluginDiscovery().discover_plugins()
+    except Exception:
+        logger.debug("Plugin discovery failed", exc_info=True)
+    try:
+        from panther.plugins.core.plugin_decorators import get_protocol_versions
+
+        return get_protocol_versions(protocol_name)
+    except Exception:
+        logger.warning(
+            "Failed to get version choices for %s", protocol_name, exc_info=True
+        )
         return []

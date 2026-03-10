@@ -6,8 +6,10 @@ from collections import defaultdict
 from nicegui import app, ui
 
 from panther.webapp.components.error_boundary import error_boundary
+from panther.webapp.components.event_viewer import event_viewer
 from panther.webapp.components.service_health_card import service_health_card
 from panther.webapp.components.stat_cards import stat_card
+from panther.webapp.components.test_detail_panel import test_detail_panel
 from panther.webapp.services.results_service import ResultsService
 
 logger = logging.getLogger(__name__)
@@ -199,14 +201,20 @@ def _show_detail(dialog: ui.dialog, results_svc: ResultsService, row: dict):
             else:
                 with ui.tabs().classes("w-full") as tabs:
                     summary_tab = ui.tab("Summary", icon="analytics")
+                    tests_tab = ui.tab("Tests", icon="science")
                     logs_tab = ui.tab("Logs", icon="terminal")
+                    events_tab = ui.tab("Events", icon="event")
                     artifacts_tab = ui.tab("Artifacts", icon="folder_open")
 
                 with ui.tab_panels(tabs, value=summary_tab).classes("w-full"):
                     with ui.tab_panel(summary_tab):
                         _render_summary_tab(results_svc, detail, exp_path)
+                    with ui.tab_panel(tests_tab):
+                        _render_tests_tab(results_svc, exp_path)
                     with ui.tab_panel(logs_tab):
                         _render_logs_tab(results_svc, exp_path)
+                    with ui.tab_panel(events_tab):
+                        _render_events_tab(results_svc, exp_path)
                     with ui.tab_panel(artifacts_tab):
                         _render_artifacts_tab(detail)
 
@@ -214,7 +222,7 @@ def _show_detail(dialog: ui.dialog, results_svc: ResultsService, row: dict):
 
 
 def _render_summary_tab(results_svc: ResultsService, detail: dict, exp_path: str):
-    """Summary tab: aggregate stats, bar chart, service health, report."""
+    """Summary tab: aggregate stats, bar chart, service health grouped by test, report."""
     # Aggregate stats
     with error_boundary("Aggregate Stats"):
         stats = results_svc.get_aggregate_stats(exp_path) if exp_path else {}
@@ -280,27 +288,153 @@ def _render_summary_tab(results_svc: ResultsService, detail: dict, exp_path: str
                 ]
             ui.echart(chart_opts).classes("w-full").style("height: 400px")
 
-    # Service health — collapsible when many services
+    # Service health — grouped by test
     with error_boundary("Service Health"):
         services = results_svc.get_service_health(exp_path) if exp_path else []
         if services:
-            with ui.expansion(
-                f"Service Health ({len(services)})",
-                icon="health_and_safety",
-                value=len(services) <= 6,
-            ).classes("w-full q-mt-md"):
-                with ui.row().classes("w-full gap-3 flex-wrap"):
-                    for svc in services:
-                        with ui.element("div").classes(
-                            "col-12 col-sm-6 col-md-4 col-lg-3"
-                        ):
-                            service_health_card(svc)
+            _render_grouped_services(services)
 
     # Report markdown
     with error_boundary("Report"):
         if detail.get("report_content"):
             ui.label("Report").classes("text-subtitle1 q-mt-md q-mb-sm")
             ui.markdown(detail["report_content"])
+
+
+def _render_grouped_services(services: list[dict]):
+    """Group service health cards by test_name, with expansion panels."""
+    grouped: dict[str, list[dict]] = defaultdict(list)
+    for svc in services:
+        test_name = svc.get("test_name", "")
+        grouped[test_name].append(svc)
+
+    # If no test_name grouping, show flat
+    if len(grouped) == 1 and "" in grouped:
+        with ui.expansion(
+            f"Service Health ({len(services)})",
+            icon="health_and_safety",
+            value=len(services) <= 6,
+        ).classes("w-full q-mt-md"):
+            with ui.row().classes("w-full gap-3 flex-wrap"):
+                for svc in services:
+                    with ui.element("div").classes("col-12 col-sm-6 col-md-4 col-lg-3"):
+                        service_health_card(svc)
+        return
+
+    with ui.expansion(
+        f"Service Health ({len(services)} services, {len(grouped)} tests)",
+        icon="health_and_safety",
+        value=len(grouped) <= 4,
+    ).classes("w-full q-mt-md"):
+        for test_name, test_services in sorted(grouped.items()):
+            label = test_name if test_name else "Ungrouped"
+            with ui.expansion(
+                f"{label} ({len(test_services)})", icon="science"
+            ).classes("w-full q-ml-md"):
+                with ui.row().classes("w-full gap-3 flex-wrap"):
+                    for svc in test_services:
+                        with ui.element("div").classes(
+                            "col-12 col-sm-6 col-md-4 col-lg-3"
+                        ):
+                            service_health_card(svc)
+
+
+def _render_tests_tab(results_svc: ResultsService, exp_path: str):
+    """Tests tab: list of tests with drill-down panel."""
+    with error_boundary("Tests"):
+        tests = results_svc.list_tests(exp_path) if exp_path else []
+        if not tests:
+            ui.label("No tests found.").classes("text-grey-7")
+            return
+
+        # Tests table
+        test_columns = [
+            {
+                "name": "name",
+                "label": "Test Name",
+                "field": "name",
+                "sortable": True,
+                "align": "left",
+            },
+            {
+                "name": "status",
+                "label": "Status",
+                "field": "status",
+                "sortable": True,
+                "align": "center",
+            },
+            {
+                "name": "duration",
+                "label": "Duration (s)",
+                "field": "duration",
+                "sortable": True,
+                "align": "center",
+            },
+            {
+                "name": "services",
+                "label": "Services",
+                "field": "service_count",
+                "align": "center",
+            },
+            {
+                "name": "events",
+                "label": "Events",
+                "field": "has_events",
+                "align": "center",
+            },
+            {
+                "name": "analysis",
+                "label": "Analysis",
+                "field": "has_analysis",
+                "align": "center",
+            },
+        ]
+        test_rows = [
+            {
+                "name": t["name"],
+                "status": t.get("status", "unknown"),
+                "duration": f"{t['duration']:.1f}" if t.get("duration") else "-",
+                "service_count": t.get("service_count", 0),
+                "has_events": "Yes" if t.get("has_events") else "-",
+                "has_analysis": "Yes" if t.get("has_analysis") else "-",
+            }
+            for t in tests
+        ]
+
+        test_table = ui.table(
+            columns=test_columns,
+            rows=test_rows,
+            row_key="name",
+            pagination={"rowsPerPage": 10, "sortBy": "name"},
+        ).classes("w-full")
+
+        # Status badge slot
+        test_table.add_slot(
+            "body-cell-status",
+            r"""
+            <q-td :props="props">
+                <q-badge
+                    :color="{'completed': 'green', 'passed': 'green', 'failed': 'red',
+                              'running': 'amber', 'unknown': 'grey'}[props.value] || 'grey'"
+                    :label="props.value"
+                    class="text-capitalize"
+                />
+            </q-td>
+            """,
+        )
+
+        # Detail panel container (rendered below the table when a test is clicked)
+        detail_container = ui.column().classes("w-full q-mt-md")
+
+        def _on_test_click(e):
+            row = e.args[1]
+            test_name = row["name"]
+            detail_container.clear()
+            with detail_container:
+                ui.separator().classes("q-my-sm")
+                test_detail_panel(results_svc, exp_path, test_name)
+
+        test_table.on("rowClick", _on_test_click)
 
 
 def _render_logs_tab(results_svc: ResultsService, exp_path: str):
@@ -333,29 +467,50 @@ def _render_logs_tab(results_svc: ResultsService, exp_path: str):
         log_filter.on_value_change(lambda _: _on_filter_change())
 
 
+def _render_events_tab(results_svc: ResultsService, exp_path: str):
+    """Events tab: experiment-level events."""
+    with error_boundary("Experiment Events"):
+        events = results_svc.get_experiment_events(exp_path) if exp_path else []
+        if not events:
+            ui.label("No experiment events found.").classes("text-grey-7")
+            return
+        event_viewer(events)
+
+
 def _render_artifacts_tab(detail: dict):
-    """Artifacts tab: grouped by file extension with expansion panels."""
+    """Artifacts tab: organized by test directory, then by extension."""
     with error_boundary("Artifacts"):
         artifacts = detail.get("artifacts", [])
         if not artifacts:
             ui.label("No artifacts found").classes("text-grey-7")
             return
 
-        # Group by extension
-        grouped = defaultdict(list)
+        # Group by test_name first
+        by_test: dict[str, list[dict]] = defaultdict(list)
         for artifact in artifacts:
-            name = artifact["name"]
-            ext = "." + name.rsplit(".", 1)[-1] if "." in name else "(no ext)"
-            grouped[ext].append(artifact)
+            test_name = artifact.get("test_name", "")
+            by_test[test_name].append(artifact)
 
-        for ext, items in sorted(grouped.items()):
-            icon = _ARTIFACT_ICONS.get(ext, "insert_drive_file")
-            with ui.expansion(f"{ext} files ({len(items)})", icon=icon).classes(
-                "w-full"
-            ):
-                for artifact in items:
-                    with ui.row().classes("items-center gap-2 q-py-xs"):
-                        ui.icon(icon, size="sm").classes("text-grey-7")
-                        ui.link(artifact["name"], target=artifact["path"]).classes(
-                            "text-body2"
-                        )
+        for test_name in sorted(by_test.keys()):
+            test_artifacts = by_test[test_name]
+            label = test_name if test_name else "Experiment-level"
+
+            # Group by extension within each test
+            by_ext: dict[str, list[dict]] = defaultdict(list)
+            for a in test_artifacts:
+                name = a["name"]
+                ext = "." + name.rsplit(".", 1)[-1] if "." in name else "(no ext)"
+                by_ext[ext].append(a)
+
+            with ui.expansion(
+                f"{label} ({len(test_artifacts)} files)", icon="folder"
+            ).classes("w-full"):
+                for ext, items in sorted(by_ext.items()):
+                    icon = _ARTIFACT_ICONS.get(ext, "insert_drive_file")
+                    with ui.expansion(f"{ext} ({len(items)})", icon=icon).classes(
+                        "w-full q-ml-md"
+                    ):
+                        for artifact in items:
+                            with ui.row().classes("items-center gap-2 q-py-xs"):
+                                ui.icon(icon, size="sm").classes("text-grey-7")
+                                ui.label(artifact["name"]).classes("text-body2")

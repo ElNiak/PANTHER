@@ -22,6 +22,7 @@ class ComplexFieldInfo(NamedTuple):
     annotation: Any  # raw type annotation
     value_type: type  # inner type (str, ServiceConfig, etc.)
     description: str  # from Pydantic Field
+    json_schema_extra: dict | None = None  # pass-through from Pydantic Field
 
 
 # ── UI metadata for GlobalConfig sections ────────────────────────────
@@ -88,11 +89,17 @@ def get_complex_fields(model_cls: type[BaseModel]) -> dict[str, ComplexFieldInfo
         if category is None:
             continue
         value_type = _extract_inner_type(field_info.annotation)
+        extra = (
+            field_info.json_schema_extra
+            if isinstance(field_info.json_schema_extra, dict)
+            else None
+        )
         result[name] = ComplexFieldInfo(
             category=category,
             annotation=field_info.annotation,
             value_type=value_type,
             description=field_info.description or "",
+            json_schema_extra=extra,
         )
     return result
 

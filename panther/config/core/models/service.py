@@ -120,7 +120,7 @@ class ProtocolConfig(BaseConfig):
         min_length=1,
         description="Protocol name",
         examples=["quic", "http", "minip"],
-        json_schema_extra={"category": "protocol"},
+        json_schema_extra={"widget_type": "protocol_select"},
     )
     version: Optional[str] = Field(None, description="Protocol version")
     role: ProtocolRole = Field(..., description="Protocol role")
@@ -185,7 +185,7 @@ class ImplementationConfig(BaseConfig):
         min_length=1,
         description="Implementation name",
         examples=["picoquic", "aioquic", "quiche"],
-        json_schema_extra={"category": "implementation"},
+        json_schema_extra={"widget_type": "implementation_select"},
     )
     type: ImplementationType = Field(..., description="Implementation type")
     version: Optional[str] = Field(None, description="Implementation version")
@@ -293,9 +293,21 @@ class ServiceConfig(BaseConfig):
     )
 
     # Service build/docker fields
-    docker_image: Optional[str] = Field(None, description="Docker image name")
-    build_from_source: bool = Field(True, description="Build from source")
-    source_repository: Optional[str] = Field(None, description="Source repository URL")
+    docker_image: Optional[str] = Field(
+        None,
+        description="Docker image name",
+        json_schema_extra={"category": "docker", "advanced": True},
+    )
+    build_from_source: bool = Field(
+        True,
+        description="Build from source",
+        json_schema_extra={"category": "docker", "advanced": True},
+    )
+    source_repository: Optional[str] = Field(
+        None,
+        description="Source repository URL",
+        json_schema_extra={"category": "docker", "advanced": True},
+    )
 
     # Allow extra fields for service-specific parameters
 

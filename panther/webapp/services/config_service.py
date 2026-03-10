@@ -141,6 +141,95 @@ class ConfigService:
                 )
         return results
 
+    def list_configs_recursive(self, root=None) -> list[dict]:
+        """Recursively list all YAML configs under experiment-config/.
+
+        Returns [{name, path, modified, category, summary}].
+        summary = {test_count, test_names, services, protocols, environment}
+        """
+        if root is None:
+            root = _PROJECT_ROOT / "experiment-config"
+        root = Path(root)
+        if not root.exists():
+            return []
+        results = []
+        yaml_files = sorted(
+            f for f in root.rglob("*") if f.is_file() and f.suffix in (".yaml", ".yml")
+        )
+        for f in yaml_files:
+            category = str(f.parent.relative_to(root))
+            if category == ".":
+                category = ""
+            summary = self._extract_config_summary(f)
+            results.append(
+                {
+                    "name": f.name,
+                    "path": str(f),
+                    "modified": datetime.fromtimestamp(f.stat().st_mtime),
+                    "category": category,
+                    "summary": summary,
+                }
+            )
+        return results
+
+    @staticmethod
+    def _extract_config_summary(path: Path) -> dict:
+        """Extract a lightweight summary from a config YAML file."""
+        try:
+            data = yaml.safe_load(path.read_text())
+        except Exception:
+            return {
+                "test_count": 0,
+                "test_names": [],
+                "services": [],
+                "protocols": [],
+                "environment": "",
+            }
+        if not isinstance(data, dict):
+            return {
+                "test_count": 0,
+                "test_names": [],
+                "services": [],
+                "protocols": [],
+                "environment": "",
+            }
+        tests = data.get("tests", [])
+        if not isinstance(tests, list):
+            return {
+                "test_count": 0,
+                "test_names": [],
+                "services": [],
+                "protocols": [],
+                "environment": "",
+            }
+
+        test_names = []
+        all_services = []
+        all_protocols = set()
+        environment = ""
+        for t in tests:
+            if not isinstance(t, dict):
+                continue
+            test_names.append(t.get("name", "unnamed"))
+            net_env = t.get("network_environment", {})
+            if isinstance(net_env, dict) and not environment:
+                environment = net_env.get("type", "")
+            services = t.get("services", {})
+            if isinstance(services, dict):
+                for svc_name, svc in services.items():
+                    all_services.append(svc_name)
+                    if isinstance(svc, dict):
+                        proto = svc.get("protocol", {})
+                        if isinstance(proto, dict) and proto.get("name"):
+                            all_protocols.add(proto["name"])
+        return {
+            "test_count": len(tests),
+            "test_names": test_names,
+            "services": list(dict.fromkeys(all_services)),  # unique, order-preserving
+            "protocols": sorted(all_protocols),
+            "environment": environment,
+        }
+
     def validate_config_detailed(self, data: dict) -> list["FieldError"]:
         """Field-level validation against Pydantic models.
 
@@ -163,6 +252,127 @@ class ConfigService:
                     severity="warning",
                 )
             )
+
+        # Validate individual tests: service count, types, and roles
+        if isinstance(tests, list):
+            for i, test in enumerate(tests):
+                if not isinstance(test, dict):
+                    continue
+                test_name = test.get("name", f"test[{i}]")
+                services = test.get("services")
+                if not isinstance(services, dict):
+                    continue
+
+                # Rule 1: Min 2 services (ERROR)
+                if len(services) < 2:
+                    errors.append(
+                        FieldError(
+                            path=f"tests[{i}].services",
+                            message=(
+                                f"Test '{test_name}' has {len(services)} service(s);"
+                                " at least 2 required."
+                            ),
+                            severity="error",
+                        )
+                    )
+
+                # Collect implementation types and roles
+                impl_types: set[str] = set()
+                roles: set[str] = set()
+                for svc in services.values():
+                    if isinstance(svc, dict):
+                        impl = svc.get("implementation", {})
+                        if isinstance(impl, dict):
+                            t = impl.get("type", "").lower()
+                            if t:
+                                impl_types.add(t)
+                        proto = svc.get("protocol", {})
+                        if isinstance(proto, dict):
+                            r = proto.get("role", "").lower()
+                            if r:
+                                roles.add(r)
+
+                # Rule 2: No tester service (WARNING)
+                if "testers" not in impl_types:
+                    errors.append(
+                        FieldError(
+                            path=f"tests[{i}].services",
+                            message=f"Test '{test_name}' has no tester service.",
+                            severity="warning",
+                        )
+                    )
+
+                # Rule 5: No IUT service (WARNING)
+                if "iut" not in impl_types:
+                    errors.append(
+                        FieldError(
+                            path=f"tests[{i}].services",
+                            message=f"Test '{test_name}' has no IUT service.",
+                            severity="warning",
+                        )
+                    )
+
+                # Rule 3: Missing role counterpart (WARNING)
+                if "client" in roles and "server" not in roles:
+                    errors.append(
+                        FieldError(
+                            path=f"tests[{i}].services",
+                            message=(
+                                f"Test '{test_name}' has client(s) but no server."
+                            ),
+                            severity="warning",
+                        )
+                    )
+                if "server" in roles and "client" not in roles:
+                    errors.append(
+                        FieldError(
+                            path=f"tests[{i}].services",
+                            message=(
+                                f"Test '{test_name}' has server(s) but no client."
+                            ),
+                            severity="warning",
+                        )
+                    )
+
+                # Rule 4: Client without valid target (WARNING)
+                for svc_name, svc in services.items():
+                    if not isinstance(svc, dict):
+                        continue
+                    proto = svc.get("protocol", {})
+                    if not isinstance(proto, dict):
+                        continue
+                    if proto.get("role", "").lower() != "client":
+                        continue
+                    target = proto.get("target")
+                    if not target:
+                        errors.append(
+                            FieldError(
+                                path=f"tests[{i}].services.{svc_name}.protocol.target",
+                                message=(
+                                    f"Client '{svc_name}' has no target specified."
+                                ),
+                                severity="warning",
+                            )
+                        )
+                    elif target in services:
+                        target_svc = services[target]
+                        if isinstance(target_svc, dict):
+                            target_proto = target_svc.get("protocol", {})
+                            if isinstance(target_proto, dict):
+                                target_role = target_proto.get("role", "").lower()
+                                if target_role != "server":
+                                    errors.append(
+                                        FieldError(
+                                            path=f"tests[{i}].services.{svc_name}.protocol.target",
+                                            message=(
+                                                f"Client '{svc_name}' targets"
+                                                f" '{target}'"
+                                                f" (role='{target_role}',"
+                                                " expected 'server')."
+                                            ),
+                                            severity="warning",
+                                        )
+                                    )
 
         logging_data = data.get("logging")
         if logging_data and isinstance(logging_data, dict):

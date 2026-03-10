@@ -340,6 +340,8 @@ class BusinessRulesValidator(BaseValidator):
         Returns:
             Validation result
         """
+        from panther.config.core.models.service import ImplementationType, ProtocolRole
+
         result = ValidationResult()
 
         # Check timeout vs wait time
@@ -350,15 +352,95 @@ class BusinessRulesValidator(BaseValidator):
                     f"Wait time ({test.steps.wait}s) exceeds test timeout ({test.timeout}s)",
                 )
 
-        # Validate service dependencies
+        # Validate services
         if hasattr(test, "services"):
             services = test.services
+
+            # Rule 1: At least 2 services (ERROR)
+            if len(services) < 2:
+                result.add_error(
+                    "services",
+                    f"At least 2 services must be defined (found {len(services)}). "
+                    "A test typically requires an IUT and a tester/counterpart service.",
+                )
+
+            # Collect implementation types and protocol roles
+            impl_types = set()
+            roles = set()
+            for svc in services.values():
+                impl_type = getattr(getattr(svc, "implementation", None), "type", None)
+                if impl_type:
+                    impl_types.add(impl_type)
+                role = getattr(getattr(svc, "protocol", None), "role", None)
+                if role:
+                    roles.add(role)
+
+            # Rule 2: No tester service (WARNING)
+            if ImplementationType.TESTERS.value not in impl_types:
+                result.add_warning(
+                    "services",
+                    "No tester service defined. Consider adding a service with "
+                    "implementation.type='testers' for formal verification.",
+                )
+
+            # Rule 5: No IUT service (WARNING)
+            if ImplementationType.IUT.value not in impl_types:
+                result.add_warning(
+                    "services",
+                    "No IUT service defined. Consider adding a service with "
+                    "implementation.type='iut' as the implementation under test.",
+                )
+
+            # Rule 3: Missing role counterpart (WARNING)
+            has_client = ProtocolRole.CLIENT.value in roles
+            has_server = ProtocolRole.SERVER.value in roles
+            if has_client and not has_server:
+                result.add_warning(
+                    "services",
+                    "Client service(s) defined but no server service. "
+                    "Client-server tests need at least one service with role='server'.",
+                )
+            if has_server and not has_client:
+                result.add_warning(
+                    "services",
+                    "Server service(s) defined but no client service. "
+                    "Client-server tests need at least one service with role='client'.",
+                )
+
+            # Validate service dependencies and targets
             for service_name, service in services.items():
                 if hasattr(service.protocol, "target") and service.protocol.target:
                     if service.protocol.target not in services:
                         result.add_error(
                             f"services.{service_name}.protocol.target",
                             f"Target service '{service.protocol.target}' not found",
+                        )
+                    else:
+                        # Rule 4: Client targeting non-server (WARNING)
+                        target_role = getattr(
+                            getattr(
+                                services[service.protocol.target], "protocol", None
+                            ),
+                            "role",
+                            None,
+                        )
+                        role = getattr(getattr(service, "protocol", None), "role", None)
+                        if (
+                            role == ProtocolRole.CLIENT.value
+                            and target_role != ProtocolRole.SERVER.value
+                        ):
+                            result.add_warning(
+                                f"services.{service_name}.protocol.target",
+                                f"Client '{service_name}' targets '{service.protocol.target}' "
+                                f"which has role='{target_role}', expected role='server'.",
+                            )
+                else:
+                    # Rule 4: Client without target (WARNING)
+                    role = getattr(getattr(service, "protocol", None), "role", None)
+                    if role == ProtocolRole.CLIENT.value:
+                        result.add_warning(
+                            f"services.{service_name}.protocol.target",
+                            f"Client service '{service_name}' has no target specified.",
                         )
 
         return result

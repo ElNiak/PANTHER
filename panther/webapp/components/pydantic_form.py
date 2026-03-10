@@ -20,6 +20,7 @@ from typing import Any, Callable, Literal, Union, get_args, get_origin
 
 from nicegui import ui
 from pydantic import BaseModel
+from pydantic_core import PydanticUndefined
 
 from panther.webapp.components.dict_list_widgets import create_widget_for_field
 from panther.webapp.utils.form_models import (
@@ -57,6 +58,9 @@ class FormConfig:
 
     css_prefix: str = "pf"
     """CSS class prefix — all elements get ``{prefix}-*`` classes."""
+
+    exclude_fields: frozenset[str] = frozenset()
+    """Field names to skip when rendering (used for plugin sub-forms)."""
 
 
 # ── Internal binding ─────────────────────────────────────────────────
@@ -97,6 +101,7 @@ class PydanticForm:
         self._model_cls = model_cls
         self._config = config or FormConfig()
         self._field_bindings: dict[str, FieldBinding] = {}
+        self._plugin_sub_forms: dict[str, dict[str, PydanticForm | None]] = {}
         self._prefix = self._config.css_prefix
 
         # Resolve initial data
@@ -131,14 +136,21 @@ class PydanticForm:
                 raw[name] = binding.widget.get_value()
             else:
                 raw[name] = binding.getter()
+
+        # Merge plugin sub-form values into raw dict
+        for _field_name, ref in self._plugin_sub_forms.items():
+            sub = ref.get("form")
+            if sub is not None:
+                raw.update(sub.get_value())
+
         try:
             validated = self._model_cls(**raw)
             return validated.model_dump(mode="json")
         except Exception:
-            logger.warning(
+            logger.debug(
                 "Validation failed for %s, returning raw values",
                 self._model_cls.__name__,
-                exc_info=True,
+                exc_info=False,
             )
             return raw
 
@@ -158,6 +170,12 @@ class PydanticForm:
             else:
                 binding.setter(value)
 
+        # Propagate to plugin sub-forms (they pick their own fields)
+        for _field_name, ref in self._plugin_sub_forms.items():
+            sub = ref.get("form")
+            if sub is not None:
+                sub.set_value(data)
+
     # ── Rendering ────────────────────────────────────────────────────
 
     def _render(self) -> None:
@@ -171,6 +189,8 @@ class PydanticForm:
         regular_names: list[str] = []
 
         for name, finfo in model_fields.items():
+            if name in self._config.exclude_fields:
+                continue
             extra = finfo.json_schema_extra or {}
             if (
                 isinstance(extra, dict)
@@ -230,6 +250,8 @@ class PydanticForm:
         """Dispatch to the appropriate renderer based on type annotation."""
         annotation = field_info.annotation
         default = self._initial.get(name, field_info.default)
+        if default is PydanticUndefined:
+            default = None
         extra = field_info.json_schema_extra or {}
 
         # Unwrap Optional[T]
@@ -255,8 +277,8 @@ class PydanticForm:
                 self._render_nested_model(name, inner, field_info, default)
             return
 
-        # list[str] / list[int]
-        if get_origin(inner) is list:
+        # list[str] / list[int] / bare list
+        if inner is list or get_origin(inner) is list:
             args = get_args(inner)
             elem = args[0] if args else str
             if not (isinstance(elem, type) and issubclass(elem, BaseModel)):
@@ -264,6 +286,21 @@ class PydanticForm:
                 return
 
         # Specialized widget_type
+        if isinstance(extra, dict) and extra.get("widget_type") == "protocol_select":
+            self._render_protocol_select(name, field_info, default)
+            return
+
+        if (
+            isinstance(extra, dict)
+            and extra.get("widget_type") == "implementation_select"
+        ):
+            self._render_implementation_select(name, field_info, default)
+            return
+
+        if isinstance(extra, dict) and extra.get("widget_type") == "plugin_select":
+            self._render_plugin_select(name, field_info, default, extra)
+            return
+
         if isinstance(extra, dict) and extra.get("widget_type") == "port":
             self._render_port(name, field_info, default, extra)
             return
@@ -301,21 +338,31 @@ class PydanticForm:
 
     def _render_number(self, name, field_info, default, step: int | float = 1):
         label = name.replace("_", " ").title()
-        val = default if isinstance(default, (int, float)) else 0
         extra = field_info.json_schema_extra or {}
         metadata = field_info.metadata or []
 
         # Extract ge/le from Pydantic metadata
         kwargs: dict[str, Any] = {"step": step}
+        min_val = None
         for m in metadata:
             if hasattr(m, "ge") and m.ge is not None:
                 kwargs["min"] = m.ge
+                min_val = m.ge
             if hasattr(m, "le") and m.le is not None:
                 kwargs["max"] = m.le
             if hasattr(m, "gt") and m.gt is not None:
                 kwargs["min"] = m.gt + step
+                min_val = m.gt + step
             if hasattr(m, "lt") and m.lt is not None:
                 kwargs["max"] = m.lt - step
+
+        # Default: use provided default, else min constraint, else 0
+        if isinstance(default, (int, float)):
+            val = default
+        elif min_val is not None:
+            val = min_val
+        else:
+            val = 0
 
         with ui.row().classes(f"w-full items-center {self._prefix}-field"):
             inp = ui.number(label, value=val, **kwargs).classes(
@@ -418,6 +465,110 @@ class PydanticForm:
             field_type="scalar",
         )
 
+    def _render_protocol_select(self, name, field_info, default):
+        """Render a dropdown of available protocol names from the registry."""
+        label = name.replace("_", " ").title()
+        from panther.webapp.utils.plugin_forms import get_protocol_choices
+
+        options = get_protocol_choices()
+        val = default if default in options else (options[0] if options else "")
+        with ui.row().classes(f"w-full items-center {self._prefix}-field"):
+            sel = ui.select(options, value=val, label=label).classes(
+                f"flex-grow {self._prefix}-field-enum"
+            )
+            if field_info.description:
+                sel.tooltip(field_info.description)
+        self._field_bindings[name] = FieldBinding(
+            getter=lambda s=sel: s.value,
+            setter=lambda v, s=sel: setattr(s, "value", v),
+            field_type="scalar",
+        )
+
+    def _render_implementation_select(self, name, field_info, default):
+        """Render a dropdown of available implementation names from the registry."""
+        label = name.replace("_", " ").title()
+        from panther.webapp.utils.plugin_forms import get_implementation_choices
+
+        options = get_implementation_choices()
+        val = default if default in options else (options[0] if options else "")
+        with ui.row().classes(f"w-full items-center {self._prefix}-field"):
+            sel = ui.select(options, value=val, label=label).classes(
+                f"flex-grow {self._prefix}-field-enum"
+            )
+            if field_info.description:
+                sel.tooltip(field_info.description)
+        self._field_bindings[name] = FieldBinding(
+            getter=lambda s=sel: s.value,
+            setter=lambda v, s=sel: setattr(s, "value", v),
+            field_type="scalar",
+        )
+
+    def _render_plugin_select(self, name, field_info, default, extra):
+        """Render a dropdown populated from the plugin registry.
+
+        When the user selects a plugin, a sub-form is rendered below the
+        dropdown showing the plugin-specific config fields (excluding
+        fields already present on the parent model).
+        """
+        label = name.replace("_", " ").title()
+        plugin_type = extra.get("plugin_type", "")
+
+        from panther.webapp.utils.plugin_forms import (
+            get_plugin_form_info,
+            list_available_plugins,
+        )
+
+        plugins = list_available_plugins(plugin_type=plugin_type)
+        options = [p["name"] for p in plugins]
+        val = default if default in options else (options[0] if options else "")
+
+        # Track the plugin sub-form
+        sub_form_ref: dict[str, PydanticForm | None] = {"form": None}
+        parent_fields = set(self._model_cls.model_fields.keys())
+
+        def _load_plugin_form(plugin_name):
+            sub_container.clear()
+            sub_form_ref["form"] = None
+            if not plugin_name:
+                return
+            info = get_plugin_form_info(plugin_name)
+            if info is None or info.config_model is None:
+                return
+            sub_config = FormConfig(
+                exclude_fields=frozenset(parent_fields),
+                css_prefix=self._prefix,
+            )
+            with sub_container:
+                sub_form_ref["form"] = PydanticForm(
+                    info.config_model, config=sub_config
+                )
+
+        with ui.column().classes(f"w-full {self._prefix}-field"):
+            with ui.row().classes("w-full items-center"):
+                sel = ui.select(
+                    options,
+                    value=val,
+                    label=label,
+                    on_change=lambda e: _load_plugin_form(e.value),
+                ).classes(f"flex-grow {self._prefix}-field-enum")
+                if field_info.description:
+                    sel.tooltip(field_info.description)
+            sub_container = ui.column().classes("w-full q-pl-md")
+
+        if val:
+            _load_plugin_form(val)
+
+        def _type_setter(v):
+            sel.value = v
+            _load_plugin_form(v)
+
+        self._field_bindings[name] = FieldBinding(
+            getter=lambda s=sel: s.value,
+            setter=_type_setter,
+            field_type="scalar",
+        )
+        self._plugin_sub_forms[name] = sub_form_ref
+
     # ── Nested model renderers ───────────────────────────────────────
 
     def _render_nested_model(self, name, model_cls, field_info, default):
@@ -460,32 +611,44 @@ class PydanticForm:
             else (default.model_dump() if isinstance(default, BaseModel) else None)
         )
 
-        container = ui.column().classes(f"w-full {self._prefix}-section")
         sub_form_ref: dict[str, PydanticForm | None] = {"form": None}
 
-        with container:
-            toggle = ui.switch(f"Enable {label}", value=has_value).classes(
-                f"{self._prefix}-field-bool"
-            )
+        with ui.column().classes(f"w-full {self._prefix}-section"):
+            # Toggle FIRST — correct DOM order (above sub-container)
+            toggle = ui.switch(
+                f"Enable {label}",
+                value=has_value,
+            ).classes(f"{self._prefix}-field-bool")
+
+            # Sub-container AFTER toggle
             sub_container = ui.column().classes("w-full")
 
-            def _on_toggle(e, sc=sub_container, mc=model_cls, ini=initial):
-                sc.clear()
+            # Callback uses closure variable (not default arg)
+            def _on_toggle(e):
+                for child in list(sub_container):
+                    child.delete()
+                sub_container.clear()
+                sub_form_ref["form"] = None
                 if e.value:
-                    with sc:
+                    sub_container.set_visibility(True)
+                    with sub_container:
                         sub_form_ref["form"] = PydanticForm(
-                            mc, instance=ini, config=self._config
+                            model_cls, instance=initial, config=self._config
                         )
                 else:
-                    sub_form_ref["form"] = None
+                    sub_container.set_visibility(False)
 
-            toggle.on("update:model-value", _on_toggle)
+            # Use on_value_change (post-creation)
+            toggle.on_value_change(_on_toggle)
 
+            # Initial state
             if has_value:
                 with sub_container:
                     sub_form_ref["form"] = PydanticForm(
                         model_cls, instance=initial, config=self._config
                     )
+            else:
+                sub_container.set_visibility(False)
 
         def _getter():
             f = sub_form_ref["form"]

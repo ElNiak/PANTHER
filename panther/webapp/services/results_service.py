@@ -33,29 +33,30 @@ class ResultsService:
     def list_experiments(self) -> list[dict[str, Any]]:
         """List all experiment results found in the output directory.
 
-        Returns a list of dicts with: date, name, test_count, status.
+        Each directory under outputs/ is an experiment (single-level).
+        Directory names follow: YYYY-MM-DD_HH-MM-SS[_name]
         """
         if not self.output_dir.exists():
             return []
 
         experiments = []
         try:
-            # outputs/<date>/<experiment_id>/
-            for date_dir in sorted(self.output_dir.iterdir(), reverse=True):
-                if not date_dir.is_dir() or date_dir.name.startswith("."):
+            for exp_dir in sorted(self.output_dir.iterdir(), reverse=True):
+                if not exp_dir.is_dir() or exp_dir.name.startswith("."):
                     continue
-                for exp_dir in sorted(date_dir.iterdir()):
-                    if not exp_dir.is_dir() or exp_dir.name.startswith("."):
-                        continue
-                    experiments.append(
-                        {
-                            "date": date_dir.name,
-                            "name": exp_dir.name,
-                            "path": str(exp_dir),
-                            "test_count": self._count_tests(exp_dir),
-                            "status": self._detect_status(exp_dir),
-                        }
-                    )
+                # Extract date from directory name (format: YYYY-MM-DD_HH-MM-SS[_name])
+                date_part = (
+                    exp_dir.name[:10] if len(exp_dir.name) >= 10 else exp_dir.name
+                )
+                experiments.append(
+                    {
+                        "date": date_part,
+                        "name": exp_dir.name,
+                        "path": str(exp_dir),
+                        "test_count": self._count_tests(exp_dir),
+                        "status": self._detect_status(exp_dir),
+                    }
+                )
         except OSError as e:
             logger.warning("Error scanning output directory: %s", e)
 
@@ -102,14 +103,17 @@ class ResultsService:
         return None
 
     def _count_tests(self, exp_dir: Path) -> int:
-        """Count test result files in an experiment directory."""
-        json_count = 0
-        any_count = 0
-        for f in exp_dir.rglob("test_*"):
-            any_count += 1
-            if f.suffix == ".json":
-                json_count += 1
-        return json_count or any_count
+        """Count test subdirectories (contain test_config.yaml or test.log)."""
+        count = 0
+        try:
+            for d in exp_dir.iterdir():
+                if d.is_dir() and (
+                    (d / "test_config.yaml").exists() or (d / "test.log").exists()
+                ):
+                    count += 1
+        except OSError:
+            pass
+        return count
 
     def _detect_status(self, exp_dir: Path) -> str:
         """Detect experiment status from result files."""
@@ -118,8 +122,9 @@ class ResultsService:
         summary = self._load_experiment_summary_json(exp_dir)
         if summary:
             return summary.get("status", "completed")
-        if (exp_dir / "report.md").exists():
-            return "completed"
+        for name in ["EXPERIMENT_REPORT.md", "report.md"]:
+            if (exp_dir / name).exists():
+                return "completed"
         return "unknown"
 
     def _load_experiment_summary_json(self, exp_dir: Path) -> Optional[dict]:
@@ -133,17 +138,9 @@ class ResultsService:
         return None
 
     def read_log_lines(self, exp_path: str, tail: int = 1000) -> list[str]:
-        """Read log lines as a list for easy filtering.
-
-        Args:
-            exp_path: Path to experiment directory.
-            tail: Maximum number of lines to return (from end of file).
-
-        Returns:
-            List of log line strings.
-        """
+        """Read log lines as a list for easy filtering."""
         exp_dir = Path(exp_path)
-        for pattern in ["*.log", "logs/*.log", "experiment.log"]:
+        for pattern in ["experiment.log", "*.log", "logs/*.log"]:
             logs = list(exp_dir.glob(pattern))
             if logs:
                 try:
@@ -160,7 +157,7 @@ class ResultsService:
 
     def _read_report(self, exp_dir: Path) -> Optional[str]:
         """Read the report markdown if it exists."""
-        for name in ["report.md", "README.md", "summary.md"]:
+        for name in ["EXPERIMENT_REPORT.md", "report.md", "README.md", "summary.md"]:
             report = exp_dir / name
             if report.exists():
                 try:
@@ -170,12 +167,302 @@ class ResultsService:
         return None
 
     def _list_artifacts(self, exp_dir: Path) -> list[dict[str, str]]:
-        """List downloadable artifacts in the experiment directory."""
+        """List downloadable artifacts organized by test directory."""
         artifacts = []
+        artifact_exts = {".pcap", ".json", ".csv", ".yaml", ".yml", ".log"}
         for f in exp_dir.rglob("*"):
-            if f.is_file() and f.suffix in {".pcap", ".json", ".csv", ".yaml", ".log"}:
-                artifacts.append({"name": f.name, "path": str(f)})
+            if f.is_file() and f.suffix in artifact_exts:
+                # Determine which test this artifact belongs to
+                try:
+                    rel = f.relative_to(exp_dir)
+                    test_name = rel.parts[0] if len(rel.parts) > 1 else ""
+                except ValueError:
+                    test_name = ""
+                artifacts.append(
+                    {"name": f.name, "path": str(f), "test_name": test_name}
+                )
         return artifacts
+
+    # ------------------------------------------------------------------
+    # New data access methods
+    # ------------------------------------------------------------------
+
+    def list_tests(self, experiment_path: str) -> list[dict[str, Any]]:
+        """Return per-test summary from experiment_summary.json enriched with fs info.
+
+        Each dict: name, status, duration, start_time, end_time, error_message,
+        has_events, has_analysis, service_count.
+        """
+        exp_dir = Path(experiment_path)
+        summary = self._load_experiment_summary_json(exp_dir)
+
+        results: list[dict[str, Any]] = []
+        if summary:
+            tests_info = summary.get("tests", {})
+            for r in tests_info.get("results", []):
+                test_name = r.get("name", "")
+                test_dir = exp_dir / test_name
+                entry = {
+                    "name": test_name,
+                    "status": r.get("status", "unknown"),
+                    "duration": r.get("duration"),
+                    "start_time": r.get("start_time"),
+                    "end_time": r.get("end_time"),
+                    "error_message": r.get("error_message"),
+                    "has_events": (test_dir / "events.jsonl").exists(),
+                    "has_analysis": (
+                        (test_dir / "analysis").is_dir()
+                        and any((test_dir / "analysis").iterdir())
+                        if (test_dir / "analysis").is_dir()
+                        else False
+                    ),
+                    "service_count": self._count_services(test_dir),
+                }
+                results.append(entry)
+        else:
+            # Fallback: scan filesystem for test directories
+            if exp_dir.exists():
+                for d in sorted(exp_dir.iterdir()):
+                    if d.is_dir() and (
+                        (d / "test_config.yaml").exists() or (d / "test.log").exists()
+                    ):
+                        results.append(
+                            {
+                                "name": d.name,
+                                "status": "unknown",
+                                "duration": None,
+                                "start_time": None,
+                                "end_time": None,
+                                "error_message": None,
+                                "has_events": (d / "events.jsonl").exists(),
+                                "has_analysis": (
+                                    (d / "analysis").is_dir()
+                                    and any((d / "analysis").iterdir())
+                                    if (d / "analysis").is_dir()
+                                    else False
+                                ),
+                                "service_count": self._count_services(d),
+                            }
+                        )
+        return results
+
+    def _count_services(self, test_dir: Path) -> int:
+        """Count service directories under test_dir/logs/."""
+        logs_dir = test_dir / "logs"
+        if not logs_dir.is_dir():
+            return 0
+        return sum(
+            1 for d in logs_dir.iterdir() if d.is_dir() and not d.name.startswith(".")
+        )
+
+    def get_test_detail(
+        self, experiment_path: str, test_name: str
+    ) -> Optional[dict[str, Any]]:
+        """Return detailed info for a single test.
+
+        Includes: test result info, services list, analysis results,
+        available log tree, and test-level artifacts.
+        """
+        exp_dir = Path(experiment_path)
+        test_dir = exp_dir / test_name
+        if not test_dir.is_dir():
+            return None
+
+        # Get test result info from summary
+        test_info: dict[str, Any] = {"name": test_name}
+        summary = self._load_experiment_summary_json(exp_dir)
+        if summary:
+            for r in summary.get("tests", {}).get("results", []):
+                if r.get("name") == test_name:
+                    test_info.update(r)
+                    break
+
+        # Service log tree
+        services = self._get_service_tree(test_dir)
+
+        # Analysis results
+        analysis = self.get_analysis_results(experiment_path, test_name)
+
+        # Test-level artifacts
+        artifact_exts = {".pcap", ".json", ".csv", ".yaml", ".yml", ".log", ".sh"}
+        artifacts = []
+        for f in test_dir.iterdir():
+            if f.is_file() and f.suffix in artifact_exts:
+                artifacts.append({"name": f.name, "path": str(f)})
+
+        return {
+            "info": test_info,
+            "services": services,
+            "analysis": analysis,
+            "artifacts": artifacts,
+        }
+
+    def _get_service_tree(self, test_dir: Path) -> list[dict[str, Any]]:
+        """Build service log tree for a test directory.
+
+        Returns list of {service_name, phases: [{phase_name, files: [{name, size}]}]}
+        """
+        logs_dir = test_dir / "logs"
+        if not logs_dir.is_dir():
+            return []
+
+        services = []
+        for svc_dir in sorted(logs_dir.iterdir()):
+            if not svc_dir.is_dir() or svc_dir.name.startswith("."):
+                continue
+            # Skip non-service directories (docker_* logs are at logs/ root level)
+            if svc_dir.name.startswith("docker_") or svc_dir.name.endswith(".log"):
+                continue
+
+            phases = []
+            for phase_dir in sorted(svc_dir.iterdir()):
+                if not phase_dir.is_dir():
+                    continue
+                files = []
+                for f in sorted(phase_dir.iterdir()):
+                    if f.is_file():
+                        files.append(
+                            {"name": f.name, "size": f.stat().st_size, "path": str(f)}
+                        )
+                if files:
+                    phases.append({"phase_name": phase_dir.name, "files": files})
+
+            services.append({"service_name": svc_dir.name, "phases": phases})
+        return services
+
+    def get_test_events(
+        self, experiment_path: str, test_name: str
+    ) -> list[dict[str, Any]]:
+        """Parse events.jsonl and error_events.jsonl for a test."""
+        test_dir = Path(experiment_path) / test_name
+        events: list[dict[str, Any]] = []
+
+        for filename in ["events.jsonl", "error_events.jsonl"]:
+            events_file = test_dir / filename
+            if events_file.exists():
+                try:
+                    text = _read_text_bounded(events_file)
+                    for line in text.splitlines():
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            event = json.loads(line)
+                            # Normalize field names (some use event_type, some use type)
+                            if "event_type" not in event and "type" in event:
+                                event["event_type"] = event["type"]
+                            if "event_id" not in event and "id" in event:
+                                event["event_id"] = event["id"]
+                            event["_source"] = filename
+                            events.append(event)
+                        except json.JSONDecodeError:
+                            continue
+                except OSError as e:
+                    logger.debug("Failed to read %s: %s", events_file, e)
+
+        # Sort by timestamp
+        events.sort(key=lambda e: e.get("timestamp", ""))
+        return events
+
+    def get_experiment_events(self, experiment_path: str) -> list[dict[str, Any]]:
+        """Parse top-level experiment event files."""
+        exp_dir = Path(experiment_path)
+        events: list[dict[str, Any]] = []
+
+        # Try experiment_events.log (may contain structured or plain text)
+        events_log = exp_dir / "experiment_events.log"
+        if events_log.exists():
+            try:
+                text = _read_text_bounded(events_log)
+                for line in text.splitlines():
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        event = json.loads(line)
+                        if "event_type" not in event and "type" in event:
+                            event["event_type"] = event["type"]
+                        if "event_id" not in event and "id" in event:
+                            event["event_id"] = event["id"]
+                        events.append(event)
+                    except json.JSONDecodeError:
+                        # Plain text log line — wrap it
+                        events.append(
+                            {
+                                "event_type": "log",
+                                "timestamp": "",
+                                "data": {"message": line},
+                            }
+                        )
+            except OSError as e:
+                logger.debug("Failed to read experiment_events.log: %s", e)
+
+        events.sort(key=lambda e: e.get("timestamp", ""))
+        return events
+
+    def get_service_logs(
+        self, experiment_path: str, test_name: str, service_name: str
+    ) -> dict[str, dict[str, Optional[str]]]:
+        """Return per-phase {stdout, stderr} log content for a service.
+
+        Returns: {phase_name: {"stdout": content, "stderr": content}}
+        """
+        svc_dir = Path(experiment_path) / test_name / "logs" / service_name
+        if not svc_dir.is_dir():
+            return {}
+
+        result: dict[str, dict[str, Optional[str]]] = {}
+        for phase_dir in sorted(svc_dir.iterdir()):
+            if not phase_dir.is_dir():
+                continue
+            phase_data: dict[str, Optional[str]] = {}
+            for log_name in ["stdout.log", "stderr.log"]:
+                log_file = phase_dir / log_name
+                if log_file.exists():
+                    try:
+                        content = _read_text_bounded(log_file)
+                        phase_data[log_name.replace(".log", "")] = (
+                            content if content.strip() else None
+                        )
+                    except OSError:
+                        phase_data[log_name.replace(".log", "")] = None
+                else:
+                    phase_data[log_name.replace(".log", "")] = None
+
+            # Also include compilation_status.txt if present
+            comp_status = phase_dir / "compilation_status.txt"
+            if comp_status.exists():
+                try:
+                    phase_data["compilation_status"] = _read_text_bounded(comp_status)
+                except OSError:
+                    pass
+
+            if any(v for v in phase_data.values()):
+                result[phase_dir.name] = phase_data
+
+        return result
+
+    def get_analysis_results(
+        self, experiment_path: str, test_name: str
+    ) -> Optional[dict[str, Any]]:
+        """Read analysis results from test_dir/analysis/."""
+        analysis_dir = Path(experiment_path) / test_name / "analysis"
+        if not analysis_dir.is_dir():
+            return None
+
+        results: dict[str, Any] = {}
+        for f in analysis_dir.iterdir():
+            if f.is_file() and f.suffix == ".json":
+                try:
+                    data = json.loads(f.read_text())
+                    results[f.stem] = data
+                except (json.JSONDecodeError, OSError) as e:
+                    logger.debug("Failed to parse analysis file %s: %s", f, e)
+        return results if results else None
+
+    # ------------------------------------------------------------------
+    # Existing analysis/chart methods
+    # ------------------------------------------------------------------
 
     def get_experiment_summary(self, experiment_path: str) -> Optional[dict]:
         """Parse ExperimentSummary using core StatusCollector (cached)."""

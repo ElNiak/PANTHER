@@ -115,18 +115,21 @@ class TestResultsService:
         svc = ResultsService(str(output_dir))
         experiments = svc.list_experiments()
         assert len(experiments) == 1
-        assert experiments[0]["name"] == "0_test_experiment"
+        assert experiments[0]["name"] == "2026-01-15_10-00-00"
         assert experiments[0]["status"] == "completed"
+        assert experiments[0]["date"] == "2026-01-15"
+        assert experiments[0]["test_count"] == 2
 
     def test_get_experiment_detail(self, output_dir):
         from panther.webapp.services.results_service import ResultsService
 
         svc = ResultsService(str(output_dir))
-        detail = svc.get_experiment_detail("0_test_experiment")
+        detail = svc.get_experiment_detail("2026-01-15_10-00-00")
         assert detail is not None
-        assert detail["name"] == "0_test_experiment"
+        assert detail["name"] == "2026-01-15_10-00-00"
         assert detail["log_content"] is not None
         assert "core_summary" in detail
+        assert detail["report_content"] is not None
 
     def test_get_experiment_detail_missing(self, output_dir):
         from panther.webapp.services.results_service import ResultsService
@@ -214,17 +217,228 @@ class TestResultsService:
         """Test that get_experiment_detail falls back to StatusCollector when no JSON."""
         from panther.webapp.services.results_service import ResultsService
 
-        # Create experiment dir WITHOUT experiment_summary.json
-        date_dir = tmp_path / "2026-01-15_10-00-00_test"
-        exp_dir = date_dir / "0_fallback_test"
-        exp_dir.mkdir(parents=True)
+        # Create experiment dir WITHOUT experiment_summary.json (single-level)
+        exp_dir = tmp_path / "2026-01-15_10-00-00_fallback"
+        exp_dir.mkdir()
         (exp_dir / "experiment.log").write_text(
             "2026-01-15 10:00:00 INFO: Started\n2026-01-15 10:05:00 INFO: Done\n"
         )
 
         svc = ResultsService(str(tmp_path))
-        detail = svc.get_experiment_detail("0_fallback_test")
+        detail = svc.get_experiment_detail("2026-01-15_10-00-00_fallback")
         assert detail is not None
+
+    def test_list_tests(self, output_dir):
+        from panther.webapp.services.results_service import ResultsService
+
+        svc = ResultsService(str(output_dir))
+        experiments = svc.list_experiments()
+        exp_path = experiments[0]["path"]
+        tests = svc.list_tests(exp_path)
+        assert len(tests) == 2
+        assert tests[0]["name"] == "0_test_basic"
+        assert tests[0]["status"] == "passed"
+        assert tests[0]["has_events"] is True
+        assert tests[0]["service_count"] == 1
+
+    def test_get_test_detail(self, output_dir):
+        from panther.webapp.services.results_service import ResultsService
+
+        svc = ResultsService(str(output_dir))
+        experiments = svc.list_experiments()
+        exp_path = experiments[0]["path"]
+        detail = svc.get_test_detail(exp_path, "0_test_basic")
+        assert detail is not None
+        assert len(detail["services"]) == 1
+        assert detail["services"][0]["service_name"] == "picoquic_server"
+        assert detail["analysis"] is not None
+
+    def test_get_test_events(self, output_dir):
+        from panther.webapp.services.results_service import ResultsService
+
+        svc = ResultsService(str(output_dir))
+        experiments = svc.list_experiments()
+        exp_path = experiments[0]["path"]
+        events = svc.get_test_events(exp_path, "0_test_basic")
+        assert len(events) == 2
+        assert events[0]["event_type"] == "test.started"
+
+    def test_get_service_logs(self, output_dir):
+        from panther.webapp.services.results_service import ResultsService
+
+        svc = ResultsService(str(output_dir))
+        experiments = svc.list_experiments()
+        exp_path = experiments[0]["path"]
+        logs = svc.get_service_logs(exp_path, "0_test_basic", "picoquic_server")
+        assert "compile" in logs
+        assert logs["compile"]["stdout"] is not None
+
+    def test_get_analysis_results(self, output_dir):
+        from panther.webapp.services.results_service import ResultsService
+
+        svc = ResultsService(str(output_dir))
+        experiments = svc.list_experiments()
+        exp_path = experiments[0]["path"]
+        analysis = svc.get_analysis_results(exp_path, "0_test_basic")
+        assert analysis is not None
+        assert "analysis_results" in analysis
+
+    def test_count_tests(self, output_dir):
+        from panther.webapp.services.results_service import ResultsService
+
+        svc = ResultsService(str(output_dir))
+        experiments = svc.list_experiments()
+        assert experiments[0]["test_count"] == 2
+
+    def test_list_tests_no_summary(self, tmp_path):
+        """list_tests falls back to filesystem scan when no summary JSON."""
+        from panther.webapp.services.results_service import ResultsService
+
+        exp_dir = tmp_path / "2026-01-15_10-00-00"
+        exp_dir.mkdir()
+        test_dir = exp_dir / "test_a"
+        test_dir.mkdir()
+        (test_dir / "test.log").write_text("log")
+
+        svc = ResultsService(str(tmp_path))
+        tests = svc.list_tests(str(exp_dir))
+        assert len(tests) == 1
+        assert tests[0]["name"] == "test_a"
+        assert tests[0]["status"] == "unknown"
+
+
+@pytest.mark.unit
+class TestConfigServiceValidationRules:
+    """Test the enhanced service validation rules in validate_config_detailed."""
+
+    def _make_config(self, services):
+        """Build a minimal config dict with given services."""
+        return {
+            "tests": [
+                {
+                    "name": "Test1",
+                    "network_environment": {"type": "docker_compose"},
+                    "services": services,
+                }
+            ]
+        }
+
+    def test_single_service_returns_error(self):
+        from panther.webapp.services.config_service import ConfigService
+
+        svc = ConfigService()
+        data = self._make_config(
+            {
+                "server": {
+                    "implementation": {"name": "picoquic", "type": "iut"},
+                    "protocol": {"name": "quic", "role": "server"},
+                }
+            }
+        )
+        errors = svc.validate_config_detailed(data)
+        error_msgs = [e.message for e in errors if e.severity == "error"]
+        assert any("at least 2 required" in m for m in error_msgs)
+
+    def test_no_tester_returns_warning(self):
+        from panther.webapp.services.config_service import ConfigService
+
+        svc = ConfigService()
+        data = self._make_config(
+            {
+                "client": {
+                    "implementation": {"name": "picoquic", "type": "iut"},
+                    "protocol": {"name": "quic", "role": "client", "target": "server"},
+                },
+                "server": {
+                    "implementation": {"name": "nginx", "type": "iut"},
+                    "protocol": {"name": "quic", "role": "server"},
+                },
+            }
+        )
+        errors = svc.validate_config_detailed(data)
+        warning_msgs = [e.message for e in errors if e.severity == "warning"]
+        assert any("no tester service" in m for m in warning_msgs)
+
+    def test_no_iut_returns_warning(self):
+        from panther.webapp.services.config_service import ConfigService
+
+        svc = ConfigService()
+        data = self._make_config(
+            {
+                "t1": {
+                    "implementation": {"name": "ivy", "type": "testers"},
+                    "protocol": {"name": "quic", "role": "client", "target": "t2"},
+                },
+                "t2": {
+                    "implementation": {"name": "ivy", "type": "testers"},
+                    "protocol": {"name": "quic", "role": "server"},
+                },
+            }
+        )
+        errors = svc.validate_config_detailed(data)
+        warning_msgs = [e.message for e in errors if e.severity == "warning"]
+        assert any("no IUT service" in m for m in warning_msgs)
+
+    def test_missing_role_counterpart_warning(self):
+        from panther.webapp.services.config_service import ConfigService
+
+        svc = ConfigService()
+        data = self._make_config(
+            {
+                "s1": {
+                    "implementation": {"name": "picoquic", "type": "iut"},
+                    "protocol": {"name": "quic", "role": "server"},
+                },
+                "s2": {
+                    "implementation": {"name": "ivy", "type": "testers"},
+                    "protocol": {"name": "quic", "role": "server"},
+                },
+            }
+        )
+        errors = svc.validate_config_detailed(data)
+        warning_msgs = [e.message for e in errors if e.severity == "warning"]
+        assert any("no client" in m for m in warning_msgs)
+
+    def test_client_without_target_warning(self):
+        from panther.webapp.services.config_service import ConfigService
+
+        svc = ConfigService()
+        data = self._make_config(
+            {
+                "client": {
+                    "implementation": {"name": "picoquic", "type": "iut"},
+                    "protocol": {"name": "quic", "role": "client"},
+                },
+                "server": {
+                    "implementation": {"name": "ivy", "type": "testers"},
+                    "protocol": {"name": "quic", "role": "server"},
+                },
+            }
+        )
+        errors = svc.validate_config_detailed(data)
+        warning_msgs = [e.message for e in errors if e.severity == "warning"]
+        assert any("no target specified" in m for m in warning_msgs)
+
+    def test_valid_config_minimal_issues(self):
+        from panther.webapp.services.config_service import ConfigService
+
+        svc = ConfigService()
+        data = self._make_config(
+            {
+                "server": {
+                    "implementation": {"name": "picoquic", "type": "iut"},
+                    "protocol": {"name": "quic", "role": "server"},
+                },
+                "client": {
+                    "implementation": {"name": "ivy", "type": "testers"},
+                    "protocol": {"name": "quic", "role": "client", "target": "server"},
+                },
+            }
+        )
+        errors = svc.validate_config_detailed(data)
+        # Should have no errors and no warnings
+        assert not any(e.severity == "error" for e in errors)
+        assert not any(e.severity == "warning" for e in errors)
 
 
 @pytest.mark.unit

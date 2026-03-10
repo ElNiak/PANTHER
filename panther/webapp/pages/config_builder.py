@@ -1,6 +1,7 @@
 """Config builder page — PydanticForm forms + YAML editor."""
 
 import logging
+from datetime import datetime
 from typing import Any
 
 from nicegui import ui
@@ -151,16 +152,11 @@ def _render_config_forms(yaml_editor_ref: dict):
                 description="Optional experiment metadata (name, author, tags).",
             )
 
-    # === Plugin Config (dynamic) ===
-    with ui.card().classes("w-full q-mb-md"):
-        ui.label("Plugin Configuration").classes("text-h6")
-        ui.label("Select a plugin to configure its settings.").classes(
-            "text-caption text-grey-7 q-mb-sm"
-        )
-        with error_boundary("Plugin Config"):
-            _render_plugin_config_section()
+    # Prefill metadata form with sensible defaults (name, author, timestamps)
+    cruds["metadata"].form.set_value(ExperimentMetadata().model_dump())
 
     yaml_editor_ref["cruds"] = cruds
+    yaml_editor_ref["_last_yaml"] = None
 
     def _sync_forms_to_yaml():
         try:
@@ -191,61 +187,15 @@ def _render_config_forms(yaml_editor_ref: dict):
             if config:
                 import yaml
 
-                editor.value = yaml.dump(
-                    config, default_flow_style=False, sort_keys=False
-                )
+                yaml_str = yaml.dump(config, default_flow_style=False, sort_keys=False)
+                if yaml_str == yaml_editor_ref.get("_last_yaml"):
+                    return
+                yaml_editor_ref["_last_yaml"] = yaml_str
+                editor.value = yaml_str
         except Exception:
             logger.warning("Form-to-YAML sync error", exc_info=True)
 
     ui.timer(1.0, _sync_forms_to_yaml)
-
-
-def _render_plugin_config_section():
-    """Render a dropdown of available plugins and their config forms."""
-    from panther.webapp.components.pydantic_form import PydanticForm
-    from panther.webapp.utils.plugin_forms import (
-        get_plugin_form_info,
-        list_available_plugins,
-    )
-
-    plugins = list_available_plugins()
-    if not plugins:
-        ui.label("No plugins discovered.").classes("text-caption text-grey-6")
-        return
-
-    plugin_names = [p["name"] for p in plugins]
-    form_container = ui.column().classes("w-full")
-
-    def _on_plugin_selected(e):
-        form_container.clear()
-        name = e.value
-        if not name:
-            return
-        try:
-            info = get_plugin_form_info(name)
-            if info is None:
-                with form_container:
-                    ui.label(f"No config schema found for '{name}'.").classes(
-                        "text-caption text-grey-6"
-                    )
-                return
-            with form_container:
-                if info.description:
-                    ui.label(info.description).classes(
-                        "text-caption text-grey-7 q-mb-sm"
-                    )
-                PydanticForm(info.config_model)
-        except Exception as exc:
-            with form_container:
-                ui.label(f"Error loading plugin '{name}': {exc}").classes(
-                    "text-caption text-red-7"
-                )
-
-    ui.select(
-        options=plugin_names,
-        label="Select plugin",
-        on_change=_on_plugin_selected,
-    ).classes("w-full q-mb-sm")
 
 
 def _on_yaml_change(value: str, config_svc: ConfigService):
@@ -288,6 +238,14 @@ def _export(yaml_editor):
     if not yaml_content.strip():
         ui.notify("Nothing to export", type="warning")
         return
+    # Stamp modified_at before exporting
+    import yaml as _yaml
+
+    data = _yaml.safe_load(yaml_content)
+    if isinstance(data, dict):
+        meta = data.setdefault("metadata", {})
+        meta["modified_at"] = datetime.now().isoformat()
+        yaml_content = _yaml.dump(data, default_flow_style=False, sort_keys=False)
     ui.download(yaml_content.encode(), "panther_config.yaml")
 
 
@@ -411,6 +369,9 @@ def _save_config_dialog(config_svc: ConfigService, yaml_editor):
             if data is None:
                 ui.notify("Invalid YAML — cannot save", type="negative")
                 return
+            # Stamp modified_at before writing
+            meta = data.setdefault("metadata", {})
+            meta["modified_at"] = datetime.now().isoformat()
             try:
                 config_svc.save_config(path, data)
                 dialog.close()
