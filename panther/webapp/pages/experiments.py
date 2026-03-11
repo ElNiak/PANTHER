@@ -1,10 +1,12 @@
 """Experiments page — launch, monitor, and manage experiments."""
 
 import logging
+from typing import Any
 
 from nicegui import app, ui
 
 from panther.core.events.base.event_base import BaseEvent
+from panther.webapp.components.event_viewer import event_viewer
 from panther.webapp.components.log_viewer import LogViewer
 from panther.webapp.components.progress_bar import ExperimentProgress
 from panther.webapp.services.config_service import ConfigService
@@ -256,6 +258,39 @@ def content():
     # Unregister callbacks when the client disconnects (page navigation)
     ui.context.client.on_disconnect(
         lambda: experiment_svc.unregister_callbacks(on_log, on_status)
+    )
+
+    # ── Live event viewer (event-driven via WebObserver) ─────────────
+    ui.label("Live Events").classes("text-h6 q-mt-md q-mb-sm")
+
+    live_events: list[dict[str, Any]] = []
+    events_container = ui.column().classes("w-full")
+
+    # Populate from history if experiment already ran
+    for hist_event in experiment_svc.web_observer.event_history:
+        d = hist_event.to_dict()
+        d["event_type"] = d.pop("type", hist_event.get_type())
+        live_events.append(d)
+
+    if live_events:
+        with events_container:
+            event_viewer(live_events[-200:])
+
+    def _on_live_event(event: BaseEvent):
+        try:
+            with client_ref:
+                d = event.to_dict()
+                d["event_type"] = d.pop("type", event.get_type())
+                live_events.append(d)
+                events_container.clear()
+                with events_container:
+                    event_viewer(live_events[-200:])
+        except RuntimeError:
+            pass  # client disconnected
+
+    events_sub = experiment_svc.web_observer.subscribe(_on_live_event)
+    client_ref.on_disconnect(
+        lambda: experiment_svc.web_observer.unsubscribe(events_sub)
     )
 
     # Poll for status sync (handles experiment finishing while page is open)

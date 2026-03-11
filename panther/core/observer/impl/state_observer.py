@@ -1,5 +1,4 @@
-"""
-State Event Observer Module
+"""State Event Observer Module.
 
 This module provides a simplified observer that focuses on workflow coordination
 and state history recording. Entity-specific state management is now handled
@@ -32,8 +31,7 @@ from panther.core.observer.workflow import WorkflowState, WorkflowStateTracker
 
 
 class StateEventObserver(ITypedObserver):
-    """
-    Simplified observer focused on workflow coordination and state history.
+    """Simplified observer focused on workflow coordination and state history.
 
     This observer:
     - Tracks experiment-level workflow states for coordination
@@ -43,8 +41,7 @@ class StateEventObserver(ITypedObserver):
     """
 
     def __init__(self, workflow_tracker: WorkflowStateTracker, priority: int = 100):
-        """
-        Initialize the simplified state event observer.
+        """Initialize the simplified state event observer.
 
         Args:
             workflow_tracker: The WorkflowStateTracker instance for workflow coordination
@@ -76,6 +73,8 @@ class StateEventObserver(ITypedObserver):
             "docker_build.started",
             "environment.setup_started",
             "test.execution_started",
+            "test.setup_started",
+            "test.teardown_started",
             "output_collection.started",
             "output_collection.completed",
             "tester_analysis.started",

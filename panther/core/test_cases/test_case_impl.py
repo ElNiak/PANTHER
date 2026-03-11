@@ -230,9 +230,25 @@ class TestCase(
             # State transitions are handled automatically by StateEventObserver
 
             # Setup services with timing
+            self.test_emitter.emit_setup_started(
+                service_count=len(self.services) if self.services else 0,
+                service_names=list(self.services.keys()) if self.services else [],
+            )
             self.start_timer("setup_services")
-            self.setup_services()
-            self.stop_timer("setup_services")
+            try:
+                self.setup_services()
+            except Exception as setup_err:
+                self.stop_timer("setup_services")
+                self.test_emitter.emit_setup_failed(
+                    error_message=str(setup_err),
+                    failed_component="setup_services",
+                )
+                raise
+            setup_duration = self.stop_timer("setup_services")
+            self.test_emitter.emit_setup_completed(
+                services=list(self.services.keys()) if self.services else [],
+                duration_seconds=setup_duration,
+            )
 
             # State transitions are handled automatically by StateEventObserver
 
@@ -259,16 +275,59 @@ class TestCase(
             )
 
             # Setup environment with timing
+            env_type = (
+                str(self.test_config.network_environment.type)
+                if self.test_config.network_environment
+                else "unknown"
+            )
+            self.test_emitter.emit_environment_setup_started(
+                environment_type=env_type,
+                environment_config={"test_case": self.test_name},
+            )
             self.start_timer("setup_environment")
-            self.setup_environment()
-            self.stop_timer("setup_environment")
+            try:
+                self.setup_environment()
+            except Exception as env_err:
+                self.stop_timer("setup_environment")
+                self.test_emitter.emit_environment_setup_failed(
+                    environment_type=env_type,
+                    error_message=str(env_err),
+                    error_type=type(env_err).__name__,
+                )
+                raise
+            env_duration = self.stop_timer("setup_environment")
+            self.test_emitter.emit_environment_setup_completed(
+                environment_type=env_type,
+                environment_details={"duration_seconds": env_duration},
+            )
 
             # State transitions are handled automatically by StateEventObserver
 
             # Deploy services with timing
+            service_names_to_deploy = [
+                sm.service_name
+                for sm in self.service_managers
+                if hasattr(sm, "service_name")
+            ]
+            self.test_emitter.emit_deployment_started(
+                services_to_deploy=service_names_to_deploy,
+            )
             self.start_timer("deploy_services")
-            self.deploy_services()
-            self.stop_timer("deploy_services")
+            try:
+                self.deploy_services()
+            except Exception as deploy_err:
+                self.stop_timer("deploy_services")
+                self.test_emitter.emit_deployment_failed(
+                    error_message=str(deploy_err),
+                    failed_services=service_names_to_deploy,
+                    error_type=type(deploy_err).__name__,
+                )
+                raise
+            deploy_duration = self.stop_timer("deploy_services")
+            self.test_emitter.emit_deployment_completed(
+                deployed_services=service_names_to_deploy,
+                deployment_details={"duration_seconds": deploy_duration},
+            )
 
             # State transitions are handled automatically by StateEventObserver
 
@@ -315,6 +374,20 @@ class TestCase(
 
             # Emit timing metric for overall test case execution
             self._emit_timing_metric("test_case_total", total_duration)
+
+            # Emit metrics summary for the completed test
+            if self.metrics_emitter:
+                self.metrics_emitter.emit_metrics_summary(
+                    metrics={
+                        "total_duration_s": total_duration,
+                        "test_state": self.state,
+                        "service_count": (
+                            len(self.service_managers) if self.service_managers else 0
+                        ),
+                    },
+                    test_case=self.test_name,
+                    period="test_execution",
+                )
 
             # Use event emitter for test completion notification instead of direct event_manager
             self.test_emitter.emit_completed(
@@ -383,10 +456,18 @@ class TestCase(
         """
         self.state = "COLLECTING"
 
+        # Emit teardown started event
+        self.test_emitter.emit_teardown_started()
+
         # Teardown environment with timing
         self.start_timer("teardown_environment")
         self.teardown_environment()
-        self.stop_timer("teardown_environment")
+        teardown_duration = self.stop_timer("teardown_environment")
+
+        # Emit teardown completed event
+        self.test_emitter.emit_teardown_completed(
+            duration_seconds=teardown_duration,
+        )
 
         # Clean up empty directories left by Docker bind mounts / entrypoint mkdir -p
         try:

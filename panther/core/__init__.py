@@ -28,7 +28,7 @@ Primary Components:
     ExperimentManager
         Central facade orchestrating experiment lifecycle. Uses
         event-driven coordination (EventManager + EmitterRegistry),
-        observer pattern for pluggable monitoring, and strategy
+        observer pattern for pluggable monitoring, and facade
         pattern delegating to PluginManager.
 
     TestCase
@@ -44,7 +44,6 @@ Primary Components:
 Design Patterns:
     - Event-Driven Architecture: central event bus for subsystem communication
     - Observer Pattern: pluggable observers for metrics, logging, analysis
-    - Strategy Pattern: pluggable experiment execution algorithms
     - Facade Pattern: ExperimentManager as unified interface
     - Mixin Composition: modular capabilities through multiple inheritance
 
@@ -52,7 +51,6 @@ Module Organization::
 
     core/
     ├── experiment_manager.py      # Central orchestration
-    ├── experiment_strategy.py     # Execution strategies
     ├── events/                    # Typed event system
     ├── observer/                  # Observer pattern implementation
     ├── command_processor/         # Structured command generation
@@ -78,7 +76,6 @@ Example::
 # Define the public API - but use lazy imports to avoid circular dependencies
 __all__ = [
     "experiment_manager",
-    "experiment_strategy",
     "observer",
     "results",
     "test_cases",
@@ -93,10 +90,6 @@ def __getattr__(name):  # pylint: disable=invalid-name
         from . import experiment_manager  # pylint: disable=import-outside-toplevel
 
         return experiment_manager
-    elif name == "experiment_strategy":
-        from . import experiment_strategy  # pylint: disable=import-outside-toplevel
-
-        return experiment_strategy
     elif name == "observer":
         from . import observer  # pylint: disable=import-outside-toplevel
 

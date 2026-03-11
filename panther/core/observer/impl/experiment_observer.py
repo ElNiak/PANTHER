@@ -9,6 +9,7 @@ from panther.core.events.base.event_base import BaseEvent
 from panther.core.events.environment.events import (
     EnvironmentCreatedEvent,
     EnvironmentDeploymentStartedEvent,
+    EnvironmentDestroyedEvent,
     EnvironmentErrorEvent,
     EnvironmentSetupCompletedEvent,
     EnvironmentSetupStartedEvent,
@@ -21,6 +22,7 @@ from panther.core.events.experiment.events import (
 from panther.core.events.metrics.events import MetricCollectedEvent
 from panther.core.events.service.events import (
     ServiceDeploymentFailedEvent,
+    ServiceDestroyedEvent,
     ServiceEvent,
     ServicePreparationCompletedEvent,
     ServicePreparationStartedEvent,
@@ -130,8 +132,10 @@ class ExperimentObserver(IObserver):
             ServiceStartedEvent: self._handle_service_started,
             ServiceStoppedEvent: self._handle_service_stopped,
             ServiceDeploymentFailedEvent: self._handle_service_deployment_failed,
+            ServiceDestroyedEvent: self._handle_service_destroyed,
             ServicePreparationStartedEvent: self._handle_service_setup_started,
             ServicePreparationCompletedEvent: self._handle_service_setup_completed,
+            EnvironmentDestroyedEvent: self._handle_environment_destroyed,
             TestExecutionFailedEvent: self._handle_test_execution_failed,
             TestExecutionStartedEvent: self._handle_test_execution_started,
             TestCompletedEvent: self._handle_test_completed,
@@ -978,6 +982,31 @@ class ExperimentObserver(IObserver):
         self.logger.info(
             "Output collection completed: %d outputs in %.2fs", outputs_count, duration
         )
+        return True
+
+    def _handle_environment_destroyed(self, event: EnvironmentDestroyedEvent) -> bool:
+        """Handle environment destroyed events."""
+        environment_type = getattr(event, "environment_type", "unknown")
+        environment_name = getattr(event, "environment_name", "unknown")
+
+        self.logger.info(
+            "Environment destroyed: %s (%s)", environment_name, environment_type
+        )
+
+        if self.track_timing:
+            self._record_timing_info("environment_destroyed", event.timestamp)
+
+        return True
+
+    def _handle_service_destroyed(self, event: ServiceDestroyedEvent) -> bool:
+        """Handle service destroyed events."""
+        service_name = event.data.get("service_name", "unknown")
+
+        self.logger.info("Service destroyed: %s", service_name)
+
+        if self.track_timing:
+            self._record_timing_info("service_destroyed", event.timestamp)
+
         return True
 
     def _handle_environment_error(self, event: EnvironmentErrorEvent) -> bool:
