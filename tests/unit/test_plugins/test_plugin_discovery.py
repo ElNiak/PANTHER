@@ -1,5 +1,4 @@
-"""
-Unit tests for PANTHER Plugin Discovery and Management system.
+"""Unit tests for PANTHER Plugin Discovery and Management system.
 
 Tests real implementations of PluginDiscovery, PluginManifest, PluginCatalog,
 and PluginManagerUtils with IO-boundary mocking only.
@@ -1055,35 +1054,6 @@ class TestPluginManagerUtilsLoadPluginClass:
         assert cls.__name__ == "SpecialRunner"
 
 
-class TestPluginManagerUtilsInstantiate:
-    """Test PluginManagerUtils.instantiate_plugin()."""
-
-    def test_instantiate_success(self, tmp_path):
-        """instantiate_plugin() creates an instance of the plugin class."""
-        module_file = tmp_path / "inst_module.py"
-        module_file.write_text(
-            "class InstPlugin:\n"
-            "    def __init__(self, value):\n"
-            "        self.value = value\n"
-        )
-
-        module = PluginManagerUtils.load_module_from_file(module_file)
-        cls = getattr(module, "InstPlugin")
-        instance = PluginManagerUtils.instantiate_plugin(cls, 42)
-
-        assert instance.value == 42
-
-    def test_instantiate_failure_raises(self):
-        """instantiate_plugin() wraps constructor errors."""
-
-        class BadPlugin:
-            def __init__(self):
-                raise RuntimeError("init failed")
-
-        with pytest.raises(Exception, match="Failed to instantiate"):
-            PluginManagerUtils.instantiate_plugin(BadPlugin)
-
-
 class TestPluginManagerUtilsDiscover:
     """Test PluginManagerUtils.discover_plugins() (file discovery)."""
 
@@ -1291,7 +1261,7 @@ class TestPluginSystemIntegration:
 
         module = PluginManagerUtils.load_module_from_file(found[0])
         cls = PluginManagerUtils.get_class_from_module(module, "DiscoverableHandler")
-        instance = PluginManagerUtils.instantiate_plugin(cls)
+        instance = cls()
         assert instance.ready is True
 
 

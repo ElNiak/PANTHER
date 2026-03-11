@@ -185,28 +185,6 @@ class PluginManagerUtils(LoggerMixin):
         return cls.get_class_from_module(module, class_name, base_class)
 
     @classmethod
-    def instantiate_plugin(cls, plugin_class: type[T], *args, **kwargs) -> T:
-        """Instantiate a plugin class with error handling.
-
-        Args:
-            plugin_class: The plugin class to instantiate
-            *args: Positional arguments for constructor
-            **kwargs: Keyword arguments for constructor
-
-        Returns:
-            Instance of the plugin
-
-        Raises:
-            Exception: If instantiation fails
-        """
-        try:
-            return plugin_class(*args, **kwargs)
-        except Exception as e:
-            raise Exception(
-                f"Failed to instantiate {plugin_class.__name__}: {str(e)}"
-            ) from e
-
-    @classmethod
     def discover_plugins(
         cls, base_path: Path, pattern: str = "*.py", exclude: Optional[List[str]] = None
     ) -> List[Path]:

@@ -416,6 +416,11 @@ class PluginManager(LoggerMixin):
         self._cache_timestamp = time.time()
         self.plugins.update(discovered_plugins)
 
+        # Update catalog discovery paths for external plugins
+        if external_paths:
+            for path in external_paths:
+                self.plugin_catalog.add_discovery_path(path)
+
         # Also update the catalog for compatibility with validation
         for plugin_name, metadata in discovered_plugins.items():
             # Convert string dependencies to PluginDependency objects
@@ -459,6 +464,13 @@ class PluginManager(LoggerMixin):
             )
             plugin_id = f"{metadata.type}:{metadata.name}"
             self.plugin_catalog.catalog[plugin_id] = manifest
+
+        # Preload plugin classes for faster first access
+        if self.enable_cache:
+            try:
+                self.plugin_factory.preload_plugins()
+            except Exception as e:
+                self.logger.debug("Plugin preloading skipped: %s", e)
 
         # Update statistics
         self._last_discovery_time = time.time() - start_time

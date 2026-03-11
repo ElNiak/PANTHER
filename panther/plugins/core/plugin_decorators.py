@@ -62,7 +62,6 @@ requiring explicit registration code.
             return "my_implementation_server"
 """
 
-import functools
 import importlib
 import logging
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -354,150 +353,6 @@ def register_plugin(
     return decorator
 
 
-def plugin_version(version: str):
-    """Simple decorator to set plugin version.
-
-    Usage:
-        @plugin_version("2.0.0")
-        class MyPlugin:
-            pass
-    """
-
-    def decorator(cls: type) -> type:
-        cls.PLUGIN_VERSION = version
-        return cls
-
-    return decorator
-
-
-def plugin_dependency(*dependencies: str):
-    """Decorator to declare plugin dependencies.
-
-    Usage:
-        @plugin_dependency("quic_protocol>=1.0.0", "network_environment")
-        class MyPlugin:
-            pass
-    """
-
-    def decorator(cls: type) -> type:
-        if not hasattr(cls, "PLUGIN_DEPENDENCIES"):
-            cls.PLUGIN_DEPENDENCIES = []
-        cls.PLUGIN_DEPENDENCIES.extend(dependencies)
-        return cls
-
-    return decorator
-
-
-def plugin_capability(*capabilities: str):
-    """Decorator to declare plugin capabilities.
-
-    Usage:
-        @plugin_capability("tls", "0rtt")
-        class QuicPlugin:
-            pass
-    """
-
-    def decorator(cls: type) -> type:
-        if not hasattr(cls, "PLUGIN_CAPABILITIES"):
-            cls.PLUGIN_CAPABILITIES = []
-        cls.PLUGIN_CAPABILITIES.extend(capabilities)
-        return cls
-
-    return decorator
-
-
-def supported_protocol(*protocols: str):
-    """Decorator to declare supported protocols.
-
-    Usage:
-        @supported_protocol("quic")
-        class MyImplementation:
-            pass
-    """
-
-    def decorator(cls: type) -> type:
-        if not hasattr(cls, "SUPPORTED_PROTOCOLS"):
-            cls.SUPPORTED_PROTOCOLS = []
-        cls.SUPPORTED_PROTOCOLS.extend(protocols)
-        return cls
-
-    return decorator
-
-
-def plugin_config_schema(schema: Dict[str, Any]):
-    """Decorator to declare plugin configuration schema.
-
-    Usage:
-        @plugin_config_schema({
-            "port": "number",
-            "host": "string",
-            "tls_enabled": "boolean"
-        })
-        class MyPlugin:
-            pass
-    """
-
-    def decorator(cls: type) -> type:
-        cls.PLUGIN_CONFIG_SCHEMA = schema
-        return cls
-
-    return decorator
-
-
-def incompatible_plugin(plugin_id: str, version_spec: str = "*"):
-    """Method decorator to declare that a method is incompatible with another plugin.
-
-    Usage:
-        class MyPlugin:
-            @incompatible_plugin("environment:docker_compose", ">=1.0.0")
-            def deploy(self):
-                pass.
-    """
-
-    def decorator(func):
-        @functools.wraps(func)
-        def wrapper(self, *args, **kwargs):
-            # This is mainly for documentation/validation purposes
-            # Actual dependency checking happens at plugin load time
-            return func(self, *args, **kwargs)
-
-        # Add metadata to function
-        if not hasattr(func, "_incompatible_plugins"):
-            func._incompatible_plugins = []
-        func._incompatible_plugins.append((plugin_id, version_spec))
-
-        return wrapper
-
-    return decorator
-
-
-def requires_plugin(plugin_id: str, version_spec: str = "*"):
-    """Method decorator to declare that a method requires another plugin.
-
-    Usage:
-        class MyPlugin:
-            @requires_plugin("environment:docker_compose", ">=1.0.0")
-            def deploy(self):
-                pass
-    """
-
-    def decorator(func):
-        @functools.wraps(func)
-        def wrapper(self, *args, **kwargs):
-            # This is mainly for documentation/validation purposes
-            # Actual dependency checking happens at plugin load time
-            return func(self, *args, **kwargs)
-
-        # Add metadata to function
-        if not hasattr(func, "_required_plugins"):
-            func._required_plugins = []
-        func._required_plugins.append((plugin_id, version_spec))
-
-        return wrapper
-
-    return decorator
-
-
 def get_decorated_plugins() -> Dict[str, Tuple[type, PluginManifest]]:
     """Get all plugins registered via decorators.
 
@@ -559,22 +414,6 @@ def get_all_config_models() -> Dict[str, type]:
     }
 
 
-def get_plugins_by_type(plugin_type: str) -> Dict[str, Tuple[type, PluginManifest]]:
-    """Get all plugins of a specific type.
-
-    Args:
-        plugin_type: Type of plugins to retrieve (e.g., "iut", "tester", "environment")
-
-    Returns:
-        Dictionary mapping plugin names to (class, manifest) tuples
-    """
-    return {
-        manifest.name: (cls, manifest)
-        for plugin_id, (cls, manifest) in _DECORATED_PLUGINS.items()
-        if manifest.type.value == plugin_type
-    }
-
-
 def list_all_decorated_plugins() -> List[PluginManifest]:
     """Get list of all plugin manifests from decorators.
 
@@ -586,8 +425,6 @@ def list_all_decorated_plugins() -> List[PluginManifest]:
 
 def validate_decorated_plugins() -> Dict[str, List[str]]:
     """Validate all decorated plugins and return error report.
-
-    #TODO use this to validate plugins at startup
 
     Returns:
         Dictionary mapping plugin names to list of validation errors
@@ -665,37 +502,6 @@ def get_version_config(plugin_name: str, version: str) -> Optional[Dict[str, Any
         Version configuration dictionary or None if not found
     """
     return _VERSION_CONFIGS.get(plugin_name, {}).get(version)
-
-
-def version_config(version: str, **config):
-    """Decorator to register a version configuration for a plugin class.
-
-    Usage:
-        @register_plugin(plugin_type="iut", name="picoquic", ...)
-        @version_config("rfc9000", server={"initial_version": "00000001", ...})
-        @version_config("draft29", server={"initial_version": "ff00001d", ...})
-        class PicoquicServiceManager:
-            pass
-
-    Args:
-        version: Version identifier
-        **config: Version-specific configuration parameters
-    """
-
-    def decorator(cls: type) -> type:
-        # Get plugin name from class manifest if available
-        if hasattr(cls, "_PLUGIN_MANIFEST"):
-            plugin_name = cls._PLUGIN_MANIFEST.name
-            register_version_config(plugin_name, version, config)
-        else:
-            # Store temporarily on class until plugin is registered
-            if not hasattr(cls, "_PENDING_VERSION_CONFIGS"):
-                cls._PENDING_VERSION_CONFIGS = []
-            cls._PENDING_VERSION_CONFIGS.append((version, config))
-
-        return cls
-
-    return decorator
 
 
 # Global registry for protocol plugins

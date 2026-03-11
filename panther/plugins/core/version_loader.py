@@ -1,5 +1,4 @@
-"""
-Version Configuration Loader
+"""Version Configuration Loader.
 
 This module provides automatic version configuration loading for plugins
 based on protocol-defined versions. It discovers and loads YAML configuration
@@ -13,15 +12,13 @@ from typing import Any, Dict, List, Optional
 import yaml
 
 from panther.plugins.core.plugin_decorators import (
-    get_protocol_by_name,
     get_protocol_versions,
     register_version_config,
 )
 
 
 class VersionLoader:
-    """
-    Handles automatic discovery and loading of version configurations.
+    """Handles automatic discovery and loading of version configurations.
 
     This class:
     - Discovers version configuration files in plugin directories
@@ -30,15 +27,14 @@ class VersionLoader:
     - Registers configurations with the plugin decorator system
     """
 
-    def __init__(self):
+    def __init__(self):  # noqa: D107
         self.logger = logging.getLogger("VersionLoader")
         self._cache: Dict[str, Dict[str, Any]] = {}
 
     def discover_and_load_versions(
         self, plugin_name: str, plugin_path: Path, protocol_name: str
     ) -> Dict[str, Any]:
-        """
-        Discover and load version configurations for a plugin.
+        """Discover and load version configurations for a plugin.
 
         Args:
             plugin_name: Name of the plugin (e.g., "picoquic")
@@ -199,8 +195,7 @@ class VersionLoader:
         return loaded_versions
 
     def _load_version_file(self, file_path: Path) -> Optional[Dict[str, Any]]:
-        """
-        Load a version configuration file.
+        """Load a version configuration file.
 
         Args:
             file_path: Path to the YAML configuration file
@@ -239,8 +234,7 @@ class VersionLoader:
             return None
 
     def get_available_versions(self, plugin_name: str, protocol_name: str) -> List[str]:
-        """
-        Get list of available versions for a plugin.
+        """Get list of available versions for a plugin.
 
         This combines protocol-defined versions with discovered versions.
 
@@ -279,8 +273,7 @@ _version_loader = VersionLoader()
 def discover_plugin_versions(
     plugin_name: str, plugin_path: Path, protocol_name: str
 ) -> Dict[str, Any]:
-    """
-    Convenience function to discover and load plugin versions.
+    """Convenience function to discover and load plugin versions.
 
     Args:
         plugin_name: Name of the plugin
@@ -293,17 +286,3 @@ def discover_plugin_versions(
     return _version_loader.discover_and_load_versions(
         plugin_name, plugin_path, protocol_name
     )
-
-
-def get_plugin_versions(plugin_name: str, protocol_name: str) -> List[str]:
-    """
-    Get list of available versions for a plugin.
-
-    Args:
-        plugin_name: Name of the plugin
-        protocol_name: Name of the protocol
-
-    Returns:
-        List of available version names
-    """
-    return _version_loader.get_available_versions(plugin_name, protocol_name)
