@@ -81,6 +81,9 @@ class TestDataMixin:
                                 "service_count": self._count_services(d),
                             }
                         )
+        logger.debug(
+            "Listed %d tests for experiment: %s", len(results), experiment_path
+        )
         return results
 
     @staticmethod
@@ -129,6 +132,7 @@ class TestDataMixin:
             (list of ``{name, path}`` dicts).  Returns ``None`` if the
             test directory does not exist.
         """
+        logger.debug("Fetching test detail: %s/%s", experiment_path, test_name)
         exp_dir = Path(experiment_path)
         test_dir = exp_dir / test_name
         if not test_dir.is_dir():

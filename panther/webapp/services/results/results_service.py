@@ -87,6 +87,7 @@ class ResultsService(TestDataMixin, AnalyticsMixin):
         """
         self.output_dir = Path(output_dir)
         self._summary_cache: dict[str, dict] = {}
+        logger.debug("ResultsService initialized with output_dir: %s", self.output_dir)
 
     def count_experiments(self) -> int:
         """Return the number of experiment result directories.
@@ -137,6 +138,9 @@ class ResultsService(TestDataMixin, AnalyticsMixin):
         except OSError as e:
             logger.warning("Error scanning output directory: %s", e)
 
+        logger.debug(
+            "Found %d experiment directories in %s", len(experiments), self.output_dir
+        )
         return experiments
 
     def get_experiment_detail(self, name: str) -> Optional[dict[str, Any]]:
@@ -158,6 +162,7 @@ class ResultsService(TestDataMixin, AnalyticsMixin):
             ``report_content``, and ``artifacts``.  Returns ``None`` if no
             experiment with that name exists.
         """
+        logger.debug("Fetching detail for experiment: %s", name)
         for exp in self.list_experiments():
             if exp["name"] == name:
                 exp_path = Path(exp["path"])
@@ -190,6 +195,7 @@ class ResultsService(TestDataMixin, AnalyticsMixin):
                 detail["report_content"] = self._read_report(exp_path)
                 detail["artifacts"] = self._list_artifacts(exp_path)
                 return detail
+        logger.debug("Experiment not found: %s", name)
         return None
 
     def _count_tests(self, exp_dir: Path) -> int:

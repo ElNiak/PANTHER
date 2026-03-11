@@ -33,6 +33,7 @@ class AnalyticsMixin:
             or ``None`` if summary collection fails.
         """
         if experiment_path in self._summary_cache:
+            logger.debug("Returning cached summary for %s", experiment_path)
             return self._summary_cache[experiment_path]
 
         from panther.core.reporting.status_collector import StatusCollector
@@ -106,6 +107,11 @@ class AnalyticsMixin:
             except (json.JSONDecodeError, OSError) as e:
                 logger.debug("Failed to parse metrics file %s: %s", metrics_file, e)
 
+        logger.debug(
+            "Parsed %d metrics timeseries records from %s",
+            len(timeseries),
+            experiment_path,
+        )
         return timeseries
 
     def _parse_metrics_file(self, data: dict) -> list[dict]:

@@ -79,8 +79,10 @@ def content():
     5. Calls ``_refresh_grid()`` to populate the initial card layout.
     6. Binds tab and search value-change events to ``_refresh_grid()``.
     """
+    logger.info("Loading plugins page")
     plugin_svc = PluginService()
     plugins = plugin_svc.list_plugins()
+    logger.debug("Discovered %d plugins", len(plugins))
 
     ui.label("Registered Plugins").classes("text-h5 q-mb-md")
 
@@ -161,6 +163,7 @@ def content():
 
     def _on_card_click(plugin):
         """Open the right drawer with detailed metadata for the clicked plugin."""
+        logger.debug("Viewing plugin detail: %s", plugin.name)
         manifest = plugin_svc.get_plugin_manifest(plugin.name)
         render_plugin_detail(
             drawer_content,

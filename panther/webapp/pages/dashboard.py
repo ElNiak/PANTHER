@@ -72,6 +72,7 @@ def content():
     5. Registers a disconnect handler to unsubscribe automatically.
     6. Adds a "Quick Actions" row with navigation buttons.
     """
+    logger.info("Loading dashboard page")
     output_dir = app.storage.general.get("output_dir", "outputs")
 
     plugin_svc = PluginService()
@@ -80,6 +81,9 @@ def content():
 
     plugin_count = len(plugin_svc.list_plugins())
     experiment_count = results_svc.count_experiments()
+    logger.debug(
+        "Dashboard stats: %d plugins, %d experiments", plugin_count, experiment_count
+    )
     config_path = app.storage.general.get("config_path")
 
     ui.label("Overview").classes("text-h5 q-mb-md")
@@ -167,6 +171,7 @@ def content():
         event_types={"experiment", "test"},
         importance=EventImportance.HIGH,
     )
+    logger.debug("Dashboard subscribed to live experiment events")
 
     # Unsubscribe on page disconnect
     client.on_disconnect(lambda: experiment_svc.web_observer.unsubscribe(sub))

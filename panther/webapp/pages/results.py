@@ -77,11 +77,13 @@ _ARTIFACT_ICONS = {
 def content():
     """Render the results browser page content."""
     output_dir = app.storage.general.get("output_dir", "outputs")
+    logger.info("Loading results page (output_dir=%s)", output_dir)
     results_svc = ResultsService(output_dir)
 
     ui.label("Experiment Results").classes("text-h5 q-mb-md")
 
     experiments = results_svc.list_experiments()
+    logger.debug("Found %d experiment results", len(experiments))
 
     # --- Summary stat cards ---
     with error_boundary("Summary Stats"):
@@ -215,6 +217,7 @@ def content():
     def _on_row_click(e):
         """Open the detail dialog for the clicked experiment row."""
         row = e.args[1]
+        logger.info("Opening detail view for experiment: %s", row.get("name"))
         _show_detail(detail_dialog, results_svc, row)
 
     table.on("rowClick", _on_row_click)
@@ -277,8 +280,15 @@ def _show_detail(dialog: ui.dialog, results_svc: ResultsService, row: dict):
 
             detail = results_svc.get_experiment_detail(name)
             if not detail:
+                logger.warning("No details found for experiment: %s", name)
                 ui.label("No details available").classes("text-grey-7")
             else:
+                logger.debug(
+                    "Loaded experiment detail: %s (status=%s, tests=%s)",
+                    name,
+                    detail.get("status"),
+                    detail.get("test_count"),
+                )
                 with ui.tabs().classes("w-full").style("flex-shrink: 0") as tabs:
                     summary_tab = ui.tab("Summary", icon="analytics")
                     tests_tab = ui.tab("Tests", icon="science")

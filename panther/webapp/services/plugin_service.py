@@ -74,6 +74,7 @@ class PluginService:
             discovered plugins.  Returns an empty list on failure.
         """
         if self._plugins_cache is not None:
+            logger.debug("Returning %d cached plugins", len(self._plugins_cache))
             return self._plugins_cache
 
         try:
@@ -82,6 +83,9 @@ class PluginService:
             pm = PluginManager()
             discovered = pm.discover_plugins()
             self._plugins_cache = list(discovered.values())
+            logger.info(
+                "Plugin discovery complete: %d plugins found", len(self._plugins_cache)
+            )
         except Exception as e:
             logger.warning("Failed to discover plugins: %s", e)
             return []  # Don't cache failure — allow retry on next call
@@ -102,6 +106,7 @@ class PluginService:
         for p in self.list_plugins():
             if p.name == name:
                 return p
+        logger.debug("Plugin not found: %s", name)
         return None
 
     def get_plugin_manifest(self, name: str):

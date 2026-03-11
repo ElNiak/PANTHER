@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 def content():
     """Render the topology editor placeholder page."""
+    logger.info("Loading topology editor page")
     ui.label("Visual Experiment Designer").classes("text-h5 q-mb-md")
 
     with ui.card().classes("w-full q-pa-lg"):

@@ -86,6 +86,7 @@ def content():
     All subscriptions and callbacks are cleaned up via
     ``client.on_disconnect`` to prevent stale references.
     """
+    logger.info("Loading experiments page")
     config_path = app.storage.general.get("config_path")
     experiment_svc = get_experiment_service()
     config_svc = ConfigService()
@@ -98,6 +99,9 @@ def content():
     # ── Config browser section (above launch card) ───────────────────
     all_configs = config_svc.list_configs_recursive()
     categories = sorted({c["category"] for c in all_configs if c["category"]})
+    logger.debug(
+        "Found %d config files across %d categories", len(all_configs), len(categories)
+    )
 
     with ui.card().classes("w-full q-pa-md q-mb-md"):
         ui.label("Available Configurations").classes("text-subtitle1 q-mb-sm")
@@ -385,6 +389,7 @@ def content():
         if not path:
             ui.notify("Please provide a config file path", type="warning")
             return
+        logger.info("User launched experiment with config: %s", path)
         status_label.text = "Status: Starting..."
         run_btn.set_visibility(False)
         stop_btn.set_visibility(True)
@@ -393,8 +398,10 @@ def content():
 
         try:
             await experiment_svc.run_experiment(config_path=path)
+            logger.info("Experiment completed for config: %s", path)
             ui.notify("Experiment completed", type="positive")
         except Exception as e:
+            logger.error("Experiment failed for config %s: %s", path, e)
             status_label.text = f"Status: Error - {e}"
             log_viewer.push(f"ERROR: {e}")
             ui.notify(f"Experiment failed: {e}", type="negative")
@@ -402,5 +409,9 @@ def content():
             run_btn.set_visibility(True)
             stop_btn.set_visibility(False)
 
+    def on_stop():
+        logger.info("User requested experiment stop")
+        experiment_svc.stop()
+
     run_btn.on_click(on_run)
-    stop_btn.on_click(lambda: experiment_svc.stop())
+    stop_btn.on_click(on_stop)

@@ -115,6 +115,7 @@ def content():
     panel builder and the YAML editor so that the timer-based sync
     and the action helpers can access both.
     """
+    logger.info("Loading config builder page")
     config_svc = ConfigService()
 
     ui.label("Experiment Configuration Builder").classes("text-h5 q-mb-md")
@@ -372,10 +373,12 @@ def _validate(config_svc: ConfigService, yaml_editor):
 
     field_errors = config_svc.validate_config_detailed(data)
     if field_errors:
+        logger.info("Configuration validation found %d issues", len(field_errors))
         for err in field_errors[:10]:
             severity = "negative" if err.severity == "error" else "warning"
             ui.notify(f"{err.path}: {err.message}", type=severity)
     else:
+        logger.info("Configuration validated successfully")
         ui.notify("Configuration is valid", type="positive")
 
 
@@ -409,6 +412,7 @@ def _export(yaml_editor):
         meta["modified_at"] = datetime.now().isoformat()
         yaml_content = _yaml.dump(data, default_flow_style=False, sort_keys=False)
     ui.download(yaml_content.encode(), "panther_config.yaml")
+    logger.info("Configuration exported as panther_config.yaml")
 
 
 def _import_yaml_dialog(config_svc: ConfigService, yaml_editor_ref: dict):
@@ -453,6 +457,7 @@ def _import_yaml_dialog(config_svc: ConfigService, yaml_editor_ref: dict):
                 _populate_forms_from_dict(panels, data)
             yaml_editor_ref["skip_sync"] = True
             dialog.close()
+            logger.info("YAML configuration imported from paste")
             ui.notify("Configuration imported into forms", type="positive")
 
         with ui.row().classes("justify-end w-full q-mt-sm"):
@@ -515,11 +520,14 @@ def _load_config_dialog(config_svc: ConfigService, yaml_editor_ref: dict):
                     _populate_forms_from_dict(panels, data)
                 yaml_editor_ref["skip_sync"] = True
                 dialog.close()
+                logger.info("Configuration loaded from file: %s", path)
                 ui.notify(f"Loaded: {path}", type="positive")
-            except FileNotFoundError:
+            except FileNotFoundError as e:
+                logger.warning("Failed to load config from %s: %s", path, e)
                 ui.notify(f"File not found: {path}", type="negative")
-            except ValueError as exc:
-                ui.notify(f"Error: {exc}", type="negative")
+            except ValueError as e:
+                logger.warning("Failed to load config from %s: %s", path, e)
+                ui.notify(f"Error: {e}", type="negative")
 
         with ui.row().classes("justify-end w-full q-mt-sm"):
             ui.button("Cancel", on_click=dialog.close).props("flat")
@@ -571,6 +579,7 @@ def _save_config_dialog(config_svc: ConfigService, yaml_editor):
             try:
                 config_svc.save_config(path, data)
                 dialog.close()
+                logger.info("Configuration saved to file: %s", path)
                 ui.notify(f"Saved to: {path}", type="positive")
             except Exception as exc:
                 ui.notify(f"Error saving: {exc}", type="negative")

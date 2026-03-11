@@ -108,6 +108,7 @@ class ExperimentService:
 
         # Restore observer state from NiceGUI app storage if available
         self._try_restore_observer_state()
+        logger.debug("ExperimentService initialized")
 
     @property
     def status(self) -> str:
@@ -155,6 +156,7 @@ class ExperimentService:
         """
         self._log_callbacks.append(on_log)
         self._status_callbacks.append(on_status)
+        logger.debug("Registered UI callbacks")
 
     def unregister_callbacks(
         self,
@@ -179,6 +181,7 @@ class ExperimentService:
             self._status_callbacks.remove(on_status)
         except ValueError:
             pass
+        logger.debug("Unregistered UI callbacks")
 
     def _emit_log(self, line: str):
         """Append a line to the buffer and notify all log callbacks."""
@@ -243,6 +246,7 @@ class ExperimentService:
             self._stop_requested = False
         self._log_lines.clear()
         self._config_path = config_path
+        logger.info("Starting experiment run with config: %s", config_path)
 
         # Enable event batching for the duration of the experiment
         self._web_observer.enable_batching(500)
@@ -289,6 +293,7 @@ class ExperimentService:
 
                 _check_stop()
 
+                logger.info("Experiment config loaded, initializing ExperimentManager")
                 self._emit_status("Initializing...")
                 self._emit_log(f"Loaded config from {config_path}")
 
@@ -315,6 +320,11 @@ class ExperimentService:
 
                         self._emit_status("Running tests...")
                         success = manager.run_tests()
+                        logger.info(
+                            "Experiment run finished (success=%s) for config: %s",
+                            success,
+                            config_path,
+                        )
 
                         _check_stop()
                     finally:
