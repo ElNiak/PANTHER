@@ -33,7 +33,7 @@ class PluginService:
             self._plugins_cache = list(discovered.values())
         except Exception as e:
             logger.warning("Failed to discover plugins: %s", e)
-            self._plugins_cache = []
+            return []  # Don't cache failure — allow retry on next call
 
         return self._plugins_cache
 

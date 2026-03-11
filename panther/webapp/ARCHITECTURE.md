@@ -15,7 +15,7 @@ NiceGUI satisfies all three constraints with minimal glue code:
 
 | Requirement                        | Flask          | Streamlit      | NiceGUI        |
 |------------------------------------|----------------|----------------|----------------|
-| Forms from Pydantic models         | Manual WTForms | st.form()      | Via NiceCRUD   |
+| Forms from Pydantic models         | Manual WTForms | st.form()      | Via PydanticForm |
 | WebSocket push (server -> browser) | flask-socketio | Rerun model    | Built-in       |
 | Long-running background tasks      | Celery/threads | Blocking       | asyncio native |
 | Pure Python (no JS build step)     | No (Jinja+JS)  | Yes            | Yes            |
@@ -23,46 +23,36 @@ NiceGUI satisfies all three constraints with minimal glue code:
 
 NiceGUI eliminates the need for Jinja templates, WTForms, custom JavaScript, and manual WebSocket plumbing.
 
-### NiceCRUD for Config Forms
+### PydanticForm for Config Forms
 
-NiceCRUD takes a Pydantic model class and produces a complete CRUD interface (forms, validation, table views). Since PANTHER config models are already Pydantic v2, NiceCRUD generates forms with minimal code.
-
-**Important: `id_field` parameter is required.** PANTHER models don't have an `id` field, so you must specify which field to use as the unique identifier:
+PydanticForm (`panther/webapp/components/pydantic_form.py`) is a custom recursive
+form component that renders any `BaseModel` as editable NiceGUI widgets. It replaced
+the external `niceguicrud` dependency.
 
 ```python
-from niceguicrud import NiceCRUD
-from panther.webapp.utils.form_models import strip_omega_config
+from panther.webapp.components.pydantic_form import PydanticForm, FormConfig
 from panther.config.core.models.global_config import LoggingConfig
 
-# PANTHER models carry omega_config: Optional[DictConfig] which breaks JSON Schema.
-# strip_omega_config() removes it recursively, producing a NiceCRUD-safe model.
-FormModel = strip_omega_config(LoggingConfig)
-
-# id_field tells NiceCRUD which field is the unique key
-crud = NiceCRUD(FormModel, id_field="level")
+form = PydanticForm(LoggingConfig, config=FormConfig(section_style="card"))
+data = form.get_value()  # Returns validated dict (falls back to raw on error)
+form.set_value({"level": "DEBUG"})
 ```
 
-**Tested behavior with NiceCRUD 0.1.6 + Pydantic v2:**
-- Flat models (LoggingConfig, PathsConfig): work after stripping `omega_config`.
-- Nested models (DockerConfig with sub-models): work -- NiceCRUD renders nested fields.
-- Enum fields: rendered as dropdowns automatically.
-- Optional fields: handled correctly.
-- Default values: pre-populated in forms.
+**Three-layer architecture:**
+1. **PydanticForm** — type-dispatch logic (scalar, enum, nested model, complex collections)
+2. **FormConfig** — structural layout options (grouping, advanced toggle, section style)
+3. **CSS classes** — every widget gets `.{prefix}-*` classes for visual theming
 
-**Note:** All PANTHER config models inherit from `BaseConfig` (Pydantic v2). NiceCRUD works directly with Pydantic models — `build_form_model()` handles any necessary schema adaptation.
+**Features:**
+- Recursive nested BaseModel rendering (expansion panels, cards, or flat)
+- Enum fields rendered as dropdowns
+- Optional[BaseModel] fields with toggle switches
+- Dict[str, str], Dict[str, BaseModel], List[BaseModel] via specialized widgets
+- `json_schema_extra` metadata drives UI hints (widget_type, advanced, category)
+- Validation through Pydantic with graceful fallback
 
-**Correct `id_field` values per model:**
-
-| Model | `id_field` |
-|-------|-----------|
-| LoggingConfig | `"level"` |
-| PathsConfig | `"output_dir"` |
-| DockerConfig | `"force_build_docker_image"` |
-| TestConfig | `"name"` |
-| GlobalConfig | `"version"` |
-| ServiceConfig | `"implementation"` |
-
-For deeply nested config trees (TestConfig -> ServiceConfig -> ProtocolConfig), compose multiple NiceCRUD instances inside `ui.expansion` accordion panels.
+For deeply nested config trees (TestConfig -> ServiceConfig -> ProtocolConfig),
+PydanticForm handles recursion automatically.
 
 ## How NiceGUI Integrates with PANTHER Core
 
@@ -144,11 +134,11 @@ Event types from `panther/core/events/`:
 - `step.*` -- pre/post command execution
 - `metrics.*` -- performance data points
 
-### Config Builder: NiceCRUD + One-Way YAML Preview
+### Config Builder: PydanticForm + One-Way YAML Preview
 
 The config builder page has two panels:
 
-1. **Left: NiceCRUD forms** -- structured editing of GlobalConfig, TestConfig, ServiceConfig
+1. **Left: PydanticForm forms** -- structured editing of GlobalConfig, TestConfig, ServiceConfig
 2. **Right: YAML preview** -- read-only display updated from form changes
 
 ```
@@ -262,7 +252,7 @@ For pages that need data, create a service in `services/` that wraps core PANTHE
 ## Future Evolution
 
 After the thesis, potential improvements:
-- **FastUI migration**: Pydantic's own `pydantic.dev/fastui` generates richer form UIs directly from models. This would replace NiceCRUD and eliminate the `strip_omega_config` workaround since FastUI handles Pydantic v2 natively. Evaluate once the core webapp is stable.
+- **FastUI migration**: Pydantic's own `pydantic.dev/fastui` generates richer form UIs directly from models. This could complement or replace PydanticForm for more complex form scenarios. Evaluate once the core webapp is stable.
 - **Plugin UI extension**: Plugins contribute their own dashboard widgets via a registration API (e.g., `@register_plugin_widget()` decorator). Each plugin could provide a `webapp/` subdirectory with custom page components.
 - **WebSocket-based live topology**: Real-time Docker container status visualization
 

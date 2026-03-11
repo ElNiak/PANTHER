@@ -5,7 +5,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 import yaml
 
@@ -18,7 +18,7 @@ class FieldError:
 
     path: str
     message: str
-    severity: str = "error"  # "error" | "warning"
+    severity: Literal["error", "warning"] = "error"
 
 
 # Resolve default config relative to project root (where pyproject.toml lives)
@@ -80,6 +80,9 @@ class ConfigService:
             if isinstance(global_section, dict) and "level" in global_section:
                 # Quick check that log level is valid
                 GlobalConfig(logging=global_section)
+        except ImportError as e:
+            logger.error("Failed to import config models: %s", e)
+            return f"Internal error: config models unavailable ({e})"
         except Exception as e:
             return f"Config validation error: {e}"
 
@@ -95,7 +98,8 @@ class ConfigService:
         """Parse YAML content to a dict. Returns None on error."""
         try:
             return yaml.safe_load(yaml_content)
-        except yaml.YAMLError:
+        except yaml.YAMLError as e:
+            logger.warning("Failed to parse YAML: %s", e)
             return None
 
     def dict_to_yaml(self, data: dict) -> str:
@@ -383,6 +387,14 @@ class ConfigService:
                 from panther.config.core.models import GlobalConfig
 
                 GlobalConfig(logging=logging_data)
+            except ImportError as e:
+                logger.error("Failed to import config models: %s", e)
+                errors.append(
+                    FieldError(
+                        path="logging",
+                        message=f"Internal error: config models unavailable ({e})",
+                    )
+                )
             except Exception as e:
                 for err_line in str(e).splitlines()[:5]:
                     errors.append(FieldError(path="logging", message=err_line.strip()))

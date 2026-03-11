@@ -117,6 +117,7 @@ class ServiceHealthSummary:
     phases_completed: Optional[Dict[str, bool]] = None
     error_summary: Optional[str] = None
     output_completeness: float = 0.0
+    test_name: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary representation."""
@@ -386,7 +387,12 @@ class StatusCollector:
                 ]
 
                 for category in category_patterns:
-                    if category in content:
+                    if re.search(
+                        rf"(?:error_category|fast.?fail.*category)"
+                        rf"[=:\s]+{category}\b",
+                        content,
+                        re.IGNORECASE,
+                    ):
                         fast_fail_info.error_category = category
                         break
 
@@ -472,7 +478,7 @@ class StatusCollector:
 
             # Count Docker images (docker-compose files indicate Docker usage)
             docker_compose_files = list(
-                self.experiment_dir.rglob("docker-compose*.yml")
+                self.experiment_dir.rglob("docker*compose*.yml")
             )
             if docker_compose_files:
                 resources.docker_images_created = len(docker_compose_files)
@@ -739,6 +745,7 @@ class StatusCollector:
                             phases_completed=entry.get("phases_completed"),
                             error_summary=entry.get("error_summary"),
                             output_completeness=entry.get("output_completeness", 0.0),
+                            test_name=test_dir.name,
                         )
                     )
             except (json.JSONDecodeError, OSError, KeyError) as e:

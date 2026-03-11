@@ -28,7 +28,7 @@ Verify:
 ```bash
 panther --help          # Should show CLI commands including 'web'
 python -c "import nicegui; print(nicegui.__version__)"   # Should print 3.x
-python -c "from niceguicrud import NiceCRUD; print('OK')"  # Should print OK
+python -c "from panther.webapp.components.pydantic_form import PydanticForm; print('OK')"  # Should print OK
 ```
 
 ## Step 2: Run the Webapp (5 minutes)
@@ -68,64 +68,25 @@ Read these files in this order:
 8. **`panther/core/observer/impl/gui_observer.py`** -- GUIObserver base class. Your WebObserver will subclass this.
 9. **`panther/core/reporting/status_collector.py`** -- ExperimentSummary, TestResult, ServiceHealthSummary. The results page parses these.
 
-## Step 4: NiceCRUD Spike (2 hours)
+## Step 4: PydanticForm Exploration (1 hour)
 
-Before building the full config builder, test if NiceCRUD works with PANTHER's models.
-
-Create a temporary test file `test_nicecrud_spike.py` in the repo root:
+The config builder uses `PydanticForm` — a custom component that recursively
+renders any Pydantic `BaseModel` as editable NiceGUI widgets.
 
 ```python
-"""NiceCRUD spike: test with PANTHER config models."""
-from nicegui import ui
-from niceguicrud import NiceCRUD
-from panther.config.core.models.global_config import LoggingConfig, DockerConfig
-from panther.webapp.utils.form_models import strip_omega_config
+from panther.webapp.components.pydantic_form import PydanticForm, FormConfig
+from panther.config.core.models.global_config import LoggingConfig
 
-@ui.page('/')
-def main():
-    ui.label("NiceCRUD Spike").classes('text-h4')
-
-    # IMPORTANT: PANTHER models carry omega_config: Optional[DictConfig]
-    # which breaks NiceCRUD's JSON Schema generation. strip_omega_config()
-    # removes it recursively.
-
-    # Test 1: Simple flat model
-    ui.label("LoggingConfig:").classes('text-h6')
-    try:
-        FormModel = strip_omega_config(LoggingConfig)
-        crud = NiceCRUD(FormModel, id_field='level')
-        crud.show_table()
-        ui.label("LoggingConfig: works!").classes('text-green')
-    except Exception as e:
-        ui.label(f"LoggingConfig FAILED: {e}").classes('text-red')
-
-    # Test 2: Nested model (note: field is force_build_docker_image, NOT force_build)
-    ui.label("DockerConfig:").classes('text-h6')
-    try:
-        FormModel2 = strip_omega_config(DockerConfig)
-        crud2 = NiceCRUD(FormModel2, id_field='force_build_docker_image')
-        crud2.show_table()
-        ui.label("DockerConfig: works!").classes('text-green')
-    except Exception as e:
-        ui.label(f"DockerConfig FAILED: {e}").classes('text-red')
-
-ui.run(port=9999)
+# PydanticForm handles nested models, enums, Optional fields, etc. automatically
+form = PydanticForm(LoggingConfig, config=FormConfig(section_style="card"))
+data = form.get_value()  # Returns validated dict
+form.set_value({"level": "DEBUG"})
 ```
 
-Run: `python test_nicecrud_spike.py`
+Run `panther web --reload` and navigate to `/config` to see PydanticForm in action.
 
-Document what happens:
-- Does LoggingConfig render correctly with `strip_omega_config`?
-- Does DockerConfig (with nested sub-models) render?
-- Are Optional fields handled?
-- Are Enum fields (e.g., LoggingConfig.level) rendered as dropdowns?
-- Does the "Create" button produce a valid model instance?
-
-**Write a 1-page spike report.** This confirms the NiceCRUD approach for Week 2.
-
-> **Already verified:** The `strip_omega_config` utility and NiceCRUD integration
-> pass 40 automated tests (see `tests/unit/test_webapp/`). The spike is for
-> you to understand the rendering behavior visually and document edge cases.
+See `panther/webapp/components/pydantic_form.py` for the implementation and
+`tests/integration/test_pydantic_form_browser.py` for comprehensive tests.
 
 ## Step 5: Verify Bug Fixes (15 minutes)
 
@@ -168,11 +129,12 @@ pytest tests/unit/test_webapp/ -v -o "addopts=-v --tb=short"
 - Services wrap core classes, handle errors, provide async-safe interfaces
 - Each service maps to one core component (see ARCHITECTURE.md)
 
-### NiceCRUD with PANTHER Models
-- **Always use `strip_omega_config()`** before passing models to NiceCRUD (see `panther.webapp.utils.form_models`)
-- Always pass `id_field` parameter (PANTHER models don't have an `id` field)
-- Correct `id_field` values: LoggingConfig=`"level"`, PathsConfig=`"output_dir"`, DockerConfig=`"force_build_docker_image"`, TestConfig=`"name"`, ServiceConfig=`"implementation"`
-- For nested models, compose multiple NiceCRUD instances in `ui.expansion` panels
+### PydanticForm
+- `PydanticForm(ModelClass)` renders any Pydantic BaseModel as editable widgets
+- `form.get_value()` returns a validated dict; `form.set_value(data)` populates fields
+- `FormConfig` controls layout: section style (expansion/card/flat), advanced toggle, CSS prefix
+- Nested models are handled recursively; enums become dropdowns; Optional[BaseModel] gets a toggle
+- See `panther/webapp/components/pydantic_form.py` for implementation details
 
 ## Your First Week Deliverables
 

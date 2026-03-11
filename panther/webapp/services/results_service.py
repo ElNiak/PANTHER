@@ -340,6 +340,7 @@ class ResultsService:
             if events_file.exists():
                 try:
                     text = _read_text_bounded(events_file)
+                    skipped = 0
                     for line in text.splitlines():
                         line = line.strip()
                         if not line:
@@ -354,7 +355,12 @@ class ResultsService:
                             event["_source"] = filename
                             events.append(event)
                         except json.JSONDecodeError:
+                            skipped += 1
                             continue
+                    if skipped:
+                        logger.warning(
+                            "Skipped %d malformed line(s) in %s", skipped, events_file
+                        )
                 except OSError as e:
                     logger.debug("Failed to read %s: %s", events_file, e)
 

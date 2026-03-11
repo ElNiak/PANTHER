@@ -18,7 +18,6 @@ class TestFormConfig:
         from panther.webapp.components.pydantic_form import FormConfig
 
         cfg = FormConfig()
-        assert cfg.columns == 1
         assert cfg.show_advanced is False
         assert cfg.group_by_category is True
         assert cfg.section_style == "expansion"
@@ -27,8 +26,7 @@ class TestFormConfig:
     def test_custom_values(self):
         from panther.webapp.components.pydantic_form import FormConfig
 
-        cfg = FormConfig(columns=2, show_advanced=True, css_prefix="cr")
-        assert cfg.columns == 2
+        cfg = FormConfig(show_advanced=True, css_prefix="cr")
         assert cfg.show_advanced is True
         assert cfg.css_prefix == "cr"
 

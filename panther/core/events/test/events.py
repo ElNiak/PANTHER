@@ -1,20 +1,13 @@
-from typing import Any, Dict, List, Optional
-
-"""
-Test Events
-
-This module defines events specific to test case lifecycle management.
-"""
+"""Test events for test case lifecycle management."""
 
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
 from panther.core.events.base.event_base import BaseEvent, EventType
 
 
 class TestEventType(Enum):
-    """
-
-    from typing import Any, Dict, List, Optional, OptionalTest-specific event types."""
+    """Test-specific event types."""
 
     CREATED = "created"
     SETUP_STARTED = "setup_started"
@@ -51,6 +44,7 @@ class TestEvent(BaseEvent):
         test_id: str,
         data: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize with event type, test ID, and optional data."""
         super().__init__(
             name=event_type.value,
             entity_type=EventType.TEST,
@@ -70,6 +64,7 @@ class TestCreatedEvent(TestEvent):
         description: Optional[str] = None,
         config: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize with test identity and optional configuration."""
         super().__init__(
             event_type=TestEventType.CREATED,
             test_id=test_id,
@@ -90,6 +85,7 @@ class TestSetupStartedEvent(TestEvent):
         service_count: Optional[int] = None,
         service_names: Optional[List[str]] = None,
     ):
+        """Initialize with test ID and optional service info."""
         super().__init__(
             event_type=TestEventType.SETUP_STARTED,
             test_id=test_id,
@@ -106,6 +102,7 @@ class TestSetupCompletedEvent(TestEvent):
         services: Optional[List[str]] = None,
         duration_seconds: Optional[float] = None,
     ):
+        """Initialize with test ID, services list, and duration."""
         super().__init__(
             event_type=TestEventType.SETUP_COMPLETED,
             test_id=test_id,
@@ -123,6 +120,7 @@ class TestSetupFailedEvent(TestEvent):
         error_type: Optional[str] = None,
         failed_component: Optional[str] = None,
     ):
+        """Initialize with test ID and error details."""
         super().__init__(
             event_type=TestEventType.SETUP_FAILED,
             test_id=test_id,
@@ -143,6 +141,7 @@ class TestEnvironmentSetupStartedEvent(TestEvent):
         environment_type: str,
         environment_config: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize with test ID and environment configuration."""
         super().__init__(
             event_type=TestEventType.ENVIRONMENT_SETUP_STARTED,
             test_id=test_id,
@@ -162,6 +161,7 @@ class TestEnvironmentSetupCompletedEvent(TestEvent):
         environment_type: str,
         environment_details: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize with test ID and environment details."""
         super().__init__(
             event_type=TestEventType.ENVIRONMENT_SETUP_COMPLETED,
             test_id=test_id,
@@ -182,6 +182,7 @@ class TestEnvironmentSetupFailedEvent(TestEvent):
         error_message: str,
         error_type: Optional[str] = None,
     ):
+        """Initialize with test ID, environment type, and error details."""
         super().__init__(
             event_type=TestEventType.ENVIRONMENT_SETUP_FAILED,
             test_id=test_id,
@@ -197,6 +198,7 @@ class TestDeploymentStartedEvent(TestEvent):
     """Event emitted when test service deployment starts."""
 
     def __init__(self, test_id: str, services_to_deploy: Optional[List[str]] = None):
+        """Initialize with test ID and services to deploy."""
         super().__init__(
             event_type=TestEventType.DEPLOYMENT_STARTED,
             test_id=test_id,
@@ -213,6 +215,7 @@ class TestDeploymentCompletedEvent(TestEvent):
         deployed_services: Optional[List[str]] = None,
         deployment_details: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize with test ID and deployment results."""
         super().__init__(
             event_type=TestEventType.DEPLOYMENT_COMPLETED,
             test_id=test_id,
@@ -233,6 +236,7 @@ class TestDeploymentFailedEvent(TestEvent):
         failed_services: Optional[List[str]] = None,
         error_type: Optional[str] = None,
     ):
+        """Initialize with test ID and deployment failure details."""
         super().__init__(
             event_type=TestEventType.DEPLOYMENT_FAILED,
             test_id=test_id,
@@ -253,6 +257,7 @@ class TestExecutionStartedEvent(TestEvent):
         steps: Optional[List[str]] = None,
         expected_duration: Optional[float] = None,
     ):
+        """Initialize with test ID and execution plan."""
         super().__init__(
             event_type=TestEventType.EXECUTION_STARTED,
             test_id=test_id,
@@ -270,6 +275,7 @@ class TestStepStartedEvent(TestEvent):
         step_type: Optional[str] = None,
         step_config: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize with test ID and step details."""
         super().__init__(
             event_type=TestEventType.STEP_STARTED,
             test_id=test_id,
@@ -291,6 +297,7 @@ class TestStepCompletedEvent(TestEvent):
         duration_seconds: Optional[float] = None,
         result: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize with test ID, step name, and results."""
         super().__init__(
             event_type=TestEventType.STEP_COMPLETED,
             test_id=test_id,
@@ -312,6 +319,7 @@ class TestStepFailedEvent(TestEvent):
         error_message: str,
         error_type: Optional[str] = None,
     ):
+        """Initialize with test ID, step name, and error details."""
         super().__init__(
             event_type=TestEventType.STEP_FAILED,
             test_id=test_id,
@@ -327,6 +335,7 @@ class TestAssertionsStartedEvent(TestEvent):
     """Event emitted when test assertions validation starts."""
 
     def __init__(self, test_id: str, assertions: Optional[List[Dict[str, Any]]] = None):
+        """Initialize with test ID and assertions list."""
         super().__init__(
             event_type=TestEventType.ASSERTIONS_STARTED,
             test_id=test_id,
@@ -345,6 +354,7 @@ class TestAssertionCheckedEvent(TestEvent):
         passed: bool,
         result: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize with test ID, assertion details, and result."""
         super().__init__(
             event_type=TestEventType.ASSERTION_CHECKED,
             test_id=test_id,
@@ -368,6 +378,7 @@ class TestAssertionsCompletedEvent(TestEvent):
         failed_assertions: int,
         all_passed: bool,
     ):
+        """Initialize with test ID and assertion summary counts."""
         super().__init__(
             event_type=TestEventType.ASSERTIONS_COMPLETED,
             test_id=test_id,
@@ -386,6 +397,7 @@ class TestAssertionsFailedEvent(TestEvent):
     def __init__(
         self, test_id: str, error_message: str, error_type: Optional[str] = None
     ):
+        """Initialize with test ID and error details."""
         super().__init__(
             event_type=TestEventType.ASSERTIONS_FAILED,
             test_id=test_id,
@@ -403,6 +415,7 @@ class TestExecutionCompletedEvent(TestEvent):
         steps_completed: Optional[int] = None,
         assertions_passed: Optional[bool] = None,
     ):
+        """Initialize with test ID and execution summary."""
         super().__init__(
             event_type=TestEventType.EXECUTION_COMPLETED,
             test_id=test_id,
@@ -424,6 +437,7 @@ class TestExecutionFailedEvent(TestEvent):
         error_type: Optional[str] = None,
         phase: Optional[str] = None,
     ):
+        """Initialize with test ID and execution failure details."""
         super().__init__(
             event_type=TestEventType.EXECUTION_FAILED,
             test_id=test_id,
@@ -439,6 +453,7 @@ class TestTeardownStartedEvent(TestEvent):
     """Event emitted when test teardown starts."""
 
     def __init__(self, test_id: str):
+        """Initialize with test ID."""
         super().__init__(event_type=TestEventType.TEARDOWN_STARTED, test_id=test_id)
 
 
@@ -446,6 +461,7 @@ class TestTeardownCompletedEvent(TestEvent):
     """Event emitted when test teardown completes."""
 
     def __init__(self, test_id: str, duration_seconds: Optional[float] = None):
+        """Initialize with test ID and optional duration."""
         super().__init__(
             event_type=TestEventType.TEARDOWN_COMPLETED,
             test_id=test_id,
@@ -463,6 +479,7 @@ class TestCompletedEvent(TestEvent):
         total_duration_seconds: Optional[float] = None,
         summary: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize with test ID and completion summary."""
         super().__init__(
             event_type=TestEventType.COMPLETED,
             test_id=test_id,
@@ -488,6 +505,7 @@ class TestFailedEvent(TestEvent):
         phase: Optional[str] = None,
         summary: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize with test ID, failure reason, and context."""
         super().__init__(
             event_type=TestEventType.FAILED,
             test_id=test_id,
@@ -516,6 +534,7 @@ class TestResultEvent(TestEvent):
         data: Optional[Dict[str, Any]] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize with test name, pass/fail result, and optional metadata."""
         super().__init__(
             event_type=TestEventType.COMPLETED if result else TestEventType.FAILED,
             test_id=test_name,
@@ -539,6 +558,7 @@ class EnhancedResultEvent(TestEvent):
         tags: Optional[List[str]] = None,
         category: str = "default",
     ):
+        """Initialize with test name, result, and categorization info."""
         data = {
             "result_data": result_data,
             "category": category,

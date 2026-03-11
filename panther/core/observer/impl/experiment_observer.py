@@ -1,7 +1,9 @@
+"""Observer that tracks experiment lifecycle events and manages state."""
+
 import logging
 import sys
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Dict, Optional, Set
+from typing import Any, Dict, Optional, Set
 
 from panther.core.events.base.event_base import BaseEvent
 from panther.core.events.environment.events import (
@@ -37,14 +39,9 @@ from panther.core.events.test.events import (
 )
 from panther.core.observer.base.observer_interface import IObserver
 
-# Use TYPE_CHECKING to avoid circular imports
-if TYPE_CHECKING:
-    pass
-
 
 class ExperimentObserver(IObserver):
-    """
-    Enhanced ExperimentObserver that monitors experiment execution and tracks experiment state.
+    """Enhanced ExperimentObserver that monitors experiment execution and tracks experiment state.
 
     This observer handles experiment-specific events, tracks environment monitoring,
     and provides status reporting for experiment execution.
@@ -66,8 +63,7 @@ class ExperimentObserver(IObserver):
         global_config: Any = None,
         log_level: str = "INFO",
     ) -> None:
-        """
-        Initialize the experiment observer with optional configuration.
+        """Initialize the experiment observer with optional configuration.
 
         Args:
             name: Name identifier for this observer
@@ -76,6 +72,7 @@ class ExperimentObserver(IObserver):
             track_timing: Whether to track timing metrics
             track_steps: Whether to track step completion
             global_config: Global configuration object with logging settings
+            log_level: Log level string (default "INFO")
         """
         # Track what we've observed for logging purposes only
         self.observed_environments: Set[str] = set()  # Just track what we've seen
@@ -143,8 +140,7 @@ class ExperimentObserver(IObserver):
         }
 
     def on_event(self, event: BaseEvent) -> bool:
-        """
-        Handles an experiment-related event with enhanced tracking.
+        """Handles an experiment-related event with enhanced tracking.
 
         Uses type-based dispatch to specialized handler methods.
 
@@ -184,7 +180,7 @@ class ExperimentObserver(IObserver):
     def _handle_experiment_finished_early(
         self, event: ExperimentFinishedEarlyEvent
     ) -> bool:
-        """Handle early experiment teExperimentFinishedEarlyEventrmination events."""
+        """Handle early experiment termination events."""
         action = event.data.get("action", "notify")
 
         if action == "notify":
@@ -306,8 +302,7 @@ class ExperimentObserver(IObserver):
         return True
 
     def _cleanup_step_progress_bars(self, test_name: str = None) -> None:
-        """
-        Clean up step progress bars for a specific test or all tests.
+        """Clean up step progress bars for a specific test or all tests.
 
         Args:
             test_name: Optional test name to clean up bars for. If None, cleans up all bars.
@@ -438,9 +433,6 @@ class ExperimentObserver(IObserver):
         environment_name = combined_details.get(
             "environment_instance", environment_type
         )
-
-        # Just log the completion status
-        status_msg = "successfully" if success else "with errors"
 
         if success:
             self.logger.info(
@@ -690,8 +682,7 @@ class ExperimentObserver(IObserver):
         return True
 
     def _handle_test_execution_failed(self, event: TestExecutionFailedEvent) -> bool:
-        """
-        Handle test execution failed events.
+        """Handle test execution failed events.
 
         Args:
             event: The TestExecutionFailedEvent to handle
@@ -725,8 +716,7 @@ class ExperimentObserver(IObserver):
         return True
 
     def _handle_test_execution_started(self, event: TestExecutionStartedEvent) -> bool:
-        """
-        Handle test execution started events.
+        """Handle test execution started events.
 
         Args:
             event: The TestExecutionStartedEvent to handle
@@ -748,8 +738,7 @@ class ExperimentObserver(IObserver):
         return True
 
     def _handle_test_completed(self, event: TestCompletedEvent) -> bool:
-        """
-        Handle test completed events.
+        """Handle test completed events.
 
         Args:
             event: The TestCompletedEvent to handle
@@ -782,8 +771,7 @@ class ExperimentObserver(IObserver):
     def _handle_test_execution_completed(
         self, event: TestExecutionCompletedEvent
     ) -> bool:
-        """
-        Handle test execution completed events.
+        """Handle test execution completed events.
 
         Args:
             event: The TestExecutionCompletedEvent to handle
@@ -819,8 +807,7 @@ class ExperimentObserver(IObserver):
         return True
 
     def _handle_metric_collected(self, event: MetricCollectedEvent) -> bool:
-        """
-        Handle metric collected events.
+        """Handle metric collected events.
 
         Args:
             event: The MetricCollectedEvent to handle
@@ -843,8 +830,7 @@ class ExperimentObserver(IObserver):
     def _record_timing_info(
         self, checkpoint_name: str, reference_time: datetime
     ) -> None:
-        """
-        Record timing information for experiment metrics.
+        """Record timing information for experiment metrics.
 
         Args:
             checkpoint_name: Name of the checkpoint being recorded
@@ -856,8 +842,7 @@ class ExperimentObserver(IObserver):
         )
 
     def get_experiment_status(self) -> Dict[str, Any]:
-        """
-        Get a summary of the current experiment status.
+        """Get a summary of the current experiment status.
 
         Returns:
             Dict containing experiment status information
@@ -875,8 +860,7 @@ class ExperimentObserver(IObserver):
     # Orchestration methods removed - ExperimentObserver is now purely observational
 
     def get_priority(self) -> int:
-        """
-        Get the priority for this observer.
+        """Get the priority for this observer.
 
         Returns:
             int: Priority value (lower number = higher priority)
@@ -884,8 +868,7 @@ class ExperimentObserver(IObserver):
         return 50  # Medium priority
 
     def should_terminate_early(self) -> bool:
-        """
-        Check if the experiment should terminate early.
+        """Check if the experiment should terminate early.
 
         Returns:
             bool: True if the experiment should finish early
@@ -893,8 +876,7 @@ class ExperimentObserver(IObserver):
         return self._should_terminate_early or self.experiment_finished_early
 
     def is_interested(self, event_type: str) -> bool:
-        """
-        Check if this observer is interested in an event type.
+        """Check if this observer is interested in an event type.
 
         Args:
             event_type: Type of event to check interest for
@@ -999,8 +981,7 @@ class ExperimentObserver(IObserver):
         return True
 
     def _handle_environment_error(self, event: EnvironmentErrorEvent) -> bool:
-        """
-        Handle environment error events and check for early termination.
+        """Handle environment error events and check for early termination.
 
         Args:
             event: The EnvironmentErrorEvent to handle
@@ -1028,8 +1009,7 @@ class ExperimentObserver(IObserver):
     def _handle_experiment_service_failure(
         self, event: ExperimentServiceFailureEvent
     ) -> bool:
-        """
-        Handle experiment service failure events.
+        """Handle experiment service failure events.
 
         Args:
             event: The ExperimentServiceFailureEvent to handle

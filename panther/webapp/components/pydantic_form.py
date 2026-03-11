@@ -4,10 +4,10 @@ Renders any ``BaseModel`` as editable NiceGUI widgets.  Designed to be
 **embeddable**: it renders into whatever NiceGUI container is currently
 active (expansion panel, sidebar, dialog card, etc.).
 
-Three-layer architecture for student customisation:
+Three-layer architecture:
 
 1. **PydanticForm** — type-dispatch logic (this file)
-2. **FormConfig** — structural layout options (columns, grouping, advanced toggle)
+2. **FormConfig** — structural layout options (grouping, advanced toggle, section style)
 3. **CSS classes** — every widget gets ``.{prefix}-*`` classes for visual theming
 """
 
@@ -38,14 +38,11 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class FormConfig:
-    """Student-facing layout configuration.
+    """Layout configuration for PydanticForm rendering.
 
     Change these values to adjust form structure without touching
     renderer code.  Visual styling is done via CSS classes.
     """
-
-    columns: int = 1
-    """Number of columns for field layout (1 or 2)."""
 
     show_advanced: bool = False
     """Show fields marked ``json_schema_extra["advanced"] = True``."""
@@ -53,8 +50,8 @@ class FormConfig:
     group_by_category: bool = True
     """Group fields by ``json_schema_extra["category"]``."""
 
-    section_style: str = "expansion"
-    """How nested BaseModel sections render: ``"expansion"`` | ``"card"`` | ``"flat"``."""
+    section_style: Literal["expansion", "card", "flat"] = "expansion"
+    """How nested BaseModel sections render."""
 
     css_prefix: str = "pf"
     """CSS class prefix — all elements get ``{prefix}-*`` classes."""
