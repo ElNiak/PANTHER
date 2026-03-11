@@ -10,7 +10,9 @@ import logging
 
 from nicegui import ui
 
+from panther.core.events.base.event_base import BaseEvent
 from panther.webapp.components.topology_editor import TopologyEditor
+from panther.webapp.services.experiment_service import get_experiment_service
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +84,47 @@ def content():
                     ui.label("Click a node to view its properties.").classes(
                         "text-caption text-grey-5"
                     )
+
+    # ── Live service status overlay via WebObserver ─────────────────
+    experiment_svc = get_experiment_service()
+    observer = experiment_svc.web_observer
+    status_badge = ui.label("").classes("text-caption text-grey-5 q-mt-sm")
+
+    # Capture client context for background-thread safety
+    client = ui.context.client
+
+    def _on_service_event(event: BaseEvent):
+        try:
+            with client:
+                event_type = event.get_type()
+                service_name = event.data.get(
+                    "service_name", event.data.get("service_id", event.entity_id)
+                )
+                # Update the status badge
+                if event_type == "service.started":
+                    status_badge.text = f"Service started: {service_name}"
+                    status_badge.classes(replace="text-caption text-teal q-mt-sm")
+                elif event_type == "service.stopped":
+                    status_badge.text = f"Service stopped: {service_name}"
+                    status_badge.classes(replace="text-caption text-grey-5 q-mt-sm")
+                elif event_type == "service.crashed":
+                    status_badge.text = f"Service CRASHED: {service_name}"
+                    status_badge.classes(replace="text-caption text-red q-mt-sm")
+                elif event_type == "service.error":
+                    status_badge.text = f"Service error: {service_name}"
+                    status_badge.classes(replace="text-caption text-orange q-mt-sm")
+                elif event_type == "service.ready":
+                    status_badge.text = f"Service ready: {service_name}"
+                    status_badge.classes(replace="text-caption text-green q-mt-sm")
+        except RuntimeError:
+            pass  # client disconnected
+
+    topo_sub = observer.subscribe(
+        _on_service_event,
+        event_types={"service"},
+        batched=False,
+    )
+    client.on_disconnect(lambda: observer.unsubscribe(topo_sub))
 
     ui.separator().classes("q-my-md")
 

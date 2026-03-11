@@ -4,7 +4,9 @@ import logging
 
 from nicegui import app, ui
 
+from panther.core.events.base.event_base import BaseEvent
 from panther.webapp.components.log_viewer import LogViewer
+from panther.webapp.components.progress_bar import ExperimentProgress
 from panther.webapp.services.config_service import ConfigService
 from panther.webapp.services.experiment_service import get_experiment_service
 
@@ -198,6 +200,42 @@ def content():
             else:
                 stop_btn.set_visibility(False)
 
+    # ── Progress bar (event-driven via WebObserver) ─────────────────
+    ui.label("Progress").classes("text-h6 q-mt-md q-mb-sm")
+    progress = ExperimentProgress()
+
+    # Capture client context for background-thread safety
+    client_ref = ui.context.client
+
+    def _on_progress_event(event: BaseEvent):
+        try:
+            with client_ref:
+                event_type = event.get_type()
+                if event_type == "step.progress":
+                    pct = event.data.get("progress_percentage", 0)
+                    msg = event.data.get(
+                        "progress_message", event.data.get("step_name", "")
+                    )
+                    progress.update(msg, pct / 100.0)
+                elif event_type == "step.execution_started":
+                    progress.update(event.data.get("step_name", "Step"), 0.0)
+                elif event_type == "step.execution_completed":
+                    progress.update(event.data.get("step_name", "Done"), 1.0)
+                elif event_type == "experiment.started":
+                    progress.reset()
+                elif event_type == "experiment.completed":
+                    progress.update("Completed", 1.0)
+        except RuntimeError:
+            pass  # client disconnected
+
+    progress_sub = experiment_svc.web_observer.subscribe(
+        _on_progress_event,
+        event_types={"step", "experiment"},
+    )
+    client_ref.on_disconnect(
+        lambda: experiment_svc.web_observer.unsubscribe(progress_sub)
+    )
+
     # ── Log viewer section ────────────────────────────────────────────
     ui.label("Experiment Logs").classes("text-h6 q-mt-md q-mb-sm")
     log_viewer = LogViewer(max_lines=1000)
@@ -216,8 +254,9 @@ def content():
     experiment_svc.register_callbacks(on_log, on_status)
 
     # Unregister callbacks when the client disconnects (page navigation)
-    client = ui.context.client
-    client.on_disconnect(lambda: experiment_svc.unregister_callbacks(on_log, on_status))
+    ui.context.client.on_disconnect(
+        lambda: experiment_svc.unregister_callbacks(on_log, on_status)
+    )
 
     # Poll for status sync (handles experiment finishing while page is open)
     def _sync_status():
