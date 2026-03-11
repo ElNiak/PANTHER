@@ -491,6 +491,12 @@ class BusinessRulesValidator(BaseValidator):
                                 else:
                                     test_ports[host_port] = service_name
 
+        # Cascade to test-level business rules
+        if hasattr(experiment, "tests"):
+            for test in experiment.tests:
+                test_result = self._validate_test_rules(test)
+                result.merge(test_result)
+
         return result
 
     def _suggest_alternative_port(self, conflicting_port: int, used_ports: set) -> int:
@@ -597,6 +603,52 @@ class BusinessRulesValidator(BaseValidator):
                     )
 
         return result
+
+
+def validate_config_dict(data: dict) -> ValidationResult:
+    """Validate a raw config dict (e.g. from YAML editor).
+
+    Tries to build Pydantic models, then runs business rules.
+    Returns all errors/warnings found.
+    """
+    result = ValidationResult()
+    validator = ConfigValidator()
+
+    # 1. Check for required 'tests' section
+    if "tests" not in data:
+        result.add_error("tests", "'tests' section is required")
+        return result
+
+    # 2. Try to build ExperimentConfig from the data
+    try:
+        from ..models.experiment import ExperimentConfig
+
+        config = ExperimentConfig(**data)
+    except Exception as e:
+        # Convert Pydantic/validation errors to structured ValidationResult
+        for line in str(e).splitlines()[:20]:
+            stripped = line.strip()
+            if stripped:
+                result.add_error("config", stripped)
+        return result
+
+    # 3. Run full validation (Pydantic + business rules + compat)
+    result.merge(validator.validate(config))
+
+    # 4. Validate GlobalConfig if logging section present
+    if "logging" in data and isinstance(data["logging"], dict):
+        try:
+            from ..models.global_config import GlobalConfig
+
+            global_config = GlobalConfig(logging=data["logging"])
+            result.merge(validator.validate(global_config))
+        except Exception as e:
+            for line in str(e).splitlines()[:5]:
+                stripped = line.strip()
+                if stripped:
+                    result.add_error("logging", stripped)
+
+    return result
 
 
 class CompatibilityValidator(BaseValidator):

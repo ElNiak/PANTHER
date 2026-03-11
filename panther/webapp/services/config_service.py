@@ -262,165 +262,21 @@ class ConfigService:
     def validate_config_detailed(self, data: dict) -> list["FieldError"]:
         """Field-level validation against Pydantic models.
 
-        Returns list of FieldError with path/message/severity.
+        Delegates to core validators, converts result to FieldError list.
         """
+        from panther.config.core.components.validators import validate_config_dict
+
+        result = validate_config_dict(data)
+
         errors: list[FieldError] = []
-
-        if "tests" not in data:
+        for err in result.errors:
             errors.append(
-                FieldError(path="tests", message="'tests' section is required")
+                FieldError(path=err.field, message=err.message, severity="error")
             )
-            return errors
-
-        tests = data.get("tests")
-        if not isinstance(tests, list) or len(tests) == 0:
+        for warn in result.warnings:
             errors.append(
-                FieldError(
-                    path="tests",
-                    message="'tests' must be a non-empty list",
-                    severity="warning",
-                )
+                FieldError(path=warn.field, message=warn.message, severity="warning")
             )
-
-        # Validate individual tests: service count, types, and roles
-        if isinstance(tests, list):
-            for i, test in enumerate(tests):
-                if not isinstance(test, dict):
-                    continue
-                test_name = test.get("name", f"test[{i}]")
-                services = test.get("services")
-                if not isinstance(services, dict):
-                    continue
-
-                # Rule 1: Min 2 services (ERROR)
-                if len(services) < 2:
-                    errors.append(
-                        FieldError(
-                            path=f"tests[{i}].services",
-                            message=(
-                                f"Test '{test_name}' has {len(services)} service(s);"
-                                " at least 2 required."
-                            ),
-                            severity="error",
-                        )
-                    )
-
-                # Collect implementation types and roles
-                impl_types: set[str] = set()
-                roles: set[str] = set()
-                for svc in services.values():
-                    if isinstance(svc, dict):
-                        impl = svc.get("implementation", {})
-                        if isinstance(impl, dict):
-                            t = impl.get("type", "").lower()
-                            if t:
-                                impl_types.add(t)
-                        proto = svc.get("protocol", {})
-                        if isinstance(proto, dict):
-                            r = proto.get("role", "").lower()
-                            if r:
-                                roles.add(r)
-
-                # Rule 2: No tester service (WARNING)
-                if "testers" not in impl_types:
-                    errors.append(
-                        FieldError(
-                            path=f"tests[{i}].services",
-                            message=f"Test '{test_name}' has no tester service.",
-                            severity="warning",
-                        )
-                    )
-
-                # Rule 5: No IUT service (WARNING)
-                if "iut" not in impl_types:
-                    errors.append(
-                        FieldError(
-                            path=f"tests[{i}].services",
-                            message=f"Test '{test_name}' has no IUT service.",
-                            severity="warning",
-                        )
-                    )
-
-                # Rule 3: Missing role counterpart (WARNING)
-                if "client" in roles and "server" not in roles:
-                    errors.append(
-                        FieldError(
-                            path=f"tests[{i}].services",
-                            message=(
-                                f"Test '{test_name}' has client(s) but no server."
-                            ),
-                            severity="warning",
-                        )
-                    )
-                if "server" in roles and "client" not in roles:
-                    errors.append(
-                        FieldError(
-                            path=f"tests[{i}].services",
-                            message=(
-                                f"Test '{test_name}' has server(s) but no client."
-                            ),
-                            severity="warning",
-                        )
-                    )
-
-                # Rule 4: Client without valid target (WARNING)
-                for svc_name, svc in services.items():
-                    if not isinstance(svc, dict):
-                        continue
-                    proto = svc.get("protocol", {})
-                    if not isinstance(proto, dict):
-                        continue
-                    if proto.get("role", "").lower() != "client":
-                        continue
-                    target = proto.get("target")
-                    if not target:
-                        errors.append(
-                            FieldError(
-                                path=f"tests[{i}].services.{svc_name}.protocol.target",
-                                message=(
-                                    f"Client '{svc_name}' has no target specified."
-                                ),
-                                severity="warning",
-                            )
-                        )
-                    elif target in services:
-                        target_svc = services[target]
-                        if isinstance(target_svc, dict):
-                            target_proto = target_svc.get("protocol", {})
-                            if isinstance(target_proto, dict):
-                                target_role = target_proto.get("role", "").lower()
-                                if target_role != "server":
-                                    errors.append(
-                                        FieldError(
-                                            path=f"tests[{i}].services.{svc_name}.protocol.target",
-                                            message=(
-                                                f"Client '{svc_name}' targets"
-                                                f" '{target}'"
-                                                f" (role='{target_role}',"
-                                                " expected 'server')."
-                                            ),
-                                            severity="warning",
-                                        )
-                                    )
-
-        logging_data = data.get("logging")
-        if logging_data and isinstance(logging_data, dict):
-            try:
-                from panther.config.core.models import GlobalConfig
-
-                GlobalConfig(logging=logging_data)
-            except ImportError as e:
-                logger.error("Failed to import config models: %s", e)
-                errors.append(
-                    FieldError(
-                        path="logging",
-                        message=f"Internal error: config models unavailable ({e})",
-                    )
-                )
-            except Exception as e:
-                for err_line in str(e).splitlines()[:5]:
-                    errors.append(FieldError(path="logging", message=err_line.strip()))
-
         return errors
 
     def merge_configs(self, base: dict, overlay: dict) -> dict:
