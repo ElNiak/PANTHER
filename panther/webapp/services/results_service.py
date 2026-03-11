@@ -5,17 +5,9 @@ import logging
 from pathlib import Path
 from typing import Any, Optional
 
+from panther.core.utils.file_utils import FileUtils
+
 logger = logging.getLogger(__name__)
-
-_MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
-
-
-def _read_text_bounded(path: Path, max_bytes: int = _MAX_FILE_SIZE) -> str:
-    """Read text file with size limit to prevent OOM."""
-    if path.stat().st_size > max_bytes:
-        with open(path, "r", encoding="utf-8", errors="replace") as f:
-            return f.read(max_bytes)
-    return path.read_text(encoding="utf-8", errors="replace")
 
 
 class ResultsService:
@@ -144,7 +136,7 @@ class ResultsService:
             logs = list(exp_dir.glob(pattern))
             if logs:
                 try:
-                    lines = _read_text_bounded(logs[0]).splitlines()
+                    lines = FileUtils.read_text_bounded(logs[0]).splitlines()
                     return lines[-tail:]
                 except OSError as e:
                     logger.warning("Error reading log file %s: %s", logs[0], e)
@@ -161,7 +153,7 @@ class ResultsService:
             report = exp_dir / name
             if report.exists():
                 try:
-                    return _read_text_bounded(report)
+                    return FileUtils.read_text_bounded(report)
                 except OSError as e:
                     logger.warning("Error reading report %s: %s", report, e)
         return None
@@ -377,7 +369,7 @@ class ResultsService:
             events_file = test_dir / filename
             if events_file.exists():
                 try:
-                    text = _read_text_bounded(events_file)
+                    text = FileUtils.read_text_bounded(events_file)
                     skipped = 0
                     for line in text.splitlines():
                         line = line.strip()
@@ -415,7 +407,7 @@ class ResultsService:
         events_log = exp_dir / "experiment_events.log"
         if events_log.exists():
             try:
-                text = _read_text_bounded(events_log)
+                text = FileUtils.read_text_bounded(events_log)
                 for line in text.splitlines():
                     line = line.strip()
                     if not line:
@@ -467,7 +459,7 @@ class ResultsService:
                 log_file = phase_dir / log_name
                 if log_file.exists():
                     try:
-                        content = _read_text_bounded(log_file)
+                        content = FileUtils.read_text_bounded(log_file)
                         phase_data[log_name.replace(".log", "")] = (
                             content if content.strip() else None
                         )
@@ -480,7 +472,9 @@ class ResultsService:
             comp_status = phase_dir / "compilation_status.txt"
             if comp_status.exists():
                 try:
-                    phase_data["compilation_status"] = _read_text_bounded(comp_status)
+                    phase_data["compilation_status"] = FileUtils.read_text_bounded(
+                        comp_status
+                    )
                 except OSError as e:
                     logger.warning("Error reading %s: %s", comp_status, e)
 
@@ -619,6 +613,18 @@ class ResultsService:
                     )
 
         return results
+
+    def get_metrics_data(self, experiment_path: str) -> Optional[dict[str, Any]]:
+        """Load metrics data from an experiment's metrics.json file.
+
+        Returns the parsed metrics dict, or None if no metrics were collected.
+        """
+        from panther.core.metrics import MetricsDataLoader
+
+        exp_dir = Path(experiment_path)
+        loader = MetricsDataLoader(output_dir=exp_dir.parent)
+        data, _ = loader.load_metrics(experiment_dir=exp_dir)
+        return data
 
     def get_aggregate_stats(self, experiment_path: str) -> dict:
         """Return {total, passed, failed, success_rate, duration}."""

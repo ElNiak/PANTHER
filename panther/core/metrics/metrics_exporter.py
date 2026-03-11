@@ -1,10 +1,6 @@
-from typing import Any, Dict, List, Union
+"""Metrics Exporter Module for PANTHER.
 
-"""
-Metrics Exporter Module for PANTHER
-
-This module provides functionality to export metrics data to various formats
-including JSON, CSV, and dashboard-compatible formats.
+This module provides functionality to export metrics data to JSON and CSV formats.
 """
 
 import csv
@@ -13,6 +9,7 @@ import logging
 import time
 from datetime import datetime
 from pathlib import Path
+from typing import Any, Dict, Union
 
 from .metrics_collector import MetricsCollector, MetricType, Phase
 
@@ -20,14 +17,10 @@ logger = logging.getLogger(__name__)
 
 
 class MetricsExporter:
-    """
-
-    Handles exporting metrics data to various formats and destinations.
-    """
+    """Handles exporting metrics data to various formats and destinations."""
 
     def __init__(self, metrics_collector: MetricsCollector):
-        """
-        Initialize the metrics exporter.
+        """Initialize the metrics exporter.
 
         Args:
             metrics_collector: The metrics collector instance to export from
@@ -38,8 +31,7 @@ class MetricsExporter:
     def export_to_json(
         self, output_path: Union[str, Path], include_raw_data: bool = True
     ) -> bool:
-        """
-        Export metrics to JSON format.
+        """Export metrics to JSON format.
 
         Args:
             output_path: Path to save the JSON file
@@ -90,8 +82,7 @@ class MetricsExporter:
             return False
 
     def export_to_csv(self, output_dir: Union[str, Path]) -> bool:
-        """
-        Export metrics to CSV format (multiple files for different metric types).
+        """Export metrics to CSV format (multiple files for different metric types).
 
         Args:
             output_dir: Directory to save CSV files
@@ -126,217 +117,6 @@ class MetricsExporter:
 
         except Exception as e:
             logger.error("Failed to export metrics to CSV: %s", e)
-            return False
-
-    def export_prometheus_format(self, output_path: Union[str, Path]) -> bool:
-        """
-        Export metrics in Prometheus format for monitoring systems.
-
-        Args:
-            output_path: Path to save the Prometheus format file
-
-        Returns:
-            bool: True if export was successful, False otherwise
-        """
-        try:
-            output_path = Path(output_path)
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-
-            prometheus_data = []
-
-            # Add timing metrics
-            for metric_name, value in self.metrics_collector.timing_metrics.items():
-                safe_name = metric_name.replace(" ", "_").replace("-", "_").lower()
-                prometheus_data.append(f"panther_timing_{safe_name}_seconds {value}")
-
-            # Add counters
-            for metric_name, value in self.metrics_collector.counters.items():
-                safe_name = metric_name.replace(" ", "_").replace("-", "_").lower()
-                prometheus_data.append(f"panther_counter_{safe_name}_total {value}")
-
-            # Add gauges
-            for metric_name, value in self.metrics_collector.gauges.items():
-                safe_name = metric_name.replace(" ", "_").replace("-", "_").lower()
-                prometheus_data.append(f"panther_gauge_{safe_name} {value}")
-
-            # Add resource metrics (latest values)
-            resource_metrics = self.metrics_collector.get_metrics(
-                component="resource_monitor"
-            )
-            cpu_metrics = [m for m in resource_metrics if m.name == "cpu_percent"]
-            memory_metrics = [m for m in resource_metrics if m.name == "memory_percent"]
-            disk_read_metrics = [
-                m for m in resource_metrics if m.name == "disk_read_mb_total"
-            ]
-            disk_write_metrics = [
-                m for m in resource_metrics if m.name == "disk_write_mb_total"
-            ]
-
-            # Get latest values if available
-            if cpu_metrics:
-                latest_cpu = max(cpu_metrics, key=lambda x: x.timestamp)
-                prometheus_data.append(f"panther_cpu_usage_percent {latest_cpu.value}")
-
-            if memory_metrics:
-                latest_memory = max(memory_metrics, key=lambda x: x.timestamp)
-                prometheus_data.append(
-                    f"panther_memory_usage_percent {latest_memory.value}"
-                )
-
-            if disk_read_metrics:
-                latest_disk_read = max(disk_read_metrics, key=lambda x: x.timestamp)
-                prometheus_data.append(
-                    f"panther_disk_io_mb_read {latest_disk_read.value}"
-                )
-
-            if disk_write_metrics:
-                latest_disk_write = max(disk_write_metrics, key=lambda x: x.timestamp)
-                prometheus_data.append(
-                    f"panther_disk_io_mb_write {latest_disk_write.value}"
-                )
-
-            with open(output_path, "w", encoding="utf-8") as f:
-                f.write("\n".join(prometheus_data))
-                f.write("\n")
-
-            logger.info("Metrics exported to Prometheus format: %s", output_path)
-            return True
-
-        except Exception as e:
-            logger.error("Failed to export metrics to Prometheus format: %s", e)
-            return False
-
-    def export_dashboard_json(self, output_path: Union[str, Path]) -> bool:
-        """
-        Export metrics in a format optimized for dashboard consumption.
-
-        Args:
-            output_path: Path to save the dashboard JSON file
-
-        Returns:
-            bool: True if export was successful, False otherwise
-        """
-        try:
-            output_path = Path(output_path)
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-
-            dashboard_data = {
-                "dashboard_metadata": {
-                    "timestamp": self.export_timestamp.isoformat(),
-                    "refresh_interval": 30,  # seconds
-                    "data_retention": "24h",
-                },
-                "summary_cards": self._get_dashboard_summary(),
-                "time_series": self._get_dashboard_timeseries(),
-                "charts": self._get_dashboard_charts(),
-                "alerts": self._get_dashboard_alerts(),
-            }
-
-            # Define a custom JSON serializer for enums and other complex objects
-            def json_serializer(obj):
-                if hasattr(obj, "value"):  # Handle enums
-                    return obj.value
-                elif hasattr(obj, "__dict__"):  # Handle objects with dictionaries
-                    return obj.__dict__
-                else:
-                    return str(obj)
-
-            with open(output_path, "w", encoding="utf-8") as f:
-                json.dump(dashboard_data, f, indent=2, default=json_serializer)
-
-            logger.info("Dashboard metrics exported: %s", output_path)
-            return True
-
-        except Exception as e:
-            logger.error("Failed to export dashboard metrics: %s", e)
-            return False
-
-    def prepare_metrics_data(self) -> bool:
-        """
-        Prepare metrics data for export by performing any necessary preprocessing.
-
-        Returns:
-            bool: True if preparation was successful, False otherwise
-        """
-        try:
-            # Perform any necessary data validation and formatting
-            metrics = self.metrics_collector.get_metrics()
-
-            if not metrics:
-                logger.warning("No metrics data available for export")
-                return True  # Still considered successful
-
-            # Basic validation
-            for metric in metrics:
-                if not hasattr(metric, "name") or not hasattr(metric, "value"):
-                    logger.warning("Invalid metric found: %s", metric)
-                    continue
-
-            logger.info("Prepared %s metrics for export", len(metrics))
-            return True
-
-        except Exception as e:
-            logger.error("Failed to prepare metrics data: %s", e)
-            return False
-
-    def format_resource_metrics(self) -> bool:
-        """
-        Format resource metrics to ensure they're serializable.
-
-        Returns:
-            bool: True if formatting was successful, False otherwise
-        """
-        try:
-            resource_metrics = self.metrics_collector.get_metrics(
-                metric_type=MetricType.RESOURCE
-            )
-
-            for metric in resource_metrics:
-                # Ensure values are JSON serializable
-                if hasattr(metric, "value") and metric.value is not None:
-                    try:
-                        json.dumps(metric.value)
-                    except (TypeError, ValueError):
-                        # Convert non-serializable values to strings
-                        metric.value = str(metric.value)
-
-            logger.debug("Formatted %s resource metrics", len(resource_metrics))
-            return True
-
-        except Exception as e:
-            logger.error("Failed to format resource metrics: %s", e)
-            return False
-
-    def prepare_dashboard_metrics(self) -> bool:
-        """
-        Prepare metrics data specifically for dashboard export format.
-
-        Returns:
-            bool: True if preparation was successful, False otherwise
-        """
-        try:
-            # Get all metrics and organize them for dashboard display
-            all_metrics = self.metrics_collector.get_metrics()
-
-            if not all_metrics:
-                logger.warning("No metrics available for dashboard preparation")
-                return True
-
-            # Group metrics by component and phase for dashboard visualization
-            dashboard_data = {
-                "summary": self._get_dashboard_summary(),
-                "timeseries": self._get_dashboard_timeseries(),
-                "charts": self._get_dashboard_charts(),
-            }
-
-            # Store prepared dashboard data for export
-            self._dashboard_data = dashboard_data
-
-            logger.info("Prepared dashboard data with %s metrics", len(all_metrics))
-            return True
-
-        except Exception as e:
-            logger.error("Failed to prepare dashboard metrics: %s", e)
             return False
 
     @staticmethod
@@ -835,110 +615,3 @@ class MetricsExporter:
                 logger.error("Error exporting summary CSV: %s", e)
                 # Write a placeholder if we can't get the real data
                 writer.writerow(["error", "Failed to get summary data", "error"])
-
-    def _get_dashboard_summary(self) -> List[Dict[str, Any]]:
-        """Get summary cards for dashboard."""
-        summary = self._get_summary_data()
-
-        return [
-            {
-                "title": "Total Experiments",
-                "value": summary["total_experiments"],
-                "type": "counter",
-                "color": "blue",
-            },
-            {
-                "title": "Success Rate",
-                "value": f"{(summary['successful_experiments'] / max(summary['total_experiments'], 1)) * 100:.1f}%",
-                "type": "percentage",
-                "color": (
-                    "green"
-                    if summary["successful_experiments"] > summary["failed_experiments"]
-                    else "red"
-                ),
-            },
-            {
-                "title": "Total Execution Time",
-                "value": f"{summary['total_execution_time']:.2f}s",
-                "type": "duration",
-                "color": "purple",
-            },
-            {
-                "title": "Error Count",
-                "value": summary["error_count"],
-                "type": "counter",
-                "color": "red" if summary["error_count"] > 0 else "green",
-            },
-        ]
-
-    def _get_dashboard_timeseries(self) -> Dict[str, List[Dict[str, Any]]]:
-        """Get time series data for dashboard charts."""
-        resource_metrics = self.metrics_collector.get_metrics(
-            component="resource_monitor"
-        )
-
-        # Group metrics by timestamp
-        metrics_by_timestamp = {}
-        for metric in resource_metrics:
-            # Round timestamp to nearest second to group related metrics
-            rounded_ts = round(metric.timestamp)
-            if rounded_ts not in metrics_by_timestamp:
-                metrics_by_timestamp[rounded_ts] = {"timestamp": rounded_ts}
-
-            # Add metric value to the appropriate timestamp group
-            metrics_by_timestamp[rounded_ts][metric.name] = metric.value
-
-        # Convert to sorted list
-        timeseries = sorted(metrics_by_timestamp.values(), key=lambda x: x["timestamp"])
-
-        return {"resource_usage": timeseries}
-
-    def _get_dashboard_charts(self) -> List[Dict[str, Any]]:
-        """Get chart configurations for dashboard."""
-        return [
-            {
-                "id": "resource_usage_chart",
-                "type": "line",
-                "title": "Resource Usage Over Time",
-                "data_source": "resource_usage",
-                "x_axis": "timestamp",
-                "y_axes": ["cpu_percent", "memory_percent"],
-            },
-            {
-                "id": "phase_duration_chart",
-                "type": "bar",
-                "title": "Average Duration by Phase",
-                "data": self._get_phase_metrics(),
-            },
-        ]
-
-    def _get_dashboard_alerts(self) -> List[Dict[str, Any]]:
-        """Get alerts for dashboard."""
-        alerts = []
-
-        # High error rate alert
-        summary = self._get_summary_data()
-        if summary["total_experiments"] > 0:
-            error_rate = summary["failed_experiments"] / summary["total_experiments"]
-            if error_rate > 0.2:  # 20% failure rate
-                alerts.append(
-                    {
-                        "level": "warning",
-                        "message": f"High failure rate: {error_rate:.1%}",
-                        "timestamp": self.export_timestamp.isoformat(),
-                    }
-                )
-
-        # Resource usage alerts
-        resource_metrics = self._get_resource_metrics()
-        cpu_usage = resource_metrics.get("cpu_usage", {})
-        if cpu_usage and cpu_usage.get("peak", 0) > 90:
-            alerts.append(
-                {
-                    "level": "warning",
-                    "message": f"High CPU usage detected: {cpu_usage['peak']:.1f}%",
-                    "timestamp": self.export_timestamp.isoformat(),
-                }
-            )
-
-        return alerts

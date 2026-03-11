@@ -7,6 +7,7 @@ from nicegui import app, ui
 
 from panther.webapp.components.error_boundary import error_boundary
 from panther.webapp.components.event_viewer import event_viewer
+from panther.webapp.components.metrics_panel import metrics_panel
 from panther.webapp.components.service_health_card import service_health_card
 from panther.webapp.components.stat_cards import stat_card
 from panther.webapp.components.test_detail_panel import test_detail_panel
@@ -212,6 +213,7 @@ def _show_detail(dialog: ui.dialog, results_svc: ResultsService, row: dict):
                     tests_tab = ui.tab("Tests", icon="science")
                     logs_tab = ui.tab("Logs", icon="terminal")
                     events_tab = ui.tab("Events", icon="event")
+                    metrics_tab = ui.tab("Metrics", icon="speed")
                     artifacts_tab = ui.tab("Artifacts", icon="folder_open")
 
                 with (
@@ -227,6 +229,9 @@ def _show_detail(dialog: ui.dialog, results_svc: ResultsService, row: dict):
                         _render_logs_tab(results_svc, exp_path)
                     with ui.tab_panel(events_tab):
                         _render_events_tab(results_svc, exp_path)
+                    with ui.tab_panel(metrics_tab):
+                        with error_boundary("Metrics"):
+                            metrics_panel(results_svc, exp_path)
                     with ui.tab_panel(artifacts_tab):
                         _render_artifacts_tab(detail)
 

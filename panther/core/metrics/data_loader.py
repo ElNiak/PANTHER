@@ -1,5 +1,4 @@
-"""
-Metrics Data Loader for CLI commands.
+"""Metrics Data Loader for CLI commands.
 
 Discovers and loads persisted metrics data from experiment output directories,
 providing a clean interface for CLI commands to read real metrics.
@@ -21,6 +20,7 @@ class MetricsDataLoader:
     """
 
     def __init__(self, output_dir: Path = Path("outputs")):
+        """Initialize with the base output directory."""
         self.output_dir = Path(output_dir)
 
     def find_latest_experiment(self) -> Optional[Path]:
@@ -409,3 +409,166 @@ class MetricsDataLoader:
             if categories:
                 summary["error_categories"] = categories
         return summary
+
+    # -- dashboard / webapp helpers --
+
+    @staticmethod
+    def get_stat_cards(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Get stat-card data derived from persisted metrics.
+
+        Returns a list of dicts with keys ``title``, ``value``, and ``color``
+        suitable for the webapp ``stat_card`` component.
+        """
+        summary = data.get("summary", {})
+        total_exp = summary.get("total_experiments", 0)
+        success_exp = summary.get("successful_experiments", 0)
+        failed_exp = summary.get("failed_experiments", 0)
+        error_count = summary.get("error_count", 0)
+        total_time = summary.get("total_execution_time", 0)
+
+        success_rate = (success_exp / max(total_exp, 1)) * 100
+
+        return [
+            {
+                "title": "Total Experiments",
+                "value": total_exp,
+                "color": "blue",
+            },
+            {
+                "title": "Success Rate",
+                "value": f"{success_rate:.1f}%",
+                "color": "green" if success_exp > failed_exp else "red",
+            },
+            {
+                "title": "Total Execution Time",
+                "value": (
+                    f"{total_time:.2f}s"
+                    if isinstance(total_time, (int, float))
+                    else str(total_time)
+                ),
+                "color": "purple",
+            },
+            {
+                "title": "Error Count",
+                "value": error_count,
+                "color": "red" if error_count > 0 else "green",
+            },
+        ]
+
+    @staticmethod
+    def get_timeseries(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Get time-series resource data grouped by timestamp for charts.
+
+        Extracts resource metric snapshots from ``raw_metrics.resource_metrics``
+        and groups them by rounded timestamp so each entry contains all metric
+        values recorded at that instant (e.g. ``cpu_percent``, ``memory_percent``).
+
+        Returns a sorted list of dicts keyed by metric name.
+        """
+        raw = data.get("raw_metrics", {})
+        if not isinstance(raw, dict):
+            return []
+
+        resource_list = raw.get("resource_metrics", [])
+        if not isinstance(resource_list, list):
+            return []
+
+        by_timestamp: Dict[int, Dict[str, Any]] = {}
+        for entry in resource_list:
+            if not isinstance(entry, dict):
+                continue
+            ts = entry.get("timestamp")
+            if ts is None:
+                continue
+            rounded_ts = round(ts)
+            if rounded_ts not in by_timestamp:
+                by_timestamp[rounded_ts] = {"timestamp": rounded_ts}
+
+            name = entry.get("name", "")
+            value = entry.get("value")
+            if name and value is not None:
+                by_timestamp[rounded_ts][name] = value
+
+        return sorted(by_timestamp.values(), key=lambda x: x["timestamp"])
+
+    @staticmethod
+    def get_performance_insights(data: Dict[str, Any]) -> Dict[str, Any]:
+        """Analyze persisted metrics for bottlenecks, alerts, and recommendations.
+
+        Returns a dict with keys:
+        - ``performance_score``: "excellent" | "good" | "fair" | "poor"
+        - ``bottlenecks``: list of slow operations (>10 s average)
+        - ``alerts``: list of warning/critical strings
+        - ``recommendations``: list of actionable suggestions
+        """
+        insights: Dict[str, Any] = {
+            "performance_score": "unknown",
+            "bottlenecks": [],
+            "recommendations": [],
+            "alerts": [],
+        }
+
+        # -- timing bottlenecks --
+        timing = data.get("timing_metrics", {})
+        if isinstance(timing, dict):
+            for op_name, value in timing.items():
+                if isinstance(value, (int, float)) and value > 10:
+                    insights["bottlenecks"].append(
+                        {
+                            "operation": op_name.replace("_duration", ""),
+                            "average_time": value,
+                            "total_time": value,
+                            "call_count": 1,
+                        }
+                    )
+
+        # -- resource alerts --
+        resource = data.get("resource_metrics", {})
+        if isinstance(resource, dict):
+            cpu = resource.get("cpu_usage", {})
+            mem = resource.get("memory_usage", {})
+
+            if isinstance(cpu, dict):
+                peak_cpu = cpu.get("peak", 0)
+                avg_cpu = cpu.get("average", 0)
+                if peak_cpu > 95:
+                    insights["alerts"].append("Critical: CPU usage reached 95%+")
+                    insights["recommendations"].append(
+                        "Consider reducing CPU-intensive operations"
+                    )
+                elif avg_cpu > 80:
+                    insights["alerts"].append("Warning: High average CPU usage")
+
+            if isinstance(mem, dict):
+                peak_mem = mem.get("peak", 0)
+                avg_mem = mem.get("average", 0)
+                if peak_mem > 95:
+                    insights["alerts"].append("Critical: Memory usage reached 95%+")
+                    insights["recommendations"].append(
+                        "Consider optimizing memory usage"
+                    )
+                elif avg_mem > 80:
+                    insights["alerts"].append("Warning: High average memory usage")
+
+        # -- error rate alert --
+        summary = data.get("summary", {})
+        total_exp = summary.get("total_experiments", 0)
+        failed_exp = summary.get("failed_experiments", 0)
+        if total_exp > 0 and (failed_exp / total_exp) > 0.2:
+            insights["alerts"].append(
+                f"Warning: High failure rate ({failed_exp / total_exp:.0%})"
+            )
+
+        # -- performance score --
+        error_count = summary.get("error_count", 0)
+        if error_count == 0:
+            if len(insights["alerts"]) == 0:
+                insights["performance_score"] = "excellent"
+            elif len(insights["alerts"]) < 3:
+                insights["performance_score"] = "good"
+            else:
+                insights["performance_score"] = "fair"
+        else:
+            insights["performance_score"] = "poor"
+
+        return insights

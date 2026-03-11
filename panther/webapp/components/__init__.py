@@ -3,6 +3,7 @@
 from panther.webapp.components.config_form_panel import config_form_panel
 from panther.webapp.components.error_boundary import error_boundary
 from panther.webapp.components.event_viewer import event_viewer
+from panther.webapp.components.metrics_panel import metrics_panel
 from panther.webapp.components.notifications import (
     notify_error,
     notify_info,

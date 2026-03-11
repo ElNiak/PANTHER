@@ -89,17 +89,6 @@ from panther.cli_click.core.base import (
     is_flag=True,
     help="Disable resource monitoring in metrics collection",
 )
-@click.option(
-    "--metrics-generate-report",
-    is_flag=True,
-    help="Generate metrics report after experiment",
-)
-@click.option(
-    "--metrics-export-format",
-    type=click.Choice(["json", "csv", "yaml"]),
-    default="json",
-    help="Export format for metrics data (default: json)",
-)
 # Docker user mapping options
 @click.option(
     "--docker-run-as-host",
@@ -143,8 +132,6 @@ def run(
     metrics_output_dir,
     metrics_interval,
     metrics_disable_resource_monitoring,
-    metrics_generate_report,
-    metrics_export_format,
     docker_run_as_host,
     docker_user_id,
     docker_group_id,
@@ -290,12 +277,7 @@ def run(
             try:
                 from panther.config import ConfigurationManager
                 from panther.core.experiment_manager import ExperimentManager
-                from panther.core.metrics import (
-                    MetricsCollector,
-                    MetricsExporter,
-                    MetricsReporter,
-                    ResourceMonitor,
-                )
+                from panther.core.metrics import MetricsCollector
 
                 info_message("Loading configuration...")
 
