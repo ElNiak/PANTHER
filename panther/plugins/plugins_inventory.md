@@ -41,10 +41,10 @@
 | lsquic | 2.0.0 | `services/iut/quic/lsquic` | LSQUIC - LiteSpeed's QUIC and HTTP/3 implementation (Refa... | rfc9000, 0rtt, migration, push | yes | ok |
 | mvfst | 2.0.0 | `services/iut/quic/mvfst` | MVFST - Meta's implementation of QUIC transport protocol ... | rfc9000, 0rtt, migration, congestion_control | yes | ok |
 | picoquic | 1.0.0 | `services/iut/quic/picoquic` | PicoQUIC - Minimalist implementation of the QUIC protocol | tls13, 0rtt, connection_migration, multipath, ... | yes | ok |
-| picoquic_shadow | 2.0.0 | `services/iut/quic/picoquic_shadow` | PicoQUIC for Shadow Network Simulator (Refactored) | rfc9000, 0rtt, migration, shadow | yes | ok |
+| picoquic_shadow | 2.0.0 | `services/iut/quic/picoquic_shadow` | PicoQUIC for Shadow Network Simulator  | rfc9000, 0rtt, migration, shadow | yes | ok |
 | ping_pong | 1.0.0 | `services/iut/minip/ping_pong` | Ping-Pong implementation for MiniP protocol testing | ping_pong, basic_networking | yes | ok |
-| quant | 2.0.0 | `services/iut/quic/quant` | Quant - Minimal QUIC implementation (Refactored) | rfc9000, 0rtt, migration | yes | ok |
-| quic_go | 2.0.0 | `services/iut/quic/quic_go` | quic-go - Go implementation of QUIC (Refactored) | rfc9000, 0rtt, migration | yes | ok |
+| quant | 2.0.0 | `services/iut/quic/quant` | Quant - Minimal QUIC implementation  | rfc9000, 0rtt, migration | yes | ok |
+| quic_go | 2.0.0 | `services/iut/quic/quic_go` | quic-go - Go implementation of QUIC  | rfc9000, 0rtt, migration | yes | ok |
 | quiche | 2.0.0 | `services/iut/quic/quiche` | Quiche - Cloudflare's Rust implementation of QUIC (Refact... | rfc9000, 0rtt, migration | yes | ok |
 | quinn | 2.0.0 | `services/iut/quic/quinn` | Quinn - Async-friendly QUIC implementation in Rust (Refac... | rfc9000, 0rtt, migration, async | yes | ok |
 

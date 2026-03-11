@@ -13,7 +13,7 @@ from panther.plugins.services.iut.iut_event_mixin import IUTManagerEventMixin
     plugin_type=PluginType.IUT,
     name="quinn",
     version="2.0.0",
-    description="Quinn - Async-friendly QUIC implementation in Rust (Refactored)",
+    description="Quinn - Async-friendly QUIC implementation in Rust ",
     author="PANTHER Team",
     dependencies=["docker"],
     supported_protocols=["quic"],

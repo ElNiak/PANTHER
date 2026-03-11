@@ -19,7 +19,7 @@ from panther.plugins.services.iut.iut_service_manager_mixin import (
     plugin_type=PluginType.IUT,
     name="lsquic",
     version="2.0.0",
-    description="LSQUIC - LiteSpeed's QUIC and HTTP/3 implementation (Refactored)",
+    description="LSQUIC - LiteSpeed's QUIC and HTTP/3 implementation ",
     author="PANTHER Team",
     dependencies=["docker"],
     supported_protocols=["quic"],

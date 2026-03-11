@@ -19,7 +19,7 @@ from panther.plugins.services.iut.iut_service_manager_mixin import (
     plugin_type=PluginType.IUT,
     name="quic_go",
     version="2.0.0",
-    description="quic-go - Go implementation of QUIC (Refactored)",
+    description="quic-go - Go implementation of QUIC ",
     author="PANTHER Team",
     dependencies=["docker"],
     supported_protocols=["quic"],
