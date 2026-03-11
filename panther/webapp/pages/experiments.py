@@ -56,9 +56,9 @@ from typing import Any
 from nicegui import app, ui
 
 from panther.core.events.base.event_base import BaseEvent
-from panther.webapp.components.event_viewer import event_viewer
-from panther.webapp.components.log_viewer import LogViewer
-from panther.webapp.components.progress_bar import ExperimentProgress
+from panther.webapp.components.display.event_viewer import event_viewer
+from panther.webapp.components.display.log_viewer import LogViewer
+from panther.webapp.components.status.progress_bar import ExperimentProgress
 from panther.webapp.services.config_service import ConfigService
 from panther.webapp.services.experiment_service import get_experiment_service
 

@@ -102,20 +102,20 @@ class TestConfigService:
 @pytest.mark.unit
 class TestResultsService:
     def test_empty_output_dir(self, tmp_path):
-        from panther.webapp.services.results_service import ResultsService
+        from panther.webapp.services.results import ResultsService
 
         svc = ResultsService(str(tmp_path))
         assert svc.list_experiments() == []
         assert svc.count_experiments() == 0
 
     def test_nonexistent_output_dir(self, tmp_path):
-        from panther.webapp.services.results_service import ResultsService
+        from panther.webapp.services.results import ResultsService
 
         svc = ResultsService(str(tmp_path / "does_not_exist"))
         assert svc.list_experiments() == []
 
     def test_list_experiments_with_data(self, output_dir):
-        from panther.webapp.services.results_service import ResultsService
+        from panther.webapp.services.results import ResultsService
 
         svc = ResultsService(str(output_dir))
         experiments = svc.list_experiments()
@@ -126,7 +126,7 @@ class TestResultsService:
         assert experiments[0]["test_count"] == 2
 
     def test_get_experiment_detail(self, output_dir):
-        from panther.webapp.services.results_service import ResultsService
+        from panther.webapp.services.results import ResultsService
 
         svc = ResultsService(str(output_dir))
         detail = svc.get_experiment_detail("2026-01-15_10-00-00")
@@ -137,14 +137,14 @@ class TestResultsService:
         assert detail["report_content"] is not None
 
     def test_get_experiment_detail_missing(self, output_dir):
-        from panther.webapp.services.results_service import ResultsService
+        from panther.webapp.services.results import ResultsService
 
         svc = ResultsService(str(output_dir))
         assert svc.get_experiment_detail("nonexistent") is None
 
     def test_get_experiment_summary(self, output_dir):
         """Test StatusCollector integration."""
-        from panther.webapp.services.results_service import ResultsService
+        from panther.webapp.services.results import ResultsService
 
         svc = ResultsService(str(output_dir))
         experiments = svc.list_experiments()
@@ -155,7 +155,7 @@ class TestResultsService:
         assert summary is None or isinstance(summary, dict)
 
     def test_get_aggregate_stats(self, output_dir):
-        from panther.webapp.services.results_service import ResultsService
+        from panther.webapp.services.results import ResultsService
 
         svc = ResultsService(str(output_dir))
         experiments = svc.list_experiments()
@@ -167,7 +167,7 @@ class TestResultsService:
         assert "success_rate" in stats
 
     def test_get_metrics_timeseries_empty(self, tmp_path):
-        from panther.webapp.services.results_service import ResultsService
+        from panther.webapp.services.results import ResultsService
 
         svc = ResultsService(str(tmp_path))
         result = svc.get_metrics_timeseries(str(tmp_path))
@@ -176,7 +176,7 @@ class TestResultsService:
     def test_get_metrics_timeseries_format1(self, tmp_path):
         import json
 
-        from panther.webapp.services.results_service import ResultsService
+        from panther.webapp.services.results import ResultsService
 
         metrics = {
             "memory": {"peak_mb": 512, "avg_mb": 256},
@@ -191,7 +191,7 @@ class TestResultsService:
     def test_get_metrics_timeseries_format2(self, tmp_path):
         import json
 
-        from panther.webapp.services.results_service import ResultsService
+        from panther.webapp.services.results import ResultsService
 
         metrics = {
             "resource_metrics": {
@@ -205,14 +205,14 @@ class TestResultsService:
         assert len(result) >= 2
 
     def test_get_service_health_empty(self, tmp_path):
-        from panther.webapp.services.results_service import ResultsService
+        from panther.webapp.services.results import ResultsService
 
         svc = ResultsService(str(tmp_path))
         result = svc.get_service_health(str(tmp_path))
         assert result == []
 
     def test_get_experiment_summary_missing(self, tmp_path):
-        from panther.webapp.services.results_service import ResultsService
+        from panther.webapp.services.results import ResultsService
 
         svc = ResultsService(str(tmp_path))
         result = svc.get_experiment_summary(str(tmp_path / "nonexistent"))
@@ -220,7 +220,7 @@ class TestResultsService:
 
     def test_get_experiment_detail_fallback(self, tmp_path):
         """Test that get_experiment_detail falls back to StatusCollector when no JSON."""
-        from panther.webapp.services.results_service import ResultsService
+        from panther.webapp.services.results import ResultsService
 
         # Create experiment dir WITHOUT experiment_summary.json (single-level)
         exp_dir = tmp_path / "2026-01-15_10-00-00_fallback"
@@ -234,7 +234,7 @@ class TestResultsService:
         assert detail is not None
 
     def test_list_tests(self, output_dir):
-        from panther.webapp.services.results_service import ResultsService
+        from panther.webapp.services.results import ResultsService
 
         svc = ResultsService(str(output_dir))
         experiments = svc.list_experiments()
@@ -247,7 +247,7 @@ class TestResultsService:
         assert tests[0]["service_count"] == 1
 
     def test_get_test_detail(self, output_dir):
-        from panther.webapp.services.results_service import ResultsService
+        from panther.webapp.services.results import ResultsService
 
         svc = ResultsService(str(output_dir))
         experiments = svc.list_experiments()
@@ -259,7 +259,7 @@ class TestResultsService:
         assert detail["analysis"] is not None
 
     def test_get_test_events(self, output_dir):
-        from panther.webapp.services.results_service import ResultsService
+        from panther.webapp.services.results import ResultsService
 
         svc = ResultsService(str(output_dir))
         experiments = svc.list_experiments()
@@ -269,7 +269,7 @@ class TestResultsService:
         assert events[0]["event_type"] == "test.started"
 
     def test_get_service_logs(self, output_dir):
-        from panther.webapp.services.results_service import ResultsService
+        from panther.webapp.services.results import ResultsService
 
         svc = ResultsService(str(output_dir))
         experiments = svc.list_experiments()
@@ -279,7 +279,7 @@ class TestResultsService:
         assert logs["compile"]["stdout"] is not None
 
     def test_get_analysis_results(self, output_dir):
-        from panther.webapp.services.results_service import ResultsService
+        from panther.webapp.services.results import ResultsService
 
         svc = ResultsService(str(output_dir))
         experiments = svc.list_experiments()
@@ -289,7 +289,7 @@ class TestResultsService:
         assert "analysis_results" in analysis
 
     def test_count_tests(self, output_dir):
-        from panther.webapp.services.results_service import ResultsService
+        from panther.webapp.services.results import ResultsService
 
         svc = ResultsService(str(output_dir))
         experiments = svc.list_experiments()
@@ -297,7 +297,7 @@ class TestResultsService:
 
     def test_list_tests_no_summary(self, tmp_path):
         """list_tests falls back to filesystem scan when no summary JSON."""
-        from panther.webapp.services.results_service import ResultsService
+        from panther.webapp.services.results import ResultsService
 
         exp_dir = tmp_path / "2026-01-15_10-00-00"
         exp_dir.mkdir()
@@ -539,7 +539,7 @@ class TestResultsServiceCaching:
         """Second call to get_experiment_summary should use cache."""
         from unittest.mock import MagicMock, patch
 
-        from panther.webapp.services.results_service import ResultsService
+        from panther.webapp.services.results import ResultsService
 
         svc = ResultsService(str(tmp_path))
         original_summary = {"status": "completed", "tests": {"total": 5}}
@@ -561,7 +561,7 @@ class TestResultsServiceCaching:
         assert MockCollector.call_count == 1
 
     def test_summary_cache_initialized(self):
-        from panther.webapp.services.results_service import ResultsService
+        from panther.webapp.services.results import ResultsService
 
         svc = ResultsService()
         assert svc._summary_cache == {}

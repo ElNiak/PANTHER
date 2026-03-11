@@ -83,7 +83,7 @@ class TestListEditor:
     def _rebuild(self) -> None:
         """Clear and re-render all expansion panels from ``_test_data``."""
         from panther.config.core.models.experiment import TestConfig
-        from panther.webapp.components.pydantic_form import PydanticForm
+        from panther.webapp.components.forms.pydantic_form import PydanticForm
 
         self._container.clear()
         self._forms = []

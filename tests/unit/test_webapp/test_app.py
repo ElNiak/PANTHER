@@ -1,6 +1,21 @@
 """Smoke tests for webapp application factory and components."""
 
+from typing import Optional
+
 import pytest
+from pydantic import BaseModel
+
+
+# Inline models formerly in panther.webapp.models.api_models (dissolved)
+class ConfigValidationResult(BaseModel):
+    valid: bool
+    error: Optional[str] = None
+
+
+class DashboardStats(BaseModel):
+    plugin_count: int = 0
+    experiment_count: int = 0
+    config_loaded: Optional[str] = None
 
 
 @pytest.mark.unit
@@ -22,8 +37,6 @@ class TestAppFactory:
 @pytest.mark.unit
 class TestApiModels:
     def test_config_validation_result(self):
-        from panther.webapp.models.api_models import ConfigValidationResult
-
         valid = ConfigValidationResult(valid=True)
         assert valid.valid is True
         assert valid.error is None
@@ -33,8 +46,6 @@ class TestApiModels:
         assert invalid.error == "missing field"
 
     def test_dashboard_stats(self):
-        from panther.webapp.models.api_models import DashboardStats
-
         stats = DashboardStats()
         assert stats.plugin_count == 0
         assert stats.experiment_count == 0
@@ -61,16 +72,16 @@ class TestComponents:
         assert "/plugins" in paths
 
     def test_yaml_editor_class_exists(self):
-        from panther.webapp.components.yaml_editor import YamlEditor
+        from panther.webapp.components.forms.yaml_editor import YamlEditor
 
         assert YamlEditor is not None
 
     def test_log_viewer_class_exists(self):
-        from panther.webapp.components.log_viewer import LogViewer
+        from panther.webapp.components.display.log_viewer import LogViewer
 
         assert LogViewer is not None
 
     def test_stat_card_function_exists(self):
-        from panther.webapp.components.stat_cards import stat_card
+        from panther.webapp.components.display.stat_cards import stat_card
 
         assert callable(stat_card)

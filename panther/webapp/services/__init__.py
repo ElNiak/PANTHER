@@ -52,7 +52,7 @@ functions or cached as module-level singletons (see
 compose multiple services to build their UI::
 
     from panther.webapp.services.config_service import ConfigService
-    from panther.webapp.services.results_service import ResultsService
+    from panther.webapp.services.results import ResultsService
 
     svc = ConfigService()
     results = ResultsService(output_dir="outputs")

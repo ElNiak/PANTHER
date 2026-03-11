@@ -273,6 +273,12 @@ class ServiceManagementMixin:
                             cleanup_details={"test_case": self.test_name},
                         )
 
+                    # Clean up service state to prevent memory leaks
+                    if self.emitter_registry:
+                        self.emitter_registry.cleanup_service_state(
+                            f"{self.test_name}_{service_name}"
+                        )
+
                 except Exception as e:
                     self.logger.error(f"Failed to stop service {service_name}: {e}")
                     # Emit service error event

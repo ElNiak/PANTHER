@@ -13,7 +13,6 @@ Architecture::
     +-- base/                    # Foundation classes and interfaces
     |   +-- event_base.py       # BaseEvent, EventType, UUID generation
     |   +-- event_emitter_base.py  # EventEmitterBase, EntityEventEmitterBase
-    |   +-- event_emitter.py    # Simple EventEmitter (uses EventManager singleton)
     |   +-- state_base.py       # BaseState, StateManager, StateTransition
     +-- {domain}/               # Domain-specific event implementations
     |   +-- events.py           # Event type definitions
@@ -64,18 +63,20 @@ Example:
         assert event.id  # content-based UUID5
         assert event.validate()
 
-    Use the EmitterRegistry for state-validated emission::
+    Use the EmitterRegistry for state-validated service events::
 
         from panther.core.events.emitter_registry import EmitterRegistry
         from panther.core.observer.management.event_manager import EventManager
 
         registry = EmitterRegistry(EventManager.get_instance())
-        registry.emit_service_created_with_validation(
-            service_id="svc-1",
-            service_name="picoquic",
-            service_type="iut",
-            implementation="picoquic",
+
+        # Emit with state-machine validation (returns False if transition invalid)
+        registry.emit_service_started_with_validation(
+            service_id="svc-1", service_name="picoquic",
         )
+
+        # Cleanup after service teardown
+        registry.cleanup_service_state("svc-1")
 
     Creating custom event types (how-to)::
 

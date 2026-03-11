@@ -1,10 +1,7 @@
-"""
-Test State Management
+"""Test state management.
 
 This module defines state management for test case lifecycle.
 """
-
-from typing import Dict, Set
 
 from panther.core.events.base.state_base import BaseState, StateManager
 
@@ -43,6 +40,7 @@ class TestStateManager(StateManager):
     """State manager for test case lifecycle."""
 
     def __init__(self, test_id: str):
+        """Initialize with the given test ID."""
         super().__init__(test_id, TestState.CREATED)
         self.setup_transitions()
 
@@ -75,49 +73,3 @@ class TestStateManager(StateManager):
             TestState.COMPLETED: set(),
             TestState.FAILED: set(),
         }
-
-    def is_setting_up(self) -> bool:
-        """Check if test is in any setup phase."""
-        return self.is_in_any_state(
-            {
-                TestState.SETTING_UP,
-                TestState.SETTING_UP_SERVICES,
-                TestState.SETTING_UP_ENVIRONMENT,
-            }
-        )
-
-    def is_executing(self) -> bool:
-        """Check if test is currently executing."""
-        return self.is_in_any_state(
-            {
-                TestState.EXECUTING,
-                TestState.EXECUTING_STEPS,
-                TestState.VALIDATING_ASSERTIONS,
-            }
-        )
-
-    def is_finished(self) -> bool:
-        """Check if test has finished (completed or failed)."""
-        return self.is_in_any_state({TestState.COMPLETED, TestState.FAILED})
-
-    def is_successful(self) -> bool:
-        """Check if test completed successfully."""
-        return self.is_in_state(TestState.COMPLETED)
-
-    def can_start_setup(self) -> bool:
-        """Check if test can start setup."""
-        return self.is_in_state(TestState.CREATED)
-
-    def can_deploy(self) -> bool:
-        """Check if test can start deployment."""
-        return self.is_in_state(TestState.ENVIRONMENT_SETUP)
-
-    def can_execute(self) -> bool:
-        """Check if test can start execution."""
-        return self.is_in_state(TestState.DEPLOYED)
-
-    def can_teardown(self) -> bool:
-        """Check if test can start teardown."""
-        return self.is_in_any_state(
-            {TestState.EXECUTING_STEPS, TestState.VALIDATING_ASSERTIONS}
-        )

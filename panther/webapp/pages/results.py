@@ -54,13 +54,13 @@ from collections import defaultdict
 
 from nicegui import app, ui
 
-from panther.webapp.components.error_boundary import error_boundary
-from panther.webapp.components.event_viewer import event_viewer
-from panther.webapp.components.metrics_panel import metrics_panel
-from panther.webapp.components.service_health_card import service_health_card
-from panther.webapp.components.stat_cards import stat_card
-from panther.webapp.components.test_detail_panel import test_detail_panel
-from panther.webapp.services.results_service import ResultsService
+from panther.webapp.components.display.event_viewer import event_viewer
+from panther.webapp.components.display.metrics_panel import metrics_panel
+from panther.webapp.components.display.service_health_card import service_health_card
+from panther.webapp.components.display.stat_cards import stat_card
+from panther.webapp.components.display.test_detail_panel import test_detail_panel
+from panther.webapp.components.status.error_boundary import error_boundary
+from panther.webapp.services.results import ResultsService
 
 logger = logging.getLogger(__name__)
 

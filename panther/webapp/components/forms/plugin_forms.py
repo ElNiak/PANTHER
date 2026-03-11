@@ -31,7 +31,10 @@ from typing import Any, get_args, get_origin
 
 from pydantic import BaseModel
 
-from panther.webapp.utils.form_models import ComplexFieldInfo, get_complex_fields
+from panther.webapp.components.forms.form_models import (
+    ComplexFieldInfo,
+    get_complex_fields,
+)
 
 logger = logging.getLogger(__name__)
 

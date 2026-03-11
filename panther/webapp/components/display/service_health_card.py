@@ -13,7 +13,7 @@ services that ran during an experiment.
 
 from nicegui import ui
 
-from panther.webapp.components.status_badge import status_badge
+from panther.webapp.components.status.status_badge import status_badge
 
 
 def service_health_card(service: dict):

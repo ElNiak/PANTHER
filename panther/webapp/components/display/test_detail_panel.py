@@ -23,11 +23,11 @@ from typing import Any
 from nicegui import ui
 
 from panther.core.utils.format_utils import format_json
-from panther.webapp.components.error_boundary import error_boundary
-from panther.webapp.components.event_viewer import event_viewer
-from panther.webapp.components.service_log_browser import service_log_browser
-from panther.webapp.components.status_badge import status_badge
-from panther.webapp.services.results_service import ResultsService
+from panther.webapp.components.display.event_viewer import event_viewer
+from panther.webapp.components.display.service_log_browser import service_log_browser
+from panther.webapp.components.status.error_boundary import error_boundary
+from panther.webapp.components.status.status_badge import status_badge
+from panther.webapp.services.results import ResultsService
 
 logger = logging.getLogger(__name__)
 

@@ -16,8 +16,8 @@ from typing import Optional
 
 from nicegui import ui
 
-from panther.webapp.components.error_boundary import error_boundary
-from panther.webapp.services.results_service import ResultsService
+from panther.webapp.components.status.error_boundary import error_boundary
+from panther.webapp.services.results import ResultsService
 
 logger = logging.getLogger(__name__)
 

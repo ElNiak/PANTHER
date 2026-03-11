@@ -57,7 +57,7 @@ from typing import Any
 from nicegui import ui
 
 from panther.config.core.models.experiment import TestConfig
-from panther.webapp.components.yaml_editor import YamlEditor
+from panther.webapp.components.forms.yaml_editor import YamlEditor
 from panther.webapp.services.config_service import ConfigService
 
 logger = logging.getLogger(__name__)
@@ -198,9 +198,9 @@ def _render_config_forms(yaml_editor_ref: dict):
 
     from panther.config.core.models.experiment import ExperimentMetadata
     from panther.config.core.models.global_config import GlobalConfig
-    from panther.webapp.components.config_form_panel import config_form_panel
-    from panther.webapp.components.error_boundary import error_boundary
-    from panther.webapp.utils.form_models import GLOBAL_SECTION_META
+    from panther.webapp.components.forms.config_form_panel import config_form_panel
+    from panther.webapp.components.forms.form_models import GLOBAL_SECTION_META
+    from panther.webapp.components.status.error_boundary import error_boundary
 
     panels: dict[str, Any] = {"global": {}}
 
@@ -233,7 +233,7 @@ def _render_config_forms(yaml_editor_ref: dict):
             "Configure tests. Expand a panel to edit, use buttons to add/remove/duplicate."
         ).classes("text-caption text-grey-7 q-mb-sm")
         with error_boundary("Test Config"):
-            from panther.webapp.components.test_list_editor import TestListEditor
+            from panther.webapp.components.forms.test_list_editor import TestListEditor
 
             test_editor = TestListEditor()
             test_editor.set_value([{}])  # Start with one empty test

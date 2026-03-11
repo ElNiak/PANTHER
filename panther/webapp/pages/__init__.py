@@ -37,8 +37,8 @@ Pages compose **services** (from ``panther.webapp.services``) and
 from ``panther.core`` directly.  A typical page follows this
 structure::
 
-    from panther.webapp.services.results_service import ResultsService
-    from panther.webapp.components.metrics_panel import metrics_panel
+    from panther.webapp.services.results import ResultsService
+    from panther.webapp.components.display.metrics_panel import metrics_panel
 
     def content():
         svc = ResultsService(output_dir=...)

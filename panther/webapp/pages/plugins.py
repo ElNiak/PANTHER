@@ -48,8 +48,8 @@ import logging
 
 from nicegui import ui
 
-from panther.webapp.components.plugin_card import plugin_card
-from panther.webapp.components.plugin_detail_panel import render_plugin_detail
+from panther.webapp.components.display.plugin_card import plugin_card
+from panther.webapp.components.display.plugin_detail_panel import render_plugin_detail
 from panther.webapp.services.plugin_service import PluginService
 
 logger = logging.getLogger(__name__)

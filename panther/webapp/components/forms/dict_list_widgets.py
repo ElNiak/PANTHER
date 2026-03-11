@@ -31,7 +31,7 @@ from typing import Any
 from nicegui import ui
 from pydantic import BaseModel
 
-from panther.webapp.utils.form_models import ComplexFieldInfo
+from panther.webapp.components.forms.form_models import ComplexFieldInfo
 
 logger = logging.getLogger(__name__)
 
@@ -211,7 +211,7 @@ class KeyedModelEditor:
             )
             return
 
-        from panther.webapp.components.pydantic_form import PydanticForm
+        from panther.webapp.components.forms.pydantic_form import PydanticForm
 
         with ui.dialog() as dialog, ui.card().classes("w-[600px]"):
             ui.label("Add entry").classes("text-h6")
@@ -261,7 +261,7 @@ class KeyedModelEditor:
             )
             return
 
-        from panther.webapp.components.pydantic_form import PydanticForm
+        from panther.webapp.components.forms.pydantic_form import PydanticForm
 
         model = self._entries.get(key)
         if model is None:
@@ -379,7 +379,7 @@ class ModelListEditor:
         return ", ".join(parts) if parts else "(empty)"
 
     def _open_add_dialog(self):
-        from panther.webapp.components.pydantic_form import PydanticForm
+        from panther.webapp.components.forms.pydantic_form import PydanticForm
 
         with ui.dialog() as dialog, ui.card().classes("w-[600px]"):
             ui.label("Add entry").classes("text-h6")
@@ -402,7 +402,7 @@ class ModelListEditor:
         dialog.open()
 
     def _open_edit_dialog(self, idx: int):
-        from panther.webapp.components.pydantic_form import PydanticForm
+        from panther.webapp.components.forms.pydantic_form import PydanticForm
 
         if idx >= len(self._entries):
             return
@@ -468,12 +468,12 @@ def _build_service_dialog(
     When *edit_key* is provided the dialog opens in edit mode: dropdowns
     are pre-populated from the existing entry and saving updates in-place.
     """
-    from panther.webapp.components.pydantic_form import FormConfig, PydanticForm
-    from panther.webapp.utils.plugin_forms import (
+    from panther.webapp.components.forms.plugin_forms import (
         get_implementation_choices,
         get_protocol_choices,
         get_version_choices,
     )
+    from panther.webapp.components.forms.pydantic_form import FormConfig, PydanticForm
 
     # Accept both on_add (add-mode) and on_save (edit-mode) callbacks
     _callback = on_save or on_add

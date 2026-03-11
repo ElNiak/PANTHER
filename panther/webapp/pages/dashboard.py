@@ -44,10 +44,10 @@ from nicegui import app, ui
 
 from panther.core.events.base.event_base import BaseEvent
 from panther.core.events.event_summarizer import EventImportance
-from panther.webapp.components.stat_cards import stat_card
+from panther.webapp.components.display.stat_cards import stat_card
 from panther.webapp.services.experiment_service import get_experiment_service
 from panther.webapp.services.plugin_service import PluginService
-from panther.webapp.services.results_service import ResultsService
+from panther.webapp.services.results import ResultsService
 
 logger = logging.getLogger(__name__)
 

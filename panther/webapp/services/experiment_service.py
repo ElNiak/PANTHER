@@ -37,7 +37,7 @@ import threading
 from typing import Callable, Optional
 
 from panther.core.events.base.event_base import BaseEvent
-from panther.webapp.services.web_observer import WebObserver
+from panther.webapp.infra.web_observer import WebObserver
 
 logger = logging.getLogger(__name__)
 

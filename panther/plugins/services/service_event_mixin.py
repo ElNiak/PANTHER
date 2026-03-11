@@ -1,6 +1,4 @@
-"""
-Methods for IServiceManager to emit standardized events.
-"""
+"""Methods for IServiceManager to emit standardized events."""
 
 from typing import Any, Dict, Optional
 
@@ -12,8 +10,7 @@ from panther.core.events.test.events import (
 
 
 class ServiceManagerEventMixin:
-    """
-    Mixin providing standardized event emission methods for service managers.
+    """Mixin providing standardized event emission methods for service managers.
 
     Standalone mixin providing helper methods for service managers to emit standard events.
     It supports the event-driven architecture by providing consistent event emission patterns.
@@ -22,8 +19,7 @@ class ServiceManagerEventMixin:
     """
 
     def _get_service_identifier(self):
-        """
-        Get a service identifier using a fallback mechanism.
+        """Get a service identifier using a fallback mechanism.
 
         Attempts to get service name from various attributes with increasing fallbacks:
         1. self.name
@@ -52,8 +48,7 @@ class ServiceManagerEventMixin:
         return f"{self.__class__.__name__}"
 
     def notify_service_started(self, details: Dict[str, Any] | None = None):
-        """
-        Notify that the service has started using the event emitter.
+        """Notify that the service has started using the event emitter.
 
         Args:
             details: Additional details about the service start
@@ -95,8 +90,7 @@ class ServiceManagerEventMixin:
     def notify_service_stopped(
         self, success: bool, details: Optional[Dict[str, Any]] = None
     ):
-        """
-        Notify that the service has stopped using the event emitter.
+        """Notify that the service has stopped using the event emitter.
 
         Args:
             success: Whether the service stopped cleanly
@@ -169,8 +163,7 @@ class ServiceManagerEventMixin:
         error_message: str,
         details: Optional[Dict[str, Any]] = None,
     ):
-        """
-        Notify that the service has encountered an error using the event emitter.
+        """Notify that the service has encountered an error using the event emitter.
 
         Args:
             error_type: Type of error encountered
@@ -214,6 +207,205 @@ class ServiceManagerEventMixin:
                     error_details=details,
                 )
 
+    def notify_service_created(self, config: Optional[Dict[str, Any]] = None):
+        """Notify that the service has been created, with state validation.
+
+        Args:
+            config: Optional service configuration data
+        """
+        if hasattr(self, "event_emitter") and self.event_emitter:
+            service_name = self._get_service_identifier()
+            service_type = getattr(self, "service_type", "unknown")
+            implementation = getattr(self, "implementation_name", "unknown")
+            service_id = f"{service_type}_{implementation}_{service_name}"
+
+            if hasattr(self.event_emitter, "emit_service_created_with_validation"):
+                success = self.event_emitter.emit_service_created_with_validation(
+                    service_id=service_id,
+                    service_name=service_name,
+                    service_type=service_type,
+                    implementation=implementation,
+                    config=config,
+                )
+                if not success:
+                    self.event_emitter.service_emitter.emit_service_created(
+                        service_id=service_id,
+                        service_name=service_name,
+                        service_type=service_type,
+                        implementation=implementation,
+                        config=config,
+                    )
+            else:
+                self.event_emitter.emit_service_created(
+                    service_id=service_id,
+                    service_name=service_name,
+                    service_type=service_type,
+                    implementation=implementation,
+                    config=config,
+                )
+
+    def notify_service_preparation_started(
+        self, details: Optional[Dict[str, Any]] = None
+    ):
+        """Notify that service preparation has started, with state validation.
+
+        Args:
+            details: Additional details about the preparation
+        """
+        if hasattr(self, "event_emitter") and self.event_emitter:
+            service_name = self._get_service_identifier()
+            service_type = getattr(self, "service_type", "unknown")
+            implementation = getattr(self, "implementation_name", "unknown")
+            service_id = f"{service_type}_{implementation}_{service_name}"
+
+            if hasattr(
+                self.event_emitter,
+                "emit_service_preparation_started_with_validation",
+            ):
+                success = (
+                    self.event_emitter.emit_service_preparation_started_with_validation(
+                        service_id=service_id,
+                        service_name=service_name,
+                    )
+                )
+                if not success:
+                    self.event_emitter.service_emitter.emit_service_preparation_started(
+                        service_id=service_id,
+                        service_name=service_name,
+                    )
+            else:
+                self.event_emitter.emit_service_preparation_started(
+                    service_id=service_id,
+                    service_name=service_name,
+                )
+
+    def notify_service_deployment_started(
+        self,
+        environment: str = "default",
+        deployment_config: Optional[Dict[str, Any]] = None,
+    ):
+        """Notify that service deployment has started, with state validation.
+
+        Args:
+            environment: Deployment environment name
+            deployment_config: Optional deployment configuration
+        """
+        if hasattr(self, "event_emitter") and self.event_emitter:
+            service_name = self._get_service_identifier()
+            service_type = getattr(self, "service_type", "unknown")
+            implementation = getattr(self, "implementation_name", "unknown")
+            service_id = f"{service_type}_{implementation}_{service_name}"
+
+            if hasattr(
+                self.event_emitter,
+                "emit_service_deployment_started_with_validation",
+            ):
+                success = (
+                    self.event_emitter.emit_service_deployment_started_with_validation(
+                        service_id=service_id,
+                        service_name=service_name,
+                        environment=environment,
+                        deployment_config=deployment_config,
+                    )
+                )
+                if not success:
+                    self.event_emitter.service_emitter.emit_service_deployment_started(
+                        service_id=service_id,
+                        service_name=service_name,
+                        environment=environment,
+                        deployment_config=deployment_config,
+                    )
+            else:
+                self.event_emitter.emit_service_deployment_started(
+                    service_id=service_id,
+                    service_name=service_name,
+                    environment=environment,
+                    deployment_config=deployment_config,
+                )
+
+    def notify_service_deployment_completed(
+        self,
+        environment: str = "default",
+        endpoint: Optional[str] = None,
+        ports: Optional[list] = None,
+        deployment_details: Optional[Dict[str, Any]] = None,
+    ):
+        """Notify that service deployment has completed, with state validation.
+
+        Args:
+            environment: Deployment environment name
+            endpoint: Service endpoint URL
+            ports: Exposed ports
+            deployment_details: Additional deployment details
+        """
+        if hasattr(self, "event_emitter") and self.event_emitter:
+            service_name = self._get_service_identifier()
+            service_type = getattr(self, "service_type", "unknown")
+            implementation = getattr(self, "implementation_name", "unknown")
+            service_id = f"{service_type}_{implementation}_{service_name}"
+
+            if hasattr(
+                self.event_emitter,
+                "emit_service_deployment_completed_with_validation",
+            ):
+                success = self.event_emitter.emit_service_deployment_completed_with_validation(
+                    service_id=service_id,
+                    service_name=service_name,
+                    environment=environment,
+                    endpoint=endpoint,
+                    ports=ports,
+                    deployment_details=deployment_details,
+                )
+                if not success:
+                    self.event_emitter.service_emitter.emit_service_deployment_completed(
+                        service_id=service_id,
+                        service_name=service_name,
+                        environment=environment,
+                        endpoint=endpoint,
+                        ports=ports,
+                        deployment_details=deployment_details,
+                    )
+            else:
+                self.event_emitter.emit_service_deployment_completed(
+                    service_id=service_id,
+                    service_name=service_name,
+                    environment=environment,
+                    endpoint=endpoint,
+                    ports=ports,
+                    deployment_details=deployment_details,
+                )
+
+    def notify_service_ready(self, readiness_checks: Optional[Dict[str, bool]] = None):
+        """Notify that the service is ready, with state validation.
+
+        Args:
+            readiness_checks: Results of readiness checks
+        """
+        if hasattr(self, "event_emitter") and self.event_emitter:
+            service_name = self._get_service_identifier()
+            service_type = getattr(self, "service_type", "unknown")
+            implementation = getattr(self, "implementation_name", "unknown")
+            service_id = f"{service_type}_{implementation}_{service_name}"
+
+            if hasattr(self.event_emitter, "emit_service_ready_with_validation"):
+                success = self.event_emitter.emit_service_ready_with_validation(
+                    service_id=service_id,
+                    service_name=service_name,
+                    readiness_checks=readiness_checks,
+                )
+                if not success:
+                    self.event_emitter.service_emitter.emit_service_ready(
+                        service_id=service_id,
+                        service_name=service_name,
+                        readiness_checks=readiness_checks,
+                    )
+            else:
+                self.event_emitter.emit_service_ready(
+                    service_id=service_id,
+                    service_name=service_name,
+                    readiness_checks=readiness_checks,
+                )
+
     def notify_service_event(
         self,
         event_name: str,
@@ -221,37 +413,34 @@ class ServiceManagerEventMixin:
         service_name: str = None,
         details: Optional[Dict[str, Any]] = None,
     ):
-        """
-        Emit service-related events based on event name.
+        """Emit service-related events based on event name.
+
+        Delegates to state-validated notify_service_* methods where available,
+        falls back to direct emission for events without validation methods.
 
         Args:
             event_name: Name of the event to emit
-            service_id: Service identifier
-            service_name: Human-readable service name
+            service_id: Service identifier (unused when delegating to notify_service_* methods)
+            service_name: Human-readable service name (unused when delegating)
             details: Additional event details
         """
         if hasattr(self, "event_emitter") and self.event_emitter:
             if event_name == "service_created":
-                self.event_emitter.emit_service_created(
-                    service_id=service_id,
-                    service_name=service_name,
-                    service_config=details.get("service_config") if details else None,
-                )
+                self.notify_service_created(config=details)
+                return
             elif event_name == "service_started":
-                self.event_emitter.emit_service_started(
-                    service_id=service_id,
-                    service_name=service_name,
-                    port_mappings=(details.get("port_mappings") if details else None),
-                    startup_logs=details.get("startup_logs") if details else None,
-                )
+                self.notify_service_started(details=details)
+                return
             elif event_name == "service_ready":
-                self.event_emitter.emit_service_ready(
-                    service_id=service_id,
-                    service_name=service_name,
+                self.notify_service_ready(
                     readiness_checks=(
                         details.get("readiness_checks") if details else None
                     ),
                 )
+                return
+            elif event_name == "preparation_started":
+                self.notify_service_preparation_started(details=details)
+                return
             elif event_name == "service_destroyed":
                 self.event_emitter.emit_service_destroyed(
                     service_id=service_id,
@@ -425,8 +614,7 @@ class ServiceManagerEventMixin:
         message: Optional[str] = None,
         details: Optional[Dict[str, Any]] = None,
     ):
-        """
-        Notify progress during a service operation step.
+        """Notify progress during a service operation step.
 
         Args:
             step_id: Identifier for the step
@@ -445,20 +633,14 @@ class ServiceManagerEventMixin:
 
             # Service-specific progress is better represented as deployment or preparation progress
             if step_id.startswith("deploy"):
-                self.event_emitter.emit_service_deployment_started(
-                    service_id=service_id,
-                    service_name=service_name,
+                self.notify_service_deployment_started(
                     environment=(
                         details.get("environment", "default") if details else "default"
                     ),
                     deployment_config=details,
                 )
             elif step_id.startswith("prepare"):
-                self.event_emitter.emit_service_preparation_started(
-                    service_id=service_id,
-                    service_name=service_name,
-                    preparation_steps=[message] if message else None,
-                )
+                self.notify_service_preparation_started(details=details)
             else:
                 # For generic steps, we can emit a service error to track the progress
                 # This is not ideal but maintains compatibility
@@ -477,8 +659,7 @@ class ServiceManagerEventMixin:
     def notify_service_step_completed(
         self, step_id: str, success: bool, result: Optional[Dict[str, Any]] = None
     ):
-        """
-        Notify completion of a service operation step.
+        """Notify completion of a service operation step.
 
         Args:
             step_id: Identifier for the step
@@ -497,9 +678,7 @@ class ServiceManagerEventMixin:
             # Map step completions to appropriate service events
             if step_id.startswith("deploy"):
                 if success:
-                    self.event_emitter.emit_service_deployment_completed(
-                        service_id=service_id,
-                        service_name=service_name,
+                    self.notify_service_deployment_completed(
                         environment=(
                             result.get("environment", "default")
                             if result
@@ -548,9 +727,7 @@ class ServiceManagerEventMixin:
             else:
                 # For generic steps, emit a service ready event if successful
                 if success:
-                    self.event_emitter.emit_service_ready(
-                        service_id=service_id,
-                        service_name=service_name,
+                    self.notify_service_ready(
                         readiness_checks={step_id: True},
                     )
                 else:
@@ -570,8 +747,7 @@ class ServiceManagerEventMixin:
         step_id: Optional[str] = None,
         details: Optional[Dict[str, Any]] = None,
     ):
-        """
-        Notify a service-related metric value.
+        """Notify a service-related metric value.
 
         Args:
             metric_type: Type of the metric
@@ -634,8 +810,7 @@ class ServiceManagerEventMixin:
     def emit_test_starting(
         self, test_id: str, test_type: str, details: Optional[Dict[str, Any]] = None
     ) -> None:
-        """
-        Emit an event indicating that a test is starting.
+        """Emit an event indicating that a test is starting.
 
         Args:
             test_id: Unique identifier for the test
@@ -659,8 +834,7 @@ class ServiceManagerEventMixin:
         error_message: Optional[str] = None,
         details: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """
-        Emit an event indicating that a test has completed.
+        """Emit an event indicating that a test has completed.
 
         Args:
             test_id: Unique identifier for the test
@@ -687,8 +861,7 @@ class ServiceManagerEventMixin:
         self.event_emitter.emit_event(event)
 
     def handle_event(self, event: "BaseEvent") -> None:
-        """
-        Default implementation of handle_event for service managers.
+        """Default implementation of handle_event for service managers.
 
         This provides a basic event handling mechanism that can be overridden
         by specific service manager implementations if they need custom event handling.

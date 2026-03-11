@@ -21,7 +21,7 @@ from typing import Any, Optional
 from nicegui import ui
 from pydantic import BaseModel
 
-from panther.webapp.components.pydantic_form import FormConfig, PydanticForm
+from panther.webapp.components.forms.pydantic_form import FormConfig, PydanticForm
 
 
 @dataclass

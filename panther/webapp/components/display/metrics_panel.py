@@ -5,8 +5,8 @@ from typing import Any
 
 from nicegui import ui
 
-from panther.webapp.components.error_boundary import error_boundary
-from panther.webapp.components.stat_cards import stat_card
+from panther.webapp.components.display.stat_cards import stat_card
+from panther.webapp.components.status.error_boundary import error_boundary
 
 logger = logging.getLogger(__name__)
 

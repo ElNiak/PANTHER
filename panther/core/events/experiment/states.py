@@ -1,5 +1,4 @@
-"""
-Experiment State Management
+"""Experiment state management.
 
 This module defines state management for experiment lifecycle.
 """
@@ -40,6 +39,7 @@ class ExperimentStateManager(StateManager):
     """State manager for experiment lifecycle."""
 
     def __init__(self, experiment_id: str):
+        """Initialize with the given experiment ID."""
         super().__init__(experiment_id, ExperimentState.CREATED)
         self.setup_transitions()
 
@@ -89,29 +89,3 @@ class ExperimentStateManager(StateManager):
             ExperimentState.FAILED: set(),
             ExperimentState.FINISHED_EARLY: set(),
         }
-
-    def is_running(self) -> bool:
-        """Check if experiment is currently running."""
-        return self.is_in_state(ExperimentState.RUNNING)
-
-    def is_finished(self) -> bool:
-        """Check if experiment has finished (completed, failed, or early)."""
-        return self.is_in_any_state(
-            {
-                ExperimentState.COMPLETED,
-                ExperimentState.FAILED,
-                ExperimentState.FINISHED_EARLY,
-            }
-        )
-
-    def is_successful(self) -> bool:
-        """Check if experiment completed successfully."""
-        return self.is_in_state(ExperimentState.COMPLETED)
-
-    def can_start_execution(self) -> bool:
-        """Check if experiment can start execution."""
-        return self.is_in_state(ExperimentState.TESTS_INITIALIZED)
-
-    def can_initialize(self) -> bool:
-        """Check if experiment can be initialized."""
-        return self.is_in_state(ExperimentState.CREATED)

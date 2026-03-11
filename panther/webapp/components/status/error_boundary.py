@@ -9,7 +9,7 @@ dashboard page.
 
 Usage::
 
-    from panther.webapp.components.error_boundary import error_boundary
+    from panther.webapp.components.status.error_boundary import error_boundary
 
     with error_boundary("Config Panel"):
         config_form_panel(...)   # if this raises, an error card is shown

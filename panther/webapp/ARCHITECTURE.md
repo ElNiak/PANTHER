@@ -45,12 +45,12 @@ NiceGUI eliminates the need for Jinja templates, WTForms, custom JavaScript, and
 
 ### PydanticForm for Config Forms
 
-PydanticForm (`panther/webapp/components/pydantic_form.py`) is a custom recursive
+PydanticForm (`panther/webapp/components/forms/pydantic_form.py`) is a custom recursive
 form component that renders any `BaseModel` as editable NiceGUI widgets. It replaced
 the external `niceguicrud` dependency.
 
 ```python
-from panther.webapp.components.pydantic_form import PydanticForm, FormConfig
+from panther.webapp.components.forms.pydantic_form import PydanticForm, FormConfig
 from panther.config.core.models.global_config import LoggingConfig
 
 form = PydanticForm(LoggingConfig, config=FormConfig(section_style="card"))

@@ -447,6 +447,9 @@ class TestCase(
         finally:
             # Only observer cleanup in finally block - environment teardown moved to _perform_teardown
             self.teardown_observers()
+            # Clean up test-specific event emitter to prevent memory leaks
+            if self.emitter_registry:
+                self.emitter_registry.cleanup_test_emitter(self.test_config.name)
 
     def _perform_teardown(self):
         """Perform environment teardown with proper timing and state management.
