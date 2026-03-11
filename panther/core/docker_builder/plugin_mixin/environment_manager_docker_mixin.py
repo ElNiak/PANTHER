@@ -1,3 +1,5 @@
+"""Docker mixin for environment managers (localhost, shadow)."""
+
 import os
 import threading
 from pathlib import Path
@@ -15,8 +17,7 @@ if TYPE_CHECKING:
 
 
 class StagedDockerMixin(DockerOperationsMixin, CommandEventMixin):
-    """
-    Docker mixin specifically for environment managers (localhost, shadow).
+    """Docker mixin specifically for environment managers (localhost, shadow).
 
     Handles:
     - Building base service images
@@ -32,6 +33,7 @@ class StagedDockerMixin(DockerOperationsMixin, CommandEventMixin):
     _env_base_service_lock = threading.Lock()
 
     def __init__(self, *args, **kwargs):
+        """Initialize staged Docker mixin for environment managers."""
         super().__init__(*args, **kwargs)
         # Initialize Docker-related attributes
         self._docker_prepared = False
@@ -39,8 +41,7 @@ class StagedDockerMixin(DockerOperationsMixin, CommandEventMixin):
         CommandEventMixin.__init__(self)
 
     def build_base_service_image(self, plugin_manager: "PluginManager") -> str:
-        """
-        Build the base service image from panther/plugins/services/Dockerfile.
+        """Build the base service image from panther/plugins/services/Dockerfile.
 
         Returns:
             str: Image tag of built base image
@@ -90,8 +91,7 @@ class StagedDockerMixin(DockerOperationsMixin, CommandEventMixin):
     def ensure_service_images_available(
         self, services: List["IServiceManager"]
     ) -> Dict[str, str]:
-        """
-        Ensure all required service images are available.
+        """Ensure all required service images are available.
 
         Returns:
             Dict[str, str]: Mapping of service_name to image_tag
@@ -129,8 +129,8 @@ class StagedDockerMixin(DockerOperationsMixin, CommandEventMixin):
         image_name: str,
         context_path: Optional[Path] = None,
     ) -> None:
-        """
-        Build environment-specific Docker image from generated Dockerfile.
+        """Build environment-specific Docker image from generated Dockerfile.
+
         Handles multi-stage builds properly.
 
         Args:
@@ -172,8 +172,7 @@ class StagedDockerMixin(DockerOperationsMixin, CommandEventMixin):
             raise
 
     def verify_dockerfile_ready(self, dockerfile_path: Path) -> bool:
-        """
-        Verify that a Dockerfile has been generated and contains valid FROM instructions.
+        """Verify that a Dockerfile has been generated and contains valid FROM instructions.
 
         Args:
             dockerfile_path: Path to the Dockerfile to verify
@@ -211,8 +210,7 @@ class StagedDockerMixin(DockerOperationsMixin, CommandEventMixin):
 
     @classmethod
     def reset_base_image_flag(cls) -> None:
-        """
-        Reset base image flag for new experiment.
+        """Reset base image flag for new experiment.
 
         This should be called at the start of each experiment to ensure
         the base image is built once for the new experiment.
@@ -220,8 +218,7 @@ class StagedDockerMixin(DockerOperationsMixin, CommandEventMixin):
         cls._env_base_service_image_built = False
 
     def is_docker_prepared(self) -> bool:
-        """
-        Check if Docker preparation has been completed.
+        """Check if Docker preparation has been completed.
 
         Returns:
             bool: True if prepared
@@ -229,8 +226,7 @@ class StagedDockerMixin(DockerOperationsMixin, CommandEventMixin):
         return self._docker_prepared
 
     def reset_docker_preparation(self) -> None:
-        """
-        Reset the Docker preparation state.
+        """Reset the Docker preparation state.
 
         Useful for forcing rebuild on next prepare() call.
         """
@@ -249,8 +245,7 @@ class StagedDockerMixin(DockerOperationsMixin, CommandEventMixin):
         detach: bool = True,
         remove: bool = False,  # Environments typically don't auto-remove
     ) -> List[str]:
-        """
-        Generate a docker run command for environment containers.
+        """Generate a docker run command for environment containers.
 
         Args:
             image_name: Docker image to run

@@ -8,11 +8,9 @@ Architecture::
 
     DockerBuilder (singleton)
         │
-        ├── BaseImageManagerMixin    ── pre-built base images for common stacks
         ├── DockerBuildCacheMixin    ── layer-aware build caching with TTL
         └── Plugin Integration       ── per-plugin Dockerfile generation
             │
-            ├── base_images/         ── shared base image definitions
             ├── caching/             ── build cache management
             ├── plugin_mixin/        ── plugin-specific Docker integration
             └── utils/               ── Docker client utilities

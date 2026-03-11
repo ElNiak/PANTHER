@@ -1,5 +1,4 @@
-"""
-Docker Cache Mixin for Build Optimization
+"""Docker Cache Mixin for Build Optimization.
 
 This mixin provides caching functionality for Docker builds in PANTHER.
 """
@@ -21,8 +20,7 @@ from panther.core.utils.logging_mixin import LoggerMixin
 
 
 class DockerBuildCacheMixin(LoggerMixin):
-    """
-    Mixin that provides Docker caching functionality.
+    """Mixin that provides Docker caching functionality.
 
     This mixin integrates with the Docker registry to provide:
     - Build cache management
@@ -112,52 +110,6 @@ class DockerBuildCacheMixin(LoggerMixin):
             self.logger.warning(f"Failed to hash build context: {e}")
             return "unknown"
 
-    def check_build_cache(
-        self, dockerfile_path: Path, context_path: Path, build_args: Dict[str, str]
-    ) -> Optional[str]:
-        """
-        Check if a cached build exists.
-
-        TODO - Implement more sophisticated cache lookup logic,
-        Check if the base configuration of the Dockerfile has changed,
-        and if so, invalidate the cache.
-
-        Returns:
-            Image ID if cached build exists, None otherwise
-        """
-        if not self._cache_enabled:
-            return None
-
-        # Calculate hashes
-        dockerfile_hash = self._calculate_dockerfile_hash(dockerfile_path)
-        context_hash = self._calculate_context_hash(context_path)
-
-        # Check registry for cached build
-        cached_entry = self.docker_registry.find_cached_build(
-            dockerfile_hash, context_hash, build_args
-        )
-
-        if cached_entry:
-            # Verify image still exists
-            try:
-                result = subprocess.run(
-                    ["docker", "images", "-q", cached_entry.image_id],
-                    capture_output=True,
-                    text=True,
-                )
-
-                if result.returncode == 0 and result.stdout.strip():
-                    self._cache_hits += 1
-                    self.logger.info(
-                        f"Cache hit! Using image: {cached_entry.image_tag}"
-                    )
-                    return cached_entry.image_id
-            except Exception as e:
-                self.logger.warning(f"Failed to verify cached image: {e}")
-
-        self._cache_misses += 1
-        return None
-
     def should_use_cached_build(
         self,
         dockerfile_path: Path,
@@ -166,26 +118,44 @@ class DockerBuildCacheMixin(LoggerMixin):
         image_tag: str,
         force_build: bool = False,
     ) -> Optional[str]:
-        """
-        Complete cache checking and decision logic for build operations.
+        """Complete cache checking and decision logic for build operations.
 
         Args:
             dockerfile_path: Path to Dockerfile
             context_path: Build context path
             build_args: Build arguments for cache key
             image_tag: Target image tag
-            docker_client: Docker client for image operations
             force_build: Whether to force rebuild even if cache exists
 
         Returns:
             Image tag if cache should be used, None if build is needed
         """
-        # Check build cache first
-        cached_image_id = self.check_build_cache(
-            dockerfile_path=dockerfile_path,
-            context_path=context_path,
-            build_args=build_args,
+        if not self._cache_enabled:
+            return None
+
+        # Check build cache
+        dockerfile_hash = self._calculate_dockerfile_hash(dockerfile_path)
+        context_hash = self._calculate_context_hash(context_path)
+        cached_entry = self.docker_registry.find_cached_build(
+            dockerfile_hash, context_hash, build_args
         )
+
+        cached_image_id = None
+        if cached_entry:
+            try:
+                result = subprocess.run(
+                    ["docker", "images", "-q", cached_entry.image_id],
+                    capture_output=True,
+                    text=True,
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    self._cache_hits += 1
+                    self.logger.info(
+                        f"Cache hit! Using image: {cached_entry.image_tag}"
+                    )
+                    cached_image_id = cached_entry.image_id
+            except Exception as e:
+                self.logger.warning(f"Failed to verify cached image: {e}")
 
         if not cached_image_id:
             self.logger.debug(
@@ -321,90 +291,6 @@ class DockerBuildCacheMixin(LoggerMixin):
             self.logger.warning(f"Failed to get image info: {e}")
             return {"size": 0, "layers": []}
 
-    def register_container(
-        self,
-        container_id: str,
-        container_name: str,
-        image_id: str,
-        service_name: Optional[str] = None,
-        experiment_id: Optional[str] = None,
-    ) -> None:
-        """Register a container in the registry."""
-        try:
-            resource = DockerResource(
-                resource_id=container_id,
-                resource_type=DockerResourceType.CONTAINER,
-                name=container_name,
-                created_at=datetime.now().isoformat(),
-                tags={"panther": "true", "image_id": image_id},
-                metadata={"image_id": image_id, "status": "running"},
-                experiment_id=experiment_id,
-                service_name=service_name,
-            )
-
-            self.docker_registry.register_resource(resource)
-
-        except Exception as e:
-            self.logger.error(f"Failed to register container: {e}")
-
-    def cleanup_experiment_resources(self, experiment_id: str) -> Dict[str, int]:
-        """Clean up all Docker resources for an experiment."""
-        cleaned = {"containers": 0, "images": 0, "volumes": 0, "networks": 0}
-
-        try:
-            resources = self.docker_registry.get_resources_by_experiment(experiment_id)
-
-            for resource in resources:
-                try:
-                    if resource.resource_type == DockerResourceType.CONTAINER:
-                        # Stop and remove container
-                        subprocess.run(
-                            ["docker", "stop", resource.resource_id],
-                            capture_output=True,
-                        )
-                        subprocess.run(
-                            ["docker", "rm", resource.resource_id], capture_output=True
-                        )
-                        cleaned["containers"] += 1
-
-                    elif resource.resource_type == DockerResourceType.IMAGE:
-                        # Remove image
-                        subprocess.run(
-                            ["docker", "rmi", resource.resource_id], capture_output=True
-                        )
-                        cleaned["images"] += 1
-
-                    elif resource.resource_type == DockerResourceType.VOLUME:
-                        # Remove volume
-                        subprocess.run(
-                            ["docker", "volume", "rm", resource.resource_id],
-                            capture_output=True,
-                        )
-                        cleaned["volumes"] += 1
-
-                    elif resource.resource_type == DockerResourceType.NETWORK:
-                        # Remove network
-                        subprocess.run(
-                            ["docker", "network", "rm", resource.resource_id],
-                            capture_output=True,
-                        )
-                        cleaned["networks"] += 1
-
-                    # Unregister from registry
-                    self.docker_registry.unregister_resource(resource.resource_id)
-
-                except Exception as e:
-                    self.logger.warning(
-                        f"Failed to clean resource {resource.resource_id}: {e}"
-                    )
-
-            self.logger.info(f"Cleaned experiment {experiment_id}: {cleaned}")
-
-        except Exception as e:
-            self.logger.error(f"Failed to cleanup experiment resources: {e}")
-
-        return cleaned
-
     def get_cache_stats(self) -> Dict[str, Any]:
         """Get cache statistics."""
         stats = {
@@ -420,53 +306,3 @@ class DockerBuildCacheMixin(LoggerMixin):
         }
 
         return stats
-
-    def prune_cache(
-        self, max_age_days: int = 0, max_size_gb: float = 0.0
-    ) -> Dict[str, int]:
-        """Prune old cache entries and images."""
-        pruned = {"cache_entries": 0, "images": 0, "size_freed_mb": 0}
-
-        try:
-            # Clean stale resources from registry
-            stale_resources = self.docker_registry.cleanup_stale_resources(max_age_days)
-
-            # Remove old cache entries
-            current_time = datetime.now()
-            entries_to_remove = []
-
-            for key, entry in self.docker_registry.build_cache.items():
-                try:
-                    created_time = datetime.fromisoformat(entry.build_time)
-                    age_days = (current_time - created_time).days
-
-                    if age_days > max_age_days:
-                        entries_to_remove.append(key)
-
-                        # Try to remove the image
-                        try:
-                            subprocess.run(
-                                ["docker", "rmi", entry.image_id], capture_output=True
-                            )
-                            pruned["images"] += 1
-                            pruned["size_freed_mb"] += entry.size_bytes / (1024 * 1024)
-                        except:
-                            pass
-
-                except Exception as e:
-                    self.logger.warning(f"Failed to check cache entry {key}: {e}")
-
-            # Remove entries from cache
-            for key in entries_to_remove:
-                del self.docker_registry.build_cache[key]
-                pruned["cache_entries"] += 1
-
-            # Save updated cache
-            self.docker_registry._save_build_cache()
-
-            self.logger.info(f"Cache pruned: {pruned}")
-
-        except Exception as e:
-            self.logger.error(f"Failed to prune cache: {e}")
-
-        return pruned

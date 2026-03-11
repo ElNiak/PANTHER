@@ -1,5 +1,4 @@
-"""
-DockerBuilder - Singleton Docker Management System
+"""DockerBuilder - Singleton Docker Management System.
 
 This module provides a singleton DockerBuilder class that manages Docker operations
 across the PANTHER framework. The singleton pattern ensures:
@@ -28,17 +27,13 @@ import subprocess
 import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Union
+from typing import Any, Dict, Optional, Set
 
 import docker
-from docker.errors import BuildError, DockerException, NotFound
+from docker.errors import BuildError, DockerException
 
-from panther.core.docker_builder.utils.context_helper import (
-    _ensure_docker_host,
-    ensure_builder_context,
-)
+from panther.core.docker_builder.utils.context_helper import _ensure_docker_host
 from panther.core.docker_builder.utils.docker_output_parser import DockerOutputParser
-from panther.core.exceptions import EnvironmentPluginNotFound, ServicePluginNotFound
 from panther.core.exceptions.error_handler_mixin import ErrorHandlerMixin
 from panther.core.exceptions.fast_fail import (
     DockerBuildException,
@@ -48,14 +43,11 @@ from panther.core.exceptions.fast_fail import (
 )
 from panther.core.utils.logging_mixin import LoggerMixin
 
-from .base_images import BaseImageManagerMixin
 from .caching.docker_build_cache_mixin import DockerBuildCacheMixin
 from .caching.docker_image_cache import DockerImageCache
 
 
-class DockerBuilder(
-    BaseImageManagerMixin, DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin
-):
+class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
     """Manage Docker operations with singleton pattern and advanced caching.
 
     A singleton Docker management system that provides comprehensive Docker operations
@@ -117,8 +109,7 @@ class DockerBuilder(
     _session_built_tags_lock = threading.Lock()
 
     def __new__(cls, *args, **kwargs):
-        """
-        Create or return the singleton instance.
+        """Create or return the singleton instance.
 
         If an instance already exists, returns it regardless of parameters.
         Parameters are only used during first instantiation.
@@ -236,9 +227,9 @@ class DockerBuilder(
         try:
             os.environ["DOCKER_BUILDKIT"] = "1"
             os.environ["COMPOSE_DOCKER_CLI_BUILD"] = "1"
-            os.environ[
-                "DOCKER_PY_VERBOSE"
-            ] = "1"  # Enable verbose logging for Docker SDK
+            os.environ["DOCKER_PY_VERBOSE"] = (
+                "1"  # Enable verbose logging for Docker SDK
+            )
             logging.getLogger("docker").setLevel(logging.DEBUG)
             logging.getLogger("requests").setLevel(
                 logging.DEBUG
@@ -283,6 +274,7 @@ class DockerBuilder(
     def update_parameters(
         self, build_log_file, global_config, experiment_context, updated_params
     ):
+        """Update singleton configuration parameters if they have changed."""
         if hasattr(self, "build_log_file") and self.build_log_file != build_log_file:
             self.build_log_file = build_log_file
             updated_params.append(f"build_log_file={build_log_file}")
@@ -322,8 +314,7 @@ class DockerBuilder(
             updated_params.append(f"enable_cache={enable_cache}")
 
     def is_docker_available(self) -> bool:
-        """
-        Check if Docker daemon is available and responsive.
+        """Check if Docker daemon is available and responsive.
 
         Returns:
             bool: True if Docker is available, False otherwise
@@ -337,30 +328,8 @@ class DockerBuilder(
         except DockerException:
             return False
 
-    def get_docker_status(self) -> dict[str, Union[bool, bool, str, int, float, bool]]:
-        """
-        Get comprehensive Docker status including cache information.
-
-        Returns:
-            Dictionary with Docker and cache status
-        """
-        docker_available = self.is_docker_available()
-        cache_stats: dict[
-            str, Union[int, bool, float]
-        ] = self.image_cache.get_cache_stats()
-
-        return {
-            "docker_available": docker_available,
-            "cache_enabled": True,
-            "cached_images": cache_stats["total_images"],
-            "cache_fresh": cache_stats["cache_fresh"],
-            "cache_age_seconds": cache_stats["cache_age_seconds"],
-            "fallback_mode": not docker_available and cache_stats["total_images"] > 0,
-        }
-
     def _get_build_log_path(self, image_tag: str) -> str:
-        """
-        Generate appropriate log path for Docker build logs.
+        """Generate appropriate log path for Docker build logs.
 
         When experiment context is available, logs are placed in test-specific directories:
         1. {test_experiment_dir}/docker_builds/{safe_image_tag}.log (preferred)
@@ -421,8 +390,7 @@ class DockerBuilder(
             return log_filename
 
     def get_target_platform(self) -> str:
-        """
-        Detect the appropriate Docker platform based on the current architecture.
+        """Detect the appropriate Docker platform based on the current architecture.
 
         Respects the target_platform configuration override if specified.
         Results are cached per singleton lifetime; cache is invalidated when
@@ -491,8 +459,7 @@ class DockerBuilder(
         return docker_platform
 
     def _check_buildx_available(self) -> bool:
-        """
-        Check if Docker Buildx is available on the system.
+        """Check if Docker Buildx is available on the system.
 
         Results are cached per singleton lifetime to avoid repeated subprocess calls.
 
@@ -528,8 +495,7 @@ class DockerBuilder(
         return self._cached_buildx_available
 
     def _ensure_buildx_context(self, builder_name: str = "default") -> bool:
-        """
-        Ensure Docker context is properly configured for Buildx operations.
+        """Ensure Docker context is properly configured for Buildx operations.
 
         Args:
             builder_name: The builder name to test compatibility with
@@ -621,8 +587,7 @@ class DockerBuilder(
             return False
 
     def _setup_buildx_builder(self, builder_name: str) -> bool:
-        """
-        Setup and ensure the buildx builder instance is ready.
+        """Setup and ensure the buildx builder instance is ready.
 
         Args:
             builder_name: Name of the buildx builder instance
@@ -672,8 +637,7 @@ class DockerBuilder(
             return False
 
     def _should_use_buildx(self) -> bool:
-        """
-        Determine if Docker Buildx should be used for the build.
+        """Determine if Docker Buildx should be used for the build.
 
         Args:
             target_platform: Target platform for the build
@@ -752,8 +716,7 @@ class DockerBuilder(
         return False
 
     def _get_host_platform(self) -> str:
-        """
-        Get the host platform without configuration overrides.
+        """Get the host platform without configuration overrides.
 
         Results are cached per singleton lifetime since host platform never changes.
 
@@ -769,8 +732,7 @@ class DockerBuilder(
         return self._cached_host_platform
 
     def get_effective_build_platform(self) -> str:
-        """
-        Get the platform that will actually be built.
+        """Get the platform that will actually be built.
 
         When buildx is enabled, cross-platform builds are possible, so return target platform.
         When buildx is disabled, standard Docker builds for native platform only,
@@ -796,8 +758,7 @@ class DockerBuilder(
             return host_platform
 
     def _dockerfile_requires_buildkit(self, dockerfile_path: Path) -> bool:
-        """
-        Check if Dockerfile contains BuildKit-specific features.
+        """Check if Dockerfile contains BuildKit-specific features.
 
         Analyzes Dockerfile content to detect syntax that requires BuildKit/BuildX:
         - RUN --mount (cache mounts, bind mounts, secret mounts)
@@ -865,8 +826,7 @@ class DockerBuilder(
             return False
 
     def validate_build_mode_for_architecture(self, build_mode: str) -> str:
-        """
-        Validate BUILD_MODE compatibility with host architecture.
+        """Validate BUILD_MODE compatibility with host architecture.
 
         Advanced build modes (rel-lto, debug-asan, release-static-pgo) require x86 architecture.
         Non-x86 architectures fall back to empty BUILD_MODE for compatibility.
@@ -904,8 +864,7 @@ class DockerBuilder(
         return build_mode
 
     def _get_cache_key_suffix(self) -> str:
-        """
-        Generate cache key suffix based on target platform for cache isolation.
+        """Generate cache key suffix based on target platform for cache isolation.
 
         This ensures that builds for different platforms (e.g., linux/amd64, linux/arm64)
         use separate cache directories, preventing architecture conflicts.
@@ -917,8 +876,7 @@ class DockerBuilder(
         return f"-{platform}"
 
     def _update_cache_platform(self) -> None:
-        """
-        Update image cache platform when target platform changes.
+        """Update image cache platform when target platform changes.
 
         Ensures cache isolation by switching to platform-specific cache file
         when build platform changes during multi-platform builds.
@@ -947,18 +905,18 @@ class DockerBuilder(
         experiment_id: Optional[str] = None,
         image_tag: Optional[str] = None,
     ) -> Optional[str]:
-        """
-        Build a Docker image using Docker Buildx for cross-platform builds.
+        """Build a Docker image using Docker Buildx for cross-platform builds.
 
         Args:
             impl_name: The name of the implementation
             version: The version of the implementation
             dockerfile_path: The path to the Dockerfile
             context_path: The path to the build context
+            build_args: Build arguments to pass to docker build
             config: Configuration dictionary containing build parameters
             tag_version: The tag version for the Docker image. Defaults to "latest"
-            target_platform: Target platform override. If None, uses detected platform
             experiment_id: Optional experiment ID for tracking
+            image_tag: Optional pre-computed image tag
 
         Returns:
             Optional[str]: The tag of the built Docker image, or None if build failed
@@ -1787,8 +1745,7 @@ class DockerBuilder(
         target_platform="",
         z3_source="",
     ):
-        """
-        Generate Docker image tag with build and runtime mode differentiation.
+        """Generate Docker image tag with build and runtime mode differentiation.
 
         Args:
             impl_name: Implementation name (e.g., 'picoquic')
@@ -1809,7 +1766,6 @@ class DockerBuilder(
             - picoquic:latest (no version, minimal runtime, no platform)
             - panther_ivy-rfc9000:latest-z3pip-linux-amd64 (z3_source=pip adds -z3pip suffix)
         """
-
         # Build mode suffix (empty string results in no suffix)
         build_suffix = f"-{build_mode}" if build_mode else ""
 
@@ -1831,30 +1787,8 @@ class DockerBuilder(
         # Sanitize tag (Docker tags have character restrictions)
         return self._sanitize_docker_tag(full_tag)
 
-    def _generate_platform_aware_base_image(
-        self, base_image_name: str = "panther_base_service:latest"
-    ) -> str:
-        """
-        Generate platform-aware base image tag to match the actual built base image.
-
-        Args:
-            base_image_name: The base image name (default: "panther_base_service:latest")
-
-        Returns:
-            str: Platform-aware base image tag (e.g., "panther_base_service:latest-linux-arm64")
-        """
-        target_platform = self.get_effective_build_platform()
-        platform_suffix = f"-{target_platform.replace('/', '-')}"
-
-        # If the base image already has a platform suffix, don't add another one
-        if platform_suffix in base_image_name:
-            return base_image_name
-
-        return f"{base_image_name}{platform_suffix}"
-
     def _sanitize_docker_tag(self, tag: str) -> str:
-        """
-        Sanitize Docker tag to meet Docker naming requirements.
+        """Sanitize Docker tag to meet Docker naming requirements.
 
         Docker tag rules:
         - Lowercase letters, digits, underscores, periods, dashes
@@ -1896,8 +1830,7 @@ class DockerBuilder(
         context_path: Path,
         config: Dict[str, Any],
     ) -> None:
-        """
-        Validate all prerequisites before starting Docker build operation.
+        """Validate all prerequisites before starting Docker build operation.
 
         Args:
             impl_name: The name of the implementation
@@ -1976,172 +1909,31 @@ class DockerBuilder(
             context_path,
         )
 
-    def push_image_to_registry(self, image_tag, registry_image_tag, registry_url, tag):
-        if self.client is None:
-            self.logger.error(
-                "Docker client is not available. Cannot push Docker image to registry."
-            )
-            return False
-        # Tag the image for the registry
-        image = self.client.images.get(image_tag)
-        image.tag(registry_image_tag)
-        self.logger.debug("Tagged image '%s' as '%s'", image_tag, registry_image_tag)
-
-        # Push the image
-        push_logs = self.client.images.push(
-            registry_url, tag=tag, stream=True, decode=True
-        )
-        for chunk in push_logs:
-            if "status" in chunk:
-                self.logger.debug("Pushing: %s", chunk["status"])
-            elif "error" in chunk:
-                self.logger.error("Pushing Error: %s", chunk["error"])
-                return False
-        self.logger.info(
-            "Successfully pushed image '%s' to registry.", registry_image_tag
-        )
-        return True
-
     def image_exists(self, image_tag: str) -> bool:
-        """
-        Checks if a Docker image with the given tag exists locally.
+        """Check if a Docker image with the given tag exists locally.
+
         Delegates to DockerImageCache for resilient image checking.
 
-        :param image_tag: Tag of the Docker image.
-        :return: True if exists, else False.
+        Args:
+            image_tag: Tag of the Docker image.
+
+        Returns:
+            True if exists, else False.
         """
         return self.image_cache.image_exists(image_tag, self.client)
 
-    def container_exists(self, container_name: str) -> bool:
-        """
-        Check if a Docker container with the given name exists.
-        Args:
-            container_name (str): The name of the Docker container to check.
-        Returns:
-            bool: True if the container exists, False otherwise.
-        Raises:
-            DockerException: If there is an error while checking the container existence.
-        """
-        if self.client is None:
-            self.logger.error(
-                "Docker client is not available. Cannot check if container exists."
-            )
-            return False
-
-        try:
-            self.client.containers.get(container_name)
-            self.logger.debug("Container '%s' exists.", container_name)
-            return True
-        except NotFound:
-            self.logger.debug("Container '%s' does not exist.", container_name)
-            return False
-        except DockerException as e:
-            self.logger.error(
-                "Error checking container existence '%s': %s", container_name, e
-            )
-            return False
-
-    def create_network(
-        self,
-        network_name: str,
-        driver: str = "bridge",
-        subnet: str = "172.27.1.0/24",
-        gateway: str = "172.27.1.1",
-    ) -> bool:
-        """
-        Creates a Docker network with the specified parameters.
-        Args:
-            network_name (str): The name of the network to create.
-            driver (str, optional): The network driver to use. Defaults to "bridge".
-            subnet (str, optional): The subnet for the network. Defaults to "172.27.1.0/24".
-            gateway (str, optional): The gateway for the network. Defaults to "172.27.1.1".
-        Returns:
-            bool: True if the network was created successfully or already exists, False otherwise.
-        Raises:
-            DockerException: If there is an error creating the network.
-            Exception: If there is an unexpected error.
-        """
-        if self.client is None:
-            self.logger.error("Docker client is not available. Cannot create network.")
-            return False
-
-        try:
-            if self.network_exists(network_name):
-                self.logger.info("Network '%s' already exists.", network_name)
-                return True
-
-            self.client.networks.create(
-                name=network_name,
-                driver=driver,
-                ipam=docker.service_types.IPAMConfig(
-                    pool_configs=[
-                        docker.service_types.IPAMPool(subnet=subnet, gateway=gateway)
-                    ]
-                ),
-            )
-            self.logger.info("Network '%s' created successfully.", network_name)
-            return True
-        except DockerException as e:
-            self.logger.error("Failed to create network '%s': %s", network_name, e)
-            return False
-        except Exception as e:
-            self.logger.error(
-                "Unexpected error creating network '%s': %s", network_name, e
-            )
-            return False
-
-    def network_exists(self, network_name: str) -> bool:
-        """
-        Check if a Docker network exists.
-        Args:zdzd
-            network_name (str): The name of the Docker network to check.
-        Returns:
-            bool: True if the network exists, False otherwise.
-        Logs:
-            Debug: Logs whether the network exists or not.
-            Error: Logs any DockerException encountered during the check.
-        """
-        if self.client is None:
-            self.logger.error(
-                "Docker client is not available. Cannot check if network exists."
-            )
-            return False
-
-        try:
-            self.client.networks.get(network_name)
-            self.logger.debug("Network '%s' exists.", network_name)
-            return True
-        except NotFound:
-            self.logger.debug("Network '%s' does not exist.", network_name)
-            return False
-        except DockerException as e:
-            self.logger.error(
-                "Error checking network existence '%s': %s", network_name, e
-            )
-            return False
-
-    def cleanup_unused_images(self, keep_tags: List[str]):
-        """
-        Removes Docker images that are not in the keep_tags list.
-        Delegates to DockerImageCache for cache-aware cleanup.
-
-        :param keep_tags: List of image tags to retain.
-        """
-        self.image_cache.cleanup_unused_images(keep_tags, self.client)
-
     def remove_dangling_images(self):
-        """
-        Removes dangling Docker images (images with <none>:<none> tag).
+        """Remove dangling Docker images (images with <none>:<none> tag).
+
         Delegates to DockerImageCache for cache-aware dangling image removal.
 
         Returns:
-            bool: True if successful, False if an error occurred
+            bool: True if successful, False if an error occurred.
         """
         return self.image_cache.remove_dangling_images(self.client)
 
     def set_experiment_context(self, experiment_context):
-        """
-        Set the experiment context for DockerBuilder.
+        """Set the experiment context for DockerBuilder.
 
         This allows DockerBuilder to organize build logs and other outputs
         within the context of a specific experiment.
@@ -2154,8 +1946,7 @@ class DockerBuilder(
 
     @classmethod
     def reset_singleton(cls):
-        """
-        Reset the singleton instance.
+        """Reset the singleton instance.
 
         This method should only be used in testing scenarios where
         a fresh instance is needed.
@@ -2185,8 +1976,7 @@ class DockerBuilder(
         global_config=None,
         experiment_context=None,
     ) -> "DockerBuilder":
-        """
-        Get the singleton instance of DockerBuilder.
+        """Get the singleton instance of DockerBuilder.
 
         This method returns the singleton instance and allows updating
         configuration parameters even if the instance already exists.
