@@ -169,9 +169,33 @@ pytest tests/unit/test_webapp/ -v -o "addopts=-v --tb=short"
 ## Understanding Config as a Graph
 
 PANTHER config files describe a graph: services are nodes, protocol relationships are
-edges, and network environments group them. For topology design research (industry
-tools, mapping approaches, mapping rules, attack scenarios), see
-`ARCHITECTURE.md` § "Config Model Hierarchy" and § "Topology Design Reference".
+edges, and network environments group them. See `ARCHITECTURE.md` § "Config Model
+Hierarchy" for the data model and § "Visual Topology Editor" for graph-relevant fields.
+
+## NiceGUI JavaScript Interop
+
+When building custom interactive components (e.g., a topology editor), you may need
+to bridge between Python and browser-side JavaScript. NiceGUI provides
+`ui.run_javascript()` for this:
+
+```python
+# Execute JS and get a result back
+result = await ui.run_javascript('document.title')
+
+# Dispatch custom events from JS to Python
+container = ui.element('div')
+container.on('my-event', lambda e: print(e.args))
+ui.run_javascript(f'''
+    const el = document.getElementById("{container.id}");
+    el.dispatchEvent(new CustomEvent("my-event", {{
+        detail: {{key: "value"}},
+        bubbles: true
+    }}));
+''')
+```
+
+See the [NiceGUI documentation on JavaScript](https://nicegui.io/documentation)
+for more patterns.
 
 ## First Two Weeks Checklist
 
@@ -188,19 +212,7 @@ By the end of your second week, you should have:
 ## For Thesis Students
 
 If you are working on this codebase as part of a thesis, the following resources
-will help you structure your academic work:
+will help you get started:
 
-- **`TASKS.md`** — development roadmap with phased deliverables
-- **`ARCHITECTURE.md`** — design decisions and rationale (thesis-referenceable)
-- **`ARCHITECTURE.md` § "Topology Design Reference"** — related work on visual configuration tools
-
-Suggested thesis structure (40-60 pages):
-
-1. **Introduction** (5-7 pages): Problem statement, contributions, structure
-2. **Background & Related Work** (8-12 pages): Protocol testing, PANTHER framework, web UI frameworks
-3. **Architecture & Design** (8-12 pages): Stack choice, service layer, observer integration, topology design
-4. **Implementation** (10-15 pages): Feature walkthrough with code excerpts and screenshots
-5. **Evaluation** (5-8 pages): User study (CLI vs forms vs topology), usability metrics
-6. **Conclusion & Future Work** (3-5 pages)
-
-Start writing early — each development phase produces diagrams that become thesis figures.
+- **`TASKS.md`** — development roadmap with phased goals
+- **`ARCHITECTURE.md`** — design decisions and integration patterns

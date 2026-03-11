@@ -90,6 +90,81 @@ def output_dir(tmp_path):
 
 
 @pytest.fixture
+def topology_2_service():
+    """A minimal 2-service topology dict: QUIC client → server.
+
+    Useful for testing YAML↔graph conversion: 2 nodes, 1 directed edge
+    (client targets server via ProtocolConfig.target).
+    """
+    return {
+        "name": "quic_client_server",
+        "network_environment": {"type": "docker_compose"},
+        "services": {
+            "picoquic_server": {
+                "implementation": {"name": "picoquic", "type": "iut"},
+                "protocol": {
+                    "name": "quic",
+                    "version": "rfc9000",
+                    "role": "server",
+                },
+            },
+            "picoquic_client": {
+                "implementation": {"name": "picoquic", "type": "iut"},
+                "protocol": {
+                    "name": "quic",
+                    "version": "rfc9000",
+                    "role": "client",
+                    "target": "picoquic_server",
+                },
+            },
+        },
+    }
+
+
+@pytest.fixture
+def topology_3_service():
+    """A 3-service topology dict: IUT server + IUT client + tester.
+
+    Useful for testing topologies with mixed node types: 3 nodes
+    (2 IUT + 1 tester), 2 directed edges (client→server, tester→server).
+    """
+    return {
+        "name": "quic_with_tester",
+        "network_environment": {"type": "docker_compose"},
+        "services": {
+            "picoquic_server": {
+                "implementation": {"name": "picoquic", "type": "iut"},
+                "protocol": {
+                    "name": "quic",
+                    "version": "rfc9000",
+                    "role": "server",
+                },
+            },
+            "picoquic_client": {
+                "implementation": {"name": "picoquic", "type": "iut"},
+                "protocol": {
+                    "name": "quic",
+                    "version": "rfc9000",
+                    "role": "client",
+                    "target": "picoquic_server",
+                },
+                "depends_on": ["picoquic_server"],
+            },
+            "ivy_tester": {
+                "implementation": {"name": "ivy", "type": "testers"},
+                "protocol": {
+                    "name": "quic",
+                    "version": "rfc9000",
+                    "role": "client",
+                    "target": "picoquic_server",
+                },
+                "depends_on": ["picoquic_server"],
+            },
+        },
+    }
+
+
+@pytest.fixture
 def sample_yaml():
     """Return a minimal valid PANTHER experiment YAML string."""
     return """\

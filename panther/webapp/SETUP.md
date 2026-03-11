@@ -101,8 +101,7 @@ panther/webapp/
         yaml_editor.py      # CodeMirror YAML editor component.
         log_viewer.py       # Scrolling log display.
         stat_cards.py       # Stat counter cards.
-        topology_editor.py  # vis.js Network Python wrapper.
-        topology_editor.js  # vis.js Network Vue component.
+        topology_editor.py  # Topology editor placeholder (student implements).
     utils/                  # Utility modules.
         form_models.py      # Type introspection utilities for PydanticForm.
     services/               # Business logic. Thin wrappers around PANTHER core.
@@ -151,24 +150,11 @@ flake8 panther/webapp/           # Lint
 
 Run `black` and `isort` before every commit.
 
-## NiceGUI Custom Vue Components (for Topology Editor)
+## NiceGUI Custom Components (for Topology Editor)
 
-The topology editor wraps vis.js Network as a NiceGUI custom Vue component. Key patterns:
-
-**Python wrapper** (`components/topology_editor.py`):
-- Subclass `ui.element` with a `_vue_component = "topology_editor"` class attribute
-- Define props (nodes, edges, options) that get passed to Vue
-- Register JS events that Python callbacks can listen to
-
-**Vue component** (`components/topology_editor.js`):
-- Standard Vue 3 component loaded by NiceGUI
-- Access props via `this.$props`
-- Emit events to Python via `this.$emit('event-name', data)`
-- Initialize vis.js in `mounted()`, clean up in `unmounted()`
-
-**vis.js Network docs**: https://visjs.github.io/vis-network/docs/network/
-
-**Reference implementation**: Search GitHub for `nodegraph-editor-nicegui` — a community NiceGUI graph editor.
+The topology editor is the student's core thesis contribution. See
+`GETTING_STARTED.md` § "NiceGUI JavaScript Interop" for patterns on bridging
+Python and browser-side JavaScript using `ui.run_javascript()`.
 
 ## Troubleshooting
 

@@ -371,181 +371,35 @@ ui.echart({
 
 ### Visual Topology Editor
 
-**Why this design?** Protocol testing experiments are inherently graph-structured:
-services (nodes) communicate via protocols (edges) within network environments (groups).
-A visual editor makes this structure explicit, reducing cognitive load compared to
-editing nested YAML. The topology editor bridges the gap between how users *think*
-about experiments (services talking to each other) and how PANTHER *represents* them
-(hierarchical YAML config).
+Protocol testing experiments are inherently graph-structured: services (nodes)
+communicate via protocols (edges) within network environments (groups). A visual
+editor makes this structure explicit. The topology editor is the **core thesis
+contribution**.
 
-The topology editor provides a drag-and-drop interface for composing experiment
-configurations as a visual graph. This is the **core thesis contribution** for
-extending the webapp.
+The developer evaluates at least 3 visualization approaches and implements one:
 
-**Library Choice**: The developer evaluates both **vis.js Network** and **React Flow** analytically
-(integration complexity, feature set, ecosystem, performance) and picks one. The comparison
-becomes a thesis chapter. See `TASKS.md` Phase 1 for evaluation criteria.
+1. **vis.js Network** — Mature JS graph library with built-in physics and manipulation
+   API. Requires CDN + JavaScript bridge.
+2. **React Flow** — React-based node editor with rich custom node support. Requires npm
+   build step + iframe/webcomponent embedding.
+3. **NiceGUI Native** — Pure SVG/ECharts approach using only NiceGUI built-in
+   capabilities. Zero external dependencies but requires custom drag-and-drop
+   implementation. Sub-options include SVG + custom JS for full editing, or
+   `ui.echart()` Graph type for read-only visualization with force-directed layout.
 
-**Current scaffold** uses vis.js (235 lines in `components/topology_editor.py`):
+The evaluation criteria, methodology, and final recommendation are the developer's
+to define. This comparison becomes an analytical thesis chapter.
 
-```
-TopologyEditor (Python wrapper)
-    ↕ JSON data: nodes, edges via ui.run_javascript()
-    ↕ events: node-click, edge-click (CustomEvent dispatch)
-vis.js Network (browser-side)
-    → Canvas rendering, physics auto-layout, DataSet API
-```
+**Graph-relevant config fields** (see "Config Model Hierarchy" above for the full tree):
 
-**If React Flow is chosen** instead, integration requires:
-- Embedding React app via iframe or NiceGUI custom web component
-- postMessage or REST API bridge for Python ↔ React communication
-- npm/vite build step (breaks "no JS build" advantage of NiceGUI)
-- Custom React components as graph nodes (richer UX but more complexity)
-
-**Integration points (either library):**
-- `set_graph(nodes, edges)` — Python → browser
-- `get_graph()` — Browser → Python
-- `on_node_click(callback)` — Click → Python handler → PydanticForm in side panel
-- Export: topology graph → PANTHER YAML config (`ServiceConfig`, `TestConfig`)
-- Import: PANTHER YAML config → topology graph
-
-**Key features to implement:**
-- Palette sidebar with drag-and-drop node creation (IUT, Tester, Environment)
-- Edge creation with protocol labels (name, version, role)
-- Properties panel: click node → PydanticForm renders ServiceConfig/ProtocolConfig
-- YAML export/import matching `experiment-config/base/` format
-- Validation: red borders on invalid nodes/edges
-- Auto-layout via physics engine or hierarchical algorithm
-
-**Files:**
-- `components/topology_editor.py` — Python wrapper class (scaffolded, 235 lines)
-- `pages/topology.py` — Topology page (scaffolded, 147 lines)
-- `diagrams/04-topology-component-architecture.mmd` — Architecture diagram (contributor creates)
-- `diagrams/05-yaml-graph-mapping.mmd` — YAML ↔ graph data mapping (contributor creates)
-
-### Topology Design Reference
-
-This section collects research on industrial topology editors, approach options, and
-attack-scenario design. The developer should use this as background for the thesis chapter
-on related work and design decisions.
-
-#### Industry Landscape
-
-Before designing PANTHER's topology editor, study how existing tools represent
-network and service topologies. The table below captures the most relevant systems
-and what we can learn from each.
-
-| Tool | Domain | Graph Model | Format | Key Lesson |
-|------|--------|-------------|--------|------------|
-| **GNS3** | Network emulation | Flat: nodes[] + links[] with UUID refs, x/y coords | JSON (.gns3) | Simple node+link with position persistence |
-| **EVE-NG** | Network emulation | Similar flat graph, web canvas | XML (.unl) | Web-based drag-drop, export/import |
-| **KYPO CRP** | Cyber range | Three-tier: hosts[], networks[], routers[] + mappings | YAML | Semantic node types with typed layer mappings |
-| **Mininet/MiniEdit** | SDN emulation | addHost()/addSwitch()/addLink() Python API | Python/JSON | Visual editor exports runnable scripts |
-| **CRATE** | Cyber range | Router-based LAN/WAN, auto-generation | Java/Vaadin | Network generator, auto-layout |
-| **VSDL** | Cyber range DSL | Declarative constraints (nodes + networks) | Custom DSL | High-level spec -> SMT solver -> deployment |
-| **TOSCA** | Cloud orchestration | Node Templates + Relationship Templates (directed graph) | YAML | Requirements/Capabilities, typed relationships |
-| **Docker Compose viz** | Container orchestration | Services as nodes, depends_on/networks as edges | YAML->DOT | Closest to PANTHER's service-in-container model |
-| **Kathara** | Network emulation | Devices via collision domains | lab.conf | Minimal declarative format |
-
-**References**: GNS3 file format docs, KYPO topology definition (Masaryk University),
-VSDL (Costa et al. 2020), TOSCA OASIS Simple Profile YAML v1.3.
-
-#### Multiple Topology Approaches for PANTHER
-
-PANTHER's topology is unique: nodes are protocol implementations (not generic network
-devices), edges are protocol-level client->server relationships (not physical links).
-Four possible approaches follow.
-
-**Approach A: Flat Service Graph (GNS3/Docker-Compose style)**
-
-- Each `services` dict entry = 1 node (colored by `ImplementationType`: IUT=green, Tester=orange).
-- `ProtocolConfig.target` = directed edge (client->server).
-- Network environment = property badge on test group, not a node.
-- Pro: Direct 1:1 mapping to YAML. Simplest.
-- Con: No L2/L3 network detail.
-
-**Approach B: Three-Tier Semantic Graph (KYPO style)**
-
-- Service nodes + Network nodes + Environment nodes.
-- Typed connections between layers.
-- Pro: Richer network context. Good for thesis novelty.
-- Con: PANTHER config doesn't have explicit network-as-node; requires synthesizing. More complex mapping.
-
-**Approach C: Typed Relationships (TOSCA-inspired)**
-
-- Nodes have typed capabilities and requirements.
-- Relationships are first-class objects with properties.
-- Pro: Most semantically rich. Academically interesting.
-- Con: Most complex. Overkill for current config model.
-
-**Approach D: Hybrid with Progressive Disclosure**
-
-- Default = Approach A flat graph.
-- Toggle overlay: network grouping, Docker details.
-- Click node -> expand details with PydanticForm.
-- Pro: Starts simple, complexity on demand. Best UX.
-- Con: Two representations. More engineering.
-
-> **Note**: These are starting points. The developer should evaluate, propose their own
-> variant, and justify the choice in his thesis. The final approach IS the thesis
-> contribution.
-
-#### Beyond Topology -- Attack Scenario Design
-
-PANTHER supports attack scenario testing via `panther_ivy` and the NACT
-(Network-Attack Compositional Testing) methodology, following the APT 6-stage
-lifecycle:
-
-```
-Reconnaissance -> Infiltration -> C2 -> Priv. Escalation -> Persistence -> Exfiltration
-```
-
-The topology editor should eventually support not just "which services connect" but
-"what attack logic runs against them."
-
-Industry references for visual attack scenario design:
-
-| Tool | What it visualizes | Graph model | Relevance |
-|------|-------------------|-------------|-----------|
-| **ATT&CK Flow Builder** | Attack sequences | Directed graph: Action + Condition + AND/OR | Gold-standard for visual scenario composition |
-| **CACAO Roaster** | Security playbooks | Workflow: sequential/parallel/branching steps | Executable workflow model |
-| **TTCN-3 GFT** | Protocol test logic | MSC lifelines: send/receive/timer/verdict | Only standard for protocol test visualization |
-| **Peach Fuzzer State Model** | Protocol FSM | States + Actions (output/input/changeState) | Closest fuzzer model to protocol test logic |
-| **CALDERA Magma** | Adversary operations | Ability list + agent topology | Operation monitoring UX |
-
-Key insight: topology (infrastructure) and test logic (scenario) are two separate
-concerns. This separation is recognized industry-wide (TOSCA, SimSpace, KYPO all
-separate them).
-
-For thesis scope: start with topology (Phase 2). Architecture should be extensible
-toward scenario visualization. NACT data available: `attack_life_cycle.ivy`,
-`apt_tests/` with CVE-specific tests, protocol-specific bindings, `.dsc` parameter
-files.
-
-#### Tester-Specific UX
-
-Different tester types need different config and results UX:
-
-| Tester Type | Example | Config Needs | Output Needs |
-|-------------|---------|-------------|-------------|
-| Formal verification | panther_ivy | Test selection, iterations, build mode, Z3 source | Verdict, .iev event logs, assumption failures |
-| Fuzzer (future) | boofuzz, Peach | Mutation strategy, seed corpus, target fields | Crash count, coverage %, unique crashes |
-| Conformance (future) | Scapy-based | Packet sequence, expected responses | Per-packet pass/fail, timing |
-| Performance (future) | iperf, wrk | Load profile, duration, concurrency | Throughput, latency histograms |
-
-Plugin-extensible UI patterns from industry:
-
-| Pattern | Example | How it works | PANTHER fit |
-|---------|---------|-------------|-------------|
-| Schema-driven forms | RJSF, JSON Forms | Plugin provides schema -> UI auto-generates form | Best fit -- `config_schema.py` already exists |
-| Extension point registry | Grafana panels | Plugin registers component at named slot | Good for result visualizations |
-| Conditional rendering | ZAP scan types | Selecting type swaps visible fields | Natural for properties panel |
-| Progressive disclosure | TLA+ Toolbox | Basic visible, "Advanced" expands | Already supported via `json_schema_extra` |
-
-> **Note**: `PydanticForm` + `config_schema.py` already handles most of this
-> automatically. Worth documenting and evaluating in thesis. Future evolution (out of
-> scope): plugin-contributed result panels, schema-driven conditional fields, attack
-> scenario composer overlay.
+| Config field | Graph concept |
+|-------------|--------------|
+| `TestConfig.services[key]` | Node (key = label) |
+| `ImplementationType` | Node category |
+| `ProtocolConfig.target` | Directed edge (source→target) |
+| `ProtocolConfig.name` + `version` | Edge label |
+| `NetworkEnvironmentConfig.type` | Group property |
+| `ServiceConfig.depends_on` | Dependency edge |
 
 ### UX Improvements (Parallel with Topology)
 

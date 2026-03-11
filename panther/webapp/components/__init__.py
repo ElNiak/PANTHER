@@ -39,8 +39,8 @@ Component catalog
   output with auto-scroll.
 - ``stat_cards`` (not re-exported) -- small KPI cards for the
   dashboard summary row.
-- ``TopologyEditor`` (not re-exported) -- vis.js Network graph for
-  visual experiment topology editing.
+- ``TopologyEditor`` (not re-exported) -- placeholder for visual
+  topology editing (to be implemented by thesis student).
 
 **Status and feedback**
 

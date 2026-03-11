@@ -26,8 +26,8 @@ Routing table
 | ``/plugins``    | ``plugins``         | Card-based plugin browser with type       |
 |                 |                     | filtering and expandable detail panels.   |
 +-----------------+---------------------+-------------------------------------------+
-| ``/topology``   | ``topology``        | Visual topology editor using a vis.js     |
-|                 |                     | network graph (scaffold for future work). |
+| ``/topology``   | ``topology``        | Visual topology editor (to be implemented |
+|                 |                     | by thesis student).                       |
 +-----------------+---------------------+-------------------------------------------+
 
 Composition pattern
