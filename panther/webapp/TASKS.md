@@ -2,7 +2,7 @@
 
 Due end May 2026.
 
-Each phase interleaves code and thesis writing.
+**Writing strategy**: Diagrams-first. Each coding phase produces Mermaid diagrams (version-controlled in `panther/webapp/diagrams/`). All formal thesis prose is written in a concentrated final phase using accumulated diagrams as the backbone.
 
 The thesis requires 40-60 pages plus working code, with focus on **visual experiment configuration, topology design, and output analysis**.
 
@@ -19,12 +19,15 @@ The thesis requires 40-60 pages plus working code, with focus on **visual experi
 | Results page (table, detail view, ECharts bar chart) | Supervisor | Complete |
 | Plugin page (cards, type filter, detail drawer) | Supervisor | Complete |
 | Bug fixes (race conditions, path safety, error handling) | Supervisor | Complete |
-| **Visual Topology Editor (vis.js)** | **Muhammad** | **Core thesis contribution** |
-| **Integration polish + real-usage bug fixes** | **Muhammad** | To build |
+| **Visual Topology Editor** | **Muhammad** | **Core thesis contribution** |
+| **Library comparison (vis.js vs React Flow)** | **Muhammad** | Analytical chapter |
+| **UX improvements (breadcrumbs, JSON viewer, workflow)** | **Muhammad** | Parallel with topology |
+| **CLI command integration** | **Muhammad** | Stretch goal |
+| **End-to-end workflow polish** | **Muhammad** | Stretch goal |
 | **Evaluation study (user study, comparison)** | **Muhammad** | To conduct |
 | **Thesis document** | **Muhammad** | To write |
 
-**Muhammad's thesis contribution**: Design and implementation of a visual experiment designer for protocol conformance testing, enabling intuitive topology-based configuration of PANTHER experiments through a cyber-range-inspired interface.
+**Muhammad's thesis contribution**: Design and implementation of a visual experiment designer for protocol conformance testing, including an analytical comparison of visualization libraries (vis.js vs React Flow), and UX improvements for a research-oriented workflow.
 
 ---
 
@@ -32,135 +35,275 @@ The thesis requires 40-60 pages plus working code, with focus on **visual experi
 
 The scaffold provides a fully functional NiceGUI webapp:
 
-- **5 pages** load and work: Dashboard, Config Builder, Experiments, Results, Plugins
+- **6 pages** load and work: Dashboard, Config Builder, Topology (scaffolded), Experiments, Results, Plugins
 - **PydanticForm** renders any Pydantic BaseModel as editable NiceGUI widgets (711 lines, recursive)
 - **Service layer** wraps PANTHER core: ConfigService, ExperimentService, ResultsService, PluginService
 - **Config builder** has Form Editor + YAML Preview tabs with auto-sync, save/load/validate
 - **Experiment launcher** with `asyncio.to_thread()`, WebObserver, live log viewer
 - **Results browser** with filtering, tabbed detail view (Summary, Tests, Logs, Events, Artifacts), ECharts
 - **40+ unit tests** passing
-- **Topology editor bridge** scaffolded (vis.js Python wrapper + Vue component)
+- **Topology editor bridge** scaffolded (vis.js Python wrapper, 235 lines)
 
 ---
 
-## Phase 1: Onboarding + Real Usage (Week 1-2)
+## Phase 1: Onboarding + Research + Library Comparison (Week 1-2)
 
-**Code focus:**
-1. Run `panther web --reload`, click through all 5 pages. Document what works and what doesn't.
+### Code Focus
+
+1. Run `panther web --reload`, click through all 6 pages. Document what works and what doesn't.
 2. Run 3+ real experiments through the webapp end-to-end (config → launch → monitor → results).
 3. Document all bugs/issues found, fix the simple ones.
-4. Study vis.js Network docs and the scaffolded `TopologyEditor` wrapper.
-5. Read PANTHER config models: `ServiceConfig`, `TestConfig`, `NetworkEnvironmentConfig`.
+4. Study NiceGUI patterns, PydanticForm (711 lines), service layer architecture.
+5. Study PANTHER config models: `ServiceConfig`, `TestConfig`, `NetworkEnvironmentConfig`.
 6. Explore the scaffolded `TopologyEditor` wrapper — understand the Python ↔ JS bridge.
+7. Research **both vis.js Network AND React Flow**:
+   - Integration approaches with NiceGUI (direct JS bridge vs iframe/web component)
+   - Feature comparison: physics engine, custom nodes, minimap, manipulation API
+   - Ecosystem: documentation quality, community activity, maintenance status
+   - Performance: large graph handling, stabilization time
+8. Write analytical comparison chapter with criteria table (5+ dimensions) and justified recommendation.
+9. Choose implementation library and document rationale.
 
-**Thesis writing:**
-- Background chapter outline.
-- Related work: cyber ranges, visual testing tools, protocol testing frameworks, NiceGUI/Streamlit/Flask comparisons.
+### Documentation Tasks
 
-**Deliverable:** Bug report from real usage. Background chapter outline. Familiarity with codebase.
+- Improve GETTING_STARTED.md and SETUP.md based on onboarding experience (student perspective)
+- Add "Common Pitfalls" section based on bugs encountered
+- Create first architecture diagrams
 
-**Acceptance criteria:**
-- `panther web --reload` starts without errors.
-- At least 3 experiments completed successfully through the webapp.
-- Bug report with screenshots of any issues found.
+### Diagrams to Produce
+
+- `diagrams/01-webapp-architecture.mmd` — Current 6-page architecture with service layer
+- `diagrams/02-tech-comparison.mmd` — vis.js vs React Flow feature/integration comparison
+- `diagrams/03-page-navigation-flow.mmd` — Current page routing and navigation
+
+### Deliverable
+
+Bug report from real usage. Comparison chapter draft. Library choice with justification. 3 architecture diagrams. Improved onboarding docs.
+
+### Acceptance Criteria
+
+- `panther web --reload` starts without errors
+- At least 3 experiments completed successfully through the webapp
+- Bug report with screenshots of any issues found
+- Comparison chapter has criteria table with 5+ evaluation dimensions
+- Library choice documented with clear rationale
+- 3 Mermaid diagrams committed to `panther/webapp/diagrams/`
 
 ---
 
-## Phase 2: Topology Editor MVP (Week 2-5)
+## Phase 2: Topology Editor Implementation + Parallel UX Fixes (Week 2-5)
 
-**Code focus:**
+### Core Topology Work
+
 1. **Week 2-3**: Palette sidebar + drag-and-drop node creation on canvas.
-   - Node types: IUT, Tester, Network Environment.
-   - Different colors/icons per node type.
-2. **Week 3-4**: Edge creation (connect nodes), protocol labels on edges, node type icons/colors.
-3. **Week 4-4.5**: Properties panel — click node → PydanticForm renders in right panel.
-   - Reuse existing PydanticForm for ServiceConfig, TestConfig forms.
-4. **Week 4.5-5**: Export topology → PANTHER YAML config. Import existing YAML → render as graph.
-5. **Week 5**: Basic validation — visual red borders for invalid configs, warnings.
+   - Node types: IUT (green box), Tester (blue diamond), Environment (orange ellipse).
+   - Reuse `DEFAULT_GROUPS` from existing `topology_editor.py`.
+   - Different visual treatment per node type (colors, shapes, icons).
+2. **Week 3-4**: Edge creation (connect nodes), protocol labels on edges, properties panel.
+   - Click node → PydanticForm renders in right panel.
+   - Reuse existing `PydanticForm` from `components/pydantic_form.py` for ServiceConfig, ProtocolConfig.
+   - Edge labels from `ProtocolConfig` (name, version, role).
+3. **Week 4-5**: Export topology → PANTHER YAML config. Import existing YAML → render as graph.
+   - Export: graph nodes → `TestConfig.services`, edges → protocol connections
+   - Import: parse `TestConfig.services` → nodes, protocol `target` fields → edges
+   - Must produce configs matching `experiment-config/base/` format
+4. **Week 5**: Validation (red borders for invalid configs, warnings) + auto-layout.
+   - Auto-layout via physics engine (vis.js barnesHut / React Flow dagre)
+5. Integrate as 3rd tab in config builder (alongside Form Editor + YAML Preview).
 
-**Thesis writing:**
-- Architecture chapter: component design, technology choices (vis.js, NiceGUI custom elements), integration patterns.
+### Parallel UX Fixes
 
-**Deliverable:** Working topology editor that can create, edit, and export experiment configs.
+Fix these as encountered during topology work — don't wait for a separate phase:
 
-**Acceptance criteria:**
-- Can drag nodes from palette onto canvas.
-- Can connect nodes with labeled edges.
-- Click node shows editable properties panel.
-- Export produces valid PANTHER YAML config.
-- Import renders existing config as graph.
-- Invalid configs get visual indicators.
+- **Breadcrumbs**: Add to all pages (e.g., Config > Test 1 > picoquic)
+- **"Next Step" buttons**: Contextual navigation (Config page → "Launch Experiment", Experiments → "View Results")
+- **Stepper/progress indicator**: Show where user is in the Config → Topology → Launch → Results workflow
+- **Structured JSON viewer**: Replace raw JSON display where encountered:
+  - `analysis_results.json` → collapsible tree with syntax highlighting
+  - `service_health.json` → formatted cards (partially done in `service_health_card.py`)
+  - Experiment logs → keep LogViewer but add search/filter
+- **Deep-links**: From results back to the config that produced them
+
+### Documentation Tasks
+
+- Update ARCHITECTURE.md with topology editor design decisions
+- Add component API docs for TopologyEditor (props, events, usage examples)
+
+### Diagrams to Produce
+
+- `diagrams/04-topology-component-architecture.mmd` — TopologyEditor class diagram, Python↔JS bridge
+- `diagrams/05-yaml-graph-mapping.mmd` — How YAML config maps to/from graph nodes and edges
+- `diagrams/06-user-workflow.mmd` — End-to-end user journey: Dashboard → Config → Topology → Launch → Results
+
+### Key Files to Modify
+
+- `panther/webapp/components/topology_editor.py` — Extend scaffold (currently 235 lines)
+- `panther/webapp/pages/topology.py` — Full page implementation (currently 147 lines)
+- `panther/webapp/pages/config_builder.py` — Add topology as 3rd tab
+- `panther/webapp/components/layout.py` — Breadcrumbs + stepper
+- `panther/webapp/pages/results.py` — Structured JSON viewer
+- `panther/webapp/services/config_service.py` — YAML↔graph conversion helpers
+
+### Existing Code to Reuse
+
+- `PydanticForm` (`components/pydantic_form.py`) — Properties panel for topology nodes
+- `DEFAULT_GROUPS` (`components/topology_editor.py`) — Node type styling
+- `YamlEditor` (`components/yaml_editor.py`) — YAML preview tab
+- `ConfigService.validate_config()` — Validation in export
+- `dict_list_widgets.py` — KeyedModelEditor for service node editing
+
+### Deliverable
+
+Working topology editor integrated in config builder. UX improvements across pages.
+
+### Acceptance Criteria
+
+- Can drag nodes from palette onto canvas
+- Can connect nodes with labeled edges
+- Click node shows editable PydanticForm properties panel
+- Export produces valid PANTHER YAML config
+- Import renders existing config as graph
+- Invalid configs get visual red borders
+- Breadcrumbs visible on all pages
+- At least one JSON viewer replaced with structured view
 
 ---
 
-## Phase 3: Integration + Polish (Week 5-7)
+## Phase 3: End-to-End Workflow Polish + Stretch Goals (Week 5-8)
 
-**Code focus:**
-1. Wire topology editor into config builder as new tab (alongside Form Editor and YAML Preview).
-2. Auto-layout algorithm (vis.js has built-in layout engines).
-3. Bug fixes from real usage testing (Phase 1 bug report).
-4. Undo/redo (basic state history).
-5. `pip install .[web]` verification in a fresh venv.
-6. Integration test suite: topology → YAML → experiment → results roundtrip.
+### Workflow Polish (Primary Focus)
 
-**Thesis writing:**
-- Implementation chapter: detailed feature walkthrough with code excerpts + screenshots.
+- Make Config → Topology → Launch → Results flow seamless end-to-end
+- Undo/redo in topology editor (basic state history)
+- Fix all remaining bugs from Phase 1 bug report
+- Integration test: topology → YAML → experiment → results roundtrip
+- `pip install .[web]` verification in a fresh venv
 
-**Deliverable:** Topology editor integrated into config builder. Integration tests.
+### Stretch Goals (Priority Order)
 
-**Acceptance criteria:**
-- Config builder has 3 tabs: Form Editor, Topology Editor, YAML Preview.
-- Auto-layout arranges nodes cleanly.
-- `pip install -e ".[web]" && panther web` starts without errors.
+Implement in this order, as time allows:
+
+1. **CLI command integration** — Expose CLI commands in webapp:
+   - `panther config validate` → enhance with inline error display
+   - `panther config generate` → template picker (minimal/basic/advanced/performance/security)
+   - `panther plugins params` → plugin parameter viewer in plugins page
+   - `panther plugins check-deps` → dependency checker with fix suggestions
+   - `panther tools status` → tool installation status dashboard
+   - Pattern: each CLI command → webapp action button, same flags as form inputs, output inline
+   - Create `panther/webapp/services/cli_service.py` wrapping CLI functions
+
+2. **Conformance matrix** — IUT × Test pass/fail grid:
+   - Aggregate results across experiments
+   - Click cell → drill into test details
+   - Add to `panther/webapp/pages/results.py` as new tab
+
+3. **Batch comparison** — Run same test across multiple IUTs, side-by-side results
+
+4. **Export for papers** — Charts/tables exportable as CSV, LaTeX snippets, SVG
+
+### Documentation Tasks
+
+- Complete component API reference for all modified components
+- Update GETTING_STARTED.md with topology editor usage guide
+- Create "CLI ↔ Webapp mapping" reference table
+
+### Diagrams to Produce
+
+- `diagrams/07-cli-webapp-mapping.mmd` — Which CLI commands map to which webapp actions
+- `diagrams/08-data-flow-complete.mmd` — Full system data flow including new features
+- `diagrams/09-stretch-goal-mockups/` — Mockup diagrams for unimplemented features (for thesis Future Work)
+
+### Deliverable
+
+Polished end-to-end workflow. Stretch goals implemented. Mockups for unimplemented features.
+
+### Acceptance Criteria
+
+- Config → Topology → Launch → Results works without leaving the workflow
+- `pip install -e ".[web]" && panther web` starts without errors
+- At least 2 stretch goals implemented
+- Mockups created for all unimplemented stretch goals
 
 ---
 
-## Phase 4: Evaluation + Thesis Writing (Week 7-10)
+## Phase 4: Evaluation + Thesis Writing (Week 8-10)
 
-**Code focus:**
+### Evaluation
+
 1. Mini user study with 3-5 protocol dev students:
    - Task: configure a QUIC test scenario using (a) CLI, (b) form builder, (c) topology editor.
    - Measure: task completion time, errors, satisfaction (SUS questionnaire).
-   - Compare approaches: CLI vs form-based vs visual topology.
+   - Compare approaches quantitatively.
 2. Final polish and bug fixes.
 3. Prepare demo script for defense.
 
-**Thesis writing:**
-- Evaluation chapter with study results.
-- Conclusion, future work.
-- Full revision, abstract, acknowledgments.
-- **Submission deadline: end May.**
+### Thesis Writing (Prose Sprint)
 
-**Deliverable:** Submitted thesis + working demo.
+All accumulated diagrams become thesis figures. Prose wraps around them:
 
-**Acceptance criteria:**
-- User study completed with at least 3 participants.
-- Full thesis submitted.
-- Demo script runs without errors.
+- **Chapter 1**: Introduction (problem statement, research questions, contributions)
+- **Chapter 2**: Background (protocol testing, cyber ranges, visual configuration, NiceGUI)
+- **Chapter 3**: Library Comparison (analytical vis.js vs React Flow evaluation from Phase 1)
+- **Chapter 4**: Architecture & Design (accumulated diagrams + design decisions)
+- **Chapter 5**: Implementation (feature walkthrough with code excerpts + screenshots)
+- **Chapter 6**: Evaluation (user study results, SUS scores, comparison data)
+- **Chapter 7**: Future Work (mockups for unimplemented stretch goals)
+- **Chapter 8**: Conclusion
+
+### Diagrams to Produce
+
+- `diagrams/10-evaluation-results.mmd` — Charts from user study data
+- `diagrams/11-sus-scores.mmd` — SUS score visualization
+- All previous diagrams refined for thesis inclusion (captions, labels, consistent style)
+
+### Deliverable
+
+Submitted thesis (40-60 pages) + working demo.
+
+### Acceptance Criteria
+
+- User study completed with at least 3 participants
+- Full thesis submitted
+- Demo script runs without errors
+- All diagrams are thesis-ready
+
+---
+
+## Diagrams-First Writing Strategy
+
+| Phase | Diagram Artifacts | Thesis Chapter |
+|-------|------------------|----------------|
+| Phase 1 | Architecture overview, tech comparison, page flow | Background + Comparison |
+| Phase 2 | Component architecture, YAML↔graph mapping, user workflow | Architecture + Implementation |
+| Phase 3 | CLI mapping, data flow, stretch goal mockups | Implementation + Future Work |
+| Phase 4 | Evaluation charts, SUS scores | Evaluation |
+
+**Tool**: Mermaid (`.mmd` files, version-controlled in `panther/webapp/diagrams/`). Alternative: draw.io exported as SVG.
+
+**Rule**: No formal prose writing during Phases 1-3. Only diagrams + brief captions. All thesis writing happens in Phase 4 using diagrams as the backbone.
 
 ---
 
 ## Technology Reference
 
-### vis.js Network Integration
+### Topology Editor Integration
 
-The topology editor uses **vis.js Network** wrapped as a NiceGUI custom Vue component:
+The topology editor uses a visualization library (chosen in Phase 1) wrapped as a NiceGUI component:
 
 | Component | File | Purpose |
 |-----------|------|---------|
-| Python wrapper | `components/topology_editor.py` | `TopologyEditor` class, props, events |
-| Vue component | `components/topology_editor.js` | vis.js initialization, canvas rendering |
-| Topology page | `pages/topology.py` | Route `/topology`, sample data |
+| Python wrapper | `components/topology_editor.py` | TopologyEditor class, props, events |
+| Page | `pages/topology.py` | Route `/topology`, layout, palette |
 
-**Key vis.js features to use:**
-- `network.addNodeMode()` / `network.addEdgeMode()` for creating elements
-- `manipulation` option for built-in edit UI
-- `physics` option for auto-layout
-- `selectNode` / `selectEdge` events for properties panel
+**Current scaffold** (vis.js):
+- `TopologyEditor.set_graph(nodes, edges)` — Python → JS
+- `TopologyEditor.get_graph()` — JS → Python
+- `on_node_click(callback)` — Click → Python handler
+- `DEFAULT_GROUPS` — Node type styling (IUT/Tester/Environment)
+
+**If React Flow is chosen**: Requires iframe or web component embedding, postMessage bridge for Python↔React communication, and npm build step.
 
 ### Data Models Reference
-
-These are the key data structures for the config builder and results page:
 
 **ExperimentConfig** (`panther/config/core/models/experiment.py`):
 - `tests: List[TestConfig]` — each test has services, network env, steps
@@ -196,10 +339,10 @@ outputs/<experiment_date_name>/
 
 | Risk | Mitigation |
 |------|------------|
-| vis.js + NiceGUI integration complexity | Scaffold provides working bridge; study `nodegraph-editor-nicegui` reference |
-| JavaScript debugging unfamiliar | Use browser DevTools; vis.js has good docs and examples |
+| Chosen library integration issues | Phase 1 analytical research should surface major blockers early |
+| JavaScript debugging unfamiliar | Use browser DevTools; both vis.js and React Flow have good docs |
 | Real experiments take too long | Use minimal configs (picoquic ping-pong, ~30 seconds) |
-| Thesis writing falls behind | Writing starts Phase 1. Each phase has writing tasks. |
+| Scope creep from stretch goals | Prioritized list — stop when time runs out, document rest as Future Work |
 | User study recruitment | Ask classmates, use 3 participants minimum |
 | NiceGUI hot reload breaks | Use `--no-reload` as fallback |
 
