@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""
-Test script for the ShellCommand class with trailing control operators.
-"""
+"""Test script for the ShellCommand class with trailing control operators."""
 
-from panther.core.command_processor import ShellCommand, normalize_command_ending
+from panther.core.command_processor import ShellCommand
+from panther.core.command_processor.utils.shell_utils import normalize_command_ending
 
 
 def test_normalize_command_ending():
