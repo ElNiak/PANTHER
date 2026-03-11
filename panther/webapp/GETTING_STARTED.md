@@ -197,17 +197,6 @@ ui.run_javascript(f'''
 See the [NiceGUI documentation on JavaScript](https://nicegui.io/documentation)
 for more patterns.
 
-## First Two Weeks Checklist
-
-By the end of your second week, you should have:
-
-1. All 6 pages loading without errors (verified by running `panther web --reload`)
-2. All existing tests passing (verified by running `pytest tests/unit/test_webapp/`)
-3. At least 3 real experiments run end-to-end through the webapp (requires Docker)
-4. Bug report documenting any issues found (with screenshots)
-5. Familiarity with NiceGUI patterns and the service layer architecture
-6. Comfort reading and modifying PydanticForm-based components
-7. Understanding of the output directory structure and results data model
 
 ## For Thesis Students
 

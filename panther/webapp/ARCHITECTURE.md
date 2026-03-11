@@ -2,26 +2,6 @@
 
 Design decisions and integration patterns for the NiceGUI-based webapp.
 
-## How to Read This Document
-
-This document describes the architecture of PANTHER's web dashboard — a browser-based
-interface for configuring, launching, and analyzing protocol conformance testing
-experiments. It is written for developers who are new to the codebase and want to
-understand *why* things are designed the way they are, not just *what* the code does.
-
-**Reading order:**
-1. **Concepts Glossary** — learn the domain vocabulary
-2. **Stack Choice** — understand why NiceGUI was chosen
-3. **Service Layer Pattern** — the key abstraction between UI and backend
-4. **Page Architecture** — how pages compose services and components
-5. **Real-Time Updates** — how live experiment data flows to the browser
-6. **Service API Reference** — lookup table when wiring pages to data
-
-**Conventions in this document:**
-- Code paths are relative to the repository root (e.g., `panther/webapp/services/`)
-- PANTHER-specific terms are defined in the glossary below and explained on first use
-- Architecture diagrams use ASCII art for inline display and Mermaid for complex flows
-
 ## Concepts Glossary
 
 | Term | Definition |
@@ -206,24 +186,6 @@ When an experiment runs, the `WebObserver` is registered with `EventManager`. Ev
 - Automatic `_update_gui_state()` on every event
 
 **EventType taxonomy** (from `panther/core/events/base/event_base.py`):
-
-| EventType | Event names | When it fires | Experiment phase |
-|-----------|------------|---------------|-----------------|
-| `EXPERIMENT` | `experiment.started`, `.completed`, `.failed` | Experiment lifecycle transitions | All phases |
-| `TEST` | `test.started`, `.completed`, `.failed`, `.skipped` | Individual test scenario lifecycle | Execution |
-| `SERVICE` | `service.started`, `.stopped`, `.error`, `.health_check` | Docker container start/stop/crash | Deployment, Execution |
-| `ENVIRONMENT` | `environment.created`, `.destroyed`, `.error` | Docker network/compose up/down | Deployment |
-| `STEP` | `step.pre_command`, `.post_command` | Pre/post command execution hooks | Execution |
-| `METRICS` | `metrics.collected`, `.resource_usage` | Performance data points | Execution |
-| `SYSTEM` | `system.info`, `.warning`, `.error` | Framework-level diagnostics | Any |
-| `ASSERTION` | `assertion.passed`, `.failed` | Formal verification verdicts (Ivy) | Execution |
-| `PLUGIN` | `plugin.loaded`, `.error` | Plugin discovery and initialization | Initialization |
-
-**Event phases**: The four experiment phases produce different event types:
-1. **Initialization** — `PLUGIN` events (plugin loading), minimal `SYSTEM` events
-2. **Plugin Loading** — `PLUGIN` events, `SYSTEM` diagnostics
-3. **Deployment** — `ENVIRONMENT` events (network/container creation), `SERVICE` events (container start)
-4. **Execution** — `TEST`, `SERVICE`, `STEP`, `METRICS`, `ASSERTION` events (the bulk of activity)
 
 **Subscription lifecycle** for a NiceGUI page:
 ```python
@@ -410,6 +372,7 @@ During topology implementation, the developer also improves the overall webapp U
 - **"Next Step" buttons**: Contextual navigation between pages
 - **Structured JSON viewer**: Replace raw JSON display with collapsible syntax-highlighted trees
 - **Deep-links**: Results link back to the config that produced them
+- **POLISHING + FINISHING** : The scaffold is functional but rough around the edges. The developer refines UI details, fixes bugs, and ensures a smooth user experience. This includes handling edge cases, improving error messages, and optimizing layout for different screen sizes.
 
 ### Stretch Goals (Priority Order)
 
@@ -420,7 +383,7 @@ During topology implementation, the developer also improves the overall webapp U
 
 See `TASKS.md` for full details and timeline.
 
-## What Is NOT in Scope
+## Other Features Considered but HARD
 
 | Feature | Reason |
 |---------|--------|
@@ -431,163 +394,3 @@ See `TASKS.md` for full details and timeline.
 | Multi-user collaboration | Single-user tool |
 | CI/CD integration API | CLI already serves this use case |
 | Database backend | Config files + filesystem outputs are sufficient |
-
-## How to Add a New Page
-
-Follow this pattern when extending the webapp:
-
-1. Create `panther/webapp/pages/my_page.py`:
-```python
-from nicegui import ui
-
-def content():
-    ui.label("My Page").classes("text-h5")
-    # ... build UI here
-```
-
-2. Register in `panther/webapp/app.py`:
-```python
-from panther.webapp.pages import my_page
-
-@ui.page('/my-page')
-def my_page_route():
-    with layout():
-        my_page.content()
-```
-
-3. Add a sidebar link in `panther/webapp/components/layout.py`.
-
-For pages that need data, create a service in `services/` that wraps core PANTHER classes.
-
-## Service API Reference
-
-Quick-reference tables for every service the webapp exposes. Use these when
-wiring up a new page or component — they tell you what data is available
-without reading the implementation.
-
-### ConfigService (`services/config_service.py`)
-
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `get_default_yaml()` | `str` | Load default experiment config YAML template |
-| `validate_yaml(yaml_content: str)` | `Optional[str]` | None if valid, error message if invalid |
-| `yaml_to_dict(yaml_content: str)` | `Optional[dict]` | Parse YAML to dict, None on error |
-| `dict_to_yaml(data: dict)` | `str` | Convert dict to YAML string |
-| `load_config(path: str)` | `dict` | Load+parse YAML file (path-validated) |
-| `save_config(path: str, data: dict)` | `None` | Save dict to YAML file (path-validated) |
-| `list_configs(directory=None)` | `list[{name, path, modified}]` | List YAML files in directory |
-| `list_configs_recursive(root=None)` | `list[{name, path, modified, category, summary}]` | Recursive list with summaries |
-| `validate_config_detailed(data: dict)` | `list[FieldError]` | Field-level validation (path, message, severity) |
-| `merge_configs(base: dict, overlay: dict)` | `dict` | Deep merge (overlay wins) |
-| `resolve_interpolations(data: dict)` | `dict` | Resolve `${section.key}` templates |
-| `generate_test_name(test_data: dict)` | `str` | Auto-generate test name from services/protocol |
-| `generate_test_description(test_data: dict)` | `str` | Auto-generate test description |
-
-### ExperimentService (`services/experiment_service.py`, singleton via `get_experiment_service()`)
-
-| Method / Property | Returns | Description |
-|-------------------|---------|-------------|
-| `run_experiment(config_path: str)` | `async` | Run experiment in background thread |
-| `stop()` | `None` | Request experiment stop |
-| `status` (property) | `str` | Current status (Idle/Loading/Running/Completed/Failed/Stopped) |
-| `log_lines` (property) | `list[str]` | Log buffer (max 10 000 lines) |
-| `is_running` (property) | `bool` | Whether experiment is active |
-| `register_callbacks(on_log, on_status)` | `None` | Register UI callbacks for live streaming |
-| `unregister_callbacks(on_log, on_status)` | `None` | Unregister UI callbacks |
-| `subscribe_events(callback)` | `None` | Subscribe to raw PANTHER BaseEvent objects |
-| `unsubscribe_events(callback)` | `None` | Unsubscribe from events |
-| `web_observer` (property) | `WebObserver` | Access the WebObserver instance |
-
-### ResultsService (`services/results_service.py`)
-
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `list_experiments()` | `list[{date, name, path, test_count, status}]` | All experiments, newest first |
-| `count_experiments()` | `int` | Count of experiments |
-| `get_experiment_detail(name: str)` | `Optional[dict]` | Full detail: logs, report, artifacts, core_summary |
-| `list_tests(experiment_path: str)` | `list[{name, status, duration, has_events, has_analysis, service_count}]` | Per-test summaries |
-| `get_test_detail(experiment_path, test_name)` | `Optional[{info, services, analysis, artifacts}]` | Single test detail |
-| `get_test_events(experiment_path, test_name)` | `list[dict]` | Parsed events.jsonl entries |
-| `get_experiment_events(experiment_path)` | `list[dict]` | Top-level experiment events |
-| `get_service_logs(experiment_path, test_name, service_name)` | `{phase: {stdout, stderr}}` | Per-phase log content |
-| `get_analysis_results(experiment_path, test_name)` | `Optional[{filename: data}]` | JSON analysis files |
-| `get_test_results(experiment_path)` | `list[dict]` | Chart-ready pass/fail/duration data |
-| `get_service_health(experiment_path)` | `list[dict]` | Service health summaries |
-| `get_aggregate_stats(experiment_path)` | `{total, passed, failed, success_rate, duration}` | Aggregate stats |
-| `get_metrics_timeseries(experiment_path)` | `list[{timestamp, metric, value}]` | Normalized metrics for ECharts |
-
-### PluginService (`services/plugin_service.py`)
-
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `list_plugins()` | `list[PluginMetadata]` | All discovered plugins (.name, .type, .description, .to_dict()) |
-| `get_plugin_detail(name: str)` | `Optional[PluginMetadata]` | Single plugin by name |
-| `get_plugin_manifest(name: str)` | `Optional[PluginManifest]` | Full manifest (license, homepage, config_schema, config_model) |
-
-### WebObserver (`services/web_observer.py`)
-
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `subscribe(callback)` | `None` | Add event callback (receives BaseEvent) |
-| `unsubscribe(callback)` | `None` | Remove event callback |
-| Inherited: `get_event_history()` | `list[BaseEvent]` | Last 1000 events |
-| Inherited: `get_gui_state()` | `dict` | Counters and timestamps per event type |
-
-### PydanticForm Quick Reference
-
-```python
-from panther.webapp.components.pydantic_form import PydanticForm, FormConfig
-
-# Render any Pydantic BaseModel as editable NiceGUI widgets
-form = PydanticForm(LoggingConfig, config=FormConfig(section_style="card"))
-data = form.get_value()      # Returns validated dict
-form.set_value({"level": "DEBUG"})  # Populate from dict
-```
-
-`FormConfig` options: `section_style` (`"expansion"` / `"card"` / `"flat"`), `show_advanced` (bool), `css_prefix` (str).
-
-### Improving the Scaffold
-
-These services and components are a **starting scaffold** — the developer is expected to
-improve, extend, and refine them as part of his thesis work. If something is missing,
-unclear, or could be designed better, open a GitHub issue describing the gap and
-proposed improvement. All changes go through GitHub pull requests with code review;
-this review workflow is itself part of the thesis process. PRs should reference the
-relevant issue and include a short design-rationale section so reviewers understand the
-"why" behind each change.
-
-## Future Evolution
-
-After the thesis, potential improvements:
-- **FastUI migration**: Pydantic's own `pydantic.dev/fastui` generates richer form UIs directly from models. This could complement or replace PydanticForm for more complex form scenarios.
-- **Plugin UI extension**: Plugins contribute their own dashboard widgets via a registration API (e.g., `@register_plugin_widget()` decorator). Each plugin could provide a `webapp/` subdirectory with custom page components.
-- **Live topology**: Real-time Docker container status visualization on the topology graph (nodes pulse when active, change color on failure).
-- **Template library**: Pre-built topology templates for common test scenarios (QUIC conformance, HTTP interop).
-
-## Key Files Reference
-
-```
-panther/config/core/models/
-    global_config.py        # GlobalConfig, LoggingConfig, DockerConfig, PathsConfig
-    experiment.py           # ExperimentConfig, TestConfig, StepsConfig
-    service.py              # ServiceConfig, ImplementationConfig, ProtocolConfig
-    environment.py          # NetworkEnvironmentConfig, ExecutionEnvironmentConfig
-
-panther/core/
-    experiment_manager.py   # ExperimentManager (central orchestrator)
-    observer/
-        impl/gui_observer.py        # GUIObserver base class (subclass this)
-        base/observer_interface.py   # IObserver interface
-        management/event_manager.py  # EventManager singleton
-    events/base/event_base.py       # BaseEvent, EventType enum
-    reporting/status_collector.py    # ExperimentSummary, TestResult, ServiceHealthSummary
-    test_cases/analysis/output_analyzer.py  # Output collection and analysis
-    metrics/                         # Metrics data model
-
-panther/plugins/
-    plugin_manager.py       # PluginManager (plugin discovery)
-
-panther/cli_click/
-    commands/web.py         # `panther web` Click command
-    core/main.py            # CLI entry -- register_commands()
-```

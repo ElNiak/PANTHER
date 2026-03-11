@@ -47,7 +47,7 @@ The scaffold provides a fully functional NiceGUI webapp:
 
 ---
 
-## Phase 1: Onboarding + Research (Week 1-2)
+## Phase 1: Onboarding + Research (Week 1)
 
 **Goal**: Become productive in the codebase and produce a library evaluation chapter.
 
@@ -57,8 +57,18 @@ The scaffold provides a fully functional NiceGUI webapp:
   for the topology editor. The evaluation criteria and methodology are yours to define.
 - Produce an analytical comparison with justified recommendation.
 - Improve onboarding docs based on your experience.
+- Usage scenarios to explore:
+  - Config builder → export YAML → CLI validation
+  - Config builder → launch experiment → view results
+  - Plugin page → plugin details → source code link
+  - Experiment page → live logs → experiment summary
+  - ...
+- This will be used for the "Library Evaluation" chapter of the thesis and to inform the topology editor design.
 
 ---
+
+NOTE:
+- It is advice to produce frequently diagrams during development — these become thesis figures and help clarify design decisions.
 
 ## Phase 2: Topology Editor Implementation + Parallel UX (Week 2-5)
 

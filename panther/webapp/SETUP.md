@@ -149,35 +149,3 @@ flake8 panther/webapp/           # Lint
 ```
 
 Run `black` and `isort` before every commit.
-
-## NiceGUI Custom Components (for Topology Editor)
-
-The topology editor is the student's core thesis contribution. See
-`GETTING_STARTED.md` § "NiceGUI JavaScript Interop" for patterns on bridging
-Python and browser-side JavaScript using `ui.run_javascript()`.
-
-## Troubleshooting
-
-**`ModuleNotFoundError: No module named 'nicegui'`**
-You installed without the `[web]` extra. Run: `pip install -e ".[web]"`
-
-**`panther web` command not found**
-Reinstall: `pip install -e ".[web]"`
-
-**Port already in use**
-Kill the existing process (`lsof -ti:8080 | xargs kill`) or use a different port: `panther web --port 9000`
-
-**NiceGUI hot reload causes import errors**
-Restart the server manually. If persistent, run without `--reload`.
-
-**Browser shows "Disconnected" after saving a file**
-Normal during hot reload. Wait 2-3 seconds for reconnection.
-
-**`ImportError` when importing PANTHER core modules**
-Make sure you activated the venv and installed with `pip install -e ".[web]"`.
-
-**Plugin list is empty on /plugins**
-Make sure you're running from the repo root (where `panther/plugins/` exists).
-
-**ConfigService fails to find default config**
-The service resolves paths relative to the project root (3 levels up from `services/`). Make sure you're running from the repo root or that `experiment-config/` exists.
