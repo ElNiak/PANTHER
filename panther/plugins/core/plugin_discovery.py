@@ -422,7 +422,6 @@ class PluginDiscovery(LoggerMixin):
 
         from pathlib import Path
 
-        from panther.plugins.core.plugin_decorators import register_version_config
         from panther.plugins.core.version_loader import VersionLoader
 
         plugin_path = Path(metadata.path)
@@ -436,10 +435,10 @@ class PluginDiscovery(LoggerMixin):
                 versions = version_loader.discover_and_load_versions(
                     metadata.name, plugin_path, protocol
                 )
-                for version_name, config in versions.items():
-                    register_version_config(metadata.name, version_name, config)
+                if versions:
                     self.logger.debug(
-                        f"Registered version config: {metadata.name}:{version_name}"
+                        f"Loaded {len(versions)} version configs for {metadata.name}: "
+                        f"{list(versions.keys())}"
                     )
             except Exception as e:
                 self.logger.warning(

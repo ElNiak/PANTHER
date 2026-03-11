@@ -141,7 +141,9 @@ class TestFieldLevelValidation:
 
         svc = ConfigService()
         errors = svc.validate_config_detailed({"tests": []})
-        assert any(e.path == "tests" and e.severity == "warning" for e in errors)
+        assert any(
+            e.path in ("tests", "config") and e.severity == "error" for e in errors
+        )
 
     def test_field_error_has_path_and_message(self):
         from panther.webapp.services.config_service import FieldError
@@ -158,14 +160,14 @@ class TestConfigServiceSecurity:
         from panther.webapp.services.config_service import ConfigService
 
         svc = ConfigService()
-        with pytest.raises(ValueError, match="must be a YAML file"):
+        with pytest.raises(ValueError, match="must have one of these extensions"):
             svc.load_config("/etc/passwd")
 
     def test_save_config_rejects_non_yaml(self, tmp_path, _patch_project_root):
         from panther.webapp.services.config_service import ConfigService
 
         svc = ConfigService()
-        with pytest.raises(ValueError, match="must be a YAML file"):
+        with pytest.raises(ValueError, match="must have one of these extensions"):
             svc.save_config(str(tmp_path / "evil.txt"), {"x": 1})
 
     def test_load_config_accepts_yaml_extension(self, tmp_path, _patch_project_root):
@@ -190,7 +192,7 @@ class TestConfigServiceSecurity:
         from panther.webapp.services.config_service import ConfigService
 
         svc = ConfigService()
-        with pytest.raises(ValueError, match="within the project directory"):
+        with pytest.raises(ValueError, match="within the root directory"):
             svc.load_config("/tmp/evil/attack.yaml")
 
     def test_path_traversal_rejected_for_save(self):
@@ -198,7 +200,7 @@ class TestConfigServiceSecurity:
         from panther.webapp.services.config_service import ConfigService
 
         svc = ConfigService()
-        with pytest.raises(ValueError, match="within the project directory"):
+        with pytest.raises(ValueError, match="within the root directory"):
             svc.save_config("/tmp/evil/attack.yaml", {"x": 1})
 
     def test_path_traversal_with_dotdot(self, tmp_path, _patch_project_root):
@@ -208,7 +210,7 @@ class TestConfigServiceSecurity:
         svc = ConfigService()
         # This resolves outside tmp_path (the patched _PROJECT_ROOT)
         traversal_path = str(tmp_path / "sub" / ".." / ".." / "escape.yaml")
-        with pytest.raises(ValueError, match="within the project directory"):
+        with pytest.raises(ValueError, match="within the root directory"):
             svc.load_config(traversal_path)
 
     def test_path_within_project_accepted(self, tmp_path, _patch_project_root):

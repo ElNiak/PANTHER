@@ -436,6 +436,90 @@ def schema(format, section, examples):
             click.echo(f"  (Could not generate example: {e})")
 
 
+@config.command("list")
+@click.option(
+    "--directory",
+    "-d",
+    type=click.Path(exists=True),
+    help="Root directory to scan (defaults to experiment-config/)",
+)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    help="Output format (default: text)",
+)
+@handle_errors
+def list_cmd(directory, output_format):
+    r"""List available experiment configurations.
+
+    Recursively scans experiment-config/ (or a custom directory) and displays
+    all YAML configuration files with metadata and summaries.
+
+    \b
+    Examples:
+      # List all configs
+      panther config list
+
+      # List configs in a specific directory
+      panther config list -d experiment-config/advanced
+
+      # JSON output for scripting
+      panther config list --format json
+    """
+    import json as json_mod
+
+    from panther.core.utils.file_utils import ConfigurationLoader, FileUtils
+
+    if directory is None:
+        root = FileUtils.find_project_root() / "experiment-config"
+    else:
+        root = Path(directory)
+
+    configs = ConfigurationLoader.list_configs_recursive(root)
+
+    if not configs:
+        info_message(f"No configuration files found under {root}")
+        return
+
+    if output_format == "json":
+        # Convert datetime objects for JSON serialization
+        for c in configs:
+            if hasattr(c.get("modified"), "isoformat"):
+                c["modified"] = c["modified"].isoformat()
+        click.echo(json_mod.dumps(configs, indent=2))
+        return
+
+    click.echo(
+        colored(
+            f"Found {len(configs)} configuration(s) under {root}",
+            "blue",
+            attrs=["bold"],
+        )
+    )
+    click.echo()
+
+    for c in configs:
+        category = c.get("category", "")
+        prefix = f"[{category}] " if category else ""
+        click.echo(f"  {prefix}{colored(c['name'], 'cyan')}")
+
+        summary = c.get("summary", {})
+        if summary.get("test_count"):
+            tests_str = ", ".join(summary.get("test_names", []))
+            click.echo(f"    Tests: {summary['test_count']} ({tests_str})")
+        if summary.get("protocols"):
+            click.echo(f"    Protocols: {', '.join(summary['protocols'])}")
+        if summary.get("services"):
+            click.echo(f"    Services: {', '.join(summary['services'])}")
+        if summary.get("environment"):
+            click.echo(f"    Environment: {summary['environment']}")
+        click.echo()
+
+    success_message(f"Listed {len(configs)} configuration(s)")
+
+
 @config.command()
 @click.option(
     "--template",

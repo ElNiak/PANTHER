@@ -103,6 +103,15 @@ class PluginManagerUtils(LoggerMixin):
                                 exc,
                             )
 
+        # After parent loading, check if module was already loaded as side effect
+        # (e.g., parent __init__.py did "from .quic import QUICProtocol")
+        if fq_module_name in sys.modules:
+            already_loaded = sys.modules[fq_module_name]
+            # Also register under simple name for compatibility
+            if module_name != fq_module_name:
+                sys.modules[module_name] = already_loaded
+            return already_loaded
+
         # Register under both simple and qualified names for compatibility
         sys.modules[module_name] = module
         if fq_module_name != module_name:

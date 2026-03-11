@@ -245,7 +245,7 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
             self.client = docker.from_env()
             self.client.ping()
             self.logger.info("Connected to Docker daemon successfully.")
-            self.logger.debug("Using Docker platform: %s", self._get_host_platform())
+            self.logger.debug("Detected host platform: %s", self._get_host_platform())
 
             if self.client and enable_cache:
                 # Set Docker client for image cache
