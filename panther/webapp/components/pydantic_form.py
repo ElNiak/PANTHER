@@ -100,6 +100,7 @@ class PydanticForm:
         self._field_bindings: dict[str, FieldBinding] = {}
         self._plugin_sub_forms: dict[str, dict[str, PydanticForm | None]] = {}
         self._prefix = self._config.css_prefix
+        self.last_validation_error: ValidationError | None = None
 
         # Resolve initial data
         initial: dict[str, Any] = {}
@@ -142,15 +143,24 @@ class PydanticForm:
 
         try:
             validated = self._model_cls(**raw)
+            self.last_validation_error = None
             return validated.model_dump(mode="json")
         except (ValidationError, ValueError) as exc:
+            self.last_validation_error = (
+                exc if isinstance(exc, ValidationError) else None
+            )
             logger.warning(
                 "Validation failed for %s, returning raw values: %s",
                 self._model_cls.__name__,
                 exc,
-                exc_info=True,
             )
             return raw
+
+    def set_field_value(self, field_name: str, value: Any) -> None:
+        """Set a single field's value by name."""
+        binding = self._field_bindings.get(field_name)
+        if binding:
+            binding.setter(value)
 
     def set_value(self, data: dict) -> None:
         """Populate form widgets from a dict."""

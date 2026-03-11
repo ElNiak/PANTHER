@@ -177,9 +177,10 @@ class ResultsService:
                     rel = f.relative_to(exp_dir)
                     test_name = rel.parts[0] if len(rel.parts) > 1 else ""
                 except ValueError:
+                    rel = Path(f.name)
                     test_name = ""
                 artifacts.append(
-                    {"name": f.name, "path": str(f), "test_name": test_name}
+                    {"name": f.name, "path": str(rel), "test_name": test_name}
                 )
         return artifacts
 
@@ -210,17 +211,19 @@ class ResultsService:
                     "end_time": r.get("end_time"),
                     "error_message": r.get("error_message"),
                     "has_events": (test_dir / "events.jsonl").exists(),
-                    "has_analysis": (
-                        (test_dir / "analysis").is_dir()
-                        and any((test_dir / "analysis").iterdir())
-                    ),
+                    "has_analysis": ResultsService._has_analysis(test_dir),
                     "service_count": self._count_services(test_dir),
                 }
                 results.append(entry)
         else:
             # Fallback: scan filesystem for test directories
             if exp_dir.exists():
-                for d in sorted(exp_dir.iterdir()):
+                try:
+                    dirs = sorted(exp_dir.iterdir())
+                except OSError as e:
+                    logger.warning("Error scanning experiment dir %s: %s", exp_dir, e)
+                    dirs = []
+                for d in dirs:
                     if d.is_dir() and (
                         (d / "test_config.yaml").exists() or (d / "test.log").exists()
                     ):
@@ -233,25 +236,36 @@ class ResultsService:
                                 "end_time": None,
                                 "error_message": None,
                                 "has_events": (d / "events.jsonl").exists(),
-                                "has_analysis": (
-                                    (d / "analysis").is_dir()
-                                    and any((d / "analysis").iterdir())
-                                    if (d / "analysis").is_dir()
-                                    else False
-                                ),
+                                "has_analysis": ResultsService._has_analysis(d),
                                 "service_count": self._count_services(d),
                             }
                         )
         return results
+
+    @staticmethod
+    def _has_analysis(test_dir: Path) -> bool:
+        """Check if test_dir/analysis/ exists and has files."""
+        analysis_dir = test_dir / "analysis"
+        if not analysis_dir.is_dir():
+            return False
+        try:
+            return any(analysis_dir.iterdir())
+        except OSError:
+            return False
 
     def _count_services(self, test_dir: Path) -> int:
         """Count service directories under test_dir/logs/."""
         logs_dir = test_dir / "logs"
         if not logs_dir.is_dir():
             return 0
-        return sum(
-            1 for d in logs_dir.iterdir() if d.is_dir() and not d.name.startswith(".")
-        )
+        try:
+            return sum(
+                1
+                for d in logs_dir.iterdir()
+                if d.is_dir() and not d.name.startswith(".")
+            )
+        except OSError:
+            return 0
 
     def get_test_detail(
         self, experiment_path: str, test_name: str
@@ -284,9 +298,12 @@ class ResultsService:
         # Test-level artifacts
         artifact_exts = {".pcap", ".json", ".csv", ".yaml", ".yml", ".log", ".sh"}
         artifacts = []
-        for f in test_dir.iterdir():
-            if f.is_file() and f.suffix in artifact_exts:
-                artifacts.append({"name": f.name, "path": str(f)})
+        try:
+            for f in test_dir.iterdir():
+                if f.is_file() and f.suffix in artifact_exts:
+                    artifacts.append({"name": f.name, "path": f.name})
+        except OSError as e:
+            logger.warning("Error listing test artifacts in %s: %s", test_dir, e)
 
         return {
             "info": test_info,
@@ -305,7 +322,12 @@ class ResultsService:
             return []
 
         services = []
-        for svc_dir in sorted(logs_dir.iterdir()):
+        try:
+            svc_entries = sorted(logs_dir.iterdir())
+        except OSError as e:
+            logger.warning("Error reading logs dir %s: %s", logs_dir, e)
+            return []
+        for svc_dir in svc_entries:
             if not svc_dir.is_dir() or svc_dir.name.startswith("."):
                 continue
             # Skip non-service directories (docker_* logs are at logs/ root level)
@@ -313,14 +335,30 @@ class ResultsService:
                 continue
 
             phases = []
-            for phase_dir in sorted(svc_dir.iterdir()):
+            try:
+                phase_entries = sorted(svc_dir.iterdir())
+            except OSError:
+                phase_entries = []
+            for phase_dir in phase_entries:
                 if not phase_dir.is_dir():
                     continue
                 files = []
-                for f in sorted(phase_dir.iterdir()):
+                try:
+                    file_entries = sorted(phase_dir.iterdir())
+                except OSError:
+                    file_entries = []
+                for f in file_entries:
                     if f.is_file():
+                        try:
+                            rel_path = f.relative_to(test_dir)
+                        except ValueError:
+                            rel_path = f.name
                         files.append(
-                            {"name": f.name, "size": f.stat().st_size, "path": str(f)}
+                            {
+                                "name": f.name,
+                                "size": f.stat().st_size,
+                                "path": str(rel_path),
+                            }
                         )
                 if files:
                     phases.append({"phase_name": phase_dir.name, "files": files})
@@ -416,7 +454,12 @@ class ResultsService:
             return {}
 
         result: dict[str, dict[str, Optional[str]]] = {}
-        for phase_dir in sorted(svc_dir.iterdir()):
+        try:
+            phase_dirs = sorted(svc_dir.iterdir())
+        except OSError as e:
+            logger.warning("Error reading service dir %s: %s", svc_dir, e)
+            return {}
+        for phase_dir in phase_dirs:
             if not phase_dir.is_dir():
                 continue
             phase_data: dict[str, Optional[str]] = {}
@@ -455,7 +498,12 @@ class ResultsService:
             return None
 
         results: dict[str, Any] = {}
-        for f in analysis_dir.iterdir():
+        try:
+            entries = list(analysis_dir.iterdir())
+        except OSError as e:
+            logger.warning("Error reading analysis dir %s: %s", analysis_dir, e)
+            return None
+        for f in entries:
             if f.is_file() and f.suffix == ".json":
                 try:
                     data = json.loads(f.read_text())

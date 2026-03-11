@@ -156,14 +156,18 @@ def _render_config_forms(yaml_editor_ref: dict):
 
     yaml_editor_ref["panels"] = panels
     yaml_editor_ref["_last_yaml"] = None
+    yaml_editor_ref["_sync_failures"] = 0
 
     def _sync_forms_to_yaml():
+        import yaml
+
+        # Skip sync when YAML tab is active (user may be editing)
+        if yaml_editor_ref.pop("skip_sync", False):
+            return
+        editor = yaml_editor_ref.get("editor")
+        if editor is None:
+            return
         try:
-            editor = yaml_editor_ref.get("editor")
-            if editor is None:
-                return
-            if yaml_editor_ref.pop("skip_sync", False):
-                return
             config: dict[str, Any] = {}
 
             for section_name, panel in panels.get("global", {}).items():
@@ -197,15 +201,25 @@ def _render_config_forms(yaml_editor_ref: dict):
                     config["metadata"] = data
 
             if config:
-                import yaml
-
                 yaml_str = yaml.dump(config, default_flow_style=False, sort_keys=False)
                 if yaml_str == yaml_editor_ref.get("_last_yaml"):
                     return
                 yaml_editor_ref["_last_yaml"] = yaml_str
                 editor.value = yaml_str
+            yaml_editor_ref["_sync_failures"] = 0
+        except (yaml.YAMLError, AttributeError, KeyError, TypeError) as exc:
+            yaml_editor_ref["_sync_failures"] = (
+                yaml_editor_ref.get("_sync_failures", 0) + 1
+            )
+            if yaml_editor_ref["_sync_failures"] <= 3:
+                logger.warning("Form-to-YAML sync error: %s", exc)
         except Exception:
-            logger.warning("Form-to-YAML sync error", exc_info=True)
+            # Unexpected error — log once, stop retrying
+            yaml_editor_ref["_sync_failures"] = (
+                yaml_editor_ref.get("_sync_failures", 0) + 1
+            )
+            if yaml_editor_ref["_sync_failures"] <= 1:
+                logger.error("Unexpected form-to-YAML sync error", exc_info=True)
 
     ui.timer(1.0, _sync_forms_to_yaml)
 
@@ -253,7 +267,11 @@ def _export(yaml_editor):
     # Stamp modified_at before exporting
     import yaml as _yaml
 
-    data = _yaml.safe_load(yaml_content)
+    try:
+        data = _yaml.safe_load(yaml_content)
+    except _yaml.YAMLError as exc:
+        ui.notify(f"Invalid YAML — exporting raw content: {exc}", type="warning")
+        data = None
     if isinstance(data, dict):
         meta = data.setdefault("metadata", {})
         meta["modified_at"] = datetime.now().isoformat()

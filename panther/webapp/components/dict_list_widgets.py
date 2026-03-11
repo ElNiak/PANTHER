@@ -50,14 +50,16 @@ class KeyValueEditor:
         with self._container:
             for idx, row in enumerate(self._rows):
                 with ui.row().classes("w-full items-center gap-1"):
-                    ui.input("Key", value=row["key"]).classes("w-1/3").on(
-                        "update:model-value",
-                        lambda e, i=idx: self._update_key(i, e.args),
-                    )
-                    ui.input("Value", value=row["value"]).classes("w-1/2").on(
-                        "update:model-value",
-                        lambda e, i=idx: self._update_value(i, e.args),
-                    )
+                    ui.input(
+                        "Key",
+                        value=row["key"],
+                        on_change=lambda e, i=idx: self._update_key(i, e.value),
+                    ).classes("w-1/3")
+                    ui.input(
+                        "Value",
+                        value=row["value"],
+                        on_change=lambda e, i=idx: self._update_value(i, e.value),
+                    ).classes("w-1/2")
                     ui.button(
                         icon="close",
                         on_click=lambda _, i=idx: self._remove_row(i),
@@ -511,10 +513,18 @@ def _build_service_dialog(
         target_select = ui.select(
             _target_choices,
             value=init_target if init_target in entries else None,
-            label="Target service",
+            label="Target service (type a name or select existing)",
             with_input=True,
+            new_value_mode="add-unique",
         ).classes("w-full")
         target_select.set_visibility(init_role == "client")
+        if not _target_choices:
+            target_hint = ui.label(
+                "No other services yet — type a target name and add the server later."
+            ).classes("text-caption text-orange-7")
+            target_hint.set_visibility(init_role == "client")
+        else:
+            target_hint = None
 
         # ── Reactive handlers ────────────────────────────────────────
         def _update_versions():
@@ -539,7 +549,10 @@ def _build_service_dialog(
             _update_implementations()
 
         def _on_role_change(e):
-            target_select.set_visibility(e.value == "client")
+            is_client = e.value == "client"
+            target_select.set_visibility(is_client)
+            if target_hint is not None:
+                target_hint.set_visibility(is_client)
 
         proto_select.on_value_change(_on_protocol_change)
         type_select.on_value_change(_on_type_change)

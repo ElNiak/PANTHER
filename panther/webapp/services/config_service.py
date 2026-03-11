@@ -21,8 +21,30 @@ class FieldError:
     severity: Literal["error", "warning"] = "error"
 
 
-# Resolve default config relative to project root (where pyproject.toml lives)
-_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+# Resolve project root by searching upward for pyproject.toml (robust for
+# both editable installs and site-packages layouts).
+def _find_project_root() -> Path:
+    """Walk upward from this file to find the directory containing pyproject.toml."""
+    current = Path(__file__).resolve().parent
+    for _ in range(10):  # safety limit
+        if (current / "pyproject.toml").is_file():
+            return current
+        parent = current.parent
+        if parent == current:
+            break
+        current = parent
+    # Fallback: use cwd if it has pyproject.toml, otherwise best guess
+    cwd = Path.cwd().resolve()
+    if (cwd / "pyproject.toml").is_file():
+        return cwd
+    logger.warning(
+        "Could not find pyproject.toml; falling back to cwd %s for project root",
+        cwd,
+    )
+    return cwd
+
+
+_PROJECT_ROOT = _find_project_root()
 _DEFAULT_CONFIG_CANDIDATES = [
     _PROJECT_ROOT
     / "experiment-config"

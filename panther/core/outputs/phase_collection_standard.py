@@ -167,8 +167,8 @@ class PhaseCollectionStandard:
         # Substitute service name placeholders
         if service_name:
             patterns = [
-                (output_type, pattern.replace("{service_name}", service_name))
-                for output_type, pattern in patterns
+                (p[0], p[1].replace("{service_name}", service_name), *p[2:])
+                for p in patterns
             ]
 
         return patterns
@@ -187,7 +187,8 @@ class PhaseCollectionStandard:
         required_phases = {"pre-compile", "compile", "runtime", "test"}
         found_phases = set()
 
-        for output_type, pattern in patterns:
+        for p in patterns:
+            output_type, pattern = p[0], p[1]
             if not isinstance(output_type, str) or not isinstance(pattern, str):
                 errors.append(f"Invalid pattern format: {output_type}, {pattern}")
                 continue

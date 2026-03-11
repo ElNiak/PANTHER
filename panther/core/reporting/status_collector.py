@@ -493,11 +493,15 @@ class StatusCollector:
         test_results = []
 
         # Find all test directories (typically named after tests)
-        test_dirs = [
-            d
-            for d in self.experiment_dir.iterdir()
-            if d.is_dir() and d.name not in ["logs", "metrics", "outputs"]
-        ]
+        try:
+            test_dirs = [
+                d
+                for d in self.experiment_dir.iterdir()
+                if d.is_dir() and d.name not in ["logs", "metrics", "outputs"]
+            ]
+        except OSError as e:
+            self.logger.warning("Error scanning experiment dir: %s", e)
+            test_dirs = []
 
         for test_dir in test_dirs:
             test_result = self._extract_test_result(test_dir)
@@ -675,13 +679,19 @@ class StatusCollector:
         # 3. Check directory structure for additional clues
         logs_dir = test_dir / "logs"
         if logs_dir.exists():
-            # If logs directory exists but is empty, likely failed early
-            log_files = list(logs_dir.rglob("*.log"))
-            if not log_files:
+            try:
+                has_any_content = any(logs_dir.rglob("*"))
+            except OSError:
+                has_any_content = False
+            # Truly empty logs dir (no files at all) suggests early failure
+            if not has_any_content:
                 return TestStatus.FAILED
 
             # Check for error files
-            error_files = list(logs_dir.rglob("*.err.log"))
+            try:
+                error_files = list(logs_dir.rglob("*.err.log"))
+            except OSError:
+                error_files = []
             if error_files:
                 for error_file in error_files:
                     try:
@@ -718,11 +728,15 @@ class StatusCollector:
         summaries: List[ServiceHealthSummary] = []
 
         # Find all test directories
-        test_dirs = [
-            d
-            for d in self.experiment_dir.iterdir()
-            if d.is_dir() and d.name not in ("logs", "metrics", "outputs")
-        ]
+        try:
+            test_dirs = [
+                d
+                for d in self.experiment_dir.iterdir()
+                if d.is_dir() and d.name not in ("logs", "metrics", "outputs")
+            ]
+        except OSError as e:
+            self.logger.warning("Error scanning for service health: %s", e)
+            test_dirs = []
 
         for test_dir in test_dirs:
             health_file = test_dir / "analysis" / "service_health.json"

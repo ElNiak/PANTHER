@@ -10,6 +10,7 @@ STATIC_DIR = Path(__file__).parent.parent / "static"
 NAV_ITEMS = [
     ("/", "Dashboard", "dashboard"),
     ("/config", "Config Builder", "settings"),
+    ("/topology", "Topology Editor", "hub"),
     ("/experiments", "Experiments", "science"),
     ("/results", "Results", "assessment"),
     ("/plugins", "Plugins", "extension"),

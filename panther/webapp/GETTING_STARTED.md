@@ -100,7 +100,7 @@ The scaffold bugs have been fixed in this commit. Verify they work:
 
 Now read your development plan and architecture docs:
 
-- **`panther/webapp/docs/TASKS.md`** -- 8-week plan with code and thesis tasks per week
+- **`panther/webapp/TASKS.md`** -- 4-phase plan with code and thesis tasks per phase
 - **`panther/webapp/ARCHITECTURE.md`** -- Design decisions, integration patterns, data models, scope
 
 Run the existing test suite to make sure everything works:
@@ -136,14 +136,16 @@ pytest tests/unit/test_webapp/ -v -o "addopts=-v --tb=short"
 - Nested models are handled recursively; enums become dropdowns; Optional[BaseModel] gets a toggle
 - See `panther/webapp/components/pydantic_form.py` for implementation details
 
-## Your First Week Deliverables
+## Your First Two Weeks Deliverables
 
-By end of Week 1, you should have:
+By end of Phase 1 (Week 2), you should have:
 1. All 5 pages loading without errors (verified by running `panther web --reload`)
-2. All 40 existing tests passing (verified by running `pytest tests/unit/test_webapp/`)
-3. NiceCRUD visual spike report (1 page with screenshots — the automated tests already prove it works, but you need to see the rendered UI and document edge cases)
-4. Background chapter outline for thesis
-5. Related work research notes (web-based testing tools, framework comparisons)
+2. All existing tests passing (verified by running `pytest tests/unit/test_webapp/`)
+3. At least 3 real experiments run end-to-end through the webapp
+4. Bug report documenting any issues found (with screenshots)
+5. Familiarity with vis.js Network docs and the scaffolded TopologyEditor
+6. Background chapter outline for thesis
+7. Related work research notes (cyber ranges, visual testing tools, framework comparisons)
 
 ## Thesis Writing Tips (UCLouvain EPL)
 
@@ -151,9 +153,9 @@ Your thesis should be 40-60 pages. Suggested chapter structure:
 
 1. **Introduction** (5-7 pages): Problem statement, contributions, structure
 2. **Background & Related Work** (8-12 pages): Protocol testing, PANTHER framework, web UI frameworks, comparison
-3. **Architecture & Design** (8-12 pages): Stack choice, service layer, observer integration, NiceCRUD pipeline
-4. **Implementation** (10-15 pages): Config builder, experiment launch, results dashboard, charts
-5. **Evaluation** (5-8 pages): Testing methodology, usability comparison with CLI, demo walkthrough
+3. **Architecture & Design** (8-12 pages): Stack choice, service layer, observer integration, topology editor design
+4. **Implementation** (10-15 pages): Topology editor, config builder, experiment launch, results dashboard
+5. **Evaluation** (5-8 pages): User study (CLI vs forms vs topology), usability metrics, demo walkthrough
 6. **Conclusion & Future Work** (3-5 pages)
 
 Start writing in Week 1. Each week has thesis writing tasks alongside code tasks.

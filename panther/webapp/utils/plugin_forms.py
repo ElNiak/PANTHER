@@ -7,6 +7,7 @@ and produce form info for the student's UI layer.
 from __future__ import annotations
 
 import logging
+import threading
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, get_args, get_origin
@@ -18,6 +19,7 @@ from panther.webapp.utils.form_models import ComplexFieldInfo, get_complex_field
 logger = logging.getLogger(__name__)
 
 # ── Cached plugin discovery ───────────────────────────────────────────
+_discovery_lock = threading.Lock()
 _discovery_done = False
 
 
@@ -26,13 +28,16 @@ def _ensure_plugins_discovered():
     global _discovery_done
     if _discovery_done:
         return
-    try:
-        from panther.plugins.core.plugin_discovery import PluginDiscovery
+    with _discovery_lock:
+        if _discovery_done:  # double-check under lock
+            return
+        try:
+            from panther.plugins.core.plugin_discovery import PluginDiscovery
 
-        PluginDiscovery().discover_plugins()
-        _discovery_done = True
-    except Exception:
-        logger.warning("Plugin discovery failed", exc_info=True)
+            PluginDiscovery().discover_plugins()
+            _discovery_done = True
+        except Exception:
+            logger.warning("Plugin discovery failed", exc_info=True)
 
 
 @dataclass

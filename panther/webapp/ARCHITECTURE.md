@@ -208,19 +208,50 @@ ui.echart({
 })
 ```
 
+### Visual Topology Editor: vis.js Network
+
+The topology editor provides a drag-and-drop interface for composing experiment
+configurations as a visual graph. This is **Muhammad's core thesis contribution**.
+
+**Architecture:**
+
+```
+TopologyEditor (Python wrapper, ui.element subclass)
+    ↕ props: nodes, edges, options
+    ↕ events: node-click, edge-click, graph-changed
+topology_editor.js (Vue component)
+    → vis.js Network (canvas rendering, manipulation API)
+```
+
+**Integration points:**
+- `TopologyEditor.set_graph(nodes, edges)` — Python → JS (props update)
+- `TopologyEditor.get_graph()` — JS → Python (via `run_method`)
+- `on_node_click(callback)` — JS click → Python handler → PydanticForm in side panel
+- Export: topology graph → PANTHER YAML config (`ServiceConfig`, `TestConfig`)
+- Import: PANTHER YAML config → topology graph
+
+**Key vis.js features:**
+- `manipulation` option — built-in add/edit/delete UI for nodes and edges
+- `physics` option — auto-layout algorithms (barnesHut, forceAtlas2Based)
+- `interaction` option — selection, dragging, zooming
+- Events: `selectNode`, `selectEdge`, `deselectNode`, `dragEnd`
+
+**Files:**
+- `components/topology_editor.py` — Python wrapper class (scaffolded)
+- `components/topology_editor.js` — Vue component with vis.js (scaffolded)
+- `pages/topology.py` — Topology page (scaffolded)
+
 ## What Is NOT in Scope
 
 | Feature | Reason |
 |---------|--------|
 | Two-way YAML sync | High complexity, one-way form-to-YAML is sufficient |
-| Drag-and-drop topology | High complexity, marginal value over form-based config |
 | Authentication / RBAC | Single-user tool, runs locally |
 | PCAP viewer (embedded) | Would need Wireshark integration or custom parser |
 | Resource monitoring (CPU/RAM) | Requires Docker stats API polling |
 | Multi-user collaboration | Single-user tool |
 | CI/CD integration API | CLI already serves this use case |
 | Database backend | Config files + filesystem outputs are sufficient |
-| 70%+ test coverage | 5-6 smoke tests are sufficient for the thesis |
 
 ## How to Add a New Page
 
@@ -252,9 +283,10 @@ For pages that need data, create a service in `services/` that wraps core PANTHE
 ## Future Evolution
 
 After the thesis, potential improvements:
-- **FastUI migration**: Pydantic's own `pydantic.dev/fastui` generates richer form UIs directly from models. This could complement or replace PydanticForm for more complex form scenarios. Evaluate once the core webapp is stable.
+- **FastUI migration**: Pydantic's own `pydantic.dev/fastui` generates richer form UIs directly from models. This could complement or replace PydanticForm for more complex form scenarios.
 - **Plugin UI extension**: Plugins contribute their own dashboard widgets via a registration API (e.g., `@register_plugin_widget()` decorator). Each plugin could provide a `webapp/` subdirectory with custom page components.
-- **WebSocket-based live topology**: Real-time Docker container status visualization
+- **Live topology**: Real-time Docker container status visualization on the topology graph (nodes pulse when active, change color on failure).
+- **Template library**: Pre-built topology templates for common test scenarios (QUIC conformance, HTTP interop).
 
 ## Key Files Reference
 

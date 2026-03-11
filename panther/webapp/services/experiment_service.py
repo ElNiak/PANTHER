@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import threading
 from typing import Callable, Optional
 
 from panther.core.events.base.event_base import BaseEvent
@@ -28,6 +29,7 @@ class ExperimentService:
 
     def __init__(self):
         """Initialize ExperimentService."""
+        self._lock = threading.Lock()
         self._running = False
         self._stop_requested = False
         self._log_lines: list[str] = []
@@ -104,11 +106,11 @@ class ExperimentService:
         Args:
             config_path: Path to the experiment config YAML.
         """
-        if self._running:
-            raise RuntimeError("An experiment is already running")
-
-        self._running = True
-        self._stop_requested = False
+        with self._lock:
+            if self._running:
+                raise RuntimeError("An experiment is already running")
+            self._running = True
+            self._stop_requested = False
         self._log_lines.clear()
         self._config_path = config_path
 
@@ -191,17 +193,20 @@ class ExperimentService:
                 self._emit_log(f"ERROR: {e}")
                 self._emit_status(f"Error: {e}")
             finally:
-                self._running = False
+                with self._lock:
+                    self._running = False
 
         try:
             await asyncio.to_thread(_run)
-        except Exception:
-            self._running = False
+        except BaseException:
+            with self._lock:
+                self._running = False
             raise
 
     def stop(self):
         """Request experiment stop."""
-        self._stop_requested = True
+        with self._lock:
+            self._stop_requested = True
         logger.info("Experiment stop requested")
 
     def _on_event(self, event: BaseEvent):

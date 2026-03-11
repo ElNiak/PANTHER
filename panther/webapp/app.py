@@ -13,6 +13,7 @@ from panther.webapp.pages import (
     experiments,
     plugins,
     results,
+    topology,
 )
 
 logger = logging.getLogger(__name__)
@@ -56,5 +57,10 @@ def create_app(
     def plugins_page():
         create_layout("Plugins")
         plugins.content()
+
+    @ui.page("/topology")
+    def topology_page():
+        create_layout("Topology")
+        topology.content()
 
     logger.info("PANTHER web dashboard configured")

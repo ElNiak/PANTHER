@@ -44,9 +44,7 @@ class TestListEditor:
     def update_form_field(self, test_idx: int, field_name: str, value: Any) -> None:
         """Push a value into a test form's widget binding."""
         if test_idx < len(self._forms):
-            binding = self._forms[test_idx]._field_bindings.get(field_name)
-            if binding:
-                binding.setter(value)
+            self._forms[test_idx].set_field_value(field_name, value)
 
     def set_value(self, tests: list[dict[str, Any]]) -> None:
         """Load a list of test dicts (e.g. from YAML import/load)."""
