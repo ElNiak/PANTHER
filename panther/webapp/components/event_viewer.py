@@ -1,4 +1,20 @@
-"""Event table and timeline visualization component."""
+"""EventViewer — filterable event table and vertical timeline.
+
+Renders a list of experiment/test events as a tabbed view with two
+presentation modes within the PANTHER (Protocol ANalysis and Testing
+Harness for Extensible Research) web dashboard:
+
+* **Table view** — a sortable, filterable NiceGUI ``ui.table`` with
+  color-coded event-type badges and a free-text search box.
+* **Timeline view** — a vertical timeline with color-coded nodes
+  derived from the ``EventImportance`` level of each event type, plus
+  duration badges showing elapsed time between consecutive events.
+
+Both views consume the same ``events`` list (dicts with ``event_type``,
+``timestamp``, and ``data`` keys) and share the internal helper functions
+``_event_color()`` and ``_summarize_event()`` for consistent styling and
+one-line summaries.
+"""
 
 import logging
 from typing import Any
@@ -6,7 +22,7 @@ from typing import Any
 from nicegui import ui
 
 from panther.core.events.event_summarizer import EventImportance, EventSummarizer
-from panther.webapp.utils.format_helpers import compute_duration
+from panther.core.utils.format_utils import compute_duration
 
 logger = logging.getLogger(__name__)
 

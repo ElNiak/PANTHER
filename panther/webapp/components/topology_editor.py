@@ -1,9 +1,17 @@
-"""vis.js Network topology editor — Python wrapper.
+"""TopologyEditor — vis.js Network graph for visual experiment topology.
 
-Renders a vis.js Network graph for visual experiment configuration.
-This is the **scaffold** — Muhammad builds all interactive features on top:
-palette sidebar, drag-and-drop, properties panel, YAML export/import,
-validation, auto-layout, undo/redo.
+Renders a `vis.js <https://visjs.github.io/vis-network/>`_ Network graph
+inside a NiceGUI container, providing a visual representation of the
+PANTHER (Protocol ANalysis and Testing Harness for Extensible Research)
+experiment topology: IUT (Implementation Under Test) services, tester
+services, and the protocol connections between them.
+
+This module provides the **scaffold** — static graph rendering, Python-to-JS
+data exchange, and click event callbacks.  The contributor builds interactive
+features on top: palette sidebar with drag-and-drop node creation, edge
+creation interactions, properties panel (click node to open a PydanticForm),
+YAML export/import, validation (red borders, warnings), auto-layout, and
+undo/redo.
 
 Usage::
 
@@ -50,22 +58,46 @@ class TopologyEditor:
     """vis.js Network graph rendered inside a NiceGUI container.
 
     The scaffold provides:
-    - Static graph rendering (nodes + edges)
-    - ``set_graph()`` / ``get_graph()`` for Python ↔ JS data exchange
-    - ``on_node_click`` / ``on_edge_click`` event callbacks
 
-    Muhammad builds on top:
-    - Palette sidebar with drag-and-drop node creation
-    - Edge creation interactions
-    - Properties panel (click node → PydanticForm)
-    - YAML export/import
-    - Validation (red borders, warnings)
-    - Auto-layout, undo/redo
+    - Static graph rendering with group-based node styling (IUT = green
+      box, tester = blue diamond, environment = orange ellipse).
+    - ``set_graph()`` / ``get_graph()`` for Python-to-JavaScript data
+      exchange.
+    - ``on_node_click`` / ``on_edge_click`` event callbacks bridged from
+      JavaScript custom events to Python callables.
+
+    Planned interactive features (to be built by the contributor):
+
+    - Palette sidebar with drag-and-drop node creation.
+    - Edge creation interactions.
+    - Properties panel (click node to open a ``PydanticForm``).
+    - YAML export/import.
+    - Validation (red borders, warnings).
+    - Auto-layout, undo/redo.
+
+    Args:
+        nodes: Initial node dicts for vis.js (each must have ``id``; may
+            have ``label``, ``group``, etc.).
+        edges: Initial edge dicts for vis.js (each has ``from``, ``to``,
+            and optionally ``label``).
+        on_node_click: Callback receiving ``(node_id, node_data)`` when a
+            node is clicked.
+        on_edge_click: Callback receiving ``(edge_id, edge_data)`` when an
+            edge is clicked.
+        height: CSS height for the graph container.
+        options: Extra vis.js Network options merged into the defaults.
+
+    Example::
+
+        editor = TopologyEditor(
+            nodes=[{"id": 1, "label": "picoquic", "group": "iut"}],
+            edges=[{"from": 1, "to": 2, "label": "quic"}],
+        )
     """
 
     _head_loaded = False
 
-    def __init__(  # noqa: D107
+    def __init__(
         self,
         nodes: list[dict[str, Any]] | None = None,
         edges: list[dict[str, Any]] | None = None,
@@ -74,6 +106,7 @@ class TopologyEditor:
         height: str = "500px",
         options: dict[str, Any] | None = None,
     ) -> None:
+        """Initialise the topology editor with optional graph data and callbacks."""
         self._nodes = nodes or []
         self._edges = edges or []
         self._on_node_click = on_node_click
@@ -191,7 +224,7 @@ class TopologyEditor:
             self._on_edge_click(detail.get("id"), detail.get("data", {}))
 
     def set_graph(self, nodes: list[dict], edges: list[dict]) -> None:
-        """Replace the entire graph with new nodes and edges."""
+        """Replace the entire graph with new nodes and edges via JavaScript."""
         self._nodes = nodes
         self._edges = edges
         nodes_json = json.dumps(nodes)

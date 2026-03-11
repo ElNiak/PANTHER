@@ -1,4 +1,54 @@
-"""Config builder page — PydanticForm forms + YAML editor."""
+"""Config builder page -- dual-mode experiment configuration editor.
+
+Provides synchronized PydanticForm-based forms and a raw YAML preview.
+
+This page enables users to build PANTHER (Protocol ANalyzer and THreat
+Evaluator for Research) experiment configurations through two
+complementary interfaces:
+
+**Dual-tab architecture:**
+
+1. **Form Editor tab** -- auto-generated forms derived from Pydantic
+   models (``GlobalConfig``, ``TestConfig``, ``ExperimentMetadata``).
+   Each ``GlobalConfig`` field that is itself a ``BaseModel`` gets its
+   own ``config_form_panel`` card.  The test section uses a
+   ``TestListEditor`` supporting add / remove / duplicate operations.
+
+2. **YAML Preview tab** -- a ``YamlEditor`` (CodeMirror-based) showing
+   the live YAML representation.  Edits here are validated on every
+   keystroke via ``ConfigService.validate_yaml()``.
+
+**Form-to-YAML synchronisation:**
+A ``ui.timer`` fires every 1 second and serialises the current form
+state into YAML, writing it into the editor.  A ``skip_sync`` flag
+prevents feedback loops when the user imports or loads YAML (those
+paths populate forms and set the flag so the next timer tick is a
+no-op).  A ``_sync_failures`` counter prevents log-spam on repeated
+errors.
+
+**YAML-to-form synchronisation (import / load):**
+``_populate_forms_from_dict()`` walks the parsed config dict and calls
+``panel.form.set_value()`` for each section.  Test data goes through
+``TestListEditor.set_value()``.
+
+**Action buttons:**
+    * *Validate* -- runs ``ConfigService.validate_config_detailed()``
+      and shows per-field notifications.
+    * *Export YAML* -- triggers a browser download, stamping
+      ``metadata.modified_at``.
+    * *Import YAML* -- opens a paste dialog, validates, then populates
+      both forms and the YAML editor.
+    * *Load Config File* -- lists configs from disk (via
+      ``ConfigService.list_configs()``), loads one, and populates.
+    * *Save Config File* -- writes the current YAML to disk via
+      ``ConfigService.save_config()``.
+
+NiceGUI patterns used:
+    * ``ui.tabs`` / ``ui.tab_panels`` for the dual-tab layout.
+    * ``ui.timer(1.0, ...)`` for periodic form-to-YAML sync.
+    * ``ui.dialog`` for modal import / load / save workflows.
+    * ``ui.download`` for client-side file export.
+"""
 
 import logging
 from datetime import datetime
@@ -6,6 +56,7 @@ from typing import Any
 
 from nicegui import ui
 
+from panther.config.core.models.experiment import TestConfig
 from panther.webapp.components.yaml_editor import YamlEditor
 from panther.webapp.services.config_service import ConfigService
 
@@ -13,7 +64,20 @@ logger = logging.getLogger(__name__)
 
 
 def _populate_forms_from_dict(panels: dict[str, Any], config_dict: dict) -> None:
-    """Populate all form panels from a parsed config dict."""
+    """Populate all form panels from a parsed config dict.
+
+    Walks the three panel groups (``global``, ``tests``, ``metadata``)
+    stored in *panels* and pushes values from *config_dict* into each
+    panel's underlying ``PydanticForm``.
+
+    Args:
+        panels: A dict with keys ``"global"`` (mapping field names to
+            form panels), ``"tests"`` (a ``TestListEditor``), and
+            ``"metadata"`` (a single form panel).
+        config_dict: A parsed experiment configuration dictionary,
+            typically the output of ``yaml.safe_load()`` or
+            ``ConfigService.yaml_to_dict()``.
+    """
     # Global sections
     for field_name, panel in panels.get("global", {}).items():
         section_data = config_dict.get(field_name)
@@ -34,7 +98,23 @@ def _populate_forms_from_dict(panels: dict[str, Any], config_dict: dict) -> None
 
 
 def content():
-    """Render the config builder page content."""
+    """Render the config builder page content.
+
+    Called by the NiceGUI router when the user navigates to ``/config``.
+    The layout is built in three layers:
+
+    1. **Tab bar** -- ``ui.tabs`` with *Form Editor* and *YAML Preview*.
+    2. **Tab panels** -- *Form Editor* delegates to
+       ``_render_config_forms()``; *YAML Preview* instantiates a
+       ``YamlEditor`` seeded with default YAML from
+       ``ConfigService.get_default_yaml()``.
+    3. **Action bar** -- Validate, Export, Import, Load, and Save
+       buttons, each dispatching to a private helper.
+
+    A mutable ``_yaml_editor_ref`` dict is shared between the form
+    panel builder and the YAML editor so that the timer-based sync
+    and the action helpers can access both.
+    """
     config_svc = ConfigService()
 
     ui.label("Experiment Configuration Builder").classes("text-h5 q-mb-md")
@@ -95,7 +175,25 @@ def content():
 
 
 def _render_config_forms(yaml_editor_ref: dict):
-    """Render PydanticForm panels for all config models with auto-sync to YAML."""
+    """Render PydanticForm panels for all config models with auto-sync to YAML.
+
+    Dynamically walks ``GlobalConfig.model_fields`` to discover Pydantic
+    sub-models and creates a ``config_form_panel`` for each.  The test
+    section uses a ``TestListEditor`` (multi-item accordion), and
+    ``ExperimentMetadata`` gets a standalone panel pre-filled with
+    defaults.
+
+    Registers a 1-second ``ui.timer`` that serialises the current form
+    state to YAML and writes it into the YAML editor (if one exists).
+    Auto-generates ``TestConfig.name`` and ``TestConfig.description``
+    for tests that lack them.
+
+    Args:
+        yaml_editor_ref: Shared mutable dict used to exchange references
+            between the form builder, the YAML editor, and the action
+            buttons.  Populated keys: ``"panels"``, ``"_last_yaml"``,
+            ``"_sync_failures"``, and (later) ``"editor"``.
+    """
     from pydantic import BaseModel
 
     from panther.config.core.models.experiment import ExperimentMetadata
@@ -159,6 +257,7 @@ def _render_config_forms(yaml_editor_ref: dict):
     yaml_editor_ref["_sync_failures"] = 0
 
     def _sync_forms_to_yaml():
+        """Serialise form state to YAML and push it into the editor."""
         import yaml
 
         # Skip sync when YAML tab is active (user may be editing)
@@ -181,12 +280,12 @@ def _render_config_forms(yaml_editor_ref: dict):
                 if tests_data:
                     for i, td in enumerate(tests_data):
                         if not td.get("name", "").strip():
-                            generated = ConfigService.generate_test_name(td)
+                            generated = TestConfig.generate_default_name(td)
                             if generated:
                                 td["name"] = generated
                                 test_editor.update_form_field(i, "name", generated)
                         if not td.get("description", "").strip():
-                            generated = ConfigService.generate_test_description(td)
+                            generated = TestConfig.generate_default_description(td)
                             if generated:
                                 td["description"] = generated
                                 test_editor.update_form_field(
@@ -225,14 +324,39 @@ def _render_config_forms(yaml_editor_ref: dict):
 
 
 def _on_yaml_change(value: str, config_svc: ConfigService):
-    """Handle YAML editor changes."""
+    """Handle YAML editor keystroke changes by running lightweight validation.
+
+    Called on every ``on_change`` event from the ``YamlEditor``.
+    Validation errors are logged at DEBUG level (not surfaced to the
+    user) to avoid notification spam while typing.
+
+    Args:
+        value: The current raw YAML string from the editor.
+        config_svc: The configuration service used for validation.
+    """
     errors = config_svc.validate_yaml(value)
     if errors:
         logger.debug("YAML validation errors: %s", errors)
 
 
 def _validate(config_svc: ConfigService, yaml_editor):
-    """Validate the current YAML config."""
+    """Validate the current YAML config and display per-field notifications.
+
+    Performs a two-stage validation:
+
+    1. **Syntax check** -- ``yaml_editor.validate()`` to catch YAML
+       parse errors.
+    2. **Schema check** -- ``config_svc.validate_config_detailed()``
+       which runs Pydantic validation against the full config model
+       tree and returns structured ``FieldError`` objects.
+
+    Up to 10 errors are shown as NiceGUI toast notifications.
+
+    Args:
+        config_svc: The configuration service with validation logic.
+        yaml_editor: The ``YamlEditor`` instance (may be ``None`` if
+            the YAML tab has not been visited yet).
+    """
     if yaml_editor is None:
         ui.notify("Switch to YAML tab first", type="warning")
         return
@@ -256,7 +380,15 @@ def _validate(config_svc: ConfigService, yaml_editor):
 
 
 def _export(yaml_editor):
-    """Export YAML content for download."""
+    """Export the current YAML content as a downloadable file.
+
+    Before exporting, the ``metadata.modified_at`` timestamp is updated
+    to the current ISO-8601 datetime.  Uses ``ui.download()`` to push
+    the file to the browser as ``panther_config.yaml``.
+
+    Args:
+        yaml_editor: The ``YamlEditor`` instance (may be ``None``).
+    """
     if yaml_editor is None:
         ui.notify("Switch to YAML tab first", type="warning")
         return
@@ -280,7 +412,20 @@ def _export(yaml_editor):
 
 
 def _import_yaml_dialog(config_svc: ConfigService, yaml_editor_ref: dict):
-    """Open a dialog to paste YAML and import into forms."""
+    """Open a modal dialog for pasting raw YAML to import into forms.
+
+    The dialog contains a multi-line textarea and an *Import* button.
+    On import the YAML is validated, then pushed into the YAML editor
+    and the form panels via ``_populate_forms_from_dict()``.  The
+    ``skip_sync`` flag is set to prevent the timer from overwriting the
+    freshly imported YAML on the next tick.
+
+    Args:
+        config_svc: The configuration service (used for validation and
+            YAML-to-dict conversion).
+        yaml_editor_ref: Shared mutable reference dict containing the
+            YAML editor and form panels.
+    """
     with ui.dialog() as dialog, ui.card().classes("w-[700px]"):
         ui.label("Import YAML Configuration").classes("text-h6")
         ui.label("Paste your YAML config below to populate the form fields.").classes(
@@ -319,7 +464,19 @@ def _import_yaml_dialog(config_svc: ConfigService, yaml_editor_ref: dict):
 
 
 def _load_config_dialog(config_svc: ConfigService, yaml_editor_ref: dict):
-    """Open a dialog to load a config file from disk."""
+    """Open a modal dialog listing on-disk config files to load.
+
+    Presents a ``ui.select`` dropdown populated by
+    ``ConfigService.list_configs()`` and an optional manual path input.
+    On load the file is parsed, serialised back to YAML, and pushed
+    into both the editor and the form panels.
+
+    Args:
+        config_svc: The configuration service (used for listing and
+            loading config files).
+        yaml_editor_ref: Shared mutable reference dict containing the
+            YAML editor and form panels.
+    """
     with ui.dialog() as dialog, ui.card().classes("w-[500px]"):
         ui.label("Load Config File").classes("text-h6")
 
@@ -373,7 +530,16 @@ def _load_config_dialog(config_svc: ConfigService, yaml_editor_ref: dict):
 
 
 def _save_config_dialog(config_svc: ConfigService, yaml_editor):
-    """Open a dialog to save the current config to a file."""
+    """Open a modal dialog to write the current configuration to disk.
+
+    Re-parses the YAML content at save time (not from a stale closure)
+    and stamps ``metadata.modified_at`` before writing via
+    ``ConfigService.save_config()``.
+
+    Args:
+        config_svc: The configuration service (used for saving).
+        yaml_editor: The ``YamlEditor`` instance (may be ``None``).
+    """
     if yaml_editor is None:
         ui.notify("Switch to YAML tab first", type="warning")
         return

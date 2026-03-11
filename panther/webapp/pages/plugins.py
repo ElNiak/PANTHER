@@ -1,4 +1,48 @@
-"""Plugins page — card-based dashboard with filtering and detail panel."""
+"""Plugins page -- card-based browser for discovering and inspecting plugins.
+
+Presents PANTHER (Protocol ANalyzer and THreat Evaluator for Research)
+plugins in a filterable card grid.
+
+This page presents every registered plugin as a card in a responsive
+grid, with filtering by type and free-text search.  Clicking a card
+opens a right-side drawer with detailed metadata.
+
+**Plugin type tabs:**
+    Tabs are generated dynamically from the ``_TYPE_TABS`` mapping.
+    Only tabs that have at least one matching plugin are shown.
+    Supported categories: IUT (Implementation Under Test), Tester,
+    Network Environment, Execution Environment, and Protocol.
+
+**Search:**
+    A dense text input matches against the plugin name, description,
+    supported protocols, and capabilities fields (case-insensitive
+    substring match).
+
+**Card grid:**
+    Each plugin is rendered by the ``plugin_card`` component in a
+    responsive column layout (``col-12 / col-sm-6 / col-md-4``).
+    The grid is fully re-rendered on every filter change via
+    ``_refresh_grid()``.
+
+**Detail drawer:**
+    A ``ui.right_drawer`` (420 px wide) hosts the
+    ``render_plugin_detail`` component.  It receives the plugin
+    object and an optional manifest dict from
+    ``PluginService.get_plugin_manifest()``.
+
+Data source:
+    ``PluginService.list_plugins()`` returns a list of plugin metadata
+    objects discovered by the plugin system's decorator-based
+    registration mechanism.
+
+NiceGUI patterns used:
+    * ``ui.tabs`` / ``ui.tab`` for type filtering.
+    * ``ui.right_drawer`` for the detail panel (slide-in from the
+      right).
+    * ``ui.row`` as a responsive card grid container.
+    * Callback-driven grid refresh (``tabs.on_value_change``,
+      ``search_input.on_value_change``).
+"""
 
 import logging
 
@@ -22,7 +66,19 @@ _TYPE_TABS = {
 
 
 def content():
-    """Render the plugins browser page content."""
+    """Render the plugins browser page content.
+
+    Called by the NiceGUI router when the user navigates to ``/plugins``.
+    The function:
+
+    1. Fetches all registered plugins via ``PluginService.list_plugins()``.
+    2. Creates a ``ui.right_drawer`` for the detail panel.
+    3. Computes per-type counts and builds only the tabs that have
+       plugins.
+    4. Renders a search input alongside the tab bar.
+    5. Calls ``_refresh_grid()`` to populate the initial card layout.
+    6. Binds tab and search value-change events to ``_refresh_grid()``.
+    """
     plugin_svc = PluginService()
     plugins = plugin_svc.list_plugins()
 
@@ -83,7 +139,7 @@ def content():
     grid_container = ui.row().classes("w-full q-gutter-md")
 
     def _matches_search(plugin, query: str) -> bool:
-        """Check if plugin matches the search query."""
+        """Return True if the plugin matches the free-text search query."""
         if not query:
             return True
         q = query.lower()
@@ -98,13 +154,13 @@ def content():
         return q in searchable
 
     def _matches_tab(plugin, tab_type_val) -> bool:
-        """Check if plugin matches the selected tab type."""
+        """Return True if the plugin's type matches the active tab filter."""
         if tab_type_val is None:
             return True
         return plugin.type == tab_type_val or plugin.type.startswith(tab_type_val)
 
     def _on_card_click(plugin):
-        """Handle card click — show detail panel in right drawer."""
+        """Open the right drawer with detailed metadata for the clicked plugin."""
         manifest = plugin_svc.get_plugin_manifest(plugin.name)
         render_plugin_detail(
             drawer_content,
@@ -115,7 +171,7 @@ def content():
         drawer.set_value(True)
 
     def _refresh_grid():
-        """Re-render the card grid based on current filters."""
+        """Clear and re-render the card grid based on current tab and search filters."""
         grid_container.clear()
         selected_tab = tabs.value
         tab_type_val = active_tabs.get(selected_tab)

@@ -1,6 +1,8 @@
 # Development Setup: PANTHER Web Dashboard
 
-How to get the webapp running locally for development.
+How to get the webapp running locally for development. This is a companion to
+[GETTING_STARTED.md](GETTING_STARTED.md) (conceptual walkthrough) and
+[ARCHITECTURE.md](ARCHITECTURE.md) (design decisions).
 
 ## Prerequisites
 

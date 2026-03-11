@@ -1,7 +1,18 @@
-"""Accordion-based editor for List[TestConfig].
+"""TestListEditor — accordion-based editor for ``List[TestConfig]``.
 
-Renders each test as an expansion panel with a full PydanticForm inside.
-Only one panel is open at a time (accordion behavior).
+Renders each test as a collapsible expansion panel containing a full
+``PydanticForm`` for the PANTHER (Protocol ANalysis and Testing Harness
+for Extensible Research) experiment configuration builder.  Only one
+panel is open at a time (accordion behaviour via the ``group`` parameter),
+keeping the UI compact even when many tests are configured.
+
+Each panel header shows the test name (or ``"(unnamed)"``), plus
+duplicate and delete action buttons.  The "Add Test" button appends a
+new empty panel and opens it automatically.
+
+The editor exposes the same ``.get_value()`` / ``.set_value()`` contract
+used by all config builder widgets, enabling the config builder page to
+round-trip test data through YAML import/export.
 """
 
 from __future__ import annotations
@@ -18,11 +29,21 @@ logger = logging.getLogger(__name__)
 class TestListEditor:
     """Accordion editor for ``List[TestConfig]``.
 
+    Manages an ordered list of test configurations, each rendered as a
+    ``PydanticForm`` inside a collapsible ``ui.expansion`` panel.
+
     Exposes ``get_value()`` / ``set_value()`` matching the widget interface
-    used by the config builder's sync logic.
+    used by the config builder's YAML-to-form sync logic.
+
+    Example::
+
+        editor = TestListEditor()
+        editor.set_value([{"name": "handshake"}, {"name": "transfer"}])
+        tests = editor.get_value()  # list of dicts
     """
 
-    def __init__(self) -> None:  # noqa: D107
+    def __init__(self) -> None:
+        """Initialise an empty test list with an 'Add Test' button."""
         self._test_data: list[dict[str, Any]] = []
         self._forms: list[Any] = []  # PydanticForm instances
         with ui.column().classes("w-full"):

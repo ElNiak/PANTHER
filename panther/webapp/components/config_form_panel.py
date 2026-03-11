@@ -1,4 +1,17 @@
-"""Config form panel — wraps PydanticForm inside a ui.expansion panel."""
+"""ConfigFormPanel — wraps PydanticForm inside a collapsible expansion panel.
+
+Composes a ``PydanticForm`` (the recursive model renderer) with a NiceGUI
+``ui.expansion`` panel to produce a self-contained, collapsible config
+section for the PANTHER (Protocol ANalysis and Testing Harness for
+Extensible Research) config builder page.  An optional description string
+and auto-generated field-help block are placed above and below the form
+respectively.
+
+Usage::
+
+    result = config_form_panel(LoggingConfig, title="Logging", icon="description")
+    data = result.form.get_value()
+"""
 
 from __future__ import annotations
 
@@ -13,7 +26,14 @@ from panther.webapp.components.pydantic_form import FormConfig, PydanticForm
 
 @dataclass
 class FormPanelResult:
-    """Result from ``config_form_panel``."""
+    """Return value from ``config_form_panel``.
+
+    Attributes:
+        form: The ``PydanticForm`` instance rendered inside the panel.
+            Use ``form.get_value()`` / ``form.set_value()`` to read or
+            populate the form.
+        widgets: Reserved for future use; currently always empty.
+    """
 
     form: PydanticForm
     widgets: dict[str, Any] = field(default_factory=dict)
@@ -28,16 +48,27 @@ def config_form_panel(
     singleton: bool = False,
     form_config: FormConfig | None = None,
 ) -> FormPanelResult:
-    """Render a PydanticForm inside a ui.expansion panel.
+    """Render a PydanticForm inside a ``ui.expansion`` panel.
+
+    Creates a collapsible panel containing:
+
+    1. An optional description label (grey caption text).
+    2. A ``PydanticForm`` that renders all model fields as widgets.
+    3. A collapsible "Field descriptions" section extracted from Pydantic
+       ``Field(description=...)`` metadata.
 
     Args:
-        model_cls: Pydantic model class.
-        title: Expansion panel title.
-        icon: Material icon name.
-        description: Help text shown above the form.
-        pre_populate: Kept for backward compat, ignored.
-        singleton: Kept for backward compat, ignored.
-        form_config: Layout configuration for the form.
+        model_cls: Pydantic model class whose fields are rendered.
+        title: Text shown on the expansion panel header.
+        icon: Material icon name displayed next to the title.
+        description: Help text rendered above the form as a grey caption.
+        pre_populate: Legacy parameter, kept for backward compatibility.
+        singleton: Legacy parameter, kept for backward compatibility.
+        form_config: Optional ``FormConfig`` to customise layout options
+            (advanced toggle, CSS prefix, excluded fields, etc.).
+
+    Returns:
+        A ``FormPanelResult`` containing the ``PydanticForm`` instance.
     """
     with ui.expansion(title, icon=icon).classes("w-full"):
         if description:

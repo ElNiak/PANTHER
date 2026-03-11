@@ -1,8 +1,25 @@
-"""Custom NiceGUI widgets for Dict and List[BaseModel] config fields.
+"""DictListWidgets — custom NiceGUI widgets for Dict and List[BaseModel] fields.
 
-All widgets expose a common interface:
-- ``.get_value()`` — returns current data for YAML serialization
-- ``.set_value(data)`` — loads data (e.g. from parsed YAML)
+Provides three widget classes for complex Pydantic field types that cannot
+be rendered as simple scalar inputs by ``PydanticForm``.  These widgets
+are used throughout the PANTHER (Protocol ANalysis and Testing Harness for
+Extensible Research) config builder to edit structured configuration data:
+
+* ``KeyValueEditor`` — edits ``Dict[str, str]`` / ``Dict[str, Any]`` fields
+  as a dynamic list of key-value input rows.
+* ``KeyedModelEditor`` — edits ``Dict[str, BaseModel]`` fields as a table
+  of named entries with add/edit/delete dialogs.
+* ``ModelListEditor`` — edits ``List[BaseModel]`` fields as an indexed list
+  with add/edit/delete dialogs.
+
+All three widgets expose a common interface:
+
+- ``.get_value()`` — returns current data for YAML serialization.
+- ``.set_value(data)`` — loads data (e.g. from parsed YAML or form sync).
+
+The module also contains ``create_widget_for_field()``, the factory
+function that ``PydanticForm`` calls to instantiate the correct widget
+based on the ``ComplexFieldInfo.category`` classification.
 """
 
 from __future__ import annotations
@@ -649,7 +666,28 @@ def create_widget_for_field(
     info: ComplexFieldInfo,
     initial_value: Any = None,
 ) -> KeyValueEditor | KeyedModelEditor | ModelListEditor:
-    """Instantiate the appropriate widget based on field classification."""
+    """Factory: instantiate the appropriate widget for a complex field.
+
+    Dispatches on ``info.category`` to create the right editor widget:
+    ``"dict_str"`` -> ``KeyValueEditor``, ``"dict_model"`` ->
+    ``KeyedModelEditor``, ``"list_model"`` -> ``ModelListEditor``.
+
+    For ``dict_model`` fields whose ``json_schema_extra`` contains
+    ``key_generator="service_name"``, the specialised
+    ``_build_service_dialog`` is wired as the add/edit dialog factory
+    to provide protocol-filtered dropdowns.
+
+    Args:
+        field_name: The Pydantic field name (used as widget label).
+        info: Classification metadata from ``classify_complex_field()``.
+        initial_value: Optional pre-existing data to populate the widget.
+
+    Returns:
+        A widget instance with ``.get_value()`` / ``.set_value()`` API.
+
+    Raises:
+        ValueError: If ``info.category`` is not recognised.
+    """
     if info.category == "dict_str":
         return KeyValueEditor(
             field_name=field_name,

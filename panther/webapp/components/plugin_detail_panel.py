@@ -1,10 +1,27 @@
-"""Plugin detail panel component — renders exhaustive plugin info."""
+"""PluginDetailPanel — exhaustive plugin information panel.
+
+Renders a full-page detail view for a single PANTHER (Protocol ANalysis
+and Testing Harness for Extensible Research) plugin inside a provided
+NiceGUI container (typically a right drawer or dialog).  The panel
+displays:
+
+* Header with plugin name and close button.
+* Status, version, type, and runtime-mode badges.
+* Description and author information.
+* Manifest-only fields (license, homepage link, compatibility range).
+* Supported protocols, capabilities, and tags as badge sections.
+* Plugin and external dependencies.
+* Collapsible technical details (entry point, file path, supported events).
+* Collapsible configuration section showing Pydantic model fields as a
+  table, raw JSON schema, or default config.
+* Collapsible extra fields (raw JSON).
+"""
 
 from typing import Callable
 
 from nicegui import ui
 
-from panther.webapp.utils.format_helpers import format_json
+from panther.core.utils.format_utils import format_json
 
 _PLUGIN_STATUS_COLORS = {
     "discovered": "blue-grey",
@@ -24,11 +41,22 @@ def render_plugin_detail(
 ) -> None:
     """Render full plugin details into the given container.
 
+    Clears the container and populates it with an exhaustive breakdown
+    of the plugin's metadata, manifest data, and configuration schema.
+    The layout is designed for a right-drawer or dialog panel and
+    includes collapsible sections for technical details and config.
+
     Args:
-        container: A NiceGUI element (e.g. column inside a drawer).
-        plugin: PluginMetadata (or FakePluginMetadata in tests).
-        on_close: Callback to close the panel.
-        manifest: Optional PluginManifest with extended fields.
+        container: A NiceGUI element (e.g. ``ui.column`` inside a
+            drawer) whose contents will be replaced.
+        plugin: A ``PluginMetadata`` instance (or compatible duck-typed
+            object in tests) providing ``name``, ``status``, ``version``,
+            ``description``, and optional collection attributes
+            (``supported_protocols``, ``capabilities``, ``tags``, etc.).
+        on_close: Callback invoked when the close button is clicked.
+        manifest: Optional ``PluginManifest`` providing extended fields
+            such as ``license``, ``homepage``, ``entry_point``,
+            ``config_model``, ``config_schema``, and ``default_config``.
     """
     container.clear()
 
@@ -216,7 +244,7 @@ def _render_config_section(manifest):
 
 
 def _format_type(annotation) -> str:
-    """Convert a type annotation to a readable string."""
+    """Convert a Python type annotation to a human-readable string."""
     if annotation is None:
         return "Any"
     origin = getattr(annotation, "__origin__", None)
@@ -246,7 +274,7 @@ def _format_type(annotation) -> str:
 
 
 def _render_model_fields_table(config_cls):
-    """Render a table of Pydantic model fields."""
+    """Render a sortable table of Pydantic model fields with type and default info."""
     try:
         from pydantic.fields import PydanticUndefined
     except ImportError:

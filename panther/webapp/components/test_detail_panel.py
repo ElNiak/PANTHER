@@ -1,16 +1,33 @@
-"""Per-test drill-down panel for the Results page."""
+"""TestDetailPanel — per-test drill-down view for the Results page.
+
+Renders a detailed breakdown of a single test within a completed experiment
+for the PANTHER (Protocol ANalysis and Testing Harness for Extensible
+Research) web dashboard.  The panel is structured as a tabbed interface
+with four tabs:
+
+* **Services & Logs** — per-service log browsers showing stdout/stderr
+  for each execution phase (compile, run, test, etc.).
+* **Analysis** — JSON analysis results with pass/fail badges and summary
+  text when available.
+* **Events** — a filterable event table/timeline scoped to this test.
+* **Artifacts** — a list of test-level output files.
+
+A header row shows the test name, a colour-coded status badge, and the
+test duration.  If the test failed, an error card is displayed below the
+header with the cleaned error message (ANSI escape codes stripped).
+"""
 
 import logging
 from typing import Any
 
 from nicegui import ui
 
+from panther.core.utils.format_utils import format_json
 from panther.webapp.components.error_boundary import error_boundary
 from panther.webapp.components.event_viewer import event_viewer
 from panther.webapp.components.service_log_browser import service_log_browser
 from panther.webapp.components.status_badge import status_badge
 from panther.webapp.services.results_service import ResultsService
-from panther.webapp.utils.format_helpers import format_json
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +39,17 @@ def test_detail_panel(
 ):
     """Render a detailed view for a single test within an experiment.
 
-    Shows: header with status, service log browser, analysis results,
-    test artifacts, and test-level events.
+    Fetches test detail data from the ``ResultsService`` and builds a
+    four-tab layout (Services & Logs, Analysis, Events, Artifacts).
+    If no detail data is available, a grey placeholder label is shown.
+
+    Args:
+        results_svc: The results service instance used to fetch test
+            details, service logs, and test-scoped events.
+        experiment_path: Filesystem path to the experiment output
+            directory (e.g. ``outputs/2025-03-10/my_experiment``).
+        test_name: Name of the test to display (matches the ``name``
+            field in the experiment configuration).
     """
     detail = results_svc.get_test_detail(experiment_path, test_name)
     if not detail:

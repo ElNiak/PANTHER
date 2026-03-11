@@ -1,4 +1,15 @@
-"""Per-service, per-phase log browser component."""
+"""ServiceLogBrowser — per-service, per-phase log browser.
+
+Renders an accordion-based log browser for a single service within a test
+from a completed PANTHER (Protocol ANalysis and Testing Harness for
+Extensible Research) experiment.  The top-level expansion panel shows the
+service name and the number of phases that produced logs.  Inside, each
+phase (pre-compile, compile, runtime, etc.) gets its own nested expansion
+panel with tabbed stdout/stderr code blocks.
+
+Long log output is truncated to the last 500 lines for browser
+performance, with a truncation notice prepended.
+"""
 
 import logging
 from typing import Optional
@@ -28,10 +39,19 @@ def service_log_browser(
     test_name: str,
     service_name: str,
 ):
-    """Accordion-based log browser for a single service.
+    """Render an accordion-based log browser for a single service.
 
-    Top-level: service name with expand to show phases.
-    Each phase: tabs for stdout / stderr shown in code blocks.
+    Fetches logs from ``ResultsService.get_service_logs()`` and renders
+    a top-level expansion panel (service name + phase count) containing
+    nested panels for each execution phase.  Each phase panel shows
+    stdout and stderr in code blocks, optionally tabbed when both
+    streams are non-empty.
+
+    Args:
+        results_svc: The results service used to read log files from disk.
+        experiment_path: Path to the experiment output directory.
+        test_name: Name of the test whose logs are displayed.
+        service_name: Name of the service (e.g. ``"picoquic_server"``).
     """
     with error_boundary(f"Service: {service_name}"):
         logs = results_svc.get_service_logs(experiment_path, test_name, service_name)

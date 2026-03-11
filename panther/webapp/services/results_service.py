@@ -1,4 +1,37 @@
-"""Service layer for browsing experiment results."""
+"""ResultsService -- browsing, analysis, and charting of experiment results.
+
+This module provides read-only access to the output artifacts produced by
+completed PANTHER experiments.  It scans the filesystem-based output
+directory, parses structured summary files (``experiment_summary.json``),
+reads per-test event logs (``events.jsonl``), and normalises metrics data
+into chart-ready time-series records.
+
+Output directory structure (produced by PANTHER's reporting subsystem):
+    ::
+
+        outputs/
+          <YYYY-MM-DD_HH-MM-SS[_name]>/        # one experiment run
+            experiment_summary.json             # machine-readable summary
+            experiment_events.log               # top-level event stream
+            EXPERIMENT_REPORT.md                # human-readable report
+            <test_name>/                        # one test case
+              test_config.yaml                  # frozen config snapshot
+              test.log                          # combined log
+              events.jsonl                      # structured event stream
+              error_events.jsonl                # error-only subset
+              logs/
+                <service_name>/                 # one service (IUT / tester)
+                  <phase>/                      # execution phase
+                    stdout.log
+                    stderr.log
+                    compilation_status.txt
+              analysis/                         # post-run analysis JSONs
+              metrics*.json                     # resource usage snapshots
+
+All public methods return plain Python dicts/lists that can be directly
+serialised to JSON for the NiceGUI frontend.  Large files are read through
+``FileUtils.read_text_bounded`` to cap memory usage.
+"""
 
 import json
 import logging
@@ -11,22 +44,72 @@ logger = logging.getLogger(__name__)
 
 
 class ResultsService:
-    """Scans the outputs directory for past experiment results."""
+    """Read-only service for browsing, summarising, and charting experiment results.
+
+    ResultsService scans the filesystem-based output directory produced by
+    PANTHER's reporting subsystem (``panther.core.reporting``,
+    ``panther.core.results``, ``panther.core.outputs``) and exposes its
+    contents through a set of methods that return plain Python dicts and
+    lists suitable for direct JSON serialisation to the NiceGUI frontend.
+
+    The service delegates heavy analysis work to
+    ``StatusCollector`` (PANTHER's core report aggregator) and caches
+    ``ExperimentSummary`` objects in memory to avoid re-parsing on
+    repeated accesses within the same page view.
+
+    Output directory conventions:
+        Each experiment run produces a timestamped directory under
+        ``outputs/`` named ``YYYY-MM-DD_HH-MM-SS[_name]``.  Inside, each
+        test case gets its own subdirectory containing logs, events, analysis
+        results, and artifacts (pcap files, JSON reports, etc.).  See the
+        module docstring for the full directory tree layout.
+
+    Attributes:
+        output_dir: ``Path`` to the root outputs directory.
+
+    Example::
+
+        svc = ResultsService("outputs")
+        for exp in svc.list_experiments():
+            detail = svc.get_experiment_detail(exp["name"])
+            print(detail["status"], detail["test_count"])
+    """
 
     def __init__(self, output_dir: str = "outputs"):
-        """Initialize with the root outputs directory path."""
+        """Create a ResultsService pointing at the given output root.
+
+        Args:
+            output_dir: Filesystem path to the directory that contains
+                experiment result subdirectories.  Defaults to ``"outputs"``
+                (relative to the working directory).
+        """
         self.output_dir = Path(output_dir)
         self._summary_cache: dict[str, dict] = {}
 
     def count_experiments(self) -> int:
-        """Count the number of experiment result directories."""
+        """Return the number of experiment result directories.
+
+        Returns:
+            Integer count of experiment directories found under
+            ``output_dir``.
+        """
         return len(self.list_experiments())
 
     def list_experiments(self) -> list[dict[str, Any]]:
-        """List all experiment results found in the output directory.
+        """List all experiment result directories, newest first.
 
-        Each directory under outputs/ is an experiment (single-level).
-        Directory names follow: YYYY-MM-DD_HH-MM-SS[_name]
+        Scans the top-level children of ``output_dir``, skipping hidden
+        directories and non-directory entries.
+
+        Returns:
+            A list of dicts, each with keys:
+
+            - ``date`` -- the ``YYYY-MM-DD`` prefix extracted from the
+              directory name.
+            - ``name`` -- the full directory name.
+            - ``path`` -- absolute string path to the directory.
+            - ``test_count`` -- number of test subdirectories detected.
+            - ``status`` -- ``"completed"``, ``"failed"``, or ``"unknown"``.
         """
         if not self.output_dir.exists():
             return []
@@ -55,10 +138,23 @@ class ResultsService:
         return experiments
 
     def get_experiment_detail(self, name: str) -> Optional[dict[str, Any]]:
-        """Get detailed info for a specific experiment result.
+        """Return enriched detail for a single experiment by directory name.
 
-        Loads core ExperimentSummary data from experiment_summary.json when
-        available, falling back to filesystem heuristics.
+        Loads the machine-readable ``experiment_summary.json`` (produced by
+        PANTHER's ``ExperimentSummary.to_dict()``) when available, and falls
+        back to on-the-fly computation via ``StatusCollector`` otherwise.
+        The result is augmented with log content, report markdown, and a
+        list of downloadable artifacts.
+
+        Args:
+            name: The experiment directory name (e.g.
+                ``"2025-03-10_14-30-00_quic_test"``).
+
+        Returns:
+            A dict with keys ``date``, ``name``, ``path``, ``test_count``,
+            ``status``, ``core_summary``, ``log_content``,
+            ``report_content``, and ``artifacts``.  Returns ``None`` if no
+            experiment with that name exists.
         """
         for exp in self.list_experiments():
             if exp["name"] == name:
@@ -130,7 +226,22 @@ class ResultsService:
         return None
 
     def read_log_lines(self, exp_path: str, tail: int = 1000) -> list[str]:
-        """Read log lines as a list for easy filtering."""
+        """Read the experiment's main log file and return the last *tail* lines.
+
+        Searches for ``experiment.log``, then any ``*.log``, then
+        ``logs/*.log`` under the experiment directory.  Uses
+        ``FileUtils.read_text_bounded`` to cap memory usage on very large
+        log files.
+
+        Args:
+            exp_path: Filesystem path to the experiment directory.
+            tail: Maximum number of lines to return from the end of the
+                file.
+
+        Returns:
+            A list of log line strings (without trailing newlines).
+            Returns an empty list if no log file is found.
+        """
         exp_dir = Path(exp_path)
         for pattern in ["experiment.log", "*.log", "logs/*.log"]:
             logs = list(exp_dir.glob(pattern))
@@ -181,10 +292,22 @@ class ResultsService:
     # ------------------------------------------------------------------
 
     def list_tests(self, experiment_path: str) -> list[dict[str, Any]]:
-        """Return per-test summary from experiment_summary.json enriched with fs info.
+        """Return a per-test summary list for an experiment.
 
-        Each dict: name, status, duration, start_time, end_time, error_message,
-        has_events, has_analysis, service_count.
+        Reads structured data from ``experiment_summary.json`` when
+        available, and falls back to filesystem heuristics (scanning for
+        subdirectories that contain ``test_config.yaml`` or ``test.log``).
+        Each entry is enriched with filesystem-derived flags indicating
+        whether events and analysis data are available.
+
+        Args:
+            experiment_path: Filesystem path to the experiment directory.
+
+        Returns:
+            A list of dicts, each with keys: ``name``, ``status``,
+            ``duration``, ``start_time``, ``end_time``,
+            ``error_message``, ``has_events`` (bool), ``has_analysis``
+            (bool), ``service_count`` (int).
         """
         exp_dir = Path(experiment_path)
         summary = self._load_experiment_summary_json(exp_dir)
@@ -262,10 +385,23 @@ class ResultsService:
     def get_test_detail(
         self, experiment_path: str, test_name: str
     ) -> Optional[dict[str, Any]]:
-        """Return detailed info for a single test.
+        """Return rich detail for a single test within an experiment.
 
-        Includes: test result info, services list, analysis results,
-        available log tree, and test-level artifacts.
+        Combines data from the experiment summary JSON (if available), the
+        service log tree (directory hierarchy under ``logs/``), analysis
+        results (JSON files under ``analysis/``), and a list of
+        test-level artifacts.
+
+        Args:
+            experiment_path: Filesystem path to the experiment directory.
+            test_name: Name of the test subdirectory.
+
+        Returns:
+            A dict with keys ``info`` (test metadata dict), ``services``
+            (list of service log trees), ``analysis`` (dict of analysis
+            JSON keyed by filename stem, or ``None``), and ``artifacts``
+            (list of ``{name, path}`` dicts).  Returns ``None`` if the
+            test directory does not exist.
         """
         exp_dir = Path(experiment_path)
         test_dir = exp_dir / test_name
@@ -361,7 +497,21 @@ class ResultsService:
     def get_test_events(
         self, experiment_path: str, test_name: str
     ) -> list[dict[str, Any]]:
-        """Parse events.jsonl and error_events.jsonl for a test."""
+        """Parse per-test event log files and return normalised event dicts.
+
+        Reads both ``events.jsonl`` (all events) and ``error_events.jsonl``
+        (error-only subset) from the test directory.  Event field names are
+        normalised (``type`` -> ``event_type``, ``id`` -> ``event_id``) and
+        each event is tagged with a ``_source`` field indicating which file
+        it came from.  Malformed JSON lines are skipped with a warning.
+
+        Args:
+            experiment_path: Filesystem path to the experiment directory.
+            test_name: Name of the test subdirectory.
+
+        Returns:
+            A list of event dicts sorted by ``timestamp``.
+        """
         test_dir = Path(experiment_path) / test_name
         events: list[dict[str, Any]] = []
 
@@ -399,7 +549,18 @@ class ResultsService:
         return events
 
     def get_experiment_events(self, experiment_path: str) -> list[dict[str, Any]]:
-        """Parse top-level experiment event files."""
+        """Parse the top-level experiment event log file.
+
+        Reads ``experiment_events.log`` which may contain either
+        JSON-Lines structured events or plain-text log lines.  Plain-text
+        lines are wrapped in a dict with ``event_type: "log"``.
+
+        Args:
+            experiment_path: Filesystem path to the experiment directory.
+
+        Returns:
+            A list of event dicts sorted by ``timestamp``.
+        """
         exp_dir = Path(experiment_path)
         events: list[dict[str, Any]] = []
 
@@ -437,9 +598,25 @@ class ResultsService:
     def get_service_logs(
         self, experiment_path: str, test_name: str, service_name: str
     ) -> dict[str, dict[str, Optional[str]]]:
-        """Return per-phase {stdout, stderr} log content for a service.
+        """Read stdout/stderr log content for each execution phase of a service.
 
-        Returns: {phase_name: {"stdout": content, "stderr": content}}
+        The directory layout is:
+        ``<experiment>/<test>/logs/<service>/<phase>/stdout.log|stderr.log``
+
+        If a ``compilation_status.txt`` file exists in a phase directory,
+        its content is included under the ``"compilation_status"`` key.
+
+        Args:
+            experiment_path: Filesystem path to the experiment directory.
+            test_name: Name of the test subdirectory.
+            service_name: Name of the service (e.g. ``"picoquic_server"``).
+
+        Returns:
+            A dict keyed by phase name, where each value is a dict with
+            keys ``"stdout"`` and ``"stderr"`` (each ``str`` or ``None``),
+            and optionally ``"compilation_status"``.  Phases with no
+            non-empty content are omitted.  Returns an empty dict if the
+            service directory does not exist.
         """
         svc_dir = Path(experiment_path) / test_name / "logs" / service_name
         if not svc_dir.is_dir():
@@ -486,7 +663,17 @@ class ResultsService:
     def get_analysis_results(
         self, experiment_path: str, test_name: str
     ) -> Optional[dict[str, Any]]:
-        """Read analysis results from test_dir/analysis/."""
+        """Read post-run analysis JSON files from the test's ``analysis/`` directory.
+
+        Args:
+            experiment_path: Filesystem path to the experiment directory.
+            test_name: Name of the test subdirectory.
+
+        Returns:
+            A dict mapping filename stems to their parsed JSON content, or
+            ``None`` if the ``analysis/`` directory does not exist or
+            contains no parseable JSON files.
+        """
         analysis_dir = Path(experiment_path) / test_name / "analysis"
         if not analysis_dir.is_dir():
             return None
@@ -511,7 +698,21 @@ class ResultsService:
     # ------------------------------------------------------------------
 
     def get_experiment_summary(self, experiment_path: str) -> Optional[dict]:
-        """Parse ExperimentSummary using core StatusCollector (cached)."""
+        """Compute or retrieve a cached experiment summary via StatusCollector.
+
+        Delegates to ``StatusCollector`` (PANTHER's core reporting
+        aggregator that walks an experiment's output tree and builds an
+        ``ExperimentSummary`` dataclass).  The resulting dict is cached
+        in memory so that repeated calls for the same experiment path do
+        not trigger re-parsing.
+
+        Args:
+            experiment_path: Filesystem path to the experiment directory.
+
+        Returns:
+            The summary as a dict (from ``ExperimentSummary.to_dict()``),
+            or ``None`` if summary collection fails.
+        """
         if experiment_path in self._summary_cache:
             return self._summary_cache[experiment_path]
 
@@ -528,7 +729,16 @@ class ResultsService:
             return None
 
     def get_test_results(self, experiment_path: str) -> list[dict]:
-        """Extract per-test pass/fail/duration data (chart-ready)."""
+        """Extract per-test pass/fail/duration records, ready for charting.
+
+        Args:
+            experiment_path: Filesystem path to the experiment directory.
+
+        Returns:
+            A list of result dicts as stored in the summary's
+            ``tests.results`` array.  Returns an empty list if no
+            summary is available.
+        """
         summary = self.get_experiment_summary(experiment_path)
         if not summary:
             return []
@@ -536,16 +746,36 @@ class ResultsService:
         return tests_info.get("results", [])
 
     def get_service_health(self, experiment_path: str) -> list[dict]:
-        """Extract service health summaries."""
+        """Extract per-service health summaries from the experiment summary.
+
+        Args:
+            experiment_path: Filesystem path to the experiment directory.
+
+        Returns:
+            A list of service health dicts as stored in the summary's
+            ``services`` array.  Returns an empty list if no summary is
+            available.
+        """
         summary = self.get_experiment_summary(experiment_path)
         if not summary:
             return []
         return summary.get("services", [])
 
     def get_metrics_timeseries(self, experiment_path: str) -> list[dict]:
-        """Parse metrics*.json into time-series data for ECharts.
+        """Parse ``metrics*.json`` files into normalised time-series records.
 
-        Returns normalized [{"timestamp": ..., "metric": ..., "value": ...}].
+        Walks the experiment directory tree, reads every file matching the
+        ``metrics*.json`` glob, and normalises the content into a flat list
+        of ``{timestamp, metric, value}`` records suitable for ECharts
+        line/area charts.  Supports three common metrics-file formats
+        (see ``_parse_metrics_file``).
+
+        Args:
+            experiment_path: Filesystem path to the experiment directory.
+
+        Returns:
+            A list of dicts with keys ``timestamp`` (str or ``None``),
+            ``metric`` (dot-delimited name), and ``value`` (numeric).
         """
         exp_dir = Path(experiment_path)
         timeseries = []
@@ -560,7 +790,7 @@ class ResultsService:
         return timeseries
 
     def _parse_metrics_file(self, data: dict) -> list[dict]:
-        """Normalize metrics data from different formats."""
+        """Normalise a single metrics JSON dict into flat time-series records."""
         results = []
         timestamp = data.get("timestamp", None)
 
@@ -615,9 +845,19 @@ class ResultsService:
         return results
 
     def get_metrics_data(self, experiment_path: str) -> Optional[dict[str, Any]]:
-        """Load metrics data from an experiment's metrics.json file.
+        """Load raw metrics data via PANTHER's ``MetricsDataLoader``.
 
-        Returns the parsed metrics dict, or None if no metrics were collected.
+        Unlike ``get_metrics_timeseries`` (which normalises data into flat
+        records), this method returns the metrics dict in whatever
+        structure the ``MetricsDataLoader`` produces, preserving all
+        original fields for detailed inspection.
+
+        Args:
+            experiment_path: Filesystem path to the experiment directory.
+
+        Returns:
+            The parsed metrics dict, or ``None`` if no metrics were
+            collected for this experiment.
         """
         from panther.core.metrics import MetricsDataLoader
 
@@ -627,7 +867,17 @@ class ResultsService:
         return data
 
     def get_aggregate_stats(self, experiment_path: str) -> dict:
-        """Return {total, passed, failed, success_rate, duration}."""
+        """Return aggregate pass/fail statistics for an experiment.
+
+        Args:
+            experiment_path: Filesystem path to the experiment directory.
+
+        Returns:
+            A dict with keys ``total`` (int), ``passed`` (int),
+            ``failed`` (int), ``success_rate`` (float, 0.0--1.0), and
+            ``duration`` (float seconds or ``None``).  Returns zeroed
+            stats if no summary is available.
+        """
         summary = self.get_experiment_summary(experiment_path)
         if not summary:
             return {

@@ -1,14 +1,29 @@
-"""Recursive Pydantic-to-NiceGUI form component.
+"""PydanticForm — recursive Pydantic-to-NiceGUI form renderer.
 
-Renders any ``BaseModel`` as editable NiceGUI widgets.  Designed to be
-**embeddable**: it renders into whatever NiceGUI container is currently
-active (expansion panel, sidebar, dialog card, etc.).
+Renders any ``pydantic.BaseModel`` as editable NiceGUI widgets within the
+PANTHER (Protocol ANalysis and Testing Harness for Extensible Research) web
+dashboard.  Designed to be **embeddable**: it renders into whatever NiceGUI
+container is currently active (expansion panel, sidebar, dialog card, etc.).
 
 Three-layer architecture:
 
-1. **PydanticForm** — type-dispatch logic (this file)
-2. **FormConfig** — structural layout options (grouping, advanced toggle, section style)
-3. **CSS classes** — every widget gets ``.{prefix}-*`` classes for visual theming
+1. **PydanticForm** — type-dispatch logic that inspects model field annotations
+   and renders the appropriate widget (string input, number input, enum select,
+   nested sub-form, etc.).
+2. **FormConfig** — structural layout options (field grouping by category,
+   advanced-field toggle, section rendering style).
+3. **CSS classes** — every widget receives ``.{prefix}-*`` classes so that
+   page-level or theme-level CSS can style forms without touching Python code.
+
+Example::
+
+    from panther.webapp.components.pydantic_form import PydanticForm, FormConfig
+
+    with ui.card():
+        form = PydanticForm(MyModel, config=FormConfig(show_advanced=True))
+
+    data = form.get_value()   # JSON-safe dict
+    form.set_value(data)      # re-populate from dict
 """
 
 from __future__ import annotations
@@ -80,7 +95,22 @@ class FieldBinding:
 class PydanticForm:
     """Render a Pydantic BaseModel as NiceGUI form elements.
 
-    Usage::
+    Walks the model's field annotations at construction time and creates one
+    NiceGUI widget per field.  Nested ``BaseModel`` fields produce recursive
+    sub-forms; ``Enum`` / ``Literal`` fields become dropdowns; ``Dict`` and
+    ``List[BaseModel]`` fields are delegated to specialised widgets in
+    ``dict_list_widgets``.
+
+    The form does **not** own a container — it renders into whichever NiceGUI
+    container is currently active (``ui.card``, ``ui.expansion``, ``ui.column``,
+    etc.), making it composable with any layout.
+
+    Args:
+        model_cls: The Pydantic model class whose fields are rendered.
+        instance: Optional initial data — a model instance or plain dict.
+        config: Layout configuration (advanced toggle, grouping, CSS prefix).
+
+    Example::
 
         with ui.card():
             form = PydanticForm(LoggingConfig)
@@ -89,12 +119,13 @@ class PydanticForm:
         form.set_value(data)      # populate from dict
     """
 
-    def __init__(  # noqa: D107
+    def __init__(
         self,
         model_cls: type[BaseModel],
         instance: BaseModel | dict | None = None,
         config: FormConfig | None = None,
     ) -> None:
+        """Initialise the form for the given Pydantic model class."""
         self._model_cls = model_cls
         self._config = config or FormConfig()
         self._field_bindings: dict[str, FieldBinding] = {}
@@ -326,6 +357,7 @@ class PydanticForm:
     # ── Scalar renderers ─────────────────────────────────────────────
 
     def _render_str(self, name, field_info, default):
+        """Render a string input field."""
         label = name.replace("_", " ").title()
         val = (
             default
@@ -345,6 +377,7 @@ class PydanticForm:
         )
 
     def _render_number(self, name, field_info, default, step: int | float = 1):
+        """Render a numeric input with optional min/max from Pydantic metadata."""
         label = name.replace("_", " ").title()
         extra = field_info.json_schema_extra or {}
         metadata = field_info.metadata or []
@@ -388,6 +421,7 @@ class PydanticForm:
         )
 
     def _render_bool(self, name, field_info, default):
+        """Render a boolean toggle switch."""
         label = name.replace("_", " ").title()
         val = bool(default) if default is not None else False
         with ui.row().classes(f"w-full items-center {self._prefix}-field"):
@@ -401,6 +435,7 @@ class PydanticForm:
         )
 
     def _render_enum(self, name, enum_cls, field_info, default):
+        """Render an Enum field as a dropdown select."""
         label = name.replace("_", " ").title()
         options = [e.value for e in enum_cls]
         val = (
@@ -421,6 +456,7 @@ class PydanticForm:
         )
 
     def _render_literal(self, name, choices, field_info, default):
+        """Render a Literal[...] field as a dropdown select."""
         label = name.replace("_", " ").title()
         val = default if default in choices else choices[0]
         with ui.row().classes(f"w-full items-center {self._prefix}-field"):
@@ -436,6 +472,7 @@ class PydanticForm:
         )
 
     def _render_list_scalar(self, name, field_info, default):
+        """Render a list-of-scalars field as a multi-line textarea."""
         label = name.replace("_", " ").title()
         items = default if isinstance(default, list) else []
         val = "\n".join(str(x) for x in items)
@@ -459,6 +496,7 @@ class PydanticForm:
         )
 
     def _render_port(self, name, field_info, default, extra):
+        """Render a port number input constrained to 0-65535."""
         label = name.replace("_", " ").title()
         val = default if isinstance(default, int) else 0
         with ui.row().classes(f"w-full items-center {self._prefix}-field"):
@@ -580,6 +618,7 @@ class PydanticForm:
     # ── Nested model renderers ───────────────────────────────────────
 
     def _render_nested_model(self, name, model_cls, field_info, default):
+        """Render a required nested BaseModel as a recursive sub-form."""
         label = name.replace("_", " ").title()
         initial = (
             default
@@ -611,6 +650,7 @@ class PydanticForm:
         )
 
     def _render_optional_model(self, name, model_cls, field_info, default):
+        """Render an Optional[BaseModel] field with an enable/disable toggle."""
         label = name.replace("_", " ").title()
         has_value = default is not None
         initial = (

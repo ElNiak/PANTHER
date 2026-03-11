@@ -1,8 +1,29 @@
-"""Type introspection utilities for Pydantic config models.
+"""FormModels — type introspection utilities for Pydantic config models.
 
 Provides field classification helpers used by ``PydanticForm`` and the
-Dict/List widget layer to detect complex field types that need special
-rendering (Dict, List[BaseModel]).
+Dict/List widget layer (``dict_list_widgets``) within the PANTHER
+(Protocol ANalysis and Testing Harness for Extensible Research) web
+dashboard to detect complex field types that need special rendering.
+
+The core workflow is:
+
+1. ``classify_complex_field(annotation)`` inspects a type annotation and
+   returns a category string (``"dict_str"``, ``"dict_model"``,
+   ``"list_model"``) or ``None`` for types that ``PydanticForm`` handles
+   inline.
+2. ``get_complex_fields(model_cls)`` iterates all model fields, calls
+   ``classify_complex_field`` on each, and returns a dict mapping field
+   names to ``ComplexFieldInfo`` tuples.
+3. ``PydanticForm._render()`` uses that dict to decide whether to
+   delegate a field to ``create_widget_for_field()`` (complex) or render
+   it directly (scalar / nested model / enum / literal).
+
+Additional helpers:
+
+* ``_extract_inner_type(annotation)`` — pulls the value type from
+  ``Dict[K, V]`` or the element type from ``List[E]``.
+* ``extract_section_data(config_dict, section_path)`` — navigates a
+  nested dict/list by dot-separated path (e.g. ``"tests.0.services"``).
 """
 
 from __future__ import annotations
@@ -16,7 +37,23 @@ logger = logging.getLogger(__name__)
 
 
 class ComplexFieldInfo(NamedTuple):
-    """Metadata for a field that needs a custom widget."""
+    """Metadata for a Pydantic field that needs a custom widget.
+
+    Produced by ``get_complex_fields()`` and consumed by
+    ``create_widget_for_field()`` to instantiate the correct editor.
+
+    Attributes:
+        category: Widget category — one of ``"dict_str"``,
+            ``"dict_model"``, or ``"list_model"``.
+        annotation: The raw Python type annotation from the Pydantic
+            field (e.g. ``Dict[str, ServiceConfig]``).
+        value_type: The extracted inner type — the dict value type or
+            list element type (e.g. ``ServiceConfig``, ``str``).
+        description: Human-readable description from
+            ``Field(description=...)``.
+        json_schema_extra: Pass-through of ``Field(json_schema_extra=...)``
+            metadata (e.g. ``{"key_generator": "service_name"}``).
+    """
 
     category: str  # "dict_str" | "dict_model" | "list_model"
     annotation: Any  # raw type annotation
@@ -44,11 +81,17 @@ GLOBAL_SECTION_META: dict[str, tuple[str, str]] = {
 def classify_complex_field(annotation) -> str | None:
     """Classify a type annotation into a custom-widget category.
 
+    Recursively unwraps ``Optional[T]`` before inspecting the core type.
+
+    Args:
+        annotation: A Python type annotation (e.g. ``Dict[str, str]``,
+            ``Optional[List[ServiceConfig]]``).
+
     Returns:
-        ``"dict_str"`` for Dict[str, str] / Dict[str, Any],
-        ``"dict_model"`` for Dict[str, BaseModel],
-        ``"list_model"`` for List[BaseModel],
-        ``None`` for types handled inline by PydanticForm.
+        ``"dict_str"`` for ``Dict[str, str]`` / ``Dict[str, Any]``,
+        ``"dict_model"`` for ``Dict[str, BaseModel]``,
+        ``"list_model"`` for ``List[BaseModel]``,
+        ``None`` for types handled inline by ``PydanticForm``.
     """
     origin = get_origin(annotation)
 
@@ -81,7 +124,16 @@ def classify_complex_field(annotation) -> str | None:
 def get_complex_fields(model_cls: type[BaseModel]) -> dict[str, ComplexFieldInfo]:
     """Return fields that need custom widgets.
 
-    Maps field_name -> ComplexFieldInfo for each Dict or List[BaseModel] field.
+    Iterates all fields of *model_cls*, classifies each annotation, and
+    returns a mapping of field names to ``ComplexFieldInfo`` for every
+    ``Dict`` or ``List[BaseModel]`` field.
+
+    Args:
+        model_cls: A Pydantic ``BaseModel`` subclass to inspect.
+
+    Returns:
+        A dict mapping field names to ``ComplexFieldInfo`` tuples.
+        Fields with ``None`` classification are excluded.
     """
     result: dict[str, ComplexFieldInfo] = {}
     for name, field_info in model_cls.model_fields.items():
@@ -130,10 +182,19 @@ def _extract_inner_type(annotation) -> type:
 
 
 def extract_section_data(config_dict: dict, section_path: str) -> Any | None:
-    """Extract nested section using dot notation.
+    """Extract a nested section from a config dict using dot notation.
 
-    E.g. ``'tests.0.services'`` -> ``cfg['tests'][0]['services']``.
-    Returns ``None`` if the path doesn't exist.
+    Navigates dicts by key and lists by integer index.  For example,
+    ``"tests.0.services"`` resolves to ``cfg["tests"][0]["services"]``.
+
+    Args:
+        config_dict: The root configuration dictionary.
+        section_path: Dot-separated path to the desired section
+            (e.g. ``"tests.0.network_environment"``).
+
+    Returns:
+        The value at the specified path, or ``None`` if any segment
+        along the path does not exist.
     """
     current: Any = config_dict
     for part in section_path.split("."):

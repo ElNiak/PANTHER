@@ -2,14 +2,54 @@
 
 Design decisions and integration patterns for the NiceGUI-based webapp.
 
+## How to Read This Document
+
+This document describes the architecture of PANTHER's web dashboard — a browser-based
+interface for configuring, launching, and analyzing protocol conformance testing
+experiments. It is written for developers who are new to the codebase and want to
+understand *why* things are designed the way they are, not just *what* the code does.
+
+**Reading order:**
+1. **Concepts Glossary** — learn the domain vocabulary
+2. **Stack Choice** — understand why NiceGUI was chosen
+3. **Service Layer Pattern** — the key abstraction between UI and backend
+4. **Page Architecture** — how pages compose services and components
+5. **Real-Time Updates** — how live experiment data flows to the browser
+6. **Service API Reference** — lookup table when wiring pages to data
+
+**Conventions in this document:**
+- Code paths are relative to the repository root (e.g., `panther/webapp/services/`)
+- PANTHER-specific terms are defined in the glossary below and explained on first use
+- Architecture diagrams use ASCII art for inline display and Mermaid for complex flows
+
+## Concepts Glossary
+
+| Term | Definition |
+|------|-----------|
+| **Experiment** | A complete test run defined by a YAML config file. Contains one or more test scenarios, network setup, and service definitions. |
+| **Test (scenario)** | A single test case within an experiment. Specifies which services participate, their protocol roles, and execution steps. |
+| **IUT** | Implementation Under Test — the software being tested (e.g., a QUIC library like picoquic or aioquic). |
+| **Tester** | A verification tool that checks IUT behavior (e.g., panther_ivy for formal verification). |
+| **Service** | A running process in the experiment (either an IUT or a tester), typically deployed as a Docker container. |
+| **Plugin** | A PANTHER extension that provides an IUT, tester, protocol, or environment implementation. Discovered at runtime via decorators. |
+| **Protocol** | The network protocol being tested (e.g., QUIC, HTTP/3). Each service declares its protocol name, version, and role (server/client/peer). |
+| **Network Environment** | The infrastructure layer for an experiment: Docker Compose (containers on a shared network), Shadow (network simulation), or localhost. |
+| **EventManager** | PANTHER's central event bus. All experiment lifecycle events (test started, service crashed, metrics collected) flow through it. |
+| **Observer** | A subscriber to EventManager events. The webapp's WebObserver bridges these events to browser components. |
+| **PydanticForm** | A custom NiceGUI component that recursively renders any Pydantic BaseModel as editable form widgets. |
+| **ExperimentManager** | The core orchestrator that runs the four-phase experiment lifecycle: initialization, plugin loading, deployment, execution. |
+
 ## Stack Choice
 
 ### Why NiceGUI (not Flask or Streamlit)
 
-PANTHER already has:
-1. **Pydantic models** for all configuration (GlobalConfig, TestConfig, ServiceConfig, etc.)
-2. **An event/observer system** that pushes state changes (BaseEvent -> EventManager -> IObserver)
-3. **Long-running experiment processes** that need real-time progress updates
+**Why this design?** The web framework choice was driven by three constraints that
+PANTHER already imposes. Rather than building adapter layers for a general-purpose
+framework, we chose the framework that natively satisfies all three:
+
+1. **Pydantic models** for all configuration — GlobalConfig, TestConfig, ServiceConfig, etc. are Pydantic BaseModel subclasses that define the experiment YAML schema
+2. **An event/observer system** that pushes state changes — BaseEvent objects flow through EventManager (the central event bus) to registered IObserver subscribers
+3. **Long-running experiment processes** that need real-time progress updates — experiments can run for minutes with continuous event emission
 
 NiceGUI satisfies all three constraints with minimal glue code:
 
@@ -58,6 +98,13 @@ PydanticForm handles recursion automatically.
 
 ### Service Layer Pattern
 
+**Why this design?** PANTHER's core classes (ExperimentManager, PluginManager,
+ConfigurationManager) are designed for CLI usage — they block the calling thread,
+raise raw exceptions, and assume single-threaded execution. The service layer
+translates these into web-friendly interfaces: non-blocking calls, structured error
+responses, and thread-safe state management. This separation also means page code
+never needs to understand PANTHER internals — it only talks to services.
+
 The webapp does NOT call PANTHER core classes directly from page code. Thin service wrappers provide an async-safe interface:
 
 ```
@@ -68,10 +115,10 @@ pages/experiments.py
 
 | Service           | Wraps                            | Purpose                          |
 |-------------------|----------------------------------|----------------------------------|
-| ExperimentService | ExperimentManager                | Launch experiments, track status |
-| PluginService     | PluginManager                    | List plugins, get metadata       |
-| ConfigService     | ConfigurationManager             | Load/save/validate YAML configs  |
-| ResultsService    | Filesystem (`outputs/` directory)| Browse and read experiment results|
+| ExperimentService | ExperimentManager (the central orchestrator that runs the four-phase experiment lifecycle) | Launch experiments in background threads, track status, stream live events |
+| PluginService     | PluginManager (discovers and loads plugin implementations at runtime) | List available plugins, retrieve metadata and configuration schemas |
+| ConfigService     | ConfigurationManager (PANTHER's YAML/OmegaConf configuration system) | Load/save/validate experiment YAML configs with path safety |
+| ResultsService    | Filesystem (`outputs/` directory) | Browse past experiment results, parse logs, extract metrics for charts |
 
 Services are instantiated once in `app.py` and passed to pages via NiceGUI's `app.storage` or function parameters.
 
@@ -121,6 +168,13 @@ def register(plugin_service):
 No template engine, no HTML, no JavaScript. The UI is declared in Python and NiceGUI translates it to Vue/Quasar components over a WebSocket.
 
 ### Real-Time Updates: WebObserver
+
+**Why this design?** Experiments emit dozens of events per second (test started, service
+health check, metrics collected, assertion passed). Rather than polling for status,
+the webapp subscribes to PANTHER's existing observer system and receives push
+notifications. This reuses the same event infrastructure that the CLI uses for
+progress display, avoiding any duplication. The WebObserver adds filtering and
+batching on top to prevent UI flooding.
 
 PANTHER's observer system (`IObserver` -> `on_event(BaseEvent)`) is the integration point for live updates.
 
@@ -191,6 +245,14 @@ def on_page_disconnect():
 
 ### Config Builder: PydanticForm + One-Way YAML Preview
 
+**Why this design?** PANTHER experiment configurations are deeply nested YAML files
+with cross-references between services. Editing raw YAML is error-prone; users forget
+field names, misspell enum values, or create structurally invalid configs. PydanticForm
+auto-generates type-safe forms from the same Pydantic models that validate the YAML,
+ensuring the UI and validation logic are always in sync. The one-way YAML preview gives
+users confidence that their form edits produce correct YAML without the complexity of
+bidirectional synchronization.
+
 The config builder page has two panels:
 
 1. **Left: PydanticForm forms** -- structured editing of GlobalConfig, TestConfig, ServiceConfig
@@ -242,7 +304,7 @@ ExperimentConfig                          # Top-level: one YAML file
 | `NetworkEnvironmentConfig.type` | Group property or background | docker_compose, shadow, localhost |
 | `ServiceConfig.depends_on` | Dashed dependency edge | Startup ordering |
 
-These mapping rules are invariant regardless of which graph approach Muhammad chooses for the topology editor. The conversion logic between graph and config models is Muhammad's thesis contribution — see "Topology Design Reference" below for research context.
+These mapping rules are invariant regardless of which graph approach is chosen for the topology editor. The conversion logic between graph and config models is the core thesis contribution — see "Topology Design Reference" below for research context.
 
 **Source files:** `panther/config/core/models/experiment.py`, `panther/config/core/models/service.py`
 
@@ -309,10 +371,18 @@ ui.echart({
 
 ### Visual Topology Editor
 
-The topology editor provides a drag-and-drop interface for composing experiment
-configurations as a visual graph. This is **Muhammad's core thesis contribution**.
+**Why this design?** Protocol testing experiments are inherently graph-structured:
+services (nodes) communicate via protocols (edges) within network environments (groups).
+A visual editor makes this structure explicit, reducing cognitive load compared to
+editing nested YAML. The topology editor bridges the gap between how users *think*
+about experiments (services talking to each other) and how PANTHER *represents* them
+(hierarchical YAML config).
 
-**Library Choice**: Muhammad evaluates both **vis.js Network** and **React Flow** analytically
+The topology editor provides a drag-and-drop interface for composing experiment
+configurations as a visual graph. This is the **core thesis contribution** for
+extending the webapp.
+
+**Library Choice**: The developer evaluates both **vis.js Network** and **React Flow** analytically
 (integration complexity, feature set, ecosystem, performance) and picks one. The comparison
 becomes a thesis chapter. See `TASKS.md` Phase 1 for evaluation criteria.
 
@@ -350,13 +420,13 @@ vis.js Network (browser-side)
 **Files:**
 - `components/topology_editor.py` — Python wrapper class (scaffolded, 235 lines)
 - `pages/topology.py` — Topology page (scaffolded, 147 lines)
-- `diagrams/04-topology-component-architecture.mmd` — Architecture diagram (Muhammad creates)
-- `diagrams/05-yaml-graph-mapping.mmd` — YAML ↔ graph data mapping (Muhammad creates)
+- `diagrams/04-topology-component-architecture.mmd` — Architecture diagram (contributor creates)
+- `diagrams/05-yaml-graph-mapping.mmd` — YAML ↔ graph data mapping (contributor creates)
 
 ### Topology Design Reference
 
 This section collects research on industrial topology editors, approach options, and
-attack-scenario design. Muhammad should use this as background for his thesis chapter
+attack-scenario design. The developer should use this as background for the thesis chapter
 on related work and design decisions.
 
 #### Industry Landscape
@@ -416,7 +486,7 @@ Four possible approaches follow.
 - Pro: Starts simple, complexity on demand. Best UX.
 - Con: Two representations. More engineering.
 
-> **Note**: These are starting points. Muhammad should evaluate, propose his own
+> **Note**: These are starting points. The developer should evaluate, propose their own
 > variant, and justify the choice in his thesis. The final approach IS the thesis
 > contribution.
 
@@ -479,7 +549,7 @@ Plugin-extensible UI patterns from industry:
 
 ### UX Improvements (Parallel with Topology)
 
-During topology implementation, Muhammad also improves the overall webapp UX:
+During topology implementation, the developer also improves the overall webapp UX:
 
 - **Breadcrumbs**: All pages get breadcrumb navigation (e.g., Config > Test 1 > picoquic)
 - **Workflow stepper**: Progress indicator showing Config → Topology → Launch → Results
@@ -624,7 +694,7 @@ form.set_value({"level": "DEBUG"})  # Populate from dict
 
 ### Improving the Scaffold
 
-These services and components are a **starting scaffold** — Muhamad is expected to
+These services and components are a **starting scaffold** — the developer is expected to
 improve, extend, and refine them as part of his thesis work. If something is missing,
 unclear, or could be designed better, open a GitHub issue describing the gap and
 proposed improvement. All changes go through GitHub pull requests with code review;

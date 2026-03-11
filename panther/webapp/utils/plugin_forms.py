@@ -1,7 +1,24 @@
-"""Bridge between the PANTHER plugin system and the webapp form layer.
+"""PluginForms — bridge between the PANTHER plugin system and the webapp form layer.
 
-Provides helpers to discover plugins, extract their config schemas,
-and produce form info for the student's UI layer.
+Provides helpers that connect the PANTHER (Protocol ANalysis and Testing
+Harness for Extensible Research) decorator-based plugin registry to the
+web dashboard's form rendering layer.  The main responsibilities are:
+
+* **Plugin discovery** — ``_ensure_plugins_discovered()`` runs
+  ``PluginDiscovery.discover_plugins()`` once per process (thread-safe).
+* **Config class lookup** — ``_discover_config_class()`` resolves a
+  plugin name to its Pydantic config model via the schema registry
+  populated by ``@register_plugin`` decorators.
+* **Form info assembly** — ``get_plugin_form_info()`` bundles the config
+  model, default values, enum choices, complex fields, and metadata
+  into a ``PluginFormInfo`` dataclass consumed by ``PydanticForm`` and
+  the ``_render_plugin_select`` widget.
+* **Choice lists** — ``get_protocol_choices()``,
+  ``get_implementation_choices()``, and ``get_version_choices()`` return
+  sorted lists for dropdown selects, optionally filtered by protocol or
+  service type.
+* **Plugin listing** — ``list_available_plugins()`` returns a list of
+  dicts suitable for the plugin selector dropdown.
 """
 
 from __future__ import annotations
@@ -42,7 +59,27 @@ def _ensure_plugins_discovered():
 
 @dataclass
 class PluginFormInfo:
-    """Everything the UI layer needs to render forms for a plugin config."""
+    """Everything the UI layer needs to render forms for a plugin config.
+
+    Assembled by ``get_plugin_form_info()`` and consumed by
+    ``PydanticForm._render_plugin_select()`` to create a sub-form
+    showing plugin-specific configuration fields.
+
+    Attributes:
+        plugin_name: Canonical plugin name (e.g. ``"picoquic"``).
+        config_model: The Pydantic ``BaseModel`` subclass defining this
+            plugin's configuration schema.
+        defaults: Default field values obtained by instantiating the
+            config model with no arguments.
+        enum_choices: Mapping of field names to lists of allowed string
+            values for ``Enum``-typed fields.
+        complex_fields: Mapping of field names to ``ComplexFieldInfo``
+            for fields requiring custom widgets (dicts, lists).
+        description: Human-readable plugin description from the
+            ``@register_plugin`` manifest.
+        supported_protocols: Protocol names this plugin supports
+            (e.g. ``["quic", "http3"]``).
+    """
 
     plugin_name: str
     config_model: type[BaseModel]  # Original config class
@@ -63,7 +100,14 @@ _CONFIG_CLASS_CACHE: dict[str, type[BaseModel]] = {}
 def _discover_config_class(plugin_name: str) -> type[BaseModel] | None:
     """Try to find the Pydantic config class for a plugin by name.
 
-    Uses the schema registry populated by ``@register_plugin`` auto-discovery.
+    Uses the schema registry populated by ``@register_plugin``
+    auto-discovery.  Results are cached in ``_CONFIG_CLASS_CACHE``.
+
+    Args:
+        plugin_name: The plugin name to resolve.
+
+    Returns:
+        The Pydantic config model class, or ``None`` if not found.
     """
     if plugin_name in _CONFIG_CLASS_CACHE:
         return _CONFIG_CLASS_CACHE[plugin_name]
@@ -84,7 +128,7 @@ def _discover_config_class(plugin_name: str) -> type[BaseModel] | None:
 
 
 def _extract_enum_choices(model_cls: type[BaseModel]) -> dict[str, list[str]]:
-    """Inspect field annotations for Enum subclasses and extract their values."""
+    """Inspect field annotations for Enum subclasses and extract their string values."""
     choices: dict[str, list[str]] = {}
     for name, field_info in model_cls.model_fields.items():
         ann = field_info.annotation
@@ -95,7 +139,7 @@ def _extract_enum_choices(model_cls: type[BaseModel]) -> dict[str, list[str]]:
 
 
 def _find_enum_in_annotation(annotation: Any) -> type[Enum] | None:
-    """Unwrap Optional/Union and check if the core type is an Enum."""
+    """Recursively unwrap Optional/Union and return the Enum class if found."""
     if isinstance(annotation, type) and issubclass(annotation, Enum):
         return annotation
     origin = get_origin(annotation)
@@ -113,7 +157,20 @@ def _find_enum_in_annotation(annotation: Any) -> type[Enum] | None:
 
 
 def get_plugin_form_info(plugin_name: str) -> PluginFormInfo | None:
-    """Get form info for a plugin by name.  Returns ``None`` if not found."""
+    """Get form rendering info for a plugin by name.
+
+    Looks up the plugin's config model via the schema registry, extracts
+    default values, enum choices, and complex field metadata, then
+    returns a ``PluginFormInfo`` bundle.
+
+    Args:
+        plugin_name: The plugin name to look up (case-sensitive, must
+            match the name used in ``@register_plugin``).
+
+    Returns:
+        A ``PluginFormInfo`` instance, or ``None`` if the plugin has no
+        discoverable config model.
+    """
     config_cls = _discover_config_class(plugin_name)
     if config_cls is None:
         return None
@@ -153,10 +210,17 @@ def get_plugin_form_info(plugin_name: str) -> PluginFormInfo | None:
 
 
 def list_available_plugins(plugin_type: str | None = None) -> list[dict[str, str]]:
-    """List available plugins.
+    """List available plugins from the decorator registry.
 
-    Returns ``[{"name", "type", "description", "protocols"}]``.
-    Catches PluginManager errors gracefully (returns ``[]``).
+    Args:
+        plugin_type: Optional filter — only return plugins whose type
+            matches (e.g. ``"iut"``, ``"tester"``).  When ``None``,
+            returns all plugin types.
+
+    Returns:
+        A list of dicts with keys ``"name"``, ``"type"``,
+        ``"description"``, and ``"protocols"`` (comma-separated string).
+        Returns ``[]`` on any discovery or registry error.
     """
     _ensure_plugins_discovered()
 
@@ -189,7 +253,12 @@ def list_available_plugins(plugin_type: str | None = None) -> list[dict[str, str
 
 
 def get_protocol_choices() -> list[str]:
-    """Return available protocol names from the decorator registry."""
+    """Return a sorted list of available protocol names from the decorator registry.
+
+    Returns:
+        Sorted list of unique protocol name strings (e.g.
+        ``["http3", "quic"]``).  Returns ``[]`` on error.
+    """
     _ensure_plugins_discovered()
     try:
         from panther.plugins.core.plugin_decorators import get_decorated_plugins
@@ -246,7 +315,15 @@ def get_implementation_choices(
 
 
 def get_version_choices(protocol_name: str) -> list[str]:
-    """Return supported versions for a protocol from the protocol registry."""
+    """Return supported versions for a protocol from the protocol registry.
+
+    Args:
+        protocol_name: Protocol name to look up (e.g. ``"quic"``).
+
+    Returns:
+        List of version strings (e.g. ``["rfc9000", "rfc9001"]``).
+        Returns ``[]`` on error or if the protocol is not found.
+    """
     _ensure_plugins_discovered()
     try:
         from panther.plugins.core.plugin_decorators import get_protocol_versions

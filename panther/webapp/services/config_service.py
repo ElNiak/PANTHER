@@ -1,4 +1,23 @@
-"""Service layer for configuration validation and YAML generation."""
+"""ConfigService -- configuration validation, YAML generation, and form-model adaptation.
+
+This module provides a service-layer facade over PANTHER's experiment
+configuration system.  It handles every configuration-related operation
+that the web UI needs: loading and saving YAML files, validating them
+against Pydantic schemas, resolving variable interpolations, and browsing
+existing config files on disk.
+
+The service is intentionally stateless -- each method receives its inputs
+explicitly and returns plain Python objects (dicts, strings, lists).  This
+keeps it easy to test and safe to share across NiceGUI client sessions.
+
+PANTHER context:
+    Experiment configurations are YAML documents that describe tests, network
+    environments, services (protocol implementations under test), and optional
+    execution environments (e.g. strace, gdb).  The canonical schema is defined
+    by OmegaConf + Pydantic models in ``panther.config.core.models``, while
+    field-level validation is provided by
+    ``panther.config.core.components.validators``.
+"""
 
 import copy
 import logging
@@ -9,42 +28,34 @@ from typing import Literal, Optional
 
 import yaml
 
+from panther.config.core.utils.merge import deep_merge
+from panther.core.utils.file_utils import ConfigurationLoader, FileUtils
+
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class FieldError:
-    """Validation error with location and severity."""
+    """A single validation finding associated with a specific config field.
+
+    Used by ``ConfigService.validate_config_detailed`` to report per-field
+    errors and warnings back to the UI so that they can be rendered inline
+    next to the offending form control.
+
+    Attributes:
+        path: Dot-delimited path to the field within the config dict
+            (e.g. ``"tests.0.services.server.protocol.name"``).
+        message: Human-readable description of the problem.
+        severity: ``"error"`` for blocking issues that prevent execution,
+            ``"warning"`` for non-blocking suggestions.
+    """
 
     path: str
     message: str
     severity: Literal["error", "warning"] = "error"
 
 
-# Resolve project root by searching upward for pyproject.toml (robust for
-# both editable installs and site-packages layouts).
-def _find_project_root() -> Path:
-    """Walk upward from this file to find the directory containing pyproject.toml."""
-    current = Path(__file__).resolve().parent
-    for _ in range(10):  # safety limit
-        if (current / "pyproject.toml").is_file():
-            return current
-        parent = current.parent
-        if parent == current:
-            break
-        current = parent
-    # Fallback: use cwd if it has pyproject.toml, otherwise best guess
-    cwd = Path.cwd().resolve()
-    if (cwd / "pyproject.toml").is_file():
-        return cwd
-    logger.warning(
-        "Could not find pyproject.toml; falling back to cwd %s for project root",
-        cwd,
-    )
-    return cwd
-
-
-_PROJECT_ROOT = _find_project_root()
+_PROJECT_ROOT = FileUtils.find_project_root(start_path=Path(__file__).resolve().parent)
 _DEFAULT_CONFIG_CANDIDATES = [
     _PROJECT_ROOT
     / "experiment-config"
@@ -58,20 +69,51 @@ _DEFAULT_CONFIG_CANDIDATES = [
 
 
 def _validate_config_path(path_str) -> Path:
-    """Sanitize config path: resolve traversal and ensure YAML extension."""
-    resolved = Path(str(path_str)).resolve()
-    if resolved.suffix.lower() not in (".yaml", ".yml"):
-        raise ValueError(f"Path '{path_str}' must be a YAML file (.yaml/.yml)")
-    if not resolved.is_relative_to(_PROJECT_ROOT):
-        raise ValueError(f"Path must be within the project directory ({_PROJECT_ROOT})")
-    return resolved
+    """Sanitize a user-supplied config path, guarding against directory traversal."""
+    return FileUtils.validate_path_within_root(
+        path_str, _PROJECT_ROOT, (".yaml", ".yml")
+    )
 
 
 class ConfigService:
-    """Service for config validation, YAML generation, and form model adaptation."""
+    """Stateless service for experiment-config validation, I/O, and transformation.
+
+    ConfigService wraps PANTHER's configuration subsystem -- specifically
+    the Pydantic models in ``panther.config.core.models`` and the field-level
+    validators in ``panther.config.core.components.validators`` -- behind a
+    simple, web-friendly API that operates on plain dicts and YAML strings.
+
+    The class follows the *Service Object* pattern: it carries no mutable
+    instance state and every method is safe to call from any NiceGUI client
+    session without synchronisation.
+
+    Attributes:
+        (none -- stateless by design)
+
+    Example::
+
+        svc = ConfigService()
+        yaml_text = svc.get_default_yaml()
+        error = svc.validate_yaml(yaml_text)
+        if error is None:
+            data = svc.yaml_to_dict(yaml_text)
+            svc.save_config("experiment-config/base/my_config.yaml", data)
+    """
 
     def get_default_yaml(self) -> str:
-        """Return a default experiment config YAML template."""
+        """Return a default experiment-config YAML template as a string.
+
+        Searches a predefined list of candidate paths under
+        ``experiment-config/base/`` and returns the contents of the first
+        file that exists.
+
+        Returns:
+            The raw YAML text of the default template.
+
+        Raises:
+            FileNotFoundError: If none of the candidate template files exist
+                on disk.
+        """
         for candidate in _DEFAULT_CONFIG_CANDIDATES:
             if candidate.is_file():
                 return candidate.read_text()
@@ -80,9 +122,20 @@ class ConfigService:
         )
 
     def validate_yaml(self, yaml_content: str) -> Optional[str]:
-        """Validate a YAML string as a PANTHER config.
+        """Perform quick structural validation of a YAML config string.
 
-        Returns None if valid, or an error message string.
+        Runs a two-step check: first verifying YAML syntax, then applying
+        lightweight structural rules (presence of a ``tests`` section, valid
+        log-level if ``logging`` is provided).  This is faster than full
+        Pydantic validation and is suitable for on-keystroke feedback in
+        the config-builder UI.
+
+        Args:
+            yaml_content: Raw YAML text to validate.
+
+        Returns:
+            ``None`` if the content passes validation, otherwise a
+            human-readable error message string.
         """
         # Step 1: YAML syntax check
         try:
@@ -117,7 +170,14 @@ class ConfigService:
         return None
 
     def yaml_to_dict(self, yaml_content: str) -> Optional[dict]:
-        """Parse YAML content to a dict. Returns None on error."""
+        """Parse a YAML string into a Python dict.
+
+        Args:
+            yaml_content: Raw YAML text.
+
+        Returns:
+            The parsed dict, or ``None`` if the text is not valid YAML.
+        """
         try:
             return yaml.safe_load(yaml_content)
         except yaml.YAMLError as e:
@@ -125,11 +185,33 @@ class ConfigService:
             return None
 
     def dict_to_yaml(self, data: dict) -> str:
-        """Convert a dict to YAML string."""
+        """Serialise a Python dict to a YAML string.
+
+        Args:
+            data: The dictionary to serialise.
+
+        Returns:
+            A YAML-formatted string with block style and original key order
+            preserved.
+        """
         return yaml.dump(data, default_flow_style=False, sort_keys=False)
 
     def load_config(self, path) -> dict:
-        """Load and parse a YAML config file. Validates path for traversal."""
+        """Load and parse an experiment-config YAML file from disk.
+
+        The path is sanitised to prevent directory-traversal attacks and
+        must point to a ``.yaml`` or ``.yml`` file within the project root.
+
+        Args:
+            path: Filesystem path (string or ``Path``) to the YAML file.
+
+        Returns:
+            The parsed configuration as a dict.
+
+        Raises:
+            FileNotFoundError: If the resolved path does not exist.
+            ValueError: If the file is not valid YAML or is not a mapping.
+        """
         p = _validate_config_path(path)
         if not p.exists():
             raise FileNotFoundError(f"Config file not found: {path}")
@@ -142,15 +224,35 @@ class ConfigService:
         return data
 
     def save_config(self, path, data: dict) -> None:
-        """Save a config dict to a YAML file. Validates path for traversal."""
+        """Write a configuration dict to a YAML file on disk.
+
+        Parent directories are created automatically if they do not exist.
+        The path undergoes the same traversal-safety check as ``load_config``.
+
+        Args:
+            path: Destination filesystem path (string or ``Path``).
+            data: The configuration dict to serialise and write.
+
+        Raises:
+            ValueError: If the path fails sanitisation (wrong extension or
+                outside project root).
+        """
         p = _validate_config_path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(yaml.dump(data, default_flow_style=False, sort_keys=False))
 
     def list_configs(self, directory=None) -> list[dict]:
-        """List YAML config files in a directory.
+        """List YAML config files in a single directory (non-recursive).
 
-        Returns [{name, path, modified}]. Defaults to experiment-config/base/.
+        Args:
+            directory: Directory to scan.  Defaults to
+                ``<project_root>/experiment-config/base/``.
+
+        Returns:
+            A list of dicts, each with keys ``name`` (filename), ``path``
+            (absolute string path), and ``modified`` (``datetime`` of last
+            modification).  Returns an empty list if the directory does
+            not exist.
         """
         if directory is None:
             directory = _PROJECT_ROOT / "experiment-config" / "base"
@@ -170,99 +272,46 @@ class ConfigService:
         return results
 
     def list_configs_recursive(self, root=None) -> list[dict]:
-        """Recursively list all YAML configs under experiment-config/.
+        """Recursively list all YAML config files under a directory tree.
 
-        Returns [{name, path, modified, category, summary}].
-        summary = {test_count, test_names, services, protocols, environment}
+        Delegates to ``ConfigurationLoader.list_configs_recursive()`` which
+        walks the tree and extracts a lightweight summary from each file.
+
+        Args:
+            root: Root directory to walk.  Defaults to
+                ``<project_root>/experiment-config/``.
+
+        Returns:
+            A list of dicts with keys ``name``, ``path``, ``modified``,
+            ``category`` (relative subdirectory), and ``summary`` (a dict
+            with ``test_count``, ``test_names``, ``services``,
+            ``protocols``, ``environment``).
         """
         if root is None:
             root = _PROJECT_ROOT / "experiment-config"
-        root = Path(root)
-        if not root.exists():
-            return []
-        results = []
-        yaml_files = sorted(
-            f for f in root.rglob("*") if f.is_file() and f.suffix in (".yaml", ".yml")
-        )
-        for f in yaml_files:
-            category = str(f.parent.relative_to(root))
-            if category == ".":
-                category = ""
-            summary = self._extract_config_summary(f)
-            results.append(
-                {
-                    "name": f.name,
-                    "path": str(f),
-                    "modified": datetime.fromtimestamp(f.stat().st_mtime),
-                    "category": category,
-                    "summary": summary,
-                }
-            )
-        return results
+        return ConfigurationLoader.list_configs_recursive(root)
 
     @staticmethod
     def _extract_config_summary(path: Path) -> dict:
-        """Extract a lightweight summary from a config YAML file."""
-        try:
-            data = yaml.safe_load(path.read_text())
-        except Exception:
-            logger.warning("Failed to parse config file %s", path, exc_info=True)
-            return {
-                "test_count": 0,
-                "test_names": [],
-                "services": [],
-                "protocols": [],
-                "environment": "",
-            }
-        if not isinstance(data, dict):
-            return {
-                "test_count": 0,
-                "test_names": [],
-                "services": [],
-                "protocols": [],
-                "environment": "",
-            }
-        tests = data.get("tests", [])
-        if not isinstance(tests, list):
-            return {
-                "test_count": 0,
-                "test_names": [],
-                "services": [],
-                "protocols": [],
-                "environment": "",
-            }
-
-        test_names = []
-        all_services = []
-        all_protocols = set()
-        environment = ""
-        for t in tests:
-            if not isinstance(t, dict):
-                continue
-            test_names.append(t.get("name", "unnamed"))
-            net_env = t.get("network_environment", {})
-            if isinstance(net_env, dict) and not environment:
-                environment = net_env.get("type", "")
-            services = t.get("services", {})
-            if isinstance(services, dict):
-                for svc_name, svc in services.items():
-                    all_services.append(svc_name)
-                    if isinstance(svc, dict):
-                        proto = svc.get("protocol", {})
-                        if isinstance(proto, dict) and proto.get("name"):
-                            all_protocols.add(proto["name"])
-        return {
-            "test_count": len(tests),
-            "test_names": test_names,
-            "services": list(dict.fromkeys(all_services)),  # unique, order-preserving
-            "protocols": sorted(all_protocols),
-            "environment": environment,
-        }
+        """Extract a lightweight summary dict from a config YAML file."""
+        return ConfigurationLoader.extract_config_summary(path)
 
     def validate_config_detailed(self, data: dict) -> list["FieldError"]:
-        """Field-level validation against Pydantic models.
+        """Run full Pydantic-based validation and return per-field findings.
 
-        Delegates to core validators, converts result to FieldError list.
+        Unlike ``validate_yaml`` (which performs quick structural checks on
+        raw YAML text), this method delegates to
+        ``panther.config.core.components.validators.validate_config_dict``
+        (PANTHER's exhaustive config validator) and converts the result into
+        a flat list of ``FieldError`` instances suitable for rendering in
+        the config-builder form.
+
+        Args:
+            data: A parsed config dict (as returned by ``yaml_to_dict``).
+
+        Returns:
+            A list of ``FieldError`` instances.  An empty list means the
+            config is fully valid.
         """
         from panther.config.core.components.validators import validate_config_dict
 
@@ -280,11 +329,37 @@ class ConfigService:
         return errors
 
     def merge_configs(self, base: dict, overlay: dict) -> dict:
-        """Deep merge overlay into base (overlay wins on conflicts)."""
-        return self._deep_merge(base, overlay)
+        """Deep-merge two config dicts, with *overlay* winning on conflicts.
+
+        Nested dicts are merged recursively; all other value types in
+        *overlay* replace the corresponding entry in *base*.  Neither
+        input dict is mutated.
+
+        Args:
+            base: The base configuration dict.
+            overlay: The override dict whose values take priority.
+
+        Returns:
+            A new dict containing the merged result.
+        """
+        return deep_merge(copy.deepcopy(base), overlay)
 
     def resolve_interpolations(self, data: dict) -> dict:
-        """Resolve ${section.key} interpolations in config values."""
+        """Resolve ``${section.key}`` variable interpolations in config values.
+
+        Walks the config dict recursively and replaces every
+        ``${dot.separated.path}`` reference with the value found at that
+        path within the same dict.  References that cannot be resolved are
+        left as-is.  The input dict is not mutated.
+
+        Args:
+            data: A parsed config dict potentially containing interpolation
+                placeholders.
+
+        Returns:
+            A deep copy of *data* with all resolvable placeholders replaced
+            by their concrete values.
+        """
         import re
 
         result = copy.deepcopy(data)
@@ -316,97 +391,3 @@ class ConfigService:
             return value
 
         return _resolve(result, result)
-
-    @staticmethod
-    def generate_test_name(test_data: dict) -> str:
-        """Generate a test name from services, protocol, and environment info.
-
-        Follows project naming conventions, e.g.:
-        ``"QUIC Client-Server Communication Test"``
-        ``"Strace - Shadow QUIC Client-Server Communication Test"``
-        """
-        services = test_data.get("services", {})
-        if not services:
-            return ""
-
-        protocols: set[str] = set()
-        role_parts: list[str] = []
-        for svc_data in services.values():
-            svc = svc_data if isinstance(svc_data, dict) else {}
-            proto = svc.get("protocol", {})
-            proto_name = proto.get("name", "") if isinstance(proto, dict) else ""
-            if proto_name:
-                protocols.add(proto_name.upper())
-            role = (
-                proto.get("role", "unknown") if isinstance(proto, dict) else "unknown"
-            )
-            role_parts.append(role.title())
-
-        proto_str = "-".join(sorted(protocols)) if protocols else "Protocol"
-        role_str = "-".join(role_parts) if role_parts else ""
-
-        # Execution environment prefix (e.g. "Strace - ")
-        exec_envs = test_data.get("execution_environment", [])
-        exec_prefix = ""
-        if isinstance(exec_envs, list) and exec_envs:
-            exec_types = [
-                e.get("type", "")
-                for e in exec_envs
-                if isinstance(e, dict) and e.get("type")
-            ]
-            if exec_types:
-                exec_prefix = " ".join(t.title() for t in exec_types) + " - "
-
-        # Network environment prefix (only for non-default environments)
-        net_env = test_data.get("network_environment", {})
-        net_type = net_env.get("type", "") if isinstance(net_env, dict) else ""
-        net_prefix = ""
-        if net_type and net_type not in ("docker_compose", ""):
-            net_prefix = net_type.replace("_", " ").title() + " "
-
-        return f"{exec_prefix}{net_prefix}{proto_str} {role_str} Communication Test".strip()
-
-    @staticmethod
-    def generate_test_description(test_data: dict) -> str:
-        """Generate a test description from services and environment info."""
-        services = test_data.get("services", {})
-        if not services:
-            return ""
-
-        svc_parts: list[str] = []
-        for svc_name, svc_data in services.items():
-            svc = svc_data if isinstance(svc_data, dict) else {}
-            impl = svc.get("implementation", {})
-            proto = svc.get("protocol", {})
-            impl_name = (
-                impl.get("name", svc_name) if isinstance(impl, dict) else svc_name
-            )
-            role = proto.get("role", "") if isinstance(proto, dict) else ""
-            svc_parts.append(f"{impl_name} ({role})" if role else impl_name)
-
-        svc_str = " and ".join(svc_parts)
-
-        net_env = test_data.get("network_environment", {})
-        net_type = (
-            net_env.get("type", "network") if isinstance(net_env, dict) else "network"
-        )
-
-        return (
-            f"Verify communication between {svc_str}"
-            f" over {net_type.replace('_', ' ')} network."
-        )
-
-    @staticmethod
-    def _deep_merge(base: dict, overlay: dict) -> dict:
-        """Recursively merge overlay into a copy of base."""
-        result = copy.deepcopy(base)
-        for key, value in overlay.items():
-            if (
-                key in result
-                and isinstance(result[key], dict)
-                and isinstance(value, dict)
-            ):
-                result[key] = ConfigService._deep_merge(result[key], value)
-            else:
-                result[key] = copy.deepcopy(value)
-        return result

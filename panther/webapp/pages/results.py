@@ -1,4 +1,53 @@
-"""Results page — browse past experiment outputs with charts and tabbed detail."""
+"""Results page -- browse past experiment outputs with statistics and drill-down.
+
+Provides aggregate statistics, charts, and a tabbed detail dialog for
+PANTHER (Protocol ANalyzer and THreat Evaluator for Research) experiment
+outputs.
+
+This page follows a **master-detail** navigation pattern:
+
+**Master view (experiment list):**
+    A paginated ``ui.table`` lists all experiments discovered by
+    ``ResultsService.list_experiments()`` from the configured output
+    directory.  Status badges are rendered via a Quasar template slot.
+    Three client-side filters narrow the table:
+
+    * Free-text search (bound to the table's built-in filter).
+    * Status dropdown (``completed``, ``failed``, ``interrupted``, etc.).
+    * Date range (from / to inputs compared as strings in ISO order).
+
+    Above the table, ``stat_card`` components show totals, completed
+    count, failed count, and the status of the most recent experiment.
+
+**Detail view (dialog modal):**
+    Clicking a table row opens a full-width ``ui.dialog`` with six
+    tabs:
+
+    * **Summary** -- aggregate stat cards, an Apache ECharts bar chart
+      of per-test durations (with ``dataZoom`` for large sets), service
+      health cards grouped by test, and an optional markdown report.
+    * **Tests** -- a sortable table of individual tests; clicking a row
+      renders a ``test_detail_panel`` below the table.
+    * **Logs** -- a filterable, scrollable ``ui.code`` block showing
+      up to 1000 tail lines from ``ResultsService.read_log_lines()``.
+    * **Events** -- experiment-level events displayed via the reusable
+      ``event_viewer`` component.
+    * **Metrics** -- a ``metrics_panel`` component (charts / tables).
+    * **Artifacts** -- files grouped by test directory and then by
+      extension, using nested ``ui.expansion`` panels.
+
+Data source:
+    All data flows through ``ResultsService``, which reads the
+    ``outputs/<date>/<experiment_id>/`` directory structure produced by
+    the reporting module.
+
+NiceGUI patterns used:
+    * ``ui.table`` with Quasar template slots for status badges.
+    * ``ui.dialog().props("full-width")`` for the detail modal.
+    * ``ui.echart`` for the bar chart.
+    * ``ui.scroll_area`` for log content.
+    * ``error_boundary`` context manager wrapping each section.
+"""
 
 import logging
 from collections import defaultdict
@@ -143,6 +192,7 @@ def content():
     search_input.bind_value_to(table, "filter")
 
     def _refresh_table():
+        """Apply status and date-range filters to the experiment table."""
         status_val = status_select.value
         from_val = date_from.value or ""
         to_val = date_to.value or ""
@@ -163,6 +213,7 @@ def content():
     detail_dialog = ui.dialog().props("full-width")
 
     def _on_row_click(e):
+        """Open the detail dialog for the clicked experiment row."""
         row = e.args[1]
         _show_detail(detail_dialog, results_svc, row)
 
@@ -170,7 +221,15 @@ def content():
 
 
 def _render_summary_cards(experiments: list[dict]):
-    """Row of stat cards summarizing all experiments."""
+    """Render a row of stat cards summarizing all experiments.
+
+    Displays four cards: total experiment count, completed count,
+    failed count, and the status of the most recent experiment.
+
+    Args:
+        experiments: The full list of experiment dicts as returned by
+            ``ResultsService.list_experiments()``.
+    """
     total = len(experiments)
     completed = sum(1 for e in experiments if e.get("status") == "completed")
     failed = sum(1 for e in experiments if e.get("status") == "failed")
@@ -184,7 +243,19 @@ def _render_summary_cards(experiments: list[dict]):
 
 
 def _show_detail(dialog: ui.dialog, results_svc: ResultsService, row: dict):
-    """Render tabbed detail view in a dialog modal."""
+    """Render a six-tab detail view inside a full-width dialog modal.
+
+    Clears any previous dialog content, builds a header with a close
+    button, then populates tabs for Summary, Tests, Logs, Events,
+    Metrics, and Artifacts.  Each tab delegates to a dedicated
+    ``_render_*`` helper.
+
+    Args:
+        dialog: The pre-created ``ui.dialog`` instance to populate.
+        results_svc: The results service for querying experiment data.
+        row: The table row dict for the selected experiment, containing
+            at least ``"name"`` and ``"path"`` keys.
+    """
     dialog.clear()
     name = row["name"]
     exp_path = row.get("path", "")
@@ -239,7 +310,26 @@ def _show_detail(dialog: ui.dialog, results_svc: ResultsService, row: dict):
 
 
 def _render_summary_tab(results_svc: ResultsService, detail: dict, exp_path: str):
-    """Summary tab: aggregate stats, bar chart, service health grouped by test, report."""
+    """Render the Summary tab content.
+
+    Sections (each wrapped in ``error_boundary``):
+
+    1. **Aggregate stats** -- ``stat_card`` row from
+       ``ResultsService.get_aggregate_stats()`` (total, passed, failed,
+       success rate, duration).
+    2. **Bar chart** -- per-test durations via ``ui.echart``, colour-coded
+       green/red by pass/fail.  Adds a ``dataZoom`` slider when more
+       than 15 tests are present.
+    3. **Service health** -- ``_render_grouped_services()`` showing
+       ``service_health_card`` instances grouped by test name.
+    4. **Report** -- rendered as ``ui.markdown`` if
+       ``detail["report_content"]`` is present.
+
+    Args:
+        results_svc: The results service for data retrieval.
+        detail: The full experiment detail dict.
+        exp_path: Filesystem path to the experiment output directory.
+    """
     # Aggregate stats
     with error_boundary("Aggregate Stats"):
         stats = results_svc.get_aggregate_stats(exp_path) if exp_path else {}
@@ -319,7 +409,16 @@ def _render_summary_tab(results_svc: ResultsService, detail: dict, exp_path: str
 
 
 def _render_grouped_services(services: list[dict]):
-    """Group service health cards by test_name, with expansion panels."""
+    """Group service health cards by ``test_name`` in nested expansion panels.
+
+    If all services share the same (or empty) ``test_name``, a flat
+    layout is used.  Otherwise, services are nested under per-test
+    expansion panels for clarity.
+
+    Args:
+        services: List of service health dicts, each expected to have
+            a ``"test_name"`` key.
+    """
     grouped: dict[str, list[dict]] = defaultdict(list)
     for svc in services:
         test_name = svc.get("test_name", "")
@@ -357,7 +456,17 @@ def _render_grouped_services(services: list[dict]):
 
 
 def _render_tests_tab(results_svc: ResultsService, exp_path: str):
-    """Tests tab: list of tests with drill-down panel."""
+    """Render the Tests tab with a sortable table and click-to-expand detail.
+
+    Lists all tests from ``ResultsService.list_tests()`` in a
+    ``ui.table`` with status badges.  Clicking a row clears a detail
+    container below the table and renders a ``test_detail_panel`` for
+    the selected test.
+
+    Args:
+        results_svc: The results service for data retrieval.
+        exp_path: Filesystem path to the experiment output directory.
+    """
     with error_boundary("Tests"):
         tests = results_svc.list_tests(exp_path) if exp_path else []
         if not tests:
@@ -455,7 +564,17 @@ def _render_tests_tab(results_svc: ResultsService, exp_path: str):
 
 
 def _render_logs_tab(results_svc: ResultsService, exp_path: str):
-    """Logs tab: filterable, scrollable code block."""
+    """Render the Logs tab with a filterable, scrollable code block.
+
+    Reads up to 1000 tail lines via ``ResultsService.read_log_lines()``
+    and displays them in a ``ui.code`` element inside a
+    ``ui.scroll_area``.  A text input filters lines client-side by
+    case-insensitive substring match.
+
+    Args:
+        results_svc: The results service for log retrieval.
+        exp_path: Filesystem path to the experiment output directory.
+    """
     with error_boundary("Logs"):
         log_lines = results_svc.read_log_lines(exp_path, tail=1000) if exp_path else []
         if not log_lines:
@@ -485,7 +604,15 @@ def _render_logs_tab(results_svc: ResultsService, exp_path: str):
 
 
 def _render_events_tab(results_svc: ResultsService, exp_path: str):
-    """Events tab: experiment-level events."""
+    """Render the Events tab showing experiment-level events.
+
+    Delegates to the reusable ``event_viewer`` component with data from
+    ``ResultsService.get_experiment_events()``.
+
+    Args:
+        results_svc: The results service for event retrieval.
+        exp_path: Filesystem path to the experiment output directory.
+    """
     with error_boundary("Experiment Events"):
         events = results_svc.get_experiment_events(exp_path) if exp_path else []
         if not events:
@@ -495,7 +622,18 @@ def _render_events_tab(results_svc: ResultsService, exp_path: str):
 
 
 def _render_artifacts_tab(detail: dict):
-    """Artifacts tab: organized by test directory, then by extension."""
+    """Render the Artifacts tab with files grouped by test then extension.
+
+    Uses nested ``ui.expansion`` panels: the outer level groups
+    artifacts by ``test_name`` (or "Experiment-level" for shared files),
+    and the inner level groups by file extension.  Icons are chosen from
+    the module-level ``_ARTIFACT_ICONS`` mapping.
+
+    Args:
+        detail: The full experiment detail dict, expected to contain an
+            ``"artifacts"`` list of dicts with ``"name"`` and
+            ``"test_name"`` keys.
+    """
     with error_boundary("Artifacts"):
         artifacts = detail.get("artifacts", [])
         if not artifacts:

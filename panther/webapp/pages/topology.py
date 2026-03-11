@@ -1,9 +1,46 @@
-"""Topology editor page — visual experiment configuration.
+"""Topology editor page -- visual, drag-and-drop experiment designer.
 
-Renders a vis.js Network graph where users can arrange services as nodes,
-connect them, and configure each via a properties panel.
+Provides a graphical interface for composing PANTHER (Protocol ANalyzer
+and THreat Evaluator for Research) service topologies.
 
-This is the **scaffold** page. Muhammad builds all interactive features.
+**Intended functionality:**
+    This page aims to provide a graphical alternative to YAML-based
+    configuration by letting users arrange services (IUTs, testers,
+    network environments) as nodes in a network graph, connect them
+    with protocol/deployment edges, and configure each node through a
+    properties side-panel.
+
+**Current scaffold status:**
+    The page is a working scaffold that renders a vis.js Network graph
+    with sample data and a node-click properties panel.  The
+    interactive features (adding / removing nodes, edge creation,
+    PydanticForm-based node configuration, and graph-to-YAML export)
+    are planned for future implementation by the developer.
+
+**vis.js integration:**
+    The ``TopologyEditor`` component wraps the vis.js ``Network``
+    library in a NiceGUI custom element.  It exposes ``set_graph()``
+    for resetting the canvas and ``get_graph()`` for exporting the
+    current node/edge data as a Python dict.  Node clicks are relayed
+    through an ``on_node_click`` callback.
+
+**Live service status overlay:**
+    During an active experiment, the page subscribes to ``service``
+    events from the ``WebObserver`` and displays a status badge
+    indicating the latest service lifecycle change (started, stopped,
+    crashed, ready).
+
+**Layout:**
+    A ``ui.splitter`` divides the view 75/25 between the graph canvas
+    (left) and the properties panel (right).  Below the splitter, a
+    legend explains the node group colours and a toolbar provides
+    *Reset View* and *Export Graph* actions.
+
+NiceGUI patterns used:
+    * ``ui.splitter`` for the canvas / properties split.
+    * ``TopologyEditor`` (custom NiceGUI element wrapping vis.js).
+    * ``ui.context.client`` capture for thread-safe event handling.
+    * ``client.on_disconnect`` for subscription cleanup.
 """
 
 import logging
@@ -53,7 +90,23 @@ SAMPLE_EDGES = [
 
 
 def content():
-    """Render the topology editor page content."""
+    """Render the topology editor page content.
+
+    Called by the NiceGUI router when the user navigates to
+    ``/topology``.  The function:
+
+    1. Creates a ``ui.splitter`` with a ``TopologyEditor`` on the left
+       (seeded with ``SAMPLE_NODES`` / ``SAMPLE_EDGES``) and a
+       properties panel on the right.
+    2. Subscribes to ``service`` events from the ``WebObserver`` to
+       display a live status badge below the graph.
+    3. Renders a colour-coded legend and a toolbar with *Reset View*
+       and *Export Graph* buttons.
+
+    The properties panel currently shows basic node metadata (label,
+    group, id, title) and a placeholder note indicating where a
+    ``PydanticForm`` should be integrated for full node configuration.
+    """
     ui.label("Visual Experiment Designer").classes("text-h5 q-mb-md")
     ui.label(
         "Drag-and-drop topology editor for composing experiment configurations. "
@@ -94,6 +147,7 @@ def content():
     client = ui.context.client
 
     def _on_service_event(event: BaseEvent):
+        """Update the status badge in response to a service lifecycle event."""
         try:
             with client:
                 event_type = event.get_type()
@@ -155,7 +209,21 @@ def content():
 
 
 def _on_node_click(node_id, node_data, props_container, selected_info):
-    """Handle node click — show properties in the side panel."""
+    """Populate the side-panel with properties for the clicked graph node.
+
+    Clears the properties container and renders node metadata (label,
+    group type, ID, and optional title).  Currently includes a
+    placeholder note for future PydanticForm integration.
+
+    Args:
+        node_id: The vis.js node identifier.
+        node_data: A dict of node attributes (label, group, title, etc.)
+            as defined in ``SAMPLE_NODES``.
+        props_container: The ``ui.column`` element serving as the
+            properties panel.
+        selected_info: A mutable dict tracking the currently selected
+            node (keyed ``"node_id"``).
+    """
     selected_info["node_id"] = node_id
     props_container.clear()
     with props_container:
@@ -176,12 +244,17 @@ def _on_node_click(node_id, node_data, props_container, selected_info):
         ui.separator().classes("q-my-sm")
         ui.label("Properties panel placeholder").classes("text-caption text-grey-5")
         ui.label(
-            "Muhammad: Replace this with PydanticForm for the node's config model."
+            "TODO: Replace this with PydanticForm for the node's config model."
         ).classes("text-caption text-orange-7")
 
 
 def _export_graph(editor: TopologyEditor):
-    """Export the current graph as JSON for debugging."""
+    """Export the current graph as JSON and log it for debugging.
+
+    Args:
+        editor: The ``TopologyEditor`` instance wrapping the vis.js
+            graph.
+    """
     import json
 
     graph = editor.get_graph()

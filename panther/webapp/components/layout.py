@@ -1,4 +1,16 @@
-"""Shared layout component for PANTHER web dashboard."""
+"""Layout — shared header, sidebar navigation, and activity feed.
+
+Provides the ``create_layout()`` function used by every page in the
+PANTHER (Protocol ANalysis and Testing Harness for Extensible Research)
+web dashboard to render a consistent chrome: a branded header bar, a
+left-drawer navigation sidebar with links to all major pages, a live
+activity feed showing recent important events, and a footer.
+
+The activity feed subscribes to the ``WebObserver`` event system so that
+HIGH-importance events appear in the sidebar in real time, and CRITICAL
+events trigger toast notifications.  Subscriptions are cleaned up
+automatically when the browser client disconnects.
+"""
 
 import logging
 from pathlib import Path
@@ -27,11 +39,17 @@ NAV_ITEMS = [
 def create_layout(page_title: str = "PANTHER"):
     """Create the shared page layout with header and sidebar navigation.
 
-    Subscribes to CRITICAL events for toast notifications and HIGH events
-    for the activity feed. Subscriptions are cleaned up on page disconnect.
+    Renders the full page chrome (header, left drawer, footer) and wires
+    two event subscriptions via the experiment service's ``WebObserver``:
+
+    * **CRITICAL** events produce toast notifications (immediate, unbatched).
+    * **HIGH** events are appended to the sidebar activity feed (batched).
+
+    Both subscriptions are unsubscribed on client disconnect to avoid
+    stale callbacks.
 
     Args:
-        page_title: Title shown in the header.
+        page_title: Title shown next to the PANTHER logo in the header.
     """
     experiment_svc = get_experiment_service()
     observer = experiment_svc.web_observer

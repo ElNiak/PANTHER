@@ -1,13 +1,24 @@
 # Getting Started: PANTHER Web Dashboard
 
-Muhammad, this guide gets you from zero to productive in your first day. Follow it step by step.
+This guide gets you from zero to productive in your first day working on the PANTHER
+web dashboard. It is designed for developers who are new to the codebase — whether
+you are a thesis student, a contributor, or someone evaluating the project. Follow
+it step by step.
+
+**What you will learn:**
+- How to install and run the webapp locally
+- The code structure and key files to read first
+- How the service layer connects the UI to PANTHER's backend
+- Where to find the architecture docs and development plan
 
 ## Prerequisites
 
-- Python 3.10+ installed
-- git
-- A modern browser (Chrome or Firefox)
-- Docker (only needed to run real experiments -- not required for webapp development)
+- **Python 3.10+** installed (`python --version` to check)
+- **git** for version control
+- **A modern browser** (Chrome or Firefox recommended)
+- **Docker** — only needed to run real experiments; not required for webapp UI development
+- **Familiarity with Python** — the webapp is pure Python (no JavaScript required)
+- **Basic NiceGUI knowledge** recommended — see [NiceGUI documentation](https://nicegui.io/documentation)
 
 ## Step 1: Setup (30 minutes)
 
@@ -162,26 +173,34 @@ edges, and network environments group them. For topology design research (indust
 tools, mapping approaches, mapping rules, attack scenarios), see
 `ARCHITECTURE.md` § "Config Model Hierarchy" and § "Topology Design Reference".
 
-## Your First Two Weeks Deliverables
+## First Two Weeks Checklist
 
-By end of Phase 1 (Week 2), you should have:
-1. All 5 pages loading without errors (verified by running `panther web --reload`)
+By the end of your second week, you should have:
+
+1. All 6 pages loading without errors (verified by running `panther web --reload`)
 2. All existing tests passing (verified by running `pytest tests/unit/test_webapp/`)
-3. At least 3 real experiments run end-to-end through the webapp
+3. At least 3 real experiments run end-to-end through the webapp (requires Docker)
 4. Bug report documenting any issues found (with screenshots)
-5. Familiarity with vis.js Network docs and the scaffolded TopologyEditor
-6. Background chapter outline for thesis
-7. Related work research notes (cyber ranges, visual testing tools, framework comparisons)
+5. Familiarity with NiceGUI patterns and the service layer architecture
+6. Comfort reading and modifying PydanticForm-based components
+7. Understanding of the output directory structure and results data model
 
-## Thesis Writing Tips (UCLouvain EPL)
+## For Thesis Students
 
-Your thesis should be 40-60 pages. Suggested chapter structure:
+If you are working on this codebase as part of a thesis, the following resources
+will help you structure your academic work:
+
+- **`TASKS.md`** — development roadmap with phased deliverables
+- **`ARCHITECTURE.md`** — design decisions and rationale (thesis-referenceable)
+- **`ARCHITECTURE.md` § "Topology Design Reference"** — related work on visual configuration tools
+
+Suggested thesis structure (40-60 pages):
 
 1. **Introduction** (5-7 pages): Problem statement, contributions, structure
-2. **Background & Related Work** (8-12 pages): Protocol testing, PANTHER framework, web UI frameworks, comparison
-3. **Architecture & Design** (8-12 pages): Stack choice, service layer, observer integration, topology editor design
-4. **Implementation** (10-15 pages): Topology editor, config builder, experiment launch, results dashboard
-5. **Evaluation** (5-8 pages): User study (CLI vs forms vs topology), usability metrics, demo walkthrough
+2. **Background & Related Work** (8-12 pages): Protocol testing, PANTHER framework, web UI frameworks
+3. **Architecture & Design** (8-12 pages): Stack choice, service layer, observer integration, topology design
+4. **Implementation** (10-15 pages): Feature walkthrough with code excerpts and screenshots
+5. **Evaluation** (5-8 pages): User study (CLI vs forms vs topology), usability metrics
 6. **Conclusion & Future Work** (3-5 pages)
 
-Start writing in Week 1. Each week has thesis writing tasks alongside code tasks.
+Start writing early — each development phase produces diagrams that become thesis figures.

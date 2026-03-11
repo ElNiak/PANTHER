@@ -1,33 +1,39 @@
-# Task Breakdown: PANTHER Web Dashboard
+# Development Roadmap: PANTHER Web Dashboard
 
-Due end May 2026.
+Target completion: end May 2026.
 
-**Writing strategy**: Diagrams-first. Each coding phase produces Mermaid diagrams (version-controlled in `panther/webapp/diagrams/`). All formal thesis prose is written in a concentrated final phase using accumulated diagrams as the backbone.
+**Documentation strategy**: Diagrams-first. Each coding phase produces Mermaid diagrams
+(version-controlled in `panther/webapp/diagrams/`). These diagrams serve as both
+development documentation and thesis figures.
 
-The thesis requires 40-60 pages plus working code, with focus on **visual experiment configuration, topology design, and output analysis**.
+The development focus is on **visual experiment configuration, topology design, and
+output analysis** — extending the existing webapp scaffold into a complete interactive
+experiment designer.
 
 ---
 
 ## Contribution Delineation
 
-| Component | Built by | Status |
-|-----------|----------|--------|
-| Webapp scaffold (5 pages, service layer, layout) | Supervisor | Complete |
-| PydanticForm (recursive Pydantic-to-NiceGUI renderer) | Supervisor | Complete |
-| Config builder (form+YAML tabs, save/load/validate) | Supervisor | Complete |
-| Experiment launch + WebObserver + live logs | Supervisor | Complete |
-| Results page (table, detail view, ECharts bar chart) | Supervisor | Complete |
-| Plugin page (cards, type filter, detail drawer) | Supervisor | Complete |
-| Bug fixes (race conditions, path safety, error handling) | Supervisor | Complete |
-| **Visual Topology Editor** | **Muhammad** | **Core thesis contribution** |
-| **Library comparison (vis.js vs React Flow)** | **Muhammad** | Analytical chapter |
-| **UX improvements (breadcrumbs, JSON viewer, workflow)** | **Muhammad** | Parallel with topology |
-| **CLI command integration** | **Muhammad** | Stretch goal |
-| **End-to-end workflow polish** | **Muhammad** | Stretch goal |
-| **Evaluation study (user study, comparison)** | **Muhammad** | To conduct |
-| **Thesis document** | **Muhammad** | To write |
+| Component | Owner | Status |
+|-----------|-------|--------|
+| Webapp scaffold (6 pages, service layer, layout) | Scaffold | Complete |
+| PydanticForm (recursive Pydantic-to-NiceGUI renderer) | Scaffold | Complete |
+| Config builder (form+YAML tabs, save/load/validate) | Scaffold | Complete |
+| Experiment launch + WebObserver + live logs | Scaffold | Complete |
+| Results page (table, detail view, ECharts bar chart) | Scaffold | Complete |
+| Plugin page (cards, type filter, detail drawer) | Scaffold | Complete |
+| Bug fixes (race conditions, path safety, error handling) | Scaffold | Complete |
+| **Visual Topology Editor** | **Developer** | **Core contribution** |
+| **Library comparison (vis.js vs React Flow)** | **Developer** | Analytical chapter |
+| **UX improvements (breadcrumbs, JSON viewer, workflow)** | **Developer** | Parallel with topology |
+| **CLI command integration** | **Developer** | Stretch goal |
+| **End-to-end workflow polish** | **Developer** | Stretch goal |
+| **Evaluation study (user study, comparison)** | **Developer** | To conduct |
+| **Thesis document** | **Developer** | To write |
 
-**Muhammad's thesis contribution**: Design and implementation of a visual experiment designer for protocol conformance testing, including an analytical comparison of visualization libraries (vis.js vs React Flow), and UX improvements for a research-oriented workflow.
+**Core contribution**: Design and implementation of a visual experiment designer for
+protocol conformance testing, including an analytical comparison of visualization
+libraries (vis.js vs React Flow), and UX improvements for a research-oriented workflow.
 
 ---
 

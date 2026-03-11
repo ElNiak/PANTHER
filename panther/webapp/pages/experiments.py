@@ -1,4 +1,54 @@
-"""Experiments page — launch, monitor, and manage experiments."""
+"""Experiments page -- launch, monitor, and manage experiment runs.
+
+Provides a browser-based interface for running PANTHER (Protocol
+ANalyzer and THreat Evaluator for Research) experiments.
+
+This page combines configuration selection with real-time experiment
+execution monitoring in a single view.  The layout is split into
+several vertically stacked sections:
+
+**Configuration browser:**
+    A filterable table (search + category dropdown) built from
+    ``ConfigService.list_configs_recursive()``.  Selecting a row shows
+    a preview card with test names, protocols, and services.  A *Use
+    This Config* button copies the selected path into the launch input.
+
+**Launch controls:**
+    A config path input, a *Run* button, and a *Stop* button.
+    ``ExperimentService.run_experiment()`` is called as an ``async``
+    NiceGUI handler, allowing the UI to remain responsive.
+
+**Real-time monitoring (WebObserver event flow):**
+    Three components subscribe to the ``WebObserver`` event bus exposed
+    by ``ExperimentService``:
+
+    * ``ExperimentProgress`` -- listens for ``step.progress``,
+      ``step.execution_started/completed``, and ``experiment.*`` events
+      to drive a progress bar.
+    * ``LogViewer`` -- receives log lines via a callback registered with
+      ``experiment_svc.register_callbacks()``.  Historical lines are
+      replayed on page load.
+    * ``event_viewer`` -- a live event feed rebuilt on every incoming
+      event, capped at the 200 most recent entries.
+
+    All event callbacks capture ``ui.context.client`` so that UI
+    mutations from background threads are safe.  Subscriptions and
+    callbacks are unregistered on ``client.on_disconnect``.
+
+**Status polling:**
+    A 2-second ``ui.timer`` polls ``experiment_svc.status`` and
+    ``experiment_svc.is_running`` to keep the status label and button
+    visibility in sync (handles the case where the experiment finishes
+    while the page is open but between event pushes).
+
+NiceGUI patterns used:
+    * ``ui.card`` for section grouping.
+    * ``ui.table`` with ``selection="single"`` and ``on_select``
+      callback for the config browser.
+    * ``ui.timer(2.0, ...)`` for status polling.
+    * ``async def on_run()`` for non-blocking experiment launch.
+    * ``ui.context.client`` capture for thread-safe UI updates.
+"""
 
 import logging
 from typing import Any
@@ -16,7 +66,26 @@ logger = logging.getLogger(__name__)
 
 
 def content():
-    """Render the experiments page content."""
+    """Render the experiments page content.
+
+    Called by the NiceGUI router when the user navigates to
+    ``/experiments``.  The function builds the entire page layout
+    imperatively and wires up three event-driven subsystems:
+
+    1. **Config browser** -- ``ConfigService.list_configs_recursive()``
+       populates a ``ui.table``.  Category and text filters narrow the
+       rows client-side.  A preview panel shows config metadata on
+       selection.
+    2. **Launch card** -- the config path input, run / stop buttons,
+       and a status label.  ``on_run`` is an ``async`` handler that
+       awaits ``ExperimentService.run_experiment()``.
+    3. **Monitoring section** -- ``ExperimentProgress``,
+       ``LogViewer``, and ``event_viewer`` components, each fed by
+       their own ``WebObserver`` subscription or callback pair.
+
+    All subscriptions and callbacks are cleaned up via
+    ``client.on_disconnect`` to prevent stale references.
+    """
     config_path = app.storage.general.get("config_path")
     experiment_svc = get_experiment_service()
     config_svc = ConfigService()
@@ -96,6 +165,7 @@ def content():
         config_by_path = {c["path"]: c for c in all_configs}
 
         def _on_select(e):
+            """Show a preview card when a config row is selected."""
             selected = e.selection
             if not selected:
                 preview_card.set_visibility(False)
@@ -163,6 +233,7 @@ def content():
 
         # Filtering
         def _apply_filters():
+            """Filter the config table rows by search text and category."""
             search = (search_input.value or "").lower().strip()
             cat = category_select.value
             filtered = []
@@ -210,6 +281,7 @@ def content():
     client_ref = ui.context.client
 
     def _on_progress_event(event: BaseEvent):
+        """Drive the progress bar from step and experiment events."""
         try:
             with client_ref:
                 event_type = event.get_type()
@@ -248,9 +320,11 @@ def content():
 
     # Live streaming callbacks
     def on_log(line: str):
+        """Push a single log line into the log viewer."""
         log_viewer.push(line)
 
     def on_status(s: str):
+        """Update the status label text."""
         status_label.text = f"Status: {s}"
 
     experiment_svc.register_callbacks(on_log, on_status)
@@ -277,6 +351,7 @@ def content():
             event_viewer(live_events[-200:])
 
     def _on_live_event(event: BaseEvent):
+        """Append an event to the live feed and re-render the viewer."""
         try:
             with client_ref:
                 d = event.to_dict()
@@ -295,6 +370,7 @@ def content():
 
     # Poll for status sync (handles experiment finishing while page is open)
     def _sync_status():
+        """Poll experiment status and toggle run/stop button visibility."""
         status_label.text = f"Status: {experiment_svc.status}"
         if not experiment_svc.is_running:
             run_btn.set_visibility(True)
@@ -304,6 +380,7 @@ def content():
 
     # Wire up buttons
     async def on_run():
+        """Launch an experiment asynchronously and update the UI on completion."""
         path = config_input.value.strip()
         if not path:
             ui.notify("Please provide a config file path", type="warning")

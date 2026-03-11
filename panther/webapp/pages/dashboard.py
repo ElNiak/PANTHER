@@ -1,4 +1,41 @@
-"""Dashboard page — home page with summary stats and live experiment counters."""
+"""Dashboard page -- overview with summary statistics and real-time monitoring.
+
+Provides an overview of the PANTHER (Protocol ANalyzer and THreat
+Evaluator for Research) system status.
+
+This is the landing page users see after logging in. It provides three
+sections:
+
+1. **Overview cards** -- static statistics fetched once when the page loads:
+   total registered plugins (via ``PluginService``), number of past
+   experiment runs (via ``ResultsService``), and the currently loaded
+   configuration file path (from ``app.storage.general``).
+
+2. **Live experiment cards** -- reactive labels (tests passed, current
+   phase, overall status) updated in real time by subscribing to the
+   ``WebObserver`` event bus exposed by ``ExperimentService``.  Events
+   of type ``test.completed``, ``experiment.phase.*``, ``experiment.started``,
+   ``experiment.completed``, and ``experiment.failed`` drive label changes.
+
+3. **Quick-action buttons** -- navigation shortcuts to the config builder,
+   results browser, and plugin pages.
+
+NiceGUI patterns used:
+    * ``ui.row`` / ``ui.card`` for the card grid layout.
+    * ``ui.timer`` is *not* used here; instead the page relies on
+      push-based ``WebObserver.subscribe()`` callbacks.
+    * ``ui.context.client`` is captured to safely update the UI from
+      background threads (the experiment runner publishes events off the
+      main thread).
+    * ``client.on_disconnect`` ensures subscription cleanup when the
+      browser tab navigates away.
+
+Data sources:
+    * ``PluginService.list_plugins()``
+    * ``ResultsService.count_experiments()``
+    * ``ExperimentService`` (singleton via ``get_experiment_service()``)
+    * ``app.storage.general`` for ``output_dir`` and ``config_path``
+"""
 
 import logging
 from pathlib import Path
@@ -16,7 +53,25 @@ logger = logging.getLogger(__name__)
 
 
 def content():
-    """Render the dashboard page content."""
+    """Render the dashboard page content.
+
+    Called by the NiceGUI router when the user navigates to ``/``.
+    The function is structured as a single top-to-bottom layout builder:
+
+    1. Instantiates service objects (``PluginService``, ``ResultsService``,
+       ``ExperimentService``) and queries static counts.
+    2. Builds a row of ``stat_card`` components for the static overview.
+    3. Creates a "Live Experiment" section with three cards whose labels
+       are captured in local variables (``tests_passed_label``,
+       ``phase_label``, ``status_label``).
+    4. Subscribes ``_on_live_event`` to the ``WebObserver`` for
+       ``experiment`` and ``test`` event families, filtering to
+       ``EventImportance.HIGH``.  The closure mutates a ``counters``
+       dict and updates labels via the captured NiceGUI ``client``
+       context.
+    5. Registers a disconnect handler to unsubscribe automatically.
+    6. Adds a "Quick Actions" row with navigation buttons.
+    """
     output_dir = app.storage.general.get("output_dir", "outputs")
 
     plugin_svc = PluginService()
@@ -78,6 +133,7 @@ def content():
     client = ui.context.client
 
     def _on_live_event(event: BaseEvent):
+        """Update live stat cards in response to a WebObserver event."""
         try:
             with client:
                 event_type = event.get_type()
