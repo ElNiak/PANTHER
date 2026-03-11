@@ -14,7 +14,7 @@ Architecture::
     YAML Input
         |
         v
-    ConfigLoadingMixin --> YAMLLoader
+    ConfigLoadingMixin (yaml.safe_load)
         |
         v
     Environment Variable Resolution
@@ -30,11 +30,9 @@ Architecture::
 
 Core Components:
     ConfigurationManager
-        Central orchestrator using 8 mixin composition:
-        ConfigLoadingMixin, ValidationOperationsMixin,
-        ConfigOperationsMixin, EnvironmentHandlingMixin,
-        PluginManagementMixin, CachingMixin,
-        StateManagementMixin, LoggingFeaturesMixin.
+        Central orchestrator using 4 mixins + ErrorHandlerMixin:
+        ConfigLoadingMixin, EnvironmentHandlingMixin,
+        ValidationOperationsMixin, CachingMixin.
 
     BaseConfig (``core/base.py``)
         Pure Pydantic v2 base providing type-safe validation and serialization.

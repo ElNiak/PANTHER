@@ -1,30 +1,18 @@
 """Primary configuration manager combining all functionality via mixins.
 
-Implements a sophisticated configuration management system using the Mixin pattern
-to compose capabilities from specialized components. This approach provides:
+Implements a configuration management system using the Mixin pattern
+to compose capabilities from specialized components.
 
-**Mixin Architecture Benefits**:
-- **Separation of Concerns**: Each mixin handles a specific configuration aspect
-- **Testability**: Individual mixins can be tested in isolation
-- **Extensibility**: New capabilities can be added via additional mixins
-- **Maintainability**: Complex functionality is broken into manageable pieces
-
-**Mixin Composition Strategy**:
-The order of mixin inheritance is critical for method resolution:
+**Mixin Composition** (order matters for MRO):
 1. ConfigLoadingMixin: Core configuration file loading and parsing
 2. EnvironmentHandlingMixin: Environment variable resolution and path handling
 3. ValidationOperationsMixin: Multi-stage validation with error enrichment
-4. ConfigOperationsMixin: Configuration manipulation and transformation
-5. CachingMixin: Performance optimization through intelligent caching
-6. LoggingFeaturesMixin: Debug and feature-level logging control
-7. PluginManagementMixin: Dynamic plugin discovery and integration
-8. StateManagementMixin: Configuration state tracking and persistence
-9. ErrorHandlerMixin: Centralized error handling and recovery
+4. CachingMixin: Performance optimization through intelligent caching
+5. ErrorHandlerMixin: Centralized error handling and recovery
 
 **Integration Points**:
 - Plugin system integration for dynamic configuration discovery
 - MetricsCollector integration for performance monitoring
-- LoggerFactory integration for consistent logging patterns
 - Context manager support for automatic cleanup and error handling
 """
 
@@ -41,11 +29,7 @@ if TYPE_CHECKING:
 from .mixins import (
     CachingMixin,
     ConfigLoadingMixin,
-    ConfigOperationsMixin,
     EnvironmentHandlingMixin,
-    LoggingFeaturesMixin,
-    PluginManagementMixin,
-    StateManagementMixin,
     ValidationOperationsMixin,
 )
 
@@ -54,52 +38,24 @@ class ConfigurationManager(
     ConfigLoadingMixin,
     EnvironmentHandlingMixin,
     ValidationOperationsMixin,
-    ConfigOperationsMixin,
     CachingMixin,
-    LoggingFeaturesMixin,
-    PluginManagementMixin,
-    StateManagementMixin,
     ErrorHandlerMixin,
 ):
     """Primary configuration manager combining all functionality via mixins.
 
-    This class provides comprehensive configuration management for PANTHER,
-    implementing a sophisticated multi-layered architecture for:
+    Composed from 4 mixins + ErrorHandlerMixin:
+    - ConfigLoadingMixin: YAML/JSON parsing with environment variable substitution
+    - EnvironmentHandlingMixin: ``${VAR}`` interpolation and PANTHER_* env mappings
+    - ValidationOperationsMixin: Schema validation + business rules + auto-fix
+    - CachingMixin: In-memory caching for experiments, validations, plugins
 
-    **Core Capabilities**:
-    - **Configuration Loading**: YAML/JSON parsing with environment variable substitution
-    - **Multi-stage Validation**: Schema validation + business rules + plugin compatibility
-    - **Plugin Integration**: Dynamic discovery and configuration of protocol/service plugins
-    - **Performance Optimization**: Intelligent caching with TTL and invalidation strategies
-    - **Error Recovery**: Automatic configuration fixing with user-friendly error messages
+    Usage::
 
-    **Advanced Features**:
-    - **Version Management**: Protocol version compatibility tracking and discovery
-    - **Context Management**: Automatic resource cleanup and state management
-    - **Metrics Integration**: Performance monitoring and statistics collection
-    - **Debug Support**: Feature-level logging and comprehensive error reporting
+        manager = ConfigurationManager()
+        config = manager.load_experiment_config("experiment.yaml")
 
-    **Usage Patterns**:
-    ```python
-    # Basic usage
-    manager = ConfigurationManager()
-    config = manager.load_experiment_config("experiment.yaml")
-
-    # With custom settings
-    with ConfigurationManager(auto_fix_configs=True, enable_cache=True) as manager:
-        result = manager.validate_experiment_configuration(config_dict)
-
-    # Plugin discovery
-    plugins = manager.discover_plugins()
-    versions = manager.discover_available_versions("quic")
-    ```
-
-    **Thread Safety**: Not thread-safe - designed for single-threaded configuration management
-
-    **Performance Characteristics**:
-    - Configuration loading: ~10-50ms (cached: ~1-2ms)
-    - Plugin discovery: ~100-500ms (cached: ~5-10ms)
-    - Validation: ~5-20ms depending on complexity
+        plugins = manager.discover_plugins()
+        versions = manager.discover_available_versions("quic")
     """
 
     def __init__(
@@ -252,7 +208,6 @@ class ConfigurationManager(
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Exit context manager."""
         self.logger.debug("Exiting ConfigurationManager context")
-        self.clear_configuration_overrides()
 
         # Log any exceptions
         if exc_type is not None:

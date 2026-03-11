@@ -1,9 +1,8 @@
-"""Tests for environment and plugin config constraints."""
+"""Tests for environment config constraints."""
 
 import pytest
 
 from panther.config.core.models.environment import EnvironmentConfig
-from panther.config.core.models.plugin import ProtocolPluginConfig
 
 
 class TestEnvironmentConstraints:
@@ -14,17 +13,3 @@ class TestEnvironmentConstraints:
     def test_failure_threshold_zero(self):
         with pytest.raises(Exception):
             EnvironmentConfig(type="docker_compose", failure_threshold_count=0)
-
-
-class TestPluginConstraints:
-    def test_priority_negative(self):
-        with pytest.raises(Exception):
-            ProtocolPluginConfig(priority=-1)
-
-    def test_priority_too_high(self):
-        with pytest.raises(Exception):
-            ProtocolPluginConfig(priority=1001)
-
-    def test_priority_valid(self):
-        config = ProtocolPluginConfig(priority=50)
-        assert config.priority == 50

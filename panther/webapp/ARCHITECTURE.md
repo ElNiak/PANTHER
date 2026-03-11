@@ -75,6 +75,31 @@ pages/experiments.py
 
 Services are instantiated once in `app.py` and passed to pages via NiceGUI's `app.storage` or function parameters.
 
+**Data flow through the service layer:**
+
+```
+┌─────────┐    ┌──────────────┐    ┌──────────────────┐    ┌──────────────┐    ┌─────────────┐    ┌────┐
+│  Page   │───>│   Service    │───>│   PANTHER Core   │───>│    Events    │───>│ WebObserver │───>│ UI │
+│ (async) │    │  (thin wrap) │    │ (ExperimentMgr)  │    │ (EventMgr)  │    │ (callbacks) │    │    │
+└─────────┘    └──────────────┘    └──────────────────┘    └──────────────┘    └─────────────┘    └────┘
+  NiceGUI         async-safe            blocking              push-based          bridges           auto
+  event loop      interface             (background           to observers        thread gap        WebSocket
+  (main thread)                          thread)                                                    push
+```
+
+**Threading model:**
+- **Main thread**: NiceGUI's asyncio event loop. All UI code runs here. Never block this thread.
+- **Background thread**: Experiment execution runs via `asyncio.to_thread()` in `ExperimentService.run_experiment()`. The `ExperimentManager.run_tests()` call is blocking and can run for minutes.
+- **Thread bridge**: `WebObserver.update_gui()` is called from the background thread. It iterates a copy of the subscriber list (`list(self._subscribers)`) to avoid race conditions. NiceGUI auto-pushes state changes to the browser over its WebSocket.
+
+**Service composition:**
+- **ConfigService**: Stateless. Load/validate/save YAML configs. Used by the config builder page and experiment launch.
+- **ExperimentService**: Singleton (via `get_experiment_service()`). Manages experiment lifecycle, holds log buffer and status across page navigations. The only stateful service.
+- **ResultsService**: Stateless. Reads from the `outputs/` filesystem. Used by the results and analysis pages.
+- **PluginService**: Stateless. Wraps `PluginManager` for plugin discovery. Used by the plugins page and config builder (for implementation dropdowns).
+
+Services do not call each other. Pages compose them: e.g., the experiment page uses both `ConfigService` (to validate before launch) and `ExperimentService` (to run).
+
 ### Page Architecture
 
 Each page is a Python function decorated with `@ui.page('/path')`. NiceGUI calls the function on navigation and builds the UI using component calls:
@@ -126,13 +151,43 @@ When an experiment runs, the `WebObserver` is registered with `EventManager`. Ev
 - GUI state dict (`get_gui_state()` with counters and timestamps per event type)
 - Automatic `_update_gui_state()` on every event
 
-Event types from `panther/core/events/`:
-- `experiment.*` -- experiment lifecycle (started, completed, failed)
-- `test.*` -- individual test progress
-- `service.*` -- service start/stop/error
-- `environment.*` -- Docker environment events
-- `step.*` -- pre/post command execution
-- `metrics.*` -- performance data points
+**EventType taxonomy** (from `panther/core/events/base/event_base.py`):
+
+| EventType | Event names | When it fires | Experiment phase |
+|-----------|------------|---------------|-----------------|
+| `EXPERIMENT` | `experiment.started`, `.completed`, `.failed` | Experiment lifecycle transitions | All phases |
+| `TEST` | `test.started`, `.completed`, `.failed`, `.skipped` | Individual test scenario lifecycle | Execution |
+| `SERVICE` | `service.started`, `.stopped`, `.error`, `.health_check` | Docker container start/stop/crash | Deployment, Execution |
+| `ENVIRONMENT` | `environment.created`, `.destroyed`, `.error` | Docker network/compose up/down | Deployment |
+| `STEP` | `step.pre_command`, `.post_command` | Pre/post command execution hooks | Execution |
+| `METRICS` | `metrics.collected`, `.resource_usage` | Performance data points | Execution |
+| `SYSTEM` | `system.info`, `.warning`, `.error` | Framework-level diagnostics | Any |
+| `ASSERTION` | `assertion.passed`, `.failed` | Formal verification verdicts (Ivy) | Execution |
+| `PLUGIN` | `plugin.loaded`, `.error` | Plugin discovery and initialization | Initialization |
+
+**Event phases**: The four experiment phases produce different event types:
+1. **Initialization** — `PLUGIN` events (plugin loading), minimal `SYSTEM` events
+2. **Plugin Loading** — `PLUGIN` events, `SYSTEM` diagnostics
+3. **Deployment** — `ENVIRONMENT` events (network/container creation), `SERVICE` events (container start)
+4. **Execution** — `TEST`, `SERVICE`, `STEP`, `METRICS`, `ASSERTION` events (the bulk of activity)
+
+**Subscription lifecycle** for a NiceGUI page:
+```python
+# 1. Subscribe on page load
+def on_page_load():
+    experiment_service.subscribe_events(handle_event)
+
+# 2. Filter and update UI
+def handle_event(event: BaseEvent):
+    if event.entity_type == EventType.TEST:
+        update_test_progress(event)     # update NiceGUI component
+    elif event.entity_type == EventType.METRICS:
+        update_metrics_chart(event)     # NiceGUI auto-pushes via WebSocket
+
+# 3. Unsubscribe on page leave (prevent stale callbacks)
+def on_page_disconnect():
+    experiment_service.unsubscribe_events(handle_event)
+```
 
 ### Config Builder: PydanticForm + One-Way YAML Preview
 
@@ -146,6 +201,50 @@ Form field change -> model.model_dump() -> yaml.dump() -> YAML preview
 ```
 
 Two-way sync (YAML edits updating forms) is **not in scope** -- it adds significant complexity for marginal benefit. Users edit via forms and see the resulting YAML.
+
+### Config Model Hierarchy
+
+The Pydantic models form a tree that maps directly to the YAML structure. Understanding this hierarchy is essential for the config builder and topology editor.
+
+```
+ExperimentConfig                          # Top-level: one YAML file
+├── metadata: ExperimentMetadata          # name, author, version, tags
+└── tests: List[TestConfig]               # Each test = independent scenario
+    ├── name: str                         # Test identifier
+    ├── network_environment: NetworkEnvironmentConfig
+    │   └── type: str                     # "docker_compose" | "shadow" | "localhost"
+    ├── execution_environment: List[ExecutionEnvironmentConfig]
+    ├── services: Dict[str, ServiceConfig]    # Key = service name (= container name)
+    │   ├── implementation: ImplementationConfig
+    │   │   ├── name: str                 # Plugin name (e.g., "picoquic")
+    │   │   └── type: ImplementationType  # "iut" or "testers"
+    │   ├── protocol: ProtocolConfig
+    │   │   ├── name: str                 # e.g., "quic"
+    │   │   ├── version: str              # e.g., "rfc9000"
+    │   │   ├── role: ProtocolRole        # "server" | "client" | "peer"
+    │   │   └── target: Optional[str]     # References another services dict key
+    │   ├── network: Optional[NetworkConfig]  # interface, port, host
+    │   └── depends_on: List[str]         # Startup ordering
+    ├── steps: StepsConfig                # pre_commands, wait, post_commands
+    └── iterations: int                   # How many times to repeat
+```
+
+**Graph-relevant fields** (for the topology editor):
+
+| Config field | Graph concept | Notes |
+|-------------|--------------|-------|
+| `TestConfig` | Independent subgraph/group | Each test is a separate topology |
+| `TestConfig.services[key]` | Node (key = label) | Dict key = Docker container name |
+| `ImplementationType` | Node category (color/shape) | IUT = green, Tester = orange |
+| `ProtocolConfig.role` | Node role badge | server/client/peer |
+| `ProtocolConfig.target` | Directed edge (source→target) | Client points to server |
+| `ProtocolConfig.name` + `version` | Edge label | e.g., "quic / rfc9000" |
+| `NetworkEnvironmentConfig.type` | Group property or background | docker_compose, shadow, localhost |
+| `ServiceConfig.depends_on` | Dashed dependency edge | Startup ordering |
+
+These mapping rules are invariant regardless of which graph approach Muhammad chooses for the topology editor. The conversion logic between graph and config models is Muhammad's thesis contribution — see "Topology Design Reference" below for research context.
+
+**Source files:** `panther/config/core/models/experiment.py`, `panther/config/core/models/service.py`
 
 ### Experiment Launch: asyncio.to_thread
 
@@ -253,6 +352,130 @@ vis.js Network (browser-side)
 - `pages/topology.py` — Topology page (scaffolded, 147 lines)
 - `diagrams/04-topology-component-architecture.mmd` — Architecture diagram (Muhammad creates)
 - `diagrams/05-yaml-graph-mapping.mmd` — YAML ↔ graph data mapping (Muhammad creates)
+
+### Topology Design Reference
+
+This section collects research on industrial topology editors, approach options, and
+attack-scenario design. Muhammad should use this as background for his thesis chapter
+on related work and design decisions.
+
+#### Industry Landscape
+
+Before designing PANTHER's topology editor, study how existing tools represent
+network and service topologies. The table below captures the most relevant systems
+and what we can learn from each.
+
+| Tool | Domain | Graph Model | Format | Key Lesson |
+|------|--------|-------------|--------|------------|
+| **GNS3** | Network emulation | Flat: nodes[] + links[] with UUID refs, x/y coords | JSON (.gns3) | Simple node+link with position persistence |
+| **EVE-NG** | Network emulation | Similar flat graph, web canvas | XML (.unl) | Web-based drag-drop, export/import |
+| **KYPO CRP** | Cyber range | Three-tier: hosts[], networks[], routers[] + mappings | YAML | Semantic node types with typed layer mappings |
+| **Mininet/MiniEdit** | SDN emulation | addHost()/addSwitch()/addLink() Python API | Python/JSON | Visual editor exports runnable scripts |
+| **CRATE** | Cyber range | Router-based LAN/WAN, auto-generation | Java/Vaadin | Network generator, auto-layout |
+| **VSDL** | Cyber range DSL | Declarative constraints (nodes + networks) | Custom DSL | High-level spec -> SMT solver -> deployment |
+| **TOSCA** | Cloud orchestration | Node Templates + Relationship Templates (directed graph) | YAML | Requirements/Capabilities, typed relationships |
+| **Docker Compose viz** | Container orchestration | Services as nodes, depends_on/networks as edges | YAML->DOT | Closest to PANTHER's service-in-container model |
+| **Kathara** | Network emulation | Devices via collision domains | lab.conf | Minimal declarative format |
+
+**References**: GNS3 file format docs, KYPO topology definition (Masaryk University),
+VSDL (Costa et al. 2020), TOSCA OASIS Simple Profile YAML v1.3.
+
+#### Multiple Topology Approaches for PANTHER
+
+PANTHER's topology is unique: nodes are protocol implementations (not generic network
+devices), edges are protocol-level client->server relationships (not physical links).
+Four possible approaches follow.
+
+**Approach A: Flat Service Graph (GNS3/Docker-Compose style)**
+
+- Each `services` dict entry = 1 node (colored by `ImplementationType`: IUT=green, Tester=orange).
+- `ProtocolConfig.target` = directed edge (client->server).
+- Network environment = property badge on test group, not a node.
+- Pro: Direct 1:1 mapping to YAML. Simplest.
+- Con: No L2/L3 network detail.
+
+**Approach B: Three-Tier Semantic Graph (KYPO style)**
+
+- Service nodes + Network nodes + Environment nodes.
+- Typed connections between layers.
+- Pro: Richer network context. Good for thesis novelty.
+- Con: PANTHER config doesn't have explicit network-as-node; requires synthesizing. More complex mapping.
+
+**Approach C: Typed Relationships (TOSCA-inspired)**
+
+- Nodes have typed capabilities and requirements.
+- Relationships are first-class objects with properties.
+- Pro: Most semantically rich. Academically interesting.
+- Con: Most complex. Overkill for current config model.
+
+**Approach D: Hybrid with Progressive Disclosure**
+
+- Default = Approach A flat graph.
+- Toggle overlay: network grouping, Docker details.
+- Click node -> expand details with PydanticForm.
+- Pro: Starts simple, complexity on demand. Best UX.
+- Con: Two representations. More engineering.
+
+> **Note**: These are starting points. Muhammad should evaluate, propose his own
+> variant, and justify the choice in his thesis. The final approach IS the thesis
+> contribution.
+
+#### Beyond Topology -- Attack Scenario Design
+
+PANTHER supports attack scenario testing via `panther_ivy` and the NACT
+(Network-Attack Compositional Testing) methodology, following the APT 6-stage
+lifecycle:
+
+```
+Reconnaissance -> Infiltration -> C2 -> Priv. Escalation -> Persistence -> Exfiltration
+```
+
+The topology editor should eventually support not just "which services connect" but
+"what attack logic runs against them."
+
+Industry references for visual attack scenario design:
+
+| Tool | What it visualizes | Graph model | Relevance |
+|------|-------------------|-------------|-----------|
+| **ATT&CK Flow Builder** | Attack sequences | Directed graph: Action + Condition + AND/OR | Gold-standard for visual scenario composition |
+| **CACAO Roaster** | Security playbooks | Workflow: sequential/parallel/branching steps | Executable workflow model |
+| **TTCN-3 GFT** | Protocol test logic | MSC lifelines: send/receive/timer/verdict | Only standard for protocol test visualization |
+| **Peach Fuzzer State Model** | Protocol FSM | States + Actions (output/input/changeState) | Closest fuzzer model to protocol test logic |
+| **CALDERA Magma** | Adversary operations | Ability list + agent topology | Operation monitoring UX |
+
+Key insight: topology (infrastructure) and test logic (scenario) are two separate
+concerns. This separation is recognized industry-wide (TOSCA, SimSpace, KYPO all
+separate them).
+
+For thesis scope: start with topology (Phase 2). Architecture should be extensible
+toward scenario visualization. NACT data available: `attack_life_cycle.ivy`,
+`apt_tests/` with CVE-specific tests, protocol-specific bindings, `.dsc` parameter
+files.
+
+#### Tester-Specific UX
+
+Different tester types need different config and results UX:
+
+| Tester Type | Example | Config Needs | Output Needs |
+|-------------|---------|-------------|-------------|
+| Formal verification | panther_ivy | Test selection, iterations, build mode, Z3 source | Verdict, .iev event logs, assumption failures |
+| Fuzzer (future) | boofuzz, Peach | Mutation strategy, seed corpus, target fields | Crash count, coverage %, unique crashes |
+| Conformance (future) | Scapy-based | Packet sequence, expected responses | Per-packet pass/fail, timing |
+| Performance (future) | iperf, wrk | Load profile, duration, concurrency | Throughput, latency histograms |
+
+Plugin-extensible UI patterns from industry:
+
+| Pattern | Example | How it works | PANTHER fit |
+|---------|---------|-------------|-------------|
+| Schema-driven forms | RJSF, JSON Forms | Plugin provides schema -> UI auto-generates form | Best fit -- `config_schema.py` already exists |
+| Extension point registry | Grafana panels | Plugin registers component at named slot | Good for result visualizations |
+| Conditional rendering | ZAP scan types | Selecting type swaps visible fields | Natural for properties panel |
+| Progressive disclosure | TLA+ Toolbox | Basic visible, "Advanced" expands | Already supported via `json_schema_extra` |
+
+> **Note**: `PydanticForm` + `config_schema.py` already handles most of this
+> automatically. Worth documenting and evaluating in thesis. Future evolution (out of
+> scope): plugin-contributed result panels, schema-driven conditional fields, attack
+> scenario composer overlay.
 
 ### UX Improvements (Parallel with Topology)
 

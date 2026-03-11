@@ -6,55 +6,34 @@ Pydantic v2 models for type-safe configuration handling.
 Architecture at a Glance
 ========================
 
-Dual Validator System
----------------------
-PANTHER has two ``universal_validators`` modules with complementary roles:
+Validator System
+----------------
+``config.core.components.field_coercion``
+    **Standalone coercion function** for imperative use: ``validate_integer_field()``.
 
-``config.core.components.universal_validators``
-    **Standalone validation functions** called directly in imperative code.
-    Each function accepts ``(value, field_name)`` and returns a coerced
-    result or raises ``ValueError``.  Example: ``validate_integer_field()``,
-    ``validate_time_field()``, ``validate_enum_field()``,
-    ``validate_boolean_field()``.
-
-``config.core.validators.universal_validators``
-    **Pydantic validator factory functions** that return closures compatible
-    with ``@field_validator`` / ``@validator`` decorators.  Example:
-    ``create_enum_validator()``, ``create_time_string_validator()``, and
-    pre-configured helpers like ``protocol_role_validator``.
+``config.core.validators.pydantic_factories``
+    **Pydantic validator factory functions** returning closures for
+    ``@field_validator`` decorators: ``create_enum_validator()``,
+    ``create_time_string_validator()``, and pre-configured helpers
+    like ``protocol_role_validator``.
 
 Mixin-Based ConfigurationManager
 ---------------------------------
-``ConfigurationManager`` (in ``manager.py``) is composed from eight mixins
+``ConfigurationManager`` (in ``manager.py``) is composed from four mixins
 plus ``ErrorHandlerMixin``, each owning a single concern.  See
 ``config.core.mixins.__init__`` for the canonical composition order and
 MRO constraints.
 
 Key mixins: ``ConfigLoadingMixin``, ``EnvironmentHandlingMixin``,
-``ValidationOperationsMixin``, ``ConfigOperationsMixin``, ``CachingMixin``,
-``LoggingFeaturesMixin``, ``PluginManagementMixin``, ``StateManagementMixin``.
-
-Configuration Merge System
---------------------------
-Two levels of merge support exist:
-
-1. **Component level** -- ``components.merger.ConfigMerger`` with five
-   ``MergeStrategy`` values and four ``ConflictResolution`` values, plus
-   ``MergeContext`` for audit trails.
-2. **Mixin level** -- ``mixins.config_operations.ConfigOperationsMixin`` with
-   a smaller ``MergeStrategy`` / ``ConflictResolution`` enum set that
-   delegates to the merger component.
-
-Both share the same conceptual model (strategy + conflict resolution) but
-the component variant is richer and produces auditable merge contexts.
+``ValidationOperationsMixin``, ``CachingMixin``.
 
 Key Entry Points
 ----------------
 - ``panther.config.core.manager.ConfigurationManager`` -- primary API
 - ``panther.config.core.base.BaseConfig`` -- pure Pydantic v2 base for all config models
-- ``panther.config.core.components`` -- loaders, validators, builders, merger
+- ``panther.config.core.components`` -- validators and builders
 - ``panther.config.core.models`` -- typed Pydantic configuration models
-- ``panther.config.core.validators`` -- multi-layer validation framework
+- ``panther.config.core.validators`` -- Pydantic validator factories
 - ``panther.config.core.mixins`` -- composable manager capabilities
 """
 

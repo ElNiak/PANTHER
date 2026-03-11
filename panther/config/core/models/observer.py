@@ -6,6 +6,7 @@ from typing import Optional
 from pydantic import Field, field_validator
 
 from ..base import BaseConfig
+from ..validators import create_enum_validator
 
 
 class StorageFormat(str, Enum):
@@ -160,13 +161,7 @@ class StorageObserverConfig(BaseObserverConfig):
     @classmethod
     def validate_storage_format(cls, v):
         """Convert string to StorageFormat enum."""
-        if isinstance(v, str):
-            try:
-                return StorageFormat(v.lower())
-            except ValueError:
-                valid = [e.value for e in StorageFormat]
-                raise ValueError(f"Invalid storage format '{v}'. Valid: {valid}")
-        return v
+        return create_enum_validator(StorageFormat)(cls, v)
 
 
 class ExperimentObserverConfig(BaseObserverConfig):
@@ -186,13 +181,7 @@ class ExperimentObserverConfig(BaseObserverConfig):
     @classmethod
     def validate_report_format(cls, v):
         """Convert string to ReportFormat enum."""
-        if isinstance(v, str):
-            try:
-                return ReportFormat(v.lower())
-            except ValueError:
-                valid = [e.value for e in ReportFormat]
-                raise ValueError(f"Invalid report format '{v}'. Valid: {valid}")
-        return v
+        return create_enum_validator(ReportFormat)(cls, v)
 
     include_graphs: bool = Field(True, description="Include graphs in report")
     capture_screenshots: bool = Field(

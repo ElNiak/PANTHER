@@ -39,6 +39,10 @@ class ExperimentService:
         self._log_callbacks: list[Callable[[str], None]] = []
         self._status_callbacks: list[Callable[[str], None]] = []
         self._web_observer = WebObserver()
+        self._batch_timer: Optional[object] = None  # ui.timer handle
+
+        # Restore observer state from NiceGUI app storage if available
+        self._try_restore_observer_state()
 
     @property
     def status(self) -> str:
@@ -113,6 +117,16 @@ class ExperimentService:
             self._stop_requested = False
         self._log_lines.clear()
         self._config_path = config_path
+
+        # Enable event batching for the duration of the experiment
+        self._web_observer.enable_batching(500)
+        try:
+            from nicegui import ui
+
+            self._batch_timer = ui.timer(0.5, self._web_observer._flush_batch)
+        except Exception:
+            # ui.timer may fail outside NiceGUI context (e.g. in tests)
+            self._batch_timer = None
 
         def _run():
             def _check_stop():
@@ -202,6 +216,40 @@ class ExperimentService:
             with self._lock:
                 self._running = False
             raise
+        finally:
+            # Stop batch timer and flush remaining events
+            if self._batch_timer is not None:
+                try:
+                    self._batch_timer.cancel()
+                except Exception:
+                    pass
+                self._batch_timer = None
+            self._web_observer.disable_batching()
+
+            # Persist observer state
+            self._save_observer_state()
+
+    def _try_restore_observer_state(self):
+        """Restore WebObserver gui_state from NiceGUI app storage if available."""
+        try:
+            from nicegui import app
+
+            saved = app.storage.general.get("web_observer_state")
+            if saved:
+                self._web_observer.restore_state(saved)
+        except Exception:
+            # Outside NiceGUI context (e.g. tests) — silently skip
+            pass
+
+    def _save_observer_state(self):
+        """Persist WebObserver gui_state to NiceGUI app storage."""
+        try:
+            from nicegui import app
+
+            app.storage.general["web_observer_state"] = self._web_observer.save_state()
+        except Exception:
+            # Outside NiceGUI context — silently skip
+            pass
 
     def stop(self):
         """Request experiment stop."""

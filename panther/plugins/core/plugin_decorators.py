@@ -112,7 +112,6 @@ def _discover_sibling_config_model(cls: type) -> Optional[type]:
             ExecutionEnvironmentConfig,
             NetworkEnvironmentConfig,
         )
-        from panther.config.core.models.plugin import ProtocolPluginConfig
         from panther.config.core.models.service import (
             ImplementationConfig,
             NetworkConfig,
@@ -131,7 +130,6 @@ def _discover_sibling_config_model(cls: type) -> Optional[type]:
                 EnvironmentConfig,
                 ExecutionEnvironmentConfig,
                 NetworkEnvironmentConfig,
-                ProtocolPluginConfig,
             }
         )
     except ImportError:

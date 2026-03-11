@@ -21,14 +21,8 @@ Model hierarchy — all classes inherit from ``BaseConfig``
     ├── Environments
     │   EnvironmentConfig → NetworkEnvironmentConfig, ExecutionEnvironmentConfig
     │
-    ├── Observers
-    │   ObserversConfig, BaseObserverConfig → Logger/Metrics/Storage/Experiment
-    │
-    ├── Plugin bases
-    │   ProtocolPluginConfig
-    │
-    └── Protocol schemas (ABC)
-        BaseProtocolConfig → ClientServerProtocolConfig, PeerToPeerProtocolConfig
+    └── Observers
+        ObserversConfig, BaseObserverConfig → Logger/Metrics/Storage/Experiment
 
 Import guide:
     Prefer importing from this module (``panther.config.core.models``)
@@ -63,12 +57,6 @@ from .observer import (
     MetricsObserverConfig,
     ObserversConfig,
     StorageObserverConfig,
-)
-from .plugin import ProtocolPluginConfig
-from .protocol import (
-    BaseProtocolConfig,
-    ClientServerProtocolConfig,
-    PeerToPeerProtocolConfig,
 )
 from .service import (
     ImplementationConfig,
@@ -120,12 +108,6 @@ __all__ = [
     "ProtocolRole",
     "NetworkConfig",
     "VersionBase",
-    # Protocol Config
-    "BaseProtocolConfig",
-    "ClientServerProtocolConfig",
-    "PeerToPeerProtocolConfig",
-    # Plugin Config
-    "ProtocolPluginConfig",
     # Environment Config
     "EnvironmentConfig",
     "NetworkEnvironmentConfig",

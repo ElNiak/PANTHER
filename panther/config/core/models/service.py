@@ -6,7 +6,11 @@ from typing import Any, ClassVar, Dict, List, Optional
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from ..base import BaseConfig
-from ..validators import implementation_type_validator, protocol_role_validator
+from ..validators import (
+    create_enum_validator,
+    implementation_type_validator,
+    protocol_role_validator,
+)
 from .global_config import ServiceDockerOverrideConfig
 
 
@@ -478,13 +482,7 @@ class ServiceConfig(BaseConfig):
     @classmethod
     def validate_restart_policy(cls, v):
         """Convert string to RestartPolicy enum."""
-        if isinstance(v, str):
-            try:
-                return RestartPolicy(v.lower())
-            except ValueError:
-                valid = [e.value for e in RestartPolicy]
-                raise ValueError(f"Invalid restart policy '{v}'. Valid: {valid}")
-        return v
+        return create_enum_validator(RestartPolicy)(cls, v)
 
     @field_validator("timeout", mode="before")
     @classmethod
