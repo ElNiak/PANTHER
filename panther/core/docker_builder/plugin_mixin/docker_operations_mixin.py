@@ -1,5 +1,4 @@
-"""
-Docker Operations Mixin
+"""Docker Operations Mixin.
 
 This module provides a mixin class for Docker operations commonly used by service managers,
 eliminating duplication of Docker image preparation and management logic.
@@ -26,8 +25,7 @@ class DockerOperationError(Exception):
 
 
 class DockerOperationsMixin(LoggerMixin):
-    """
-    Mixin that provides common Docker operations for service managers.
+    """Mixin that provides common Docker operations for service managers.
 
     This mixin reduces duplication by providing standard implementations of:
     - Docker image preparation
@@ -39,14 +37,14 @@ class DockerOperationsMixin(LoggerMixin):
     """
 
     def __init__(self, *args, **kwargs):
+        """Initialize mixin and set up Docker builder reference."""
         super().__init__(*args, **kwargs)
         self._docker_builder = None
         self.global_config = getattr(self, "global_config", None)
 
     @property
     def docker_builder(self) -> "DockerBuilder":
-        """
-        Lazy initialization of DockerBuilder instance.
+        """Lazy initialization of DockerBuilder instance.
 
         Returns the singleton DockerBuilder instance, ensuring all Docker operations
         across the application share the same client connection and configuration.
@@ -68,8 +66,7 @@ class DockerOperationsMixin(LoggerMixin):
         build_args: Optional[Dict[str, str]] = None,
         no_cache: bool = True,
     ) -> bool:
-        """
-        Prepare a Docker image by building it if it doesn't exist.
+        """Prepare a Docker image by building it if it doesn't exist.
 
         This method provides the standard prepare() functionality used by most
         service managers, with additional flexibility.
@@ -203,8 +200,7 @@ class DockerOperationsMixin(LoggerMixin):
             raise DockerOperationError(f"Docker build failed: {e}")
 
     def prepare(self) -> None:
-        """
-        Standard prepare method that builds Docker image if needed.
+        """Standard prepare method that builds Docker image if needed.
 
         This is the most common implementation across service managers.
         Override this method if you need custom preparation logic.
@@ -212,8 +208,7 @@ class DockerOperationsMixin(LoggerMixin):
         self.prepare_docker_image()
 
     def ensure_docker_available(self) -> None:
-        """
-        Ensure Docker is available and running.
+        """Ensure Docker is available and running.
 
         Raises:
             DockerOperationError: If Docker is not available
@@ -226,77 +221,3 @@ class DockerOperationsMixin(LoggerMixin):
             raise DockerOperationError(
                 f"Docker is not available: {e}. Please ensure Docker is installed and running."
             )
-
-    def remove_docker_image(
-        self, image_name: Optional[str] = None, force: bool = False
-    ) -> bool:
-        """
-        Remove a Docker image.
-
-        Args:
-            image_name: Image name (defaults to self.docker_image_name)
-            force: Force removal even if container is using it
-
-        Returns:
-            bool: True if removal succeeded
-        """
-        if image_name is None:
-            if not hasattr(self, "docker_image_name"):
-                self.logger.warning("No docker_image_name attribute found")
-                return False
-            image_name = self.docker_image_name
-
-        try:
-            if not self.docker_builder.image_exists(image_name):
-                self.log_with_context(
-                    logging.DEBUG,
-                    "Image does not exist, skipping removal",
-                    image=image_name,
-                )
-                return True
-
-            # Use Docker client to remove image
-            self.docker_builder.client.images.remove(image_name, force=force)
-            self.log_operation_complete(
-                "Docker image removal", image=image_name, force=force
-            )
-            return True
-        except DockerException as e:
-            self.log_operation_failed("Docker image removal", e, image=image_name)
-            return False
-
-    def get_docker_image_tag(self) -> str:
-        """
-        Get the Docker image tag for this service.
-
-        Returns:
-            str: Docker image tag
-
-        Raises:
-            AttributeError: If docker_image_name is not set
-        """
-        if not hasattr(self, "docker_image_name"):
-            raise AttributeError(
-                f"{self.__class__.__name__} must have 'docker_image_name' attribute"
-            )
-        return self.docker_image_name
-
-    def set_docker_build_args(self, build_args: Dict[str, str]) -> None:
-        """
-        Set Docker build arguments for future builds.
-
-        Args:
-            build_args: Dictionary of build arguments
-        """
-        if not hasattr(self, "_docker_build_args"):
-            self._docker_build_args = {}
-        self._docker_build_args.update(build_args)
-
-    def get_docker_build_args(self) -> Dict[str, str]:
-        """
-        Get Docker build arguments.
-
-        Returns:
-            dict: Build arguments
-        """
-        return getattr(self, "_docker_build_args", {})

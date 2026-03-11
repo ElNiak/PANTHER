@@ -1,4 +1,19 @@
-"""Error boundary context manager for UI rendering."""
+"""ErrorBoundary — exception-catching context manager for UI rendering.
+
+Provides a ``with error_boundary(title):`` block that catches any exception
+raised during NiceGUI widget construction and replaces the failing subtree
+with a styled error card showing the exception message and a collapsible
+traceback.  This prevents a single broken component from crashing an entire
+PANTHER (Protocol ANalysis and Testing Harness for Extensible Research)
+dashboard page.
+
+Usage::
+
+    from panther.webapp.components.error_boundary import error_boundary
+
+    with error_boundary("Config Panel"):
+        config_form_panel(...)   # if this raises, an error card is shown
+"""
 
 import logging
 import traceback
@@ -11,12 +26,24 @@ logger = logging.getLogger(__name__)
 
 @contextmanager
 def error_boundary(title: str = "Rendering Error"):
-    """Context manager that catches exceptions in UI rendering and shows an error card.
+    """Context manager that catches exceptions during UI rendering.
 
-    Usage:
+    On success the ``yield`` completes normally and no extra UI is added.
+    On failure the exception is logged, and a red error card is rendered
+    in the current container with:
+
+    * A bold title identifying the failing section.
+    * The exception message.
+    * A collapsible traceback for debugging.
+
+    Args:
+        title: Human-readable label for the UI section being protected.
+            Displayed in the error card header on failure.
+
+    Example::
+
         with error_boundary("Config Panel"):
-            # UI code that might fail
-            config_form_panel(...)
+            config_form_panel(...)  # if this raises, error card is shown
     """
     try:
         yield

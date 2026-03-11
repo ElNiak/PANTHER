@@ -1,13 +1,24 @@
 # Getting Started: PANTHER Web Dashboard
 
-Muhammad, this guide gets you from zero to productive in your first day. Follow it step by step.
+This guide gets you from zero to productive in your first day working on the PANTHER
+web dashboard. It is designed for developers who are new to the codebase — whether
+you are a thesis student, a contributor, or someone evaluating the project. Follow
+it step by step.
+
+**What you will learn:**
+- How to install and run the webapp locally
+- The code structure and key files to read first
+- How the service layer connects the UI to PANTHER's backend
+- Where to find the architecture docs and development plan
 
 ## Prerequisites
 
-- Python 3.10+ installed
-- git
-- A modern browser (Chrome or Firefox)
-- Docker (only needed to run real experiments -- not required for webapp development)
+- **Python 3.10+** installed (`python --version` to check)
+- **git** for version control
+- **A modern browser** (Chrome or Firefox recommended)
+- **Docker** — only needed to run real experiments; not required for webapp UI development
+- **Familiarity with Python** — the webapp is pure Python (no JavaScript required)
+- **Basic NiceGUI knowledge** recommended — see [NiceGUI documentation](https://nicegui.io/documentation)
 
 ## Step 1: Setup (30 minutes)
 
@@ -28,7 +39,7 @@ Verify:
 ```bash
 panther --help          # Should show CLI commands including 'web'
 python -c "import nicegui; print(nicegui.__version__)"   # Should print 3.x
-python -c "from niceguicrud import NiceCRUD; print('OK')"  # Should print OK
+python -c "from panther.webapp.components.pydantic_form import PydanticForm; print('OK')"  # Should print OK
 ```
 
 ## Step 2: Run the Webapp (5 minutes)
@@ -68,64 +79,25 @@ Read these files in this order:
 8. **`panther/core/observer/impl/gui_observer.py`** -- GUIObserver base class. Your WebObserver will subclass this.
 9. **`panther/core/reporting/status_collector.py`** -- ExperimentSummary, TestResult, ServiceHealthSummary. The results page parses these.
 
-## Step 4: NiceCRUD Spike (2 hours)
+## Step 4: PydanticForm Exploration (1 hour)
 
-Before building the full config builder, test if NiceCRUD works with PANTHER's models.
-
-Create a temporary test file `test_nicecrud_spike.py` in the repo root:
+The config builder uses `PydanticForm` — a custom component that recursively
+renders any Pydantic `BaseModel` as editable NiceGUI widgets.
 
 ```python
-"""NiceCRUD spike: test with PANTHER config models."""
-from nicegui import ui
-from niceguicrud import NiceCRUD
-from panther.config.core.models.global_config import LoggingConfig, DockerConfig
-from panther.webapp.utils.form_models import strip_omega_config
+from panther.webapp.components.pydantic_form import PydanticForm, FormConfig
+from panther.config.core.models.global_config import LoggingConfig
 
-@ui.page('/')
-def main():
-    ui.label("NiceCRUD Spike").classes('text-h4')
-
-    # IMPORTANT: PANTHER models carry omega_config: Optional[DictConfig]
-    # which breaks NiceCRUD's JSON Schema generation. strip_omega_config()
-    # removes it recursively.
-
-    # Test 1: Simple flat model
-    ui.label("LoggingConfig:").classes('text-h6')
-    try:
-        FormModel = strip_omega_config(LoggingConfig)
-        crud = NiceCRUD(FormModel, id_field='level')
-        crud.show_table()
-        ui.label("LoggingConfig: works!").classes('text-green')
-    except Exception as e:
-        ui.label(f"LoggingConfig FAILED: {e}").classes('text-red')
-
-    # Test 2: Nested model (note: field is force_build_docker_image, NOT force_build)
-    ui.label("DockerConfig:").classes('text-h6')
-    try:
-        FormModel2 = strip_omega_config(DockerConfig)
-        crud2 = NiceCRUD(FormModel2, id_field='force_build_docker_image')
-        crud2.show_table()
-        ui.label("DockerConfig: works!").classes('text-green')
-    except Exception as e:
-        ui.label(f"DockerConfig FAILED: {e}").classes('text-red')
-
-ui.run(port=9999)
+# PydanticForm handles nested models, enums, Optional fields, etc. automatically
+form = PydanticForm(LoggingConfig, config=FormConfig(section_style="card"))
+data = form.get_value()  # Returns validated dict
+form.set_value({"level": "DEBUG"})
 ```
 
-Run: `python test_nicecrud_spike.py`
+Run `panther web --reload` and navigate to `/config` to see PydanticForm in action.
 
-Document what happens:
-- Does LoggingConfig render correctly with `strip_omega_config`?
-- Does DockerConfig (with nested sub-models) render?
-- Are Optional fields handled?
-- Are Enum fields (e.g., LoggingConfig.level) rendered as dropdowns?
-- Does the "Create" button produce a valid model instance?
-
-**Write a 1-page spike report.** This confirms the NiceCRUD approach for Week 2.
-
-> **Already verified:** The `strip_omega_config` utility and NiceCRUD integration
-> pass 40 automated tests (see `tests/unit/test_webapp/`). The spike is for
-> you to understand the rendering behavior visually and document edge cases.
+See `panther/webapp/components/pydantic_form.py` for the implementation and
+`tests/integration/test_pydantic_form_browser.py` for comprehensive tests.
 
 ## Step 5: Verify Bug Fixes (15 minutes)
 
@@ -135,11 +107,30 @@ The scaffold bugs have been fixed in this commit. Verify they work:
 2. **Config service**: The config service now resolves paths relative to the project root. Verify `panther web` starts without path errors.
 3. **Experiment service**: Uses `asyncio.to_thread()` instead of a busy-loop. The experiment launch should not block the UI.
 
+## Step 5.5: Understanding the Integration Layer
+
+The webapp uses 4 service wrappers to talk to PANTHER core. Pages never import core classes directly — services handle error wrapping, async safety, and threading concerns. This is the key abstraction to understand before building new features.
+
+| I want to... | Use this service | Key methods |
+|-------------|-----------------|-------------|
+| Load/validate a config | `ConfigService` | `load_config()`, `validate_config_detailed()`, `save_config()` |
+| Run an experiment | `ExperimentService` | `run_experiment()`, `stop()`, `status`, `is_running` |
+| Get live updates during a run | `ExperimentService` | `subscribe_events()`, `unsubscribe_events()`, `register_callbacks()` |
+| Browse past results | `ResultsService` | `list_experiments()`, `get_experiment_detail()`, `get_test_detail()` |
+| List available plugins | `PluginService` | `list_plugins()`, `get_plugin_detail()`, `get_plugin_manifest()` |
+
+**Important patterns:**
+- `ExperimentService` is a singleton — get it via `get_experiment_service()`. It persists log buffer and status across page navigations.
+- All other services are stateless — instantiated once in `app.py` and passed to pages.
+- Experiment execution runs in a background thread (`asyncio.to_thread`). Subscribe to events for real-time updates; unsubscribe on page disconnect to prevent stale callbacks.
+
+For full API reference and architectural details, see `ARCHITECTURE.md` § "Service Layer Pattern" and § "Service API Reference".
+
 ## Step 6: Read the Plan
 
 Now read your development plan and architecture docs:
 
-- **`panther/webapp/docs/TASKS.md`** -- 8-week plan with code and thesis tasks per week
+- **`panther/webapp/TASKS.md`** -- 4-phase plan with code and thesis tasks per phase
 - **`panther/webapp/ARCHITECTURE.md`** -- Design decisions, integration patterns, data models, scope
 
 Run the existing test suite to make sure everything works:
@@ -168,30 +159,49 @@ pytest tests/unit/test_webapp/ -v -o "addopts=-v --tb=short"
 - Services wrap core classes, handle errors, provide async-safe interfaces
 - Each service maps to one core component (see ARCHITECTURE.md)
 
-### NiceCRUD with PANTHER Models
-- **Always use `strip_omega_config()`** before passing models to NiceCRUD (see `panther.webapp.utils.form_models`)
-- Always pass `id_field` parameter (PANTHER models don't have an `id` field)
-- Correct `id_field` values: LoggingConfig=`"level"`, PathsConfig=`"output_dir"`, DockerConfig=`"force_build_docker_image"`, TestConfig=`"name"`, ServiceConfig=`"implementation"`
-- For nested models, compose multiple NiceCRUD instances in `ui.expansion` panels
+### PydanticForm
+- `PydanticForm(ModelClass)` renders any Pydantic BaseModel as editable widgets
+- `form.get_value()` returns a validated dict; `form.set_value(data)` populates fields
+- `FormConfig` controls layout: section style (expansion/card/flat), advanced toggle, CSS prefix
+- Nested models are handled recursively; enums become dropdowns; Optional[BaseModel] gets a toggle
+- See `panther/webapp/components/pydantic_form.py` for implementation details
 
-## Your First Week Deliverables
+## Understanding Config as a Graph
 
-By end of Week 1, you should have:
-1. All 5 pages loading without errors (verified by running `panther web --reload`)
-2. All 40 existing tests passing (verified by running `pytest tests/unit/test_webapp/`)
-3. NiceCRUD visual spike report (1 page with screenshots — the automated tests already prove it works, but you need to see the rendered UI and document edge cases)
-4. Background chapter outline for thesis
-5. Related work research notes (web-based testing tools, framework comparisons)
+PANTHER config files describe a graph: services are nodes, protocol relationships are
+edges, and network environments group them. See `ARCHITECTURE.md` § "Config Model
+Hierarchy" for the data model and § "Visual Topology Editor" for graph-relevant fields.
 
-## Thesis Writing Tips (UCLouvain EPL)
+## NiceGUI JavaScript Interop
 
-Your thesis should be 40-60 pages. Suggested chapter structure:
+When building custom interactive components (e.g., a topology editor), you may need
+to bridge between Python and browser-side JavaScript. NiceGUI provides
+`ui.run_javascript()` for this:
 
-1. **Introduction** (5-7 pages): Problem statement, contributions, structure
-2. **Background & Related Work** (8-12 pages): Protocol testing, PANTHER framework, web UI frameworks, comparison
-3. **Architecture & Design** (8-12 pages): Stack choice, service layer, observer integration, NiceCRUD pipeline
-4. **Implementation** (10-15 pages): Config builder, experiment launch, results dashboard, charts
-5. **Evaluation** (5-8 pages): Testing methodology, usability comparison with CLI, demo walkthrough
-6. **Conclusion & Future Work** (3-5 pages)
+```python
+# Execute JS and get a result back
+result = await ui.run_javascript('document.title')
 
-Start writing in Week 1. Each week has thesis writing tasks alongside code tasks.
+# Dispatch custom events from JS to Python
+container = ui.element('div')
+container.on('my-event', lambda e: print(e.args))
+ui.run_javascript(f'''
+    const el = document.getElementById("{container.id}");
+    el.dispatchEvent(new CustomEvent("my-event", {{
+        detail: {{key: "value"}},
+        bubbles: true
+    }}));
+''')
+```
+
+See the [NiceGUI documentation on JavaScript](https://nicegui.io/documentation)
+for more patterns.
+
+
+## For Thesis Students
+
+If you are working on this codebase as part of a thesis, the following resources
+will help you get started:
+
+- **`TASKS.md`** — development roadmap with phased goals
+- **`ARCHITECTURE.md`** — design decisions and integration patterns

@@ -1,6 +1,8 @@
 # Development Setup: PANTHER Web Dashboard
 
-How to get the webapp running locally for development.
+How to get the webapp running locally for development. This is a companion to
+[GETTING_STARTED.md](GETTING_STARTED.md) (conceptual walkthrough) and
+[ARCHITECTURE.md](ARCHITECTURE.md) (design decisions).
 
 ## Prerequisites
 
@@ -28,10 +30,11 @@ pip install -e ".[web,dev]"
 
 This installs:
 - `nicegui>=3.0.0` -- the UI framework
-- `niceguicrud==0.1.6` -- auto-generated CRUD forms from Pydantic v2 models
 - `uvicorn[standard]` -- ASGI server (used by NiceGUI internally)
 - `websockets` -- WebSocket support
 - Plus all PANTHER core dependencies and dev tools (pytest, black, etc.)
+
+Config forms are rendered by the built-in `PydanticForm` component (no external form library needed).
 
 ## Run the Dev Server
 
@@ -59,8 +62,8 @@ panther --help          # Should list 'web' command
 # 2. Check NiceGUI is installed
 python -c "import nicegui; print(nicegui.__version__)"   # Should print 3.x
 
-# 3. Check NiceCRUD works with PANTHER models
-python -c "from niceguicrud import NiceCRUD; from panther.config.core.models.global_config import LoggingConfig; print('NiceCRUD OK')"
+# 3. Check PydanticForm works with PANTHER models
+python -c "from panther.webapp.components.pydantic_form import PydanticForm; print('PydanticForm OK')"
 
 # 4. Start the server and check all 5 pages load
 panther web --reload
@@ -98,8 +101,9 @@ panther/webapp/
         yaml_editor.py      # CodeMirror YAML editor component.
         log_viewer.py       # Scrolling log display.
         stat_cards.py       # Stat counter cards.
+        topology_editor.py  # Topology editor placeholder (student implements).
     utils/                  # Utility modules.
-        form_models.py      # strip_omega_config() -- makes PANTHER models NiceCRUD-safe.
+        form_models.py      # Type introspection utilities for PydanticForm.
     services/               # Business logic. Thin wrappers around PANTHER core.
         experiment_service.py
         plugin_service.py
@@ -145,40 +149,3 @@ flake8 panther/webapp/           # Lint
 ```
 
 Run `black` and `isort` before every commit.
-
-## Troubleshooting
-
-**`ModuleNotFoundError: No module named 'nicegui'`**
-You installed without the `[web]` extra. Run: `pip install -e ".[web]"`
-
-**`panther web` command not found**
-Reinstall: `pip install -e ".[web]"`
-
-**Port already in use**
-Kill the existing process (`lsof -ti:8080 | xargs kill`) or use a different port: `panther web --port 9000`
-
-**NiceGUI hot reload causes import errors**
-Restart the server manually. If persistent, run without `--reload`.
-
-**Browser shows "Disconnected" after saving a file**
-Normal during hot reload. Wait 2-3 seconds for reconnection.
-
-**`ImportError` when importing PANTHER core modules**
-Make sure you activated the venv and installed with `pip install -e ".[web]"`.
-
-**NiceCRUD `id_field` error**
-NiceCRUD requires (1) stripping `omega_config` fields and (2) an `id_field` parameter:
-```python
-from panther.webapp.utils.form_models import strip_omega_config
-FormModel = strip_omega_config(LoggingConfig)
-NiceCRUD(FormModel, id_field="level")
-
-FormModel2 = strip_omega_config(DockerConfig)
-NiceCRUD(FormModel2, id_field="force_build_docker_image")
-```
-
-**Plugin list is empty on /plugins**
-Make sure you're running from the repo root (where `panther/plugins/` exists).
-
-**ConfigService fails to find default config**
-The service resolves paths relative to the project root (3 levels up from `services/`). Make sure you're running from the repo root or that `experiment-config/` exists.

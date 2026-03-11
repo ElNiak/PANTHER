@@ -1,7 +1,13 @@
-"""Centralized phase collection pattern definitions for all PANTHER services."""
+"""Centralized phase collection pattern definitions for all PANTHER services.
+
+Pattern tuples can be either 2-tuples ``(type, pattern)`` or 3-tuples
+``(type, pattern, required)``.  When a 3-tuple is used and ``required``
+is ``True``, the pattern counts toward the output-completeness metric
+reported by ``ServiceHealthAnalyzer``.  2-tuples default to optional.
+"""
 
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 
 class ExecutionPhase(Enum):
@@ -19,22 +25,24 @@ class ExecutionPhase(Enum):
 class PhaseCollectionStandard:
     """Centralized definition of all phase collection patterns."""
 
-    # Base patterns all services should have
+    # Base patterns all services should have.
+    # 3-tuples: (type, pattern, required) — required patterns count toward completeness.
+    # 2-tuples: (type, pattern) — optional, backwards-compatible.
     BASE_PHASE_PATTERNS = [
         ("pre_compile_stdout", "pre-compile/stdout.log"),
         ("pre_compile_stderr", "pre-compile/stderr.log"),
-        ("compile_stdout", "compile/stdout.log"),
-        ("compile_stderr", "compile/stderr.log"),
+        ("compile_stdout", "compile/stdout.log", True),
+        ("compile_stderr", "compile/stderr.log", True),
         ("post_compile_stdout", "post-compile/stdout.log"),
         ("post_compile_stderr", "post-compile/stderr.log"),
         ("pre_run_stdout", "pre-run/stdout.log"),
         ("pre_run_stderr", "pre-run/stderr.log"),
-        ("runtime_stdout", "runtime/stdout.log"),
-        ("runtime_stderr", "runtime/stderr.log"),
+        ("runtime_stdout", "runtime/stdout.log", True),
+        ("runtime_stderr", "runtime/stderr.log", True),
         ("post_run_stdout", "post-run/stdout.log"),
         ("post_run_stderr", "post-run/stderr.log"),
-        ("test_stdout", "test/stdout.log"),
-        ("test_stderr", "test/stderr.log"),
+        ("test_stdout", "test/stdout.log", True),
+        ("test_stderr", "test/stderr.log", True),
         # Compilation status
         ("compilation_status", "compile/compilation_status.txt"),
         # Legacy compatibility
@@ -159,8 +167,8 @@ class PhaseCollectionStandard:
         # Substitute service name placeholders
         if service_name:
             patterns = [
-                (output_type, pattern.replace("{service_name}", service_name))
-                for output_type, pattern in patterns
+                (p[0], p[1].replace("{service_name}", service_name), *p[2:])
+                for p in patterns
             ]
 
         return patterns
@@ -179,7 +187,8 @@ class PhaseCollectionStandard:
         required_phases = {"pre-compile", "compile", "runtime", "test"}
         found_phases = set()
 
-        for output_type, pattern in patterns:
+        for p in patterns:
+            output_type, pattern = p[0], p[1]
             if not isinstance(output_type, str) or not isinstance(pattern, str):
                 errors.append(f"Invalid pattern format: {output_type}, {pattern}")
                 continue

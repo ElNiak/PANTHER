@@ -1,5 +1,4 @@
-"""
-Tools Command - Click Implementation
+"""Tools Command - Click Implementation.
 
 Install and manage development/runtime tools for PANTHER.
 """
@@ -20,6 +19,7 @@ from panther.cli_click.core.base import (
     info_message,
     pass_context_and_setup_logging,
     success_message,
+    warning_message,
 )
 
 
@@ -28,8 +28,7 @@ from panther.cli_click.core.base import (
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
 @click.pass_context
 def tools(ctx, verbose):
-    """
-    Install and manage development/runtime tools.
+    r"""Install and manage development/runtime tools.
 
     PANTHER tools management for Docker optimization, code quality,
     and development environment setup. Provides unified interface
@@ -64,8 +63,7 @@ def tools(ctx, verbose):
 @handle_errors
 @pass_context_and_setup_logging
 def install_slim(ctx, force, config, verbose, dry_run):
-    """
-    Install slim tool for Docker image optimization.
+    r"""Install slim tool for Docker image optimization.
 
     The slim tool helps reduce Docker image sizes by up to 30x by removing
     unnecessary files and optimizing the container structure. Essential for
@@ -175,8 +173,7 @@ def install_slim(ctx, force, config, verbose, dry_run):
 @handle_errors
 @pass_context_and_setup_logging
 def install_precommit(ctx, update, config, verbose, dry_run):
-    """
-    Install and configure pre-commit hooks.
+    r"""Install and configure pre-commit hooks.
 
     Sets up pre-commit framework for automated code quality checks including
     linting, formatting, security scanning, and test validation. Essential
@@ -260,8 +257,7 @@ def install_precommit(ctx, update, config, verbose, dry_run):
 @common_options
 @pass_context_and_setup_logging
 def status(ctx, config, verbose, dry_run):
-    """
-    Show status of installed tools.
+    r"""Show status of installed tools.
 
     Displays comprehensive status of all development tools used by PANTHER,
     including installation status, versions, and configuration state.
@@ -293,22 +289,47 @@ def status(ctx, config, verbose, dry_run):
     ]
 
     for tool, description, emoji in tools_to_check:
-        result = subprocess.run(["which", tool], capture_output=True)
-        if result.returncode == 0:
-            path = result.stdout.decode().strip()
-            status_text = colored("✅ Installed", "green")
+        if tool == "docker":
+            # Use DockerBuilder for Docker status (checks daemon connectivity)
+            try:
+                from panther.core.docker_builder import DockerBuilder
 
-            if verbose:
-                # Get version if possible
-                version_result = subprocess.run(
-                    [tool, "--version"], capture_output=True, text=True
-                )
-                if version_result.returncode == 0:
-                    version = version_result.stdout.strip().split("\n")[0]
-                    status_text += f" ({version})"
-                status_text += f" at {path}"
+                builder = DockerBuilder.get_instance(enable_cache=False)
+                is_available = builder.is_docker_available()
+                if is_available:
+                    status_text = colored("✅ Installed (daemon running)", "green")
+                    if verbose:
+                        version_info = (
+                            builder.client.version() if builder.client else {}
+                        )
+                        version_str = version_info.get("Version", "unknown")
+                        status_text = colored(
+                            f"✅ Installed ({version_str}, daemon running)",
+                            "green",
+                        )
+                else:
+                    status_text = colored(
+                        "⚠️ Installed but daemon not running", "yellow"
+                    )
+            except Exception:
+                status_text = colored("❌ Not found", "red")
         else:
-            status_text = colored("❌ Not found", "red")
+            result = subprocess.run(["which", tool], capture_output=True)
+            if result.returncode == 0:
+                path = result.stdout.decode().strip()
+                status_text = colored("✅ Installed", "green")
+
+                if verbose:
+                    # Get version if possible
+                    version_result = subprocess.run(
+                        [tool, "--version"], capture_output=True, text=True
+                    )
+                    if version_result.returncode == 0:
+                        version = version_result.stdout.strip().split("\n")[0]
+                        status_text += f" ({version})"
+                    status_text += f" at {path}"
+            else:
+                status_text = colored("❌ Not found", "red")
 
         click.echo(f"{emoji} {tool:15} {description:30} {status_text}")
 
@@ -316,8 +337,7 @@ def status(ctx, config, verbose, dry_run):
 @tools.command("list")
 @pass_context_and_setup_logging
 def list_tools(ctx):
-    """
-    List all available tools for installation.
+    r"""List all available tools for installation.
 
     Shows comprehensive list of all tools that can be managed through
     the PANTHER tools system, including descriptions, installation
@@ -376,8 +396,7 @@ def list_tools(ctx):
 @handle_errors
 @pass_context_and_setup_logging
 def uninstall(ctx, tool_name, confirm, config, verbose, dry_run):
-    """
-    Uninstall specified tool.
+    r"""Uninstall specified tool.
 
     Removes tools installed through PANTHER tools system.
     Use with caution as this may affect PANTHER functionality.

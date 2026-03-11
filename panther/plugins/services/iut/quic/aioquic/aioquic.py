@@ -13,7 +13,7 @@ from panther.plugins.services.iut.iut_event_mixin import IUTManagerEventMixin
     plugin_type=PluginType.IUT,
     name="aioquic",
     version="2.0.0",
-    description="aioquic - Python QUIC implementation with asyncio (Refactored)",
+    description="aioquic - Python QUIC implementation with asyncio ",
     author="PANTHER Team",
     dependencies=["docker"],
     supported_protocols=["quic"],

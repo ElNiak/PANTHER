@@ -1,5 +1,4 @@
-"""
-Unit tests for PANTHER Docker Builder system.
+"""Unit tests for PANTHER Docker Builder system.
 
 Tests the real DockerBuilder class with only IO-boundary mocking
 (Docker daemon connection). All internal logic runs as real code.
@@ -7,11 +6,10 @@ Tests the real DockerBuilder class with only IO-boundary mocking
 
 import json
 import time
-from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
-from docker.errors import DockerException, NotFound
+from docker.errors import DockerException
 
 from panther.core.docker_builder.docker_builder import DockerBuilder
 
@@ -20,47 +18,6 @@ pytestmark = [pytest.mark.unit, pytest.mark.docker_system]
 
 class TestDockerBuilder:
     """Test DockerBuilder core functionality using real instances."""
-
-    def test_network_creation(self, real_docker_builder, mock_docker_client):
-        """Test Docker network creation delegates to the Docker client."""
-        # network_exists must raise NotFound so create_network proceeds.
-        mock_docker_client.networks.get.side_effect = NotFound("not found")
-
-        # create_network accesses docker.service_types at runtime, so the
-        # docker module must be patched during the call (the fixture patch
-        # only covers __init__).
-        with patch(
-            "panther.core.docker_builder.docker_builder.docker"
-        ) as mock_docker_mod:
-            mock_docker_mod.service_types.IPAMConfig.return_value = MagicMock()
-            mock_docker_mod.service_types.IPAMPool.return_value = MagicMock()
-
-            result = real_docker_builder.create_network("test-net")
-
-        assert result is True
-        mock_docker_client.networks.create.assert_called_once()
-        call_kwargs = mock_docker_client.networks.create.call_args
-        assert call_kwargs[1]["name"] == "test-net"
-        assert call_kwargs[1]["driver"] == "bridge"
-
-    def test_network_creation_custom_driver(
-        self, real_docker_builder, mock_docker_client
-    ):
-        """Test Docker network creation with a custom driver."""
-        mock_docker_client.networks.get.side_effect = NotFound("not found")
-
-        with patch(
-            "panther.core.docker_builder.docker_builder.docker"
-        ) as mock_docker_mod:
-            mock_docker_mod.service_types.IPAMConfig.return_value = MagicMock()
-            mock_docker_mod.service_types.IPAMPool.return_value = MagicMock()
-
-            result = real_docker_builder.create_network("overlay-net", driver="overlay")
-
-        assert result is True
-        call_kwargs = mock_docker_client.networks.create.call_args
-        assert call_kwargs[1]["name"] == "overlay-net"
-        assert call_kwargs[1]["driver"] == "overlay"
 
     def test_docker_availability_check(self, real_docker_builder):
         """Test is_docker_available returns True when Docker daemon responds."""
@@ -163,20 +120,6 @@ class TestDockerSystemErrorHandling:
         mock_docker_client.ping.side_effect = DockerException("refused")
 
         assert real_docker_builder.is_docker_available() is False
-
-    def test_network_creation_when_already_exists(
-        self, real_docker_builder, mock_docker_client
-    ):
-        """Test create_network returns True when network already exists."""
-        # Clear the side_effect from conftest so return_value takes effect
-        mock_docker_client.networks.get.side_effect = None
-        mock_docker_client.networks.get.return_value = MagicMock(id="existing-net")
-
-        result = real_docker_builder.create_network("existing-net")
-
-        assert result is True
-        # Should not try to create since it already exists
-        mock_docker_client.networks.create.assert_not_called()
 
 
 class TestDockerBuilderCacheIntegration:
@@ -291,20 +234,6 @@ class TestDockerBuilderCacheIntegration:
             )
             assert cached_result is True
 
-    def test_cleanup_unused_images_uses_cache(self, mock_docker_builder_with_cache):
-        """Test that cleanup_unused_images() uses cache."""
-        builder, mock_client = mock_docker_builder_with_cache
-
-        # Mock images.remove for cleanup
-        mock_client.images.remove.return_value = True
-
-        # Test cleanup with keep_tags
-        builder.cleanup_unused_images(keep_tags=["keep_this:latest"])
-
-        # Should have called cache operations
-        assert hasattr(builder, "image_cache")
-        assert builder.image_cache is not None
-
     def test_remove_dangling_images_uses_cache(self, mock_docker_builder_with_cache):
         """Test that remove_dangling_images() uses cache."""
         builder, mock_client = mock_docker_builder_with_cache
@@ -322,24 +251,6 @@ class TestDockerBuilderCacheIntegration:
         # Should succeed and use cache
         assert result is True
         assert hasattr(builder, "image_cache")
-
-    def test_docker_status_reporting(self, mock_docker_builder_with_cache):
-        """Test get_docker_status() method."""
-        builder, mock_client = mock_docker_builder_with_cache
-
-        # Get Docker status
-        status = builder.get_docker_status()
-
-        assert isinstance(status, dict)
-        assert "docker_available" in status
-        assert "cache_enabled" in status
-        assert "cached_images" in status
-        assert "cache_fresh" in status
-        assert "fallback_mode" in status
-
-        # Should report cache as enabled
-        assert status["cache_enabled"] is True
-        assert isinstance(status["docker_available"], bool)
 
     def test_builder_singleton_cache_persistence(self, tmp_path):
         """Test that DockerBuilder singleton maintains cache across instances."""

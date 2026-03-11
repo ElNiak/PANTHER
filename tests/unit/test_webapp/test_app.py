@@ -51,10 +51,11 @@ class TestComponents:
     def test_layout_nav_items(self):
         from panther.webapp.components.layout import NAV_ITEMS
 
-        assert len(NAV_ITEMS) == 5
+        assert len(NAV_ITEMS) == 6
         paths = [item[0] for item in NAV_ITEMS]
         assert "/" in paths
         assert "/config" in paths
+        assert "/topology" in paths
         assert "/experiments" in paths
         assert "/results" in paths
         assert "/plugins" in paths

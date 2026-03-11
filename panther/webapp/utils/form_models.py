@@ -1,37 +1,65 @@
-"""Utilities for creating NiceCRUD-compatible form models from PANTHER Pydantic models.
+"""FormModels — type introspection utilities for Pydantic config models.
 
-``build_form_model`` strips unsupported types and assigns defaults to required
-fields, keeping nested BaseModel fields intact (NiceCRUD v2.12.5+ handles them
-natively via edit-button → recursive dialog).  Union[BaseModel...] is also
-preserved (NiceCRUD model-type switcher dropdown).
+Provides field classification helpers used by ``PydanticForm`` and the
+Dict/List widget layer (``dict_list_widgets``) within the PANTHER
+(Protocol ANalysis and Testing Harness for Extensible Research) web
+dashboard to detect complex field types that need special rendering.
 
-Usage::
+The core workflow is:
 
-    from panther.config.core.models.global_config import LoggingConfig
-    from panther.webapp.utils.form_models import build_form_model, pick_id_field
+1. ``classify_complex_field(annotation)`` inspects a type annotation and
+   returns a category string (``"dict_str"``, ``"dict_model"``,
+   ``"list_model"``) or ``None`` for types that ``PydanticForm`` handles
+   inline.
+2. ``get_complex_fields(model_cls)`` iterates all model fields, calls
+   ``classify_complex_field`` on each, and returns a dict mapping field
+   names to ``ComplexFieldInfo`` tuples.
+3. ``PydanticForm._render()`` uses that dict to decide whether to
+   delegate a field to ``create_widget_for_field()`` (complex) or render
+   it directly (scalar / nested model / enum / literal).
 
-    FormModel = build_form_model(LoggingConfig)
-    crud = NiceCRUD(FormModel, id_field=pick_id_field(LoggingConfig))
+Additional helpers:
+
+* ``_extract_inner_type(annotation)`` — pulls the value type from
+  ``Dict[K, V]`` or the element type from ``List[E]``.
+* ``extract_section_data(config_dict, section_path)`` — navigates a
+  nested dict/list by dot-separated path (e.g. ``"tests.0.services"``).
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Any, NamedTuple, Optional, Union, get_args, get_origin
+from typing import Any, NamedTuple, Union, get_args, get_origin
 
-from pydantic import BaseModel, Field, create_model
-from pydantic_core import PydanticUndefined
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
 
 class ComplexFieldInfo(NamedTuple):
-    """Metadata for a field that needs a custom widget (not rendered by NiceCRUD)."""
+    """Metadata for a Pydantic field that needs a custom widget.
+
+    Produced by ``get_complex_fields()`` and consumed by
+    ``create_widget_for_field()`` to instantiate the correct editor.
+
+    Attributes:
+        category: Widget category — one of ``"dict_str"``,
+            ``"dict_model"``, or ``"list_model"``.
+        annotation: The raw Python type annotation from the Pydantic
+            field (e.g. ``Dict[str, ServiceConfig]``).
+        value_type: The extracted inner type — the dict value type or
+            list element type (e.g. ``ServiceConfig``, ``str``).
+        description: Human-readable description from
+            ``Field(description=...)``.
+        json_schema_extra: Pass-through of ``Field(json_schema_extra=...)``
+            metadata (e.g. ``{"key_generator": "service_name"}``).
+    """
 
     category: str  # "dict_str" | "dict_model" | "list_model"
     annotation: Any  # raw type annotation
     value_type: type  # inner type (str, ServiceConfig, etc.)
     description: str  # from Pydantic Field
+    json_schema_extra: dict | None = None  # pass-through from Pydantic Field
 
 
 # ── UI metadata for GlobalConfig sections ────────────────────────────
@@ -46,72 +74,24 @@ GLOBAL_SECTION_META: dict[str, tuple[str, str]] = {
     "observers": ("visibility", "Observer pipeline configurations."),
 }
 
-# ── id_field override map ────────────────────────────────────────────
-
-_ID_FIELD_OVERRIDES: dict[str, str] = {
-    "LoggingConfig": "level",
-    "PathsConfig": "output_dir",
-    "ExperimentMetadata": "name",
-    "StepsConfig": "wait",
-}
-
 
 # ── Public API ───────────────────────────────────────────────────────
-
-
-def build_form_model(model_cls: type[BaseModel]) -> type[BaseModel]:
-    """Create a NiceCRUD-safe copy of *model_cls*.
-
-    * Skips unsupported types (``List[BaseModel]``, all ``Dict[...]``)
-    * Keeps nested ``BaseModel`` fields intact (NiceCRUD handles recursively)
-    * Keeps ``Union[BaseModel...]`` intact (NiceCRUD model switcher)
-    * Recursively cleans nested annotations via ``_clean_annotation()``
-    * Required fields get sensible defaults so NiceCRUD can instantiate
-    """
-    fields: dict = {}
-    for name, field_info in model_cls.model_fields.items():
-        annotation = field_info.annotation
-        if _is_unsupported_for_nicecrud(annotation):
-            continue
-
-        cleaned = _clean_annotation(annotation)
-        default = _resolve_default(field_info, cleaned)
-        fields[name] = (cleaned, default)
-
-    return create_model(f"{model_cls.__name__}Form", **fields)
-
-
-def pick_id_field(model_cls: type[BaseModel]) -> str:
-    """Pick the best id_field for NiceCRUD.
-
-    Priority: explicit override → field named ``name``/``id`` → ``enabled`` → first field.
-    """
-    cls_name = model_cls.__name__
-    if cls_name in _ID_FIELD_OVERRIDES:
-        return _ID_FIELD_OVERRIDES[cls_name]
-
-    field_names = list(model_cls.model_fields.keys())
-    for candidate in ("name", "id"):
-        if candidate in field_names:
-            return candidate
-    if "enabled" in field_names:
-        return "enabled"
-    return field_names[0] if field_names else "id"
-
-
-def get_skipped_fields(model_cls: type[BaseModel]) -> list[str]:
-    """Return names of fields that NiceCRUD cannot render (List[BaseModel], Dict types)."""
-    return list(get_complex_fields(model_cls).keys())
 
 
 def classify_complex_field(annotation) -> str | None:
     """Classify a type annotation into a custom-widget category.
 
+    Recursively unwraps ``Optional[T]`` before inspecting the core type.
+
+    Args:
+        annotation: A Python type annotation (e.g. ``Dict[str, str]``,
+            ``Optional[List[ServiceConfig]]``).
+
     Returns:
-        ``"dict_str"`` for Dict[str, str] / Dict[str, Any],
-        ``"dict_model"`` for Dict[str, BaseModel],
-        ``"list_model"`` for List[BaseModel],
-        ``None`` for types NiceCRUD handles natively.
+        ``"dict_str"`` for ``Dict[str, str]`` / ``Dict[str, Any]``,
+        ``"dict_model"`` for ``Dict[str, BaseModel]``,
+        ``"list_model"`` for ``List[BaseModel]``,
+        ``None`` for types handled inline by ``PydanticForm``.
     """
     origin = get_origin(annotation)
 
@@ -142,9 +122,18 @@ def classify_complex_field(annotation) -> str | None:
 
 
 def get_complex_fields(model_cls: type[BaseModel]) -> dict[str, ComplexFieldInfo]:
-    """Return fields that need custom widgets (not rendered by NiceCRUD).
+    """Return fields that need custom widgets.
 
-    Maps field_name → ComplexFieldInfo for each Dict or List[BaseModel] field.
+    Iterates all fields of *model_cls*, classifies each annotation, and
+    returns a mapping of field names to ``ComplexFieldInfo`` for every
+    ``Dict`` or ``List[BaseModel]`` field.
+
+    Args:
+        model_cls: A Pydantic ``BaseModel`` subclass to inspect.
+
+    Returns:
+        A dict mapping field names to ``ComplexFieldInfo`` tuples.
+        Fields with ``None`` classification are excluded.
     """
     result: dict[str, ComplexFieldInfo] = {}
     for name, field_info in model_cls.model_fields.items():
@@ -152,11 +141,17 @@ def get_complex_fields(model_cls: type[BaseModel]) -> dict[str, ComplexFieldInfo
         if category is None:
             continue
         value_type = _extract_inner_type(field_info.annotation)
+        extra = (
+            field_info.json_schema_extra
+            if isinstance(field_info.json_schema_extra, dict)
+            else None
+        )
         result[name] = ComplexFieldInfo(
             category=category,
             annotation=field_info.annotation,
             value_type=value_type,
             description=field_info.description or "",
+            json_schema_extra=extra,
         )
     return result
 
@@ -186,221 +181,20 @@ def _extract_inner_type(annotation) -> type:
     return str
 
 
-def _is_unsupported_for_nicecrud(annotation) -> bool:
-    """Return True for types NiceCRUD cannot render.
-
-    Unsupported: ``List[BaseModel]``, all ``Dict[K, V]`` types.
-    Supported: ``Union[BaseModel...]``, ``list[str]``, scalar types, nested BaseModel.
-    """
-    origin = get_origin(annotation)
-
-    # Unwrap Optional[T] → check inner
-    if origin is Union:
-        args = [a for a in get_args(annotation) if a is not type(None)]
-        if len(args) == 1:
-            return _is_unsupported_for_nicecrud(args[0])
-        # Union[BaseModel...] (multi-member) → supported (model switcher)
-        return False
-
-    # Dict[K, V] → always unsupported
-    if origin is dict:
-        return True
-
-    # List/list → check element type
-    if origin is list:
-        args = get_args(annotation)
-        if args:
-            elem = args[0]
-            if isinstance(elem, type) and issubclass(elem, BaseModel):
-                return True  # List[BaseModel] unsupported
-        return False  # list[str], list[int] etc. supported
-
-    return False
-
-
-# ── Internal helpers ─────────────────────────────────────────────────
-
-
-def _make_field_tuple(field_info):
-    """Build a ``(annotation, default_or_FieldInfo)`` tuple for ``create_model``."""
-    annotation = field_info.annotation
-    if field_info.default is not PydanticUndefined:
-        return (annotation, field_info.default)
-    if field_info.default_factory is not None:
-        return (annotation, Field(default_factory=field_info.default_factory))
-    return (annotation, ...)
-
-
-def _resolve_default(field_info, cleaned_annotation):
-    """Return a default value suitable for NiceCRUD instantiation.
-
-    If the field already has a default or default_factory, use it.
-    Otherwise, synthesize a sensible default based on the cleaned annotation.
-    """
-    if field_info.default is not PydanticUndefined:
-        return field_info.default
-    if field_info.default_factory is not None:
-        return Field(default_factory=field_info.default_factory)
-
-    # Required field → synthesize default
-    return _synthesize_default(cleaned_annotation)
-
-
-def _synthesize_default(annotation):
-    """Generate a sensible default for a required field based on its type."""
-    origin = get_origin(annotation)
-
-    # Optional[X] → None
-    if origin is Union:
-        args = get_args(annotation)
-        if type(None) in args:
-            return None
-        # Union[BaseModel...] → factory of first member
-        non_none = [a for a in args if a is not type(None)]
-        if (
-            non_none
-            and isinstance(non_none[0], type)
-            and issubclass(non_none[0], BaseModel)
-        ):
-            first = non_none[0]
-            return Field(default_factory=first)
-        return None
-
-    # BaseModel → default_factory
-    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
-        return Field(default_factory=annotation)
-
-    # Scalars
-    if annotation is str or annotation == str:
-        return ""
-    if annotation is int or annotation == int:
-        return 0
-    if annotation is float or annotation == float:
-        return 0.0
-    if annotation is bool or annotation == bool:
-        return False
-
-    # list[X] → []
-    if origin is list:
-        return Field(default_factory=list)
-
-    return None
-
-
-def _clean_annotation(annotation):
-    """Recursively create form-safe versions of nested model annotations."""
-    origin = get_origin(annotation)
-
-    if origin is Union:
-        args = get_args(annotation)
-        cleaned = tuple(_clean_annotation(a) for a in args)
-        # Single non-None member: return Optional[T] (e.g., Optional unwrap)
-        non_none = [a for a in cleaned if a is not type(None)]
-        if len(non_none) == 1 and type(None) in cleaned:
-            return Optional[non_none[0]]
-        if len(cleaned) == 1:
-            return cleaned[0]
-        return Union[tuple(cleaned)]  # type: ignore[valid-type]
-
-    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
-        # Create form-safe version for any BaseModel with required fields
-        # so NiceCRUD can instantiate them without arguments.
-        model_fields = getattr(annotation, "model_fields", {})
-        has_required = any(f.is_required() for f in model_fields.values())
-        if has_required:
-            return build_form_model(annotation)
-
-    return annotation
-
-
-# ── Dict ↔ Form conversion helpers ──────────────────────────────────
-
-
-def dict_to_form_instance(model_cls: type[BaseModel], data: dict) -> BaseModel:
-    """Create a FormModel instance populated from a raw config dict.
-
-    Calls ``build_form_model()``, filters *data* to FormModel fields only,
-    and recursively handles nested BaseModel fields.
-    Complex fields (Dict/List[BaseModel]) are skipped -- those go to widgets.
-    """
-    FormModel = build_form_model(model_cls)
-    form_fields = set(FormModel.model_fields.keys())
-    filtered: dict[str, Any] = {}
-    for key, value in data.items():
-        if key not in form_fields:
-            continue
-        field_info = FormModel.model_fields[key]
-        ann = field_info.annotation
-        # Recursively convert nested BaseModel dicts
-        if (
-            isinstance(value, dict)
-            and isinstance(ann, type)
-            and issubclass(ann, BaseModel)
-        ):
-            try:
-                filtered[key] = ann(**value)
-            except Exception:
-                logger.debug("Failed to convert nested field %s", key)
-                continue
-        else:
-            filtered[key] = value
-    try:
-        return FormModel(**filtered)
-    except Exception:
-        logger.debug(
-            "Failed to create form instance for %s, using defaults", model_cls.__name__
-        )
-        return FormModel()
-
-
-def form_instance_to_dict(
-    instance: BaseModel,
-    widgets: dict[str, Any] | None = None,
-) -> dict:
-    """Serialize a FormModel instance + widget values back to a config dict.
-
-    Calls ``instance.model_dump()``, then merges in ``widget.get_value()``
-    for each widget key.
-    """
-    data = instance.model_dump()
-    if widgets:
-        for field_name, widget in widgets.items():
-            data[field_name] = widget.get_value()
-    return data
-
-
-def populate_panel_from_dict(
-    panel: Any, model_cls: type[BaseModel], data: dict
-) -> None:
-    """Populate an existing ``FormPanelResult`` (crud + widgets) from a dict.
-
-    Handles:
-    - Singleton (SingletonForm): replaces the single instance via ``set_instance()``
-    - Multi-instance NiceCRUD: replaces ``basemodels`` list
-    - Widgets: calls ``widget.set_value()`` with the relevant sub-dict/list
-    """
-    from panther.webapp.components.singleton_crud import SingletonForm
-
-    simple, complex_data = split_simple_and_complex(model_cls, data)
-    instance = dict_to_form_instance(model_cls, simple)
-
-    crud = panel.crud
-    if isinstance(crud, SingletonForm):
-        crud.set_instance(instance)
-    else:
-        crud.basemodels = [instance]
-
-    # Populate widgets with complex field data
-    for field_name, widget in panel.widgets.items():
-        if field_name in complex_data:
-            widget.set_value(complex_data[field_name])
-
-
 def extract_section_data(config_dict: dict, section_path: str) -> Any | None:
-    """Extract nested section using dot notation.
+    """Extract a nested section from a config dict using dot notation.
 
-    E.g. ``'tests.0.services'`` → ``cfg['tests'][0]['services']``.
-    Returns ``None`` if the path doesn't exist.
+    Navigates dicts by key and lists by integer index.  For example,
+    ``"tests.0.services"`` resolves to ``cfg["tests"][0]["services"]``.
+
+    Args:
+        config_dict: The root configuration dictionary.
+        section_path: Dot-separated path to the desired section
+            (e.g. ``"tests.0.network_environment"``).
+
+    Returns:
+        The value at the specified path, or ``None`` if any segment
+        along the path does not exist.
     """
     current: Any = config_dict
     for part in section_path.split("."):
@@ -416,25 +210,3 @@ def extract_section_data(config_dict: dict, section_path: str) -> Any | None:
         else:
             return None
     return current
-
-
-def split_simple_and_complex(
-    model_cls: type[BaseModel], data: dict
-) -> tuple[dict, dict]:
-    """Split a config dict into simple fields (for NiceCRUD) and complex fields (for widgets).
-
-    Returns ``(simple_data, complex_data)`` where:
-    - *simple_data*: only fields that ``build_form_model`` keeps
-    - *complex_data*: only fields classified as complex (Dict, List[BaseModel])
-    """
-    complex = get_complex_fields(model_cls)
-    complex_names = set(complex.keys())
-
-    simple_data: dict[str, Any] = {}
-    complex_data: dict[str, Any] = {}
-    for key, value in data.items():
-        if key in complex_names:
-            complex_data[key] = value
-        else:
-            simple_data[key] = value
-    return simple_data, complex_data

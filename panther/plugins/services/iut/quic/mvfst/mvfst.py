@@ -19,7 +19,7 @@ from panther.plugins.services.iut.iut_service_manager_mixin import (
     plugin_type=PluginType.IUT,
     name="mvfst",
     version="2.0.0",
-    description="MVFST - Meta's implementation of QUIC transport protocol (Refactored)",
+    description="MVFST - Meta's implementation of QUIC transport protocol ",
     author="PANTHER Team",
     dependencies=["docker"],
     supported_protocols=["quic"],

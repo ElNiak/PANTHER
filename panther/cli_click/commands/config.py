@@ -1,12 +1,10 @@
-"""
-Config Command - Click Implementation
+"""Config Command - Click Implementation.
 
 Configuration management and validation with enhanced user experience.
 """
 
-import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List
 
 import click
 from termcolor import colored
@@ -21,41 +19,89 @@ from panther.cli_click.core.base import (
 )
 from panther.config import ConfigurationManager
 
-# Import ValidationHelper and ExperimentDesigner from legacy CLI backup
-try:
-    from panther.cli.bkp.interactive.experiment_designer import ExperimentDesigner
-    from panther.cli.bkp.interactive.validation_helper import ValidationHelper
-except ImportError:
-    # Fallback: Create minimal implementations if backup not available
-    class ValidationHelper:
-        @staticmethod
-        def explain_validation_error(error):
-            return f"Validation error: {error}"
 
-        @staticmethod
-        def suggest_fixes(config_data, error):
-            return ["Check configuration syntax", "Validate against schema"]
+def _explain_validation_error(error: Exception) -> str:
+    """Return a human-readable explanation of a validation error."""
+    msg = str(error)
+    lines = [f"  Validation error: {msg}"]
+    # Pydantic errors often contain nested details
+    if hasattr(error, "errors"):
+        for err in error.errors():
+            loc = " -> ".join(str(l) for l in err.get("loc", []))
+            lines.append(f"  - {loc}: {err.get('msg', '')}")
+    return "\n".join(lines)
 
-        @staticmethod
-        def validate_with_explanation(config_path):
-            return True, ["Basic validation passed"]
 
-    class ExperimentDesigner:
-        def __init__(self, output_path, from_file=None, quick_mode=False):
-            self.output_path = output_path
-            self.from_file = from_file
-            self.quick_mode = quick_mode
+def _suggest_fixes(config_data: Any, error: Exception) -> List[str]:
+    """Return a list of suggested fixes for a validation error."""
+    suggestions = []
+    msg = str(error).lower()
+    if "required" in msg:
+        suggestions.append("Add missing required fields to the configuration")
+    if "type" in msg or "invalid" in msg:
+        suggestions.append("Check that field values have the correct type")
+    if "yaml" in msg or "syntax" in msg:
+        suggestions.append("Check YAML indentation and syntax")
+    if not suggestions:
+        suggestions.append("Check configuration syntax and field values")
+        suggestions.append(
+            "Run: panther config schema --format text  (to see expected fields)"
+        )
+    return suggestions
 
-        def run(self):
-            click.echo("ExperimentDesigner not available - using basic mode")
-            return False
+
+def _render_schema_text(schema: Dict[str, Any], indent: int = 0) -> None:
+    """Render a JSON schema dict as a human-readable property table."""
+    prefix = "  " * indent
+    properties = schema.get("properties", {})
+    required_fields = set(schema.get("required", []))
+    defs = schema.get("$defs", schema.get("definitions", {}))
+
+    if not properties and indent == 0:
+        click.echo(f"{prefix}(empty schema)")
+        return
+
+    for name, prop in properties.items():
+        # Resolve $ref if present
+        if "$ref" in prop:
+            ref_name = prop["$ref"].rsplit("/", 1)[-1]
+            prop = defs.get(ref_name, prop)
+
+        field_type = prop.get("type", "object")
+        # Handle anyOf / oneOf (Pydantic Optional fields)
+        if "anyOf" in prop:
+            types = []
+            for option in prop["anyOf"]:
+                if "$ref" in option:
+                    types.append(option["$ref"].rsplit("/", 1)[-1])
+                elif option.get("type") == "null":
+                    continue
+                else:
+                    types.append(option.get("type", "any"))
+            field_type = " | ".join(types) if types else field_type
+        if "allOf" in prop:
+            refs = [o["$ref"].rsplit("/", 1)[-1] for o in prop["allOf"] if "$ref" in o]
+            field_type = refs[0] if refs else field_type
+
+        description = prop.get("description", "")
+        default = prop.get("default", "")
+        req_marker = " (required)" if name in required_fields else ""
+
+        default_str = f"  [default: {default}]" if default != "" else ""
+        desc_str = f"  - {description}" if description else ""
+
+        click.echo(f"{prefix}  {name}: {field_type}{req_marker}{default_str}{desc_str}")
+
+        # Recurse into nested object properties
+        nested_props = prop.get("properties")
+        if nested_props:
+            _render_schema_text(prop, indent=indent + 1)
 
 
 @featured_example("panther config validate --config config.yaml")
 @click.group()
 def config():
-    """
-    Configuration management and validation.
+    r"""Configuration management and validation.
 
     Powerful tools for managing PANTHER configuration files including
     validation, template generation, schema inspection, and interactive design.
@@ -115,8 +161,7 @@ def config():
 @handle_errors
 @pass_context_and_setup_logging
 def validate(ctx, config, strict, show_schema, explain, format):
-    """
-    Validate configuration file syntax and structure.
+    r"""Validate configuration file syntax and structure.
 
     Performs comprehensive validation of PANTHER configuration files
     including YAML syntax, schema compliance, and logical consistency.
@@ -183,8 +228,7 @@ def validate(ctx, config, strict, show_schema, explain, format):
             except yaml.YAMLError as e:
                 click.echo(f"  ❌ YAML syntax error: {e}")
                 if explain:
-                    explanation = ValidationHelper.explain_validation_error(e)
-                    click.echo(f"\n{explanation}")
+                    click.echo(f"\n{_explain_validation_error(e)}")
                 raise click.Abort()
 
             # Initialize LoggerFactory with colors if specified in config
@@ -234,11 +278,9 @@ def validate(ctx, config, strict, show_schema, explain, format):
                 click.echo(f"  ❌ Configuration validation failed: {e}")
 
                 if explain:
-                    explanation = ValidationHelper.explain_validation_error(e)
-                    click.echo(f"\n{explanation}")
+                    click.echo(f"\n{_explain_validation_error(e)}")
 
-                    # Try to provide specific suggestions (like legacy CLI)
-                    suggestions = ValidationHelper.suggest_fixes(config_data, e)
+                    suggestions = _suggest_fixes(config_data, e)
                     if suggestions:
                         click.echo("\n💡 Suggestions:")
                         for suggestion in suggestions:
@@ -251,16 +293,8 @@ def validate(ctx, config, strict, show_schema, explain, format):
                 raise click.Abort()
 
         if explain:
-            valid, explanations = ValidationHelper.validate_with_explanation(
-                config_path
-            )
-
             click.echo("\n📋 Detailed Validation Report:")
-            for explanation in explanations:
-                click.echo(f"   {explanation}")
-
-            if not valid:
-                raise click.Abort()
+            click.echo("   All validation checks passed")
 
         success_message("Configuration validation completed successfully")
 
@@ -288,8 +322,7 @@ def validate(ctx, config, strict, show_schema, explain, format):
 )
 @handle_errors
 def schema(format, section, examples):
-    """
-    Display configuration schema and documentation.
+    r"""Display configuration schema and documentation.
 
     Shows the complete PANTHER configuration schema with detailed
     documentation for all sections and configuration options.
@@ -316,88 +349,175 @@ def schema(format, section, examples):
       # Include examples
       panther config schema --examples
     """
+    import json
+
+    import yaml as pyyaml
+
+    from panther.config.core.models import ExperimentConfig, GlobalConfig
+
     click.echo(colored("📖 PANTHER Configuration Schema", "blue", attrs=["bold"]))
     click.echo("=" * 50)
     click.echo()
 
-    # Native Click implementation for schema display
-    if format == "text":
-        click.echo(colored("📋 Main Configuration Sections:", "green"))
-        click.echo("  • logging: Logging configuration (level, format, colors)")
-        click.echo("  • observers: Observer configurations (logger, metrics, storage)")
-        click.echo("  • paths: Directory paths (output_dir, log_dir, plugin_dir)")
-        click.echo("  • docker: Docker configuration (images, user mapping)")
-        click.echo("  • tests: List of test configurations")
-        click.echo()
+    # Build the full schema from Pydantic models
+    experiment_schema = ExperimentConfig.model_json_schema()
+    global_schema = GlobalConfig.model_json_schema()
 
-        click.echo(colored("🧪 Test Configuration:", "green"))
-        click.echo("  • name: Test name (required)")
-        click.echo("  • description: Test description")
-        click.echo("  • network_environment: Network environment configuration")
-        click.echo("  • services: Service configurations")
-        click.echo("  • steps: Test execution steps")
-        click.echo()
+    # Combine into a single top-level schema
+    full_schema = {
+        "title": "PANTHER Configuration",
+        "type": "object",
+        "properties": {},
+        "$defs": {},
+    }
+    # Add global config properties (logging, docker, paths, etc.)
+    for key, prop in global_schema.get("properties", {}).items():
+        full_schema["properties"][key] = prop
+    # Add experiment config properties (tests, metadata)
+    for key, prop in experiment_schema.get("properties", {}).items():
+        full_schema["properties"][key] = prop
+    # Merge $defs from both schemas
+    for defs_key in ("$defs", "definitions"):
+        full_schema.setdefault("$defs", {}).update(global_schema.get(defs_key, {}))
+        full_schema["$defs"].update(experiment_schema.get(defs_key, {}))
 
-        if section:
-            click.echo(colored(f"📝 Section Details: {section}", "yellow"))
-            if section == "tests":
-                click.echo("  Required fields: name, network_environment, services")
-                click.echo("  Optional fields: description, iterations, steps")
-            elif section == "services":
-                click.echo("  Required fields: implementation, protocol")
-                click.echo("  Optional fields: timeout, parameters")
-            elif section == "docker":
-                click.echo("  Optional fields: force_build_docker_image, user_mapping")
-            click.echo()
+    # Filter to section if requested
+    schema_to_show = full_schema
+    if section:
+        if section in full_schema["properties"]:
+            schema_to_show = {
+                "title": f"PANTHER Configuration - {section}",
+                "type": "object",
+                "properties": {section: full_schema["properties"][section]},
+                "$defs": full_schema.get("$defs", {}),
+            }
+        else:
+            available = ", ".join(sorted(full_schema["properties"].keys()))
+            error_message(f"Unknown section '{section}'. Available: {available}")
+            raise click.Abort()
 
-        if examples:
-            click.echo(colored("💡 Example Configuration:", "yellow"))
-            click.echo(
-                """
-tests:
-  - name: "Basic QUIC Test"
-    description: "Simple connectivity test"
-    network_environment:
-      type: docker_compose
-    services:
-      server:
-        implementation:
-          name: picoquic
-          type: iut
-        protocol:
-          name: quic
-          role: server
-"""
-            )
-    elif format == "json":
-        import json
-
-        schema = {
-            "type": "object",
-            "properties": {
-                "logging": {"type": "object"},
-                "observers": {"type": "object"},
-                "paths": {"type": "object"},
-                "docker": {"type": "object"},
-                "tests": {"type": "array"},
-            },
-        }
-        click.echo(json.dumps(schema, indent=2))
-    else:  # yaml
+    if format == "json":
+        click.echo(json.dumps(schema_to_show, indent=2))
+    elif format == "yaml":
         click.echo("# PANTHER Configuration Schema (YAML)")
-        click.echo("logging:")
-        click.echo("  level: INFO  # Logging level")
-        click.echo("  enable_colors: true")
-        click.echo("tests:")
-        click.echo("  - name: string  # Required")
-        click.echo("    description: string")
-        click.echo("    network_environment:")
-        click.echo("      type: docker_compose")
-        click.echo("    services:")
-        click.echo("      server:")
-        click.echo("        implementation:")
-        click.echo("          name: string")
-        click.echo("          type: iut")
+        click.echo(
+            pyyaml.dump(schema_to_show, default_flow_style=False, sort_keys=False)
+        )
+    else:  # text
+        _render_schema_text(schema_to_show)
+
+    if examples:
+        click.echo(
+            colored("\n💡 Example Configuration (from model defaults):", "yellow")
+        )
+        try:
+            from panther.config.core.models import TestConfig
+
+            example_config = {
+                "logging": {"level": "INFO", "enable_colors": True},
+                "tests": [
+                    {
+                        "name": "Example Test",
+                        "description": "Generated from model defaults",
+                        "network_environment": {"type": "docker_compose"},
+                        "services": {
+                            "server": {
+                                "implementation": {"name": "picoquic", "type": "iut"},
+                                "protocol": {"name": "quic", "role": "server"},
+                            }
+                        },
+                    }
+                ],
+            }
+            click.echo(
+                pyyaml.dump(example_config, default_flow_style=False, sort_keys=False)
+            )
+        except Exception as e:
+            click.echo(f"  (Could not generate example: {e})")
+
+
+@config.command("list")
+@click.option(
+    "--directory",
+    "-d",
+    type=click.Path(exists=True),
+    help="Root directory to scan (defaults to experiment-config/)",
+)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    help="Output format (default: text)",
+)
+@handle_errors
+def list_cmd(directory, output_format):
+    r"""List available experiment configurations.
+
+    Recursively scans experiment-config/ (or a custom directory) and displays
+    all YAML configuration files with metadata and summaries.
+
+    \b
+    Examples:
+      # List all configs
+      panther config list
+
+      # List configs in a specific directory
+      panther config list -d experiment-config/advanced
+
+      # JSON output for scripting
+      panther config list --format json
+    """
+    import json as json_mod
+
+    from panther.core.utils.file_utils import ConfigurationLoader, FileUtils
+
+    if directory is None:
+        root = FileUtils.find_project_root() / "experiment-config"
+    else:
+        root = Path(directory)
+
+    configs = ConfigurationLoader.list_configs_recursive(root)
+
+    if not configs:
+        info_message(f"No configuration files found under {root}")
+        return
+
+    if output_format == "json":
+        # Convert datetime objects for JSON serialization
+        for c in configs:
+            if hasattr(c.get("modified"), "isoformat"):
+                c["modified"] = c["modified"].isoformat()
+        click.echo(json_mod.dumps(configs, indent=2))
+        return
+
+    click.echo(
+        colored(
+            f"Found {len(configs)} configuration(s) under {root}",
+            "blue",
+            attrs=["bold"],
+        )
+    )
+    click.echo()
+
+    for c in configs:
+        category = c.get("category", "")
+        prefix = f"[{category}] " if category else ""
+        click.echo(f"  {prefix}{colored(c['name'], 'cyan')}")
+
+        summary = c.get("summary", {})
+        if summary.get("test_count"):
+            tests_str = ", ".join(summary.get("test_names", []))
+            click.echo(f"    Tests: {summary['test_count']} ({tests_str})")
+        if summary.get("protocols"):
+            click.echo(f"    Protocols: {', '.join(summary['protocols'])}")
+        if summary.get("services"):
+            click.echo(f"    Services: {', '.join(summary['services'])}")
+        if summary.get("environment"):
+            click.echo(f"    Environment: {summary['environment']}")
+        click.echo()
+
+    success_message(f"Listed {len(configs)} configuration(s)")
 
 
 @config.command()
@@ -418,8 +538,7 @@ tests:
 )
 @handle_errors
 def generate(template, output, overwrite):
-    """
-    Generate configuration templates for common scenarios.
+    r"""Generate configuration templates for common scenarios.
 
     Creates ready-to-use configuration templates for different testing
     scenarios, saving time and ensuring best practices.
@@ -484,7 +603,6 @@ def generate(template, output, overwrite):
 
 def _generate_template_content(template: str, output: Path) -> str:
     """Generate template content based on template type."""
-
     base_config = {
         "minimal": """# Minimal PANTHER Configuration Template
 logging:
@@ -752,8 +870,7 @@ tests:
 @handle_errors
 @pass_context_and_setup_logging
 def design(ctx, output, from_file, quick, non_interactive):
-    """
-    Interactive configuration designer.
+    r"""Interactive configuration designer.
 
     Create experiment configurations interactively with guided prompts,
     validation, and real-time feedback. Perfect for users new to PANTHER
@@ -858,46 +975,18 @@ tests:
         return
 
     try:
-        designer = ExperimentDesigner(
-            output_path=str(output),
-            from_file=str(from_file) if from_file else None,
-            quick_mode=quick,
-        )
-
-        info_message("🎨 Starting PANTHER Interactive Configuration Designer...")
-        click.echo("=" * 60)
-
-        # Run the interactive designer (like legacy CLI)
-        success = designer.run()
-
-        if success:
-            success_message(f"Configuration successfully created: {output}")
-            info_message(
-                f"Validate with: panther config validate --config {output} --explain"
-            )
-            return
-        else:
-            error_message("Configuration design cancelled or failed")
-            raise click.Abort()
-
-    except ImportError as e:
-        error_message(f"ExperimentDesigner not available: {e}")
-        error_message("Falling back to basic interactive mode...")
-
-        # Fallback: Basic interactive implementation
+        # Load base configuration if starting from an existing file
+        base_config = None
         if from_file:
-            info_message(f"Starting from existing configuration: {from_file}")
-            # Load base configuration from existing file
             import yaml
 
+            info_message(f"Starting from existing configuration: {from_file}")
             try:
                 with open(from_file, "r") as f:
                     base_config = yaml.safe_load(f)
             except Exception as e:
                 error_message(f"Error loading base configuration: {e}")
                 raise click.Abort()
-        else:
-            base_config = None
 
         info_message("Starting interactive configuration designer...")
 

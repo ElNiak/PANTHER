@@ -7,9 +7,18 @@ import pytest
 import yaml
 
 
+@pytest.fixture
+def _patch_project_root(tmp_path, monkeypatch):
+    """Patch _PROJECT_ROOT so ConfigService accepts tmp_path-based paths."""
+    monkeypatch.setattr(
+        "panther.webapp.services.config_service._PROJECT_ROOT", tmp_path
+    )
+    return tmp_path
+
+
 @pytest.mark.unit
 class TestConfigServiceFileIO:
-    def test_load_config_returns_dict(self, tmp_path):
+    def test_load_config_returns_dict(self, tmp_path, _patch_project_root):
         from panther.webapp.services.config_service import ConfigService
 
         cfg_file = tmp_path / "test.yaml"
@@ -19,14 +28,14 @@ class TestConfigServiceFileIO:
         assert isinstance(data, dict)
         assert data["logging"]["level"] == "DEBUG"
 
-    def test_load_config_file_not_found(self):
+    def test_load_config_file_not_found(self, tmp_path, _patch_project_root):
         from panther.webapp.services.config_service import ConfigService
 
         svc = ConfigService()
         with pytest.raises(FileNotFoundError):
-            svc.load_config("/nonexistent/path.yaml")
+            svc.load_config(tmp_path / "nonexistent.yaml")
 
-    def test_save_config_creates_file(self, tmp_path):
+    def test_save_config_creates_file(self, tmp_path, _patch_project_root):
         from panther.webapp.services.config_service import ConfigService
 
         svc = ConfigService()
@@ -36,7 +45,7 @@ class TestConfigServiceFileIO:
         loaded = yaml.safe_load(out.read_text())
         assert loaded["logging"]["level"] == "INFO"
 
-    def test_load_save_roundtrip(self, tmp_path):
+    def test_load_save_roundtrip(self, tmp_path, _patch_project_root):
         from panther.webapp.services.config_service import ConfigService
 
         svc = ConfigService()
@@ -132,7 +141,9 @@ class TestFieldLevelValidation:
 
         svc = ConfigService()
         errors = svc.validate_config_detailed({"tests": []})
-        assert any(e.path == "tests" and e.severity == "warning" for e in errors)
+        assert any(
+            e.path in ("tests", "config") and e.severity == "error" for e in errors
+        )
 
     def test_field_error_has_path_and_message(self):
         from panther.webapp.services.config_service import FieldError
@@ -149,17 +160,17 @@ class TestConfigServiceSecurity:
         from panther.webapp.services.config_service import ConfigService
 
         svc = ConfigService()
-        with pytest.raises(ValueError, match="must be a YAML file"):
+        with pytest.raises(ValueError, match="must have one of these extensions"):
             svc.load_config("/etc/passwd")
 
-    def test_save_config_rejects_non_yaml(self, tmp_path):
+    def test_save_config_rejects_non_yaml(self, tmp_path, _patch_project_root):
         from panther.webapp.services.config_service import ConfigService
 
         svc = ConfigService()
-        with pytest.raises(ValueError, match="must be a YAML file"):
+        with pytest.raises(ValueError, match="must have one of these extensions"):
             svc.save_config(str(tmp_path / "evil.txt"), {"x": 1})
 
-    def test_load_config_accepts_yaml_extension(self, tmp_path):
+    def test_load_config_accepts_yaml_extension(self, tmp_path, _patch_project_root):
         from panther.webapp.services.config_service import ConfigService
 
         cfg_file = tmp_path / "test.yaml"
@@ -168,10 +179,57 @@ class TestConfigServiceSecurity:
         data = svc.load_config(str(cfg_file))
         assert data["logging"]["level"] == "DEBUG"
 
-    def test_save_config_accepts_yml_extension(self, tmp_path):
+    def test_save_config_accepts_yml_extension(self, tmp_path, _patch_project_root):
         from panther.webapp.services.config_service import ConfigService
 
         svc = ConfigService()
         out = tmp_path / "out.yml"
         svc.save_config(str(out), {"x": 1})
         assert out.exists()
+
+    def test_path_traversal_rejected_for_load(self):
+        """Loading from outside project root must be rejected."""
+        from panther.webapp.services.config_service import ConfigService
+
+        svc = ConfigService()
+        with pytest.raises(ValueError, match="within the root directory"):
+            svc.load_config("/tmp/evil/attack.yaml")
+
+    def test_path_traversal_rejected_for_save(self):
+        """Saving outside project root must be rejected."""
+        from panther.webapp.services.config_service import ConfigService
+
+        svc = ConfigService()
+        with pytest.raises(ValueError, match="within the root directory"):
+            svc.save_config("/tmp/evil/attack.yaml", {"x": 1})
+
+    def test_path_traversal_with_dotdot(self, tmp_path, _patch_project_root):
+        """Paths with .. that resolve outside project root must be rejected."""
+        from panther.webapp.services.config_service import ConfigService
+
+        svc = ConfigService()
+        # This resolves outside tmp_path (the patched _PROJECT_ROOT)
+        traversal_path = str(tmp_path / "sub" / ".." / ".." / "escape.yaml")
+        with pytest.raises(ValueError, match="within the root directory"):
+            svc.load_config(traversal_path)
+
+    def test_path_within_project_accepted(self, tmp_path, _patch_project_root):
+        """Paths within project root should be accepted."""
+        from panther.webapp.services.config_service import ConfigService
+
+        svc = ConfigService()
+        cfg = tmp_path / "configs" / "valid.yaml"
+        cfg.parent.mkdir(parents=True, exist_ok=True)
+        cfg.write_text("x: 1")
+        data = svc.load_config(str(cfg))
+        assert data == {"x": 1}
+
+    def test_save_with_mkdir_within_project(self, tmp_path, _patch_project_root):
+        """save_config should create subdirectories within project root."""
+        from panther.webapp.services.config_service import ConfigService
+
+        svc = ConfigService()
+        out = tmp_path / "new" / "nested" / "config.yaml"
+        svc.save_config(str(out), {"test": True})
+        assert out.exists()
+        assert yaml.safe_load(out.read_text()) == {"test": True}

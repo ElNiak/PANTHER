@@ -43,29 +43,6 @@ class CachingMixin(LoggerMixin):
 
         self.logger.debug("All caches cleared")
 
-    def get_cache_statistics(self) -> Dict[str, Any]:
-        """Get cache usage statistics.
-
-        Returns:
-            Dictionary with cache statistics
-        """
-        total_requests = self._cache_hits + self._cache_misses
-        hit_rate = (
-            (self._cache_hits / total_requests * 100) if total_requests > 0 else 0
-        )
-
-        return {
-            "cache_hits": self._cache_hits,
-            "cache_misses": self._cache_misses,
-            "hit_rate": f"{hit_rate:.1f}%",
-            "cached_experiments": len(self._loaded_experiments),
-            "cached_validations": len(self._validation_cache),
-            "cached_plugins": self._plugin_cache is not None,
-            "cached_schemas": self._schema_cache is not None,
-            "cached_versions": len(self._version_cache),
-            "memory_usage": self._estimate_cache_memory(),
-        }
-
     def _generate_cache_key(
         self, source: Any, defaults: Optional[Dict[str, Any]] = None
     ) -> str:
@@ -106,26 +83,6 @@ class CachingMixin(LoggerMixin):
 
         # Combine parts
         return "|".join(key_parts)
-
-    def preload_configurations(self, configs: List[Path]) -> None:
-        """Preload configurations into cache.
-
-        Args:
-            configs: List of configuration file paths to preload
-        """
-        self.logger.info(f"Preloading {len(configs)} configurations")
-
-        loaded = 0
-        for config_path in configs:
-            try:
-                if config_path.exists():
-                    # Load through normal mechanism to populate cache
-                    self.load_experiment_config(config_path, validate=False)
-                    loaded += 1
-            except Exception as e:
-                self.logger.warning(f"Failed to preload {config_path}: {e}")
-
-        self.logger.info(f"Preloaded {loaded} configurations successfully")
 
     def _get_from_cache(self, key: str) -> Optional[BaseConfig]:
         """Get configuration from cache.
@@ -204,34 +161,3 @@ class CachingMixin(LoggerMixin):
             return f"{total_kb:.1f}KB"
         else:
             return f"{total_kb/1024:.1f}MB"
-
-    def invalidate_cache_entry(self, key: str) -> None:
-        """Invalidate a specific cache entry.
-
-        Args:
-            key: Cache key to invalidate
-        """
-        if key in self._loaded_experiments:
-            del self._loaded_experiments[key]
-            self.logger.debug(f"Invalidated cache entry: {key}")
-
-        if key in self._validation_cache:
-            del self._validation_cache[key]
-
-    def warm_cache(self) -> None:
-        """Warm up caches by preloading common configurations."""
-        self.logger.info("Warming up configuration caches")
-
-        # Preload plugin information
-        if hasattr(self, "discover_plugins"):
-            self.discover_plugins(force_refresh=True)
-
-        # Preload schemas
-        if hasattr(self, "load_plugin_schemas"):
-            self.load_plugin_schemas(force_refresh=True)
-
-        # Preload version information
-        if hasattr(self, "discover_available_versions"):
-            self.discover_available_versions()
-
-        self.logger.info("Cache warming completed")

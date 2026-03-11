@@ -1,5 +1,4 @@
-"""
-Unit tests for Docker image existence validation across PANTHER components.
+"""Unit tests for Docker image existence validation across PANTHER components.
 
 This module tests the critical Docker image validation functionality that prevents
 the error "unknown (ceacda77-b5b4-56d6-a95f-ec764bb37357)" by ensuring proper
@@ -261,7 +260,7 @@ class TestEnvironmentManagerImageValidation:
     ):
         """Test current behavior where missing images only generate warnings.
 
-        This documents the problematic behavior in environment_manager_docker_mixing.py
+        This documents the problematic behavior in environment_manager_docker_mixin.py
         where a missing image only generates a warning instead of failing.
         """
         image_tag = "missing-service:latest"

@@ -1,12 +1,10 @@
-"""
-Docker Registry Management for PANTHER
+"""Docker Registry Management for PANTHER.
 
 This module provides a registry system to track Docker images, containers,
 and build cache information for PANTHER experiments.
 """
 
 import json
-import time
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from enum import Enum
@@ -76,8 +74,7 @@ class BuildCacheEntry:
 
 
 class DockerRegistry(LoggerMixin):
-    """
-    Manages Docker resource registry for PANTHER.
+    """Manages Docker resource registry for PANTHER.
 
     Tracks Docker images, containers, volumes, and build cache
     to provide better resource management and cleanup.
@@ -336,66 +333,3 @@ class DockerRegistry(LoggerMixin):
                 stats["by_type"][resource_type.value] = count
 
         return stats
-
-    def export_registry(self, export_path: Path) -> None:
-        """Export registry to a file."""
-        try:
-            # Prepare export data
-            export_data = {
-                "registry": {
-                    "resources": {
-                        rid: res.to_dict()
-                        for rid, res in self.registry["resources"].items()
-                    },
-                    "metadata": self.registry["metadata"],
-                },
-                "build_cache": {
-                    key: asdict(entry) for key, entry in self.build_cache.items()
-                },
-                "export_metadata": {
-                    "exported_at": datetime.now().isoformat(),
-                    "panther_version": "1.0.0",  # Could get from package
-                },
-            }
-
-            with open(export_path, "w") as f:
-                json.dump(export_data, f, indent=2)
-
-            self.logger.info(f"Registry exported to: {export_path}")
-        except Exception as e:
-            self.logger.error(f"Failed to export registry: {e}")
-
-    def import_registry(self, import_path: Path, merge: bool = True) -> None:
-        """Import registry from a file."""
-        try:
-            with open(import_path, "r") as f:
-                import_data = json.load(f)
-
-            if not merge:
-                # Replace existing registry
-                self.registry = self._create_new_registry()
-                self.build_cache = {}
-
-            # Import resources
-            for rid, res_data in (
-                import_data.get("registry", {}).get("resources", {}).items()
-            ):
-                try:
-                    resource = DockerResource.from_dict(res_data)
-                    self.registry["resources"][rid] = resource
-                except Exception as e:
-                    self.logger.warning(f"Failed to import resource {rid}: {e}")
-
-            # Import build cache
-            for key, entry_data in import_data.get("build_cache", {}).items():
-                try:
-                    self.build_cache[key] = BuildCacheEntry(**entry_data)
-                except Exception as e:
-                    self.logger.warning(f"Failed to import cache entry {key}: {e}")
-
-            self._save_registry()
-            self._save_build_cache()
-
-            self.logger.info(f"Registry imported from: {import_path}")
-        except Exception as e:
-            self.logger.error(f"Failed to import registry: {e}")

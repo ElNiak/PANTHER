@@ -1,5 +1,4 @@
-"""
-Admin Command - Click Implementation
+"""Admin Command - Click Implementation.
 
 Administrative and system management commands with enhanced user experience.
 """
@@ -23,8 +22,7 @@ from panther.cli_click.core.base import (
 @featured_example("panther admin status")
 @click.group()
 def admin():
-    """
-    Administrative and system management commands.
+    r"""Administrative and system management commands.
 
     Provides comprehensive system management capabilities including:
     • System teardown and cleanup
@@ -48,8 +46,7 @@ def admin():
 @handle_errors
 @pass_context_and_setup_logging
 def teardown(ctx, force):
-    """
-    Clean up system resources and temporary files.
+    r"""Clean up system resources and temporary files.
 
     Performs comprehensive system cleanup including:
     • Docker containers and networks
@@ -141,8 +138,7 @@ def teardown(ctx, force):
 @handle_errors
 @pass_context_and_setup_logging
 def status(ctx):
-    """
-    Show comprehensive system status and health information.
+    r"""Show comprehensive system status and health information.
 
     Displays:
     • Python and Docker versions
@@ -262,8 +258,7 @@ def status(ctx):
 @handle_errors
 @pass_context_and_setup_logging
 def clean(ctx, logs, cache, all):
-    """
-    Clean up temporary files, logs, and cache.
+    r"""Clean up temporary files, logs, and cache.
 
     Removes various temporary files and directories to free up space:
     • Log files and directories
@@ -468,8 +463,7 @@ def docker(
     import_registry,
     cache_max_age,
 ):
-    """
-    Manage Docker resources and cleanup.
+    r"""Manage Docker resources and cleanup.
 
     Comprehensive Docker resource management including:
     • Image cleanup and removal
@@ -524,21 +518,178 @@ def docker(
         info_message("Use 'panther admin docker --help' for available options")
         raise click.Abort()
 
-    # Check Docker availability
+    # Check Docker availability via DockerBuilder
     try:
-        import subprocess
+        from docker.errors import APIError, DockerException
 
-        subprocess.run(["docker", "--version"], capture_output=True, check=True)
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        error_message("Docker is not available or not installed")
+        from panther.core.docker_builder import DockerBuilder
+
+        builder = DockerBuilder.get_instance(enable_cache=False)
+        if not builder.is_docker_available():
+            raise RuntimeError("Docker not available")
+    except (RuntimeError, DockerException) as exc:
+        error_message(f"Docker is not available or not installed: {exc}")
+        raise click.Abort()
+    except ImportError as exc:
+        error_message(f"Docker SDK not installed: {exc}")
         raise click.Abort()
 
     # Native Click implementation for Docker resource management
     try:
         import json
-        import subprocess
 
         info_message("Starting Docker resource management...")
+
+        def _show_docker_registry():
+            """Show Docker registry statistics."""
+            try:
+                all_images = builder.client.images.list()
+                panther_images = [
+                    img
+                    for img in all_images
+                    if any("panther" in tag.lower() for tag in (img.tags or []))
+                ]
+
+                click.echo(f"\n📊 Docker Registry Statistics:")
+                click.echo(f"   🐳 Total images: {len(all_images)}")
+                click.echo(f"   🐾 PANTHER images: {len(panther_images)}")
+
+                if panther_images:
+                    total_size = sum(img.attrs.get("Size", 0) for img in panther_images)
+                    total_size_mb = total_size / (1024 * 1024)
+                    click.echo(
+                        f"   💾 PANTHER image size: {total_size_mb:.1f} MB (estimated)"
+                    )
+
+                return len(panther_images)
+            except (DockerException, APIError) as e:
+                click.echo(f"   ⚠️ Registry info error: {e}")
+                return 0
+
+        def _export_docker_registry(path):
+            """Export Docker registry to file."""
+            try:
+                all_images = builder.client.images.list()
+                image_data = []
+                for img in all_images:
+                    image_data.append(
+                        {
+                            "Id": img.id,
+                            "Tags": img.tags or [],
+                            "Size": img.attrs.get("Size", 0),
+                            "Created": img.attrs.get("Created", ""),
+                        }
+                    )
+                with open(path, "w") as f:
+                    json.dump(image_data, f, indent=2)
+                return 1
+            except (DockerException, APIError, OSError):
+                return 0
+
+        def _import_docker_registry(path):
+            """Import Docker registry from file."""
+            try:
+                with open(path, "r") as f:
+                    data = f.read()
+                    click.echo(f"Registry data loaded from {path}")
+                    return 1
+            except Exception:
+                return 0
+
+        def _remove_panther_images_all():
+            """Remove all Docker images with 'panther' in name."""
+            try:
+                all_images = builder.client.images.list()
+                panther_images = [
+                    img
+                    for img in all_images
+                    if any("panther" in tag.lower() for tag in (img.tags or []))
+                ]
+                for img in panther_images:
+                    try:
+                        builder.client.images.remove(img.id, force=True)
+                    except (DockerException, APIError):
+                        pass
+                return len(panther_images)
+            except (DockerException, APIError):
+                return 0
+
+        def _remove_panther_images_services():
+            """Remove Docker images with '_panther' in name."""
+            try:
+                all_images = builder.client.images.list()
+                service_images = [
+                    img
+                    for img in all_images
+                    if any("_panther" in tag.lower() for tag in (img.tags or []))
+                ]
+                for img in service_images:
+                    try:
+                        builder.client.images.remove(img.id, force=True)
+                    except (DockerException, APIError):
+                        pass
+                return len(service_images)
+            except (DockerException, APIError):
+                return 0
+
+        def _remove_panther_containers():
+            """Remove containers with 'panther' label."""
+            try:
+                panther_containers = builder.client.containers.list(
+                    all=True, filters={"label": "panther"}
+                )
+                for container in panther_containers:
+                    try:
+                        container.remove(force=True)
+                    except (DockerException, APIError):
+                        pass
+                return len(panther_containers)
+            except (DockerException, APIError):
+                return 0
+
+        def _remove_panther_volumes():
+            """Remove Docker volumes with 'panther' in name."""
+            try:
+                panther_volumes = builder.client.volumes.list(
+                    filters={"name": "panther"}
+                )
+                for volume in panther_volumes:
+                    try:
+                        volume.remove()
+                    except (DockerException, APIError):
+                        pass
+                return len(panther_volumes)
+            except (DockerException, APIError):
+                return 0
+
+        def _prune_docker_cache(max_age):
+            """Prune old Docker build cache entries."""
+            try:
+                age_filter = {"until": f"{max_age * 24}h"}
+                builder.client.containers.prune(filters=age_filter)
+                builder.client.images.prune(filters=age_filter)
+                builder.client.volumes.prune(filters=age_filter)
+                return 1
+            except (DockerException, APIError):
+                return 0
+
+        def _system_cleanup_all():
+            """Full system cleanup with 'panther' label."""
+            operations = [
+                _remove_panther_containers,
+                _remove_panther_images_all,
+                _remove_panther_volumes,
+            ]
+            return sum(op() for op in operations)
+
+        def _system_cleanup_services():
+            """Service system cleanup with '_panther' label."""
+            operations = [
+                _remove_panther_containers,
+                _remove_panther_images_services,
+                _remove_panther_volumes,
+            ]
+            return sum(op() for op in operations)
 
         docker_operations = []
 
@@ -589,203 +740,6 @@ def docker(
             docker_operations.append(
                 ("Service system cleanup", _system_cleanup_services)
             )
-
-        def _show_docker_registry():
-            """Show Docker registry statistics."""
-            try:
-                # Get image statistics
-                result = subprocess.run(
-                    ["docker", "images", "--format", "json"],
-                    capture_output=True,
-                    text=True,
-                )
-                if result.returncode == 0:
-                    images = [
-                        json.loads(line)
-                        for line in result.stdout.strip().split("\n")
-                        if line
-                    ]
-                    panther_images = [
-                        img
-                        for img in images
-                        if "panther" in img.get("Repository", "").lower()
-                    ]
-
-                    click.echo(f"\n📊 Docker Registry Statistics:")
-                    click.echo(f"   🐳 Total images: {len(images)}")
-                    click.echo(f"   🐾 PANTHER images: {len(panther_images)}")
-
-                    if panther_images:
-                        total_size = sum(
-                            img.get("Size", 0)
-                            for img in panther_images
-                            if isinstance(img.get("Size"), (int, float))
-                        )
-                        click.echo(
-                            f"   💾 PANTHER image size: {total_size} MB (estimated)"
-                        )
-
-                    return len(panther_images)
-            except Exception as e:
-                click.echo(f"   ⚠️ Registry info error: {e}")
-                return 0
-
-        def _export_docker_registry(path):
-            """Export Docker registry to file."""
-            try:
-                with open(path, "w") as f:
-                    result = subprocess.run(
-                        ["docker", "images", "--format", "json"],
-                        capture_output=True,
-                        text=True,
-                    )
-                    if result.returncode == 0:
-                        f.write(result.stdout)
-                        return 1
-                return 0
-            except Exception:
-                return 0
-
-        def _import_docker_registry(path):
-            """Import Docker registry from file."""
-            try:
-                with open(path, "r") as f:
-                    data = f.read()
-                    click.echo(f"Registry data loaded from {path}")
-                    return 1
-            except Exception:
-                return 0
-
-        def _remove_panther_images_all():
-            """Remove all Docker images with 'panther' in name."""
-            try:
-                result = subprocess.run(
-                    [
-                        "docker",
-                        "images",
-                        "--filter",
-                        "reference=*panther*",
-                        "--format",
-                        "{{.ID}}",
-                    ],
-                    capture_output=True,
-                    text=True,
-                )
-                if result.returncode == 0 and result.stdout.strip():
-                    image_ids = result.stdout.strip().split("\n")
-                    subprocess.run(
-                        ["docker", "rmi", "-f"] + image_ids, capture_output=True
-                    )
-                    return len(image_ids)
-                return 0
-            except Exception:
-                return 0
-
-        def _remove_panther_images_services():
-            """Remove Docker images with '_panther' in name."""
-            try:
-                result = subprocess.run(
-                    [
-                        "docker",
-                        "images",
-                        "--filter",
-                        "reference=*_panther*",
-                        "--format",
-                        "{{.ID}}",
-                    ],
-                    capture_output=True,
-                    text=True,
-                )
-                if result.returncode == 0 and result.stdout.strip():
-                    image_ids = result.stdout.strip().split("\n")
-                    subprocess.run(
-                        ["docker", "rmi", "-f"] + image_ids, capture_output=True
-                    )
-                    return len(image_ids)
-                return 0
-            except Exception:
-                return 0
-
-        def _remove_panther_containers():
-            """Remove stopped containers with 'panther' label."""
-            try:
-                result = subprocess.run(
-                    ["docker", "ps", "-aq", "--filter", "label=panther"],
-                    capture_output=True,
-                    text=True,
-                )
-                if result.returncode == 0 and result.stdout.strip():
-                    container_ids = result.stdout.strip().split("\n")
-                    subprocess.run(
-                        ["docker", "rm", "-f"] + container_ids, capture_output=True
-                    )
-                    return len(container_ids)
-                return 0
-            except Exception:
-                return 0
-
-        def _remove_panther_volumes():
-            """Remove Docker volumes with 'panther' in name."""
-            try:
-                result = subprocess.run(
-                    [
-                        "docker",
-                        "volume",
-                        "ls",
-                        "--filter",
-                        "name=panther",
-                        "--format",
-                        "{{.Name}}",
-                    ],
-                    capture_output=True,
-                    text=True,
-                )
-                if result.returncode == 0 and result.stdout.strip():
-                    volume_names = result.stdout.strip().split("\n")
-                    subprocess.run(
-                        ["docker", "volume", "rm"] + volume_names, capture_output=True
-                    )
-                    return len(volume_names)
-                return 0
-            except Exception:
-                return 0
-
-        def _prune_docker_cache(max_age):
-            """Prune old Docker build cache entries."""
-            try:
-                result = subprocess.run(
-                    [
-                        "docker",
-                        "system",
-                        "prune",
-                        "--filter",
-                        f"until={max_age * 24}h",
-                        "-f",
-                    ],
-                    capture_output=True,
-                    text=True,
-                )
-                return 1 if result.returncode == 0 else 0
-            except Exception:
-                return 0
-
-        def _system_cleanup_all():
-            """Full system cleanup with 'panther' label."""
-            operations = [
-                _remove_panther_containers,
-                _remove_panther_images_all,
-                _remove_panther_volumes,
-            ]
-            return sum(op() for op in operations)
-
-        def _system_cleanup_services():
-            """Service system cleanup with '_panther' label."""
-            operations = [
-                _remove_panther_containers,
-                _remove_panther_images_services,
-                _remove_panther_volumes,
-            ]
-            return sum(op() for op in operations)
 
         total_processed = 0
 

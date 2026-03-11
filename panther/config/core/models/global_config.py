@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 from pydantic import Field, field_validator
 
 from ..base import BaseConfig
-from ..validators import logging_level_validator
+from ..validators import create_enum_validator, logging_level_validator
 from .observer import ObserversConfig
 
 
@@ -207,13 +207,7 @@ class DockerConfig(BaseConfig):
     @classmethod
     def validate_network_mode(cls, v):
         """Convert string to DockerNetworkMode enum."""
-        if isinstance(v, str):
-            try:
-                return DockerNetworkMode(v.lower())
-            except ValueError:
-                valid = [e.value for e in DockerNetworkMode]
-                raise ValueError(f"Invalid network mode '{v}'. Valid: {valid}")
-        return v
+        return create_enum_validator(DockerNetworkMode)(cls, v)
 
     # Docker Buildx configuration fields
     use_buildx: bool = Field(
@@ -360,17 +354,11 @@ class MetricsConfig(BaseConfig):
     @classmethod
     def validate_export_format(cls, v):
         """Convert string to ExportFormat enum."""
-        if isinstance(v, str):
-            try:
-                return ExportFormat(v.lower())
-            except ValueError:
-                valid = [e.value for e in ExportFormat]
-                raise ValueError(f"Invalid export format '{v}'. Valid: {valid}")
-        return v
+        return create_enum_validator(ExportFormat)(cls, v)
 
 
 class GlobalConfig(BaseConfig):
-    """Global configuration container."""
+    """Shared settings applied across ALL tests in an experiment (logging, Docker, paths, progress, fast-fail, metrics, observers)."""
 
     version: str = Field("1.0", description="Configuration version")
     logging: LoggingConfig = Field(

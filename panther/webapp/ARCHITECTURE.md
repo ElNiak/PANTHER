@@ -2,20 +2,40 @@
 
 Design decisions and integration patterns for the NiceGUI-based webapp.
 
+## Concepts Glossary
+
+| Term | Definition |
+|------|-----------|
+| **Experiment** | A complete test run defined by a YAML config file. Contains one or more test scenarios, network setup, and service definitions. |
+| **Test (scenario)** | A single test case within an experiment. Specifies which services participate, their protocol roles, and execution steps. |
+| **IUT** | Implementation Under Test — the software being tested (e.g., a QUIC library like picoquic or aioquic). |
+| **Tester** | A verification tool that checks IUT behavior (e.g., panther_ivy for formal verification). |
+| **Service** | A running process in the experiment (either an IUT or a tester), typically deployed as a Docker container. |
+| **Plugin** | A PANTHER extension that provides an IUT, tester, protocol, or environment implementation. Discovered at runtime via decorators. |
+| **Protocol** | The network protocol being tested (e.g., QUIC, HTTP/3). Each service declares its protocol name, version, and role (server/client/peer). |
+| **Network Environment** | The infrastructure layer for an experiment: Docker Compose (containers on a shared network), Shadow (network simulation), or localhost. |
+| **EventManager** | PANTHER's central event bus. All experiment lifecycle events (test started, service crashed, metrics collected) flow through it. |
+| **Observer** | A subscriber to EventManager events. The webapp's WebObserver bridges these events to browser components. |
+| **PydanticForm** | A custom NiceGUI component that recursively renders any Pydantic BaseModel as editable form widgets. |
+| **ExperimentManager** | The core orchestrator that runs the four-phase experiment lifecycle: initialization, plugin loading, deployment, execution. |
+
 ## Stack Choice
 
 ### Why NiceGUI (not Flask or Streamlit)
 
-PANTHER already has:
-1. **Pydantic models** for all configuration (GlobalConfig, TestConfig, ServiceConfig, etc.)
-2. **An event/observer system** that pushes state changes (BaseEvent -> EventManager -> IObserver)
-3. **Long-running experiment processes** that need real-time progress updates
+**Why this design?** The web framework choice was driven by three constraints that
+PANTHER already imposes. Rather than building adapter layers for a general-purpose
+framework, we chose the framework that natively satisfies all three:
+
+1. **Pydantic models** for all configuration — GlobalConfig, TestConfig, ServiceConfig, etc. are Pydantic BaseModel subclasses that define the experiment YAML schema
+2. **An event/observer system** that pushes state changes — BaseEvent objects flow through EventManager (the central event bus) to registered IObserver subscribers
+3. **Long-running experiment processes** that need real-time progress updates — experiments can run for minutes with continuous event emission
 
 NiceGUI satisfies all three constraints with minimal glue code:
 
 | Requirement                        | Flask          | Streamlit      | NiceGUI        |
 |------------------------------------|----------------|----------------|----------------|
-| Forms from Pydantic models         | Manual WTForms | st.form()      | Via NiceCRUD   |
+| Forms from Pydantic models         | Manual WTForms | st.form()      | Via PydanticForm |
 | WebSocket push (server -> browser) | flask-socketio | Rerun model    | Built-in       |
 | Long-running background tasks      | Celery/threads | Blocking       | asyncio native |
 | Pure Python (no JS build step)     | No (Jinja+JS)  | Yes            | Yes            |
@@ -23,50 +43,47 @@ NiceGUI satisfies all three constraints with minimal glue code:
 
 NiceGUI eliminates the need for Jinja templates, WTForms, custom JavaScript, and manual WebSocket plumbing.
 
-### NiceCRUD for Config Forms
+### PydanticForm for Config Forms
 
-NiceCRUD takes a Pydantic model class and produces a complete CRUD interface (forms, validation, table views). Since PANTHER config models are already Pydantic v2, NiceCRUD generates forms with minimal code.
-
-**Important: `id_field` parameter is required.** PANTHER models don't have an `id` field, so you must specify which field to use as the unique identifier:
+PydanticForm (`panther/webapp/components/pydantic_form.py`) is a custom recursive
+form component that renders any `BaseModel` as editable NiceGUI widgets. It replaced
+the external `niceguicrud` dependency.
 
 ```python
-from niceguicrud import NiceCRUD
-from panther.webapp.utils.form_models import strip_omega_config
+from panther.webapp.components.pydantic_form import PydanticForm, FormConfig
 from panther.config.core.models.global_config import LoggingConfig
 
-# PANTHER models carry omega_config: Optional[DictConfig] which breaks JSON Schema.
-# strip_omega_config() removes it recursively, producing a NiceCRUD-safe model.
-FormModel = strip_omega_config(LoggingConfig)
-
-# id_field tells NiceCRUD which field is the unique key
-crud = NiceCRUD(FormModel, id_field="level")
+form = PydanticForm(LoggingConfig, config=FormConfig(section_style="card"))
+data = form.get_value()  # Returns validated dict (falls back to raw on error)
+form.set_value({"level": "DEBUG"})
 ```
 
-**Tested behavior with NiceCRUD 0.1.6 + Pydantic v2:**
-- Flat models (LoggingConfig, PathsConfig): work after stripping `omega_config`.
-- Nested models (DockerConfig with sub-models): work -- NiceCRUD renders nested fields.
-- Enum fields: rendered as dropdowns automatically.
-- Optional fields: handled correctly.
-- Default values: pre-populated in forms.
+**Three-layer architecture:**
+1. **PydanticForm** — type-dispatch logic (scalar, enum, nested model, complex collections)
+2. **FormConfig** — structural layout options (grouping, advanced toggle, section style)
+3. **CSS classes** — every widget gets `.{prefix}-*` classes for visual theming
 
-**Note:** All PANTHER config models inherit from `BaseConfig` (Pydantic v2). NiceCRUD works directly with Pydantic models — `build_form_model()` handles any necessary schema adaptation.
+**Features:**
+- Recursive nested BaseModel rendering (expansion panels, cards, or flat)
+- Enum fields rendered as dropdowns
+- Optional[BaseModel] fields with toggle switches
+- Dict[str, str], Dict[str, BaseModel], List[BaseModel] via specialized widgets
+- `json_schema_extra` metadata drives UI hints (widget_type, advanced, category)
+- Validation through Pydantic with graceful fallback
 
-**Correct `id_field` values per model:**
-
-| Model | `id_field` |
-|-------|-----------|
-| LoggingConfig | `"level"` |
-| PathsConfig | `"output_dir"` |
-| DockerConfig | `"force_build_docker_image"` |
-| TestConfig | `"name"` |
-| GlobalConfig | `"version"` |
-| ServiceConfig | `"implementation"` |
-
-For deeply nested config trees (TestConfig -> ServiceConfig -> ProtocolConfig), compose multiple NiceCRUD instances inside `ui.expansion` accordion panels.
+For deeply nested config trees (TestConfig -> ServiceConfig -> ProtocolConfig),
+PydanticForm handles recursion automatically.
 
 ## How NiceGUI Integrates with PANTHER Core
 
 ### Service Layer Pattern
+
+**Why this design?** PANTHER's core classes (ExperimentManager, PluginManager,
+ConfigurationManager) are designed for CLI usage — they block the calling thread,
+raise raw exceptions, and assume single-threaded execution. The service layer
+translates these into web-friendly interfaces: non-blocking calls, structured error
+responses, and thread-safe state management. This separation also means page code
+never needs to understand PANTHER internals — it only talks to services.
 
 The webapp does NOT call PANTHER core classes directly from page code. Thin service wrappers provide an async-safe interface:
 
@@ -78,12 +95,37 @@ pages/experiments.py
 
 | Service           | Wraps                            | Purpose                          |
 |-------------------|----------------------------------|----------------------------------|
-| ExperimentService | ExperimentManager                | Launch experiments, track status |
-| PluginService     | PluginManager                    | List plugins, get metadata       |
-| ConfigService     | ConfigurationManager             | Load/save/validate YAML configs  |
-| ResultsService    | Filesystem (`outputs/` directory)| Browse and read experiment results|
+| ExperimentService | ExperimentManager (the central orchestrator that runs the four-phase experiment lifecycle) | Launch experiments in background threads, track status, stream live events |
+| PluginService     | PluginManager (discovers and loads plugin implementations at runtime) | List available plugins, retrieve metadata and configuration schemas |
+| ConfigService     | ConfigurationManager (PANTHER's YAML/OmegaConf configuration system) | Load/save/validate experiment YAML configs with path safety |
+| ResultsService    | Filesystem (`outputs/` directory) | Browse past experiment results, parse logs, extract metrics for charts |
 
 Services are instantiated once in `app.py` and passed to pages via NiceGUI's `app.storage` or function parameters.
+
+**Data flow through the service layer:**
+
+```
+┌─────────┐    ┌──────────────┐    ┌──────────────────┐    ┌──────────────┐    ┌─────────────┐    ┌────┐
+│  Page   │───>│   Service    │───>│   PANTHER Core   │───>│    Events    │───>│ WebObserver │───>│ UI │
+│ (async) │    │  (thin wrap) │    │ (ExperimentMgr)  │    │ (EventMgr)  │    │ (callbacks) │    │    │
+└─────────┘    └──────────────┘    └──────────────────┘    └──────────────┘    └─────────────┘    └────┘
+  NiceGUI         async-safe            blocking              push-based          bridges           auto
+  event loop      interface             (background           to observers        thread gap        WebSocket
+  (main thread)                          thread)                                                    push
+```
+
+**Threading model:**
+- **Main thread**: NiceGUI's asyncio event loop. All UI code runs here. Never block this thread.
+- **Background thread**: Experiment execution runs via `asyncio.to_thread()` in `ExperimentService.run_experiment()`. The `ExperimentManager.run_tests()` call is blocking and can run for minutes.
+- **Thread bridge**: `WebObserver.update_gui()` is called from the background thread. It iterates a copy of the subscriber list (`list(self._subscribers)`) to avoid race conditions. NiceGUI auto-pushes state changes to the browser over its WebSocket.
+
+**Service composition:**
+- **ConfigService**: Stateless. Load/validate/save YAML configs. Used by the config builder page and experiment launch.
+- **ExperimentService**: Singleton (via `get_experiment_service()`). Manages experiment lifecycle, holds log buffer and status across page navigations. The only stateful service.
+- **ResultsService**: Stateless. Reads from the `outputs/` filesystem. Used by the results and analysis pages.
+- **PluginService**: Stateless. Wraps `PluginManager` for plugin discovery. Used by the plugins page and config builder (for implementation dropdowns).
+
+Services do not call each other. Pages compose them: e.g., the experiment page uses both `ConfigService` (to validate before launch) and `ExperimentService` (to run).
 
 ### Page Architecture
 
@@ -106,6 +148,13 @@ def register(plugin_service):
 No template engine, no HTML, no JavaScript. The UI is declared in Python and NiceGUI translates it to Vue/Quasar components over a WebSocket.
 
 ### Real-Time Updates: WebObserver
+
+**Why this design?** Experiments emit dozens of events per second (test started, service
+health check, metrics collected, assertion passed). Rather than polling for status,
+the webapp subscribes to PANTHER's existing observer system and receives push
+notifications. This reuses the same event infrastructure that the CLI uses for
+progress display, avoiding any duplication. The WebObserver adds filtering and
+batching on top to prevent UI flooding.
 
 PANTHER's observer system (`IObserver` -> `on_event(BaseEvent)`) is the integration point for live updates.
 
@@ -136,19 +185,39 @@ When an experiment runs, the `WebObserver` is registered with `EventManager`. Ev
 - GUI state dict (`get_gui_state()` with counters and timestamps per event type)
 - Automatic `_update_gui_state()` on every event
 
-Event types from `panther/core/events/`:
-- `experiment.*` -- experiment lifecycle (started, completed, failed)
-- `test.*` -- individual test progress
-- `service.*` -- service start/stop/error
-- `environment.*` -- Docker environment events
-- `step.*` -- pre/post command execution
-- `metrics.*` -- performance data points
+**EventType taxonomy** (from `panther/core/events/base/event_base.py`):
 
-### Config Builder: NiceCRUD + One-Way YAML Preview
+**Subscription lifecycle** for a NiceGUI page:
+```python
+# 1. Subscribe on page load
+def on_page_load():
+    experiment_service.subscribe_events(handle_event)
+
+# 2. Filter and update UI
+def handle_event(event: BaseEvent):
+    if event.entity_type == EventType.TEST:
+        update_test_progress(event)     # update NiceGUI component
+    elif event.entity_type == EventType.METRICS:
+        update_metrics_chart(event)     # NiceGUI auto-pushes via WebSocket
+
+# 3. Unsubscribe on page leave (prevent stale callbacks)
+def on_page_disconnect():
+    experiment_service.unsubscribe_events(handle_event)
+```
+
+### Config Builder: PydanticForm + One-Way YAML Preview
+
+**Why this design?** PANTHER experiment configurations are deeply nested YAML files
+with cross-references between services. Editing raw YAML is error-prone; users forget
+field names, misspell enum values, or create structurally invalid configs. PydanticForm
+auto-generates type-safe forms from the same Pydantic models that validate the YAML,
+ensuring the UI and validation logic are always in sync. The one-way YAML preview gives
+users confidence that their form edits produce correct YAML without the complexity of
+bidirectional synchronization.
 
 The config builder page has two panels:
 
-1. **Left: NiceCRUD forms** -- structured editing of GlobalConfig, TestConfig, ServiceConfig
+1. **Left: PydanticForm forms** -- structured editing of GlobalConfig, TestConfig, ServiceConfig
 2. **Right: YAML preview** -- read-only display updated from form changes
 
 ```
@@ -156,6 +225,50 @@ Form field change -> model.model_dump() -> yaml.dump() -> YAML preview
 ```
 
 Two-way sync (YAML edits updating forms) is **not in scope** -- it adds significant complexity for marginal benefit. Users edit via forms and see the resulting YAML.
+
+### Config Model Hierarchy
+
+The Pydantic models form a tree that maps directly to the YAML structure. Understanding this hierarchy is essential for the config builder and topology editor.
+
+```
+ExperimentConfig                          # Top-level: one YAML file
+├── metadata: ExperimentMetadata          # name, author, version, tags
+└── tests: List[TestConfig]               # Each test = independent scenario
+    ├── name: str                         # Test identifier
+    ├── network_environment: NetworkEnvironmentConfig
+    │   └── type: str                     # "docker_compose" | "shadow" | "localhost"
+    ├── execution_environment: List[ExecutionEnvironmentConfig]
+    ├── services: Dict[str, ServiceConfig]    # Key = service name (= container name)
+    │   ├── implementation: ImplementationConfig
+    │   │   ├── name: str                 # Plugin name (e.g., "picoquic")
+    │   │   └── type: ImplementationType  # "iut" or "testers"
+    │   ├── protocol: ProtocolConfig
+    │   │   ├── name: str                 # e.g., "quic"
+    │   │   ├── version: str              # e.g., "rfc9000"
+    │   │   ├── role: ProtocolRole        # "server" | "client" | "peer"
+    │   │   └── target: Optional[str]     # References another services dict key
+    │   ├── network: Optional[NetworkConfig]  # interface, port, host
+    │   └── depends_on: List[str]         # Startup ordering
+    ├── steps: StepsConfig                # pre_commands, wait, post_commands
+    └── iterations: int                   # How many times to repeat
+```
+
+**Graph-relevant fields** (for the topology editor):
+
+| Config field | Graph concept | Notes |
+|-------------|--------------|-------|
+| `TestConfig` | Independent subgraph/group | Each test is a separate topology |
+| `TestConfig.services[key]` | Node (key = label) | Dict key = Docker container name |
+| `ImplementationType` | Node category (color/shape) | IUT = green, Tester = orange |
+| `ProtocolConfig.role` | Node role badge | server/client/peer |
+| `ProtocolConfig.target` | Directed edge (source→target) | Client points to server |
+| `ProtocolConfig.name` + `version` | Edge label | e.g., "quic / rfc9000" |
+| `NetworkEnvironmentConfig.type` | Group property or background | docker_compose, shadow, localhost |
+| `ServiceConfig.depends_on` | Dashed dependency edge | Startup ordering |
+
+These mapping rules are invariant regardless of which graph approach is chosen for the topology editor. The conversion logic between graph and config models is the core thesis contribution — see "Topology Design Reference" below for research context.
+
+**Source files:** `panther/config/core/models/experiment.py`, `panther/config/core/models/service.py`
 
 ### Experiment Launch: asyncio.to_thread
 
@@ -218,78 +331,66 @@ ui.echart({
 })
 ```
 
-## What Is NOT in Scope
+### Visual Topology Editor
+
+Protocol testing experiments are inherently graph-structured: services (nodes)
+communicate via protocols (edges) within network environments (groups). A visual
+editor makes this structure explicit. The topology editor is the **core thesis
+contribution**.
+
+The developer evaluates at least 3 visualization approaches and implements one:
+
+1. **vis.js Network** — Mature JS graph library with built-in physics and manipulation
+   API. Requires CDN + JavaScript bridge.
+2. **React Flow** — React-based node editor with rich custom node support. Requires npm
+   build step + iframe/webcomponent embedding.
+3. **NiceGUI Native** — Pure SVG/ECharts approach using only NiceGUI built-in
+   capabilities. Zero external dependencies but requires custom drag-and-drop
+   implementation. Sub-options include SVG + custom JS for full editing, or
+   `ui.echart()` Graph type for read-only visualization with force-directed layout.
+
+The evaluation criteria, methodology, and final recommendation are the developer's
+to define. This comparison becomes an analytical thesis chapter.
+
+**Graph-relevant config fields** (see "Config Model Hierarchy" above for the full tree):
+
+| Config field | Graph concept |
+|-------------|--------------|
+| `TestConfig.services[key]` | Node (key = label) |
+| `ImplementationType` | Node category |
+| `ProtocolConfig.target` | Directed edge (source→target) |
+| `ProtocolConfig.name` + `version` | Edge label |
+| `NetworkEnvironmentConfig.type` | Group property |
+| `ServiceConfig.depends_on` | Dependency edge |
+
+### UX Improvements (Parallel with Topology)
+
+During topology implementation, the developer also improves the overall webapp UX:
+
+- **Breadcrumbs**: All pages get breadcrumb navigation (e.g., Config > Test 1 > picoquic)
+- **Workflow stepper**: Progress indicator showing Config → Topology → Launch → Results
+- **"Next Step" buttons**: Contextual navigation between pages
+- **Structured JSON viewer**: Replace raw JSON display with collapsible syntax-highlighted trees
+- **Deep-links**: Results link back to the config that produced them
+- **POLISHING + FINISHING** : The scaffold is functional but rough around the edges. The developer refines UI details, fixes bugs, and ensures a smooth user experience. This includes handling edge cases, improving error messages, and optimizing layout for different screen sizes.
+
+### Stretch Goals (Priority Order)
+
+1. **CLI command integration**: Expose `panther config generate/validate`, `panther plugins params/check-deps`, `panther tools status` as webapp actions via `services/cli_service.py`
+2. **Conformance matrix**: IUT × Test pass/fail grid aggregated across experiments
+3. **Batch comparison**: Same test across multiple IUTs, side-by-side results
+4. **Export for papers**: Charts/tables as CSV, LaTeX, SVG
+
+See `TASKS.md` for full details and timeline.
+
+## Other Features Considered but HARD
 
 | Feature | Reason |
 |---------|--------|
 | Two-way YAML sync | High complexity, one-way form-to-YAML is sufficient |
-| Drag-and-drop topology | High complexity, marginal value over form-based config |
 | Authentication / RBAC | Single-user tool, runs locally |
 | PCAP viewer (embedded) | Would need Wireshark integration or custom parser |
 | Resource monitoring (CPU/RAM) | Requires Docker stats API polling |
 | Multi-user collaboration | Single-user tool |
 | CI/CD integration API | CLI already serves this use case |
 | Database backend | Config files + filesystem outputs are sufficient |
-| 70%+ test coverage | 5-6 smoke tests are sufficient for the thesis |
-
-## How to Add a New Page
-
-Follow this pattern when extending the webapp:
-
-1. Create `panther/webapp/pages/my_page.py`:
-```python
-from nicegui import ui
-
-def content():
-    ui.label("My Page").classes("text-h5")
-    # ... build UI here
-```
-
-2. Register in `panther/webapp/app.py`:
-```python
-from panther.webapp.pages import my_page
-
-@ui.page('/my-page')
-def my_page_route():
-    with layout():
-        my_page.content()
-```
-
-3. Add a sidebar link in `panther/webapp/components/layout.py`.
-
-For pages that need data, create a service in `services/` that wraps core PANTHER classes.
-
-## Future Evolution
-
-After the thesis, potential improvements:
-- **FastUI migration**: Pydantic's own `pydantic.dev/fastui` generates richer form UIs directly from models. This would replace NiceCRUD and eliminate the `strip_omega_config` workaround since FastUI handles Pydantic v2 natively. Evaluate once the core webapp is stable.
-- **Plugin UI extension**: Plugins contribute their own dashboard widgets via a registration API (e.g., `@register_plugin_widget()` decorator). Each plugin could provide a `webapp/` subdirectory with custom page components.
-- **WebSocket-based live topology**: Real-time Docker container status visualization
-
-## Key Files Reference
-
-```
-panther/config/core/models/
-    global_config.py        # GlobalConfig, LoggingConfig, DockerConfig, PathsConfig
-    experiment.py           # ExperimentConfig, TestConfig, StepsConfig
-    service.py              # ServiceConfig, ImplementationConfig, ProtocolConfig
-    environment.py          # NetworkEnvironmentConfig, ExecutionEnvironmentConfig
-
-panther/core/
-    experiment_manager.py   # ExperimentManager (central orchestrator)
-    observer/
-        impl/gui_observer.py        # GUIObserver base class (subclass this)
-        base/observer_interface.py   # IObserver interface
-        management/event_manager.py  # EventManager singleton
-    events/base/event_base.py       # BaseEvent, EventType enum
-    reporting/status_collector.py    # ExperimentSummary, TestResult, ServiceHealthSummary
-    test_cases/analysis/output_analyzer.py  # Output collection and analysis
-    metrics/                         # Metrics data model
-
-panther/plugins/
-    plugin_manager.py       # PluginManager (plugin discovery)
-
-panther/cli_click/
-    commands/web.py         # `panther web` Click command
-    core/main.py            # CLI entry -- register_commands()
-```

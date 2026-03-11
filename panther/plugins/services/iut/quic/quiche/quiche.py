@@ -13,7 +13,7 @@ from panther.plugins.services.iut.iut_event_mixin import IUTManagerEventMixin
     plugin_type=PluginType.IUT,
     name="quiche",
     version="2.0.0",
-    description="Quiche - Cloudflare's Rust implementation of QUIC (Refactored)",
+    description="Quiche - Cloudflare's Rust implementation of QUIC ",
     author="PANTHER Team",
     dependencies=["docker"],
     supported_protocols=["quic"],

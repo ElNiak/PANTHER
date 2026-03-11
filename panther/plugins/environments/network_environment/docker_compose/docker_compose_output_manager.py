@@ -75,11 +75,9 @@ class DockerComposeOutputManager:
             self.logger.info("Generating self-signed certificates for services")
 
             # Use the certificate generation utility
-            from panther.plugins.services.base.service_command_builder import (
-                ServiceCommandBuilder,
-            )
+            from panther.core.command_processor.utils import CommandUtils
 
-            cert_gen_cmd = ServiceCommandBuilder.create_certificate_generation_command(
+            cert_gen_cmd = CommandUtils.create_certificate_generation_command(
                 cert_dir=str(cert_dir),
                 cert_name="cert",
                 key_name="key",

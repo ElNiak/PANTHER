@@ -6,7 +6,11 @@ from typing import Any, ClassVar, Dict, List, Optional
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from ..base import BaseConfig
-from ..validators import implementation_type_validator, protocol_role_validator
+from ..validators import (
+    create_enum_validator,
+    implementation_type_validator,
+    protocol_role_validator,
+)
 from .global_config import ServiceDockerOverrideConfig
 
 
@@ -26,7 +30,13 @@ class VersionBase(BaseModel):
 
 
 class ImplementationType(str, Enum):
-    """Implementation type enumeration."""
+    """Classification of a service's role in the test topology.
+
+    IUT = "Implementation Under Test" -- the protocol software being tested
+    (e.g., picoquic, aioquic, quiche).
+    TESTERS = formal verification or testing tools that generate/check traffic
+    against the IUT (e.g., panther_ivy).
+    """
 
     IUT = "iut"
     TESTERS = "testers"
@@ -108,11 +118,29 @@ class NetworkConfig(BaseConfig):
 
 class ProtocolConfig(BaseConfig):
     ## TODO check which verson is used in the protocol config
-    """Protocol configuration.
+    """Protocol, role, and connectivity for a service.
 
-    Note: The ``version`` field here is the *protocol specification* version
-    (e.g., ``rfc9000``, ``draft-29``), distinct from ``ImplementationConfig.version``
+    Defines which protocol a service speaks, its role, and -- for clients --
+    which other service it connects to.  The ``target`` field references another
+    key in the *same* ``TestConfig.services`` dict; this reference forms the
+    directed edge in a topology graph (client -> server).
+
+    Role semantics:
+      - **server**: listens for incoming connections; no ``target`` needed.
+      - **client**: initiates a connection to ``target`` (required).
+      - **peer**: can both listen and connect.
+
+    The ``version`` field is the *protocol specification* version (e.g.,
+    ``rfc9000``, ``draft-29``), distinct from ``ImplementationConfig.version``
     which tracks the *software implementation* version.
+
+    Example YAML::
+
+        protocol:
+          name: quic
+          version: rfc9000
+          role: client
+          target: server   # must match a key in services dict
     """
 
     name: str = Field(
@@ -120,7 +148,7 @@ class ProtocolConfig(BaseConfig):
         min_length=1,
         description="Protocol name",
         examples=["quic", "http", "minip"],
-        json_schema_extra={"category": "protocol"},
+        json_schema_extra={"widget_type": "protocol_select"},
     )
     version: Optional[str] = Field(None, description="Protocol version")
     role: ProtocolRole = Field(..., description="Protocol role")
@@ -178,14 +206,19 @@ class ProtocolConfig(BaseConfig):
 
 
 class ImplementationConfig(BaseConfig):
-    """Implementation configuration."""
+    """Links a service to its software implementation and type (IUT or Tester).
+
+    The ``name`` must match a registered plugin name (e.g., ``picoquic``,
+    ``aioquic``, ``panther_ivy``).  The ``type`` determines whether this service
+    is the software under test or a testing/verification tool.
+    """
 
     name: str = Field(
         ...,
         min_length=1,
         description="Implementation name",
         examples=["picoquic", "aioquic", "quiche"],
-        json_schema_extra={"category": "implementation"},
+        json_schema_extra={"widget_type": "implementation_select"},
     )
     type: ImplementationType = Field(..., description="Implementation type")
     version: Optional[str] = Field(None, description="Implementation version")
@@ -210,7 +243,33 @@ class ImplementationConfig(BaseConfig):
 
 
 class ServiceConfig(BaseConfig):
-    """Service configuration."""
+    """One Docker container running a protocol implementation.
+
+    Each entry in ``TestConfig.services`` maps a **service name** (the dict key)
+    to a ``ServiceConfig``.  The dict key is the service's identity -- it is used
+    as the Docker container name and is the value other services reference via
+    ``ProtocolConfig.target``.
+
+    Example YAML::
+
+        services:
+          server:                        # <-- service name / container name
+            implementation:
+              name: picoquic
+              type: iut
+            protocol:
+              name: quic
+              version: rfc9000
+              role: server
+          client:
+            implementation:
+              name: aioquic
+              type: iut
+            protocol:
+              name: quic
+              role: client
+              target: server             # <-- references the key above
+    """
 
     VERSION_CLASS: ClassVar[Optional[type]] = None
 
@@ -293,9 +352,21 @@ class ServiceConfig(BaseConfig):
     )
 
     # Service build/docker fields
-    docker_image: Optional[str] = Field(None, description="Docker image name")
-    build_from_source: bool = Field(True, description="Build from source")
-    source_repository: Optional[str] = Field(None, description="Source repository URL")
+    docker_image: Optional[str] = Field(
+        None,
+        description="Docker image name",
+        json_schema_extra={"category": "docker", "advanced": True},
+    )
+    build_from_source: bool = Field(
+        True,
+        description="Build from source",
+        json_schema_extra={"category": "docker", "advanced": True},
+    )
+    source_repository: Optional[str] = Field(
+        None,
+        description="Source repository URL",
+        json_schema_extra={"category": "docker", "advanced": True},
+    )
 
     # Allow extra fields for service-specific parameters
 
@@ -411,13 +482,7 @@ class ServiceConfig(BaseConfig):
     @classmethod
     def validate_restart_policy(cls, v):
         """Convert string to RestartPolicy enum."""
-        if isinstance(v, str):
-            try:
-                return RestartPolicy(v.lower())
-            except ValueError:
-                valid = [e.value for e in RestartPolicy]
-                raise ValueError(f"Invalid restart policy '{v}'. Valid: {valid}")
-        return v
+        return create_enum_validator(RestartPolicy)(cls, v)
 
     @field_validator("timeout", mode="before")
     @classmethod

@@ -1,4 +1,18 @@
-"""YAML editor component with CodeMirror and bi-directional sync."""
+"""YamlEditor — CodeMirror-based YAML editor with bi-directional sync.
+
+Wraps NiceGUI's ``ui.codemirror`` widget (CodeMirror 6) in a convenience
+class that can convert between raw YAML text and Python dicts.  Used by
+the PANTHER (Protocol ANalysis and Testing Harness for Extensible Research)
+config builder page to let users edit experiment configuration as either a
+structured form or raw YAML, with changes flowing in both directions:
+
+* ``set_from_dict(data)`` — serialises a Python dict to YAML and pushes
+  it into the editor.
+* ``get_as_dict()`` — parses the current editor text back into a dict
+  (returns ``None`` on syntax errors).
+* ``validate()`` — checks YAML syntax without converting, returning an
+  error message string or ``None``.
+"""
 
 from typing import Callable, Optional
 
@@ -10,7 +24,21 @@ class YamlEditor:
     """CodeMirror-based YAML editor with form synchronization.
 
     Provides a YAML text editor that can sync bi-directionally with
-    a Pydantic model / NiceCRUD form.
+    a Pydantic model / ``PydanticForm``.  The editor renders into the
+    currently active NiceGUI container and optionally fires a callback
+    on every keystroke.
+
+    Args:
+        initial_value: YAML text to display when the editor is created.
+        on_change: Optional callback invoked with the new text on every
+            content change (debounced by CodeMirror).
+        height: CSS height for the editor panel (e.g. ``"500px"``).
+
+    Example::
+
+        editor = YamlEditor(on_change=lambda text: print("changed"))
+        editor.set_from_dict({"key": "value"})
+        result = editor.get_as_dict()  # {"key": "value"} or None
     """
 
     def __init__(
@@ -19,6 +47,7 @@ class YamlEditor:
         on_change: Optional[Callable[[str], None]] = None,
         height: str = "500px",
     ):
+        """Initialise the YAML editor with optional initial content and change callback."""
         self._on_change = on_change
         self.editor = (
             ui.codemirror(initial_value, language="yaml")
@@ -29,7 +58,7 @@ class YamlEditor:
             self.editor.on_value_change(lambda e: on_change(e.value))
 
     @property
-    def value(self) -> str:
+    def value(self) -> str:  # noqa: D102
         return self.editor.value
 
     @value.setter

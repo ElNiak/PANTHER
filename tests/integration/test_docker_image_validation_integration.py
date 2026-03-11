@@ -1,5 +1,4 @@
-"""
-Integration tests for Docker image validation across PANTHER environment managers.
+"""Integration tests for Docker image validation across PANTHER environment managers.
 
 This module tests the integration between service managers, environment managers,
 and Docker image validation to prevent deployment failures like:
@@ -193,7 +192,7 @@ class TestEnvironmentManagerDockerMixinValidation:
     def mock_environment_docker_mixin(self):
         """Create mock environment manager Docker mixin."""
         try:
-            from panther.core.docker_builder.plugin_mixin.environment_manager_docker_mixing import (
+            from panther.core.docker_builder.plugin_mixin.environment_manager_docker_mixin import (
                 EnvironmentManagerDockerMixin,
             )
 

@@ -81,6 +81,20 @@ class PluginDiscovery(LoggerMixin):
 
             for plugin_id, (plugin_class, manifest) in decorated_plugins.items():
                 self.logger.debug(f"Processing plugin {plugin_id}")
+
+                # Check compatibility with current PANTHER version
+                try:
+                    from panther import __version__ as panther_version
+
+                    if not manifest.is_compatible_with_panther(panther_version):
+                        self.logger.warning(
+                            "Plugin '%s' may be incompatible with PANTHER %s",
+                            manifest.name,
+                            panther_version,
+                        )
+                except ImportError:
+                    pass
+
                 # Use automatic conversion to ensure all fields including runtime_mode are preserved
                 try:
                     from panther.plugins.core.conversion.structure_converter import (
@@ -101,6 +115,18 @@ class PluginDiscovery(LoggerMixin):
                     self._discover_plugin_versions(metadata)
                 else:
                     self.logger.warning(f"Failed to convert manifest for {plugin_id}")
+
+            # Validate all registered plugins
+            from panther.plugins.core.plugin_decorators import (
+                validate_decorated_plugins,
+            )
+
+            validation_errors = validate_decorated_plugins()
+            if validation_errors:
+                for pname, errors in validation_errors.items():
+                    self.logger.warning(
+                        "Plugin '%s' has validation issues: %s", pname, errors
+                    )
 
             self.logger.info(
                 f"Discovered {len(self.discovered_plugins)} plugins "
@@ -396,7 +422,6 @@ class PluginDiscovery(LoggerMixin):
 
         from pathlib import Path
 
-        from panther.plugins.core.plugin_decorators import register_version_config
         from panther.plugins.core.version_loader import VersionLoader
 
         plugin_path = Path(metadata.path)
@@ -410,10 +435,10 @@ class PluginDiscovery(LoggerMixin):
                 versions = version_loader.discover_and_load_versions(
                     metadata.name, plugin_path, protocol
                 )
-                for version_name, config in versions.items():
-                    register_version_config(metadata.name, version_name, config)
+                if versions:
                     self.logger.debug(
-                        f"Registered version config: {metadata.name}:{version_name}"
+                        f"Loaded {len(versions)} version configs for {metadata.name}: "
+                        f"{list(versions.keys())}"
                     )
             except Exception as e:
                 self.logger.warning(

@@ -1124,6 +1124,72 @@ class ExperimentManager(
         except Exception as e:  # pylint: disable=broad-exception-caught
             self.logger.warning("Empty directory cleanup failed: %s", e, exc_info=True)
 
+        # Clean up stale Docker resources (dangling images, exited containers, orphan volumes)
+        try:
+            self._cleanup_docker_resources()
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            self.logger.warning("Docker resource cleanup failed: %s", e)
+
+    def _cleanup_docker_resources(self):
+        """Remove stale Docker resources left over from the experiment.
+
+        Cleans up dangling images, exited panther containers, and orphaned
+        panther volumes. Each step is independent so a failure in one does
+        not block the others.
+        """
+        from panther.core.docker_builder import DockerBuilder
+
+        try:
+            builder = DockerBuilder.get_instance(enable_cache=False)
+        except Exception:
+            self.logger.debug("DockerBuilder unavailable, skipping Docker cleanup")
+            return
+
+        if not builder.is_docker_available():
+            self.logger.debug("Docker daemon unavailable, skipping Docker cleanup")
+            return
+
+        client = builder.client
+        cleaned = []
+
+        # 1. Remove dangling images (<none>:<none>)
+        try:
+            if builder.remove_dangling_images():
+                cleaned.append("dangling images")
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            self.logger.debug("Dangling image cleanup failed: %s", e)
+
+        # 2. Remove exited containers with panther label
+        try:
+            exited = client.containers.list(
+                all=True,
+                filters={"status": "exited", "label": "panther"},
+            )
+            for container in exited:
+                container.remove(force=True)
+            if exited:
+                cleaned.append(f"{len(exited)} exited containers")
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            self.logger.debug("Exited container cleanup failed: %s", e)
+
+        # 3. Remove orphaned panther volumes
+        try:
+            volumes = client.volumes.list(filters={"name": "panther"})
+            removed_count = 0
+            for volume in volumes:
+                try:
+                    volume.remove()
+                    removed_count += 1
+                except Exception:
+                    pass  # Volume may still be in use
+            if removed_count:
+                cleaned.append(f"{removed_count} orphaned volumes")
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            self.logger.debug("Volume cleanup failed: %s", e)
+
+        if cleaned:
+            self.logger.info("Docker cleanup: removed %s", ", ".join(cleaned))
+
     def _record_test_metric(self, outcome: str) -> None:
         """Record test outcome metrics (total + outcome-specific counter).
 

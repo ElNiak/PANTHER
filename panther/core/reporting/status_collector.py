@@ -117,6 +117,7 @@ class ServiceHealthSummary:
     phases_completed: Optional[Dict[str, bool]] = None
     error_summary: Optional[str] = None
     output_completeness: float = 0.0
+    test_name: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary representation."""
@@ -386,7 +387,12 @@ class StatusCollector:
                 ]
 
                 for category in category_patterns:
-                    if category in content:
+                    if re.search(
+                        rf"(?:error_category|fast.?fail.*category)"
+                        rf"[=:\s]+{category}\b",
+                        content,
+                        re.IGNORECASE,
+                    ):
                         fast_fail_info.error_category = category
                         break
 
@@ -472,7 +478,7 @@ class StatusCollector:
 
             # Count Docker images (docker-compose files indicate Docker usage)
             docker_compose_files = list(
-                self.experiment_dir.rglob("docker-compose*.yml")
+                self.experiment_dir.rglob("docker*compose*.yml")
             )
             if docker_compose_files:
                 resources.docker_images_created = len(docker_compose_files)
@@ -487,11 +493,15 @@ class StatusCollector:
         test_results = []
 
         # Find all test directories (typically named after tests)
-        test_dirs = [
-            d
-            for d in self.experiment_dir.iterdir()
-            if d.is_dir() and d.name not in ["logs", "metrics", "outputs"]
-        ]
+        try:
+            test_dirs = [
+                d
+                for d in self.experiment_dir.iterdir()
+                if d.is_dir() and d.name not in ["logs", "metrics", "outputs"]
+            ]
+        except OSError as e:
+            self.logger.warning("Error scanning experiment dir: %s", e)
+            test_dirs = []
 
         for test_dir in test_dirs:
             test_result = self._extract_test_result(test_dir)
@@ -669,13 +679,19 @@ class StatusCollector:
         # 3. Check directory structure for additional clues
         logs_dir = test_dir / "logs"
         if logs_dir.exists():
-            # If logs directory exists but is empty, likely failed early
-            log_files = list(logs_dir.rglob("*.log"))
-            if not log_files:
+            try:
+                has_any_content = any(logs_dir.rglob("*"))
+            except OSError:
+                has_any_content = False
+            # Truly empty logs dir (no files at all) suggests early failure
+            if not has_any_content:
                 return TestStatus.FAILED
 
             # Check for error files
-            error_files = list(logs_dir.rglob("*.err.log"))
+            try:
+                error_files = list(logs_dir.rglob("*.err.log"))
+            except OSError:
+                error_files = []
             if error_files:
                 for error_file in error_files:
                     try:
@@ -712,11 +728,15 @@ class StatusCollector:
         summaries: List[ServiceHealthSummary] = []
 
         # Find all test directories
-        test_dirs = [
-            d
-            for d in self.experiment_dir.iterdir()
-            if d.is_dir() and d.name not in ("logs", "metrics", "outputs")
-        ]
+        try:
+            test_dirs = [
+                d
+                for d in self.experiment_dir.iterdir()
+                if d.is_dir() and d.name not in ("logs", "metrics", "outputs")
+            ]
+        except OSError as e:
+            self.logger.warning("Error scanning for service health: %s", e)
+            test_dirs = []
 
         for test_dir in test_dirs:
             health_file = test_dir / "analysis" / "service_health.json"
@@ -739,6 +759,7 @@ class StatusCollector:
                             phases_completed=entry.get("phases_completed"),
                             error_summary=entry.get("error_summary"),
                             output_completeness=entry.get("output_completeness", 0.0),
+                            test_name=test_dir.name,
                         )
                     )
             except (json.JSONDecodeError, OSError, KeyError) as e:

@@ -1,5 +1,9 @@
 """Experiment configuration models."""
 
+import functools
+import os
+import subprocess
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from pydantic import Field, field_validator
@@ -7,6 +11,26 @@ from pydantic import Field, field_validator
 from ..base import BaseConfig
 from .environment import ExecutionEnvironmentConfig, NetworkEnvironmentConfig
 from .service import ServiceConfig
+
+
+@functools.lru_cache(maxsize=1)
+def _detect_author() -> Optional[str]:
+    """Try git user.name, fall back to OS username."""
+    try:
+        result = subprocess.run(
+            ["git", "config", "user.name"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+    except Exception:
+        pass
+    try:
+        return os.getlogin()
+    except Exception:
+        return None
 
 
 class StepsConfig(BaseConfig):
@@ -31,17 +55,44 @@ class StepsConfig(BaseConfig):
 class ExperimentMetadata(BaseConfig):
     """Experiment metadata."""
 
-    name: Optional[str] = Field(None, description="Experiment name")
+    name: Optional[str] = Field("new_experiment", description="Experiment name")
     description: Optional[str] = Field(None, description="Experiment description")
-    author: Optional[str] = Field(None, description="Experiment author")
-    version: Optional[str] = Field(None, description="Experiment version")
+    author: Optional[str] = Field(
+        default_factory=_detect_author, description="Experiment author"
+    )
+    version: Optional[str] = Field("1.0.0", description="Experiment version")
     tags: List[str] = Field(default_factory=list, description="Experiment tags")
-    created_at: Optional[str] = Field(None, description="Creation timestamp")
-    modified_at: Optional[str] = Field(None, description="Last modification timestamp")
+    created_at: Optional[str] = Field(
+        default_factory=lambda: datetime.now().isoformat(),
+        description="Creation timestamp",
+    )
+    modified_at: Optional[str] = Field(
+        default_factory=lambda: datetime.now().isoformat(),
+        description="Last modification timestamp",
+    )
 
 
 class TestConfig(BaseConfig):
-    """Individual test configuration."""
+    """One test scenario: a set of services deployed together in a network environment.
+
+    The ``services`` dict keys are service names -- used as Docker container names
+    AND as the values referenced by ``ProtocolConfig.target``.  Services form a
+    directed graph via those ``target`` references (client -> server edges).
+
+    Example YAML::
+
+        tests:
+          - name: quic-handshake
+            network_environment:
+              type: docker_compose
+            services:
+              server:
+                implementation: { name: picoquic, type: iut }
+                protocol: { name: quic, version: rfc9000, role: server }
+              client:
+                implementation: { name: aioquic, type: iut }
+                protocol: { name: quic, role: client, target: server }
+    """
 
     name: str = Field(
         ...,
@@ -57,7 +108,9 @@ class TestConfig(BaseConfig):
         default_factory=list, description="Execution environment configurations"
     )
     services: Dict[str, ServiceConfig] = Field(
-        ..., description="Service configurations"
+        ...,
+        description="Service configurations",
+        json_schema_extra={"key_generator": "service_name"},
     )
     steps: StepsConfig = Field(default_factory=StepsConfig, description="Test steps")
     iterations: int = Field(
@@ -83,12 +136,89 @@ class TestConfig(BaseConfig):
     )
     collect_artifacts: bool = Field(True, description="Collect test artifacts")
 
+    @classmethod
+    def generate_default_name(cls, test_data: dict) -> str:
+        """Generate a descriptive test name from services, protocol, and environment info.
+
+        Follows project naming conventions, e.g.:
+        ``"QUIC Client-Server Communication Test"``
+        ``"Strace - Shadow QUIC Client-Server Communication Test"``
+        """
+        services = test_data.get("services", {})
+        if not services:
+            return ""
+
+        protocols: set = set()
+        role_parts: list = []
+        for svc_data in services.values():
+            svc = svc_data if isinstance(svc_data, dict) else {}
+            proto = svc.get("protocol", {})
+            proto_name = proto.get("name", "") if isinstance(proto, dict) else ""
+            if proto_name:
+                protocols.add(proto_name.upper())
+            role = (
+                proto.get("role", "unknown") if isinstance(proto, dict) else "unknown"
+            )
+            role_parts.append(role.title())
+
+        proto_str = "-".join(sorted(protocols)) if protocols else "Protocol"
+        role_str = "-".join(role_parts) if role_parts else ""
+
+        exec_envs = test_data.get("execution_environment", [])
+        exec_prefix = ""
+        if isinstance(exec_envs, list) and exec_envs:
+            exec_types = [
+                e.get("type", "")
+                for e in exec_envs
+                if isinstance(e, dict) and e.get("type")
+            ]
+            if exec_types:
+                exec_prefix = " ".join(t.title() for t in exec_types) + " - "
+
+        net_env = test_data.get("network_environment", {})
+        net_type = net_env.get("type", "") if isinstance(net_env, dict) else ""
+        net_prefix = ""
+        if net_type and net_type not in ("docker_compose", ""):
+            net_prefix = net_type.replace("_", " ").title() + " "
+
+        return f"{exec_prefix}{net_prefix}{proto_str} {role_str} Communication Test".strip()
+
+    @classmethod
+    def generate_default_description(cls, test_data: dict) -> str:
+        """Generate a test description from services and environment info."""
+        services = test_data.get("services", {})
+        if not services:
+            return ""
+
+        svc_parts: list = []
+        for svc_name, svc_data in services.items():
+            svc = svc_data if isinstance(svc_data, dict) else {}
+            impl = svc.get("implementation", {})
+            proto = svc.get("protocol", {})
+            impl_name = (
+                impl.get("name", svc_name) if isinstance(impl, dict) else svc_name
+            )
+            role = proto.get("role", "") if isinstance(proto, dict) else ""
+            svc_parts.append(f"{impl_name} ({role})" if role else impl_name)
+
+        svc_str = " and ".join(svc_parts)
+
+        net_env = test_data.get("network_environment", {})
+        net_type = (
+            net_env.get("type", "network") if isinstance(net_env, dict) else "network"
+        )
+
+        return (
+            f"Verify communication between {svc_str}"
+            f" over {net_type.replace('_', ' ')} network."
+        )
+
     @field_validator("services")
     @classmethod
     def validate_services(cls, v):
         """Validate services configuration."""
         if not v:
-            raise ValueError("At least one service must be defined")
+            raise ValueError("Services dictionary cannot be empty")
 
         # Check for service targets
         for service_name, service in v.items():
@@ -144,7 +274,10 @@ class TestConfig(BaseConfig):
 
 
 class ExperimentConfig(BaseConfig):
-    """Main experiment configuration."""
+    """Top-level configuration containing one or more independent tests.
+
+    Each test runs in isolation with its own network environment and services.
+    """
 
     tests: List[TestConfig] = Field(..., description="List of test configurations")
     metadata: Optional[ExperimentMetadata] = Field(

@@ -24,11 +24,7 @@ class BaseConfig(BaseModel):
         ├── EnvironmentConfig
         │   ├── NetworkEnvironmentConfig
         │   └── ExecutionEnvironmentConfig
-        ├── ObserversConfig, BaseObserverConfig, ...
-        ├── ProtocolPluginConfig
-        └── BaseProtocolConfig (ABC)
-            ├── ClientServerProtocolConfig
-            └── PeerToPeerProtocolConfig
+        └── ObserversConfig, BaseObserverConfig, ...
 
     model_config settings:
         - ``extra="allow"`` — plugins add custom fields without schema changes

@@ -548,3 +548,367 @@ class TestDataLoaderEdgeCases:
         # Only "execution" should be included (count > 0)
         assert len(phase_items) == 1
         assert phase_items[0]["name"] == "execution"
+
+
+class TestGetStatCards:
+    """Tests for MetricsDataLoader.get_stat_cards()."""
+
+    def test_returns_four_cards(self, sample_metrics_json):
+        cards = MetricsDataLoader.get_stat_cards(sample_metrics_json)
+        assert len(cards) == 4
+
+    def test_card_titles(self, sample_metrics_json):
+        cards = MetricsDataLoader.get_stat_cards(sample_metrics_json)
+        titles = [c["title"] for c in cards]
+        assert titles == [
+            "Total Experiments",
+            "Success Rate",
+            "Total Execution Time",
+            "Error Count",
+        ]
+
+    def test_total_experiments_value(self, sample_metrics_json):
+        cards = MetricsDataLoader.get_stat_cards(sample_metrics_json)
+        card = {c["title"]: c for c in cards}
+        assert card["Total Experiments"]["value"] == 1
+        assert card["Total Experiments"]["color"] == "blue"
+
+    def test_success_rate_calculated_correctly(self, sample_metrics_json):
+        cards = MetricsDataLoader.get_stat_cards(sample_metrics_json)
+        card = {c["title"]: c for c in cards}
+        # 1 successful / max(1 total, 1) * 100 = 100.0%
+        assert card["Success Rate"]["value"] == "100.0%"
+        # success (1) > failed (0) -> green
+        assert card["Success Rate"]["color"] == "green"
+
+    def test_success_rate_red_when_more_failures(self):
+        data = {
+            "summary": {
+                "total_experiments": 10,
+                "successful_experiments": 3,
+                "failed_experiments": 7,
+                "error_count": 0,
+                "total_execution_time": 10.0,
+            }
+        }
+        cards = MetricsDataLoader.get_stat_cards(data)
+        card = {c["title"]: c for c in cards}
+        assert card["Success Rate"]["value"] == "30.0%"
+        assert card["Success Rate"]["color"] == "red"
+
+    def test_execution_time_formatted(self, sample_metrics_json):
+        cards = MetricsDataLoader.get_stat_cards(sample_metrics_json)
+        card = {c["title"]: c for c in cards}
+        assert card["Total Execution Time"]["value"] == "42.50s"
+        assert card["Total Execution Time"]["color"] == "purple"
+
+    def test_error_count_green_when_zero(self):
+        data = {
+            "summary": {
+                "total_experiments": 1,
+                "successful_experiments": 1,
+                "failed_experiments": 0,
+                "error_count": 0,
+                "total_execution_time": 5.0,
+            }
+        }
+        cards = MetricsDataLoader.get_stat_cards(data)
+        card = {c["title"]: c for c in cards}
+        assert card["Error Count"]["value"] == 0
+        assert card["Error Count"]["color"] == "green"
+
+    def test_error_count_red_when_nonzero(self, sample_metrics_json):
+        cards = MetricsDataLoader.get_stat_cards(sample_metrics_json)
+        card = {c["title"]: c for c in cards}
+        assert card["Error Count"]["value"] == 1
+        assert card["Error Count"]["color"] == "red"
+
+    def test_empty_summary_defaults(self):
+        cards = MetricsDataLoader.get_stat_cards({})
+        card = {c["title"]: c for c in cards}
+        assert card["Total Experiments"]["value"] == 0
+        assert card["Success Rate"]["value"] == "0.0%"
+        assert card["Error Count"]["value"] == 0
+
+
+class TestGetTimeseries:
+    """Tests for MetricsDataLoader.get_timeseries()."""
+
+    def test_groups_by_rounded_timestamp(self, sample_metrics_json):
+        ts = MetricsDataLoader.get_timeseries(sample_metrics_json)
+        # sample_metrics_json has two cpu_percent entries at timestamps
+        # 1705312100.0 and 1705312110.0 -> rounded to 1705312100 and 1705312110
+        assert len(ts) == 2
+        assert ts[0]["timestamp"] < ts[1]["timestamp"]
+
+    def test_entries_contain_metric_values(self, sample_metrics_json):
+        ts = MetricsDataLoader.get_timeseries(sample_metrics_json)
+        assert ts[0]["cpu_percent"] == 35.2
+        assert ts[1]["cpu_percent"] == 40.1
+
+    def test_multiple_metrics_at_same_timestamp(self):
+        data = {
+            "raw_metrics": {
+                "resource_metrics": [
+                    {
+                        "name": "cpu_percent",
+                        "value": 50.0,
+                        "timestamp": 1000.0,
+                        "component": "resource_monitor",
+                    },
+                    {
+                        "name": "memory_percent",
+                        "value": 70.0,
+                        "timestamp": 1000.0,
+                        "component": "resource_monitor",
+                    },
+                ]
+            }
+        }
+        ts = MetricsDataLoader.get_timeseries(data)
+        assert len(ts) == 1
+        assert ts[0]["cpu_percent"] == 50.0
+        assert ts[0]["memory_percent"] == 70.0
+        assert ts[0]["timestamp"] == 1000
+
+    def test_sorted_by_timestamp(self):
+        data = {
+            "raw_metrics": {
+                "resource_metrics": [
+                    {"name": "cpu", "value": 10, "timestamp": 3000.0},
+                    {"name": "cpu", "value": 20, "timestamp": 1000.0},
+                    {"name": "cpu", "value": 30, "timestamp": 2000.0},
+                ]
+            }
+        }
+        ts = MetricsDataLoader.get_timeseries(data)
+        timestamps = [e["timestamp"] for e in ts]
+        assert timestamps == [1000, 2000, 3000]
+
+    def test_empty_resource_metrics_returns_empty(self):
+        assert MetricsDataLoader.get_timeseries({}) == []
+        assert MetricsDataLoader.get_timeseries({"raw_metrics": {}}) == []
+        assert (
+            MetricsDataLoader.get_timeseries({"raw_metrics": {"resource_metrics": []}})
+            == []
+        )
+
+    def test_non_list_resource_metrics_returns_empty(self):
+        data = {"raw_metrics": {"resource_metrics": "invalid"}}
+        assert MetricsDataLoader.get_timeseries(data) == []
+
+    def test_non_dict_raw_metrics_returns_empty(self):
+        data = {"raw_metrics": "invalid"}
+        assert MetricsDataLoader.get_timeseries(data) == []
+
+    def test_skips_entries_without_timestamp(self):
+        data = {
+            "raw_metrics": {
+                "resource_metrics": [
+                    {"name": "cpu", "value": 10, "timestamp": 1000.0},
+                    {"name": "cpu", "value": 20},  # no timestamp
+                ]
+            }
+        }
+        ts = MetricsDataLoader.get_timeseries(data)
+        assert len(ts) == 1
+
+    def test_skips_entries_with_none_value(self):
+        data = {
+            "raw_metrics": {
+                "resource_metrics": [
+                    {"name": "cpu", "value": None, "timestamp": 1000.0},
+                    {"name": "mem", "value": 80.0, "timestamp": 1000.0},
+                ]
+            }
+        }
+        ts = MetricsDataLoader.get_timeseries(data)
+        assert len(ts) == 1
+        assert "cpu" not in ts[0]
+        assert ts[0]["mem"] == 80.0
+
+    def test_skips_non_dict_entries(self):
+        data = {
+            "raw_metrics": {
+                "resource_metrics": [
+                    "not_a_dict",
+                    {"name": "cpu", "value": 10, "timestamp": 1000.0},
+                ]
+            }
+        }
+        ts = MetricsDataLoader.get_timeseries(data)
+        assert len(ts) == 1
+
+
+class TestGetPerformanceInsights:
+    """Tests for MetricsDataLoader.get_performance_insights()."""
+
+    def test_excellent_score_no_errors_no_alerts(self):
+        data = {
+            "summary": {
+                "total_experiments": 5,
+                "failed_experiments": 0,
+                "error_count": 0,
+            },
+            "timing_metrics": {"setup": 2.0, "test": 5.0},
+            "resource_metrics": {
+                "cpu_usage": {"average": 40, "peak": 60},
+                "memory_usage": {"average": 50, "peak": 70},
+            },
+        }
+        insights = MetricsDataLoader.get_performance_insights(data)
+        assert insights["performance_score"] == "excellent"
+        assert insights["bottlenecks"] == []
+        assert insights["alerts"] == []
+        assert insights["recommendations"] == []
+
+    def test_bottleneck_detected_for_slow_operation(self):
+        data = {
+            "summary": {"error_count": 0},
+            "timing_metrics": {
+                "fast_op": 3.0,
+                "slow_build_duration": 25.0,
+            },
+        }
+        insights = MetricsDataLoader.get_performance_insights(data)
+        assert len(insights["bottlenecks"]) == 1
+        bottleneck = insights["bottlenecks"][0]
+        assert bottleneck["operation"] == "slow_build"
+        assert bottleneck["average_time"] == 25.0
+        assert bottleneck["total_time"] == 25.0
+        assert bottleneck["call_count"] == 1
+
+    def test_multiple_bottlenecks(self):
+        data = {
+            "summary": {"error_count": 0},
+            "timing_metrics": {
+                "op_a_duration": 15.0,
+                "op_b_duration": 20.0,
+                "op_c": 2.0,
+            },
+        }
+        insights = MetricsDataLoader.get_performance_insights(data)
+        assert len(insights["bottlenecks"]) == 2
+        ops = {b["operation"] for b in insights["bottlenecks"]}
+        assert "op_a" in ops
+        assert "op_b" in ops
+
+    def test_critical_cpu_alert(self):
+        data = {
+            "summary": {"error_count": 0},
+            "resource_metrics": {
+                "cpu_usage": {"average": 50, "peak": 98},
+                "memory_usage": {"average": 50, "peak": 70},
+            },
+        }
+        insights = MetricsDataLoader.get_performance_insights(data)
+        assert any("CPU usage reached 95%" in a for a in insights["alerts"])
+        assert any("CPU-intensive" in r for r in insights["recommendations"])
+
+    def test_warning_high_avg_cpu(self):
+        data = {
+            "summary": {"error_count": 0},
+            "resource_metrics": {
+                "cpu_usage": {"average": 85, "peak": 90},
+                "memory_usage": {"average": 50, "peak": 70},
+            },
+        }
+        insights = MetricsDataLoader.get_performance_insights(data)
+        assert any("High average CPU" in a for a in insights["alerts"])
+
+    def test_critical_memory_alert(self):
+        data = {
+            "summary": {"error_count": 0},
+            "resource_metrics": {
+                "cpu_usage": {"average": 30, "peak": 50},
+                "memory_usage": {"average": 60, "peak": 97},
+            },
+        }
+        insights = MetricsDataLoader.get_performance_insights(data)
+        assert any("Memory usage reached 95%" in a for a in insights["alerts"])
+        assert any("memory usage" in r for r in insights["recommendations"])
+
+    def test_warning_high_avg_memory(self):
+        data = {
+            "summary": {"error_count": 0},
+            "resource_metrics": {
+                "cpu_usage": {"average": 30, "peak": 50},
+                "memory_usage": {"average": 85, "peak": 90},
+            },
+        }
+        insights = MetricsDataLoader.get_performance_insights(data)
+        assert any("High average memory" in a for a in insights["alerts"])
+
+    def test_high_failure_rate_alert(self):
+        data = {
+            "summary": {
+                "total_experiments": 10,
+                "failed_experiments": 5,
+                "error_count": 0,
+            },
+        }
+        insights = MetricsDataLoader.get_performance_insights(data)
+        assert any("failure rate" in a.lower() for a in insights["alerts"])
+
+    def test_poor_score_with_errors(self):
+        data = {
+            "summary": {"error_count": 3},
+        }
+        insights = MetricsDataLoader.get_performance_insights(data)
+        assert insights["performance_score"] == "poor"
+
+    def test_good_score_few_alerts_no_errors(self):
+        data = {
+            "summary": {"error_count": 0},
+            "resource_metrics": {
+                "cpu_usage": {"average": 85, "peak": 90},
+                "memory_usage": {"average": 50, "peak": 70},
+            },
+        }
+        insights = MetricsDataLoader.get_performance_insights(data)
+        # 1 alert (high avg CPU) but no errors -> "good"
+        assert insights["performance_score"] == "good"
+
+    def test_fair_score_many_alerts_no_errors(self):
+        data = {
+            "summary": {
+                "total_experiments": 10,
+                "failed_experiments": 5,
+                "error_count": 0,
+            },
+            "resource_metrics": {
+                "cpu_usage": {"average": 85, "peak": 98},
+                "memory_usage": {"average": 85, "peak": 98},
+            },
+        }
+        insights = MetricsDataLoader.get_performance_insights(data)
+        # Critical CPU, critical memory, high failure rate = 5 alerts + recs -> "fair"
+        assert len(insights["alerts"]) >= 3
+        assert insights["performance_score"] == "fair"
+
+    def test_empty_data_returns_unknown(self):
+        insights = MetricsDataLoader.get_performance_insights({})
+        assert insights["performance_score"] == "excellent"
+        assert insights["bottlenecks"] == []
+        assert insights["alerts"] == []
+        assert insights["recommendations"] == []
+
+    def test_non_numeric_timing_values_ignored(self):
+        data = {
+            "summary": {"error_count": 0},
+            "timing_metrics": {
+                "valid_duration": 15.0,
+                "invalid": "not_a_number",
+            },
+        }
+        insights = MetricsDataLoader.get_performance_insights(data)
+        assert len(insights["bottlenecks"]) == 1
+        assert insights["bottlenecks"][0]["operation"] == "valid"
+
+    def test_non_dict_resource_metrics_handled(self):
+        data = {
+            "summary": {"error_count": 0},
+            "resource_metrics": "invalid",
+        }
+        insights = MetricsDataLoader.get_performance_insights(data)
+        assert insights["alerts"] == []

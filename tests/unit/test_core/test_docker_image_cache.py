@@ -1,5 +1,4 @@
-"""
-Unit tests for Docker Image Cache system.
+"""Unit tests for Docker Image Cache system.
 
 Tests the real CachedImage dataclass, DockerImageCache, and integration
 with DockerBuilder. All PANTHER classes are imported directly -- no fake
@@ -640,21 +639,6 @@ class TestDockerBuilderCacheIntegration:
         # Should be able to check image existence from cache
         cached_result = builder.image_cache.image_exists_in_cache("cached:latest")
         assert cached_result is True
-
-    def test_builder_docker_status(self, cache_builder):
-        """Test DockerBuilder.get_docker_status() method."""
-        status = cache_builder.get_docker_status()
-
-        assert isinstance(status, dict)
-        assert "docker_available" in status
-        assert "cache_enabled" in status
-        assert "cached_images" in status
-        assert "cache_fresh" in status
-        assert "fallback_mode" in status
-
-        # Should be in normal mode (not fallback)
-        assert status["cache_enabled"] is True
-        assert status["fallback_mode"] is False
 
 
 # ---------------------------------------------------------------------------

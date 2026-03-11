@@ -786,6 +786,18 @@ class PluginFactory(LoggerMixin):
             return self._class_cache[cache_key]
 
         try:
+            # Try decorator registry first — has the actual class object
+            from panther.plugins.core.plugin_decorators import get_plugin_by_name
+
+            result = get_plugin_by_name(plugin_metadata.name)
+            if result is not None:
+                plugin_class, _ = result
+                self._class_cache[cache_key] = plugin_class
+                self.logger.debug(
+                    "Loaded plugin class from registry: %s", plugin_class.__name__
+                )
+                return plugin_class
+
             # Determine class name and module path
             # Handle both enum and string types for plugin type comparison
             if hasattr(plugin_metadata.type, "value"):
@@ -813,7 +825,10 @@ class PluginFactory(LoggerMixin):
                 suffix = "Environment"
             else:
                 suffix = ""
-            class_name = f"{plugin_metadata.name.title()}{suffix}"
+            pascal_name = "".join(
+                part.capitalize() for part in plugin_metadata.name.split("_")
+            )
+            class_name = f"{pascal_name}{suffix}"
 
             module_path = self._get_module_path(plugin_metadata)
 
@@ -1027,17 +1042,21 @@ class PluginFactory(LoggerMixin):
             plugin_names: Optional list of plugin names to preload.
                          If None, preloads all discovered plugins.
         """
+        plugins = self.plugin_manager.discover_plugins()
         if plugin_names is None:
-            plugins = self.plugin_manager.discover_plugins()
             plugin_names = list(plugins.keys())
 
         self.logger.info("Preloading %d plugin classes", len(plugin_names))
 
         for plugin_name in plugin_names:
             try:
-                plugin_metadata = self.plugin_manager.get_plugin(plugin_name)
+                plugin_metadata = plugins.get(plugin_name)
                 if plugin_metadata:
                     self._load_plugin_class(plugin_metadata)
+                else:
+                    self.logger.warning(
+                        f"Plugin '{plugin_name}' not found in discovered plugins"
+                    )
             except Exception as e:
                 self.logger.warning(f"Failed to preload plugin '{plugin_name}': {e}")
 

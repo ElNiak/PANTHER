@@ -259,6 +259,13 @@ class EnvironmentManagementMixin:
                     environment_type=env_type,
                     cleanup_details={"test_name": self.test_config.name},
                 )
+                # Emit environment destroyed event (resources fully released)
+                env_emitter.emit_environment_destroyed(
+                    environment_id=f"{env_type}_{self.test_name}",
+                    environment_name=self.test_name,
+                    environment_type=env_type,
+                    cleanup_summary={"test_name": self.test_config.name},
+                )
 
             self.logger.info("Environment teardown completed")
 
@@ -267,6 +274,18 @@ class EnvironmentManagementMixin:
 
         except Exception as e:
             self.logger.error(f"Environment teardown failed: {e}")
+            # Emit environment error event
+            env_emitter = None
+            if self.emitter_registry:
+                env_emitter = self.emitter_registry.environment_emitter
+            if env_emitter:
+                env_emitter.emit_environment_error(
+                    environment_id=f"unknown_{self.test_name}",
+                    environment_name=self.test_name,
+                    environment_type="unknown",
+                    error_message=str(e),
+                    error_type=type(e).__name__,
+                )
 
     def deploy_services(self) -> None:
         """Deploy services through environment managers."""
@@ -372,8 +391,7 @@ class EnvironmentManagementMixin:
             raise
 
     def get_service_names_and_metadata(self) -> Dict[str, Dict[str, Any]]:
-        """
-        Get service names and metadata for deployment.
+        """Get service names and metadata for deployment.
 
         Returns:
             Dict mapping service names to metadata

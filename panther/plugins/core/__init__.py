@@ -8,7 +8,6 @@ Architecture::
     PluginDiscovery       ← scans packages for @register_plugin decorators
     PluginFactory         ← instantiates plugins from metadata + config
     PluginMetadata        ← runtime metadata envelope
-    PluginMetadataLoader  ← deserialises metadata from files / decorators
     PluginManifest        ← on-disk manifest for installed plugins
     PluginStatus          ← lifecycle state enum
 
@@ -22,15 +21,10 @@ See Also:
 from .plugin_discovery import PluginDiscovery
 from .plugin_factory import PluginFactory
 from .structures.plugin_manifest import PluginManifest
-from .structures.plugin_metadata import (
-    PluginMetadata,
-    PluginMetadataLoader,
-    PluginStatus,
-)
+from .structures.plugin_metadata import PluginMetadata, PluginStatus
 
 __all__ = [
     "PluginMetadata",
-    "PluginMetadataLoader",
     "PluginStatus",
     "PluginManifest",
     "PluginFactory",

@@ -19,7 +19,7 @@ from panther.plugins.services.iut.iut_service_manager_mixin import (
     plugin_type=PluginType.IUT,
     name="quant",
     version="2.0.0",
-    description="Quant - Minimal QUIC implementation (Refactored)",
+    description="Quant - Minimal QUIC implementation ",
     author="PANTHER Team",
     dependencies=["docker"],
     supported_protocols=["quic"],

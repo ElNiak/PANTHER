@@ -1,8 +1,7 @@
-"""
-Plugin Metadata Structures
+"""Plugin Metadata Structures.
 
 This module defines the metadata structures used for plugin management,
-including PluginMetadata, PluginMetadataLoader, and PluginStatus.
+including PluginMetadata and PluginStatus.
 """
 
 from dataclasses import dataclass, field
@@ -26,8 +25,7 @@ class PluginStatus(Enum):
 
 @dataclass
 class PluginMetadata:
-    """
-    Lightweight metadata structure for plugin discovery and cataloging.
+    """Lightweight metadata structure for plugin discovery and cataloging.
 
     This is a simplified version of PluginManifest used during the discovery phase.
     Now supports dynamic fields from decorator registration.
@@ -136,122 +134,3 @@ class PluginMetadata:
         if protocol and self.supported_protocols:
             return protocol in self.supported_protocols
         return True
-
-
-class PluginMetadataLoader:
-    """Utility class for loading plugin metadata from various sources."""
-
-    @staticmethod
-    def from_module(module) -> Optional[PluginMetadata]:
-        """Extract metadata from a Python module."""
-        try:
-            # Look for metadata attributes in the module
-            name = getattr(module, "__plugin_name__", module.__name__.split(".")[-1])
-            plugin_type = getattr(module, "__plugin_type__", "service")
-            version = getattr(module, "__version__", "1.0.0")
-            description = getattr(module, "__description__", "")
-            author = getattr(module, "__author__", "")
-            supported_protocols = getattr(module, "__supported_protocols__", [])
-            dependencies = getattr(module, "__dependencies__", [])
-            capabilities = getattr(module, "__capabilities__", [])
-
-            return PluginMetadata(
-                name=name,
-                type=plugin_type,
-                version=version,
-                description=description,
-                author=author,
-                supported_protocols=supported_protocols,
-                dependencies=dependencies,
-                capabilities=capabilities,
-            )
-        except Exception:
-            return None
-
-    @staticmethod
-    def from_decorator_metadata(metadata: dict) -> Optional[PluginMetadata]:
-        """Create PluginMetadata from decorator registration data."""
-        try:
-            # Known core fields that map directly
-            core_mapping = {
-                "plugin_type": "type",
-                "external_dependencies": "external_dependencies",
-            }
-
-            # Build data dict for from_dict method
-            data = {}
-
-            # Map known fields
-            for meta_key, meta_value in metadata.items():
-                if meta_key in core_mapping:
-                    data[core_mapping[meta_key]] = meta_value
-                elif meta_key in {
-                    "name",
-                    "version",
-                    "description",
-                    "author",
-                    "supported_protocols",
-                    "dependencies",
-                    "capabilities",
-                    "runtime_mode",
-                }:
-                    data[meta_key] = meta_value
-                else:
-                    # Unknown fields go to extra_fields
-                    if "extra_fields" not in data:
-                        data["extra_fields"] = {}
-                    data["extra_fields"][meta_key] = meta_value
-
-            # Use from_dict to handle all the dynamic field logic
-            return PluginMetadata.from_dict(data)
-        except Exception:
-            return None
-
-    @staticmethod
-    def load_from_directory(
-        directory: Path, plugin_type: str
-    ) -> Optional[PluginMetadata]:
-        """Load plugin metadata from a directory."""
-        import json
-
-        import yaml
-
-        try:
-            # Try to find a plugin.yaml or plugin.json
-            yaml_file = directory / "plugin.yaml"
-            json_file = directory / "plugin.json"
-
-            metadata_dict = None
-
-            if yaml_file.exists():
-                with open(yaml_file, "r") as f:
-                    metadata_dict = yaml.safe_load(f)
-            elif json_file.exists():
-                with open(json_file, "r") as f:
-                    metadata_dict = json.load(f)
-            else:
-                # Create basic metadata from directory name
-                metadata_dict = {
-                    "name": directory.name,
-                    "type": plugin_type,
-                    "version": "1.0.0",
-                    "description": f"{directory.name} plugin",
-                    "path": str(directory),
-                }
-
-            if metadata_dict:
-                metadata_dict["path"] = directory
-                metadata_dict["type"] = plugin_type
-                return PluginMetadata.from_dict(metadata_dict)
-
-        except Exception:
-            # Fallback to basic metadata
-            return PluginMetadata(
-                name=directory.name,
-                type=plugin_type,
-                path=directory,
-                version="1.0.0",
-                description=f"{directory.name} plugin",
-            )
-
-        return None

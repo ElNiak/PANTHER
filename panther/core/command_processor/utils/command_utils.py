@@ -20,6 +20,7 @@ Note:
 
 import logging
 import re
+import shlex
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
@@ -53,14 +54,14 @@ class CommandUtils:
     """
 
     def __init__(self):
+        """Initialize CommandUtils with a module-level logger."""
         self.logger = logging.getLogger(__name__)
 
     @staticmethod
     def extract_working_directory_from_command(
         command: str,
     ) -> Tuple[Optional[str], str]:
-        """
-        Extract working directory from commands that start with 'cd' followed by '&&'.
+        """Extract working directory from commands that start with 'cd' followed by '&&'.
 
         Args:
             command: Command string to analyze
@@ -92,8 +93,7 @@ class CommandUtils:
 
     @staticmethod
     def generate_basic_service_commands() -> Dict[str, list]:
-        """
-        Generate basic empty command structure used by most service managers.
+        """Generate basic empty command structure used by most service managers.
 
         Returns:
             dict: Basic command structure with empty lists
@@ -113,8 +113,7 @@ class CommandUtils:
         environment: Optional[Dict[str, str]] = None,
         timeout: Optional[int] = None,
     ) -> "ShellCommand":
-        """
-        Create a ShellCommand object with proper structure.
+        """Create a ShellCommand object with proper structure.
 
         Args:
             command: Command string to execute
@@ -139,8 +138,8 @@ class CommandUtils:
     def create_shell_commands_from_list(
         commands: List[Union[str, dict, "ShellCommand"]]
     ) -> List["ShellCommand"]:
-        """
-        Convert a list of various command formats to ShellCommand objects.
+        """Convert a list of various command formats to ShellCommand objects.
+
         Automatically extracts working directory from commands starting with 'cd && '.
 
         Args:
@@ -181,8 +180,7 @@ class CommandUtils:
         timeout: int = 60,
         environment: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]:
-        """
-        Create a standardized run command structure.
+        """Create a standardized run command structure.
 
         Args:
             working_dir: Working directory for the command
@@ -208,8 +206,7 @@ class CommandUtils:
 
     @staticmethod
     def merge_command_structures(*command_dicts: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Merge multiple command structures, combining lists and updating dicts.
+        """Merge multiple command structures, combining lists and updating dicts.
 
         Args:
             *command_dicts: Command dictionaries to merge
@@ -241,8 +238,7 @@ class CommandUtils:
 
     @staticmethod
     def validate_command_structure(command_dict: Dict[str, Any]) -> bool:
-        """
-        Validate that a command structure has the required fields.
+        """Validate that a command structure has the required fields.
 
         Args:
             command_dict: Command dictionary to validate
@@ -288,8 +284,7 @@ class CommandUtils:
     def add_environment_variable(
         command_dict: Dict[str, Any], key: str, value: str
     ) -> None:
-        """
-        Add an environment variable to a command structure.
+        """Add an environment variable to a command structure.
 
         Args:
             command_dict: Command dictionary to modify
@@ -306,8 +301,7 @@ class CommandUtils:
 
     @staticmethod
     def add_pre_run_command(command_dict: Dict[str, Any], command: str) -> None:
-        """
-        Add a pre-run command to the command structure.
+        """Add a pre-run command to the command structure.
 
         Args:
             command_dict: Command dictionary to modify
@@ -320,8 +314,7 @@ class CommandUtils:
 
     @staticmethod
     def add_post_run_command(command_dict: Dict[str, Any], command: str) -> None:
-        """
-        Add a post-run command to the command structure.
+        """Add a post-run command to the command structure.
 
         Args:
             command_dict: Command dictionary to modify
@@ -339,8 +332,7 @@ class CommandUtils:
         commands: List["ShellCommand"],
         level: int = logging.INFO,
     ) -> None:
-        """
-        Log structured command generation.
+        """Log structured command generation.
 
         Args:
             logger_instance: Logger to use
@@ -362,11 +354,39 @@ class CommandUtils:
         CommandUtils.log_command_generation(logger_instance, phase, command_list, level)
 
     @staticmethod
+    def create_certificate_generation_command(
+        cert_dir: str,
+        cert_name: str = "cert",
+        key_name: str = "key",
+        common_name: str = "localhost",
+        days: int = 365,
+    ) -> str:
+        """Create an OpenSSL command to generate self-signed certificates.
+
+        Args:
+            cert_dir: Directory to store certificates
+            cert_name: Certificate file name (without extension)
+            key_name: Key file name (without extension)
+            common_name: Common name for the certificate
+            days: Certificate validity in days
+
+        Returns:
+            OpenSSL command string
+        """
+        cert_path = shlex.quote(f"{cert_dir}/{cert_name}.pem")
+        key_path = shlex.quote(f"{cert_dir}/{key_name}.pem")
+
+        return (
+            f"openssl req -x509 -newkey rsa:4096 -nodes "
+            f"-keyout {key_path} -out {cert_path} "
+            f"-days {days} -subj '/CN={common_name}'"
+        )
+
+    @staticmethod
     def log_command_generation(
         logger_instance, phase: str, commands: List[str], level: int = logging.INFO
     ) -> None:
-        """
-        Log command generation with smart summarization.
+        """Log command generation with smart summarization.
 
         Args:
             logger_instance: Logger to use

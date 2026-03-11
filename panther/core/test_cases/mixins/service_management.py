@@ -53,6 +53,7 @@ class ServiceManagementMixin:
             raise
 
     def generate_service_metadata(self):
+        """Generate metadata for all configured services."""
         service_metadata = []
         # Build metadata from service configurations
         for service_name, service_config in self.services.items():
@@ -244,32 +245,53 @@ class ServiceManagementMixin:
             if self.emitter_registry:
                 service_emitter = self.emitter_registry.service_emitter
 
-            # Service teardown started
+            # Emit service teardown started for each service
+            for service_manager in self.service_managers:
+                service_name = getattr(service_manager, "service_name", "unknown")
+                if service_emitter:
+                    service_emitter.emit_service_teardown_started(
+                        service_id=f"{self.test_name}_{service_name}",
+                        service_name=service_name,
+                    )
 
             # Teardown each service
             for service_manager in self.service_managers:
+                service_name = getattr(service_manager, "service_name", "unknown")
                 try:
-                    self.logger.info(
-                        f"Stopping service: {service_manager.service_name}"
-                    )
+                    self.logger.info(f"Stopping service: {service_name}")
                     service_manager.stop()
 
+                    # Emit service stopped and destroyed events
+                    if service_emitter:
+                        service_emitter.emit_service_stopped(
+                            service_id=f"{self.test_name}_{service_name}",
+                            service_name=service_name,
+                        )
+                        service_emitter.emit_service_destroyed(
+                            service_id=f"{self.test_name}_{service_name}",
+                            service_name=service_name,
+                            cleanup_details={"test_case": self.test_name},
+                        )
+
                 except Exception as e:
-                    self.logger.error(
-                        f"Failed to stop service {service_manager.service_name}: {e}"
-                    )
+                    self.logger.error(f"Failed to stop service {service_name}: {e}")
+                    # Emit service error event
+                    if service_emitter:
+                        service_emitter.emit_service_error(
+                            service_id=f"{self.test_name}_{service_name}",
+                            service_name=service_name,
+                            error_message=str(e),
+                            error_type=type(e).__name__,
+                        )
                     # Continue with other services
 
             # Clear service managers
             self.service_managers.clear()
 
-            # Service teardown completed
-
             self.logger.info("All services torn down")
 
         except Exception as e:
             self.logger.error(f"Service teardown failed: {e}")
-            # Service teardown failed
             # Don't re-raise, allow cleanup to continue
 
     def _create_service_manager(

@@ -3,7 +3,7 @@
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from panther.config.core.models.network_resolution import NetworkResolutionContext
-from panther.core.docker_builder.plugin_mixin.environment_manager_docker_mixing import (
+from panther.core.docker_builder.plugin_mixin.environment_manager_docker_mixin import (
     StagedDockerMixin,
 )
 from panther.plugins.environments.network_environment.localhost_single_container.localhost_network_resolver import (

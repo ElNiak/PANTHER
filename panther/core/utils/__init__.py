@@ -49,6 +49,7 @@ from .feature_registry import (
     register_feature,
     register_module_feature,
 )
+from .format_utils import compute_duration, format_json
 from .logger_factory import LoggerFactory
 from .logging_mixin import LoggerMixin
 
@@ -72,6 +73,8 @@ __all__ = [
     "detect_module_feature",
     "feature_logger",
     "CommandEventMixin",
+    "format_json",
+    "compute_duration",
     # "ServiceManagerDockerMixin",  # Import directly to avoid circular imports
     # "DockerOperationsMixin",      # Import directly to avoid circular imports
     # "ExecutionEnvironmentMixin",

@@ -24,6 +24,8 @@ CONTAINER_BASE_PATH = "/opt/panther_ivy/protocol-testing"
 
 
 class ExecutionTarget(Enum):
+    """Supported execution targets for Ivy commands."""
+
     DOCKER = "docker"
     HOST = "host"
     COMPOSE = "compose"
@@ -33,6 +35,7 @@ class IvyExecutor:
     """Executes CommandResult objects in Docker, Compose, or on host."""
 
     def __init__(self, target: str = "auto"):
+        """Initialize executor with the given target preference."""
         self._target_preference = target
         self._resolved_target: Optional[ExecutionTarget] = None
         self._ivy_file: Optional[Path] = None
@@ -83,13 +86,11 @@ class IvyExecutor:
         """Check if a Docker image exists locally."""
         img = image or f"{DOCKER_IMAGE_BASE}:latest"
         try:
-            result = subprocess.run(
-                ["docker", "image", "inspect", img],
-                capture_output=True,
-                timeout=10,
-            )
-            return result.returncode == 0
-        except (FileNotFoundError, subprocess.TimeoutExpired):
+            from panther.core.docker_builder import DockerBuilder
+
+            builder = DockerBuilder.get_instance(enable_cache=False)
+            return builder.image_exists(img)
+        except Exception:
             return False
 
     def ensure_docker_image(self, build_mode: str = "", force: bool = False) -> str:
@@ -120,17 +121,26 @@ class IvyExecutor:
                     dockerfile = candidate
                     break
 
-        build_args = []
-        if build_mode:
-            build_args.extend(["--build-arg", f"BUILD_MODE={build_mode}"])
+        # Use DockerBuilder instead of raw subprocess
+        from panther.core.docker_builder import DockerBuilder
 
-        result = subprocess.run(
-            ["docker", "build", *build_args, "-t", image, str(submodule_dir)],
-            capture_output=True,
-            text=True,
+        builder = DockerBuilder.get_instance(enable_cache=False)
+
+        build_args_config = {}
+        if build_mode:
+            build_args_config["BUILD_MODE"] = build_mode
+
+        result_tag = builder.build_image(
+            impl_name="panther_ivy",
+            version="",
+            dockerfile_path=dockerfile,
+            context_path=submodule_dir,
+            config={"dependencies": build_args_config, "commit": "master"},
+            tag_version=tag,
         )
-        if result.returncode != 0:
-            raise RuntimeError(f"Docker build failed:\n{result.stderr}")
+
+        if not result_tag:
+            raise RuntimeError("Docker build failed for panther_ivy")
 
         self._docker_image = image
         return image

@@ -10,8 +10,6 @@ standalone coercion functions for imperative use outside of Pydantic models.
 Factory functions (return callables):
 - ``create_enum_validator`` — Case-insensitive enum coercion
 - ``create_time_string_validator`` — Time string normalization (e.g., "30s", "5m")
-- ``create_case_insensitive_string_validator`` — Case-insensitive string matching
-- ``create_type_conversion_validator`` — Generic type conversion
 
 Pre-configured validators (use directly with ``@field_validator``):
 - ``protocol_role_validator`` — Validates ProtocolRole enum
@@ -23,8 +21,6 @@ Pre-configured validators (use directly with ``@field_validator``):
 import logging
 from enum import Enum
 from typing import Any, Callable, Optional, Type, TypeVar
-
-from pydantic import ValidationError
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -112,73 +108,6 @@ def create_time_string_validator(
             error_msg = f"Invalid time value '{v}' of type {type(v).__name__}. Expected integer (seconds) or string with time unit ({valid_units})"
             _logger.error(error_msg)
             raise ValueError(error_msg)
-
-    return validator
-
-
-def create_case_insensitive_string_validator(
-    valid_values: list,
-    transform: Callable[[str], str] = str.lower,
-    logger_instance: Optional[logging.Logger] = None,
-) -> Callable:
-    """Create a validator for case-insensitive string values.
-
-    Args:
-        valid_values: List of valid string values
-        transform: Function to transform input before validation
-        logger_instance: Optional logger instance to use
-
-    Returns:
-        Validator function for case-insensitive string validation
-    """
-    _logger = logger_instance or logger
-
-    def validator(cls, v: Any) -> str:
-        """Validate string value case-insensitively."""
-        if isinstance(v, str):
-            transformed = transform(v)
-            if transformed in [transform(val) for val in valid_values]:
-                return transformed
-            else:
-                error_msg = f"Invalid value '{v}'. Valid values are: {valid_values}"
-                _logger.error(error_msg)
-                raise ValueError(error_msg)
-        return v
-
-    return validator
-
-
-def create_type_conversion_validator(
-    target_type: Type,
-    conversion_func: Optional[Callable] = None,
-    logger_instance: Optional[logging.Logger] = None,
-) -> Callable:
-    """Create a validator for safe type conversion.
-
-    Args:
-        target_type: Target type to convert to
-        conversion_func: Optional custom conversion function
-        logger_instance: Optional logger instance to use
-
-    Returns:
-        Validator function for type conversion
-    """
-    _logger = logger_instance or logger
-
-    if conversion_func is None:
-        conversion_func = target_type
-
-    def validator(cls, v: Any) -> Any:
-        """Convert value to target type safely."""
-        if isinstance(v, target_type):
-            return v
-
-        try:
-            return conversion_func(v)
-        except (ValueError, TypeError) as e:
-            error_msg = f"Cannot convert '{v}' of type {type(v).__name__} to {target_type.__name__}: {e}"
-            _logger.error(error_msg)
-            raise ValueError(error_msg) from e
 
     return validator
 

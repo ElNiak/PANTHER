@@ -22,7 +22,7 @@ ERROR_PATTERNS = [
     re.compile(r"SIGABRT"),
     re.compile(r"core dumped", re.IGNORECASE),
     re.compile(r"No such file or directory"),
-    re.compile(r"timeout", re.IGNORECASE),
+    re.compile(r"timed?\s*out|timeout exceeded|timeout:\s*failed", re.IGNORECASE),
     re.compile(r"^ERROR:", re.MULTILINE),
     re.compile(r"^FATAL:", re.MULTILINE),
     re.compile(r"Failed:", re.IGNORECASE),
@@ -78,6 +78,7 @@ class ServiceHealth:
         return min(self.output_files_found / self.output_files_expected, 1.0)
 
     def to_dict(self) -> Dict:
+        """Convert to dictionary with computed properties included."""
         d = asdict(self)
         d["status"] = self.status
         d["output_completeness"] = self.output_completeness
@@ -92,6 +93,7 @@ class ServiceHealthAnalyzer:
     """
 
     def __init__(self):
+        """Initialize the analyzer."""
         self.logger = logging.getLogger(__name__)
 
     def analyze_service(
@@ -99,7 +101,7 @@ class ServiceHealthAnalyzer:
         service_name: str,
         service_type: str,
         log_dir: Path,
-        output_patterns: Optional[List[Tuple[str, str]]] = None,
+        output_patterns: Optional[List] = None,
     ) -> ServiceHealth:
         """Analyze a single service's outputs.
 
@@ -308,6 +310,15 @@ class ServiceHealthAnalyzer:
 
         return exit_code, crashed
 
+    # Known non-error patterns that appear in stderr but are normal operation
+    _STDERR_SKIP_PATTERNS = [
+        re.compile(r"^(?:\+\s|\+\+\s)"),  # bash set -x trace lines
+        re.compile(r"ser-open_field:", re.IGNORECASE),  # Ivy serialization trace
+        re.compile(r"deser-open_field:", re.IGNORECASE),  # Ivy deserialization trace
+        re.compile(r"PTLS_ERROR_IN_PROGRESS", re.IGNORECASE),  # normal TLS handshake
+        re.compile(r"PICOTLS RETURNED PTLS_ERROR_IN_PROGRESS"),  # picotls handshake
+    ]
+
     def _collect_stderr_errors(self, log_dir: Path, max_errors: int = 10) -> List[str]:
         errors = []
         for phase in STANDARD_PHASES:
@@ -327,20 +338,46 @@ class ServiceHealthAnalyzer:
                     if end == -1:
                         end = len(content)
                     line = content[start:end].strip()
+                    # Skip known non-error patterns (bash traces, protocol traces)
+                    if any(sp.search(line) for sp in self._STDERR_SKIP_PATTERNS):
+                        continue
                     if line and line not in errors:
                         errors.append(line[:500])
                         if len(errors) >= max_errors:
                             return errors
         return errors
 
-    def _check_output_patterns(
-        self, log_dir: Path, patterns: List[Tuple[str, str]]
-    ) -> Tuple[int, int]:
-        expected = len(patterns)
+    def _check_output_patterns(self, log_dir: Path, patterns: list) -> Tuple[int, int]:
+        """Count found vs expected output patterns.
+
+        Supports both 2-tuples ``(type, pattern)`` and 3-tuples
+        ``(type, pattern, required)``.  Only patterns marked as
+        ``required=True`` count toward the expected total.  If no
+        pattern has the required flag, all patterns are counted
+        (backwards-compatible behaviour).
+        """
+        has_required_flag = any(len(p) >= 3 for p in patterns)
+
+        expected = 0
         found = 0
-        for _output_type, glob_pattern in patterns:
-            if list(log_dir.rglob(glob_pattern)):
-                found += 1
+        for pattern_tuple in patterns:
+            output_type = pattern_tuple[0]
+            glob_pattern = pattern_tuple[1]
+            required = pattern_tuple[2] if len(pattern_tuple) >= 3 else False
+
+            matched = bool(list(log_dir.rglob(glob_pattern)))
+
+            if has_required_flag:
+                # Only required patterns contribute to the completeness metric
+                if required:
+                    expected += 1
+                    if matched:
+                        found += 1
+            else:
+                # Legacy: all patterns count
+                expected += 1
+                if matched:
+                    found += 1
         return found, expected
 
     def _detect_service_type(self, sm) -> str:

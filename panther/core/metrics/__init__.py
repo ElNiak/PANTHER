@@ -9,8 +9,7 @@ Architecture::
         │
         ├── TimingContextManager    ── automatic phase timing via ``with`` blocks
         ├── ResourceMonitor         ── background CPU/memory/disk/network sampling
-        ├── MetricsReporter         ── human-readable summaries and reports
-        ├── MetricsExporter         ── JSON, CSV, and dashboard-compatible output
+        ├── MetricsExporter         ── JSON and CSV output
         └── MetricsDataLoader       ── reload persisted metrics from output dirs
 
 Metric Types:
@@ -34,7 +33,6 @@ Example::
     with collector.time(Phase.TEST_EXECUTION, "quic_handshake"):
         run_test()
     collector.increment("tests_passed")
-    report = MetricsReporter(collector).generate_summary()
 
 See Also:
     `panther.core.observer` -- observers that consume metrics events
@@ -45,7 +43,6 @@ from .data_loader import MetricsDataLoader
 from .enums import MetricType, Phase
 from .metrics_collector import MetricsCollector, TimingContextManager
 from .metrics_exporter import MetricsExporter
-from .metrics_reporter import MetricsReporter
 from .resource_monitor import ResourceMonitor
 
 __all__ = [
@@ -55,6 +52,5 @@ __all__ = [
     "Phase",
     "TimingContextManager",
     "ResourceMonitor",
-    "MetricsReporter",
     "MetricsExporter",
 ]

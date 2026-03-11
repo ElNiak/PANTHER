@@ -148,6 +148,7 @@ class TestExecutor:
             raise
 
     def handle_step_execution(self, step_details, step_emitter):
+        """Handle execution of a complex step configuration."""
         step_type = step_details.get("type", "unknown")
         if step_type == "wait":
             wait_time = step_details.get("duration", 0)
@@ -163,6 +164,7 @@ class TestExecutor:
             self.logger.warning(f"Unknown step type: {step_type}")
 
     def emit_start_step(self, step_details, step_emitter):
+        """Emit a step execution started event."""
         if step_emitter:
             step_emitter.emit_step_execution_started(
                 step_id="execute_steps",
@@ -306,14 +308,61 @@ class TestExecutor:
             # Validate each assertion
             passed = 0
             failed = 0
+            total = len(assertions)
 
-            for assertion in assertions:
+            for i, assertion in enumerate(assertions):
+                a_type = (
+                    assertion.get("type", "unknown")
+                    if isinstance(assertion, dict)
+                    else "unknown"
+                )
+                a_id = f"assertion_{i}"
+                # Emit per-assertion progress
+                if assertion_emitter:
+                    assertion_emitter.emit_assertion_progress(
+                        assertion_id=a_id,
+                        assertion_name=a_type,
+                        test_case_id=self.test_case.test_name,
+                        current_assertion=i + 1,
+                        total_assertions=total,
+                        progress_message=f"Validating assertion {i + 1}/{total}: {a_type}",
+                    )
                 try:
                     self._validate_single_assertion(assertion)
                     passed += 1
+                    # Emit per-assertion result (pass)
+                    if assertion_emitter:
+                        assertion_emitter.emit_assertion_result(
+                            assertion_id=a_id,
+                            assertion_name=a_type,
+                            test_case_id=self.test_case.test_name,
+                            assertion_passed=True,
+                            assertion_message=f"Assertion {a_type} passed",
+                        )
                 except AssertionError as e:
                     failed += 1
                     self.logger.error(f"Assertion failed: {e}")
+                    # Emit per-assertion result (fail)
+                    if assertion_emitter:
+                        assertion_emitter.emit_assertion_result(
+                            assertion_id=a_id,
+                            assertion_name=a_type,
+                            test_case_id=self.test_case.test_name,
+                            assertion_passed=False,
+                            assertion_message=str(e),
+                        )
+                except Exception as e:
+                    failed += 1
+                    self.logger.error(f"Assertion error: {e}")
+                    # Emit assertion error event
+                    if assertion_emitter:
+                        assertion_emitter.emit_assertion_error(
+                            assertion_id=a_id,
+                            assertion_name=a_type,
+                            test_case_id=self.test_case.test_name,
+                            error_message=str(e),
+                            error_type=type(e).__name__,
+                        )
 
             # Emit assertion validation completed
             if assertion_emitter:

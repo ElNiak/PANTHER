@@ -103,6 +103,15 @@ class PluginManagerUtils(LoggerMixin):
                                 exc,
                             )
 
+        # After parent loading, check if module was already loaded as side effect
+        # (e.g., parent __init__.py did "from .quic import QUICProtocol")
+        if fq_module_name in sys.modules:
+            already_loaded = sys.modules[fq_module_name]
+            # Also register under simple name for compatibility
+            if module_name != fq_module_name:
+                sys.modules[module_name] = already_loaded
+            return already_loaded
+
         # Register under both simple and qualified names for compatibility
         sys.modules[module_name] = module
         if fq_module_name != module_name:
@@ -183,28 +192,6 @@ class PluginManagerUtils(LoggerMixin):
 
         # Get the class
         return cls.get_class_from_module(module, class_name, base_class)
-
-    @classmethod
-    def instantiate_plugin(cls, plugin_class: type[T], *args, **kwargs) -> T:
-        """Instantiate a plugin class with error handling.
-
-        Args:
-            plugin_class: The plugin class to instantiate
-            *args: Positional arguments for constructor
-            **kwargs: Keyword arguments for constructor
-
-        Returns:
-            Instance of the plugin
-
-        Raises:
-            Exception: If instantiation fails
-        """
-        try:
-            return plugin_class(*args, **kwargs)
-        except Exception as e:
-            raise Exception(
-                f"Failed to instantiate {plugin_class.__name__}: {str(e)}"
-            ) from e
 
     @classmethod
     def discover_plugins(

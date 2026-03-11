@@ -19,7 +19,7 @@ from panther.plugins.services.iut.iut_service_manager_mixin import (
     plugin_type=PluginType.IUT,
     name="picoquic_shadow",
     version="2.0.0",
-    description="PicoQUIC for Shadow Network Simulator (Refactored)",
+    description="PicoQUIC for Shadow Network Simulator ",
     author="PANTHER Team",
     dependencies=["docker"],
     supported_protocols=["quic"],

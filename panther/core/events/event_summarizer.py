@@ -88,6 +88,11 @@ class EventSummarizer:
         "service.error": EventImportance.HIGH,
         "service.ready": EventImportance.MEDIUM,
         "service.preparation_started": EventImportance.LOW,
+        "service.destroyed": EventImportance.LOW,
+        "service.health_check_passed": EventImportance.LOW,
+        "service.health_check_failed": EventImportance.HIGH,
+        "service.teardown_started": EventImportance.LOW,
+        "service.teardown_completed": EventImportance.MEDIUM,
         # Command events
         "command.generated": EventImportance.LOW,
         "command.executed": EventImportance.LOW,
@@ -100,12 +105,22 @@ class EventSummarizer:
         "environment.ready": EventImportance.MEDIUM,
         "environment.teardown_completed": EventImportance.MEDIUM,
         "environment.error": EventImportance.HIGH,
+        "environment.destroyed": EventImportance.LOW,
+        "environment.resource": EventImportance.LOW,
         # Metrics events
         "metrics.collected": EventImportance.LOW,
         "metrics.published": EventImportance.LOW,
+        "metrics.summary": EventImportance.MEDIUM,
         # Plugin events
         "plugin.loaded": EventImportance.LOW,
         "plugin.error": EventImportance.HIGH,
+        "plugin.loading_started": EventImportance.LOW,
+        "plugin.loading_completed": EventImportance.MEDIUM,
+        "plugin.started": EventImportance.MEDIUM,
+        "plugin.stopped": EventImportance.MEDIUM,
+        "plugin.service_created": EventImportance.LOW,
+        "plugin.service_started": EventImportance.LOW,
+        "plugin.service_stopped": EventImportance.LOW,
     }
 
     # Events that should be batched to reduce noise

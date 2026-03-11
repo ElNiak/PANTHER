@@ -389,6 +389,18 @@ class PluginManager(LoggerMixin):
             self._discovery_count,
         )
 
+        # Emit plugin loading started event
+        if self.plugin_event_emitter:
+            self.plugin_event_emitter.emit_plugin_loading_started(
+                plugin_id="discovery",
+                plugin_name="plugin_discovery",
+                plugin_type="system",
+                loading_config={
+                    "discovery_count": self._discovery_count,
+                    "force_refresh": force_refresh,
+                },
+            )
+
         # Delegate discovery to PluginDiscovery (DRY principle)
         external_paths = (
             getattr(self.global_config, "external_plugin_paths", None)
@@ -403,6 +415,11 @@ class PluginManager(LoggerMixin):
         self._discovery_cache = discovered_plugins
         self._cache_timestamp = time.time()
         self.plugins.update(discovered_plugins)
+
+        # Update catalog discovery paths for external plugins
+        if external_paths:
+            for path in external_paths:
+                self.plugin_catalog.add_discovery_path(path)
 
         # Also update the catalog for compatibility with validation
         for plugin_name, metadata in discovered_plugins.items():
@@ -448,6 +465,13 @@ class PluginManager(LoggerMixin):
             plugin_id = f"{metadata.type}:{metadata.name}"
             self.plugin_catalog.catalog[plugin_id] = manifest
 
+        # Preload plugin classes for faster first access
+        if self.enable_cache:
+            try:
+                self.plugin_factory.preload_plugins()
+            except Exception as e:
+                self.logger.debug("Plugin preloading skipped: %s", e)
+
         # Update statistics
         self._last_discovery_time = time.time() - start_time
 
@@ -456,6 +480,16 @@ class PluginManager(LoggerMixin):
             len(discovered_plugins),
             self._last_discovery_time,
         )
+
+        # Emit plugin loading completed event
+        if self.plugin_event_emitter:
+            self.plugin_event_emitter.emit_plugin_loading_completed(
+                plugin_id="discovery",
+                plugin_name="plugin_discovery",
+                plugin_type="system",
+                duration=self._last_discovery_time,
+                capabilities=[name for name in discovered_plugins.keys()],
+            )
 
         return discovered_plugins.copy()
 
@@ -790,7 +824,21 @@ class PluginManager(LoggerMixin):
         if experiment_context and not self.experiment_context:
             self.set_experiment_context(experiment_context)
 
-        return self.plugin_factory.create_service_manager(
+        # Emit plugin service created event
+        if self.plugin_event_emitter:
+            self.plugin_event_emitter.emit_plugin_service_created(
+                plugin_id=f"service:{implementation_name}",
+                plugin_name=implementation_name,
+                plugin_type=str(implementation.type),
+                service_id=implementation_name,
+                service_name=implementation_name,
+                service_type=str(implementation.type),
+                service_config={
+                    "protocol": str(protocol.name) if protocol else "unknown"
+                },
+            )
+
+        service_mgr = self.plugin_factory.create_service_manager(
             protocol=protocol,
             implementation=implementation,
             implementation_dir=implementation_dir,
@@ -801,6 +849,18 @@ class PluginManager(LoggerMixin):
             experiment_context=experiment_context,
             test_case=experiment_context,
         )
+
+        # Emit plugin service started event
+        if self.plugin_event_emitter and service_mgr:
+            self.plugin_event_emitter.emit_plugin_service_started(
+                plugin_id=f"service:{implementation_name}",
+                plugin_name=implementation_name,
+                plugin_type=str(implementation.type),
+                service_id=implementation_name,
+                service_name=implementation_name,
+            )
+
+        return service_mgr
 
     def create_environment_manager(
         self,
