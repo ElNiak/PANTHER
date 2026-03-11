@@ -208,38 +208,70 @@ ui.echart({
 })
 ```
 
-### Visual Topology Editor: vis.js Network
+### Visual Topology Editor
 
 The topology editor provides a drag-and-drop interface for composing experiment
 configurations as a visual graph. This is **Muhammad's core thesis contribution**.
 
-**Architecture:**
+**Library Choice**: Muhammad evaluates both **vis.js Network** and **React Flow** analytically
+(integration complexity, feature set, ecosystem, performance) and picks one. The comparison
+becomes a thesis chapter. See `TASKS.md` Phase 1 for evaluation criteria.
+
+**Current scaffold** uses vis.js (235 lines in `components/topology_editor.py`):
 
 ```
-TopologyEditor (Python wrapper, ui.element subclass)
-    ↕ props: nodes, edges, options
-    ↕ events: node-click, edge-click, graph-changed
-topology_editor.js (Vue component)
-    → vis.js Network (canvas rendering, manipulation API)
+TopologyEditor (Python wrapper)
+    ↕ JSON data: nodes, edges via ui.run_javascript()
+    ↕ events: node-click, edge-click (CustomEvent dispatch)
+vis.js Network (browser-side)
+    → Canvas rendering, physics auto-layout, DataSet API
 ```
 
-**Integration points:**
-- `TopologyEditor.set_graph(nodes, edges)` — Python → JS (props update)
-- `TopologyEditor.get_graph()` — JS → Python (via `run_method`)
-- `on_node_click(callback)` — JS click → Python handler → PydanticForm in side panel
+**If React Flow is chosen** instead, integration requires:
+- Embedding React app via iframe or NiceGUI custom web component
+- postMessage or REST API bridge for Python ↔ React communication
+- npm/vite build step (breaks "no JS build" advantage of NiceGUI)
+- Custom React components as graph nodes (richer UX but more complexity)
+
+**Integration points (either library):**
+- `set_graph(nodes, edges)` — Python → browser
+- `get_graph()` — Browser → Python
+- `on_node_click(callback)` — Click → Python handler → PydanticForm in side panel
 - Export: topology graph → PANTHER YAML config (`ServiceConfig`, `TestConfig`)
 - Import: PANTHER YAML config → topology graph
 
-**Key vis.js features:**
-- `manipulation` option — built-in add/edit/delete UI for nodes and edges
-- `physics` option — auto-layout algorithms (barnesHut, forceAtlas2Based)
-- `interaction` option — selection, dragging, zooming
-- Events: `selectNode`, `selectEdge`, `deselectNode`, `dragEnd`
+**Key features to implement:**
+- Palette sidebar with drag-and-drop node creation (IUT, Tester, Environment)
+- Edge creation with protocol labels (name, version, role)
+- Properties panel: click node → PydanticForm renders ServiceConfig/ProtocolConfig
+- YAML export/import matching `experiment-config/base/` format
+- Validation: red borders on invalid nodes/edges
+- Auto-layout via physics engine or hierarchical algorithm
 
 **Files:**
-- `components/topology_editor.py` — Python wrapper class (scaffolded)
-- `components/topology_editor.js` — Vue component with vis.js (scaffolded)
-- `pages/topology.py` — Topology page (scaffolded)
+- `components/topology_editor.py` — Python wrapper class (scaffolded, 235 lines)
+- `pages/topology.py` — Topology page (scaffolded, 147 lines)
+- `diagrams/04-topology-component-architecture.mmd` — Architecture diagram (Muhammad creates)
+- `diagrams/05-yaml-graph-mapping.mmd` — YAML ↔ graph data mapping (Muhammad creates)
+
+### UX Improvements (Parallel with Topology)
+
+During topology implementation, Muhammad also improves the overall webapp UX:
+
+- **Breadcrumbs**: All pages get breadcrumb navigation (e.g., Config > Test 1 > picoquic)
+- **Workflow stepper**: Progress indicator showing Config → Topology → Launch → Results
+- **"Next Step" buttons**: Contextual navigation between pages
+- **Structured JSON viewer**: Replace raw JSON display with collapsible syntax-highlighted trees
+- **Deep-links**: Results link back to the config that produced them
+
+### Stretch Goals (Priority Order)
+
+1. **CLI command integration**: Expose `panther config generate/validate`, `panther plugins params/check-deps`, `panther tools status` as webapp actions via `services/cli_service.py`
+2. **Conformance matrix**: IUT × Test pass/fail grid aggregated across experiments
+3. **Batch comparison**: Same test across multiple IUTs, side-by-side results
+4. **Export for papers**: Charts/tables as CSV, LaTeX, SVG
+
+See `TASKS.md` for full details and timeline.
 
 ## What Is NOT in Scope
 
@@ -279,6 +311,103 @@ def my_page_route():
 3. Add a sidebar link in `panther/webapp/components/layout.py`.
 
 For pages that need data, create a service in `services/` that wraps core PANTHER classes.
+
+## Service API Reference
+
+Quick-reference tables for every service the webapp exposes. Use these when
+wiring up a new page or component — they tell you what data is available
+without reading the implementation.
+
+### ConfigService (`services/config_service.py`)
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `get_default_yaml()` | `str` | Load default experiment config YAML template |
+| `validate_yaml(yaml_content: str)` | `Optional[str]` | None if valid, error message if invalid |
+| `yaml_to_dict(yaml_content: str)` | `Optional[dict]` | Parse YAML to dict, None on error |
+| `dict_to_yaml(data: dict)` | `str` | Convert dict to YAML string |
+| `load_config(path: str)` | `dict` | Load+parse YAML file (path-validated) |
+| `save_config(path: str, data: dict)` | `None` | Save dict to YAML file (path-validated) |
+| `list_configs(directory=None)` | `list[{name, path, modified}]` | List YAML files in directory |
+| `list_configs_recursive(root=None)` | `list[{name, path, modified, category, summary}]` | Recursive list with summaries |
+| `validate_config_detailed(data: dict)` | `list[FieldError]` | Field-level validation (path, message, severity) |
+| `merge_configs(base: dict, overlay: dict)` | `dict` | Deep merge (overlay wins) |
+| `resolve_interpolations(data: dict)` | `dict` | Resolve `${section.key}` templates |
+| `generate_test_name(test_data: dict)` | `str` | Auto-generate test name from services/protocol |
+| `generate_test_description(test_data: dict)` | `str` | Auto-generate test description |
+
+### ExperimentService (`services/experiment_service.py`, singleton via `get_experiment_service()`)
+
+| Method / Property | Returns | Description |
+|-------------------|---------|-------------|
+| `run_experiment(config_path: str)` | `async` | Run experiment in background thread |
+| `stop()` | `None` | Request experiment stop |
+| `status` (property) | `str` | Current status (Idle/Loading/Running/Completed/Failed/Stopped) |
+| `log_lines` (property) | `list[str]` | Log buffer (max 10 000 lines) |
+| `is_running` (property) | `bool` | Whether experiment is active |
+| `register_callbacks(on_log, on_status)` | `None` | Register UI callbacks for live streaming |
+| `unregister_callbacks(on_log, on_status)` | `None` | Unregister UI callbacks |
+| `subscribe_events(callback)` | `None` | Subscribe to raw PANTHER BaseEvent objects |
+| `unsubscribe_events(callback)` | `None` | Unsubscribe from events |
+| `web_observer` (property) | `WebObserver` | Access the WebObserver instance |
+
+### ResultsService (`services/results_service.py`)
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `list_experiments()` | `list[{date, name, path, test_count, status}]` | All experiments, newest first |
+| `count_experiments()` | `int` | Count of experiments |
+| `get_experiment_detail(name: str)` | `Optional[dict]` | Full detail: logs, report, artifacts, core_summary |
+| `list_tests(experiment_path: str)` | `list[{name, status, duration, has_events, has_analysis, service_count}]` | Per-test summaries |
+| `get_test_detail(experiment_path, test_name)` | `Optional[{info, services, analysis, artifacts}]` | Single test detail |
+| `get_test_events(experiment_path, test_name)` | `list[dict]` | Parsed events.jsonl entries |
+| `get_experiment_events(experiment_path)` | `list[dict]` | Top-level experiment events |
+| `get_service_logs(experiment_path, test_name, service_name)` | `{phase: {stdout, stderr}}` | Per-phase log content |
+| `get_analysis_results(experiment_path, test_name)` | `Optional[{filename: data}]` | JSON analysis files |
+| `get_test_results(experiment_path)` | `list[dict]` | Chart-ready pass/fail/duration data |
+| `get_service_health(experiment_path)` | `list[dict]` | Service health summaries |
+| `get_aggregate_stats(experiment_path)` | `{total, passed, failed, success_rate, duration}` | Aggregate stats |
+| `get_metrics_timeseries(experiment_path)` | `list[{timestamp, metric, value}]` | Normalized metrics for ECharts |
+
+### PluginService (`services/plugin_service.py`)
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `list_plugins()` | `list[PluginMetadata]` | All discovered plugins (.name, .type, .description, .to_dict()) |
+| `get_plugin_detail(name: str)` | `Optional[PluginMetadata]` | Single plugin by name |
+| `get_plugin_manifest(name: str)` | `Optional[PluginManifest]` | Full manifest (license, homepage, config_schema, config_model) |
+
+### WebObserver (`services/web_observer.py`)
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `subscribe(callback)` | `None` | Add event callback (receives BaseEvent) |
+| `unsubscribe(callback)` | `None` | Remove event callback |
+| Inherited: `get_event_history()` | `list[BaseEvent]` | Last 1000 events |
+| Inherited: `get_gui_state()` | `dict` | Counters and timestamps per event type |
+
+### PydanticForm Quick Reference
+
+```python
+from panther.webapp.components.pydantic_form import PydanticForm, FormConfig
+
+# Render any Pydantic BaseModel as editable NiceGUI widgets
+form = PydanticForm(LoggingConfig, config=FormConfig(section_style="card"))
+data = form.get_value()      # Returns validated dict
+form.set_value({"level": "DEBUG"})  # Populate from dict
+```
+
+`FormConfig` options: `section_style` (`"expansion"` / `"card"` / `"flat"`), `show_advanced` (bool), `css_prefix` (str).
+
+### Improving the Scaffold
+
+These services and components are a **starting scaffold** — Muhamad is expected to
+improve, extend, and refine them as part of his thesis work. If something is missing,
+unclear, or could be designed better, open a GitHub issue describing the gap and
+proposed improvement. All changes go through GitHub pull requests with code review;
+this review workflow is itself part of the thesis process. PRs should reference the
+relevant issue and include a short design-rationale section so reviewers understand the
+"why" behind each change.
 
 ## Future Evolution
 

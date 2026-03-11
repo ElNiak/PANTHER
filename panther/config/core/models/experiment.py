@@ -73,7 +73,26 @@ class ExperimentMetadata(BaseConfig):
 
 
 class TestConfig(BaseConfig):
-    """Individual test configuration."""
+    """One test scenario: a set of services deployed together in a network environment.
+
+    The ``services`` dict keys are service names -- used as Docker container names
+    AND as the values referenced by ``ProtocolConfig.target``.  Services form a
+    directed graph via those ``target`` references (client -> server edges).
+
+    Example YAML::
+
+        tests:
+          - name: quic-handshake
+            network_environment:
+              type: docker_compose
+            services:
+              server:
+                implementation: { name: picoquic, type: iut }
+                protocol: { name: quic, version: rfc9000, role: server }
+              client:
+                implementation: { name: aioquic, type: iut }
+                protocol: { name: quic, role: client, target: server }
+    """
 
     name: str = Field(
         ...,
@@ -178,7 +197,10 @@ class TestConfig(BaseConfig):
 
 
 class ExperimentConfig(BaseConfig):
-    """Main experiment configuration."""
+    """Top-level configuration containing one or more independent tests.
+
+    Each test runs in isolation with its own network environment and services.
+    """
 
     tests: List[TestConfig] = Field(..., description="List of test configurations")
     metadata: Optional[ExperimentMetadata] = Field(

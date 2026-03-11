@@ -48,7 +48,11 @@ class EnvironmentConfig(BaseConfig):
 
 
 class NetworkEnvironmentConfig(EnvironmentConfig):
-    """Base network environment configuration."""
+    """Network infrastructure for a test, shared across all its services.
+
+    Available types: ``docker_compose`` (default -- Docker bridge network),
+    ``shadow_ns`` (Shadow network simulator), ``localhost`` (no containerization).
+    """
 
     # Fields merged from former NetworkEnvironmentPluginConfig
     network_name: str = Field("panther_network", description="Network name")
@@ -57,7 +61,12 @@ class NetworkEnvironmentConfig(EnvironmentConfig):
 
 
 class ExecutionEnvironmentConfig(EnvironmentConfig):
-    """Base execution environment configuration."""
+    """Optional execution wrappers applied to services in a test.
+
+    Available types: ``strace`` (syscall tracing), ``gdb`` (debugging),
+    ``gperf`` (profiling).  Multiple execution environments can be stacked
+    on a single test.
+    """
 
     type: str = Field(
         ...,

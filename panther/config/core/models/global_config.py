@@ -370,7 +370,7 @@ class MetricsConfig(BaseConfig):
 
 
 class GlobalConfig(BaseConfig):
-    """Global configuration container."""
+    """Shared settings applied across ALL tests in an experiment (logging, Docker, paths, progress, fast-fail, metrics, observers)."""
 
     version: str = Field("1.0", description="Configuration version")
     logging: LoggingConfig = Field(

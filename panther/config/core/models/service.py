@@ -26,7 +26,13 @@ class VersionBase(BaseModel):
 
 
 class ImplementationType(str, Enum):
-    """Implementation type enumeration."""
+    """Classification of a service's role in the test topology.
+
+    IUT = "Implementation Under Test" -- the protocol software being tested
+    (e.g., picoquic, aioquic, quiche).
+    TESTERS = formal verification or testing tools that generate/check traffic
+    against the IUT (e.g., panther_ivy).
+    """
 
     IUT = "iut"
     TESTERS = "testers"
@@ -108,11 +114,29 @@ class NetworkConfig(BaseConfig):
 
 class ProtocolConfig(BaseConfig):
     ## TODO check which verson is used in the protocol config
-    """Protocol configuration.
+    """Protocol, role, and connectivity for a service.
 
-    Note: The ``version`` field here is the *protocol specification* version
-    (e.g., ``rfc9000``, ``draft-29``), distinct from ``ImplementationConfig.version``
+    Defines which protocol a service speaks, its role, and -- for clients --
+    which other service it connects to.  The ``target`` field references another
+    key in the *same* ``TestConfig.services`` dict; this reference forms the
+    directed edge in a topology graph (client -> server).
+
+    Role semantics:
+      - **server**: listens for incoming connections; no ``target`` needed.
+      - **client**: initiates a connection to ``target`` (required).
+      - **peer**: can both listen and connect.
+
+    The ``version`` field is the *protocol specification* version (e.g.,
+    ``rfc9000``, ``draft-29``), distinct from ``ImplementationConfig.version``
     which tracks the *software implementation* version.
+
+    Example YAML::
+
+        protocol:
+          name: quic
+          version: rfc9000
+          role: client
+          target: server   # must match a key in services dict
     """
 
     name: str = Field(
@@ -178,7 +202,12 @@ class ProtocolConfig(BaseConfig):
 
 
 class ImplementationConfig(BaseConfig):
-    """Implementation configuration."""
+    """Links a service to its software implementation and type (IUT or Tester).
+
+    The ``name`` must match a registered plugin name (e.g., ``picoquic``,
+    ``aioquic``, ``panther_ivy``).  The ``type`` determines whether this service
+    is the software under test or a testing/verification tool.
+    """
 
     name: str = Field(
         ...,
@@ -210,7 +239,33 @@ class ImplementationConfig(BaseConfig):
 
 
 class ServiceConfig(BaseConfig):
-    """Service configuration."""
+    """One Docker container running a protocol implementation.
+
+    Each entry in ``TestConfig.services`` maps a **service name** (the dict key)
+    to a ``ServiceConfig``.  The dict key is the service's identity -- it is used
+    as the Docker container name and is the value other services reference via
+    ``ProtocolConfig.target``.
+
+    Example YAML::
+
+        services:
+          server:                        # <-- service name / container name
+            implementation:
+              name: picoquic
+              type: iut
+            protocol:
+              name: quic
+              version: rfc9000
+              role: server
+          client:
+            implementation:
+              name: aioquic
+              type: iut
+            protocol:
+              name: quic
+              role: client
+              target: server             # <-- references the key above
+    """
 
     VERSION_CLASS: ClassVar[Optional[type]] = None
 
