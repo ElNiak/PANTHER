@@ -22,7 +22,7 @@ PANTHER context:
 import copy
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal, Optional
 
@@ -270,7 +270,9 @@ class ConfigService:
                     {
                         "name": f.name,
                         "path": str(f),
-                        "modified": datetime.fromtimestamp(f.stat().st_mtime),
+                        "modified": datetime.fromtimestamp(
+                            f.stat().st_mtime, tz=timezone.utc
+                        ),
                     }
                 )
         logger.debug("Listed %d config files in %s", len(results), d)

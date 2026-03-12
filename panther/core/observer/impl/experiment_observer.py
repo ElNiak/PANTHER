@@ -938,50 +938,6 @@ class ExperimentObserver(IObserver):
 
         return True
 
-    def _handle_environment_deployment_completed(self, event) -> bool:
-        """Handle environment deployment completed events."""
-        environment_type = getattr(event, "environment_type", "unknown")
-        environment_name = getattr(event, "environment_name", "unknown")
-        success = getattr(event, "success", True)
-
-        if success:
-            self.logger.info(
-                "Environment deployment completed: %s (%s)",
-                environment_name,
-                environment_type,
-            )
-        else:
-            self.logger.error(
-                "Environment deployment failed: %s (%s)",
-                environment_name,
-                environment_type,
-            )
-
-        return True
-
-    def _handle_step_execution_started(self, event) -> bool:
-        """Handle step execution started events."""
-        step_name = getattr(event, "step_name", "unknown_step")
-        test_case = getattr(event, "test_case", "unknown_test")
-
-        self.logger.info("Step execution started: %s in test %s", step_name, test_case)
-        return True
-
-    def _handle_output_collection_started(self, event) -> bool:
-        """Handle output collection started events."""
-        self.logger.info("Output collection started")
-        return True
-
-    def _handle_output_collection_completed(self, event) -> bool:
-        """Handle output collection completed events."""
-        outputs_count = getattr(event, "outputs_count", 0)
-        duration = getattr(event, "duration", 0)
-
-        self.logger.info(
-            "Output collection completed: %d outputs in %.2fs", outputs_count, duration
-        )
-        return True
-
     def _handle_environment_destroyed(self, event: EnvironmentDestroyedEvent) -> bool:
         """Handle environment destroyed events."""
         environment_type = getattr(event, "environment_type", "unknown")

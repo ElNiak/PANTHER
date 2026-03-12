@@ -9,3 +9,12 @@ from panther.webapp.components.display.service_health_card import service_health
 from panther.webapp.components.display.service_log_browser import service_log_browser
 from panther.webapp.components.display.stat_cards import stat_card
 from panther.webapp.components.display.test_detail_panel import test_detail_panel
+
+PLUGIN_STATUS_COLORS: dict[str, str] = {
+    "discovered": "blue-grey",
+    "loaded": "blue",
+    "initialized": "cyan",
+    "active": "green",
+    "failed": "red",
+    "unloaded": "grey",
+}

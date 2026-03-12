@@ -51,7 +51,7 @@ NiceGUI patterns used:
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from nicegui import ui
@@ -409,7 +409,7 @@ def _export(yaml_editor):
         data = None
     if isinstance(data, dict):
         meta = data.setdefault("metadata", {})
-        meta["modified_at"] = datetime.now().isoformat()
+        meta["modified_at"] = datetime.now(tz=timezone.utc).isoformat()
         yaml_content = _yaml.dump(data, default_flow_style=False, sort_keys=False)
     ui.download(yaml_content.encode(), "panther_config.yaml")
     logger.info("Configuration exported as panther_config.yaml")
@@ -575,7 +575,7 @@ def _save_config_dialog(config_svc: ConfigService, yaml_editor):
                 return
             # Stamp modified_at before writing
             meta = data.setdefault("metadata", {})
-            meta["modified_at"] = datetime.now().isoformat()
+            meta["modified_at"] = datetime.now(tz=timezone.utc).isoformat()
             try:
                 config_svc.save_config(path, data)
                 dialog.close()

@@ -133,6 +133,10 @@ class DockerBuildCacheMixin(LoggerMixin):
         if not self._cache_enabled:
             return None
 
+        if force_build:
+            self.logger.info(f"Force build enabled, rebuilding image {image_tag}.")
+            return None
+
         # Check build cache
         dockerfile_hash = self._calculate_dockerfile_hash(dockerfile_path)
         context_hash = self._calculate_context_hash(context_path)
@@ -162,14 +166,6 @@ class DockerBuildCacheMixin(LoggerMixin):
                 f"No cached build found for {image_tag}, proceeding with build."
             )
             self._cache_misses += 1
-            return None
-
-        self.logger.info(f"Using cached image for {image_tag}: {cached_image_id}")
-
-        if force_build:
-            self.logger.info(
-                f"Force build enabled, rebuilding image {image_tag} even if cache exists."
-            )
             return None
 
         try:

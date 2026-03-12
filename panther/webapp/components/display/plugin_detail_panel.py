@@ -22,15 +22,7 @@ from typing import Callable
 from nicegui import ui
 
 from panther.core.utils.format_utils import format_json
-
-_PLUGIN_STATUS_COLORS = {
-    "discovered": "blue-grey",
-    "loaded": "blue",
-    "initialized": "cyan",
-    "active": "green",
-    "failed": "red",
-    "unloaded": "grey",
-}
+from panther.webapp.components.display import PLUGIN_STATUS_COLORS
 
 
 def render_plugin_detail(
@@ -63,7 +55,7 @@ def render_plugin_detail(
     status_val = (
         plugin.status.value if hasattr(plugin.status, "value") else plugin.status
     )
-    status_color = _PLUGIN_STATUS_COLORS.get(status_val.lower(), "grey")
+    status_color = PLUGIN_STATUS_COLORS.get(status_val.lower(), "grey")
     plugin_type = getattr(plugin, "type", "")
 
     with container:

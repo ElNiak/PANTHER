@@ -14,14 +14,7 @@ from typing import Callable
 
 from nicegui import ui
 
-_PLUGIN_STATUS_COLORS = {
-    "discovered": "blue-grey",
-    "loaded": "blue",
-    "initialized": "cyan",
-    "active": "green",
-    "failed": "red",
-    "unloaded": "grey",
-}
+from panther.webapp.components.display import PLUGIN_STATUS_COLORS
 
 
 def plugin_card(plugin, on_click: Callable) -> ui.card:
@@ -50,7 +43,7 @@ def plugin_card(plugin, on_click: Callable) -> ui.card:
     status_val = (
         plugin.status.value if hasattr(plugin.status, "value") else plugin.status
     )
-    status_color = _PLUGIN_STATUS_COLORS.get(status_val.lower(), "grey")
+    status_color = PLUGIN_STATUS_COLORS.get(status_val.lower(), "grey")
 
     with (
         ui.card()

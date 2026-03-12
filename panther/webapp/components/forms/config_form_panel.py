@@ -44,8 +44,6 @@ def config_form_panel(
     title: str,
     icon: str = "settings",
     description: str = "",
-    pre_populate: bool = True,
-    singleton: bool = False,
     form_config: FormConfig | None = None,
 ) -> FormPanelResult:
     """Render a PydanticForm inside a ``ui.expansion`` panel.
@@ -62,8 +60,6 @@ def config_form_panel(
         title: Text shown on the expansion panel header.
         icon: Material icon name displayed next to the title.
         description: Help text rendered above the form as a grey caption.
-        pre_populate: Legacy parameter, kept for backward compatibility.
-        singleton: Legacy parameter, kept for backward compatibility.
         form_config: Optional ``FormConfig`` to customise layout options
             (advanced toggle, CSS prefix, excluded fields, etc.).
 

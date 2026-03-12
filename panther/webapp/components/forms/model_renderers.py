@@ -235,17 +235,14 @@ class ModelRenderersMixin:
                 else:
                     _destroy_sub_form()
 
-            # Use on_value_change (post-creation)
-            toggle.on_value_change(_on_toggle)
-
-            # Initial state
+            # Initial state — go through the same path that the toggle uses
             if has_value:
-                with sub_container:
-                    sub_form_ref["form"] = PydanticForm(
-                        model_cls, instance=initial, config=self._config
-                    )
+                _create_sub_form()
             else:
                 sub_container.set_visibility(False)
+
+            # Register toggle handler AFTER initial rendering to avoid double-fire
+            toggle.on_value_change(_on_toggle)
 
         def _getter():
             f = sub_form_ref["form"]

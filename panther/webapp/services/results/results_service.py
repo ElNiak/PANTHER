@@ -164,40 +164,43 @@ class ResultsService(TestDataMixin, AnalyticsMixin):
             experiment with that name exists.
         """
         logger.debug("Fetching detail for experiment: %s", name)
-        for exp in self.list_experiments():
-            if exp["name"] == name:
-                exp_path = Path(exp["path"])
-                detail = dict(exp)
+        exp_path = self.output_dir / name
+        if not exp_path.is_dir():
+            logger.debug("Experiment not found: %s", name)
+            return None
 
-                # Enrich with core ExperimentSummary data when available
-                summary_data = self._load_experiment_summary_json(exp_path)
-                if summary_data:
-                    detail["core_summary"] = summary_data
-                    tests_info = summary_data.get("tests", {})
-                    if isinstance(tests_info, dict):
-                        detail["test_count"] = tests_info.get(
-                            "total", detail["test_count"]
-                        )
-                    detail["status"] = summary_data.get("status", detail["status"])
+        date_part = name[:10] if len(name) >= 10 else name
+        detail: dict[str, Any] = {
+            "date": date_part,
+            "name": name,
+            "path": str(exp_path),
+            "test_count": self._count_tests(exp_path),
+            "status": self._detect_status(exp_path),
+        }
 
-                if not summary_data:
-                    # Fallback: compute summary on-the-fly from logs/outputs
-                    computed = self.get_experiment_summary(str(exp_path))
-                    if computed:
-                        detail["core_summary"] = computed
-                        tests_info = computed.get("tests", {})
-                        if isinstance(tests_info, dict):
-                            detail["test_count"] = tests_info.get(
-                                "total", detail["test_count"]
-                            )
-                        detail["status"] = computed.get("status", detail["status"])
+        # Enrich with core ExperimentSummary data when available
+        summary_data = self._load_experiment_summary_json(exp_path)
+        if summary_data:
+            detail["core_summary"] = summary_data
+            tests_info = summary_data.get("tests", {})
+            if isinstance(tests_info, dict):
+                detail["test_count"] = tests_info.get("total", detail["test_count"])
+            detail["status"] = summary_data.get("status", detail["status"])
 
-                detail["log_content"] = self._read_log(exp_path)
-                detail["report_content"] = self._read_report(exp_path)
-                detail["artifacts"] = self._list_artifacts(exp_path)
-                return detail
-        logger.debug("Experiment not found: %s", name)
-        return None
+        if not summary_data:
+            # Fallback: compute summary on-the-fly from logs/outputs
+            computed = self.get_experiment_summary(str(exp_path))
+            if computed:
+                detail["core_summary"] = computed
+                tests_info = computed.get("tests", {})
+                if isinstance(tests_info, dict):
+                    detail["test_count"] = tests_info.get("total", detail["test_count"])
+                detail["status"] = computed.get("status", detail["status"])
+
+        detail["log_content"] = self._read_log(exp_path)
+        detail["report_content"] = self._read_report(exp_path)
+        detail["artifacts"] = self._list_artifacts(exp_path)
+        return detail
 
     def _count_tests(self, exp_dir: Path) -> int:
         """Count test subdirectories (contain test_config.yaml or test.log)."""
