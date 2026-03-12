@@ -1,4 +1,4 @@
-"""Config Command - Click Implementation.
+"""Config Command.
 
 Configuration management and validation with enhanced user experience.
 """
@@ -587,7 +587,6 @@ def generate(template, output, overwrite):
                 info_message("Generation cancelled")
                 return
 
-    # Native Click implementation for template generation
     template_content = _generate_template_content(template, output)
 
     if output:

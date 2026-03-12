@@ -1,4 +1,4 @@
-"""Tutorial Command - Interactive tutorials and learning (Click implementation)."""
+"""Tutorial Command - Interactive tutorials and learning."""
 
 import json
 import traceback

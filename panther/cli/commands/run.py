@@ -1,4 +1,4 @@
-"""Run Command - Click Implementation.
+"""Run Command.
 
 Execute PANTHER experiments with enhanced user experience and error handling.
 """
@@ -232,7 +232,6 @@ def run(
         )
         click.echo()
 
-    # Native Click implementation for experiment execution
     try:
         if dry_run:
             click.echo(colored("🔍 DRY RUN - Configuration Analysis:", "yellow"))

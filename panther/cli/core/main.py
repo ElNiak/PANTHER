@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""PANTHER Click CLI - Main entry point.
+"""PANTHER CLI - Main entry point.
 
-Modern CLI implementation using Click framework with enhanced user experience,
+Modern CLI implementation with enhanced user experience,
 improved error handling, and maintainability.
 """
 

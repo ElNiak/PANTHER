@@ -1,6 +1,6 @@
-"""CLI Click Test Suite.
+"""CLI Test Suite.
 
-Comprehensive test suite for the PANTHER Click CLI implementation.
+Comprehensive test suite for the PANTHER CLI implementation.
 Tests cover all commands, options, error handling, and workflows.
 
 Test Structure:

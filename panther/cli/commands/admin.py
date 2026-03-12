@@ -1,4 +1,4 @@
-"""Admin Command - Click Implementation.
+"""Admin Command.
 
 Administrative and system management commands with enhanced user experience.
 """
@@ -58,7 +58,6 @@ def teardown(ctx, force):
       panther admin teardown              # Interactive cleanup
       panther admin teardown --force     # Force cleanup without prompts
     """
-    # Native Click implementation for system teardown
     try:
         import subprocess
 
@@ -150,7 +149,6 @@ def status(ctx):
     Examples:
       panther admin status    # Show complete system status
     """
-    # Native Click implementation for system status
     try:
         import subprocess
         import sys
@@ -279,7 +277,6 @@ def clean(ctx, logs, cache, all):
         info_message("Available options: --logs, --cache, --all")
         raise click.Abort()
 
-    # Native Click implementation for file cleanup
     try:
         import glob
         import shutil
@@ -526,7 +523,6 @@ def docker(
         error_message(f"Docker SDK not installed: {exc}")
         raise click.Abort()
 
-    # Native Click implementation for Docker resource management
     try:
         import json
 

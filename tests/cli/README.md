@@ -1,6 +1,6 @@
-# PANTHER CLI Click Test Suite
+# PANTHER CLI Test Suite
 
-Comprehensive test suite for the PANTHER Click CLI implementation. This test suite provides 100% coverage of CLI functionality including all commands, options, error handling, and workflows.
+Comprehensive test suite for the PANTHER CLI implementation. This test suite provides 100% coverage of CLI functionality including all commands, options, error handling, and workflows.
 
 ## 🏗️ Test Structure
 
@@ -152,7 +152,7 @@ The test suite includes comprehensive pytest configuration in `pytest.ini`:
 - `mock_docker`: Mocked Docker operations
 
 ### Helper Fixtures
-- `click_helper`: Test helper methods
+- `cli_helper`: Test helper methods
 - `env_vars`: Environment variable management
 - `cli_isolated_filesystem`: Isolated filesystem testing
 

@@ -1,4 +1,4 @@
-"""Create Command - Plugin and component creation (Click implementation)."""
+"""Create Command - Plugin and component creation."""
 
 import json
 import traceback
@@ -517,7 +517,7 @@ tests:
 """
     else:
         template = f"""# PANTHER Experiment Configuration Template
-# Generated with enhanced Click CLI
+# Generated with PANTHER CLI
 
 logging:
   level: INFO

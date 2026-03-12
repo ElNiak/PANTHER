@@ -1,6 +1,6 @@
-"""PANTHER Click-based CLI.
+"""PANTHER CLI.
 
-Modern CLI implementation using Click framework for improved user experience,
+Modern CLI implementation with improved user experience,
 better error handling, and enhanced maintainability.
 """
 

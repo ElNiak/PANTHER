@@ -1,4 +1,4 @@
-"""Build Command - Click Implementation.
+"""Build Command.
 
 Provides CLI commands for building, installing, testing, and cleaning
 the PANTHER package. Replaces the standalone panther_builder.py build commands.

@@ -1,4 +1,4 @@
-"""Tools Command - Click Implementation.
+"""Tools Command.
 
 Install and manage development/runtime tools for PANTHER.
 """
@@ -101,7 +101,6 @@ def install_slim(ctx, force, config, verbose, dry_run):
                 info_message("Use --force to reinstall")
             return
 
-    # Native Click implementation for slim installation
     try:
         info_message("Downloading and installing slim...")
 
@@ -201,7 +200,6 @@ def install_precommit(ctx, update, config, verbose, dry_run):
         info_message("DRY RUN: Would install pre-commit hooks")
         return
 
-    # Native Click implementation for pre-commit installation
     try:
         # Install pre-commit package
         info_message("Installing pre-commit package...")

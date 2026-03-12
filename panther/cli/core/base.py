@@ -1,6 +1,6 @@
-"""Base utilities and decorators for Click commands.
+"""Base utilities and decorators for CLI commands.
 
-Provides common patterns used across all PANTHER Click commands including
+Provides common patterns used across all PANTHER CLI commands including
 error handling, logging setup, and shared options.
 """
 
@@ -16,7 +16,7 @@ FEATURED_EXAMPLE_ATTR = "_panther_featured_example"
 
 
 def featured_example(example_text: str):
-    """Attach a featured example to a Click command for top-level help."""
+    """Attach a featured example to a command for top-level help."""
 
     def decorator(cmd):
         setattr(cmd, FEATURED_EXAMPLE_ATTR, example_text)
@@ -45,13 +45,13 @@ class PantherGroup(click.Group):
 
 
 def common_options(func: Callable) -> Callable:
-    """Decorator that adds common options to Click commands.
+    """Decorator that adds common options to CLI commands.
 
     Adds frequently used options like --config, --verbose that are
     shared across multiple PANTHER commands.
 
     Args:
-        func: Click command function to decorate
+        func: CLI command function to decorate
 
     Returns:
         Decorated function with common options added
@@ -79,7 +79,7 @@ def handle_errors(func: Callable) -> Callable:
     Preserves legacy CLI exit codes for shell script compatibility.
 
     Args:
-        func: Click command function to decorate
+        func: CLI command function to decorate
 
     Returns:
         Decorated function with error handling
@@ -175,7 +175,7 @@ def pass_context_and_setup_logging(func: Callable) -> Callable:
     Combines context passing with logging setup based on debug/verbose flags.
 
     Args:
-        func: Click command function to decorate
+        func: CLI command function to decorate
 
     Returns:
         Decorated function with context and logging setup
@@ -243,11 +243,11 @@ def error_message(message: str) -> None:
 def legacy_command_pattern(func: Callable) -> Callable:
     """Decorator that provides legacy command pattern compatibility.
 
-    Enables Click commands to behave more like legacy BaseCommand pattern
+    Enables CLI commands to behave more like legacy BaseCommand pattern
     with proper return code handling and error patterns.
 
     Args:
-        func: Click command function to decorate
+        func: CLI command function to decorate
 
     Returns:
         Decorated function with legacy behavior patterns

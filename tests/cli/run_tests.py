@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """CLI Test Runner.
 
-Comprehensive test runner for the PANTHER Click CLI implementation.
+Comprehensive test runner for the PANTHER CLI implementation.
 Provides different test execution modes and coverage reporting.
 """
 
@@ -40,7 +40,7 @@ def run_command(cmd, description, cwd=None):
 def main():
     """Main test runner function."""
     parser = argparse.ArgumentParser(
-        description="CLI Test Runner for PANTHER Click CLI",
+        description="CLI Test Runner for PANTHER CLI",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:

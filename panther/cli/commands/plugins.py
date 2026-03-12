@@ -1,4 +1,4 @@
-"""Plugins Command - Plugin discovery and management (Click implementation)."""
+"""Plugins Command - Plugin discovery and management."""
 
 import json
 import traceback

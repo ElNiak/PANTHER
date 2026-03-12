@@ -1,6 +1,6 @@
-"""Shared test fixtures for CLI Click tests.
+"""Shared test fixtures for CLI tests.
 
-Provides common fixtures for testing Click commands including
+Provides common fixtures for testing CLI commands including
 temporary files, mock configurations, and CLI runner instances.
 """
 
@@ -18,7 +18,7 @@ from panther.cli.core.main import cli
 
 @pytest.fixture
 def cli_runner():
-    """Create a Click testing CLI runner.
+    """Create a CLI test runner.
 
     Returns:
         CliRunner: Configured CLI runner for testing commands
@@ -255,15 +255,15 @@ def cli_isolated_filesystem(cli_runner):
         yield cli_runner
 
 
-class ClickTestHelper:
-    """Helper class for common Click testing patterns."""
+class CLITestHelper:
+    """Helper class for common CLI testing patterns."""
 
     @staticmethod
     def assert_success(result, expected_output=None):
         """Assert that a CLI command succeeded.
 
         Args:
-            result: Click test result
+            result: CLI test result
             expected_output: Optional expected output string
         """
         assert result.exit_code == 0, f"Command failed with output: {result.output}"
@@ -275,7 +275,7 @@ class ClickTestHelper:
         """Assert that a CLI command failed.
 
         Args:
-            result: Click test result
+            result: CLI test result
             expected_exit_code: Expected exit code (default: 1)
             expected_error: Optional expected error string
         """
@@ -290,7 +290,7 @@ class ClickTestHelper:
         """Assert that output contains all expected strings.
 
         Args:
-            result: Click test result
+            result: CLI test result
             *expected_strings: Strings that should be in output
         """
         for expected in expected_strings:
@@ -300,13 +300,13 @@ class ClickTestHelper:
 
 
 @pytest.fixture
-def click_helper():
-    """Provide ClickTestHelper instance for tests.
+def cli_helper():
+    """Provide CLITestHelper instance for tests.
 
     Returns:
-        ClickTestHelper: Helper instance
+        CLITestHelper: Helper instance
     """
-    return ClickTestHelper()
+    return CLITestHelper()
 
 
 # Parametrized fixtures for testing different scenarios

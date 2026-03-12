@@ -1,4 +1,4 @@
-"""Metrics Command - Click Implementation.
+"""Metrics Command.
 
 Manage experiment and build metrics with enhanced user experience.
 Reads real metrics data from experiment output directories.
@@ -299,7 +299,7 @@ def _display_summary_errors(summary_data: Dict[str, Any]) -> None:
         click.echo()
 
 
-# ========== Click Commands ==========
+# ========== Commands ==========
 
 
 @featured_example("panther metrics list")

@@ -1,1 +1,1 @@
-"""Core Click CLI infrastructure."""
+"""Core CLI infrastructure."""

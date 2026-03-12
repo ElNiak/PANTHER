@@ -1,4 +1,4 @@
-"""Web Command - Click Implementation.
+"""Web Command.
 
 Launch the PANTHER web dashboard (NiceGUI-based).
 """

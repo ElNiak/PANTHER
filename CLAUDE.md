@@ -124,7 +124,7 @@ ls -la  # View generated reports and logs
 ### Key Components
 ```
 panther/
-├── cli_click/          # Click-based CLI
+├── cli/          # CLI
 ├── core/
 │   ├── experiment_manager.py    # Central orchestrator
 │   ├── test_cases/              # Test execution (mixin-based)

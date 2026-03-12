@@ -1,4 +1,4 @@
-"""Check Command - Click Implementation.
+"""Check Command.
 
 Code quality and validation checks with enhanced user experience.
 """
@@ -152,7 +152,6 @@ def check(
             info_message(f"Config file: {config}")
         click.echo()
 
-    # Native Click implementation for code quality checks
     try:
         import subprocess
         import sys

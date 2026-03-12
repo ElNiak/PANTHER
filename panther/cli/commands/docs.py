@@ -1,4 +1,4 @@
-"""Docs Command - Click Implementation.
+"""Docs Command.
 
 Provides CLI commands for building, serving, and deploying PANTHER documentation.
 Replaces the standalone panther_builder.py docs commands.

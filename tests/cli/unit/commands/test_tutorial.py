@@ -1,4 +1,4 @@
-"""Tests for the Click-based tutorial CLI commands.
+"""Tests for the tutorial CLI commands.
 
 Covers: run, list, interactive commands with all bug fixes verified.
 

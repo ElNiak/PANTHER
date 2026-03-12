@@ -1,7 +1,7 @@
 """Integration tests for CLI workflows.
 
 Tests complete workflows that span multiple commands and verify
-end-to-end functionality of the Click CLI implementation.
+end-to-end functionality of the CLI implementation.
 """
 
 from pathlib import Path
