@@ -40,21 +40,21 @@ Plugin Creation CLI:
     PANTHER provides CLI commands for scaffolding new plugins from templates::
 
         # Create a top-level plugin
-        panther --create-plugin <TYPE> <NAME>
+        panther create plugin <TYPE> <NAME>
         # Types: service, environment, protocol
 
         # Create a subplugin within an existing plugin
-        panther --create-subplugin <PLUGIN_TYPE> <PLUGIN_NAME> <SUBPLUGIN_TYPE>
-        # e.g.: panther --create-subplugin service my_protocol iut
+        panther create subplugin <PLUGIN_TYPE> <PLUGIN_NAME> <SUBPLUGIN_TYPE>
+        # e.g.: panther create subplugin service my_protocol iut
 
         # Create a complete service plugin with all subplugins
-        panther --create-plugin service my_protocol --with-subplugins
+        panther create plugin service my_protocol --with-subplugins
 
         # Launch interactive tutorials for guided development
-        panther --tutorial service
-        panther --tutorial environment
-        panther --tutorial protocol
-        panther --interactive-tutorials
+        panther tutorial run service
+        panther tutorial run environment
+        panther tutorial run protocol
+        panther tutorial interactive
 
     In development mode (cloned repo), plugins are created in the source tree.
     In production mode (pip-installed), plugins go to ``~/.panther/plugins/``.
@@ -111,7 +111,6 @@ Reference Implementations:
 __all__ = [
     "plugin_interface",
     "plugin_manager",
-    "plugin_loader_utils",
 ]
 
 # Protocol plugins are auto-discovered through the plugin system

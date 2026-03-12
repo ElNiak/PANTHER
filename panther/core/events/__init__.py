@@ -39,8 +39,7 @@ Key Design Principles:
       the data dict and regenerates the content-based UUID
     - **State tracking** -- Each domain maintains state managers that track
       entity lifecycle and enable workflow coordination
-    - **Memory efficiency** -- ``__slots__`` in event classes, enum-based
-      event types for O(1) filtering
+    - **Memory efficiency** -- enum-based event types for O(1) filtering
 
 Event Lifecycle:
     1. **Creation** -- Events created with deterministic UUIDs and timestamps
