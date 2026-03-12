@@ -271,6 +271,60 @@ class TestServiceHealthAnalyzer:
         assert not result.crashed
 
 
+class TestBashTraceFiltering:
+    """Tests that bash set -x trace lines are not treated as errors."""
+
+    def test_bash_trace_lines_not_treated_as_errors(self, analyzer, tmp_path):
+        """Bash set -x trace lines (+ command ...) should not be detected as errors."""
+        log_dir = tmp_path / "ivy_server"
+        runtime_dir = log_dir / "runtime"
+        runtime_dir.mkdir(parents=True)
+        (runtime_dir / "stderr.log").write_text(
+            "+ timeout 200 ./build/quic_client_test_max seed=0 the_cid=1\n"
+            "+ /usr/bin/strace -o /app/logs/trace.log -tt -yy -f"
+            " -e trace=all -- timeout 200 ./build/quic_client_test_max\n"
+            "some normal output\n"
+        )
+        compile_dir = log_dir / "compile"
+        compile_dir.mkdir(parents=True)
+        (compile_dir / "stderr.log").write_text("")
+
+        health = analyzer.analyze_service("ivy_server", "tester", log_dir)
+        assert health.status == "healthy", f"Expected healthy but got {health.status}"
+        assert (
+            health.stderr_errors == []
+        ), f"Expected no errors but got {health.stderr_errors}"
+
+    def test_actual_timeout_detected_as_error(self, analyzer, tmp_path):
+        """Real timeout errors should still be detected."""
+        log_dir = tmp_path / "service"
+        runtime_dir = log_dir / "runtime"
+        runtime_dir.mkdir(parents=True)
+        (runtime_dir / "stderr.log").write_text("Process timed out after 200 seconds\n")
+        compile_dir = log_dir / "compile"
+        compile_dir.mkdir(parents=True)
+        (compile_dir / "stderr.log").write_text("")
+
+        health = analyzer.analyze_service("service", "iut", log_dir)
+        assert health.status == "degraded"
+        assert len(health.stderr_errors) > 0
+
+    def test_nested_bash_trace_filtered(self, analyzer, tmp_path):
+        """Nested bash traces (++ prefix) should also be filtered."""
+        log_dir = tmp_path / "service"
+        runtime_dir = log_dir / "runtime"
+        runtime_dir.mkdir(parents=True)
+        (runtime_dir / "stderr.log").write_text(
+            "++ timeout 100 ./some_binary\n" "++ killed -9 some_process\n"
+        )
+        compile_dir = log_dir / "compile"
+        compile_dir.mkdir(parents=True)
+        (compile_dir / "stderr.log").write_text("")
+
+        health = analyzer.analyze_service("service", "iut", log_dir)
+        assert health.stderr_errors == []
+
+
 class TestServiceHealthDeduplication:
     """Tests for deduplication of service health entries."""
 
