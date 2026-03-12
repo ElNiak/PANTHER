@@ -85,7 +85,7 @@ class FieldBinding:
 
     getter: Callable[[], Any]
     setter: Callable[[Any], None]
-    field_type: str  # "scalar" | "nested" | "complex"
+    field_type: Literal["scalar", "nested", "complex"]
     sub_form: PydanticForm | None = None
     widget: Any | None = None
 

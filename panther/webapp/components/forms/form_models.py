@@ -29,7 +29,7 @@ Additional helpers:
 from __future__ import annotations
 
 import logging
-from typing import Any, NamedTuple, Union, get_args, get_origin
+from typing import Any, Literal, NamedTuple, Union, get_args, get_origin
 
 from pydantic import BaseModel
 
@@ -55,7 +55,7 @@ class ComplexFieldInfo(NamedTuple):
             metadata (e.g. ``{"key_generator": "service_name"}``).
     """
 
-    category: str  # "dict_str" | "dict_model" | "list_model"
+    category: Literal["dict_str", "dict_model", "list_model"]
     annotation: Any  # raw type annotation
     value_type: type  # inner type (str, ServiceConfig, etc.)
     description: str  # from Pydantic Field
