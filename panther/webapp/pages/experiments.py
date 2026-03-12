@@ -1,7 +1,7 @@
 """Experiments page -- launch, monitor, and manage experiment runs.
 
 Provides a browser-based interface for running PANTHER (Protocol
-ANalyzer and THreat Evaluator for Research) experiments.
+ANalysis and Testing Harness for Extensible Research) experiments.
 
 This page combines configuration selection with real-time experiment
 execution monitoring in a single view.  The layout is split into

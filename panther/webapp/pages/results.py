@@ -1,8 +1,8 @@
 """Results page -- browse past experiment outputs with statistics and drill-down.
 
 Provides aggregate statistics, charts, and a tabbed detail dialog for
-PANTHER (Protocol ANalyzer and THreat Evaluator for Research) experiment
-outputs.
+PANTHER (Protocol ANalysis and Testing Harness for Extensible Research)
+experiment outputs.
 
 This page follows a **master-detail** navigation pattern:
 

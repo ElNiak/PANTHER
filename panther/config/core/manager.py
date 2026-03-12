@@ -147,7 +147,11 @@ class ConfigurationManager(
             self.logger.debug(f"Initialized {len(self.validators)} validators")
 
         except Exception as e:
-            self.logger.warning(f"Failed to initialize validators: {e}")
+            self.logger.error(
+                "Failed to initialize validators: %s — configuration validation "
+                "is disabled, all configs will be accepted without validation",
+                e,
+            )
             self.validators = []
             self.config_validator = None
 
@@ -177,8 +181,11 @@ class ConfigurationManager(
             )
 
         except Exception as e:
-            self.logger.warning(f"Failed to initialize plugin components: {e}")
-            # Continue without dynamic resolution - will fall back to base classes
+            self.logger.error(
+                "Failed to initialize plugin components: %s — plugin discovery "
+                "is disabled, plugin lists will be empty",
+                e,
+            )
             self.plugin_discovery = None
 
     def _get_default_panther_dir(self) -> Path:

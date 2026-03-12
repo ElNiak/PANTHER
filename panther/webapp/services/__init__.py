@@ -9,9 +9,10 @@ benefits:
    ``ExperimentService`` run blocking work in background threads
    (via ``asyncio.to_thread``) so the NiceGUI event loop stays
    responsive.
-2. **Caching and state management** -- Services maintain in-memory
-   caches (e.g. plugin lists, result summaries) and singleton state
-   that persists across page navigations within the same process.
+2. **Caching and state management** -- Some services (``PluginService``,
+   ``ResultsService``) maintain in-memory caches.
+   ``ExperimentService`` is a singleton with state that persists across
+   page navigations.  ``ConfigService`` is stateless.
 3. **Error boundaries** -- Services catch exceptions from core
    components and translate them into user-friendly messages or
    fallback values, preventing raw tracebacks from reaching the UI.
@@ -38,11 +39,10 @@ Service inventory
 |                    | (the plugin registry)          | lookup, graceful fallback on       |
 |                    |                                | discovery failure                  |
 +--------------------+--------------------------------+------------------------------------+
-| ``WebObserver``    | ``GUIObserver``                | Event-to-UI callback bridge with   |
-|                    | (the observer base)            | per-subscriber filtering (type,    |
-|                    |                                | importance, predicate), batching,  |
-|                    |                                | and thread-safe dispatch           |
-+--------------------+--------------------------------+------------------------------------+
+
+``WebObserver`` lives in ``panther.webapp.infra``, not in this package.
+It bridges PANTHER events to NiceGUI UI callbacks with per-subscriber
+filtering, batching, and thread-safe dispatch.
 
 Usage pattern
 -------------

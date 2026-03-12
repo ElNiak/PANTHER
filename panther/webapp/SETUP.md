@@ -65,9 +65,9 @@ python -c "import nicegui; print(nicegui.__version__)"   # Should print 3.x
 # 3. Check PydanticForm works with PANTHER models
 python -c "from panther.webapp.components.forms.pydantic_form import PydanticForm; print('PydanticForm OK')"
 
-# 4. Start the server and check all 5 pages load
+# 4. Start the server and check all 6 pages load
 panther web --reload
-# Navigate to: /, /config, /experiments, /results, /plugins
+# Navigate to: /, /config, /topology, /experiments, /results, /plugins
 ```
 
 ## How NiceGUI Development Works
@@ -91,11 +91,12 @@ Files you will work in most often:
 panther/webapp/
     app.py                  # Start here. Application factory, page registration.
     pages/                  # One file per page. Each exports a content() function.
-        dashboard.py        # /           (working)
-        config_builder.py   # /config     (skeleton -- forms to build)
-        experiments.py      # /experiments (skeleton -- launch works, monitoring to build)
-        results.py          # /results    (working -- row-click wired, analysis to build)
-        plugins.py          # /plugins    (working)
+        dashboard.py        # /
+        config_builder.py   # /config
+        topology.py         # /topology
+        experiments.py      # /experiments
+        results.py          # /results
+        plugins.py          # /plugins
     components/             # Reusable UI pieces shared across pages.
         layout.py           # Sidebar, header, shared wrapper.
         forms/              # Form-related components.
@@ -158,7 +159,7 @@ panther/webapp/GETTING_STARTED.md # First-day walkthrough
 ## Running Tests
 
 ```bash
-# Run webapp tests (40 tests covering services, form models, app factory)
+# Run webapp tests (services, form models, app factory)
 pytest tests/unit/test_webapp/ -v -o "addopts=-v --tb=short"
 
 # Run all project unit tests

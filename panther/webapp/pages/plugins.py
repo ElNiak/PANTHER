@@ -1,7 +1,7 @@
 """Plugins page -- card-based browser for discovering and inspecting plugins.
 
-Presents PANTHER (Protocol ANalyzer and THreat Evaluator for Research)
-plugins in a filterable card grid.
+Presents PANTHER (Protocol ANalysis and Testing Harness for Extensible
+Research) plugins in a filterable card grid.
 
 This page presents every registered plugin as a card in a responsive
 grid, with filtering by type and free-text search.  Clicking a card

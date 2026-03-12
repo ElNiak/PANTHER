@@ -1,9 +1,9 @@
 """Dashboard page -- overview with summary statistics and real-time monitoring.
 
-Provides an overview of the PANTHER (Protocol ANalyzer and THreat
-Evaluator for Research) system status.
+Provides an overview of the PANTHER (Protocol ANalysis and Testing
+Harness for Extensible Research) system status.
 
-This is the landing page users see after logging in. It provides three
+This is the landing page users see when they open the webapp. It provides three
 sections:
 
 1. **Overview cards** -- static statistics fetched once when the page loads:

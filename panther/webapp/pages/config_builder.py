@@ -2,8 +2,8 @@
 
 Provides synchronized PydanticForm-based forms and a raw YAML preview.
 
-This page enables users to build PANTHER (Protocol ANalyzer and THreat
-Evaluator for Research) experiment configurations through two
+This page enables users to build PANTHER (Protocol ANalysis and Testing
+Harness for Extensible Research) experiment configurations through two
 complementary interfaces:
 
 **Dual-tab architecture:**

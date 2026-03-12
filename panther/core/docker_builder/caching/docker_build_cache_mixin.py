@@ -102,7 +102,7 @@ class DockerBuildCacheMixin(LoggerMixin):
                 try:
                     with open(file_path, "rb") as f:
                         hasher.update(f.read(1024))
-                except:
+                except OSError:
                     pass
 
             return hasher.hexdigest()
@@ -283,7 +283,7 @@ class DockerBuildCacheMixin(LoggerMixin):
             if layers_result.returncode == 0:
                 try:
                     layers = json.loads(layers_result.stdout.strip())
-                except:
+                except (json.JSONDecodeError, ValueError):
                     pass
 
             return {"size": size, "layers": layers}

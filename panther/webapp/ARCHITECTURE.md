@@ -97,10 +97,10 @@ pages/experiments.py
 |-------------------|----------------------------------|----------------------------------|
 | ExperimentService | ExperimentManager (the central orchestrator that runs the four-phase experiment lifecycle) | Launch experiments in background threads, track status, stream live events |
 | PluginService     | PluginManager (discovers and loads plugin implementations at runtime) | List available plugins, retrieve metadata and configuration schemas |
-| ConfigService     | ConfigurationManager (PANTHER's YAML/OmegaConf configuration system) | Load/save/validate experiment YAML configs with path safety |
+| ConfigService     | ConfigurationLoader, deep_merge (PANTHER's YAML loading and merge utilities) | Load/save/validate experiment YAML configs with path safety |
 | ResultsService    | Filesystem (`outputs/` directory) | Browse past experiment results, parse logs, extract metrics for charts |
 
-Services are instantiated once in `app.py` and passed to pages via NiceGUI's `app.storage` or function parameters.
+Stateless services (ConfigService, PluginService, ResultsService) are instantiated per-page-load. ExperimentService is a module-level singleton accessed via `get_experiment_service()`.
 
 **Data flow through the service layer:**
 
@@ -117,7 +117,7 @@ Services are instantiated once in `app.py` and passed to pages via NiceGUI's `ap
 **Threading model:**
 - **Main thread**: NiceGUI's asyncio event loop. All UI code runs here. Never block this thread.
 - **Background thread**: Experiment execution runs via `asyncio.to_thread()` in `ExperimentService.run_experiment()`. The `ExperimentManager.run_tests()` call is blocking and can run for minutes.
-- **Thread bridge**: `WebObserver.update_gui()` is called from the background thread. It iterates a copy of the subscriber list (`list(self._subscribers)`) to avoid race conditions. NiceGUI auto-pushes state changes to the browser over its WebSocket.
+- **Thread bridge**: `WebObserver.update_gui()` is called from the background thread. It iterates a copy of the subscription list (`list(self._subscriptions)`) under a lock to avoid race conditions. NiceGUI auto-pushes state changes to the browser over its WebSocket.
 
 **Service composition:**
 - **ConfigService**: Stateless. Load/validate/save YAML configs. Used by the config builder page and experiment launch.
@@ -161,21 +161,21 @@ PANTHER's observer system (`IObserver` -> `on_event(BaseEvent)`) is the integrat
 The webapp defines a `WebObserver` that subclasses `GUIObserver` (`panther/core/observer/impl/gui_observer.py`):
 
 ```python
-from panther.core.observer.impl.gui_observer import GUIObserver
-from panther.core.events.base.event_base import BaseEvent
+# Simplified for illustration; see panther/webapp/infra/web_observer.py for the full API.
+from panther.webapp.infra.web_observer import WebObserver, Subscription
 
-class WebObserver(GUIObserver):
-    def __init__(self):
-        super().__init__()
-        self._subscribers = []     # NiceGUI ui.log / ui.label bindings
+observer = WebObserver()
 
-    def update_gui(self, event: BaseEvent):
-        """Called by GUIObserver.on_event() after state tracking."""
-        for callback in self._subscribers:
-            callback(event)
+# subscribe() returns a Subscription handle and supports per-subscriber filtering:
+sub = observer.subscribe(
+    callback,
+    event_types={"test", "experiment"},  # optional: only these event categories
+    importance=EventImportance.HIGH,     # optional: minimum importance threshold
+    predicate=lambda e: ...,             # optional: arbitrary filter function
+    batched=True,                        # default: participates in event batching
+)
 
-    def subscribe(self, callback):
-        self._subscribers.append(callback)
+observer.unsubscribe(sub)  # remove by Subscription handle
 ```
 
 When an experiment runs, the `WebObserver` is registered with `EventManager`. Every event flows through `on_event()` -> `update_gui()` -> subscribed NiceGUI components. NiceGUI auto-pushes state changes over its WebSocket, so the browser updates immediately.
@@ -185,46 +185,49 @@ When an experiment runs, the `WebObserver` is registered with `EventManager`. Ev
 - GUI state dict (`get_gui_state()` with counters and timestamps per event type)
 - Automatic `_update_gui_state()` on every event
 
-**EventType taxonomy** (from `panther/core/events/base/event_base.py`):
-
-**Subscription lifecycle** for a NiceGUI page:
+**Subscription lifecycle** for a NiceGUI page (actual pattern used by pages):
 ```python
-# 1. Subscribe on page load
-def on_page_load():
-    experiment_service.subscribe_events(handle_event)
+# 1. Subscribe on page load via web_observer directly
+experiment_svc = get_experiment_service()
+sub = experiment_svc.web_observer.subscribe(
+    handle_event,
+    event_types={"test", "experiment"},
+    importance=EventImportance.HIGH,
+)
 
-# 2. Filter and update UI
+# 2. Filter and update UI using string-based event types
 def handle_event(event: BaseEvent):
-    if event.entity_type == EventType.TEST:
-        update_test_progress(event)     # update NiceGUI component
-    elif event.entity_type == EventType.METRICS:
-        update_metrics_chart(event)     # NiceGUI auto-pushes via WebSocket
+    event_type = event.get_type()  # returns e.g. "test.started", "experiment.completed"
+    if event_type == "test.completed":
+        update_test_progress(event)     # NiceGUI auto-pushes via WebSocket
 
-# 3. Unsubscribe on page leave (prevent stale callbacks)
-def on_page_disconnect():
-    experiment_service.unsubscribe_events(handle_event)
+# 3. Unsubscribe on client disconnect (prevent stale callbacks)
+client.on_disconnect(
+    lambda: experiment_svc.web_observer.unsubscribe(sub)
+)
 ```
 
-### Config Builder: PydanticForm + One-Way YAML Preview
+### Config Builder: PydanticForm + YAML Preview
 
 **Why this design?** PANTHER experiment configurations are deeply nested YAML files
 with cross-references between services. Editing raw YAML is error-prone; users forget
 field names, misspell enum values, or create structurally invalid configs. PydanticForm
 auto-generates type-safe forms from the same Pydantic models that validate the YAML,
-ensuring the UI and validation logic are always in sync. The one-way YAML preview gives
-users confidence that their form edits produce correct YAML without the complexity of
-bidirectional synchronization.
+ensuring the UI and validation logic are always in sync.
 
 The config builder page has two panels:
 
 1. **Left: PydanticForm forms** -- structured editing of GlobalConfig, TestConfig, ServiceConfig
-2. **Right: YAML preview** -- read-only display updated from form changes
+2. **Right: YAML preview** -- live display updated from form changes via a periodic timer
+
+**Sync directions:**
+- **Forms -> YAML** (automatic): A timer periodically collects form values and updates the YAML preview.
+- **YAML/file -> Forms** (on import/load): Users can import YAML text or load a config file, which populates forms via `_populate_forms_from_dict()`.
 
 ```
-Form field change -> model.model_dump() -> yaml.dump() -> YAML preview
+Form field change -> timer -> model.model_dump() -> yaml.dump() -> YAML preview
+Import/Load YAML  -> parse -> _populate_forms_from_dict() -> form.set_value()
 ```
-
-Two-way sync (YAML edits updating forms) is **not in scope** -- it adds significant complexity for marginal benefit. Users edit via forms and see the resulting YAML.
 
 ### Config Model Hierarchy
 
@@ -372,7 +375,7 @@ During topology implementation, the developer also improves the overall webapp U
 - **"Next Step" buttons**: Contextual navigation between pages
 - **Structured JSON viewer**: Replace raw JSON display with collapsible syntax-highlighted trees
 - **Deep-links**: Results link back to the config that produced them
-- **POLISHING + FINISHING** : The scaffold is functional but rough around the edges. The developer refines UI details, fixes bugs, and ensures a smooth user experience. This includes handling edge cases, improving error messages, and optimizing layout for different screen sizes.
+- **Polishing**: The scaffold is functional; remaining work involves edge-case handling, error message refinement, and responsive layout optimization.
 
 ### Stretch Goals (Priority Order)
 
@@ -387,7 +390,7 @@ See `TASKS.md` for full details and timeline.
 
 | Feature | Reason |
 |---------|--------|
-| Two-way YAML sync | High complexity, one-way form-to-YAML is sufficient |
+| Full bidirectional YAML sync (keystroke-level) | Import/load covers most use cases; live keystroke sync adds complexity for marginal benefit |
 | Authentication / RBAC | Single-user tool, runs locally |
 | PCAP viewer (embedded) | Would need Wireshark integration or custom parser |
 | Resource monitoring (CPU/RAM) | Requires Docker stats API polling |

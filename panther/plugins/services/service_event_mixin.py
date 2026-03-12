@@ -447,16 +447,7 @@ class ServiceManagerEventMixin:
                     service_name=service_name,
                     cleanup_details=details,
                 )
-            # Map lifecycle events to proper event types
-            elif event_name == "preparation_started":
-                self.event_emitter.emit_service_preparation_started(
-                    service_id=service_id,
-                    service_name=service_name,
-                    preparation_steps=(
-                        details.get("preparation_steps") if details else None
-                    ),
-                    test_case=details.get("test_case") if details else None,
-                )
+                return
             elif event_name == "preparation_completed":
                 self.event_emitter.emit_service_preparation_completed(
                     service_id=service_id,
