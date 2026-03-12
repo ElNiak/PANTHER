@@ -194,84 +194,50 @@ def pass_context_and_setup_logging(func: Callable) -> Callable:
     return wrapper
 
 
-def success_message(message: str) -> None:
-    """Print a success message with green checkmark.
+_MESSAGE_STYLES = {
+    "success": ("✅ ", "green", "info"),
+    "info": ("ℹ️  ", "blue", "info"),
+    "warning": ("⚠️  ", "yellow", "warning"),
+    "error": ("❌ ", "red", "error"),
+}
 
-    Uses LoggerFactory when available, falls back to standard logging.
-    """
+
+def _cli_message(message: str, style: str) -> None:
+    """Print a styled CLI message with LoggerFactory/logging/click fallback."""
+    prefix, color, log_level = _MESSAGE_STYLES[style]
+    formatted = f"{prefix}{message}"
     try:
         from panther.core.utils.logger_factory import LoggerFactory
 
         logger = LoggerFactory.get_logger("cli")
-        logger.info(f"✅ {message}")
+        getattr(logger, log_level)(formatted)
     except ImportError:
-        # Fallback to standard logging if LoggerFactory is not available
         try:
             import logging
 
-            logging.info(f"✅ {message}")
+            getattr(logging, log_level)(formatted)
         except Exception:
-            click.echo(colored(f"✅ {message}", "green"))
+            click.echo(colored(formatted, color), err=(style == "error"))
+
+
+def success_message(message: str) -> None:
+    """Display a success message."""
+    _cli_message(message, "success")
 
 
 def info_message(message: str) -> None:
-    """Print an info message with blue icon.
-
-    Uses LoggerFactory when available, falls back to standard logging.
-    """
-    try:
-        from panther.core.utils.logger_factory import LoggerFactory
-
-        logger = LoggerFactory.get_logger("cli")
-        logger.info(message)
-    except ImportError:
-        # Fallback to standard logging if LoggerFactory is not available
-        try:
-            import logging
-
-            logging.info(f"ℹ️  {message}")
-        except Exception:
-            click.echo(colored(f"ℹ️  {message}", "blue"))
+    """Display an informational message."""
+    _cli_message(message, "info")
 
 
 def warning_message(message: str) -> None:
-    """Print a warning message with yellow icon.
-
-    Uses LoggerFactory when available, falls back to standard logging.
-    """
-    try:
-        from panther.core.utils.logger_factory import LoggerFactory
-
-        logger = LoggerFactory.get_logger("cli")
-        logger.warning(f"⚠️  {message}")
-    except ImportError:
-        # Fallback to standard logging if LoggerFactory is not available
-        try:
-            import logging
-
-            logging.warning(f"⚠️  {message}")
-        except Exception:
-            click.echo(colored(f"⚠️  {message}", "yellow"))
+    """Display a warning message."""
+    _cli_message(message, "warning")
 
 
 def error_message(message: str) -> None:
-    """Print an error message with red icon.
-
-    Uses LoggerFactory when available, falls back to standard logging.
-    """
-    try:
-        from panther.core.utils.logger_factory import LoggerFactory
-
-        logger = LoggerFactory.get_logger("cli")
-        logger.error(f"❌ {message}")
-    except ImportError:
-        # Fallback to standard logging if LoggerFactory is not available
-        try:
-            import logging
-
-            logging.error(f"❌ {message}")
-        except Exception:
-            click.echo(colored(f"❌ {message}", "red"), err=True)
+    """Display an error message."""
+    _cli_message(message, "error")
 
 
 def legacy_command_pattern(func: Callable) -> Callable:

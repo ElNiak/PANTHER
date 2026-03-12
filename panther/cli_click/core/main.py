@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-PANTHER Click CLI - Main entry point
+"""PANTHER Click CLI - Main entry point.
 
 Modern CLI implementation using Click framework with enhanced user experience,
 improved error handling, and maintainability.
@@ -26,8 +25,7 @@ from panther.cli_click.core.base import PantherGroup, setup_logging
 @click.version_option(version=__version__, prog_name="panther")
 @click.pass_context
 def cli(ctx, debug, verbose):
-    """
-    PANTHER - Protocol Analysis and Testing Harness for Extensible Research
+    r"""PANTHER - Protocol Analysis and Testing Harness for Extensible Research.
 
     Modern CLI for network protocol testing, formal verification, and automated
     analysis of protocol implementations across multiple environments.
@@ -60,8 +58,7 @@ def cli(ctx, debug, verbose):
 )
 @click.argument("shell", type=click.Choice(["bash", "zsh", "fish"]), required=False)
 def completion(output, shell):
-    """
-    Setup shell completion for PANTHER CLI.
+    r"""Setup shell completion for PANTHER CLI.
 
     Enables tab completion for commands, options, and arguments in your shell.
     Supports bash, zsh, and fish shells.
@@ -147,12 +144,10 @@ complete -c panther -f -a "(env _PANTHER_COMPLETE=complete_fish panther)"
 
 # Import and register command groups
 def register_commands():
-    """
-    Register all command groups with the main CLI.
+    """Register all command groups with the main CLI.
 
     This function imports and registers command groups, allowing for
     lazy loading of command modules to improve startup performance.
-
     """
     commands_to_register = [
         ("tools", "panther.cli_click.commands.tools", "tools"),
@@ -166,6 +161,8 @@ def register_commands():
         ("metrics", "panther.cli_click.commands.metrics", "metrics"),
         ("ivy", "panther.cli_click.commands.ivy", "ivy"),
         ("web", "panther.cli_click.commands.web", "web"),
+        ("build", "panther.cli_click.commands.build", "build"),
+        ("docs", "panther.cli_click.commands.docs", "docs"),
     ]
 
     missing_commands = []
@@ -193,8 +190,7 @@ def register_commands():
 
 
 def main():
-    """
-    Main entry point for PANTHER CLI.
+    """Main entry point for PANTHER CLI.
 
     This function is called when the CLI is invoked and handles
     command registration and execution.

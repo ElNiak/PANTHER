@@ -14,7 +14,7 @@ from panther.plugins.plugin_interface import IPlugin
 
 
 class PluginObserver(IObserver):
-    """Concrete implementation of IPluginObserver that manages event interests.
+    """Plugin observer that manages event interests.
 
     Manages event interests for plugins and delivers events to interested plugins.
 

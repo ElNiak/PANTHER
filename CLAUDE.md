@@ -35,12 +35,19 @@ flake8 panther/                          # Lint
 mypy panther/                            # Type check
 ```
 
-### Build System (`panther_builder.py`)
+### Build System
 ```bash
+# Bootstrap (when PANTHER is not yet installed):
 python panther_builder.py package-dev    # Editable install with all deps
-python panther_builder.py docs           # Build documentation
-python panther_builder.py clean          # Remove build artifacts
-python panther_builder.py serve-docs     # Local docs server
+
+# After installation, use CLI commands:
+panther build dev                        # Editable install with all deps
+panther build package                    # Build and install wheel
+panther build test                       # Build + run tests
+panther build clean                      # Remove build artifacts
+panther docs build                       # Build documentation
+panther docs serve                       # Build + serve locally
+panther docs deploy                      # Deploy to GitHub Pages
 ```
 
 ### CLI Commands (after `package-dev`)
@@ -49,6 +56,7 @@ panther run --config experiment-config/base/experiment_config_example_minimal.ya
 panther config validate --config x.yaml  # Validate config
 panther plugins list                     # List plugins
 panther tools status                     # Show tool installation status
+panther admin archive-outputs            # Archive outputs directory
 ```
 
 

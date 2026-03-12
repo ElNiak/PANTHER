@@ -334,8 +334,8 @@ def run(
             except ImportError as e:
                 error_message(
                     f"PANTHER installation is incomplete: ExperimentManager could not "
-                    f"be imported ({e}). Please run 'python panther_builder.py package-dev' "
-                    f"to install all dependencies."
+                    f"be imported ({e}). Please run 'panther build dev' "
+                    f"(or 'python panther_builder.py package-dev') to install all dependencies."
                 )
                 raise click.Abort()
 

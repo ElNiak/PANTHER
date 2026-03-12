@@ -34,10 +34,8 @@ Key design principles:
       event routing to typed handler methods with compile-time type checking.
     - **Thread-safe observer management**: RLock-based synchronization for
       concurrent access in all management classes.
-    - **Configuration-driven**: Factory module supports both programmatic and
-      YAML-based observer setup.
-    - **Plugin extensibility**: Plugin system enables runtime observer loading
-      without framework modification.
+    - **Configuration-driven**: Factory module supports programmatic
+      observer setup via Pydantic-validated config.
 
 Event Processing Pipeline:
     1. **Event Emission** -- Events broadcast through ``EventManager.notify()``
@@ -95,7 +93,7 @@ from .base.observer_interface import IObserver
 from .base.typed_observer_interface import ITypedObserver
 
 # Factory system
-from .factory import (  # Builder methods; Config loading
+from .factory import (  # Builder methods
     ObserverFactory,
     create_default_observer_set,
     create_default_observers,
@@ -105,7 +103,6 @@ from .factory import (  # Builder methods; Config loading
     create_observer,
     create_storage,
     get_observer_factory,
-    load_observer_config,
 )
 
 # Observer implementations
@@ -120,14 +117,6 @@ from .impl import (
 # Event and results management
 from .management import EventManager, ResultsManager
 
-# Plugin observer infrastructure
-from .plugins.plugin_interface import IPluginObserver
-from .plugins.plugin_observer_factory import (
-    PluginObserverFactory,
-    create_plugin_observer,
-    register_plugin_observer,
-)
-
 # Define the public API
 __all__ = [
     # Base interfaces
@@ -139,7 +128,6 @@ __all__ = [
     "MetricsObserver",
     "StorageObserver",
     "PluginObserver",
-    "IPluginObserver",
     # Management
     "EventManager",
     "ResultsManager",
@@ -153,9 +141,4 @@ __all__ = [
     "create_storage",
     "create_experiment_observer",
     "create_default_observer_set",
-    "load_observer_config",
-    # Plugin observer
-    "PluginObserverFactory",
-    "create_plugin_observer",
-    "register_plugin_observer",
 ]

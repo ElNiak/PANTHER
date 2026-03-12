@@ -115,7 +115,7 @@ class PluginFactory(LoggerMixin):
             PluginType.TESTER: "IServiceManager",
             PluginType.NETWORK_ENVIRONMENT: "IEnvironmentPlugin",
             PluginType.EXECUTION_ENVIRONMENT: "IEnvironmentPlugin",
-            PluginType.OBSERVER: "IPluginObserver",
+            PluginType.OBSERVER: "IObserver",
         }
 
     def create_plugin_instance(

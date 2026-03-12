@@ -1,8 +1,8 @@
-"""Observer Factory Module - Centralized observer creation, configuration, and management.
+"""Observer Factory Module - Centralized observer creation and management.
 
 Provides the ``ObserverFactory`` class for creating, configuring, and managing
-observer instances. Supports both programmatic creation and YAML configuration
-file loading.
+observer instances using Pydantic-validated configuration from the main config
+pipeline (``GlobalConfig.observers``).
 
 Default observer types registered at initialization:
     - ``"logger"`` / ``"event_logger"`` --> ``LoggerObserver``
@@ -22,13 +22,6 @@ Builder functions:
     - ``create_experiment_observer()`` -- Create an ``ExperimentObserver`` with timing/steps
     - ``create_default_observer_set()`` -- Create the standard observer set from config dict
 
-Config loading:
-    - ``load_observer_config(path)`` -- Load YAML config from file or directory
-    - ``load_config_file(path)`` -- Load from a single YAML file
-    - ``load_config_directory(path)`` -- Load all YAML files in a directory
-    - ``create_observer_by_class_path(path)`` -- Create observer by Python class path
-    - ``create_and_register_observer_set(configs)`` -- Create multiple observers from config dicts
-
 Example:
     Programmatic observer creation::
 
@@ -42,15 +35,8 @@ Example:
         logger_obs = factory.create_observer("logger", log_level="DEBUG")
 """
 
-import importlib
 import logging
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
-
-try:
-    import yaml
-except ImportError:
-    yaml = None
 
 from panther.config.core.models import BaseObserverConfig
 from panther.config.core.models.observer import (
@@ -84,7 +70,7 @@ class ObserverFactory:
         _observer_instances: Maps instance names to live observer instances.
         _configurations: Default configuration dicts per observer type.
         _event_manager: Optional EventManager for auto-registration.
-        _observer_config: Global ``BaseObserverConfig`` for default values.
+        _observer_config: Pydantic-validated ``BaseObserverConfig`` for default values.
 
     Example:
         Register a custom type and create an instance::
@@ -105,7 +91,6 @@ class ObserverFactory:
         self._observer_instances: Dict[str, IObserver] = {}  # Named observer instances
         self._configurations: Dict[str, Dict[str, Any]] = {}  # Observer configurations
         self._event_manager = event_manager  # Event manager for registering observers
-        self._config_paths: List[Path] = []  # Paths of loaded configuration files
         self._observer_config = (
             observer_config or BaseObserverConfig()
         )  # Global observer configuration
@@ -415,29 +400,15 @@ def create_logger(
         else LoggerObserverConfig()
     )
 
-    # Create config dictionary from the logger_config dataclass
-    config = {
-        "log_level": logger_config.log_level,
-        "include_data": logger_config.include_data,
-        "include_event_id": logger_config.include_event_id,
-        "include_timestamp": logger_config.include_timestamp,
-        "enable_colors": logger_config.enable_colors,
-        "output_file": logger_config.output_file,
-        "correlation_tracking": logger_config.correlation_tracking,
-        "structured_output": logger_config.structured_output,
-        "max_data_length": logger_config.max_data_length,
-        "global_config": global_config,
-    }
-
-    # Override with any provided kwargs
+    # Use model_dump to get all config fields, then add extra params
+    config = logger_config.model_dump(exclude_none=True)
+    config["global_config"] = global_config
     config |= kwargs
 
-    # Use configured priority if not explicitly provided
-    if priority == 0 and hasattr(logger_config, "priority"):
+    # Use configured priority/auto_register if not explicitly provided
+    if priority == 0:
         priority = logger_config.priority
-
-    # Use configured auto_register if not explicitly provided
-    if not auto_register and hasattr(logger_config, "auto_register"):
+    if not auto_register:
         auto_register = logger_config.auto_register
 
     return factory.create_observer(
@@ -484,28 +455,16 @@ def create_metrics(
         else MetricsObserverConfig()
     )
 
-    # Create config dictionary from the metrics_config dataclass
-    config = {
-        "log_level": metrics_config.log_level,
-        "publish_metrics": metrics_config.publish_metrics,
-        "collect_system_metrics": metrics_config.collect_system_metrics,
-        "publish_interval": metrics_config.publish_interval,
-        "enable_real_time_monitoring": metrics_config.enable_real_time_monitoring,
-        "resource_collection_interval": metrics_config.resource_collection_interval,
-        "metric_collection_interval": metrics_config.metric_collection_interval,
-        "output_dir": output_dir,
-        "metrics_collector": metrics_collector,
-    }
-
-    # Override with any provided kwargs
+    # Use model_dump to get all config fields, then add extra params
+    config = metrics_config.model_dump(exclude_none=True)
+    config["output_dir"] = output_dir
+    config["metrics_collector"] = metrics_collector
     config |= kwargs
 
-    # Use configured priority if not explicitly provided
-    if priority == 0 and hasattr(metrics_config, "priority"):
+    # Use configured priority/auto_register if not explicitly provided
+    if priority == 0:
         priority = metrics_config.priority
-
-    # Use configured auto_register if not explicitly provided
-    if not auto_register and hasattr(metrics_config, "auto_register"):
+    if not auto_register:
         auto_register = metrics_config.auto_register
 
     return factory.create_observer(
@@ -550,27 +509,15 @@ def create_storage(
         else StorageObserverConfig()
     )
 
-    # Create config dictionary from the storage_config dataclass
-    config = {
-        "log_level": storage_config.log_level,
-        "storage_path": output_dir or storage_config.storage_path or "outputs",
-        "auto_backup": storage_config.auto_backup,
-        "enable_compression": storage_config.enable_compression,
-        "max_storage_size": storage_config.max_storage_size,
-        "backup_interval": storage_config.backup_interval,
-        "retention_days": storage_config.retention_days,
-        "batch_size": storage_config.batch_size,
-    }
+    # Use model_dump to get all config fields, then override storage_path
+    config = storage_config.model_dump(exclude_none=True)
+    config["storage_path"] = output_dir or config.get("storage_path") or "outputs"
+    config |= kwargs
 
-    # Override with any provided kwargs
-    config.update(kwargs)
-
-    # Use configured priority if not explicitly provided
-    if priority == 0 and hasattr(storage_config, "priority"):
+    # Use configured priority/auto_register if not explicitly provided
+    if priority == 0:
         priority = storage_config.priority
-
-    # Use configured auto_register if not explicitly provided
-    if not auto_register and hasattr(storage_config, "auto_register"):
+    if not auto_register:
         auto_register = storage_config.auto_register
 
     return factory.create_observer(
@@ -617,25 +564,17 @@ def create_experiment_observer(
         else ExperimentObserverConfig()
     )
 
-    # Create config dictionary from the exp_config dataclass
-    config = {
-        "log_level": exp_config.log_level,
-        "output_dir": output_dir or exp_config.output_dir or "outputs",
-        "test_name": test_name or exp_config.test_name,
-        "track_timing": exp_config.track_timing,
-        "track_steps": exp_config.track_steps,
-        "global_config": global_config,
-    }
-
-    # Override with any provided kwargs
+    # Use model_dump to get all config fields, then override specifics
+    config = exp_config.model_dump(exclude_none=True)
+    config["output_dir"] = output_dir or config.get("output_dir") or "outputs"
+    config["test_name"] = test_name or config.get("test_name")
+    config["global_config"] = global_config
     config |= kwargs
 
-    # Use configured priority if not explicitly provided
-    if priority == 0 and hasattr(exp_config, "priority"):
+    # Use configured priority/auto_register if not explicitly provided
+    if priority == 0:
         priority = exp_config.priority
-
-    # Use configured auto_register if not explicitly provided
-    if not auto_register and hasattr(exp_config, "auto_register"):
+    if not auto_register:
         auto_register = exp_config.auto_register
 
     return factory.create_observer(
@@ -712,294 +651,16 @@ def create_default_observer_set(config: Dict[str, Any]) -> List[IObserver]:
     return observers
 
 
-# ── Config Loading ───────────────────────────────────────────────────
-
-
-def load_observer_config(path: Union[str, Path]) -> bool:
-    """Convenience function to load observer configuration.
-
-    Args:
-        path: Path to configuration file or directory
-
-    Returns:
-        bool: True if loading was successful
-    """
-    path_obj = Path(path)
-
-    if path_obj.is_dir():
-        return load_config_directory(path) > 0
-    else:
-        return load_config_file(path)
-
-
-def load_config_file(config_path: Union[str, Path]) -> bool:
-    """Load observer configurations from a YAML file.
-
-    Args:
-        config_path: Path to the observer configuration YAML file
-
-    Returns:
-        bool: True if loading was successful
-    """
-    factory = get_observer_factory()
-    logger = logging.getLogger(__name__)
-
-    if yaml is None:
-        logger.error("PyYAML is not installed. Cannot load YAML config.")
-        return False
-
-    try:
-        with open(config_path, encoding="utf-8") as f:
-            config_data = yaml.safe_load(f)
-
-        if not isinstance(config_data, dict) or "observers" not in config_data:
-            logger.error("Invalid configuration format in %s", config_path)
-            return False
-
-        success = _load_config_dict(config_data)
-        if success:
-            factory._config_paths.append(Path(config_path))
-        return success
-
-    except (OSError, ValueError, TypeError) as e:
-        logger.error("Error loading observer config from %s: %s", config_path, e)
-        return False
-
-
-def load_config_directory(directory: Union[str, Path]) -> int:
-    """Load observer configurations from all YAML files in directory.
-
-    Args:
-        directory: Path to directory containing YAML files
-
-    Returns:
-        int: Number of files successfully loaded
-    """
-    logger = logging.getLogger(__name__)
-    directory_path = Path(directory)
-
-    if not directory_path.exists() or not directory_path.is_dir():
-        logger.error("Configuration directory does not exist: %s", directory)
-        return 0
-
-    load_count = 0
-    for file_path in directory_path.glob("*.y*ml"):  # Match both .yml and .yaml
-        if load_config_file(file_path):
-            load_count += 1
-
-    logger.info("Loaded %d configuration files from %s", load_count, directory)
-    return load_count
-
-
-def _load_config_dict(config_data: Dict[str, Any]) -> bool:
-    """Load observer configurations from a dictionary.
-
-    Args:
-        config_data: Dictionary containing observer configuration
-
-    Returns:
-        bool: True if loading was successful
-    """
-    factory = get_observer_factory()
-    logger = logging.getLogger(__name__)
-
-    if not isinstance(config_data, dict) or "observers" not in config_data:
-        logger.error("Invalid configuration format: missing observers key")
-        return False
-
-    observers_data = config_data["observers"]
-    if not isinstance(observers_data, list):
-        logger.error("Invalid configuration: observers must be a list")
-        return False
-
-    load_count = 0
-    for idx, observer_data in enumerate(observers_data):
-        try:
-            # Check if observer is enabled
-            if not observer_data.get("enabled", True):
-                continue
-
-            # Get observer ID or generate one
-            observer_id = observer_data.get("id")
-            class_path = observer_data.get("class_path")
-
-            if not class_path:
-                logger.error("Missing class_path for observer #%d", idx)
-                continue
-
-            if not observer_id:
-                # Generate ID from class name
-                observer_id = class_path.split(".")[-1]
-                if idx > 0:
-                    # Ensure uniqueness
-                    observer_id = f"{observer_id}_{idx}"
-
-            # Get parameters
-            params = observer_data.get("params", {})
-
-            # Create the observer
-            observer = create_observer_by_class_path(
-                class_path, name=observer_id, **params
-            )
-
-            # Register with event manager if needed
-            if factory._event_manager:
-                event_types = observer_data.get("event_types")
-                priority = observer_data.get("priority", 0)
-                factory.register_with_event_manager(observer, event_types, priority)
-
-            load_count += 1
-
-        except (ValueError, ImportError, AttributeError, TypeError) as e:
-            logger.error("Error processing observer #%d: %s", idx, e)
-
-    logger.info("Loaded %d observers from configuration", load_count)
-    return load_count > 0
-
-
-def create_observer_by_class_path(
-    class_path: str, name: Optional[str] = None, **kwargs
-) -> IObserver:
-    """Create an observer by class path.
-
-    Args:
-        class_path: Python import path to observer class
-        name: Optional name to register observer with
-        **kwargs: Arguments to pass to the observer constructor
-
-    Returns:
-        Configured observer instance
-
-    Raises:
-        ImportError: If module cannot be imported
-        AttributeError: If class cannot be found
-        ValueError: If class is not an IObserver or if the class_path is not in the whitelist
-    """
-    factory = get_observer_factory()
-    logger = logging.getLogger(__name__)
-
-    try:
-        # Split into module and class
-        module_path, class_name = class_path.rsplit(".", 1)
-
-        # Security check: Only allow specific modules
-        # This is a fixed whitelist to prevent arbitrary code execution
-        allowed_modules = [
-            "panther.core.observer.impl.logger_observer",
-            "panther.core.observer.impl.metrics_observer",
-            "panther.core.observer.impl.storage_observer",
-            "panther.core.observer.impl.experiment_observer",
-            "panther.core.observer.impl.gui.gui_observer",
-            "panther.core.observer.impl.plugin_observer",
-        ]
-
-        if module_path not in allowed_modules:
-            raise ValueError(
-                "Security error: Module %s is not in the allowed observer modules list"
-                % module_path
-            )
-
-        # Import the module
-        module = importlib.import_module(module_path)
-
-        # Get the class
-        observer_class = getattr(module, class_name)
-
-        # Instantiate with parameters
-        observer_instance = observer_class(**kwargs)
-
-        # Verify it's an observer
-        if not isinstance(observer_instance, IObserver):
-            raise ValueError("Class %s is not an IObserver" % class_name)
-
-        # Register if name provided
-        if name:
-            factory.register_observer(name, observer_instance)
-
-        return observer_instance
-
-    except ImportError as e:
-        logger.error("Could not import module %s: %s", module_path, e)
-        raise
-    except AttributeError as e:
-        logger.error("Class %s not found in %s: %s", class_name, module_path, e)
-        raise
-    except Exception as e:
-        logger.error("Error creating observer by class path %s: %s", class_path, e)
-        raise
-
-
-def create_and_register_observer_set(
-    observer_configs: List[Dict[str, Any]]
-) -> List[IObserver]:
-    """Create and register multiple observers based on configuration dictionaries.
-
-    Args:
-        observer_configs: List of dictionaries with observer configurations.
-                         Each dictionary must contain 'type' key and can optionally contain
-                         'name', 'auto_register', 'event_types', 'priority', and other config parameters.
-
-    Returns:
-        List of created and registered observer instances
-
-    Raises:
-        RuntimeError: If auto_register is True but no event manager is set
-        ValueError: If an observer type is not recognized
-    """
-    factory = get_observer_factory()
-    logger = logging.getLogger(__name__)
-
-    if not factory._event_manager and any(
-        conf.get("auto_register", False) for conf in observer_configs
-    ):
-        raise RuntimeError("No event manager set. Use set_event_manager() first.")
-
-    observers = []
-
-    for idx, config in enumerate(observer_configs):
-        if "type" not in config:
-            logger.error("Missing observer type in configuration #%d", idx)
-            continue
-
-        observer_type = config.pop("type")
-        name = config.pop("name", None)
-        auto_register = config.pop("auto_register", False)
-        event_types = config.pop("event_types", None)
-        priority = config.pop("priority", 0)
-
-        try:
-            observer = factory.create_observer(
-                observer_type,
-                name=name,
-                auto_register=auto_register,
-                event_types=event_types,
-                priority=priority,
-                **config,
-            )
-            observers.append(observer)
-        except ValueError as e:
-            logger.error("Failed to create observer #%d: %s", idx, e)
-
-    logger.info("Created and registered %d observers", len(observers))
-    return observers
-
-
 __all__ = [
     # Core factory
     "ObserverFactory",
     "get_observer_factory",
     "create_observer",
     "create_default_observers",
-    # Builder methods
+    # Builder functions
     "create_logger",
     "create_metrics",
     "create_storage",
     "create_experiment_observer",
     "create_default_observer_set",
-    # Config loading
-    "load_observer_config",
-    "load_config_file",
-    "load_config_directory",
-    "create_and_register_observer_set",
-    "create_observer_by_class_path",
 ]

@@ -784,5 +784,51 @@ def docker(
         raise click.Abort()
 
 
+@admin.command("archive-outputs")
+@click.option(
+    "--output-dir",
+    type=click.Path(),
+    default="outputs",
+    help="Directory to archive (default: outputs)",
+)
+@handle_errors
+@pass_context_and_setup_logging
+def archive_outputs(ctx, output_dir):
+    r"""Create a zip archive of the outputs directory and clean it.
+
+    Archives experiment outputs to a timestamped zip file, then clears the
+    outputs directory.
+
+    \b
+    Examples:
+      panther admin archive-outputs
+      panther admin archive-outputs --output-dir custom_outputs
+    """
+    import shutil
+    from datetime import datetime
+
+    project_root = Path.cwd()
+    outputs_dir = project_root / output_dir
+    if not outputs_dir.exists() or not any(outputs_dir.iterdir()):
+        info_message("No outputs directory found or it's empty. Nothing to zip.")
+        return
+
+    timestamp = datetime.now().strftime("%Y%m%d")
+    zip_filename = f"{output_dir}_{timestamp}.zip"
+    zip_path = project_root / zip_filename
+
+    info_message(f"Creating zip archive: {zip_filename}")
+    import subprocess
+
+    result = subprocess.run(["zip", "-r", str(zip_path), output_dir], cwd=project_root)
+
+    if result.returncode == 0:
+        shutil.rmtree(outputs_dir)
+        outputs_dir.mkdir(exist_ok=True)
+        success_message(f"Outputs archived to {zip_filename} and directory cleaned")
+    else:
+        error_message("Failed to create zip archive")
+
+
 if __name__ == "__main__":
     admin()
