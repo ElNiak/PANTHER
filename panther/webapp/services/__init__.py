@@ -9,10 +9,12 @@ benefits:
    ``ExperimentService`` run blocking work in background threads
    (via ``asyncio.to_thread``) so the NiceGUI event loop stays
    responsive.
-2. **Caching and state management** -- Some services (``PluginService``,
-   ``ResultsService``) maintain in-memory caches.
-   ``ExperimentService`` is a singleton with state that persists across
-   page navigations.  ``ConfigService`` is stateless.
+2. **Caching and state management** -- ``ExperimentService`` is a
+   singleton with state that persists across page navigations.
+   ``PluginService`` and ``ResultsService`` maintain in-memory caches
+   that benefit multiple calls within a single page load (services are
+   instantiated per page, so caches do not persist across navigations).
+   ``ConfigService`` is stateless.
 3. **Error boundaries** -- Services catch exceptions from core
    components and translate them into user-friendly messages or
    fallback values, preventing raw tracebacks from reaching the UI.

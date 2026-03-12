@@ -164,7 +164,7 @@ def content():
                 elif event_type == "experiment.failed":
                     status_label.text = "Failed"
         except RuntimeError:
-            pass  # client disconnected
+            logger.debug("Client disconnected during UI update")
 
     sub = experiment_svc.web_observer.subscribe(
         _on_live_event,

@@ -155,8 +155,9 @@ class ExperimentService:
             on_status: Called with the new status string whenever the
                 execution phase changes.
         """
-        self._log_callbacks.append(on_log)
-        self._status_callbacks.append(on_status)
+        with self._lock:
+            self._log_callbacks.append(on_log)
+            self._status_callbacks.append(on_status)
         logger.debug("Registered UI callbacks")
 
     def unregister_callbacks(
@@ -174,20 +175,23 @@ class ExperimentService:
             on_log: The log callback to remove.
             on_status: The status callback to remove.
         """
-        try:
-            self._log_callbacks.remove(on_log)
-        except ValueError:
-            pass
-        try:
-            self._status_callbacks.remove(on_status)
-        except ValueError:
-            pass
+        with self._lock:
+            try:
+                self._log_callbacks.remove(on_log)
+            except ValueError:
+                pass
+            try:
+                self._status_callbacks.remove(on_status)
+            except ValueError:
+                pass
         logger.debug("Unregistered UI callbacks")
 
     def _emit_log(self, line: str):
         """Append a line to the buffer and notify all log callbacks."""
         self._log_lines.append(line)
-        for cb in list(self._log_callbacks):
+        with self._lock:
+            cbs = list(self._log_callbacks)
+        for cb in cbs:
             try:
                 cb(line)
             except Exception:
@@ -196,7 +200,9 @@ class ExperimentService:
     def _emit_status(self, s: str):
         """Update the status string and notify all status callbacks."""
         self._status = s
-        for cb in list(self._status_callbacks):
+        with self._lock:
+            cbs = list(self._status_callbacks)
+        for cb in cbs:
             try:
                 cb(s)
             except Exception:

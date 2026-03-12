@@ -522,12 +522,11 @@ class EventManager(LoggerMixin):
             self.event_history.append((datetime.now(), event))
             if len(self.event_history) > self.max_history_size:
                 self.event_history.pop(0)
-
-        self.metrics["processed"] += 1
-        event_type = self._get_event_type_safely(event)
-        self.metrics["by_type"][event_type] = (
-            self.metrics["by_type"].get(event_type, 0) + 1
-        )
+            self.metrics["processed"] += 1
+            event_type = self._get_event_type_safely(event)
+            self.metrics["by_type"][event_type] = (
+                self.metrics["by_type"].get(event_type, 0) + 1
+            )
         self.logger.debug("Publishing event: %s", event)
 
     def _get_matching_observers(self, event_type: str) -> List[Tuple[int, IObserver]]:

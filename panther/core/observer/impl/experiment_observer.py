@@ -2,6 +2,7 @@
 
 import logging
 import sys
+import threading
 from datetime import datetime
 from typing import Any, Dict, Optional, Set
 
@@ -110,7 +111,8 @@ class ExperimentObserver(IObserver):
         self.track_steps = track_steps
         self.global_config = global_config
 
-        # Track experiment state
+        # Track experiment state (guarded by _state_lock for cross-thread access)
+        self._state_lock = threading.Lock()
         self.start_time = datetime.now()
         self.current_phase = "initialized"
         self.step_progress = {}
@@ -154,7 +156,8 @@ class ExperimentObserver(IObserver):
         Returns:
             bool: True if the event was processed successfully
         """
-        self.events_received += 1
+        with self._state_lock:
+            self.events_received += 1
 
         # Skip if already processed
         event_data = getattr(event, "data", {})
@@ -188,9 +191,10 @@ class ExperimentObserver(IObserver):
         action = event.data.get("action", "notify")
 
         if action == "notify":
-            self.current_phase = "finished_early"
+            with self._state_lock:
+                self.current_phase = "finished_early"
+                self.experiment_finished_early = True
             self.logger.info("Experiment finished early")
-            self.experiment_finished_early = True
 
             reason = event.data.get("reason", "No reason provided")
             self.logger.debug(f"Reason: {reason}")
@@ -574,8 +578,9 @@ class ExperimentObserver(IObserver):
             "killed",
         )
         if is_unexpected:
-            self._should_terminate_early = True
-            self.experiment_finished_early = True
+            with self._state_lock:
+                self._should_terminate_early = True
+                self.experiment_finished_early = True
 
         # Just log that the service stopped
         self.logger.debug(f"Observed service '{service_name}' stop")
@@ -844,20 +849,21 @@ class ExperimentObserver(IObserver):
         )
 
     def get_experiment_status(self) -> Dict[str, Any]:
-        """Get a summary of the current experiment status.
+        """Get a summary of the current experiment status (thread-safe).
 
         Returns:
             Dict containing experiment status information
         """
-        return {
-            "current_phase": self.current_phase,
-            "observed_environments": list(self.observed_environments),
-            "observed_services": list(self.observed_services),
-            "events_received": self.events_received,
-            "experiment_finished_early": self.experiment_finished_early,
-            "elapsed_time": (datetime.now() - self.start_time).total_seconds(),
-            "step_progress": self.step_progress,
-        }
+        with self._state_lock:
+            return {
+                "current_phase": self.current_phase,
+                "observed_environments": list(self.observed_environments),
+                "observed_services": list(self.observed_services),
+                "events_received": self.events_received,
+                "experiment_finished_early": self.experiment_finished_early,
+                "elapsed_time": (datetime.now() - self.start_time).total_seconds(),
+                "step_progress": dict(self.step_progress),
+            }
 
     # Orchestration methods removed - ExperimentObserver is now purely observational
 
@@ -870,12 +876,13 @@ class ExperimentObserver(IObserver):
         return 50  # Medium priority
 
     def should_terminate_early(self) -> bool:
-        """Check if the experiment should terminate early.
+        """Check if the experiment should terminate early (thread-safe).
 
         Returns:
             bool: True if the experiment should finish early
         """
-        return self._should_terminate_early or self.experiment_finished_early
+        with self._state_lock:
+            return self._should_terminate_early or self.experiment_finished_early
 
     def is_interested(self, event_type: str) -> bool:
         """Check if this observer is interested in an event type.
@@ -978,14 +985,13 @@ class ExperimentObserver(IObserver):
         self.logger.error("Environment error: %s (type: %s)", error_message, error_type)
 
         # Check if this is an early termination request
-        self._should_terminate_early = True
-        self._termination_reason = error_message
+        with self._state_lock:
+            self._should_terminate_early = True
+            self._termination_reason = error_message
+            self.experiment_finished_early = True
         self.logger.warning(
             "Environment requested early termination: %s", error_message
         )
-
-        # Also mark experiment_finished_early for backward compatibility
-        self.experiment_finished_early = True
 
         return True
 
@@ -1007,9 +1013,10 @@ class ExperimentObserver(IObserver):
         self.logger.error("Service failure detected: %s - %s", failed_service, reason)
 
         # Mark for early termination
-        self._should_terminate_early = True
-        self._termination_reason = f"Service failure: {reason}"
-        self.experiment_finished_early = True
+        with self._state_lock:
+            self._should_terminate_early = True
+            self._termination_reason = f"Service failure: {reason}"
+            self.experiment_finished_early = True
 
         # Log additional details
         if details:

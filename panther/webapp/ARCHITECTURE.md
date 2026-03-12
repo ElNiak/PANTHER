@@ -278,7 +278,7 @@ These mapping rules are invariant regardless of which graph approach is chosen f
 `ExperimentManager.run_tests()` is blocking and can run for minutes. The webapp runs it via `asyncio.to_thread()`:
 
 ```python
-async def run_experiment(self, config_path, on_log, on_status):
+async def run_experiment(self, config_path):
     def _run():
         manager = ExperimentManager(
             global_config=global_config,
@@ -305,14 +305,13 @@ The results page parses rich data structures from PANTHER's reporting system:
 **Output directory structure:**
 ```
 outputs/<experiment_date_name>/
-  experiment.log                      # Main experiment log
+  experiment_events.log               # Main experiment event log
   <test_name>/
     test.log                          # Per-test log
-    logs/<service>.log                # Service logs
+    logs/<service_name>/<phase>/stdout.log  # Service logs (per phase)
     analysis/
       analysis_results.json           # Tester pass/fail results
       service_health.json             # Per-service health data
-    artifacts/                        # PCAPs, traces, etc.
   metrics*.json                       # Resource metrics
 ```
 

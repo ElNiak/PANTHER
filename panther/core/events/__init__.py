@@ -70,9 +70,11 @@ Example:
 
         registry = EmitterRegistry(EventManager.get_instance())
 
-        # Emit with state-machine validation (returns False if transition invalid)
-        registry.emit_service_started_with_validation(
+        # Emit with state-machine validation (returns False if transition invalid).
+        # Services start in CREATED state; transitions must follow the lifecycle.
+        registry.emit_service_created_with_validation(
             service_id="svc-1", service_name="picoquic",
+            service_type="iut", implementation="picoquic",
         )
 
         # Cleanup after service teardown

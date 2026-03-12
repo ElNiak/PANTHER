@@ -37,6 +37,7 @@ Example:
 """
 
 import logging
+import threading
 from abc import ABC, abstractmethod
 from datetime import datetime
 from enum import Enum
@@ -119,6 +120,7 @@ class StateManager(ABC):
         self.current_state = initial_state
         self.state_history: List[StateTransition] = []
         self.allowed_transitions: Dict[BaseState, Set[BaseState]] = {}
+        self._lock = threading.Lock()
         self.logger = logging.getLogger(f"{self.__class__.__name__}({entity_id})")
 
         # Record initial state
@@ -141,11 +143,13 @@ class StateManager(ABC):
 
     def get_current_state(self) -> BaseState:
         """Get the current state."""
-        return self.current_state
+        with self._lock:
+            return self.current_state
 
     def get_state_history(self) -> List[StateTransition]:
         """Get the complete state transition history."""
-        return self.state_history.copy()
+        with self._lock:
+            return self.state_history.copy()
 
     def can_transition_to(self, target_state: BaseState) -> bool:
         """Check if transition to target state is allowed.
@@ -156,8 +160,11 @@ class StateManager(ABC):
         Returns:
             True if transition is allowed, False otherwise
         """
-        allowed_next_states = self.allowed_transitions.get(self.current_state, set())
-        return target_state in allowed_next_states
+        with self._lock:
+            allowed_next_states = self.allowed_transitions.get(
+                self.current_state, set()
+            )
+            return target_state in allowed_next_states
 
     def transition_to(
         self,
@@ -165,7 +172,7 @@ class StateManager(ABC):
         trigger: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> bool:
-        """Transition to a new state.
+        """Transition to a new state (thread-safe).
 
         Args:
             target_state: State to transition to
@@ -175,22 +182,27 @@ class StateManager(ABC):
         Returns:
             True if transition was successful, False otherwise
         """
-        if not self.can_transition_to(target_state):
-            self.logger.warning(
-                f"Invalid state transition from {self.current_state} to {target_state}"
+        with self._lock:
+            allowed_next_states = self.allowed_transitions.get(
+                self.current_state, set()
             )
-            return False
+            if target_state not in allowed_next_states:
+                self.logger.warning(
+                    "Invalid state transition from %s to %s",
+                    self.current_state,
+                    target_state,
+                )
+                return False
 
-        # Record the transition
-        transition = StateTransition(
-            from_state=self.current_state,
-            to_state=target_state,
-            trigger=trigger,
-            metadata=metadata,
-        )
+            transition = StateTransition(
+                from_state=self.current_state,
+                to_state=target_state,
+                trigger=trigger,
+                metadata=metadata,
+            )
 
-        self.state_history.append(transition)
-        self.current_state = target_state
+            self.state_history.append(transition)
+            self.current_state = target_state
 
         self.logger.debug(f"State transition: {transition}")
         return True
@@ -209,20 +221,22 @@ class StateManager(ABC):
         Returns:
             Time in seconds, or None if no transitions recorded
         """
-        if not self.state_history:
-            return None
-
-        last_transition = self.state_history[-1]
-        return (datetime.now() - last_transition.timestamp).total_seconds()
+        with self._lock:
+            if not self.state_history:
+                return None
+            last_transition = self.state_history[-1]
+            return (datetime.now() - last_transition.timestamp).total_seconds()
 
     def get_last_transition(self) -> Optional[StateTransition]:
         """Get the most recent state transition."""
-        return self.state_history[-1] if self.state_history else None
+        with self._lock:
+            return self.state_history[-1] if self.state_history else None
 
     def reset_to_initial_state(self, initial_state: BaseState) -> None:
         """Reset to initial state and clear history."""
-        self.current_state = initial_state
-        self.state_history = [StateTransition(None, initial_state, trigger="reset")]
+        with self._lock:
+            self.current_state = initial_state
+            self.state_history = [StateTransition(None, initial_state, trigger="reset")]
 
     def __str__(self) -> str:
         """Return human-readable string representation."""

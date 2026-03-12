@@ -96,6 +96,7 @@ class Subscription:
     importance_threshold: Optional[EventImportance] = None
     predicate: Optional[Callable[[BaseEvent], bool]] = None
     batched: bool = True
+    consecutive_failures: int = 0
 
 
 class WebObserver(GUIObserver):
@@ -128,9 +129,11 @@ class WebObserver(GUIObserver):
 
     Thread safety:
         Events arrive from a background thread (the experiment runner in
-        ``ExperimentService``).  The subscriber list is snapshot-copied
-        before iteration (``list(self._subscriptions)``), and the batch
-        buffer is protected by ``self._batch_lock`` (a ``threading.Lock``).
+        ``ExperimentService``).  Under ``self._batch_lock``, the subscriber
+        list is snapshot-copied, then iterated outside the lock.  The batch
+        buffer is also protected by ``self._batch_lock``.  Inherited state
+        (``event_history``, ``gui_state``) is protected by
+        ``GUIObserver._state_lock``.
 
     Attributes:
         _subscriptions: List of active ``Subscription`` registrations.
@@ -313,12 +316,21 @@ class WebObserver(GUIObserver):
 
             try:
                 sub.callback(event)
+                sub.consecutive_failures = 0
             except Exception:
-                logger.warning(
-                    "GUI subscriber callback failed for %s",
-                    type(event).__name__,
-                    exc_info=True,
-                )
+                sub.consecutive_failures += 1
+                if sub.consecutive_failures >= 10:
+                    logger.warning(
+                        "Removing subscriber after %d consecutive failures",
+                        sub.consecutive_failures,
+                    )
+                    self.unsubscribe(sub)
+                else:
+                    logger.warning(
+                        "GUI subscriber callback failed for %s",
+                        type(event).__name__,
+                        exc_info=True,
+                    )
 
         if should_buffer:
             with self._batch_lock:
@@ -375,12 +387,21 @@ class WebObserver(GUIObserver):
                     continue
                 try:
                     sub.callback(event)
+                    sub.consecutive_failures = 0
                 except Exception:
-                    logger.warning(
-                        "GUI subscriber callback failed during batch flush for %s",
-                        type(event).__name__,
-                        exc_info=True,
-                    )
+                    sub.consecutive_failures += 1
+                    if sub.consecutive_failures >= 10:
+                        logger.warning(
+                            "Removing subscriber after %d consecutive failures",
+                            sub.consecutive_failures,
+                        )
+                        self.unsubscribe(sub)
+                    else:
+                        logger.warning(
+                            "GUI subscriber callback failed during batch flush for %s",
+                            type(event).__name__,
+                            exc_info=True,
+                        )
 
     # ── Persistence ───────────────────────────────────────────────────
 

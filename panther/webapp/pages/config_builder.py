@@ -15,8 +15,9 @@ complementary interfaces:
    ``TestListEditor`` supporting add / remove / duplicate operations.
 
 2. **YAML Preview tab** -- a ``YamlEditor`` (CodeMirror-based) showing
-   the live YAML representation.  Edits here are validated on every
-   keystroke via ``ConfigService.validate_yaml()``.
+   the live YAML representation.  Edits are validated periodically
+   (1-second timer) and on explicit actions via
+   ``ConfigService.validate_yaml()``.
 
 **Form-to-YAML synchronisation:**
 A ``ui.timer`` fires every 1 second and serialises the current form

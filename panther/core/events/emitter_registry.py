@@ -21,6 +21,7 @@ Usage::
     registry.cleanup_service_state("svc-1")
 """
 
+import threading
 from typing import Dict, List, Optional
 
 from panther.core.events.assertion.emitter import AssertionEventEmitter
@@ -45,9 +46,11 @@ class EmitterRegistry:
 
     Service State Machine (validated by this registry)::
 
-        [*] --> CREATED --> PREPARING --> DEPLOYING --> DEPLOYED
-        DEPLOYED --> READY --> RUNNING --> STOPPED --> [*]
-        RUNNING --> ERROR --> STOPPED
+        [*] --> CREATED --> PREPARING --> PREPARED --> DEPLOYING --> DEPLOYED
+        DEPLOYED --> STARTING --> RUNNING --> READY
+        READY --> STOPPING --> STOPPED --> DESTROYING --> DESTROYED --> [*]
+        STOPPED --> STARTING (restart)
+        Any --> ERROR --> STOPPING | DESTROYING | DESTROYED
 
     Emitter Instances (created in ``__init__``):
         - ``experiment_emitter``: `ExperimentEventEmitter`
@@ -74,6 +77,7 @@ class EmitterRegistry:
             event_manager: The shared EventManager instance
         """
         self.event_manager = event_manager
+        self._lock = threading.Lock()
 
         # Service state managers for lifecycle validation (per service_id)
         self.service_states: Dict[str, ServiceStateManager] = {}
@@ -91,7 +95,7 @@ class EmitterRegistry:
         self.test_emitters: Dict[str, TestEventEmitter] = {}
 
     def get_test_emitter(self, test_name: str) -> TestEventEmitter:
-        """Get or create a test-specific emitter.
+        """Get or create a test-specific emitter (thread-safe).
 
         Args:
             test_name: The name of the test case
@@ -99,11 +103,12 @@ class EmitterRegistry:
         Returns:
             TestEventEmitter: The test-specific emitter instance
         """
-        if test_name not in self.test_emitters:
-            self.test_emitters[test_name] = TestEventEmitter(
-                self.event_manager, test_name
-            )
-        return self.test_emitters[test_name]
+        with self._lock:
+            if test_name not in self.test_emitters:
+                self.test_emitters[test_name] = TestEventEmitter(
+                    self.event_manager, test_name
+                )
+            return self.test_emitters[test_name]
 
     def get_emitter(self, emitter_type: str, test_name: str = "default_test"):
         """Get an emitter by type string.
@@ -160,23 +165,23 @@ class EmitterRegistry:
         Returns:
             bool: True if event was emitted successfully
         """
-        # Get or create state manager for this service
         state_manager = self.get_service_state(service_id)
-
-        # Import the state enum
         from panther.core.events.service.states import ServiceState
 
-        # Validate state transition - services should start in CREATED state
-        if not state_manager.can_transition_to(ServiceState.CREATED):
-            self.service_emitter.logger.warning(
-                f"Cannot create service {service_id} - invalid state transition from {state_manager.current_state}"
+        # CREATED is the initial state — skip validation for fresh state managers.
+        # Only validate if re-creating from a different state.
+        if state_manager.current_state != ServiceState.CREATED:
+            if not state_manager.can_transition_to(ServiceState.CREATED):
+                self.service_emitter.logger.warning(
+                    "Cannot create service %s — invalid state transition from %s",
+                    service_id,
+                    state_manager.current_state,
+                )
+                return False
+            state_manager.transition_to(
+                ServiceState.CREATED, trigger="service_creation"
             )
-            return False
 
-        # Perform state transition
-        state_manager.transition_to(ServiceState.CREATED, trigger="service_creation")
-
-        # Emit the event
         self.service_emitter.emit_service_created(
             service_id=service_id,
             service_name=service_name,
@@ -184,7 +189,6 @@ class EmitterRegistry:
             implementation=implementation,
             config=config,
         )
-
         return True
 
     def emit_service_preparation_started_with_validation(
@@ -195,6 +199,11 @@ class EmitterRegistry:
         from panther.core.events.service.states import ServiceState
 
         if not state_manager.can_transition_to(ServiceState.PREPARING):
+            self.service_emitter.logger.warning(
+                "Cannot transition service %s from %s to PREPARING",
+                service_id,
+                state_manager.current_state,
+            )
             return False
 
         state_manager.transition_to(ServiceState.PREPARING, trigger="preparation_start")
@@ -216,6 +225,11 @@ class EmitterRegistry:
         from panther.core.events.service.states import ServiceState
 
         if not state_manager.can_transition_to(ServiceState.DEPLOYING):
+            self.service_emitter.logger.warning(
+                "Cannot transition service %s from %s to DEPLOYING",
+                service_id,
+                state_manager.current_state,
+            )
             return False
 
         state_manager.transition_to(ServiceState.DEPLOYING, trigger="deployment_start")
@@ -238,6 +252,11 @@ class EmitterRegistry:
         from panther.core.events.service.states import ServiceState
 
         if not state_manager.can_transition_to(ServiceState.READY):
+            self.service_emitter.logger.warning(
+                "Cannot transition service %s from %s to READY",
+                service_id,
+                state_manager.current_state,
+            )
             return False
 
         state_manager.transition_to(ServiceState.READY, trigger="service_ready")
@@ -262,6 +281,11 @@ class EmitterRegistry:
         from panther.core.events.service.states import ServiceState
 
         if not state_manager.can_transition_to(ServiceState.DEPLOYED):
+            self.service_emitter.logger.warning(
+                "Cannot transition service %s from %s to DEPLOYED",
+                service_id,
+                state_manager.current_state,
+            )
             return False
 
         state_manager.transition_to(
@@ -289,6 +313,11 @@ class EmitterRegistry:
         from panther.core.events.service.states import ServiceState
 
         if not state_manager.can_transition_to(ServiceState.RUNNING):
+            self.service_emitter.logger.warning(
+                "Cannot transition service %s from %s to RUNNING",
+                service_id,
+                state_manager.current_state,
+            )
             return False
 
         state_manager.transition_to(ServiceState.RUNNING, trigger="service_started")
@@ -313,6 +342,11 @@ class EmitterRegistry:
         from panther.core.events.service.states import ServiceState
 
         if not state_manager.can_transition_to(ServiceState.STOPPED):
+            self.service_emitter.logger.warning(
+                "Cannot transition service %s from %s to STOPPED",
+                service_id,
+                state_manager.current_state,
+            )
             return False
 
         state_manager.transition_to(ServiceState.STOPPED, trigger="service_stopped")
@@ -338,6 +372,11 @@ class EmitterRegistry:
         from panther.core.events.service.states import ServiceState
 
         if not state_manager.can_transition_to(ServiceState.ERROR):
+            self.service_emitter.logger.warning(
+                "Cannot transition service %s from %s to ERROR",
+                service_id,
+                state_manager.current_state,
+            )
             return False
 
         state_manager.transition_to(ServiceState.ERROR, trigger="service_error")
@@ -351,31 +390,20 @@ class EmitterRegistry:
         return True
 
     def cleanup_test_emitter(self, test_name: str):
-        """Remove a test-specific emitter after test completion.
-
-        Prevents memory leaks by cleaning up test-specific emitters
-        that are no longer needed.
-
-        Args:
-            test_name: The name of the test case to clean up
-        """
-        if test_name in self.test_emitters:
-            del self.test_emitters[test_name]
+        """Remove a test-specific emitter after test completion (thread-safe)."""
+        with self._lock:
+            if test_name in self.test_emitters:
+                del self.test_emitters[test_name]
 
     def get_service_state(self, service_id: str) -> ServiceStateManager:
-        """Get or create a service-specific state manager.
-
-        Args:
-            service_id: The unique service identifier
-
-        Returns:
-            ServiceStateManager: The service-specific state manager
-        """
-        if service_id not in self.service_states:
-            self.service_states[service_id] = ServiceStateManager(service_id)
-        return self.service_states[service_id]
+        """Get or create a service-specific state manager (thread-safe)."""
+        with self._lock:
+            if service_id not in self.service_states:
+                self.service_states[service_id] = ServiceStateManager(service_id)
+            return self.service_states[service_id]
 
     def cleanup_service_state(self, service_id: str):
         """Remove a service-specific state manager after service cleanup."""
-        if service_id in self.service_states:
-            del self.service_states[service_id]
+        with self._lock:
+            if service_id in self.service_states:
+                del self.service_states[service_id]

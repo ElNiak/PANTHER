@@ -304,7 +304,7 @@ def content():
                 elif event_type == "experiment.completed":
                     progress.update("Completed", 1.0)
         except RuntimeError:
-            pass  # client disconnected
+            logger.debug("Client disconnected during UI update")
 
     progress_sub = experiment_svc.web_observer.subscribe(
         _on_progress_event,
@@ -365,7 +365,7 @@ def content():
                 with events_container:
                     event_viewer(live_events[-200:])
         except RuntimeError:
-            pass  # client disconnected
+            logger.debug("Client disconnected during UI update")
 
     events_sub = experiment_svc.web_observer.subscribe(_on_live_event)
     client_ref.on_disconnect(

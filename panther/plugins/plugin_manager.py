@@ -4,6 +4,7 @@ Single source of truth for plugin management: discovery, lifecycle,
 caching, Docker integration, and event coordination.
 """
 
+import threading
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, Union
@@ -50,15 +51,14 @@ class PluginManager(LoggerMixin):
 
     _instance = None
     _initialized = False
+    _instance_lock = threading.Lock()
 
     def __new__(cls, *args, **kwargs):
-        """Create or return the singleton instance.
-
-        If an instance already exists, returns it and allows updating
-        configuration parameters if provided.
-        """
+        """Create or return the singleton instance (thread-safe)."""
         if cls._instance is None:
-            cls._instance = super().__new__(cls)
+            with cls._instance_lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
         return cls._instance
 
     def __init__(
