@@ -249,8 +249,7 @@ class OutputAnalyzer:
         return tester_inputs
 
     def _register_outputs_before_collection(self):
-        """
-        Register outputs from all environments before collection starts.
+        """Register outputs from all environments before collection starts.
 
         This is a critical fix for the timing issue where outputs were only
         registered during teardown, which happened AFTER tester analysis.
@@ -468,7 +467,7 @@ class OutputAnalyzer:
                                 self.logger.info("         Command: %s", step.command)
                             elif hasattr(step, "wait") and step.wait:
                                 self.logger.info("         Wait: %s seconds", step.wait)
-                    except:
+                    except (TypeError, AttributeError):
                         # Fallback for complex step objects
                         self.logger.info("    📋 Steps: Custom steps configured")
                         step_attrs = [

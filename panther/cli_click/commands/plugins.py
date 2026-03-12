@@ -1,6 +1,4 @@
-"""
-Plugins Command - Plugin discovery and management (Click implementation)
-"""
+"""Plugins Command - Plugin discovery and management (Click implementation)."""
 
 import json
 import traceback
@@ -38,8 +36,7 @@ except ImportError:
 @featured_example("panther plugins list")
 @click.group()
 def plugins():
-    """
-    Plugin discovery and management.
+    r"""Plugin discovery and management.
 
     Comprehensive plugin management tools for discovering, validating,
     and managing PANTHER's extensive plugin ecosystem.
@@ -98,8 +95,7 @@ def plugins():
 @handle_errors
 @pass_context_and_setup_logging
 def list(ctx, type: str, format: str, show_path: bool):
-    """
-    List available plugins by type.
+    r"""List available plugins by type.
 
     Discovers and displays all available plugins in the PANTHER ecosystem
     with filtering options and multiple output formats.
@@ -182,7 +178,7 @@ def list(ctx, type: str, format: str, show_path: bool):
                     ]:
                         try:
                             plugins.extend(discovery.get_plugins_by_type(pt))
-                        except:
+                        except Exception:
                             continue
             else:
                 plugins = discovery.get_plugins_by_type(type)
@@ -279,8 +275,7 @@ def list(ctx, type: str, format: str, show_path: bool):
 def params(
     ctx, plugin_name: str, type: Optional[str], protocol: Optional[str], format: str
 ):
-    """
-    Display configuration parameters for a specific plugin.
+    r"""Display configuration parameters for a specific plugin.
 
     Shows detailed parameter information including types, default values,
     and descriptions for configuring plugin behavior.
@@ -402,8 +397,7 @@ def params(
 @handle_errors
 @pass_context_and_setup_logging
 def scan(ctx, directory: Optional[Path], recursive: bool):
-    """
-    Scan directories for available plugins.
+    r"""Scan directories for available plugins.
 
     Performs a comprehensive scan of plugin directories to discover
     new or updated plugins and their metadata.
@@ -501,8 +495,7 @@ def scan(ctx, directory: Optional[Path], recursive: bool):
 @handle_errors
 @pass_context_and_setup_logging
 def validate(ctx, plugin_path: Path, strict: bool, check_imports: bool):
-    """
-    Validate plugin structure and configuration.
+    r"""Validate plugin structure and configuration.
 
     Performs comprehensive validation of plugin files including
     syntax checking, structure verification, and dependency analysis.
@@ -667,8 +660,7 @@ def validate(ctx, plugin_path: Path, strict: bool, check_imports: bool):
 @handle_errors
 @pass_context_and_setup_logging
 def check_deps(ctx, plugin_path: Path, fix: bool, requirements_file: Optional[Path]):
-    """
-    Check plugin dependencies and availability.
+    r"""Check plugin dependencies and availability.
 
     Analyzes plugin files to identify required dependencies and verifies
     their availability in the current Python environment.
@@ -824,8 +816,7 @@ def check_deps(ctx, plugin_path: Path, fix: bool, requirements_file: Optional[Pa
 @click.option("--force", is_flag=True, help="Force migration even if validation fails")
 @handle_errors
 def migrate(dry_run: bool, force: bool):
-    """
-    Migrate plugins to newer formats.
+    r"""Migrate plugins to newer formats.
 
     ⚠️  DEPRECATED: This feature has been removed and is no longer supported.
 

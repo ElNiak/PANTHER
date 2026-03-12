@@ -213,7 +213,7 @@ def status(ctx):
                     click.echo(
                         f"💾 Disk Space: {disk_info[3]} available of {disk_info[1]}"
                     )
-        except:
+        except (OSError, subprocess.SubprocessError):
             click.echo("💾 Disk Space: Unable to check")
 
         # Check PANTHER installation
@@ -236,7 +236,7 @@ def status(ctx):
                 click.echo("🌐 Network: Connected")
             else:
                 click.echo("🌐 Network: Limited connectivity")
-        except:
+        except (OSError, subprocess.SubprocessError):
             click.echo("🌐 Network: Unable to test")
 
         click.echo()

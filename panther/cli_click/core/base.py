@@ -1,5 +1,4 @@
-"""
-Base utilities and decorators for Click commands
+"""Base utilities and decorators for Click commands.
 
 Provides common patterns used across all PANTHER Click commands including
 error handling, logging setup, and shared options.
@@ -30,6 +29,7 @@ class PantherGroup(click.Group):
     """Custom Click Group that auto-generates an Examples section from commands."""
 
     def format_help(self, ctx, formatter):
+        """Format help text with auto-generated Examples section."""
         super().format_help(ctx, formatter)
         examples = []
         for name in sorted(self.list_commands(ctx)):
@@ -45,8 +45,7 @@ class PantherGroup(click.Group):
 
 
 def common_options(func: Callable) -> Callable:
-    """
-    Decorator that adds common options to Click commands.
+    """Decorator that adds common options to Click commands.
 
     Adds frequently used options like --config, --verbose that are
     shared across multiple PANTHER commands.
@@ -73,8 +72,7 @@ def common_options(func: Callable) -> Callable:
 
 
 def handle_errors(func: Callable) -> Callable:
-    """
-    Decorator for consistent error handling across commands.
+    """Decorator for consistent error handling across commands.
 
     Provides unified error handling for common exceptions like
     KeyboardInterrupt, subprocess errors, and unexpected exceptions.
@@ -121,8 +119,7 @@ def handle_errors(func: Callable) -> Callable:
 
 
 def setup_logging(debug: bool = False, verbose: bool = False) -> None:
-    """
-    Configure logging based on debug and verbose flags.
+    """Configure logging based on debug and verbose flags.
 
     Uses LoggerFactory when available, falls back to basic logging.
 
@@ -173,8 +170,7 @@ def setup_logging(debug: bool = False, verbose: bool = False) -> None:
 
 
 def pass_context_and_setup_logging(func: Callable) -> Callable:
-    """
-    Decorator that passes context and sets up logging.
+    """Decorator that passes context and sets up logging.
 
     Combines context passing with logging setup based on debug/verbose flags.
 
@@ -214,7 +210,7 @@ def success_message(message: str) -> None:
             import logging
 
             logging.info(f"✅ {message}")
-        except:
+        except Exception:
             click.echo(colored(f"✅ {message}", "green"))
 
 
@@ -234,7 +230,7 @@ def info_message(message: str) -> None:
             import logging
 
             logging.info(f"ℹ️  {message}")
-        except:
+        except Exception:
             click.echo(colored(f"ℹ️  {message}", "blue"))
 
 
@@ -254,7 +250,7 @@ def warning_message(message: str) -> None:
             import logging
 
             logging.warning(f"⚠️  {message}")
-        except:
+        except Exception:
             click.echo(colored(f"⚠️  {message}", "yellow"))
 
 
@@ -274,13 +270,12 @@ def error_message(message: str) -> None:
             import logging
 
             logging.error(f"❌ {message}")
-        except:
+        except Exception:
             click.echo(colored(f"❌ {message}", "red"), err=True)
 
 
 def legacy_command_pattern(func: Callable) -> Callable:
-    """
-    Decorator that provides legacy command pattern compatibility.
+    """Decorator that provides legacy command pattern compatibility.
 
     Enables Click commands to behave more like legacy BaseCommand pattern
     with proper return code handling and error patterns.
