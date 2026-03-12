@@ -405,6 +405,10 @@ def create_logger(
     config["global_config"] = global_config
     config |= kwargs
 
+    # Remove fields that are passed as explicit keyword args to create_observer
+    for key in ("priority", "auto_register", "enabled"):
+        config.pop(key, None)
+
     # Use configured priority/auto_register if not explicitly provided
     if priority == 0:
         priority = logger_config.priority
@@ -461,6 +465,10 @@ def create_metrics(
     config["metrics_collector"] = metrics_collector
     config |= kwargs
 
+    # Remove fields that are passed as explicit keyword args to create_observer
+    for key in ("priority", "auto_register", "enabled"):
+        config.pop(key, None)
+
     # Use configured priority/auto_register if not explicitly provided
     if priority == 0:
         priority = metrics_config.priority
@@ -513,6 +521,10 @@ def create_storage(
     config = storage_config.model_dump(exclude_none=True)
     config["storage_path"] = output_dir or config.get("storage_path") or "outputs"
     config |= kwargs
+
+    # Remove fields that are passed as explicit keyword args to create_observer
+    for key in ("priority", "auto_register", "enabled"):
+        config.pop(key, None)
 
     # Use configured priority/auto_register if not explicitly provided
     if priority == 0:
@@ -570,6 +582,10 @@ def create_experiment_observer(
     config["test_name"] = test_name or config.get("test_name")
     config["global_config"] = global_config
     config |= kwargs
+
+    # Remove fields that are passed as explicit keyword args to create_observer
+    for key in ("priority", "auto_register", "enabled"):
+        config.pop(key, None)
 
     # Use configured priority/auto_register if not explicitly provided
     if priority == 0:
