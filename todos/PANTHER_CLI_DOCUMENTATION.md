@@ -12,8 +12,8 @@ PANTHER (Protocol Analysis and Testing Harness for Extensible Research) is a com
 
 The PANTHER CLI is built using the Click framework with a modular command structure:
 
-- **Main Entry Point**: `panther/__main__.py` → `panther/cli_click/core/main.py`
-- **Command Groups**: Organized in `panther/cli_click/commands/`
+- **Main Entry Point**: `panther/__main__.py` → `panther/cli/core/main.py`
+- **Command Groups**: Organized in `panther/cli/commands/`
 - **Core Features**: Plugin system, Docker integration, metrics collection, configuration management
 
 ## Command Structure

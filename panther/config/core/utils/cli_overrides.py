@@ -1,6 +1,6 @@
 """CLI override extraction utility.
 
-Replaces the manual if-statement chain in ``panther/cli_click/commands/run.py``
+Replaces the manual if-statement chain in ``panther/cli/commands/run.py``
 with a declarative mapping from Click parameter names to config dot-paths.
 """
 

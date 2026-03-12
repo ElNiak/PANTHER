@@ -53,7 +53,7 @@ panther plugins info picoquic --verbose
 panther plugins params picoquic --type iut
 ```
 
-For comprehensive CLI documentation, see [CLI Documentation](docs/cli_click.md).
+For comprehensive CLI documentation, see [CLI Documentation](docs/cli.md).
 
 # QUICK START GUIDE
 

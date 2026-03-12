@@ -1,2 +1,0 @@
-"""PANTHER package.
-"""
