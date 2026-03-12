@@ -1,5 +1,4 @@
-"""
-Metrics Module
+"""Metrics Module.
 
 This module provides metrics-related events, emitters, and states.
 """
@@ -14,7 +13,6 @@ from .events import (
     ResourceMetricEvent,
     TimingMetricEvent,
 )
-from .states import MetricsCollectionState, MetricsState
 
 __all__ = [
     # Event types and base classes
@@ -28,7 +26,4 @@ __all__ = [
     "MetricsSummaryEvent",
     # Event emitter
     "MetricsEventEmitter",
-    # States
-    "MetricsState",
-    "MetricsCollectionState",
 ]

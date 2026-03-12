@@ -1,5 +1,4 @@
-"""
-Metrics Events
+"""Metrics Events.
 
 This module defines events specific to metrics collection and monitoring.
 """
@@ -30,6 +29,7 @@ class MetricsEvent(BaseEvent):
         metric_id: str,
         data: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize metrics event."""
         super().__init__(
             name=event_type.value,
             entity_type=EventType.METRICS,
@@ -53,8 +53,7 @@ class MetricCollectedEvent(MetricsEvent):
         labels: Optional[Dict[str, str]] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ):
-        """
-        Initialize a metric collected event.
+        """Initialize a metric collected event.
 
         Args:
             metric_name: Name of the metric
@@ -93,34 +92,42 @@ class MetricCollectedEvent(MetricsEvent):
 
     @property
     def metric_name(self) -> str:
+        """Return the metric name."""
         return self.data.get("metric_name", "")
 
     @property
     def metric_type(self) -> str:
+        """Return the metric type."""
         return self.data.get("metric_type", "")
 
     @property
     def value(self) -> Any:
+        """Return the metric value."""
         return self.data.get("value")
 
     @property
     def phase(self) -> Optional[str]:
+        """Return the experiment phase."""
         return self.data.get("phase")
 
     @property
     def test_case(self) -> Optional[str]:
+        """Return the related test case."""
         return self.data.get("test_case")
 
     @property
     def component(self) -> Optional[str]:
+        """Return the component."""
         return self.data.get("component")
 
     @property
     def labels(self) -> Optional[Dict[str, str]]:
+        """Return the metric labels."""
         return self.data.get("labels")
 
     @property
     def metadata(self) -> Optional[Dict[str, Any]]:
+        """Return the metric metadata."""
         return self.data.get("metadata")
 
     def validate(self) -> bool:
@@ -144,8 +151,7 @@ class ResourceMetricEvent(MetricsEvent):
         test_case: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ):
-        """
-        Initialize a resource metric event.
+        """Initialize a resource metric event.
 
         Args:
             resource_type: Type of resource (cpu, memory, etc.)
@@ -175,22 +181,27 @@ class ResourceMetricEvent(MetricsEvent):
 
     @property
     def resource_type(self) -> str:
+        """Return the resource type."""
         return self.data.get("resource_type", "")
 
     @property
     def usage_value(self) -> float:
+        """Return the usage value."""
         return self.data.get("value", 0.0)
 
     @property
     def component(self) -> Optional[str]:
+        """Return the component."""
         return self.data.get("component")
 
     @property
     def test_case(self) -> Optional[str]:
+        """Return the related test case."""
         return self.data.get("test_case")
 
     @property
     def metadata(self) -> Optional[Dict[str, Any]]:
+        """Return the metric metadata."""
         return self.data.get("metadata")
 
     def validate(self) -> bool:
@@ -214,8 +225,7 @@ class TimingMetricEvent(MetricsEvent):
         component: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ):
-        """
-        Initialize a timing metric event.
+        """Initialize a timing metric event.
 
         Args:
             operation_name: Name of the operation being timed
@@ -248,26 +258,32 @@ class TimingMetricEvent(MetricsEvent):
 
     @property
     def operation_name(self) -> str:
+        """Return the operation name."""
         return self.data.get("operation", "")
 
     @property
     def duration(self) -> float:
+        """Return the duration."""
         return self.data.get("duration", 0.0)
 
     @property
     def phase(self) -> Optional[str]:
+        """Return the experiment phase."""
         return self.data.get("phase")
 
     @property
     def test_case(self) -> Optional[str]:
+        """Return the related test case."""
         return self.data.get("test_case")
 
     @property
     def component(self) -> Optional[str]:
+        """Return the component."""
         return self.data.get("component")
 
     @property
     def metadata(self) -> Optional[Dict[str, Any]]:
+        """Return the metric metadata."""
         return self.data.get("metadata")
 
     def validate(self) -> bool:
@@ -291,8 +307,7 @@ class CounterMetricEvent(MetricsEvent):
         component: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ):
-        """
-        Initialize a counter metric event.
+        """Initialize a counter metric event.
 
         Args:
             counter_name: Name of the counter
@@ -324,26 +339,32 @@ class CounterMetricEvent(MetricsEvent):
 
     @property
     def counter_name(self) -> str:
+        """Return the counter name."""
         return self.data.get("counter_name", "")
 
     @property
     def value(self) -> int:
+        """Return the counter value."""
         return self.data.get("value", 0)
 
     @property
     def increment(self) -> bool:
+        """Return whether this is an increment."""
         return self.data.get("increment", True)
 
     @property
     def test_case(self) -> Optional[str]:
+        """Return the related test case."""
         return self.data.get("test_case")
 
     @property
     def component(self) -> Optional[str]:
+        """Return the component."""
         return self.data.get("component")
 
     @property
     def metadata(self) -> Optional[Dict[str, Any]]:
+        """Return the metric metadata."""
         return self.data.get("metadata")
 
     def validate(self) -> bool:
@@ -366,8 +387,7 @@ class MetricsSummaryEvent(MetricsEvent):
         period: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ):
-        """
-        Initialize a metrics summary event.
+        """Initialize a metrics summary event.
 
         Args:
             metrics: Dictionary of metrics summaries
@@ -395,18 +415,22 @@ class MetricsSummaryEvent(MetricsEvent):
 
     @property
     def metrics(self) -> Dict[str, Any]:
+        """Return the metrics summary."""
         return self.data.get("metrics", {})
 
     @property
     def test_case(self) -> Optional[str]:
+        """Return the related test case."""
         return self.data.get("test_case")
 
     @property
     def period(self) -> Optional[str]:
+        """Return the summary period."""
         return self.data.get("period")
 
     @property
     def metadata(self) -> Optional[Dict[str, Any]]:
+        """Return the metric metadata."""
         return self.data.get("metadata")
 
     def validate(self) -> bool:

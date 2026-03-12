@@ -15,6 +15,20 @@ timing breakdowns, and configuration metadata.
 """
 
 from .experiment_reporter import ExperimentReporter
+from .result_serialization import (
+    save_experiment_result,
+    save_implementation_logs,
+    save_test_result,
+)
+from .sequence_trace import SequenceOff, SequenceOn
 from .status_collector import StatusCollector
 
-__all__ = ["ExperimentReporter", "StatusCollector"]
+__all__ = [
+    "ExperimentReporter",
+    "StatusCollector",
+    "save_experiment_result",
+    "save_test_result",
+    "save_implementation_logs",
+    "SequenceOn",
+    "SequenceOff",
+]

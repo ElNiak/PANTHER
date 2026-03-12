@@ -809,36 +809,5 @@ def check_deps(ctx, plugin_path: Path, fix: bool, requirements_file: Optional[Pa
         raise click.Abort()
 
 
-@plugins.command()
-@click.option(
-    "--dry-run", is_flag=True, help="Show what would be migrated without making changes"
-)
-@click.option("--force", is_flag=True, help="Force migration even if validation fails")
-@handle_errors
-def migrate(dry_run: bool, force: bool):
-    r"""Migrate plugins to newer formats.
-
-    ⚠️  DEPRECATED: This feature has been removed and is no longer supported.
-
-    \b
-    Alternative Approaches:
-    📝 Create new plugins using 'panther create plugin'
-    🔄 Manual migration following current plugin standards
-    📋 Reference existing plugins for structure examples
-
-    \b
-    For creating new plugins:
-      panther create plugin service my_new_service
-      panther create plugin tester my_verification_tool
-
-    This command is maintained for compatibility but will always fail.
-    """
-    error_message("Plugin migration feature has been removed")
-    click.echo("   This feature was incomplete and has been deprecated")
-    click.echo("   Create new plugins using 'panther create plugin' instead")
-
-    raise click.Abort()
-
-
 if __name__ == "__main__":
     plugins()

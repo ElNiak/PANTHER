@@ -34,7 +34,7 @@ Key design principles:
       event routing to typed handler methods with compile-time type checking.
     - **Thread-safe observer management**: RLock-based synchronization for
       concurrent access in all management classes.
-    - **Configuration-driven**: Factory system supports both programmatic and
+    - **Configuration-driven**: Factory module supports both programmatic and
       YAML-based observer setup.
     - **Plugin extensibility**: Plugin system enables runtime observer loading
       without framework modification.
@@ -56,7 +56,6 @@ Built-in Observer Types:
       output and event serialization.
     - **ExperimentObserver**: High-level experiment execution coordination,
       multi-test orchestration, and result aggregation.
-    - **GUIObserver**: GUI event handling for the NiceGUI webapp.
 
 Example:
     Create and register a custom observer::
@@ -85,10 +84,10 @@ Example:
         logger_obs = factory.create_observer("logger", auto_register=True)
 
 See Also:
-    `panther.core.events` - Event system implementation
-    `panther.core.observer.management.event_manager` - Central event coordination
-    `panther.core.observer.factory` - Observer creation and configuration
-    `panther.core.observer.workflow` - Workflow state tracking
+    `panther.core.events` -- Event system implementation
+    `panther.core.observer.management.event_manager` -- Central event coordination
+    `panther.core.observer.factory` -- Observer creation, builders, and configuration
+    `panther.core.observer.workflow` -- Workflow state tracking
 """
 
 # Base interfaces
@@ -112,7 +111,6 @@ from .factory import (  # Builder methods; Config loading
 # Observer implementations
 from .impl import (
     ExperimentObserver,
-    GUIObserver,
     LoggerObserver,
     MetricsObserver,
     PluginObserver,
@@ -140,7 +138,6 @@ __all__ = [
     "LoggerObserver",
     "MetricsObserver",
     "StorageObserver",
-    "GUIObserver",
     "PluginObserver",
     "IPluginObserver",
     # Management

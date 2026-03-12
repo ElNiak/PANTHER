@@ -1,10 +1,9 @@
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Protocol
-
-"""
-Service Event Emitter
+"""Service Event Emitter.
 
 This module provides a type-safe event emitter for service-related events.
 """
+
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
     from panther.core.observer.management.event_manager import EventManager
@@ -30,24 +29,20 @@ from panther.core.events.service.events import (
     ServiceReadyEvent,
     ServiceStartedEvent,
     ServiceStoppedEvent,
-    ServiceTestResultsEvent,
     TesterAnalysisCompletedEvent,
     TesterAnalysisStartedEvent,
 )
 
 
 class ServiceEventEmitter(EventEmitterBase):
-    """
-
-    Type-safe event emitter for service-related events.
+    """Type-safe event emitter for service-related events.
 
     This class provides methods for emitting all service lifecycle events
     with proper typing and validation.
     """
 
     def __init__(self, event_manager: "EventManager"):
-        """
-        Initialize the service event emitter.
+        """Initialize the service event emitter.
 
         Args:
             event_manager: Event manager to use for event emission
@@ -62,8 +57,7 @@ class ServiceEventEmitter(EventEmitterBase):
         implementation: str,
         config: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """
-        Emit a service created event.
+        """Emit a service created event.
 
         Args:
             service_id: Unique service identifier
@@ -88,8 +82,7 @@ class ServiceEventEmitter(EventEmitterBase):
         service_names: Optional[List[str]] = None,
         service_metadata: Optional[List[Dict[str, Any]]] = None,
     ) -> None:
-        """
-        Emit a service setup started event for a test case.
+        """Emit a service setup started event for a test case.
 
         Args:
             test_case: Name of the test case
@@ -131,34 +124,6 @@ class ServiceEventEmitter(EventEmitterBase):
             prep_event.add_data("service_count", service_count)
             self.event_manager.notify(prep_event)
 
-    def emit_service_setup_failed(
-        self,
-        test_case: str,
-        error_message: str,
-        service_names: Optional[List[str]] = None,
-        error_type: Optional[str] = None,
-    ) -> None:
-        """
-        Emit a service setup failed event for a test case.
-
-        Args:
-            test_case: Name of the test case
-            error_message: Error message describing the failure
-            service_names: List of service names that failed
-            error_type: Type/category of error
-        """
-        # This is a placeholder event using service preparation failed
-        # In the future, we might want to create a specific ServiceSetupFailedEvent
-        for service_name in service_names or []:
-            event = ServicePreparationFailedEvent(
-                service_id=f"{test_case}_{service_name}",
-                service_name=service_name,
-                error_message=error_message,
-                error_type=error_type,
-                failed_step="setup",
-            )
-            self.event_manager.notify(event)
-
     def emit_service_preparation_started(
         self,
         service_id: str,
@@ -166,8 +131,7 @@ class ServiceEventEmitter(EventEmitterBase):
         preparation_steps: Optional[List[str]] = None,
         test_case: Optional[str] = None,
     ) -> None:
-        """
-        Emit a service preparation started event.
+        """Emit a service preparation started event.
 
         Args:
             service_id: Unique service identifier
@@ -192,8 +156,7 @@ class ServiceEventEmitter(EventEmitterBase):
         duration_seconds: Optional[float] = None,
         artifacts: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """
-        Emit a service preparation completed event.
+        """Emit a service preparation completed event.
 
         Args:
             service_id: Unique service identifier
@@ -217,8 +180,7 @@ class ServiceEventEmitter(EventEmitterBase):
         error_type: Optional[str] = None,
         failed_step: Optional[str] = None,
     ) -> None:
-        """
-        Emit a service preparation failed event.
+        """Emit a service preparation failed event.
 
         Args:
             service_id: Unique service identifier
@@ -243,8 +205,7 @@ class ServiceEventEmitter(EventEmitterBase):
         environment: str,
         deployment_config: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """
-        Emit a service deployment started event.
+        """Emit a service deployment started event.
 
         Args:
             service_id: Unique service identifier
@@ -269,8 +230,7 @@ class ServiceEventEmitter(EventEmitterBase):
         ports: Optional[List[int]] = None,
         deployment_details: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """
-        Emit a service deployment completed event.
+        """Emit a service deployment completed event.
 
         Args:
             service_id: Unique service identifier
@@ -298,8 +258,7 @@ class ServiceEventEmitter(EventEmitterBase):
         error_message: str,
         error_type: Optional[str] = None,
     ) -> None:
-        """
-        Emit a service deployment failed event.
+        """Emit a service deployment failed event.
 
         Args:
             service_id: Unique service identifier
@@ -324,8 +283,7 @@ class ServiceEventEmitter(EventEmitterBase):
         pid: Optional[int] = None,
         start_time: Optional[str] = None,
     ) -> None:
-        """
-        Emit a service started event.
+        """Emit a service started event.
 
         Args:
             service_id: Unique service identifier
@@ -347,8 +305,7 @@ class ServiceEventEmitter(EventEmitterBase):
         service_name: str,
         readiness_checks: Optional[Dict[str, bool]] = None,
     ) -> None:
-        """
-        Emit a service ready event.
+        """Emit a service ready event.
 
         Args:
             service_id: Unique service identifier
@@ -370,8 +327,7 @@ class ServiceEventEmitter(EventEmitterBase):
         endpoint: Optional[str] = None,
         response_time_ms: Optional[float] = None,
     ) -> None:
-        """
-        Emit a service health check passed event.
+        """Emit a service health check passed event.
 
         Args:
             service_id: Unique service identifier
@@ -398,8 +354,7 @@ class ServiceEventEmitter(EventEmitterBase):
         endpoint: Optional[str] = None,
         status_code: Optional[int] = None,
     ) -> None:
-        """
-        Emit a service health check failed event.
+        """Emit a service health check failed event.
 
         Args:
             service_id: Unique service identifier
@@ -427,8 +382,7 @@ class ServiceEventEmitter(EventEmitterBase):
         reason: Optional[str] = None,
         uptime_seconds: Optional[float] = None,
     ) -> None:
-        """
-        Emit a service stopped event.
+        """Emit a service stopped event.
 
         Args:
             service_id: Unique service identifier
@@ -454,8 +408,7 @@ class ServiceEventEmitter(EventEmitterBase):
         error_type: Optional[str] = None,
         error_details: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """
-        Emit a service error event.
+        """Emit a service error event.
 
         Args:
             service_id: Unique service identifier
@@ -479,8 +432,7 @@ class ServiceEventEmitter(EventEmitterBase):
         service_name: str,
         cleanup_details: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """
-        Emit a service destroyed event.
+        """Emit a service destroyed event.
 
         Args:
             service_id: Unique service identifier
@@ -494,97 +446,6 @@ class ServiceEventEmitter(EventEmitterBase):
         )
         self.event_manager.notify(event)
 
-    def emit_service_setup_completed(
-        self,
-        test_case: str,
-        services: List[str],
-        success: bool = True,
-        duration_seconds: Optional[float] = None,
-    ) -> None:
-        """
-        Emit service setup completed event for a test case.
-
-        This is a convenience method that emits preparation completed events
-        for all services in a test case.
-
-        Args:
-            test_case: Name of the test case
-            services: List of service names that were set up
-            success: Whether the setup was successful
-            duration_seconds: Total time taken for setup
-        """
-        # Emit a preparation completed event for each service
-        for service_name in services:
-            service_id = f"{test_case}_{service_name}"
-            if success:
-                self.emit_service_preparation_completed(
-                    service_id=service_id,
-                    service_name=service_name,
-                    duration_seconds=(
-                        duration_seconds / len(services) if duration_seconds else None
-                    ),
-                )
-            else:
-                self.emit_service_preparation_failed(
-                    service_id=service_id,
-                    service_name=service_name,
-                    error_message="Setup failed",
-                    failed_step="setup",
-                )
-
-    def emit_service_deployed(
-        self,
-        environment: str,
-        service_instances: Dict[str, Any],
-        deployment_details: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        """
-        Emit service deployed event for multiple services.
-
-        This is a convenience method that emits deployment completed events
-        for all deployed services.
-
-        Args:
-            environment: Environment where services were deployed
-            service_instances: Dictionary mapping service names to service instances
-            deployment_details: Additional deployment details
-        """
-        for service_name, _ in service_instances.items():
-            service_id = f"{environment}_{service_name}"
-            self.emit_service_deployment_completed(
-                service_id=service_id,
-                service_name=service_name,
-                environment=environment,
-                deployment_details=deployment_details,
-            )
-
-    def emit_service_test_results(
-        self,
-        service_id: str,
-        service_name: str,
-        test_results: Dict[str, Any],
-        overall_success: bool,
-        test_summary: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        """
-        Emit a service test results event.
-
-        Args:
-            service_id: Unique service identifier
-            service_name: Human-readable service name
-            test_results: Test result data from the service
-            overall_success: Whether all tests passed
-            test_summary: Summary of test execution
-        """
-        event = ServiceTestResultsEvent(
-            service_id=service_id,
-            service_name=service_name,
-            test_results=test_results,
-            overall_success=overall_success,
-            test_summary=test_summary,
-        )
-        self.event_manager.notify(event)
-
     def emit_tester_analysis_started(
         self,
         service_id: str,
@@ -593,8 +454,7 @@ class ServiceEventEmitter(EventEmitterBase):
         output_types: Optional[List[str]] = None,
         tester_config: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """
-        Emit a tester analysis started event.
+        """Emit a tester analysis started event.
 
         Args:
             service_id: Unique service identifier
@@ -628,8 +488,7 @@ class ServiceEventEmitter(EventEmitterBase):
         summary: str = "",
         duration: Optional[float] = None,
     ) -> None:
-        """
-        Emit a tester analysis completed event.
+        """Emit a tester analysis completed event.
 
         Args:
             service_id: Unique service identifier
@@ -684,8 +543,7 @@ class ServiceEventEmitter(EventEmitterBase):
         service_name: str,
         data: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """
-        Emit a generic service event.
+        """Emit a generic service event.
 
         This method provides a flexible way to emit service events
         that don't fit into the predefined categories.
@@ -726,8 +584,7 @@ class ServiceEventEmitter(EventEmitterBase):
         protocol: Optional[str] = None,
         config: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """
-        Emit command generation started event.
+        """Emit command generation started event.
 
         Args:
             service_id: Unique service identifier
@@ -754,8 +611,7 @@ class ServiceEventEmitter(EventEmitterBase):
         implementation: Optional[str] = None,
         protocol: Optional[str] = None,
     ) -> None:
-        """
-        Emit command generated event.
+        """Emit command generated event.
 
         Args:
             service_id: Unique service identifier
@@ -781,8 +637,7 @@ class ServiceEventEmitter(EventEmitterBase):
         implementation: Optional[str] = None,
         image_name: Optional[str] = None,
     ) -> None:
-        """
-        Emit Docker build started event.
+        """Emit Docker build started event.
 
         Args:
             service_id: Unique service identifier
@@ -807,8 +662,7 @@ class ServiceEventEmitter(EventEmitterBase):
         success: bool,
         build_duration: Optional[float] = None,
     ) -> None:
-        """
-        Emit Docker build completed event.
+        """Emit Docker build completed event.
 
         Args:
             service_id: Unique service identifier
@@ -834,8 +688,7 @@ class ServiceEventEmitter(EventEmitterBase):
         dockerfile_path: str,
         build_duration: Optional[float] = None,
     ) -> None:
-        """
-        Emit Docker build failed event.
+        """Emit Docker build failed event.
 
         Args:
             service_id: Unique service identifier
@@ -864,29 +717,3 @@ class ServiceEventEmitter(EventEmitterBase):
         else:
             # Old style with direct parameters
             self.emit_service_event("service_teardown_started", service_event, **kwargs)
-
-    def emit_service_teardown_completed(self, service_event, **kwargs):
-        """Emit service teardown completed event."""
-        # For backward compatibility, handle both old and new style calls
-        if hasattr(service_event, "test_name"):
-            # New style with ServiceEvent object
-            self.emit_service_event(
-                "service_teardown_completed", service_event.test_name, **kwargs
-            )
-        else:
-            # Old style with direct parameters
-            self.emit_service_event(
-                "service_teardown_completed", service_event, **kwargs
-            )
-
-    def emit_service_teardown_failed(self, service_event, **kwargs):
-        """Emit service teardown failed event."""
-        # For backward compatibility, handle both old and new style calls
-        if hasattr(service_event, "test_name"):
-            # New style with ServiceEvent object
-            self.emit_service_event(
-                "service_teardown_failed", service_event.test_name, **kwargs
-            )
-        else:
-            # Old style with direct parameters
-            self.emit_service_event("service_teardown_failed", service_event, **kwargs)

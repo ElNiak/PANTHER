@@ -1,5 +1,4 @@
-"""
-Experiment Observer Mixin for PANTHER framework.
+"""Experiment Observer Mixin for PANTHER framework.
 
 This module contains the ExperimentObserverMixin class which provides observer setup
 and management functionality that can be mixed into the ExperimentManager.
@@ -8,7 +7,7 @@ and management functionality that can be mixed into the ExperimentManager.
 import logging
 from typing import Any, Optional
 
-from panther.core.observer.factory.factory_builders import (
+from panther.core.observer.factory import (
     create_experiment_observer,
     create_logger,
     create_metrics,
@@ -16,8 +15,7 @@ from panther.core.observer.factory.factory_builders import (
 
 
 class ExperimentObserverMixin:
-    """
-    Mixin class that provides observer setup and management functionality.
+    """Mixin class that provides observer setup and management functionality.
 
     This mixin centralizes all observer-related functionality that was previously
     scattered in the ExperimentManager class. It can be mixed into any class that

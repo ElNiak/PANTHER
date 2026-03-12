@@ -1,10 +1,9 @@
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
-
-"""
-Test Event Emitter
+"""Test Event Emitter.
 
 This module provides typed event emission for test case lifecycle events.
 """
+
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
     from panther.core.observer.management.event_manager import EventManager
@@ -14,14 +13,10 @@ from panther.core.events.test.events import *
 
 
 class TestEventEmitter(EntityEventEmitterBase):
-    """
-
-    from typing import Any, Dict, List, Optional, TYPE_CHECKING, TYPE_CHECKINGType-safe event emitter for test events.
-    """
+    """Type-safe event emitter for test events."""
 
     def __init__(self, event_manager: "EventManager", test_id: str):
-        """
-        Initialize test event emitter.
+        """Initialize test event emitter.
 
         Args:
             event_manager: Event manager to emit events through
@@ -170,98 +165,6 @@ class TestEventEmitter(EntityEventEmitterBase):
         """Emit test execution started event."""
         event = TestExecutionStartedEvent(
             test_id=self.test_id, steps=steps, expected_duration=expected_duration
-        )
-        self.event_manager.notify(event)
-
-    def emit_step_started(
-        self,
-        step_name: str,
-        step_type: Optional[str] = None,
-        step_config: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        """Emit test step started event."""
-        event = TestStepStartedEvent(
-            test_id=self.test_id,
-            step_name=step_name,
-            step_type=step_type,
-            step_config=step_config,
-        )
-        self.event_manager.notify(event)
-
-    def emit_step_completed(
-        self,
-        step_name: str,
-        duration_seconds: Optional[float] = None,
-        result: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        """Emit test step completed event."""
-        event = TestStepCompletedEvent(
-            test_id=self.test_id,
-            step_name=step_name,
-            duration_seconds=duration_seconds,
-            result=result,
-        )
-        self.event_manager.notify(event)
-
-    def emit_step_failed(
-        self, step_name: str, error_message: str, error_type: Optional[str] = None
-    ) -> None:
-        """Emit test step failed event."""
-        event = TestStepFailedEvent(
-            test_id=self.test_id,
-            step_name=step_name,
-            error_message=error_message,
-            error_type=error_type,
-        )
-        self.event_manager.notify(event)
-
-    def emit_assertions_started(
-        self, assertions: Optional[List[Dict[str, Any]]] = None
-    ) -> None:
-        """Emit test assertions started event."""
-        event = TestAssertionsStartedEvent(test_id=self.test_id, assertions=assertions)
-        self.event_manager.notify(event)
-
-    def emit_assertion_checked(
-        self,
-        assertion_type: str,
-        assertion_config: Dict[str, Any],
-        passed: bool,
-        result: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        """Emit assertion checked event."""
-        event = TestAssertionCheckedEvent(
-            test_id=self.test_id,
-            assertion_type=assertion_type,
-            assertion_config=assertion_config,
-            passed=passed,
-            result=result,
-        )
-        self.event_manager.notify(event)
-
-    def emit_assertions_completed(
-        self,
-        total_assertions: int,
-        passed_assertions: int,
-        failed_assertions: int,
-        all_passed: bool,
-    ) -> None:
-        """Emit test assertions completed event."""
-        event = TestAssertionsCompletedEvent(
-            test_id=self.test_id,
-            total_assertions=total_assertions,
-            passed_assertions=passed_assertions,
-            failed_assertions=failed_assertions,
-            all_passed=all_passed,
-        )
-        self.event_manager.notify(event)
-
-    def emit_assertions_failed(
-        self, error_message: str, error_type: Optional[str] = None
-    ) -> None:
-        """Emit test assertions failed event."""
-        event = TestAssertionsFailedEvent(
-            test_id=self.test_id, error_message=error_message, error_type=error_type
         )
         self.event_manager.notify(event)
 

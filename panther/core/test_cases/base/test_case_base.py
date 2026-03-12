@@ -11,11 +11,11 @@ from colorlog import ColoredFormatter
 from panther.config.core.models.experiment import TestConfig
 from panther.config.core.models.global_config import GlobalConfig
 from panther.core.exceptions.fast_fail import FastFailHandler, TimeoutCascadeException
-from panther.core.observer.factory import get_observer_factory
-from panther.core.observer.factory.factory_builders import (
+from panther.core.observer.factory import (
     create_logger,
     create_metrics,
     create_storage,
+    get_observer_factory,
 )
 from panther.core.observer.impl.experiment_observer import ExperimentObserver
 from panther.core.observer.management.event_manager import EventManager
@@ -26,7 +26,7 @@ from panther.plugins.plugin_manager import PluginManager
 class TestCaseBase(ITestCase):
     """Base class providing core initialization and configuration for test cases."""
 
-    def __init__(
+    def __init__(  # noqa: D107
         self,
         test_config: TestConfig,
         global_config: GlobalConfig,
@@ -71,7 +71,6 @@ class TestCaseBase(ITestCase):
         self.test_experiment_dir = experiment_dir / self.test_name
 
         # Initialize collections
-        self.result_collectors = None
         self.service_managers: List[Any] = []
         self.environment_plugin_manager: List[Any] = []
         self.event_manager = None
@@ -110,10 +109,10 @@ class TestCaseBase(ITestCase):
         # Initialize test-level fast-fail behavior
         self._init_fast_fail_handler(test_config, global_config)
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # noqa: D105
         return f"TestCase(name={self.test_name})"
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # noqa: D105
         return self.__str__()
 
     def _setup_logging(self):

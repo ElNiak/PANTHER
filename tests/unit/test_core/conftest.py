@@ -60,7 +60,7 @@ def _reset_all_singletons():
         pass
     # ObserverFactory global
     try:
-        import panther.core.observer.factory.observer_factory as _of_mod
+        import panther.core.observer.factory as _of_mod
 
         _of_mod._observer_factory = None
     except Exception:
@@ -423,8 +423,8 @@ def real_observer_factory(real_event_manager):
     a fresh instance to guarantee test isolation. The factory is
     pre-loaded with default observer type registrations.
     """
-    import panther.core.observer.factory.observer_factory as _of_mod
-    from panther.core.observer.factory.observer_factory import ObserverFactory
+    import panther.core.observer.factory as _of_mod
+    from panther.core.observer.factory import ObserverFactory
 
     _of_mod._observer_factory = None
     return ObserverFactory(event_manager=real_event_manager)
@@ -506,7 +506,7 @@ def real_experiment_manager(mock_docker_client, minimal_global_config, tmp_path)
     The manager is created with ``dry_run=True`` so that no containers
     are actually started if execution methods are called.
     """
-    import panther.core.observer.factory.observer_factory as _of_mod
+    import panther.core.observer.factory as _of_mod
     from panther.core.docker_builder.docker_builder import DockerBuilder
     from panther.core.experiment_manager import ExperimentManager
     from panther.core.observer.management.event_manager import EventManager

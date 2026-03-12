@@ -45,6 +45,8 @@ from panther.core.utils.logging_mixin import LoggerMixin
 
 from .caching.docker_build_cache_mixin import DockerBuildCacheMixin
 from .caching.docker_image_cache import DockerImageCache
+from .tag_generator import generate_image_tag as _generate_image_tag
+from .tag_generator import sanitize_docker_tag as _sanitize_docker_tag
 
 
 class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
@@ -1745,83 +1747,20 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
         target_platform="",
         z3_source="",
     ):
-        """Generate Docker image tag with build and runtime mode differentiation.
-
-        Args:
-            impl_name: Implementation name (e.g., 'picoquic')
-            version: Version string (e.g., 'v1.0' or 'latest')
-            tag_version: Tag version (e.g., 'latest', 'stable')
-            build_mode: Build mode ('', 'debug-asan', 'rel-lto', 'release-static-pgo')
-            runtime_mode: Runtime mode ('minimal', 'debug', 'profile')
-            target_platform: Target platform (e.g., 'linux/amd64', 'linux/arm64')
-            z3_source: Z3 build source ('', 'local', 'pip'). Default 'local' produces no suffix.
-
-        Returns:
-            str: Complete image tag
-
-        Examples:
-            - picoquic-v1.0:latest-debug-asan-debug-linux/amd64 (build_mode + runtime_mode + platform)
-            - picoquic-v1.0:latest-linux/amd64 (empty build_mode, minimal runtime + platform)
-            - picoquic-v1.0:latest-rel-lto-profile-linux/amd64 (both modes specified + platform)
-            - picoquic:latest (no version, minimal runtime, no platform)
-            - panther_ivy-rfc9000:latest-z3pip-linux-amd64 (z3_source=pip adds -z3pip suffix)
-        """
-        # Build mode suffix (empty string results in no suffix)
-        build_suffix = f"-{build_mode}" if build_mode else ""
-
-        # Runtime mode suffix (minimal is default, so no suffix needed)
-        runtime_suffix = (
-            f"-{runtime_mode}" if runtime_mode and runtime_mode != "minimal" else ""
+        """Generate Docker image tag. Delegates to ``tag_generator`` module."""
+        return _generate_image_tag(
+            impl_name=impl_name,
+            version=version,
+            tag_version=tag_version,
+            build_mode=build_mode,
+            runtime_mode=runtime_mode,
+            target_platform=target_platform,
+            z3_source=z3_source,
         )
 
-        # Z3 source suffix (local is default, so no suffix needed)
-        z3_suffix = f"-z3{z3_source}" if z3_source and z3_source != "local" else ""
-
-        platform_suffix = f"-{target_platform}" if target_platform else ""
-
-        # Construct base name with version
-        base_name = f"{impl_name}-{version}" if version else impl_name
-        # Combine all parts
-        full_tag = f"{base_name}:{tag_version}{build_suffix}{runtime_suffix}{z3_suffix}{platform_suffix}"
-
-        # Sanitize tag (Docker tags have character restrictions)
-        return self._sanitize_docker_tag(full_tag)
-
     def _sanitize_docker_tag(self, tag: str) -> str:
-        """Sanitize Docker tag to meet Docker naming requirements.
-
-        Docker tag rules:
-        - Lowercase letters, digits, underscores, periods, dashes
-        - Cannot start with period or dash
-        - Max 128 characters
-        """
-        # Convert to lowercase and replace invalid characters (allow colon for tag separator)
-        sanitized = re.sub(r"[^a-z0-9._:-]", "-", tag.lower())
-
-        # Ensure doesn't start with period or dash
-        sanitized = re.sub(r"^[.-]+", "", sanitized)
-
-        if not sanitized:
-            self.logger.warning(
-                "Docker tag '%s' became empty after sanitization, using 'unknown'",
-                tag,
-            )
-            sanitized = "unknown"
-
-        # Truncate if too long (leave room for registry prefix)
-        if len(sanitized) > self.MAX_TAG_LENGTH:
-            # Keep the tag version part intact
-            parts = sanitized.split(":")
-            if len(parts) == 2:
-                name_part, tag_part = parts
-                max_name_length = self.MAX_TAG_LENGTH - len(tag_part) - 1  # -1 for ':'
-                if len(name_part) > max_name_length:
-                    name_part = name_part[:max_name_length]
-                sanitized = f"{name_part}:{tag_part}"
-            else:
-                sanitized = sanitized[: self.MAX_TAG_LENGTH]
-
-        return sanitized
+        """Sanitize Docker tag. Delegates to ``tag_generator`` module."""
+        return _sanitize_docker_tag(tag)
 
     def _validate_build_prerequisites(
         self,

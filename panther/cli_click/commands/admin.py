@@ -437,11 +437,6 @@ def clean(ctx, logs, cache, all):
     "--export-registry", type=click.Path(), help="Export Docker registry to file"
 )
 @click.option(
-    "--import-registry",
-    type=click.Path(exists=True),
-    help="Import Docker registry from file",
-)
-@click.option(
     "--cache-max-age",
     type=int,
     default=7,
@@ -460,7 +455,6 @@ def docker(
     show_registry,
     prune_cache,
     export_registry,
-    import_registry,
     cache_max_age,
 ):
     r"""Manage Docker resources and cleanup.
@@ -489,7 +483,6 @@ def docker(
     Registry Operations:
       --show-registry       Display registry statistics
       --export-registry     Export registry to file
-      --import-registry     Import registry from file
       --prune-cache         Clean old cache entries
 
     \b
@@ -510,7 +503,6 @@ def docker(
         show_registry,
         prune_cache,
         bool(export_registry),
-        bool(import_registry),
     ]
 
     if not any(operations):
@@ -584,16 +576,6 @@ def docker(
                     json.dump(image_data, f, indent=2)
                 return 1
             except (DockerException, APIError, OSError):
-                return 0
-
-        def _import_docker_registry(path):
-            """Import Docker registry from file."""
-            try:
-                with open(path, "r") as f:
-                    data = f.read()
-                    click.echo(f"Registry data loaded from {path}")
-                    return 1
-            except Exception:
                 return 0
 
         def _remove_panther_images_all():
@@ -712,11 +694,6 @@ def docker(
         if export_registry:
             docker_operations.append(
                 ("Exporting registry", lambda: _export_docker_registry(export_registry))
-            )
-
-        if import_registry:
-            docker_operations.append(
-                ("Importing registry", lambda: _import_docker_registry(import_registry))
             )
 
         # Cleanup operations

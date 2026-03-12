@@ -1,5 +1,4 @@
-"""
-Test Event Management
+"""Test Event Management.
 
 This module provides test-specific events, states, and emitters.
 """
@@ -35,7 +34,6 @@ from .events import (
     TestTeardownCompletedEvent,
     TestTeardownStartedEvent,
 )
-from .states import TestState, TestStateManager
 
 __all__ = [
     # Events
@@ -67,9 +65,6 @@ __all__ = [
     "TestFailedEvent",
     "TestResultEvent",
     "EnhancedResultEvent",
-    # States
-    "TestState",
-    "TestStateManager",
     # Emitter
     "TestEventEmitter",
 ]

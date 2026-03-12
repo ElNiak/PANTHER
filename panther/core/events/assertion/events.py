@@ -1,5 +1,4 @@
-"""
-Assertion Events
+"""Assertion Events.
 
 This module defines events specific to assertion validation and management.
 """
@@ -33,6 +32,7 @@ class AssertionEvent(BaseEvent):
         step_id: Optional[str] = None,
         data: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize assertion event."""
         merged_data = data or {}
         merged_data.update(
             {
@@ -55,14 +55,17 @@ class AssertionEvent(BaseEvent):
 
     @property
     def assertion_name_property(self) -> str:
+        """Return the assertion name."""
         return self.data.get("assertion_name", "")
 
     @property
     def test_case_id_property(self) -> Optional[str]:
+        """Return the test case ID."""
         return self.data.get("test_case_id")
 
     @property
     def step_id_property(self) -> Optional[str]:
+        """Return the step ID."""
         return self.data.get("step_id")
 
 
@@ -78,6 +81,7 @@ class AssertionsValidationStartedEvent(AssertionEvent):
         total_assertions: Optional[int] = None,
         validation_config: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize assertion validation started event."""
         super().__init__(
             event_type=AssertionEventType.VALIDATION_STARTED,
             assertion_id=assertion_id,
@@ -93,10 +97,12 @@ class AssertionsValidationStartedEvent(AssertionEvent):
 
     @property
     def total_assertions(self) -> Optional[int]:
+        """Return the total number of assertions."""
         return self.data.get("total_assertions")
 
     @property
     def validation_config(self) -> Dict[str, Any]:
+        """Return the validation configuration."""
         return self.data.get("validation_config", {})
 
 
@@ -115,6 +121,7 @@ class AssertionsValidationCompletedEvent(AssertionEvent):
         total_count: int = 0,
         summary: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize assertion validation completed event."""
         super().__init__(
             event_type=AssertionEventType.VALIDATION_COMPLETED,
             assertion_id=assertion_id,
@@ -133,22 +140,27 @@ class AssertionsValidationCompletedEvent(AssertionEvent):
 
     @property
     def duration(self) -> Optional[float]:
+        """Return the validation duration."""
         return self.data.get("duration")
 
     @property
     def passed_count(self) -> int:
+        """Return the number of passed assertions."""
         return self.data.get("passed_count", 0)
 
     @property
     def failed_count(self) -> int:
+        """Return the number of failed assertions."""
         return self.data.get("failed_count", 0)
 
     @property
     def total_count(self) -> int:
+        """Return the total assertion count."""
         return self.data.get("total_count", 0)
 
     @property
     def summary(self) -> Dict[str, Any]:
+        """Return the validation summary."""
         return self.data.get("summary", {})
 
 
@@ -165,6 +177,7 @@ class AssertionProgressEvent(AssertionEvent):
         total_assertions: Optional[int] = None,
         progress_message: str = "",
     ):
+        """Initialize assertion progress event."""
         super().__init__(
             event_type=AssertionEventType.PROGRESS,
             assertion_id=assertion_id,
@@ -181,14 +194,17 @@ class AssertionProgressEvent(AssertionEvent):
 
     @property
     def current_assertion(self) -> Optional[int]:
+        """Return the current assertion index."""
         return self.data.get("current_assertion")
 
     @property
     def total_assertions(self) -> Optional[int]:
+        """Return the total number of assertions."""
         return self.data.get("total_assertions")
 
     @property
     def progress_message(self) -> str:
+        """Return the progress message."""
         return self.data.get("progress_message", "")
 
     @property
@@ -216,6 +232,7 @@ class AssertionResultEvent(AssertionEvent):
         assertion_message: str = "",
         assertion_details: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize assertion result event."""
         super().__init__(
             event_type=AssertionEventType.RESULT,
             assertion_id=assertion_id,
@@ -234,22 +251,27 @@ class AssertionResultEvent(AssertionEvent):
 
     @property
     def assertion_passed(self) -> bool:
+        """Return whether the assertion passed."""
         return self.data.get("assertion_passed", False)
 
     @property
     def expected_value(self) -> Optional[Any]:
+        """Return the expected value."""
         return self.data.get("expected_value")
 
     @property
     def actual_value(self) -> Optional[Any]:
+        """Return the actual value."""
         return self.data.get("actual_value")
 
     @property
     def assertion_message(self) -> str:
+        """Return the assertion message."""
         return self.data.get("assertion_message", "")
 
     @property
     def assertion_details(self) -> Dict[str, Any]:
+        """Return the assertion details."""
         return self.data.get("assertion_details", {})
 
 
@@ -267,6 +289,7 @@ class AssertionErrorEvent(AssertionEvent):
         error_details: Optional[Dict[str, Any]] = None,
         recoverable: bool = False,
     ):
+        """Initialize assertion error event."""
         super().__init__(
             event_type=AssertionEventType.ERROR,
             assertion_id=assertion_id,
@@ -284,18 +307,22 @@ class AssertionErrorEvent(AssertionEvent):
 
     @property
     def error_message(self) -> str:
+        """Return the error message."""
         return self.data.get("error_message", "")
 
     @property
     def error_type(self) -> str:
+        """Return the error type."""
         return self.data.get("error_type", "unknown")
 
     @property
     def error_details(self) -> Dict[str, Any]:
+        """Return the error details."""
         return self.data.get("error_details", {})
 
     @property
     def recoverable(self) -> bool:
+        """Return whether the error is recoverable."""
         return self.data.get("recoverable", False)
 
 
@@ -311,6 +338,7 @@ class AssertionUnknownEvent(AssertionEvent):
         reason: str = "",
         context: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize assertion unknown event."""
         super().__init__(
             event_type=AssertionEventType.UNKNOWN,
             assertion_id=assertion_id,
@@ -326,8 +354,10 @@ class AssertionUnknownEvent(AssertionEvent):
 
     @property
     def reason(self) -> str:
+        """Return the reason."""
         return self.data.get("reason", "")
 
     @property
     def context(self) -> Dict[str, Any]:
+        """Return the context."""
         return self.data.get("context", {})

@@ -1,5 +1,4 @@
-"""
-Step Events
+"""Step Events.
 
 This module defines events specific to step execution and management.
 """
@@ -32,6 +31,7 @@ class StepEvent(BaseEvent):
         test_case_id: Optional[str] = None,
         data: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize step event."""
         merged_data = data or {}
         merged_data.update({"step_name": step_name, "test_case_id": test_case_id})
 
@@ -47,10 +47,12 @@ class StepEvent(BaseEvent):
 
     @property
     def step_name_property(self) -> str:
+        """Return the step name."""
         return self.data.get("step_name", "")
 
     @property
     def test_case_id_property(self) -> Optional[str]:
+        """Return the test case ID."""
         return self.data.get("test_case_id")
 
 
@@ -65,6 +67,7 @@ class StepExecutionStartedEvent(StepEvent):
         step_config: Optional[Dict[str, Any]] = None,
         prerequisites: Optional[list] = None,
     ):
+        """Initialize step execution started event."""
         super().__init__(
             event_type=StepEventType.EXECUTION_STARTED,
             step_id=step_id,
@@ -79,10 +82,12 @@ class StepExecutionStartedEvent(StepEvent):
 
     @property
     def step_config(self) -> Dict[str, Any]:
+        """Return the step configuration."""
         return self.data.get("step_config", {})
 
     @property
     def prerequisites(self) -> list:
+        """Return the prerequisites."""
         return self.data.get("prerequisites", [])
 
 
@@ -98,6 +103,7 @@ class StepExecutionCompletedEvent(StepEvent):
         result: Optional[Dict[str, Any]] = None,
         output: Optional[str] = None,
     ):
+        """Initialize step execution completed event."""
         super().__init__(
             event_type=StepEventType.EXECUTION_COMPLETED,
             step_id=step_id,
@@ -113,14 +119,17 @@ class StepExecutionCompletedEvent(StepEvent):
 
     @property
     def duration(self) -> Optional[float]:
+        """Return the execution duration."""
         return self.data.get("duration")
 
     @property
     def result(self) -> Dict[str, Any]:
+        """Return the execution result."""
         return self.data.get("result", {})
 
     @property
     def output(self) -> Optional[str]:
+        """Return the execution output."""
         return self.data.get("output")
 
 
@@ -137,6 +146,7 @@ class StepExecutionFailedEvent(StepEvent):
         duration: Optional[float] = None,
         retry_count: int = 0,
     ):
+        """Initialize step execution failed event."""
         super().__init__(
             event_type=StepEventType.EXECUTION_FAILED,
             step_id=step_id,
@@ -153,18 +163,22 @@ class StepExecutionFailedEvent(StepEvent):
 
     @property
     def error_message(self) -> str:
+        """Return the error message."""
         return self.data.get("error_message", "")
 
     @property
     def error_details(self) -> Dict[str, Any]:
+        """Return the error details."""
         return self.data.get("error_details", {})
 
     @property
     def duration(self) -> Optional[float]:
+        """Return the execution duration before failure."""
         return self.data.get("duration")
 
     @property
     def retry_count(self) -> int:
+        """Return the retry count."""
         return self.data.get("retry_count", 0)
 
 
@@ -180,6 +194,7 @@ class StepProgressEvent(StepEvent):
         progress_message: str = "",
         current_operation: Optional[str] = None,
     ):
+        """Initialize step progress event."""
         super().__init__(
             event_type=StepEventType.PROGRESS,
             step_id=step_id,
@@ -195,14 +210,17 @@ class StepProgressEvent(StepEvent):
 
     @property
     def progress_percentage(self) -> Optional[float]:
+        """Return the progress percentage."""
         return self.data.get("progress_percentage")
 
     @property
     def progress_message(self) -> str:
+        """Return the progress message."""
         return self.data.get("progress_message", "")
 
     @property
     def current_operation(self) -> Optional[str]:
+        """Return the current operation."""
         return self.data.get("current_operation")
 
 
@@ -217,6 +235,7 @@ class StepUnsupportedEvent(StepEvent):
         reason: str = "",
         alternative_steps: Optional[list] = None,
     ):
+        """Initialize step unsupported event."""
         super().__init__(
             event_type=StepEventType.UNSUPPORTED,
             step_id=step_id,
@@ -231,10 +250,12 @@ class StepUnsupportedEvent(StepEvent):
 
     @property
     def reason(self) -> str:
+        """Return the unsupported reason."""
         return self.data.get("reason", "")
 
     @property
     def alternative_steps(self) -> list:
+        """Return the alternative steps."""
         return self.data.get("alternative_steps", [])
 
 
@@ -249,6 +270,7 @@ class StepSkippedEvent(StepEvent):
         skip_reason: str = "",
         skip_condition: Optional[str] = None,
     ):
+        """Initialize step skipped event."""
         super().__init__(
             event_type=StepEventType.SKIPPED,
             step_id=step_id,
@@ -263,8 +285,10 @@ class StepSkippedEvent(StepEvent):
 
     @property
     def skip_reason(self) -> str:
+        """Return the skip reason."""
         return self.data.get("skip_reason", "")
 
     @property
     def skip_condition(self) -> Optional[str]:
+        """Return the skip condition."""
         return self.data.get("skip_condition")

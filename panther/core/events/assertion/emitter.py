@@ -1,7 +1,4 @@
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
-
-"""
-Assertion Event Emitter
+"""Assertion Event Emitter.
 
 This module provides a type-safe event emitter for assertion-related events.
 """
@@ -17,40 +14,40 @@ from panther.core.events.assertion.events import (
     AssertionResultEvent,
     AssertionsValidationCompletedEvent,
     AssertionsValidationStartedEvent,
-    AssertionUnknownEvent,
 )
 
 
 class AssertionEventEmitter:
-    """, TYPE_CHECKING
-    Type-safe event emitter for assertion-related events.
+    """Type-safe event emitter for assertion-related events.
 
     This class provides methods for emitting all assertion validation events
     with proper typing and validation.
     """
 
     def __init__(self, event_manager: "EventManager"):
-        """
-        Initialize the assertion event emitter.
+        """Initialize the assertion event emitter.
 
         Args:
             event_manager: Event manager to use for event emission
         """
         self.event_manager = event_manager
 
-    def emit_assertions_validation_started(
+    def emit_assertion_validation_started(
         self,
-        assertion_id: str,
-        assertion_name: str,
+        test_name: Optional[str] = None,
+        assertion_count: Optional[int] = None,
+        assertion_id: Optional[str] = None,
+        assertion_name: Optional[str] = None,
         test_case_id: Optional[str] = None,
         step_id: Optional[str] = None,
         total_assertions: Optional[int] = None,
         validation_config: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """
-        Emit an assertions validation started event.
+        """Emit an assertion validation started event.
 
         Args:
+            test_name: Name of the test (convenience shorthand for assertion_id/name)
+            assertion_count: Number of assertions (convenience shorthand for total_assertions)
             assertion_id: Unique assertion identifier
             assertion_name: Human-readable assertion name
             test_case_id: ID of the test case this assertion belongs to
@@ -58,6 +55,16 @@ class AssertionEventEmitter:
             total_assertions: Total number of assertions to be validated
             validation_config: Configuration for the validation process
         """
+        # Support simplified caller interface
+        if assertion_id is None:
+            assertion_id = test_name or "unknown"
+        if assertion_name is None:
+            assertion_name = test_name or "unknown"
+        if test_case_id is None:
+            test_case_id = test_name
+        if total_assertions is None:
+            total_assertions = assertion_count
+
         event = AssertionsValidationStartedEvent(
             assertion_id=assertion_id,
             assertion_name=assertion_name,
@@ -68,22 +75,27 @@ class AssertionEventEmitter:
         )
         self.event_manager.notify(event)
 
-    def emit_assertions_validation_completed(
+    def emit_assertion_validation_completed(
         self,
-        assertion_id: str,
-        assertion_name: str,
+        test_name: Optional[str] = None,
+        passed: int = 0,
+        failed: int = 0,
+        assertion_id: Optional[str] = None,
+        assertion_name: Optional[str] = None,
         test_case_id: Optional[str] = None,
         step_id: Optional[str] = None,
         duration: Optional[float] = None,
-        passed_count: int = 0,
-        failed_count: int = 0,
+        passed_count: Optional[int] = None,
+        failed_count: Optional[int] = None,
         total_count: int = 0,
         summary: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """
-        Emit an assertions validation completed event.
+        """Emit an assertion validation completed event.
 
         Args:
+            test_name: Name of the test (convenience shorthand for assertion_id/name)
+            passed: Number of passed assertions (convenience shorthand for passed_count)
+            failed: Number of failed assertions (convenience shorthand for failed_count)
             assertion_id: Unique assertion identifier
             assertion_name: Human-readable assertion name
             test_case_id: ID of the test case this assertion belongs to
@@ -94,6 +106,20 @@ class AssertionEventEmitter:
             total_count: Total number of assertions processed
             summary: Summary of validation results
         """
+        # Support simplified caller interface
+        if assertion_id is None:
+            assertion_id = test_name or "unknown"
+        if assertion_name is None:
+            assertion_name = test_name or "unknown"
+        if test_case_id is None:
+            test_case_id = test_name
+        if passed_count is None:
+            passed_count = passed
+        if failed_count is None:
+            failed_count = failed
+        if total_count == 0:
+            total_count = passed_count + failed_count
+
         event = AssertionsValidationCompletedEvent(
             assertion_id=assertion_id,
             assertion_name=assertion_name,
@@ -117,8 +143,7 @@ class AssertionEventEmitter:
         total_assertions: Optional[int] = None,
         progress_message: str = "",
     ) -> None:
-        """
-        Emit an assertion progress event.
+        """Emit an assertion progress event.
 
         Args:
             assertion_id: Unique assertion identifier
@@ -152,8 +177,7 @@ class AssertionEventEmitter:
         assertion_message: str = "",
         assertion_details: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """
-        Emit an assertion result event.
+        """Emit an assertion result event.
 
         Args:
             assertion_id: Unique assertion identifier
@@ -190,8 +214,7 @@ class AssertionEventEmitter:
         error_details: Optional[Dict[str, Any]] = None,
         recoverable: bool = False,
     ) -> None:
-        """
-        Emit an assertion error event.
+        """Emit an assertion error event.
 
         Args:
             assertion_id: Unique assertion identifier
@@ -215,32 +238,46 @@ class AssertionEventEmitter:
         )
         self.event_manager.notify(event)
 
-    def emit_assertion_unknown(
+    def emit_assertion_validation_failed(
         self,
-        assertion_id: str,
-        assertion_name: str,
+        test_name: Optional[str] = None,
+        error: str = "",
+        assertion_id: Optional[str] = None,
+        assertion_name: Optional[str] = None,
         test_case_id: Optional[str] = None,
         step_id: Optional[str] = None,
-        reason: str = "",
-        context: Optional[Dict[str, Any]] = None,
+        error_details: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """
-        Emit an assertion unknown event.
+        """Emit an assertion validation failed event.
+
+        This is emitted when the overall assertion validation process fails
+        (as opposed to individual assertion errors).
 
         Args:
+            test_name: Name of the test (convenience shorthand for assertion_id/name)
+            error: Error message (convenience shorthand for error_message)
             assertion_id: Unique assertion identifier
             assertion_name: Human-readable assertion name
             test_case_id: ID of the test case this assertion belongs to
             step_id: ID of the step this assertion belongs to
-            reason: Reason why the result is unknown
-            context: Additional context information
+            error_details: Additional error details
         """
-        event = AssertionUnknownEvent(
+        # Support simplified caller interface
+        if assertion_id is None:
+            assertion_id = test_name or "unknown"
+        if assertion_name is None:
+            assertion_name = test_name or "unknown"
+        if test_case_id is None:
+            test_case_id = test_name
+
+        event = AssertionErrorEvent(
             assertion_id=assertion_id,
             assertion_name=assertion_name,
             test_case_id=test_case_id,
             step_id=step_id,
-            reason=reason,
-            context=context,
+            error_message=error,
+            error_type="validation_failed",
+            error_details=error_details,
+            recoverable=False,
         )
         self.event_manager.notify(event)

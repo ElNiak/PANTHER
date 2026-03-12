@@ -8,6 +8,9 @@ Exception Hierarchy::
     ├── PantherException                          (fast_fail.py)
     │   ├── DockerBuildException
     │   ├── PluginLoadException
+    │   │   ├── EnvironmentPluginNotFound
+    │   │   ├── ServicePluginNotFound
+    │   │   └── TesterPluginNotFound
     │   ├── ServiceStartException
     │   ├── DockerComposeException
     │   ├── NetworkSetupException
@@ -33,9 +36,6 @@ Exception Hierarchy::
     │       ├── EnvironmentResolutionException
     │       ├── PlaceholderValidationException
     │       └── NetworkDiscoveryException
-    ├── EnvironmentPluginNotFound
-    ├── ServicePluginNotFound
-    └── TesterPluginNotFound
 
 ConfigurationException vs ConfigurationError:
     Use ``ConfigurationException`` (fast_fail.py, severity HIGH) for
@@ -46,7 +46,12 @@ ConfigurationException vs ConfigurationError:
 
 # Import exceptions for easier access
 from .EnvironmentPluginNotFound import EnvironmentPluginNotFound
-from .fast_fail import ErrorCategory, ErrorSeverity, PantherException
+from .fast_fail import (
+    ErrorCategory,
+    ErrorSeverity,
+    PantherException,
+    PluginLoadException,
+)
 from .network_resolution_exceptions import (
     EnvironmentResolutionException,
     NetworkDiscoveryException,
@@ -64,6 +69,7 @@ __all__ = [
     "ServicePluginNotFound",
     "TesterPluginNotFound",
     "PantherException",
+    "PluginLoadException",
     "ErrorCategory",
     "ErrorSeverity",
     "NetworkResolutionException",

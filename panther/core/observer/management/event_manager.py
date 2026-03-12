@@ -30,7 +30,7 @@ Module-level convenience function:
 
 See Also:
     `panther.core.observer.base.observer_interface.IObserver`
-    `panther.core.observer.factory.observer_factory.ObserverFactory`
+    `panther.core.observer.factory.ObserverFactory`
 """
 
 import logging

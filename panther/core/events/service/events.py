@@ -1,12 +1,10 @@
-from typing import Any, Dict, List, Optional
-
-"""
-Service Events
+"""Service Events.
 
 This module defines events specific to service lifecycle management.
 """
 
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
 from panther.core.events.base.event_base import BaseEvent, EventType
 
@@ -40,6 +38,7 @@ class ServiceEvent(BaseEvent):
         service_id: str,
         data: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize service event."""
         super().__init__(
             name=event_type.value,
             entity_type=EventType.SERVICE,
@@ -60,6 +59,7 @@ class ServiceCreatedEvent(ServiceEvent):
         implementation: str,
         config: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize service created event."""
         super().__init__(
             event_type=ServiceEventType.CREATED,
             service_id=service_id,
@@ -81,6 +81,7 @@ class ServicePreparationStartedEvent(ServiceEvent):
         service_name: str,
         preparation_steps: Optional[List[str]] = None,
     ):
+        """Initialize service preparation started event."""
         super().__init__(
             event_type=ServiceEventType.PREPARATION_STARTED,
             service_id=service_id,
@@ -101,6 +102,7 @@ class ServicePreparationCompletedEvent(ServiceEvent):
         duration_seconds: Optional[float] = None,
         artifacts: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize service preparation completed event."""
         super().__init__(
             event_type=ServiceEventType.PREPARATION_COMPLETED,
             service_id=service_id,
@@ -123,6 +125,7 @@ class ServicePreparationFailedEvent(ServiceEvent):
         error_type: Optional[str] = None,
         failed_step: Optional[str] = None,
     ):
+        """Initialize service preparation failed event."""
         super().__init__(
             event_type=ServiceEventType.PREPARATION_FAILED,
             service_id=service_id,
@@ -145,6 +148,7 @@ class ServiceDeploymentStartedEvent(ServiceEvent):
         environment: str,
         deployment_config: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize service deployment started event."""
         super().__init__(
             event_type=ServiceEventType.DEPLOYMENT_STARTED,
             service_id=service_id,
@@ -168,6 +172,7 @@ class ServiceDeploymentCompletedEvent(ServiceEvent):
         ports: Optional[List[int]] = None,
         deployment_details: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize service deployment completed event."""
         super().__init__(
             event_type=ServiceEventType.DEPLOYMENT_COMPLETED,
             service_id=service_id,
@@ -192,6 +197,7 @@ class ServiceDeploymentFailedEvent(ServiceEvent):
         error_message: str,
         error_type: Optional[str] = None,
     ):
+        """Initialize service deployment failed event."""
         super().__init__(
             event_type=ServiceEventType.DEPLOYMENT_FAILED,
             service_id=service_id,
@@ -214,6 +220,7 @@ class ServiceStartedEvent(ServiceEvent):
         pid: Optional[int] = None,
         start_time: Optional[str] = None,
     ):
+        """Initialize service started event."""
         super().__init__(
             event_type=ServiceEventType.STARTED,
             service_id=service_id,
@@ -230,6 +237,7 @@ class ServiceReadyEvent(ServiceEvent):
         service_name: str,
         readiness_checks: Optional[Dict[str, bool]] = None,
     ):
+        """Initialize service ready event."""
         super().__init__(
             event_type=ServiceEventType.READY,
             service_id=service_id,
@@ -251,6 +259,7 @@ class ServiceHealthCheckPassedEvent(ServiceEvent):
         endpoint: Optional[str] = None,
         response_time_ms: Optional[float] = None,
     ):
+        """Initialize service health check passed event."""
         super().__init__(
             event_type=ServiceEventType.HEALTH_CHECK_PASSED,
             service_id=service_id,
@@ -275,6 +284,7 @@ class ServiceHealthCheckFailedEvent(ServiceEvent):
         endpoint: Optional[str] = None,
         status_code: Optional[int] = None,
     ):
+        """Initialize service health check failed event."""
         super().__init__(
             event_type=ServiceEventType.HEALTH_CHECK_FAILED,
             service_id=service_id,
@@ -299,6 +309,7 @@ class ServiceStoppedEvent(ServiceEvent):
         reason: Optional[str] = None,
         uptime_seconds: Optional[float] = None,
     ):
+        """Initialize service stopped event."""
         super().__init__(
             event_type=ServiceEventType.STOPPED,
             service_id=service_id,
@@ -322,6 +333,7 @@ class ServiceErrorEvent(ServiceEvent):
         error_type: Optional[str] = None,
         error_details: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize service error event."""
         super().__init__(
             event_type=ServiceEventType.ERROR,
             service_id=service_id,
@@ -343,6 +355,7 @@ class ServiceDestroyedEvent(ServiceEvent):
         service_name: str,
         cleanup_details: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize service destroyed event."""
         super().__init__(
             event_type=ServiceEventType.DESTROYED,
             service_id=service_id,
@@ -364,6 +377,7 @@ class ServiceTestResultsEvent(ServiceEvent):
         overall_success: bool,
         test_summary: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize service test results event."""
         super().__init__(
             event_type=ServiceEventType.TEST_RESULTS,
             service_id=service_id,
@@ -378,14 +392,17 @@ class ServiceTestResultsEvent(ServiceEvent):
 
     @property
     def test_results(self) -> Dict[str, Any]:
+        """Return the test results."""
         return self.data.get("test_results", {})
 
     @property
     def overall_success(self) -> bool:
+        """Return whether all tests passed."""
         return self.data.get("overall_success", False)
 
     @property
     def test_summary(self) -> Dict[str, Any]:
+        """Return the test summary."""
         return self.data.get("test_summary", {})
 
 
@@ -399,6 +416,7 @@ class CommandGenerationStartedEvent(ServiceEvent):
         phase: str,
         config: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize command generation started event."""
         super().__init__(
             event_type=ServiceEventType.PREPARATION_STARTED,
             service_id=service_id,
@@ -422,6 +440,7 @@ class CommandGeneratedEvent(ServiceEvent):
         command: str,
         command_type: Optional[str] = None,
     ):
+        """Initialize command generated event."""
         super().__init__(
             event_type=ServiceEventType.PREPARATION_COMPLETED,
             service_id=service_id,
@@ -448,6 +467,7 @@ class CommandModifiedEvent(ServiceEvent):
         modifier: str,  # e.g., "strace", "gperf", etc.
         modification_details: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize command modified event."""
         super().__init__(
             event_type=ServiceEventType.PREPARATION_COMPLETED,
             service_id=service_id,
@@ -473,6 +493,7 @@ class DockerBuildStartedEvent(ServiceEvent):
         dockerfile_path: str,
         image_name: Optional[str] = None,
     ):
+        """Initialize Docker build started event."""
         super().__init__(
             event_type=ServiceEventType.PREPARATION_STARTED,
             service_id=service_id,
@@ -497,6 +518,7 @@ class DockerBuildCompletedEvent(ServiceEvent):
         error_message: Optional[str] = None,
         build_duration: Optional[float] = None,
     ):
+        """Initialize Docker build completed event."""
         super().__init__(
             event_type=ServiceEventType.PREPARATION_COMPLETED,
             service_id=service_id,
@@ -522,6 +544,7 @@ class DockerBuildFailedEvent(ServiceEvent):
         error_message: str,
         build_duration: Optional[float] = None,
     ):
+        """Initialize Docker build failed event."""
         super().__init__(
             event_type=ServiceEventType.ERROR,
             service_id=service_id,
@@ -546,6 +569,7 @@ class ConfigGeneratedEvent(ServiceEvent):
         config_content: Optional[str] = None,
         services_included: Optional[List[str]] = None,
     ):
+        """Initialize config generated event."""
         super().__init__(
             event_type=ServiceEventType.DEPLOYMENT_STARTED,
             service_id=service_id,
@@ -569,6 +593,7 @@ class TesterAnalysisStartedEvent(ServiceEvent):
         inputs: Dict[str, str],
         analysis_type: str,
     ):
+        """Initialize tester analysis started event."""
         super().__init__(
             event_type=ServiceEventType.TEST_RESULTS,
             service_id=service_id,
@@ -593,6 +618,7 @@ class TesterAnalysisCompletedEvent(ServiceEvent):
         warnings: Optional[List[str]] = None,
         detailed_results: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize tester analysis completed event."""
         super().__init__(
             event_type=ServiceEventType.TEST_RESULTS,
             service_id=service_id,

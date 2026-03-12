@@ -1,24 +1,17 @@
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
-
-"""
-Environment Event Emitter
+"""Environment Event Emitter.
 
 This module provides typed event emission for environment lifecycle events.
 """
+
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
     from panther.core.observer.management.event_manager import EventManager
 
 from panther.core.events.environment.events import (
-    EnvironmentConfigurationEvent,
     EnvironmentCreatedEvent,
     EnvironmentDestroyedEvent,
     EnvironmentErrorEvent,
-    EnvironmentInitializationCompletedEvent,
-    EnvironmentInitializationFailedEvent,
-    EnvironmentInitializationStartedEvent,
-    EnvironmentMonitoringEvent,
-    EnvironmentReadyEvent,
     EnvironmentResourceEvent,
     EnvironmentSetupCompletedEvent,
     EnvironmentSetupFailedEvent,
@@ -35,17 +28,14 @@ from panther.core.events.experiment.events import ExperimentFinishedEarlyEvent
 
 
 class EnvironmentEventEmitter:
-    """
-
-    Type-safe event emitter for environment-related events.
+    """Type-safe event emitter for environment-related events.
 
     This class provides methods for emitting all environment lifecycle events
     with proper typing and validation.
     """
 
     def __init__(self, event_manager: "EventManager"):
-        """
-        Initialize the environment event emitter.
+        """Initialize the environment event emitter.
 
         Args:
             event_manager: Event manager to use for event emission
@@ -59,8 +49,7 @@ class EnvironmentEventEmitter:
         environment_type: str,
         environment_config: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """
-        Emit an environment created event.
+        """Emit an environment created event.
 
         Args:
             environment_id: Unique environment identifier
@@ -76,90 +65,6 @@ class EnvironmentEventEmitter:
         )
         self.event_manager.notify(event)
 
-    def emit_environment_initialization_started(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        initialization_config: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        """
-        Emit an environment initialization started event.
-
-        Args:
-            environment_id: Unique environment identifier
-            environment_name: Human-readable environment name
-            environment_type: Type of environment
-            initialization_config: Initialization configuration details
-        """
-        event = EnvironmentInitializationStartedEvent(
-            environment_id=environment_id,
-            environment_name=environment_name,
-            environment_type=environment_type,
-            initialization_type=(
-                initialization_config.get("type", "default")
-                if initialization_config
-                else "default"
-            ),
-        )
-        self.event_manager.notify(event)
-
-    def emit_environment_initialization_completed(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        duration_seconds: Optional[float] = None,
-        initialization_details: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        """
-        Emit an environment initialization completed event.
-
-        Args:
-            environment_id: Unique environment identifier
-            environment_name: Human-readable environment name
-            environment_type: Type of environment
-            duration_seconds: Time taken for initialization in seconds
-            initialization_details: Details about the initialization
-        """
-        event = EnvironmentInitializationCompletedEvent(
-            environment_id=environment_id,
-            environment_name=environment_name,
-            environment_type=environment_type,
-            duration=duration_seconds or 0.0,
-            initialization_details=initialization_details,
-        )
-        self.event_manager.notify(event)
-
-    def emit_environment_initialization_failed(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        error_message: str,
-        error_type: Optional[str] = None,
-        error_details: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        """
-        Emit an environment initialization failed event.
-
-        Args:
-            environment_id: Unique environment identifier
-            environment_name: Human-readable environment name
-            environment_type: Type of environment
-            error_message: Error message describing the failure
-            error_type: Type/category of error
-            error_details: Additional error details
-        """
-        event = EnvironmentInitializationFailedEvent(
-            environment_id=environment_id,
-            environment_name=environment_name,
-            environment_type=environment_type,
-            error_message=error_message,
-            error_details=error_details,
-        )
-        self.event_manager.notify(event)
-
     def emit_environment_setup_started(
         self,
         environment_id: str,
@@ -167,8 +72,7 @@ class EnvironmentEventEmitter:
         environment_type: str,
         setup_config: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """
-        Emit an environment setup started event.
+        """Emit an environment setup started event.
 
         Args:
             environment_id: Unique environment identifier
@@ -192,8 +96,7 @@ class EnvironmentEventEmitter:
         duration_seconds: Optional[float] = None,
         setup_details: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """
-        Emit an environment setup completed event.
+        """Emit an environment setup completed event.
 
         Args:
             environment_id: Unique environment identifier
@@ -220,8 +123,7 @@ class EnvironmentEventEmitter:
         error_type: Optional[str] = None,
         failed_component: Optional[str] = None,
     ) -> None:
-        """
-        Emit an environment setup failed event.
+        """Emit an environment setup failed event.
 
         Args:
             environment_id: Unique environment identifier
@@ -239,32 +141,6 @@ class EnvironmentEventEmitter:
         )
         self.event_manager.notify(event)
 
-    def emit_environment_ready(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        readiness_checks: Optional[Dict[str, bool]] = None,
-        resources: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        """
-        Emit an environment ready event.
-
-        Args:
-            environment_id: Unique environment identifier
-            environment_name: Human-readable environment name
-            environment_type: Type of environment
-            readiness_checks: Results of readiness checks
-            resources: Available resources in the environment
-        """
-        event = EnvironmentReadyEvent(
-            environment_id=environment_id,
-            environment_name=environment_name,
-            environment_type=environment_type,
-            readiness_checks=readiness_checks,
-        )
-        self.event_manager.notify(event)
-
     def emit_environment_teardown_started(
         self,
         environment_id: str,
@@ -272,8 +148,7 @@ class EnvironmentEventEmitter:
         environment_type: str,
         reason: Optional[str] = None,
     ) -> None:
-        """
-        Emit an environment teardown started event.
+        """Emit an environment teardown started event.
 
         Args:
             environment_id: Unique environment identifier
@@ -296,8 +171,7 @@ class EnvironmentEventEmitter:
         duration_seconds: Optional[float] = None,
         cleanup_details: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """
-        Emit an environment teardown completed event.
+        """Emit an environment teardown completed event.
 
         Args:
             environment_id: Unique environment identifier
@@ -324,8 +198,7 @@ class EnvironmentEventEmitter:
         error_type: Optional[str] = None,
         partial_cleanup: Optional[bool] = None,
     ) -> None:
-        """
-        Emit an environment teardown failed event.
+        """Emit an environment teardown failed event.
 
         Args:
             environment_id: Unique environment identifier
@@ -350,8 +223,7 @@ class EnvironmentEventEmitter:
         environment_type: str,
         cleanup_summary: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """
-        Emit an environment destroyed event.
+        """Emit an environment destroyed event.
 
         Args:
             environment_id: Unique environment identifier
@@ -376,8 +248,7 @@ class EnvironmentEventEmitter:
         error_type: Optional[str] = None,
         error_details: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """
-        Emit an environment error event.
+        """Emit an environment error event.
 
         Args:
             environment_id: Unique environment identifier
@@ -421,8 +292,7 @@ class EnvironmentEventEmitter:
         resource_action: str,
         resource_details: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """
-        Emit an environment resource event.
+        """Emit an environment resource event.
 
         Args:
             environment_id: Unique environment identifier
@@ -442,98 +312,10 @@ class EnvironmentEventEmitter:
         )
         self.event_manager.notify(event)
 
-    def emit_environment_configuration(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        configuration_action: str,
-        configuration: Dict[str, Any],
-        validation_result: Optional[bool] = None,
-    ) -> None:
-        """
-        Emit an environment configuration event.
-
-        Args:
-            environment_id: Unique environment identifier
-            environment_name: Human-readable environment name
-            environment_type: Type of environment
-            configuration_action: Action performed (loaded, validated, applied)
-            configuration: Configuration data
-            validation_result: Result of configuration validation
-        """
-        event = EnvironmentConfigurationEvent(
-            environment_id=environment_id,
-            environment_name=environment_name,
-            environment_type=environment_type,
-            config_change=configuration,
-        )
-        self.event_manager.notify(event)
-
-    def emit_environment_monitoring(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        monitoring_type: str,
-        metrics: Dict[str, Any],
-        timestamp: Optional[str] = None,
-    ) -> None:
-        """
-        Emit an environment monitoring event.
-
-        Args:
-            environment_id: Unique environment identifier
-            environment_name: Human-readable environment name
-            environment_type: Type of environment
-            monitoring_type: Type of monitoring data (resources, performance, health)
-            metrics: Monitoring metrics data
-            timestamp: Timestamp of the monitoring data
-        """
-        event = EnvironmentMonitoringEvent(
-            environment_id=environment_id,
-            environment_name=environment_name,
-            environment_type=environment_type,
-            metric_name=monitoring_type,
-            metric_value=metrics,
-        )
-        self.event_manager.notify(event)
-
-    def emit_environment_initialized(
-        self,
-        environment_type: str,
-        environment_name: str,
-        config: Optional[Dict[str, Any]] = None,
-        duration_seconds: Optional[float] = None,
-    ) -> None:
-        """
-        Emit environment initialized event (compatibility wrapper).
-
-        This is a convenience method that wraps emit_environment_initialization_completed
-        for backward compatibility.
-
-        Args:
-            environment_type: Type of environment
-            environment_name: Name of the environment
-            config: Environment configuration
-            duration_seconds: Time taken to initialize
-        """
-        # Generate a consistent environment ID
-        environment_id = f"{environment_type}_{environment_name}"
-
-        self.emit_environment_initialization_completed(
-            environment_id=environment_id,
-            environment_name=environment_name,
-            environment_type=environment_type,
-            duration_seconds=duration_seconds,
-            initialization_details={"config": config} if config else None,
-        )
-
     def emit_environment_teardown(
         self, environment_type: str, environment_name: str, reason: Optional[str] = None
     ) -> None:
-        """
-        Emit environment teardown event (compatibility wrapper).
+        """Emit environment teardown event (compatibility wrapper).
 
         This is a convenience method that wraps emit_environment_teardown_started
         for backward compatibility.
@@ -553,6 +335,62 @@ class EnvironmentEventEmitter:
             reason=reason,
         )
 
+    def emit_environment_modification_started(
+        self,
+        environment_id: str,
+        environment_name: str,
+        environment_type: str,
+        target_service: str,
+        modification_type: str,
+    ) -> None:
+        """Emit an environment modification started event.
+
+        Args:
+            environment_id: Unique environment identifier
+            environment_name: Human-readable environment name
+            environment_type: Type of environment
+            target_service: Name of the service being modified
+            modification_type: Type of modification being applied
+        """
+        from .events import EnvironmentModificationStartedEvent
+
+        event = EnvironmentModificationStartedEvent(
+            environment_id=environment_id,
+            environment_name=environment_name,
+            environment_type=environment_type,
+            target_service=target_service,
+            modification_type=modification_type,
+        )
+        self.event_manager.notify(event)
+
+    def emit_environment_modification_completed(
+        self,
+        environment_id: str,
+        environment_name: str,
+        environment_type: str,
+        modifications: Optional[Dict[str, Any]] = None,
+        modification_summary: str = "",
+    ) -> None:
+        """Emit an environment modification completed event.
+
+        Args:
+            environment_id: Unique environment identifier
+            environment_name: Human-readable environment name
+            environment_type: Type of environment
+            modifications: Dictionary of modifications applied
+            modification_summary: Human-readable summary of modifications
+        """
+        from .events import EnvironmentModificationCompletedEvent
+
+        event = EnvironmentModificationCompletedEvent(
+            environment_id=environment_id,
+            environment_name=environment_name,
+            environment_type=environment_type,
+            modifications=modifications,
+            modification_summary=modification_summary,
+        )
+        self.event_manager.notify(event)
+
     def emit_environment_deployment_started(
         self,
         environment_id: str,
@@ -561,8 +399,7 @@ class EnvironmentEventEmitter:
         services: List[str],
         deployment_config: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """
-        Emit environment deployment started event.
+        """Emit environment deployment started event.
 
         Args:
             environment_id: Unique environment identifier
@@ -592,8 +429,7 @@ class EnvironmentEventEmitter:
         duration: float,
         deployment_details: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """
-        Emit environment deployment completed event.
+        """Emit environment deployment completed event.
 
         Args:
             environment_id: Unique environment identifier
@@ -627,8 +463,7 @@ class EnvironmentEventEmitter:
         failed_services: Optional[List[str]] = None,
         error_details: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """
-        Emit environment deployment failed event.
+        """Emit environment deployment failed event.
 
         Args:
             environment_id: Unique environment identifier
@@ -660,8 +495,7 @@ class EnvironmentEventEmitter:
         collection_targets: Optional[List[str]] = None,
         collection_config: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """
-        Emit output collection started event.
+        """Emit output collection started event.
 
         Args:
             environment_id: Unique environment identifier
@@ -689,8 +523,7 @@ class EnvironmentEventEmitter:
         output_size: Optional[int] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """
-        Emit output collected event.
+        """Emit output collected event.
 
         Args:
             environment_id: Unique environment identifier
@@ -720,8 +553,7 @@ class EnvironmentEventEmitter:
         outputs: Dict[str, str],
         metadata: Dict[str, Dict[str, Any]],
     ) -> None:
-        """
-        Emit batch outputs collected event for all outputs from an environment.
+        """Emit batch outputs collected event for all outputs from an environment.
 
         Args:
             environment_id: Unique environment identifier
@@ -769,8 +601,7 @@ class EnvironmentEventEmitter:
         collection_duration: float,
         collection_summary: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """
-        Emit output collection completed event.
+        """Emit output collection completed event.
 
         Args:
             environment_id: Unique environment identifier
@@ -801,8 +632,7 @@ class EnvironmentEventEmitter:
         error_type: str = "collection_error",
         error_details: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """
-        Emit output collection failed event.
+        """Emit output collection failed event.
 
         Args:
             environment_id: Unique environment identifier

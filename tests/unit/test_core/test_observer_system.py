@@ -1,5 +1,4 @@
-"""
-Unit tests for PANTHER Observer System.
+"""Unit tests for PANTHER Observer System.
 
 Tests the real observer pattern implementation: MetricsObserver,
 StateEventObserver, StorageObserver, CommandAuditObserver, ResultsManager,
@@ -930,7 +929,7 @@ class TestObserverFactory:
 
     def test_initialization(self, real_observer_factory):
         """ObserverFactory initializes with default observer types registered."""
-        from panther.core.observer.factory.observer_factory import ObserverFactory
+        from panther.core.observer.factory import ObserverFactory
 
         factory = real_observer_factory
         assert isinstance(factory, ObserverFactory)

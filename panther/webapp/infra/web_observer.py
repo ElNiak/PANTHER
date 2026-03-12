@@ -56,7 +56,7 @@ from typing import Any, Callable, Dict, List, Optional, Set, Union
 
 from panther.core.events.base.event_base import BaseEvent
 from panther.core.events.event_summarizer import EventImportance, EventSummarizer
-from panther.core.observer.impl.gui_observer import GUIObserver
+from panther.core.observer.base.observer_interface import IObserver
 
 logger = logging.getLogger(__name__)
 
@@ -99,13 +99,11 @@ class Subscription:
     consecutive_failures: int = 0
 
 
-class WebObserver(GUIObserver):
+class WebObserver(IObserver):
     """Event bridge that adapts PANTHER's observer subsystem for NiceGUI.
 
-    WebObserver extends ``GUIObserver`` (PANTHER's base class for GUI-bound
-    observers, which maintains an ``event_history`` ring buffer of up to
-    1 000 events and a ``gui_state`` dict of per-event-type counters and
-    timestamps) and adds:
+    Maintains an ``event_history`` ring buffer of up to 1000 events and a
+    ``gui_state`` dict of per-event-type counters and timestamps, plus:
 
     - **Subscriber dispatch** -- UI components register callbacks via
       ``subscribe()`` and receive ``BaseEvent`` objects that match their
@@ -123,23 +121,23 @@ class WebObserver(GUIObserver):
       write the full event history to JSON for offline analysis.
 
     The event flow is:
-        ``EventManager.notify`` -> ``GUIObserver.on_event`` ->
-        ``GUIObserver._update_gui_state`` -> ``WebObserver.update_gui``
-        (dispatch to subscribers).
+        ``EventManager.notify`` -> ``WebObserver.on_event`` ->
+        ``_update_gui_state`` -> ``_dispatch_to_subscribers``
 
     Thread safety:
         Events arrive from a background thread (the experiment runner in
         ``ExperimentService``).  Under ``self._batch_lock``, the subscriber
         list is snapshot-copied, then iterated outside the lock.  The batch
-        buffer is also protected by ``self._batch_lock``.  Inherited state
-        (``event_history``, ``gui_state``) is protected by
-        ``GUIObserver._state_lock``.
+        buffer is also protected by ``self._batch_lock``.  Event history
+        and gui_state are protected by ``self._state_lock``.
 
     Attributes:
+        event_history: Ring buffer of recent events.
+        gui_state: Per-event-type counters and timestamps.
         _subscriptions: List of active ``Subscription`` registrations.
         _batch_buffer: Events waiting to be flushed to batched subscribers.
         _batching_enabled: Whether batching mode is currently active.
-        _batch_lock: Lock protecting ``_batch_buffer``.
+        _batch_lock: Lock protecting ``_batch_buffer`` and ``_subscriptions``.
 
     Example::
 
@@ -155,12 +153,61 @@ class WebObserver(GUIObserver):
 
     def __init__(self):
         """Initialise the observer with an empty subscriber list and batching disabled."""
-        super().__init__()
+        self.logger = logging.getLogger(f"{self.__class__.__name__}")
+        self._state_lock = threading.RLock()
+        self.event_history: List[BaseEvent] = []
+        self.max_history = 1000
+        self.gui_state: Dict[str, Any] = {}
         self._subscriptions: List[Subscription] = []
         # Batching state
         self._batch_buffer: List[BaseEvent] = []
         self._batching_enabled: bool = False
         self._batch_lock = threading.Lock()
+
+    # ── Event handling (inlined from former GUIObserver) ─────────────
+
+    def on_event(self, event: BaseEvent):
+        """Handle an event by updating state and dispatching to subscribers (thread-safe)."""
+        self.logger.debug(f"GUI received event: {event.get_type()}")
+
+        with self._state_lock:
+            # Store event in history
+            self.event_history.append(event)
+            if len(self.event_history) > self.max_history:
+                self.event_history = self.event_history[-self.max_history :]
+
+            # Update GUI state based on event type
+            self._update_gui_state(event)
+
+        # Dispatch to subscribers (outside lock to avoid holding lock during callbacks)
+        self._dispatch_to_subscribers(event)
+
+    def _update_gui_state(self, event: BaseEvent):
+        """Update internal GUI state based on the event."""
+        event_type = event.get_type()
+        self.gui_state[f"last_{event_type}"] = event.timestamp
+        self.gui_state["last_event"] = event
+
+        # Update counters
+        counter_key = f"{event_type}_count"
+        self.gui_state[counter_key] = self.gui_state.get(counter_key, 0) + 1
+
+    def get_event_history(
+        self, event_type: str = None, limit: int = None
+    ) -> List[BaseEvent]:
+        """Get the event history, optionally filtered by event type (thread-safe)."""
+        with self._state_lock:
+            events = list(self.event_history)
+        if event_type:
+            events = [e for e in events if e.get_type() == event_type]
+        if limit:
+            events = events[-limit:]
+        return events
+
+    def get_gui_state(self) -> Dict[str, Any]:
+        """Get the current GUI state (thread-safe)."""
+        with self._state_lock:
+            return self.gui_state.copy()
 
     # ── Filtering helpers ─────────────────────────────────────────────
 
@@ -273,11 +320,10 @@ class WebObserver(GUIObserver):
 
     # ── Dispatch ──────────────────────────────────────────────────────
 
-    def update_gui(self, event: BaseEvent):
+    def _dispatch_to_subscribers(self, event: BaseEvent):
         """Dispatch an event to all matching subscribers.
 
-        Overrides ``GUIObserver.update_gui``.  Called by the base class's
-        ``on_event`` method after the event has been recorded in the
+        Called by ``on_event`` after the event has been recorded in the
         history and gui_state.
 
         Dispatch behaviour depends on batching state:

@@ -1,7 +1,4 @@
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
-
-"""
-Metrics Event Emitter
+"""Metrics Event Emitter.
 
 This module provides a type-safe event emitter for metrics-related events.
 """
@@ -15,7 +12,6 @@ from panther.core.events.metrics.events import (
     CounterMetricEvent,
     MetricCollectedEvent,
     MetricsSummaryEvent,
-    ResourceMetricEvent,
     TimingMetricEvent,
 )
 
@@ -28,8 +24,7 @@ class MetricsEventEmitter:
     """
 
     def __init__(self, event_manager: "EventManager"):
-        """
-        Initialize the metrics event emitter.
+        """Initialize the metrics event emitter.
 
         Args:
             event_manager: Event manager to use for event emission
@@ -47,8 +42,7 @@ class MetricsEventEmitter:
         labels: Optional[Dict[str, str]] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """
-        Emit a metric collected event.
+        """Emit a metric collected event.
 
         Args:
             metric_name: Name of the metric
@@ -72,33 +66,6 @@ class MetricsEventEmitter:
         )
         self.event_manager.notify(event)
 
-    def emit_resource_metric(
-        self,
-        resource_type: str,
-        usage_value: float,
-        component: Optional[str] = None,
-        test_case: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        """
-        Emit a resource usage metric event.
-
-        Args:
-            resource_type: Type of resource (cpu, memory, etc.)
-            usage_value: Resource usage value
-            component: Component being monitored
-            test_case: Related test case name
-            metadata: Additional metric metadata
-        """
-        event = ResourceMetricEvent(
-            resource_type=resource_type,
-            usage_value=usage_value,
-            component=component,
-            test_case=test_case,
-            metadata=metadata,
-        )
-        self.event_manager.notify(event)
-
     def emit_timing_metric(
         self,
         operation_name: str,
@@ -108,8 +75,7 @@ class MetricsEventEmitter:
         component: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """
-        Emit a timing metric event.
+        """Emit a timing metric event.
 
         Args:
             operation_name: Name of the operation being timed
@@ -138,8 +104,7 @@ class MetricsEventEmitter:
         component: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """
-        Emit a counter metric event.
+        """Emit a counter metric event.
 
         Args:
             counter_name: Name of the counter
@@ -159,6 +124,39 @@ class MetricsEventEmitter:
         )
         self.event_manager.notify(event)
 
+    def emit_gauge_metric(
+        self,
+        gauge_name: str,
+        value: float,
+        unit: str = "count",
+        test_case: Optional[str] = None,
+        component: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Emit a gauge metric event.
+
+        Delegates to emit_metric_collected with metric_type="gauge".
+
+        Args:
+            gauge_name: Name of the gauge
+            value: Gauge value
+            unit: Unit of measurement
+            test_case: Related test case name
+            component: Component being measured
+            metadata: Additional metric metadata
+        """
+        merged_metadata = metadata or {}
+        merged_metadata["unit"] = unit
+
+        self.emit_metric_collected(
+            metric_name=gauge_name,
+            metric_type="gauge",
+            value=value,
+            test_case=test_case,
+            component=component,
+            metadata=merged_metadata,
+        )
+
     def emit_metrics_summary(
         self,
         metrics: Dict[str, Any],
@@ -166,8 +164,7 @@ class MetricsEventEmitter:
         period: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """
-        Emit a metrics summary event.
+        """Emit a metrics summary event.
 
         Args:
             metrics: Dictionary of metrics summaries

@@ -1,5 +1,4 @@
-"""
-Experiment Events
+"""Experiment Events.
 
 This module defines events specific to experiment lifecycle management.
 """
@@ -36,6 +35,7 @@ class ExperimentEvent(BaseEvent):
         experiment_id: str,
         data: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize experiment event."""
         super().__init__(
             name=event_type.value,
             entity_type=EventType.EXPERIMENT,
@@ -49,6 +49,7 @@ class ExperimentInitializedEvent(ExperimentEvent):
     """Event emitted when an experiment is initialized."""
 
     def __init__(self, experiment_id: str, config: Optional[Dict[str, Any]] = None):
+        """Initialize experiment initialized event."""
         super().__init__(
             event_type=ExperimentEventType.INITIALIZED,
             experiment_id=experiment_id,
@@ -57,6 +58,7 @@ class ExperimentInitializedEvent(ExperimentEvent):
 
     @property
     def config(self) -> Dict[str, Any]:
+        """Return the experiment configuration."""
         return self.data.get("config", {})
 
 
@@ -64,6 +66,7 @@ class ExperimentPluginLoadingStartedEvent(ExperimentEvent):
     """Event emitted when plugin loading starts."""
 
     def __init__(self, experiment_id: str, plugin_count: Optional[int] = None):
+        """Initialize plugin loading started event."""
         super().__init__(
             event_type=ExperimentEventType.PLUGIN_LOADING_STARTED,
             experiment_id=experiment_id,
@@ -80,6 +83,7 @@ class ExperimentPluginLoadingCompletedEvent(ExperimentEvent):
         loaded_plugins: Optional[list] = None,
         plugin_count: Optional[int] = None,
     ):
+        """Initialize plugin loading completed event."""
         super().__init__(
             event_type=ExperimentEventType.PLUGIN_LOADING_COMPLETED,
             experiment_id=experiment_id,
@@ -100,6 +104,7 @@ class ExperimentPluginLoadingFailedEvent(ExperimentEvent):
         error_type: Optional[str] = None,
         failed_plugins: Optional[list] = None,
     ):
+        """Initialize plugin loading failed event."""
         super().__init__(
             event_type=ExperimentEventType.PLUGIN_LOADING_FAILED,
             experiment_id=experiment_id,
@@ -117,6 +122,7 @@ class ExperimentTestCasesInitializedEvent(ExperimentEvent):
     def __init__(
         self, experiment_id: str, test_count: int, test_names: Optional[list] = None
     ):
+        """Initialize test cases initialized event."""
         super().__init__(
             event_type=ExperimentEventType.TEST_CASES_INITIALIZED,
             experiment_id=experiment_id,
@@ -128,6 +134,7 @@ class ExperimentExecutionStartedEvent(ExperimentEvent):
     """Event emitted when experiment execution starts."""
 
     def __init__(self, experiment_id: str, test_count: Optional[int] = None):
+        """Initialize execution started event."""
         super().__init__(
             event_type=ExperimentEventType.EXECUTION_STARTED,
             experiment_id=experiment_id,
@@ -146,6 +153,7 @@ class ExperimentExecutionCompletedEvent(ExperimentEvent):
         total_count: int,
         duration_seconds: Optional[float] = None,
     ):
+        """Initialize execution completed event."""
         super().__init__(
             event_type=ExperimentEventType.EXECUTION_COMPLETED,
             experiment_id=experiment_id,
@@ -168,6 +176,7 @@ class ExperimentExecutionFailedEvent(ExperimentEvent):
         error_type: Optional[str] = None,
         phase: Optional[str] = None,
     ):
+        """Initialize execution failed event."""
         super().__init__(
             event_type=ExperimentEventType.EXECUTION_FAILED,
             experiment_id=experiment_id,
@@ -185,6 +194,7 @@ class ExperimentFinishedEarlyEvent(ExperimentEvent):
     def __init__(
         self, experiment_id: str, reason: str, details: Optional[Dict[str, Any]] = None
     ):
+        """Initialize finished early event."""
         super().__init__(
             event_type=ExperimentEventType.FINISHED_EARLY,
             experiment_id=experiment_id,
@@ -196,6 +206,7 @@ class ExperimentCompletedEvent(ExperimentEvent):
     """Event emitted when experiment completes successfully."""
 
     def __init__(self, experiment_id: str, summary: Optional[Dict[str, Any]] = None):
+        """Initialize experiment completed event."""
         super().__init__(
             event_type=ExperimentEventType.COMPLETED,
             experiment_id=experiment_id,
@@ -213,6 +224,7 @@ class ExperimentFailedEvent(ExperimentEvent):
         error_type: Optional[str] = None,
         summary: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize experiment failed event."""
         super().__init__(
             event_type=ExperimentEventType.FAILED,
             experiment_id=experiment_id,
@@ -234,6 +246,7 @@ class ExperimentServiceFailureEvent(ExperimentEvent):
         reason: str,
         details: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize service failure event."""
         super().__init__(
             event_type=ExperimentEventType.SERVICE_FAILURE,
             experiment_id=experiment_id,
@@ -247,12 +260,15 @@ class ExperimentServiceFailureEvent(ExperimentEvent):
 
     @property
     def failed_service(self) -> str:
+        """Return the failed service name."""
         return self.data.get("failed_service", "")
 
     @property
     def reason(self) -> str:
+        """Return the failure reason."""
         return self.data.get("reason", "")
 
     @property
     def termination_source(self) -> str:
+        """Return the termination source."""
         return self.data.get("termination_source", "service_monitor")

@@ -1,5 +1,4 @@
-"""
-Event color coding system for enhanced visual feedback in PANTHER framework.
+"""Event color coding system for enhanced visual feedback in PANTHER framework.
 
 This module provides color codes for different event types to improve
 readability and user experience in console and log outputs.
@@ -33,8 +32,8 @@ EVENT_LOG_COLORS = {
 
 
 def get_severity_indicator(event_type: str) -> str:
-    """
-    Get a visual severity indicator for an event type.
+    """Get a visual severity indicator for an event type.
+
     Use standard ASCII characters for better compatibility.
 
     Args:
@@ -67,8 +66,7 @@ def get_severity_indicator(event_type: str) -> str:
 
 
 def is_terminal_capable() -> bool:
-    """
-    Check if the current terminal supports color output.
+    """Check if the current terminal supports color output.
 
     Returns:
         bool: True if terminal supports colors, False otherwise

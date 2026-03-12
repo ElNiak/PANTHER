@@ -1,5 +1,4 @@
-"""
-Experiment Event Management
+"""Experiment Event Management.
 
 This module provides experiment-specific events, states, and emitters.
 """
@@ -20,7 +19,6 @@ from .events import (
     ExperimentPluginLoadingStartedEvent,
     ExperimentTestCasesInitializedEvent,
 )
-from .states import ExperimentState, ExperimentStateManager
 
 __all__ = [
     # Events
@@ -37,9 +35,6 @@ __all__ = [
     "ExperimentFinishedEarlyEvent",
     "ExperimentCompletedEvent",
     "ExperimentFailedEvent",
-    # States
-    "ExperimentState",
-    "ExperimentStateManager",
     # Emitter
     "ExperimentEventEmitter",
 ]
