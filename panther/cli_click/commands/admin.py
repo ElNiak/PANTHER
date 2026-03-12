@@ -356,8 +356,8 @@ def clean(ctx, logs, cache, all):
                         elif Path(file_path).is_dir():
                             shutil.rmtree(file_path)
                             removed_count += 1
-                except Exception:
-                    pass
+                except OSError as e:
+                    click.echo(f"  Warning: Could not clean {pattern}: {e}")
             return removed_count
 
         def _clean_directories(dir_names):
@@ -370,8 +370,8 @@ def clean(ctx, logs, cache, all):
                         if Path(dir_path).is_dir():
                             shutil.rmtree(dir_path)
                             removed_count += 1
-                except Exception:
-                    pass
+                except OSError as e:
+                    click.echo(f"  Warning: Could not clean {dir_name}: {e}")
             return removed_count
 
         total_removed = 0
@@ -605,12 +605,16 @@ def docker(
                     for img in all_images
                     if any("panther" in tag.lower() for tag in (img.tags or []))
                 ]
+                removed = 0
                 for img in panther_images:
                     try:
                         builder.client.images.remove(img.id, force=True)
-                    except (DockerException, APIError):
-                        pass
-                return len(panther_images)
+                        removed += 1
+                    except (DockerException, APIError) as e:
+                        click.echo(
+                            f"  Warning: Could not remove image {img.id[:12]}: {e}"
+                        )
+                return removed
             except (DockerException, APIError):
                 return 0
 
@@ -623,12 +627,16 @@ def docker(
                     for img in all_images
                     if any("_panther" in tag.lower() for tag in (img.tags or []))
                 ]
+                removed = 0
                 for img in service_images:
                     try:
                         builder.client.images.remove(img.id, force=True)
-                    except (DockerException, APIError):
-                        pass
-                return len(service_images)
+                        removed += 1
+                    except (DockerException, APIError) as e:
+                        click.echo(
+                            f"  Warning: Could not remove image {img.id[:12]}: {e}"
+                        )
+                return removed
             except (DockerException, APIError):
                 return 0
 
@@ -638,12 +646,14 @@ def docker(
                 panther_containers = builder.client.containers.list(
                     all=True, filters={"label": "panther"}
                 )
+                removed = 0
                 for container in panther_containers:
                     try:
                         container.remove(force=True)
-                    except (DockerException, APIError):
-                        pass
-                return len(panther_containers)
+                        removed += 1
+                    except (DockerException, APIError) as e:
+                        click.echo(f"  Warning: Could not remove container: {e}")
+                return removed
             except (DockerException, APIError):
                 return 0
 
@@ -653,12 +663,14 @@ def docker(
                 panther_volumes = builder.client.volumes.list(
                     filters={"name": "panther"}
                 )
+                removed = 0
                 for volume in panther_volumes:
                     try:
                         volume.remove()
-                    except (DockerException, APIError):
-                        pass
-                return len(panther_volumes)
+                        removed += 1
+                    except (DockerException, APIError) as e:
+                        click.echo(f"  Warning: Could not remove volume: {e}")
+                return removed
             except (DockerException, APIError):
                 return 0
 

@@ -426,23 +426,28 @@ class ExperimentManager(
     def _save_configuration(self):
         """Save the experiment configuration file in the experiment folder."""
         config_file_path = self.experiment_dir / "experiment_config.yaml"
-        with open(config_file_path, "w", encoding="utf-8") as config_file:
-            # Convert Pydantic models to dicts for OmegaConf compatibility
-            global_config_dict = (
-                self.global_config.dict()
-                if hasattr(self.global_config, "dict")
-                else self.global_config
-            )
-            experiment_config_dict = (
-                self.experiment_config.dict()
-                if hasattr(self.experiment_config, "dict")
-                else self.experiment_config
-            )
+        try:
+            with open(config_file_path, "w", encoding="utf-8") as config_file:
+                # Convert Pydantic models to dicts for OmegaConf compatibility
+                global_config_dict = (
+                    self.global_config.dict()
+                    if hasattr(self.global_config, "dict")
+                    else self.global_config
+                )
+                experiment_config_dict = (
+                    self.experiment_config.dict()
+                    if hasattr(self.experiment_config, "dict")
+                    else self.experiment_config
+                )
 
-            config_file.write("# Global Configuration\n")
-            config_file.write(OmegaConf.to_yaml(global_config_dict))
-            config_file.write("\n# Experiment Configuration\n")
-            config_file.write(OmegaConf.to_yaml(experiment_config_dict))
+                config_file.write("# Global Configuration\n")
+                config_file.write(OmegaConf.to_yaml(global_config_dict))
+                config_file.write("\n# Experiment Configuration\n")
+                config_file.write(OmegaConf.to_yaml(experiment_config_dict))
+        except OSError as e:
+            raise ExperimentInitializationError(
+                f"Failed to save experiment config to {config_file_path}: {e}"
+            ) from e
 
     def _save_test_configuration(self, test_config, test_dir: Path):
         """Save a complete test configuration file for a specific test.
@@ -496,10 +501,10 @@ class ExperimentManager(
             self.logger.info(f"Saved test configuration to: {config_file_path}")
 
         except Exception as e:
-            self.logger.error(f"Failed to save test configuration: {e}")
-            import traceback
-
-            self.logger.error(f"Traceback: {traceback.format_exc()}")
+            self.logger.warning(
+                "Failed to save test configuration to %s: %s", test_dir, e
+            )
+            self.logger.debug("Traceback:", exc_info=True)
 
     def _initialize_test_cases(self):
         """Initializes the test cases from the experiment configuration."""
@@ -1180,8 +1185,8 @@ class ExperimentManager(
                 try:
                     volume.remove()
                     removed_count += 1
-                except Exception:
-                    pass  # Volume may still be in use
+                except Exception as e:
+                    self.logger.debug("Could not remove volume %s: %s", volume.name, e)
             if removed_count:
                 cleaned.append(f"{removed_count} orphaned volumes")
         except Exception as e:  # pylint: disable=broad-exception-caught
