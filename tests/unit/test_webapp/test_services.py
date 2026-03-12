@@ -1,5 +1,7 @@
 """Smoke tests for webapp service layer."""
 
+from collections import deque
+
 import pytest
 
 
@@ -525,7 +527,7 @@ class TestExperimentService:
         from panther.webapp.services.experiment_service import ExperimentService
 
         svc = ExperimentService()
-        svc._max_log_lines = 10
+        svc._log_lines = deque(maxlen=10)
         for i in range(25):
             svc._emit_log(f"line {i}")
         assert len(svc._log_lines) == 10

@@ -14,7 +14,14 @@ from typing import Callable
 
 from nicegui import ui
 
-from panther.webapp.components.display import PLUGIN_STATUS_COLORS
+PLUGIN_STATUS_COLORS: dict[str, str] = {
+    "discovered": "blue-grey",
+    "loaded": "blue",
+    "initialized": "cyan",
+    "active": "green",
+    "failed": "red",
+    "unloaded": "grey",
+}
 
 
 def plugin_card(plugin, on_click: Callable) -> ui.card:

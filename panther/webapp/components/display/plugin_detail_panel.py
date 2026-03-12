@@ -22,7 +22,7 @@ from typing import Callable
 from nicegui import ui
 
 from panther.core.utils.format_utils import format_json
-from panther.webapp.components.display import PLUGIN_STATUS_COLORS
+from panther.webapp.components.display.plugin_card import PLUGIN_STATUS_COLORS
 
 
 def render_plugin_detail(
