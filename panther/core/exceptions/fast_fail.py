@@ -1,5 +1,4 @@
-"""
-Fast-fail exception handling for PANTHER.
+"""Fast-fail exception handling for PANTHER.
 
 This module provides immediate termination on critical errors to prevent
 wasted resources and improve user experience.
@@ -49,6 +48,7 @@ class PantherException(Exception):
         category: ErrorCategory,
         context: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize PANTHER exception with severity and category."""
         super().__init__(message)
         self.severity = severity
         self.category = category
@@ -70,6 +70,7 @@ class DockerBuildException(PantherException):
         dockerfile: str,
         build_error: Optional[str] = None,
     ):
+        """Initialize Docker build exception."""
         context = {
             "image_name": image_name,
             "dockerfile": dockerfile,
@@ -90,6 +91,7 @@ class PluginLoadException(PantherException):
         plugin_type: str,
         severity: ErrorSeverity = ErrorSeverity.HIGH,
     ):
+        """Initialize plugin load exception."""
         context = {"plugin_name": plugin_name, "plugin_type": plugin_type}
         super().__init__(message, severity, ErrorCategory.PLUGIN_LOAD, context)
 
@@ -103,6 +105,7 @@ class ServiceStartException(PantherException):
         service_name: str,
         severity: ErrorSeverity = ErrorSeverity.HIGH,
     ):
+        """Initialize service start exception."""
         context = {"service_name": service_name}
         super().__init__(message, severity, ErrorCategory.SERVICE_START, context)
 
@@ -118,6 +121,7 @@ class DockerComposeException(PantherException):
         stdout: str = "",
         stderr: str = "",
     ):
+        """Initialize Docker Compose exception."""
         context = {
             "command": command,
             "returncode": returncode,
@@ -133,6 +137,7 @@ class NetworkSetupException(PantherException):
     """Network initialization or setup failure."""
 
     def __init__(self, message: str, network_type: str, details: str):
+        """Initialize network setup exception."""
         context = {
             "network_type": network_type,
             "details": details,
@@ -146,6 +151,7 @@ class PortConflictException(PantherException):
     """Port binding conflict detected."""
 
     def __init__(self, message: str, port: int, service: str):
+        """Initialize port conflict exception."""
         context = {
             "port": port,
             "service": service,
@@ -159,6 +165,7 @@ class IvyCompilationException(PantherException):
     """Ivy test compilation failure."""
 
     def __init__(self, message: str, test_name: str, output: str, exit_code: int):
+        """Initialize Ivy compilation exception."""
         context = {
             "test_name": test_name,
             "compilation_output": output[:500],  # Truncate
@@ -175,6 +182,7 @@ class ResourceExhaustionException(PantherException):
     def __init__(
         self, message: str, resource_type: str, available: float, required: float
     ):
+        """Initialize resource exhaustion exception."""
         context = {
             "resource_type": resource_type,
             "available": available,
@@ -189,6 +197,7 @@ class CertificateException(PantherException):
     """Certificate generation or validation failure."""
 
     def __init__(self, message: str, cert_path: str, error: str):
+        """Initialize certificate exception."""
         context = {"cert_path": cert_path, "error": error}
         super().__init__(
             message, ErrorSeverity.CRITICAL, ErrorCategory.SECURITY, context
@@ -201,6 +210,7 @@ class ConfigurationException(PantherException):
     def __init__(
         self, message: str, config_file: str, field: str, validation_error: str
     ):
+        """Initialize configuration exception."""
         context = {
             "config_file": config_file,
             "field": field,
@@ -215,6 +225,7 @@ class TimeoutCascadeException(PantherException):
     """Multiple consecutive timeouts detected."""
 
     def __init__(self, message: str, count: int, services: List[str]):
+        """Initialize timeout cascade exception."""
         context = {"timeout_count": count, "affected_services": services}
         super().__init__(message, ErrorSeverity.HIGH, ErrorCategory.CASCADE, context)
 
@@ -223,6 +234,7 @@ class AuthenticationException(PantherException):
     """Authentication or authorization failure."""
 
     def __init__(self, message: str, auth_type: str, service: str):
+        """Initialize authentication exception."""
         context = {"auth_type": auth_type, "service": service}
         super().__init__(message, ErrorSeverity.HIGH, ErrorCategory.SECURITY, context)
 
@@ -231,6 +243,7 @@ class CriticalAssertionException(PantherException):
     """Critical test assertion failure."""
 
     def __init__(self, message: str, assertion_type: str, expected: Any, actual: Any):
+        """Initialize critical assertion exception."""
         context = {
             "assertion_type": assertion_type,
             "expected": str(expected),
@@ -251,6 +264,7 @@ class DependencyException(PantherException):
         required_version: str,
         found_version: Optional[str] = None,
     ):
+        """Initialize dependency exception."""
         context = {
             "dependency": dependency,
             "required_version": required_version,
@@ -263,6 +277,7 @@ class ErrorCascadeException(PantherException):
     """Multiple errors of same type in succession."""
 
     def __init__(self, message: str, error_type: str, error_count: int, threshold: int):
+        """Initialize error cascade exception."""
         context = {
             "error_type": error_type,
             "error_count": error_count,
@@ -275,6 +290,7 @@ class FastFailHandler:
     """Enhanced handler for fast-fail behavior in PANTHER with cascade detection."""
 
     def __init__(self, enabled: bool = True, logger: Optional[logging.Logger] = None):
+        """Initialize fast-fail handler."""
         self.enabled = enabled
         self.logger = logger or logging.getLogger(__name__)
         self.error_count = 0
@@ -297,8 +313,7 @@ class FastFailHandler:
         self.cascade_time_window = 300  # 5 minutes
 
     def handle_error(self, error: Exception, raise_on_critical: bool = True) -> bool:
-        """
-        Handle an error and determine if execution should continue.
+        """Handle an error and determine if execution should continue.
 
         Args:
             error: The error to handle
@@ -361,8 +376,7 @@ class FastFailHandler:
     def detect_cascade(
         self, error: PantherException
     ) -> Optional[ErrorCascadeException]:
-        """
-        Detect if we're in an error cascade situation.
+        """Detect if we're in an error cascade situation.
 
         Args:
             error: The current error to check
@@ -390,8 +404,7 @@ class FastFailHandler:
         return None
 
     def get_error_patterns(self) -> Dict[ErrorCategory, List[Tuple[datetime, int]]]:
-        """
-        Analyze error patterns and return statistics by category.
+        """Analyze error patterns and return statistics by category.
 
         Returns:
             Dict mapping error categories to list of (timestamp, count) tuples
@@ -427,8 +440,7 @@ class FastFailHandler:
         return patterns
 
     def get_error_summary(self) -> Dict[str, Any]:
-        """
-        Get a summary of all errors encountered.
+        """Get a summary of all errors encountered.
 
         Returns:
             Dict containing error statistics and patterns
@@ -489,8 +501,7 @@ class FastFailHandler:
         self.critical_error = None
 
     def set_cascade_threshold(self, category: ErrorCategory, threshold: int) -> None:
-        """
-        Set custom cascade threshold for a specific error category.
+        """Set custom cascade threshold for a specific error category.
 
         Args:
             category: The error category to configure
@@ -499,8 +510,7 @@ class FastFailHandler:
         self.cascade_thresholds[category] = threshold
 
     def get_cascade_risk(self, category: ErrorCategory) -> float:
-        """
-        Calculate the risk of cascade for a given category.
+        """Calculate the risk of cascade for a given category.
 
         Args:
             category: The error category to check

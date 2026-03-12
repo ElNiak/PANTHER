@@ -5,7 +5,7 @@ PANTHER (Protocol Analysis and Testing Harness for Extensible Research) is a plu
 
 ## Current Status
 - Version: 1.2.1
-- Active refactoring in progress: CLI migrating from argparse (`panther/cli/`) to Click (`panther/cli_click/`)
+- Active refactoring in progress: CLI migrating from argparse (`panther/cli/`) to Click (`panther/cli/`)
 - Main branch: `production`
 - Current dev branch: `panther-fix`
 
@@ -28,7 +28,7 @@ PANTHER (Protocol Analysis and Testing Harness for Extensible Research) is a plu
 ## Key Components
 ```
 panther/
-├── cli_click/          # NEW Click-based CLI (use this)
+├── cli/          # NEW Click-based CLI (use this)
 ├── cli/                # OLD argparse CLI (deprecated, being removed)
 ├── core/
 │   ├── experiment_manager.py    # Central orchestrator

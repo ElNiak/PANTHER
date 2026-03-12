@@ -25,11 +25,11 @@ def _detect_author() -> Optional[str]:
         )
         if result.returncode == 0 and result.stdout.strip():
             return result.stdout.strip()
-    except Exception:
+    except (subprocess.SubprocessError, FileNotFoundError, OSError):
         pass
     try:
         return os.getlogin()
-    except Exception:
+    except OSError:
         return None
 
 

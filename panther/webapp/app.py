@@ -73,6 +73,11 @@ def create_app(
         output_dir: Directory where experiment outputs are stored.
             Resolved to an absolute path before being stored.
     """
+    logger.info(
+        "Configuring PANTHER web dashboard (config_path=%s, output_dir=%s)",
+        config_path,
+        output_dir,
+    )
     # Store shared state for access across pages
     app.storage.general["config_path"] = config_path
     app.storage.general["output_dir"] = str(Path(output_dir).resolve())

@@ -7,7 +7,7 @@ import pytest
 
 from panther.core.events.base.event_base import BaseEvent, EventType
 from panther.core.events.event_summarizer import EventImportance
-from panther.webapp.services.web_observer import Subscription, WebObserver
+from panther.webapp.infra.web_observer import Subscription, WebObserver
 
 
 class _TestEvent(BaseEvent):

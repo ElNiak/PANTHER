@@ -21,7 +21,7 @@ panther/
 ├── __init__.py              # Package init, version
 ├── __main__.py              # Entry point
 ├── banner.py                # ASCII banner display
-├── cli_click/               # NEW Click-based CLI (USE THIS)
+├── cli/               # NEW Click-based CLI (USE THIS)
 │   ├── core/
 │   │   ├── main.py          # CLI entry point
 │   │   └── base.py          # Base CLI classes
@@ -108,7 +108,7 @@ tests/
 ```
 
 ## Important Entry Points
-1. **CLI**: `panther/cli_click/core/main.py:main()`
+1. **CLI**: `panther/cli/core/main.py:main()`
 2. **Experiment**: `panther/core/experiment_manager.py:ExperimentManager`
 3. **Plugin Discovery**: `panther/plugins/plugin_manager.py:PluginManager`
 4. **Docker Build**: `panther/core/docker_builder/docker_builder.py:DockerBuilder`

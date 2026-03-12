@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch
 
 from api.types import CommandResult, ExecutionResult
 
-from panther.cli_click.commands.ivy_executor import (
+from panther.cli.commands.ivy_executor import (
     CONTAINER_BASE_PATH,
     ExecutionTarget,
     IvyExecutor,
@@ -18,23 +18,23 @@ from panther.cli_click.commands.ivy_executor import (
 
 
 class TestExecutionTargetResolution:
-    @patch("panther.cli_click.commands.ivy_executor.shutil.which")
-    @patch("panther.cli_click.commands.ivy_executor.subprocess.run")
+    @patch("panther.cli.commands.ivy_executor.shutil.which")
+    @patch("panther.cli.commands.ivy_executor.subprocess.run")
     def test_resolve_docker_when_image_exists(self, mock_run, mock_which):
         mock_run.return_value = MagicMock(returncode=0)
         executor = IvyExecutor(target="auto")
         assert executor.resolve_target() == ExecutionTarget.DOCKER
 
-    @patch("panther.cli_click.commands.ivy_executor.shutil.which")
-    @patch("panther.cli_click.commands.ivy_executor.subprocess.run")
+    @patch("panther.cli.commands.ivy_executor.shutil.which")
+    @patch("panther.cli.commands.ivy_executor.subprocess.run")
     def test_resolve_host_when_no_docker_but_ivyc(self, mock_run, mock_which):
         mock_run.return_value = MagicMock(returncode=1)  # docker inspect fails
         mock_which.return_value = "/usr/bin/ivyc"
         executor = IvyExecutor(target="auto")
         assert executor.resolve_target() == ExecutionTarget.HOST
 
-    @patch("panther.cli_click.commands.ivy_executor.shutil.which")
-    @patch("panther.cli_click.commands.ivy_executor.subprocess.run")
+    @patch("panther.cli.commands.ivy_executor.shutil.which")
+    @patch("panther.cli.commands.ivy_executor.subprocess.run")
     def test_resolve_raises_when_nothing_available(self, mock_run, mock_which):
         mock_run.return_value = MagicMock(returncode=1)
         mock_which.return_value = None
@@ -71,7 +71,7 @@ class TestVolumeMappingComputation:
 
 
 class TestCommandExecution:
-    @patch("panther.cli_click.commands.ivy_executor.subprocess.run")
+    @patch("panther.cli.commands.ivy_executor.subprocess.run")
     def test_execute_on_host(self, mock_run):
         mock_run.return_value = MagicMock(returncode=0, stdout="ok\n", stderr="")
         executor = IvyExecutor(target="host")
@@ -85,7 +85,7 @@ class TestCommandExecution:
         assert result.exit_code == 0
         assert result.target == "host"
 
-    @patch("panther.cli_click.commands.ivy_executor.subprocess.run")
+    @patch("panther.cli.commands.ivy_executor.subprocess.run")
     def test_execute_on_docker(self, mock_run):
         mock_run.return_value = MagicMock(returncode=0, stdout="compiled\n", stderr="")
         executor = IvyExecutor(target="docker")
@@ -105,7 +105,7 @@ class TestComposeExecution:
         executor = IvyExecutor(target="compose")
         assert executor.resolve_target() == ExecutionTarget.COMPOSE
 
-    @patch("panther.cli_click.commands.ivy_executor.subprocess.run")
+    @patch("panther.cli.commands.ivy_executor.subprocess.run")
     def test_compose_uses_docker_compose_exec(self, mock_run):
         mock_run.return_value = MagicMock(returncode=0, stdout="ok\n", stderr="")
         executor = IvyExecutor(target="compose")
@@ -125,7 +125,7 @@ class TestComposeExecution:
         assert "compose" in docker_cmd
         assert "exec" in docker_cmd
 
-    @patch("panther.cli_click.commands.ivy_executor.subprocess.run")
+    @patch("panther.cli.commands.ivy_executor.subprocess.run")
     def test_compose_resolves_service_name(self, mock_run):
         """Auto-detect should find service with 'ivy' in name."""
         # First call: docker compose ps
@@ -149,7 +149,7 @@ class TestComposeExecution:
         result = executor.execute(cmd)
         assert result.exit_code == 0
 
-    @patch("panther.cli_click.commands.ivy_executor.subprocess.run")
+    @patch("panther.cli.commands.ivy_executor.subprocess.run")
     def test_compose_with_explicit_service_name(self, mock_run):
         mock_run.return_value = MagicMock(returncode=0, stdout="ok\n", stderr="")
         executor = IvyExecutor(target="compose")
@@ -164,7 +164,7 @@ class TestComposeExecution:
         docker_cmd = call_args[0][0]
         assert "my_custom_ivy" in docker_cmd
 
-    @patch("panther.cli_click.commands.ivy_executor.subprocess.run")
+    @patch("panther.cli.commands.ivy_executor.subprocess.run")
     def test_compose_auto_detect_finds_running_service(self, mock_run):
         ps_output = json.dumps(
             [
@@ -177,7 +177,7 @@ class TestComposeExecution:
         service = executor._find_compose_service()
         assert service == "ivy_server"
 
-    @patch("panther.cli_click.commands.ivy_executor.subprocess.run")
+    @patch("panther.cli.commands.ivy_executor.subprocess.run")
     def test_compose_auto_detect_raises_when_no_service(self, mock_run):
         ps_output = json.dumps(
             [

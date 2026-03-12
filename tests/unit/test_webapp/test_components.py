@@ -6,7 +6,7 @@ import pytest
 @pytest.mark.unit
 class TestStatusBadge:
     def test_color_mapping(self):
-        from panther.webapp.components.status_badge import _STATUS_COLORS
+        from panther.webapp.components.status.status_badge import _STATUS_COLORS
 
         assert _STATUS_COLORS["completed"] == "green"
         assert _STATUS_COLORS["failed"] == "red"
@@ -14,7 +14,7 @@ class TestStatusBadge:
         assert _STATUS_COLORS["unknown"] == "grey"
 
     def test_all_statuses_have_colors(self):
-        from panther.webapp.components.status_badge import _STATUS_COLORS
+        from panther.webapp.components.status.status_badge import _STATUS_COLORS
 
         for status in [
             "completed",
@@ -32,7 +32,7 @@ class TestStatusBadge:
 @pytest.mark.unit
 class TestErrorBoundary:
     def test_import(self):
-        from panther.webapp.components.error_boundary import error_boundary
+        from panther.webapp.components.status.error_boundary import error_boundary
 
         assert callable(error_boundary)
 
@@ -40,7 +40,7 @@ class TestErrorBoundary:
 @pytest.mark.unit
 class TestNotifications:
     def test_imports(self):
-        from panther.webapp.components.notifications import (
+        from panther.webapp.components.status.notifications import (
             notify_error,
             notify_info,
             notify_success,
@@ -56,7 +56,7 @@ class TestNotifications:
 @pytest.mark.unit
 class TestExperimentProgress:
     def test_import(self):
-        from panther.webapp.components.progress_bar import ExperimentProgress
+        from panther.webapp.components.status.progress_bar import ExperimentProgress
 
         assert ExperimentProgress is not None
 

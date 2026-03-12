@@ -1,7 +1,4 @@
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type
-
-"""
-Error Handler Mixin
+"""Error Handler Mixin.
 
 This module provides a mixin for standardized error handling patterns,
 reducing duplication of error handling and logging logic.
@@ -9,6 +6,7 @@ reducing duplication of error handling and logging logic.
 
 import logging
 from functools import wraps
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type
 
 from panther.core.exceptions.fast_fail import (
     ErrorCategory,
@@ -19,14 +17,13 @@ from panther.core.exceptions.fast_fail import (
 
 
 class ErrorHandlerMixin:
-    """
-
-    Mixin that provides standardized error handling patterns.
+    """Mixin that provides standardized error handling patterns.
 
     Reduces duplication of try-except blocks and error logging across the codebase.
     """
 
     def __init__(self, *args, **kwargs):
+        """Initialize error handler mixin."""
         super().__init__(*args, **kwargs)
         # Initialize FastFailHandler - can be overridden by subclasses
         self._fast_fail_handler = None
@@ -58,8 +55,7 @@ class ErrorHandlerMixin:
         severity: Optional[ErrorSeverity] = None,
         category: Optional[ErrorCategory] = None,
     ) -> None:
-        """
-        Handle an error with logging and optional event emission.
+        """Handle an error with logging and optional event emission.
 
         Args:
             error: The exception that occurred
@@ -158,8 +154,7 @@ class ErrorHandlerMixin:
         category: Optional[ErrorCategory] = None,
         **kwargs,
     ) -> Any:
-        """
-        Safely execute an operation with error handling.
+        """Safely execute an operation with error handling.
 
         Args:
             operation: The callable to execute
@@ -202,8 +197,7 @@ class ErrorHandlerMixin:
         severity: Optional[ErrorSeverity] = None,
         category: Optional[ErrorCategory] = None,
     ):
-        """
-        Decorator for methods with standardized error handling.
+        """Decorator for methods with standardized error handling.
 
         Usage:
             @with_error_handling("initialization")
@@ -256,8 +250,7 @@ class ErrorHandlerMixin:
         context: str,
         error_type: Optional[Type[Exception]] = None,
     ) -> None:
-        """
-        Log an error and re-raise it, optionally as a different type.
+        """Log an error and re-raise it, optionally as a different type.
 
         Args:
             error: The original exception
@@ -281,8 +274,7 @@ class ErrorHandlerMixin:
         severity: Optional[ErrorSeverity] = None,
         category: Optional[ErrorCategory] = None,
     ) -> Tuple[List[Any], List[Exception]]:
-        """
-        Execute multiple operations with error handling.
+        """Execute multiple operations with error handling.
 
         Args:
             operations: List of (callable, name, kwargs) tuples
@@ -324,8 +316,7 @@ class ErrorHandlerMixin:
     def create_error_context(
         self, operation: str, phase: Optional[str] = None, **additional_fields
     ) -> Dict[str, Any]:
-        """
-        Create a standardized error context dictionary.
+        """Create a standardized error context dictionary.
 
         Args:
             operation: The operation being performed

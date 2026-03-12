@@ -1,7 +1,7 @@
 """Plugins page -- card-based browser for discovering and inspecting plugins.
 
-Presents PANTHER (Protocol ANalyzer and THreat Evaluator for Research)
-plugins in a filterable card grid.
+Presents PANTHER (Protocol ANalysis and Testing Harness for Extensible
+Research) plugins in a filterable card grid.
 
 This page presents every registered plugin as a card in a responsive
 grid, with filtering by type and free-text search.  Clicking a card
@@ -48,8 +48,8 @@ import logging
 
 from nicegui import ui
 
-from panther.webapp.components.plugin_card import plugin_card
-from panther.webapp.components.plugin_detail_panel import render_plugin_detail
+from panther.webapp.components.display.plugin_card import plugin_card
+from panther.webapp.components.display.plugin_detail_panel import render_plugin_detail
 from panther.webapp.services.plugin_service import PluginService
 
 logger = logging.getLogger(__name__)
@@ -79,8 +79,10 @@ def content():
     5. Calls ``_refresh_grid()`` to populate the initial card layout.
     6. Binds tab and search value-change events to ``_refresh_grid()``.
     """
+    logger.info("Loading plugins page")
     plugin_svc = PluginService()
     plugins = plugin_svc.list_plugins()
+    logger.debug("Discovered %d plugins", len(plugins))
 
     ui.label("Registered Plugins").classes("text-h5 q-mb-md")
 
@@ -161,6 +163,7 @@ def content():
 
     def _on_card_click(plugin):
         """Open the right drawer with detailed metadata for the clicked plugin."""
+        logger.debug("Viewing plugin detail: %s", plugin.name)
         manifest = plugin_svc.get_plugin_manifest(plugin.name)
         render_plugin_detail(
             drawer_content,

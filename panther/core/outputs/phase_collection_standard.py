@@ -7,7 +7,7 @@ reported by ``ServiceHealthAnalyzer``.  2-tuples default to optional.
 """
 
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 
 class ExecutionPhase(Enum):

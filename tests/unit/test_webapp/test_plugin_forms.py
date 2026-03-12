@@ -9,14 +9,14 @@ from pydantic import BaseModel, Field
 @pytest.mark.unit
 class TestPluginFormInfo:
     def test_get_plugin_form_info_unknown_returns_none(self):
-        from panther.webapp.utils.plugin_forms import get_plugin_form_info
+        from panther.webapp.components.forms.plugin_forms import get_plugin_form_info
 
         result = get_plugin_form_info("__nonexistent_plugin__")
         assert result is None
 
     def test_get_plugin_form_info_picoquic(self):
         """Picoquic should be discoverable via well-known import paths."""
-        from panther.webapp.utils.plugin_forms import get_plugin_form_info
+        from panther.webapp.components.forms.plugin_forms import get_plugin_form_info
 
         info = get_plugin_form_info("picoquic")
         if info is None:
@@ -28,7 +28,7 @@ class TestPluginFormInfo:
         assert isinstance(info.id_field, str)
 
     def test_enum_extraction(self):
-        from panther.webapp.utils.plugin_forms import _extract_enum_choices
+        from panther.webapp.components.forms.plugin_forms import _extract_enum_choices
 
         class Color(Enum):
             RED = "red"
@@ -46,7 +46,7 @@ class TestPluginFormInfo:
     def test_enum_extraction_optional(self):
         from typing import Optional
 
-        from panther.webapp.utils.plugin_forms import _extract_enum_choices
+        from panther.webapp.components.forms.plugin_forms import _extract_enum_choices
 
         class Status(Enum):
             ON = "on"
@@ -63,25 +63,29 @@ class TestPluginFormInfo:
 @pytest.mark.unit
 class TestListPlugins:
     def test_list_available_plugins_returns_list(self):
-        from panther.webapp.utils.plugin_forms import list_available_plugins
+        from panther.webapp.components.forms.plugin_forms import list_available_plugins
 
         result = list_available_plugins()
         assert isinstance(result, list)
 
     def test_get_protocol_choices_returns_list(self):
-        from panther.webapp.utils.plugin_forms import get_protocol_choices
+        from panther.webapp.components.forms.plugin_forms import get_protocol_choices
 
         result = get_protocol_choices()
         assert isinstance(result, list)
 
     def test_get_implementation_choices_returns_list(self):
-        from panther.webapp.utils.plugin_forms import get_implementation_choices
+        from panther.webapp.components.forms.plugin_forms import (
+            get_implementation_choices,
+        )
 
         result = get_implementation_choices()
         assert isinstance(result, list)
 
     def test_get_implementation_choices_filtered(self):
-        from panther.webapp.utils.plugin_forms import get_implementation_choices
+        from panther.webapp.components.forms.plugin_forms import (
+            get_implementation_choices,
+        )
 
         # Should not raise even with unknown protocol
         result = get_implementation_choices(protocol="__nonexistent__")

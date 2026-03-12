@@ -1,5 +1,4 @@
-"""
-Plugin Events Module
+"""Plugin Events Module.
 
 This module provides events, emitters, and state management for plugin lifecycle events.
 """
@@ -18,13 +17,6 @@ from .events import (
     PluginServiceStoppedEvent,
     PluginStartedEvent,
     PluginStoppedEvent,
-)
-from .states import (
-    PluginInfo,
-    PluginServiceInfo,
-    PluginState,
-    PluginStateManager,
-    ServiceState,
 )
 
 __all__ = [
@@ -45,10 +37,4 @@ __all__ = [
     "PluginServiceStoppedEvent",
     # Event emitter
     "PluginEventEmitter",
-    # State management
-    "PluginState",
-    "ServiceState",
-    "PluginServiceInfo",
-    "PluginInfo",
-    "PluginStateManager",
 ]

@@ -1,16 +1,9 @@
 """File utilities for safe YAML/JSON/text I/O and configuration loading."""
 
-from typing import Any, Dict, List, Optional, Union
-
-"""
-File Utilities
-
-This module provides common file operations used throughout PANTHER.
-"""
-
 import json
 import logging
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
 
 import yaml
 

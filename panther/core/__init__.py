@@ -32,9 +32,10 @@ Primary Components:
         pattern delegating to PluginManager.
 
     TestCase
-        Mixin-composed test execution engine with six specialized
-        mixins, state machine transitions (PENDING -> RUNNING -> DONE),
-        Docker orchestration, and performance metrics collection.
+        Mixin-composed test execution engine with five specialized
+        mixins, state machine transitions (PENDING -> RUNNING ->
+        COLLECTING -> DONE/ERROR), Docker orchestration, and
+        performance metrics collection.
 
     Plugin System
         Singleton PluginManager with thread-safe initialization,

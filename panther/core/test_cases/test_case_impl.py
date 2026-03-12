@@ -12,8 +12,6 @@ from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 from panther.config.core.models import GlobalConfig, TestConfig
 from panther.core.events.emitter_registry import EmitterRegistry
-from panther.core.results.result_collector import ResultCollector
-from panther.core.results.result_handlers.storage_handler import StorageHandler
 from panther.core.test_cases.base.test_case_base import TestCaseBase
 from panther.core.test_cases.mixins.environment_management import (
     EnvironmentManagementMixin,
@@ -43,7 +41,6 @@ class TestCase(
     Attributes:
         test_name: Name of the test case.
         test_experiment_dir: Directory for the test experiment.
-        result_collectors: Collector for test results.
         service_managers: List of service managers.
         environment_plugin_manager: List of environment plugin managers.
         event_manager: Manager for handling events.
@@ -95,12 +92,6 @@ class TestCase(
             self.test_name,
             self.test_experiment_dir,
             test_config,
-        )
-
-        # Initialize result collectors
-        self.result_collectors = ResultCollector()
-        self.result_collectors.register_handler(
-            f"storage_{self.test_name}", StorageHandler(experiment_dir, self.test_name)
         )
 
         # Use provided emitter registry or create a new one
@@ -447,6 +438,9 @@ class TestCase(
         finally:
             # Only observer cleanup in finally block - environment teardown moved to _perform_teardown
             self.teardown_observers()
+            # Clean up test-specific event emitter to prevent memory leaks
+            if self.emitter_registry:
+                self.emitter_registry.cleanup_test_emitter(self.test_config.name)
 
     def _perform_teardown(self):
         """Perform environment teardown with proper timing and state management.
@@ -557,7 +551,7 @@ class TestCase(
                         "      5. Execute %d test steps → Would run commands",
                         step_count,
                     )
-                except:
+                except (TypeError, AttributeError):
                     self.logger.info(
                         "      5. Execute steps → Would run configured steps"
                     )

@@ -22,7 +22,7 @@ PANTHER context:
 import copy
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal, Optional
 
@@ -114,8 +114,10 @@ class ConfigService:
             FileNotFoundError: If none of the candidate template files exist
                 on disk.
         """
+        logger.debug("Loading default config YAML template")
         for candidate in _DEFAULT_CONFIG_CANDIDATES:
             if candidate.is_file():
+                logger.debug("Default config template found: %s", candidate)
                 return candidate.read_text()
         raise FileNotFoundError(
             f"No default config found. Searched: {[str(c) for c in _DEFAULT_CONFIG_CANDIDATES]}"
@@ -221,6 +223,7 @@ class ConfigService:
             raise ValueError(f"Invalid YAML: {e}") from e
         if not isinstance(data, dict):
             raise ValueError("Config must be a YAML mapping")
+        logger.info("Loaded config file: %s", p)
         return data
 
     def save_config(self, path, data: dict) -> None:
@@ -240,6 +243,7 @@ class ConfigService:
         p = _validate_config_path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(yaml.dump(data, default_flow_style=False, sort_keys=False))
+        logger.info("Saved config file: %s", p)
 
     def list_configs(self, directory=None) -> list[dict]:
         """List YAML config files in a single directory (non-recursive).
@@ -266,9 +270,12 @@ class ConfigService:
                     {
                         "name": f.name,
                         "path": str(f),
-                        "modified": datetime.fromtimestamp(f.stat().st_mtime),
+                        "modified": datetime.fromtimestamp(
+                            f.stat().st_mtime, tz=timezone.utc
+                        ),
                     }
                 )
+        logger.debug("Listed %d config files in %s", len(results), d)
         return results
 
     def list_configs_recursive(self, root=None) -> list[dict]:
@@ -289,6 +296,7 @@ class ConfigService:
         """
         if root is None:
             root = _PROJECT_ROOT / "experiment-config"
+        logger.debug("Listing configs recursively from: %s", root)
         return ConfigurationLoader.list_configs_recursive(root)
 
     @staticmethod
@@ -326,6 +334,11 @@ class ConfigService:
             errors.append(
                 FieldError(path=warn.field, message=warn.message, severity="warning")
             )
+        error_count = sum(1 for e in errors if e.severity == "error")
+        warning_count = sum(1 for e in errors if e.severity == "warning")
+        logger.debug(
+            "Detailed validation: %d errors, %d warnings", error_count, warning_count
+        )
         return errors
 
     def merge_configs(self, base: dict, overlay: dict) -> dict:

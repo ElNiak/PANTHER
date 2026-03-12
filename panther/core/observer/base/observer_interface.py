@@ -32,7 +32,6 @@ Example:
 
 See Also:
     `panther.core.observer.base.typed_observer_interface.ITypedObserver`
-    `panther.core.observer.base.observer_plugin_interface.IPluginObserver`
 """
 
 import logging

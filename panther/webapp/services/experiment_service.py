@@ -34,10 +34,11 @@ State management:
 import asyncio
 import logging
 import threading
+from collections import deque
 from typing import Callable, Optional
 
 from panther.core.events.base.event_base import BaseEvent
-from panther.webapp.services.web_observer import WebObserver
+from panther.webapp.infra.web_observer import WebObserver
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +98,7 @@ class ExperimentService:
         self._lock = threading.Lock()
         self._running = False
         self._stop_requested = False
-        self._log_lines: list[str] = []
+        self._log_lines: deque[str] = deque(maxlen=10000)
         self._max_log_lines: int = 10000
         self._status: str = "Idle"
         self._config_path: str = ""
@@ -108,6 +109,7 @@ class ExperimentService:
 
         # Restore observer state from NiceGUI app storage if available
         self._try_restore_observer_state()
+        logger.debug("ExperimentService initialized")
 
     @property
     def status(self) -> str:
@@ -153,8 +155,10 @@ class ExperimentService:
             on_status: Called with the new status string whenever the
                 execution phase changes.
         """
-        self._log_callbacks.append(on_log)
-        self._status_callbacks.append(on_status)
+        with self._lock:
+            self._log_callbacks.append(on_log)
+            self._status_callbacks.append(on_status)
+        logger.debug("Registered UI callbacks")
 
     def unregister_callbacks(
         self,
@@ -171,21 +175,23 @@ class ExperimentService:
             on_log: The log callback to remove.
             on_status: The status callback to remove.
         """
-        try:
-            self._log_callbacks.remove(on_log)
-        except ValueError:
-            pass
-        try:
-            self._status_callbacks.remove(on_status)
-        except ValueError:
-            pass
+        with self._lock:
+            try:
+                self._log_callbacks.remove(on_log)
+            except ValueError:
+                pass
+            try:
+                self._status_callbacks.remove(on_status)
+            except ValueError:
+                pass
+        logger.debug("Unregistered UI callbacks")
 
     def _emit_log(self, line: str):
         """Append a line to the buffer and notify all log callbacks."""
         self._log_lines.append(line)
-        if len(self._log_lines) > self._max_log_lines:
-            self._log_lines = self._log_lines[-self._max_log_lines :]
-        for cb in list(self._log_callbacks):
+        with self._lock:
+            cbs = list(self._log_callbacks)
+        for cb in cbs:
             try:
                 cb(line)
             except Exception:
@@ -194,7 +200,9 @@ class ExperimentService:
     def _emit_status(self, s: str):
         """Update the status string and notify all status callbacks."""
         self._status = s
-        for cb in list(self._status_callbacks):
+        with self._lock:
+            cbs = list(self._status_callbacks)
+        for cb in cbs:
             try:
                 cb(s)
             except Exception:
@@ -243,16 +251,21 @@ class ExperimentService:
             self._stop_requested = False
         self._log_lines.clear()
         self._config_path = config_path
+        logger.info("Starting experiment run with config: %s", config_path)
 
         # Enable event batching for the duration of the experiment
         self._web_observer.enable_batching(500)
         try:
             from nicegui import ui
-
-            self._batch_timer = ui.timer(0.5, self._web_observer._flush_batch)
-        except Exception:
-            # ui.timer may fail outside NiceGUI context (e.g. in tests)
+        except ImportError:
+            # Outside NiceGUI context (e.g. in tests)
             self._batch_timer = None
+        else:
+            try:
+                self._batch_timer = ui.timer(0.5, self._web_observer._flush_batch)
+            except Exception:
+                logger.error("Failed to create batch timer", exc_info=True)
+                self._batch_timer = None
 
         def _run():
             def _check_stop():
@@ -289,6 +302,7 @@ class ExperimentService:
 
                 _check_stop()
 
+                logger.info("Experiment config loaded, initializing ExperimentManager")
                 self._emit_status("Initializing...")
                 self._emit_log(f"Loaded config from {config_path}")
 
@@ -315,6 +329,11 @@ class ExperimentService:
 
                         self._emit_status("Running tests...")
                         success = manager.run_tests()
+                        logger.info(
+                            "Experiment run finished (success=%s) for config: %s",
+                            success,
+                            config_path,
+                        )
 
                         _check_stop()
                     finally:
@@ -348,7 +367,7 @@ class ExperimentService:
                 try:
                     self._batch_timer.cancel()
                 except Exception:
-                    pass
+                    logger.warning("Failed to cancel batch timer", exc_info=True)
                 self._batch_timer = None
             self._web_observer.disable_batching()
 
@@ -359,23 +378,25 @@ class ExperimentService:
         """Restore WebObserver gui_state from NiceGUI app storage if available."""
         try:
             from nicegui import app
-
+        except ImportError:
+            return
+        try:
             saved = app.storage.general.get("web_observer_state")
             if saved:
                 self._web_observer.restore_state(saved)
         except Exception:
-            # Outside NiceGUI context (e.g. tests) — silently skip
-            pass
+            logger.warning("Failed to restore observer state", exc_info=True)
 
     def _save_observer_state(self):
         """Persist WebObserver gui_state to NiceGUI app storage."""
         try:
             from nicegui import app
-
+        except ImportError:
+            return
+        try:
             app.storage.general["web_observer_state"] = self._web_observer.save_state()
         except Exception:
-            # Outside NiceGUI context — silently skip
-            pass
+            logger.warning("Failed to save observer state", exc_info=True)
 
     def stop(self):
         """Request a graceful stop of the currently running experiment.
@@ -437,10 +458,12 @@ class ExperimentService:
     @property
     def is_running(self) -> bool:
         """Whether an experiment is currently executing in the background thread."""
-        return self._running
+        with self._lock:
+            return self._running
 
 
 _instance: Optional[ExperimentService] = None
+_instance_lock = threading.Lock()
 
 
 def get_experiment_service() -> ExperimentService:
@@ -455,5 +478,7 @@ def get_experiment_service() -> ExperimentService:
     """
     global _instance
     if _instance is None:
-        _instance = ExperimentService()
+        with _instance_lock:
+            if _instance is None:
+                _instance = ExperimentService()
     return _instance

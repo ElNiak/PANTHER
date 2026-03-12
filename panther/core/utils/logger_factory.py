@@ -145,7 +145,7 @@ class LoggerFactory:
             "resource_monitor",
         ],
         "data_storage": ["storage_handler", "event_store"],
-        "result_processing": ["result_collector", "result_handlers"],
+        "result_processing": ["result_serialization"],
         "output_aggregation": ["output_aggregator", "output_collector"],
         # Development and Debugging
         "test_execution": ["test_case", "experiment_manager"],

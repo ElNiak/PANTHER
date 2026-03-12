@@ -1,12 +1,9 @@
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
-
-"""
-Experiment Event Emitter
+"""Experiment Event Emitter.
 
 This module provides typed event emission for experiment lifecycle events.
 """
 
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
     from panther.core.observer.management.event_manager import EventManager
@@ -28,11 +25,10 @@ from panther.core.events.experiment.events import (
 
 
 class ExperimentEventEmitter(EntityEventEmitterBase):
-    """, TYPE_CHECKING, TYPE_CHECKINGType-safe event emitter for experiment events."""
+    """Type-safe event emitter for experiment events."""
 
     def __init__(self, event_manager: "EventManager", experiment_id: str):
-        """
-        Initialize experiment event emitter.
+        """Initialize experiment event emitter.
 
         Args:
             event_manager: Event manager to emit events through

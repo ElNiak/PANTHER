@@ -3,10 +3,9 @@
 Components are lazy-imported to avoid circular dependencies.
 
 Validators:
-    ``ConfigValidator``        — orchestrates Pydantic + business rules + compatibility
+    ``ConfigValidator``        — orchestrates Pydantic + business rules
     ``SchemaValidator``        — JSON Schema validation
     ``BusinessRulesValidator`` — domain-specific rules
-    ``CompatibilityValidator`` — cross-field compatibility
 
 Builders (dict → model):
     ``ExperimentBuilder``  — builds ExperimentConfig from raw dict
@@ -20,7 +19,6 @@ __all__ = [
     "ConfigValidator",
     "SchemaValidator",
     "BusinessRulesValidator",
-    "CompatibilityValidator",
     # Builders
     "ExperimentBuilder",
     "ServiceBuilder",
@@ -49,13 +47,6 @@ def __getattr__(name):  # pylint: disable=invalid-name
         )
 
         return BusinessRulesValidator
-    elif name == "CompatibilityValidator":
-        from .validators import (  # pylint: disable=import-outside-toplevel
-            CompatibilityValidator,
-        )
-
-        return CompatibilityValidator
-
     # Builders
     elif name == "ExperimentBuilder":
         from .builders import (  # pylint: disable=import-outside-toplevel

@@ -32,7 +32,7 @@ def reset_singletons():
     RealPluginManager._instance = None
     RealPluginManager._initialized = False
     # Reset observer factory
-    import panther.core.observer.factory.observer_factory as of_mod
+    import panther.core.observer.factory as of_mod
 
     of_mod._observer_factory = None
 

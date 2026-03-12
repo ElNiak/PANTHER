@@ -1,8 +1,8 @@
 """PANTHER webapp --- NiceGUI-based web dashboard for protocol testing experiment management.
 
 This package provides a browser-based UI for configuring, launching,
-monitoring, and reviewing PANTHER (Protocol ANalyzer and THreat
-Evaluator for Research) experiments.  The stack is built on NiceGUI
+monitoring, and reviewing PANTHER (Protocol ANalysis and Testing
+Harness for Extensible Research) experiments.  The stack is built on NiceGUI
 (which itself wraps FastAPI + Vue.js) and uses a strict service-layer
 architecture so that pages never import ``panther.core`` directly.
 
@@ -14,9 +14,10 @@ The webapp follows three design principles:
    passes through a service class in ``services/``.  Services add
    async safety, caching, error boundaries, and NiceGUI-specific
    adaptations on top of core components.
-2. **Event bridge** -- ``WebObserver`` (a GUIObserver subclass) bridges
-   PANTHER's event system into NiceGUI UI callbacks, enabling live
-   dashboards that react to experiment progress in real time.
+2. **Event bridge** -- ``WebObserver`` (in ``infra/``, a GUIObserver
+   subclass) bridges PANTHER's event system into NiceGUI UI callbacks,
+   enabling live dashboards that react to experiment progress in real
+   time.
 3. **Pydantic form rendering** -- The ``PydanticForm`` component
    introspects Pydantic config models and renders them as editable
    NiceGUI widgets, so that new config sections are automatically
@@ -30,17 +31,17 @@ Directory structure
     +-- __init__.py          # Package entry point (this file); lazy create_app
     +-- app.py               # Application factory; page registration
     +-- services/            # Service layer (ConfigService, ExperimentService,
-    |                        #   ResultsService, PluginService, WebObserver)
-    +-- components/          # Reusable NiceGUI UI components (forms, cards,
-    |                        #   badges, viewers, topology editor, ...)
+    |                        #   ResultsService, PluginService)
+    +-- infra/               # Infrastructure (WebObserver event bridge)
+    +-- components/          # Reusable NiceGUI UI components
+    |   +-- display/         #   Read-only viewers (events, metrics, cards)
+    |   +-- forms/           #   Editable inputs (PydanticForm, YAML editor)
+    |   +-- status/          #   Feedback (badges, progress bars, errors)
+    |   +-- topology/        #   Network topology editor (thesis work)
     +-- pages/               # Top-level page modules, one per route
     |                        #   (dashboard, config_builder, experiments,
     |                        #   results, plugins, topology)
-    +-- models/              # Webapp-specific Pydantic models for API
-    |                        #   responses and display aggregates
-    +-- utils/               # Form-model introspection helpers and
-    |                        #   plugin-to-form bridging utilities
-    +-- static/              # CSS, images, and other static assets
+    +-- static/              # Images and other static assets
 
 Quick start
 -----------

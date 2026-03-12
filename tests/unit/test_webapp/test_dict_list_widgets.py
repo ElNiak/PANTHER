@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 import pytest
 from pydantic import BaseModel, Field
 
-from panther.webapp.utils.form_models import (
+from panther.webapp.components.forms.form_models import (
     ComplexFieldInfo,
     classify_complex_field,
     get_complex_fields,
@@ -116,21 +116,23 @@ class TestGetComplexFieldsDetailed:
 @pytest.mark.unit
 class TestWidgetImports:
     def test_key_value_editor_importable(self):
-        from panther.webapp.components.dict_list_widgets import KeyValueEditor
+        from panther.webapp.components.forms.dict_list_widgets import KeyValueEditor
 
         assert KeyValueEditor is not None
 
     def test_keyed_model_editor_importable(self):
-        from panther.webapp.components.dict_list_widgets import KeyedModelEditor
+        from panther.webapp.components.forms.dict_list_widgets import KeyedModelEditor
 
         assert KeyedModelEditor is not None
 
     def test_model_list_editor_importable(self):
-        from panther.webapp.components.dict_list_widgets import ModelListEditor
+        from panther.webapp.components.forms.dict_list_widgets import ModelListEditor
 
         assert ModelListEditor is not None
 
     def test_create_widget_for_field_importable(self):
-        from panther.webapp.components.dict_list_widgets import create_widget_for_field
+        from panther.webapp.components.forms.dict_list_widgets import (
+            create_widget_for_field,
+        )
 
         assert callable(create_widget_for_field)

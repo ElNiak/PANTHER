@@ -1,8 +1,8 @@
 """Results page -- browse past experiment outputs with statistics and drill-down.
 
 Provides aggregate statistics, charts, and a tabbed detail dialog for
-PANTHER (Protocol ANalyzer and THreat Evaluator for Research) experiment
-outputs.
+PANTHER (Protocol ANalysis and Testing Harness for Extensible Research)
+experiment outputs.
 
 This page follows a **master-detail** navigation pattern:
 
@@ -54,13 +54,13 @@ from collections import defaultdict
 
 from nicegui import app, ui
 
-from panther.webapp.components.error_boundary import error_boundary
-from panther.webapp.components.event_viewer import event_viewer
-from panther.webapp.components.metrics_panel import metrics_panel
-from panther.webapp.components.service_health_card import service_health_card
-from panther.webapp.components.stat_cards import stat_card
-from panther.webapp.components.test_detail_panel import test_detail_panel
-from panther.webapp.services.results_service import ResultsService
+from panther.webapp.components.display.event_viewer import event_viewer
+from panther.webapp.components.display.metrics_panel import metrics_panel
+from panther.webapp.components.display.service_health_card import service_health_card
+from panther.webapp.components.display.stat_cards import stat_card
+from panther.webapp.components.display.test_detail_panel import test_detail_panel
+from panther.webapp.components.status.error_boundary import error_boundary
+from panther.webapp.services.results import ResultsService
 
 logger = logging.getLogger(__name__)
 
@@ -77,11 +77,13 @@ _ARTIFACT_ICONS = {
 def content():
     """Render the results browser page content."""
     output_dir = app.storage.general.get("output_dir", "outputs")
+    logger.info("Loading results page (output_dir=%s)", output_dir)
     results_svc = ResultsService(output_dir)
 
     ui.label("Experiment Results").classes("text-h5 q-mb-md")
 
     experiments = results_svc.list_experiments()
+    logger.debug("Found %d experiment results", len(experiments))
 
     # --- Summary stat cards ---
     with error_boundary("Summary Stats"):
@@ -215,6 +217,7 @@ def content():
     def _on_row_click(e):
         """Open the detail dialog for the clicked experiment row."""
         row = e.args[1]
+        logger.info("Opening detail view for experiment: %s", row.get("name"))
         _show_detail(detail_dialog, results_svc, row)
 
     table.on("rowClick", _on_row_click)
@@ -277,8 +280,15 @@ def _show_detail(dialog: ui.dialog, results_svc: ResultsService, row: dict):
 
             detail = results_svc.get_experiment_detail(name)
             if not detail:
+                logger.warning("No details found for experiment: %s", name)
                 ui.label("No details available").classes("text-grey-7")
             else:
+                logger.debug(
+                    "Loaded experiment detail: %s (status=%s, tests=%s)",
+                    name,
+                    detail.get("status"),
+                    detail.get("test_count"),
+                )
                 with ui.tabs().classes("w-full").style("flex-shrink: 0") as tabs:
                     summary_tab = ui.tab("Summary", icon="analytics")
                     tests_tab = ui.tab("Tests", icon="science")

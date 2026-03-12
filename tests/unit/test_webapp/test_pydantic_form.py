@@ -10,12 +10,12 @@ from pydantic import BaseModel, Field
 @pytest.mark.unit
 class TestFormConfig:
     def test_importable(self):
-        from panther.webapp.components.pydantic_form import FormConfig
+        from panther.webapp.components.forms.pydantic_form import FormConfig
 
         assert FormConfig is not None
 
     def test_defaults(self):
-        from panther.webapp.components.pydantic_form import FormConfig
+        from panther.webapp.components.forms.pydantic_form import FormConfig
 
         cfg = FormConfig()
         assert cfg.show_advanced is False
@@ -24,7 +24,7 @@ class TestFormConfig:
         assert cfg.css_prefix == "pf"
 
     def test_custom_values(self):
-        from panther.webapp.components.pydantic_form import FormConfig
+        from panther.webapp.components.forms.pydantic_form import FormConfig
 
         cfg = FormConfig(show_advanced=True, css_prefix="cr")
         assert cfg.show_advanced is True
@@ -34,12 +34,12 @@ class TestFormConfig:
 @pytest.mark.unit
 class TestFieldBinding:
     def test_importable(self):
-        from panther.webapp.components.pydantic_form import FieldBinding
+        from panther.webapp.components.forms.pydantic_form import FieldBinding
 
         assert FieldBinding is not None
 
     def test_scalar_binding(self):
-        from panther.webapp.components.pydantic_form import FieldBinding
+        from panther.webapp.components.forms.pydantic_form import FieldBinding
 
         b = FieldBinding(
             getter=lambda: "hello",
@@ -55,7 +55,7 @@ class TestFieldBinding:
 @pytest.mark.unit
 class TestPydanticFormImport:
     def test_importable(self):
-        from panther.webapp.components.pydantic_form import PydanticForm
+        from panther.webapp.components.forms.pydantic_form import PydanticForm
 
         assert PydanticForm is not None
 
@@ -63,21 +63,21 @@ class TestPydanticFormImport:
 @pytest.mark.unit
 class TestTypeDetection:
     def test_unwrap_optional_str(self):
-        from panther.webapp.components.pydantic_form import PydanticForm
+        from panther.webapp.components.forms.pydantic_form import PydanticForm
 
         inner, is_opt = PydanticForm._unwrap_optional(Optional[str])
         assert inner is str
         assert is_opt is True
 
     def test_unwrap_non_optional(self):
-        from panther.webapp.components.pydantic_form import PydanticForm
+        from panther.webapp.components.forms.pydantic_form import PydanticForm
 
         inner, is_opt = PydanticForm._unwrap_optional(str)
         assert inner is str
         assert is_opt is False
 
     def test_unwrap_optional_basemodel(self):
-        from panther.webapp.components.pydantic_form import PydanticForm
+        from panther.webapp.components.forms.pydantic_form import PydanticForm
 
         class Inner(BaseModel):
             x: int = 0
@@ -87,7 +87,7 @@ class TestTypeDetection:
         assert is_opt is True
 
     def test_find_enum_with_enum(self):
-        from panther.webapp.components.pydantic_form import PydanticForm
+        from panther.webapp.components.forms.pydantic_form import PydanticForm
 
         class Color(Enum):
             RED = "red"
@@ -96,13 +96,13 @@ class TestTypeDetection:
         assert PydanticForm._find_enum(Color) is Color
 
     def test_find_enum_with_non_enum(self):
-        from panther.webapp.components.pydantic_form import PydanticForm
+        from panther.webapp.components.forms.pydantic_form import PydanticForm
 
         assert PydanticForm._find_enum(str) is None
         assert PydanticForm._find_enum(int) is None
 
     def test_find_enum_with_basemodel(self):
-        from panther.webapp.components.pydantic_form import PydanticForm
+        from panther.webapp.components.forms.pydantic_form import PydanticForm
 
         class M(BaseModel):
             x: int = 0

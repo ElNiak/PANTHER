@@ -1,5 +1,4 @@
-"""
-Service Events Module
+"""Service Events Module.
 
 This module provides event classes, state management, and event emission for service lifecycle.
 """

@@ -2,8 +2,8 @@
 
 Provides synchronized PydanticForm-based forms and a raw YAML preview.
 
-This page enables users to build PANTHER (Protocol ANalyzer and THreat
-Evaluator for Research) experiment configurations through two
+This page enables users to build PANTHER (Protocol ANalysis and Testing
+Harness for Extensible Research) experiment configurations through two
 complementary interfaces:
 
 **Dual-tab architecture:**
@@ -15,8 +15,9 @@ complementary interfaces:
    ``TestListEditor`` supporting add / remove / duplicate operations.
 
 2. **YAML Preview tab** -- a ``YamlEditor`` (CodeMirror-based) showing
-   the live YAML representation.  Edits here are validated on every
-   keystroke via ``ConfigService.validate_yaml()``.
+   the live YAML representation.  Edits are validated periodically
+   (1-second timer) and on explicit actions via
+   ``ConfigService.validate_yaml()``.
 
 **Form-to-YAML synchronisation:**
 A ``ui.timer`` fires every 1 second and serialises the current form
@@ -51,13 +52,13 @@ NiceGUI patterns used:
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from nicegui import ui
 
 from panther.config.core.models.experiment import TestConfig
-from panther.webapp.components.yaml_editor import YamlEditor
+from panther.webapp.components.forms.yaml_editor import YamlEditor
 from panther.webapp.services.config_service import ConfigService
 
 logger = logging.getLogger(__name__)
@@ -115,6 +116,7 @@ def content():
     panel builder and the YAML editor so that the timer-based sync
     and the action helpers can access both.
     """
+    logger.info("Loading config builder page")
     config_svc = ConfigService()
 
     ui.label("Experiment Configuration Builder").classes("text-h5 q-mb-md")
@@ -198,9 +200,9 @@ def _render_config_forms(yaml_editor_ref: dict):
 
     from panther.config.core.models.experiment import ExperimentMetadata
     from panther.config.core.models.global_config import GlobalConfig
-    from panther.webapp.components.config_form_panel import config_form_panel
-    from panther.webapp.components.error_boundary import error_boundary
-    from panther.webapp.utils.form_models import GLOBAL_SECTION_META
+    from panther.webapp.components.forms.config_form_panel import config_form_panel
+    from panther.webapp.components.forms.form_models import GLOBAL_SECTION_META
+    from panther.webapp.components.status.error_boundary import error_boundary
 
     panels: dict[str, Any] = {"global": {}}
 
@@ -233,7 +235,7 @@ def _render_config_forms(yaml_editor_ref: dict):
             "Configure tests. Expand a panel to edit, use buttons to add/remove/duplicate."
         ).classes("text-caption text-grey-7 q-mb-sm")
         with error_boundary("Test Config"):
-            from panther.webapp.components.test_list_editor import TestListEditor
+            from panther.webapp.components.forms.test_list_editor import TestListEditor
 
             test_editor = TestListEditor()
             test_editor.set_value([{}])  # Start with one empty test
@@ -372,10 +374,12 @@ def _validate(config_svc: ConfigService, yaml_editor):
 
     field_errors = config_svc.validate_config_detailed(data)
     if field_errors:
+        logger.info("Configuration validation found %d issues", len(field_errors))
         for err in field_errors[:10]:
             severity = "negative" if err.severity == "error" else "warning"
             ui.notify(f"{err.path}: {err.message}", type=severity)
     else:
+        logger.info("Configuration validated successfully")
         ui.notify("Configuration is valid", type="positive")
 
 
@@ -406,9 +410,10 @@ def _export(yaml_editor):
         data = None
     if isinstance(data, dict):
         meta = data.setdefault("metadata", {})
-        meta["modified_at"] = datetime.now().isoformat()
+        meta["modified_at"] = datetime.now(tz=timezone.utc).isoformat()
         yaml_content = _yaml.dump(data, default_flow_style=False, sort_keys=False)
     ui.download(yaml_content.encode(), "panther_config.yaml")
+    logger.info("Configuration exported as panther_config.yaml")
 
 
 def _import_yaml_dialog(config_svc: ConfigService, yaml_editor_ref: dict):
@@ -453,6 +458,7 @@ def _import_yaml_dialog(config_svc: ConfigService, yaml_editor_ref: dict):
                 _populate_forms_from_dict(panels, data)
             yaml_editor_ref["skip_sync"] = True
             dialog.close()
+            logger.info("YAML configuration imported from paste")
             ui.notify("Configuration imported into forms", type="positive")
 
         with ui.row().classes("justify-end w-full q-mt-sm"):
@@ -515,11 +521,14 @@ def _load_config_dialog(config_svc: ConfigService, yaml_editor_ref: dict):
                     _populate_forms_from_dict(panels, data)
                 yaml_editor_ref["skip_sync"] = True
                 dialog.close()
+                logger.info("Configuration loaded from file: %s", path)
                 ui.notify(f"Loaded: {path}", type="positive")
-            except FileNotFoundError:
+            except FileNotFoundError as e:
+                logger.warning("Failed to load config from %s: %s", path, e)
                 ui.notify(f"File not found: {path}", type="negative")
-            except ValueError as exc:
-                ui.notify(f"Error: {exc}", type="negative")
+            except ValueError as e:
+                logger.warning("Failed to load config from %s: %s", path, e)
+                ui.notify(f"Error: {e}", type="negative")
 
         with ui.row().classes("justify-end w-full q-mt-sm"):
             ui.button("Cancel", on_click=dialog.close).props("flat")
@@ -567,10 +576,11 @@ def _save_config_dialog(config_svc: ConfigService, yaml_editor):
                 return
             # Stamp modified_at before writing
             meta = data.setdefault("metadata", {})
-            meta["modified_at"] = datetime.now().isoformat()
+            meta["modified_at"] = datetime.now(tz=timezone.utc).isoformat()
             try:
                 config_svc.save_config(path, data)
                 dialog.close()
+                logger.info("Configuration saved to file: %s", path)
                 ui.notify(f"Saved to: {path}", type="positive")
             except Exception as exc:
                 ui.notify(f"Error saving: {exc}", type="negative")

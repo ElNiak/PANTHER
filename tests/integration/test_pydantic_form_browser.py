@@ -131,7 +131,7 @@ class CategoryModel(BaseModel):
 
 def _setup_form_page(model_cls, instance=None, config=None):
     """Set up a page with PydanticForm + Get Value bridge button."""
-    from panther.webapp.components.pydantic_form import FormConfig, PydanticForm
+    from panther.webapp.components.forms.pydantic_form import FormConfig, PydanticForm
 
     form_ref = {}
 
@@ -162,7 +162,7 @@ def _setup_form_page(model_cls, instance=None, config=None):
 def test_list_field_renders_as_textarea(screen: Screen):
     """Percentiles (bare list type) renders as textarea, not text input."""
     from panther.config.core.models.observer import MetricsObserverConfig
-    from panther.webapp.components.pydantic_form import PydanticForm
+    from panther.webapp.components.forms.pydantic_form import PydanticForm
 
     @ui.page("/")
     def page():
@@ -175,7 +175,7 @@ def test_list_field_renders_as_textarea(screen: Screen):
 
 def test_number_field_respects_ge_constraint(screen: Screen):
     """Optional[int] with ge=1 defaults to 1, not 0."""
-    from panther.webapp.components.pydantic_form import PydanticForm
+    from panther.webapp.components.forms.pydantic_form import PydanticForm
 
     class TestModel(BaseModel):
         timeout: Optional[int] = Field(None, ge=1, description="Timeout")
@@ -190,7 +190,7 @@ def test_number_field_respects_ge_constraint(screen: Screen):
 
 def test_form_get_set_roundtrip(screen: Screen):
     """Form renders basic fields correctly."""
-    from panther.webapp.components.pydantic_form import PydanticForm
+    from panther.webapp.components.forms.pydantic_form import PydanticForm
 
     @ui.page("/")
     def page():
@@ -204,7 +204,7 @@ def test_form_get_set_roundtrip(screen: Screen):
 
 def test_nested_model_renders_expansion(screen: Screen):
     """Nested BaseModel fields render as expansion panels."""
-    from panther.webapp.components.pydantic_form import PydanticForm
+    from panther.webapp.components.forms.pydantic_form import PydanticForm
 
     @ui.page("/")
     def page():
@@ -217,7 +217,7 @@ def test_nested_model_renders_expansion(screen: Screen):
 
 def test_enum_field_renders_select(screen: Screen):
     """Enum fields render as select dropdowns."""
-    from panther.webapp.components.pydantic_form import PydanticForm
+    from panther.webapp.components.forms.pydantic_form import PydanticForm
 
     @ui.page("/")
     def page():
@@ -229,7 +229,7 @@ def test_enum_field_renders_select(screen: Screen):
 
 def test_bool_field_renders_switch(screen: Screen):
     """Bool fields render as toggle switches."""
-    from panther.webapp.components.pydantic_form import PydanticForm
+    from panther.webapp.components.forms.pydantic_form import PydanticForm
 
     @ui.page("/")
     def page():
@@ -242,7 +242,7 @@ def test_bool_field_renders_switch(screen: Screen):
 def test_full_observer_config_renders(screen: Screen):
     """Full ObserversConfig renders without errors."""
     from panther.config.core.models.observer import ObserversConfig
-    from panther.webapp.components.pydantic_form import PydanticForm
+    from panther.webapp.components.forms.pydantic_form import PydanticForm
 
     @ui.page("/")
     def page():
@@ -285,7 +285,7 @@ def test_int_field_edit_updates_value(screen: Screen):
 
 def test_float_field_has_step_point_one(screen: Screen):
     """Float input renders with step=0.1 attribute."""
-    from panther.webapp.components.pydantic_form import PydanticForm
+    from panther.webapp.components.forms.pydantic_form import PydanticForm
 
     @ui.page("/")
     def page():
@@ -311,7 +311,7 @@ def test_bool_switch_toggle(screen: Screen):
 
 def test_set_value_populates_inputs(screen: Screen):
     """set_value() populates form inputs with new data."""
-    from panther.webapp.components.pydantic_form import PydanticForm
+    from panther.webapp.components.forms.pydantic_form import PydanticForm
 
     @ui.page("/")
     def page():
@@ -449,9 +449,10 @@ def test_kv_editor_fill_and_get_value(screen: Screen):
     inputs = screen.selenium.find_elements("tag name", "input")
     key_inputs = [i for i in inputs if i.get_attribute("aria-label") == "Key"]
     value_inputs = [i for i in inputs if i.get_attribute("aria-label") == "Value"]
-    if key_inputs and value_inputs:
-        key_inputs[-1].send_keys("mykey")
-        value_inputs[-1].send_keys("myval")
+    assert key_inputs, "Expected Key input elements after clicking 'Add row'"
+    assert value_inputs, "Expected Value input elements after clicking 'Add row'"
+    key_inputs[-1].send_keys("mykey")
+    value_inputs[-1].send_keys("myval")
     screen.click("Get Value")
     screen.wait(0.5)
     screen.should_contain("mykey")
@@ -480,8 +481,8 @@ def test_keyed_model_editor_add_and_close(screen: Screen):
     # Fill key input in dialog
     inputs = screen.selenium.find_elements("tag name", "input")
     key_inputs = [i for i in inputs if i.get_attribute("aria-label") == "Key"]
-    if key_inputs:
-        key_inputs[0].send_keys("server1")
+    assert key_inputs, "Expected Key input in dialog after clicking 'Add entry'"
+    key_inputs[0].send_keys("server1")
     # Click the dialog's "Add" button (Quasar renders text as UPPERCASE)
     from selenium.webdriver.common.by import By
 
@@ -507,17 +508,15 @@ def test_keyed_model_editor_delete_entry(screen: Screen):
     close_buttons = screen.selenium.find_elements(
         "css selector", "button[class*='negative'], button .q-icon"
     )
+    assert close_buttons, "Expected close/delete buttons for the entry"
+    clicked = False
     for btn in close_buttons:
-        try:
-            if (
-                "close" in btn.text.lower()
-                or btn.get_attribute("innerHTML")
-                and "close" in btn.get_attribute("innerHTML")
-            ):
-                btn.click()
-                break
-        except Exception:
-            continue
+        inner_html = btn.get_attribute("innerHTML") or ""
+        if "close" in btn.text.lower() or "close" in inner_html:
+            btn.click()
+            clicked = True
+            break
+    assert clicked, "Expected to find and click a close/delete button"
     screen.wait(0.5)
     screen.should_contain("No entries")
 
@@ -569,8 +568,8 @@ def test_model_list_editor_delete_entry(screen: Screen):
     close_buttons = screen.selenium.find_elements(
         "css selector", "button[class*='negative']"
     )
-    if close_buttons:
-        close_buttons[0].click()
+    assert close_buttons, "Expected delete button for list entry"
+    close_buttons[0].click()
     screen.wait(0.5)
     screen.should_contain("No entries")
 
@@ -582,7 +581,7 @@ def test_model_list_editor_delete_entry(screen: Screen):
 
 def test_section_style_card_shows_inner_immediately(screen: Screen):
     """section_style='card' renders nested model without expansion click."""
-    from panther.webapp.components.pydantic_form import FormConfig, PydanticForm
+    from panther.webapp.components.forms.pydantic_form import FormConfig, PydanticForm
 
     @ui.page("/")
     def page():
@@ -595,7 +594,7 @@ def test_section_style_card_shows_inner_immediately(screen: Screen):
 
 def test_show_advanced_hides_and_shows_fields(screen: Screen):
     """advanced=True field hidden by default, shown with show_advanced."""
-    from panther.webapp.components.pydantic_form import FormConfig, PydanticForm
+    from panther.webapp.components.forms.pydantic_form import FormConfig, PydanticForm
 
     @ui.page("/")
     def page():
@@ -628,7 +627,7 @@ def test_show_advanced_hides_and_shows_fields(screen: Screen):
 
 def test_group_by_category(screen: Screen):
     """Fields with category grouped under expansion panel."""
-    from panther.webapp.components.pydantic_form import FormConfig, PydanticForm
+    from panther.webapp.components.forms.pydantic_form import FormConfig, PydanticForm
 
     @ui.page("/")
     def page():
@@ -646,7 +645,7 @@ def test_group_by_category(screen: Screen):
 
 def test_port_widget_constraints(screen: Screen):
     """widget_type='port' renders number input with min=0, max=65535."""
-    from panther.webapp.components.pydantic_form import PydanticForm
+    from panther.webapp.components.forms.pydantic_form import PydanticForm
 
     @ui.page("/")
     def page():
@@ -659,7 +658,7 @@ def test_port_widget_constraints(screen: Screen):
 
 def test_literal_field_renders_select(screen: Screen):
     """Literal['a','b','c'] renders as select dropdown."""
-    from panther.webapp.components.pydantic_form import PydanticForm
+    from panther.webapp.components.forms.pydantic_form import PydanticForm
 
     @ui.page("/")
     def page():
@@ -671,7 +670,7 @@ def test_literal_field_renders_select(screen: Screen):
 
 def test_float_step_differs_from_int_step(screen: Screen):
     """Float renders with step=0.1, int with step=1."""
-    from panther.webapp.components.pydantic_form import PydanticForm
+    from panther.webapp.components.forms.pydantic_form import PydanticForm
 
     @ui.page("/")
     def page():
@@ -691,7 +690,7 @@ def test_float_step_differs_from_int_step(screen: Screen):
 def test_global_config_renders_all_sections(screen: Screen):
     """GlobalConfig renders all section names."""
     from panther.config.core.models.global_config import GlobalConfig
-    from panther.webapp.components.pydantic_form import PydanticForm
+    from panther.webapp.components.forms.pydantic_form import PydanticForm
 
     @ui.page("/")
     def page():
@@ -713,7 +712,7 @@ def test_global_config_renders_all_sections(screen: Screen):
 def test_storage_observer_renders_enum(screen: Screen):
     """StorageObserverConfig renders StorageFormat enum."""
     from panther.config.core.models.observer import StorageObserverConfig
-    from panther.webapp.components.pydantic_form import PydanticForm
+    from panther.webapp.components.forms.pydantic_form import PydanticForm
 
     @ui.page("/")
     def page():

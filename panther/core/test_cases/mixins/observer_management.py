@@ -2,11 +2,11 @@
 
 from typing import List
 
-from panther.core.observer.factory import get_observer_factory
-from panther.core.observer.factory.factory_builders import (
+from panther.core.observer.factory import (
     create_logger,
     create_metrics,
     create_storage,
+    get_observer_factory,
 )
 from panther.core.observer.impl.experiment_observer import ExperimentObserver
 
@@ -22,8 +22,7 @@ class ObserverManagementMixin:
             self.registered_observers: List[str] = []
 
     def setup_observers(self) -> None:
-        """
-        Set up and register default observers for the test case.
+        """Set up and register default observers for the test case.
 
         This method sets up the standard observers for logging, metrics, storage,
         and experiment tracking using the enhanced observer registry system.
@@ -196,8 +195,7 @@ class ObserverManagementMixin:
             self.logger.warning(f"Failed to create storage observer: {e}")
 
     def teardown_observers(self) -> None:
-        """
-        Unregister all observers registered by this test case.
+        """Unregister all observers registered by this test case.
 
         This method should be called in the finally block of the test run.
         """
@@ -220,8 +218,7 @@ class ObserverManagementMixin:
             # Continue with cleanup even if observer unregistration fails
 
     def get_experiment_observer(self) -> ExperimentObserver:
-        """
-        Get the ExperimentObserver instance from the event manager.
+        """Get the ExperimentObserver instance from the event manager.
 
         Returns:
             ExperimentObserver or None: The experiment observer instance if found

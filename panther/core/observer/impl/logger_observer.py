@@ -1,5 +1,4 @@
-"""
-Event-Aware Logger Observer Module
+"""Event-Aware Logger Observer Module.
 
 This module provides an enhanced logger observer that uses event types and context
 for intelligent logging with color coding, filtering, and adaptive formatting.
@@ -30,7 +29,7 @@ from panther.core.events.service.events import (
 )
 from panther.core.events.test.events import TestFailedEvent
 from panther.core.observer.base.typed_observer_interface import ITypedObserver
-from panther.core.observer.utils.event_colors import (
+from panther.core.observer.impl.event_colors import (
     get_severity_indicator,
     is_terminal_capable,
 )
@@ -54,9 +53,7 @@ EVENT_LOG_COLORS = {
 
 
 class LoggerObserver(ITypedObserver):
-    """
-
-    Enhanced logger observer with event-aware capabilities.
+    """Enhanced logger observer with event-aware capabilities.
 
     This observer provides:
     - Color-coded output based on event types (colorlog)
@@ -86,7 +83,6 @@ class LoggerObserver(ITypedObserver):
         max_history_size: int = 1000,
     ):
         """Initialize the event-aware logger observer with optional debug capabilities."""
-
         super().__init__()
         self.log_level = getattr(logging, log_level.upper(), logging.INFO)
         self.include_data = include_data
@@ -571,8 +567,7 @@ class LoggerObserver(ITypedObserver):
     def get_event_history(
         self, event_type: Optional[str] = None, limit: Optional[int] = None
     ) -> List[dict]:
-        """
-        Get history of events, optionally filtered by type.
+        """Get history of events, optionally filtered by type.
 
         This method provides the same functionality as DebugObserver.
 
@@ -593,8 +588,7 @@ class LoggerObserver(ITypedObserver):
         return self.event_history[-limit:] if limit else self.event_history
 
     def analyze_event_flow(self) -> List[dict]:
-        """
-        Analyze event flow for anomalies or bottlenecks.
+        """Analyze event flow for anomalies or bottlenecks.
 
         This method provides the same functionality as DebugObserver.
 
@@ -626,8 +620,7 @@ class LoggerObserver(ITypedObserver):
         return analysis
 
     def export_logs(self, output_path: str, format: str = "json") -> bool:
-        """
-        Export collected event data to a file.
+        """Export collected event data to a file.
 
         Args:
             output_path: Path to write the export file

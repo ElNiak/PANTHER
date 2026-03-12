@@ -1,5 +1,4 @@
-"""
-Step Event Emitter
+"""Step Event Emitter.
 
 This module provides a type-safe event emitter for step-related events.
 """
@@ -14,23 +13,19 @@ from panther.core.events.step.events import (
     StepExecutionFailedEvent,
     StepExecutionStartedEvent,
     StepProgressEvent,
-    StepSkippedEvent,
     StepUnsupportedEvent,
 )
 
 
 class StepEventEmitter:
-    """
-
-    Type-safe event emitter for step-related events.
+    """Type-safe event emitter for step-related events.
 
     This class provides methods for emitting all step lifecycle events
     with proper typing and validation.
     """
 
     def __init__(self, event_manager: "EventManager"):
-        """
-        Initialize the step event emitter.
+        """Initialize the step event emitter.
 
         Args:
             event_manager: Event manager to use for event emission
@@ -45,8 +40,7 @@ class StepEventEmitter:
         step_config: Optional[Dict[str, Any]] = None,
         prerequisites: Optional[list] = None,
     ) -> None:
-        """
-        Emit a step execution started event.
+        """Emit a step execution started event.
 
         Args:
             step_id: Unique step identifier
@@ -73,8 +67,7 @@ class StepEventEmitter:
         result: Optional[Dict[str, Any]] = None,
         output: Optional[str] = None,
     ) -> None:
-        """
-        Emit a step execution completed event.
+        """Emit a step execution completed event.
 
         Args:
             step_id: Unique step identifier
@@ -104,8 +97,7 @@ class StepEventEmitter:
         duration: Optional[float] = None,
         retry_count: int = 0,
     ) -> None:
-        """
-        Emit a step execution failed event.
+        """Emit a step execution failed event.
 
         Args:
             step_id: Unique step identifier
@@ -136,8 +128,7 @@ class StepEventEmitter:
         progress_message: str = "",
         current_operation: Optional[str] = None,
     ) -> None:
-        """
-        Emit a step progress event.
+        """Emit a step progress event.
 
         Args:
             step_id: Unique step identifier
@@ -165,8 +156,7 @@ class StepEventEmitter:
         reason: str = "",
         alternative_steps: Optional[list] = None,
     ) -> None:
-        """
-        Emit a step unsupported event.
+        """Emit a step unsupported event.
 
         Args:
             step_id: Unique step identifier
@@ -181,32 +171,5 @@ class StepEventEmitter:
             test_case_id=test_case_id,
             reason=reason,
             alternative_steps=alternative_steps,
-        )
-        self.event_manager.notify(event)
-
-    def emit_step_skipped(
-        self,
-        step_id: str,
-        step_name: str,
-        test_case_id: Optional[str] = None,
-        skip_reason: str = "",
-        skip_condition: Optional[str] = None,
-    ) -> None:
-        """
-        Emit a step skipped event.
-
-        Args:
-            step_id: Unique step identifier
-            step_name: Human-readable step name
-            test_case_id: ID of the test case this step belongs to
-            skip_reason: Reason why the step was skipped
-            skip_condition: Condition that caused the step to be skipped
-        """
-        event = StepSkippedEvent(
-            step_id=step_id,
-            step_name=step_name,
-            test_case_id=test_case_id,
-            skip_reason=skip_reason,
-            skip_condition=skip_condition,
         )
         self.event_manager.notify(event)

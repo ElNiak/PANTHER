@@ -13,7 +13,6 @@ Architecture::
     +-- base/                    # Foundation classes and interfaces
     |   +-- event_base.py       # BaseEvent, EventType, UUID generation
     |   +-- event_emitter_base.py  # EventEmitterBase, EntityEventEmitterBase
-    |   +-- event_emitter.py    # Simple EventEmitter (uses EventManager singleton)
     |   +-- state_base.py       # BaseState, StateManager, StateTransition
     +-- {domain}/               # Domain-specific event implementations
     |   +-- events.py           # Event type definitions
@@ -40,8 +39,7 @@ Key Design Principles:
       the data dict and regenerates the content-based UUID
     - **State tracking** -- Each domain maintains state managers that track
       entity lifecycle and enable workflow coordination
-    - **Memory efficiency** -- ``__slots__`` in event classes, enum-based
-      event types for O(1) filtering
+    - **Memory efficiency** -- enum-based event types for O(1) filtering
 
 Event Lifecycle:
     1. **Creation** -- Events created with deterministic UUIDs and timestamps
@@ -64,18 +62,22 @@ Example:
         assert event.id  # content-based UUID5
         assert event.validate()
 
-    Use the EmitterRegistry for state-validated emission::
+    Use the EmitterRegistry for state-validated service events::
 
         from panther.core.events.emitter_registry import EmitterRegistry
         from panther.core.observer.management.event_manager import EventManager
 
         registry = EmitterRegistry(EventManager.get_instance())
+
+        # Emit with state-machine validation (returns False if transition invalid).
+        # Services start in CREATED state; transitions must follow the lifecycle.
         registry.emit_service_created_with_validation(
-            service_id="svc-1",
-            service_name="picoquic",
-            service_type="iut",
-            implementation="picoquic",
+            service_id="svc-1", service_name="picoquic",
+            service_type="iut", implementation="picoquic",
         )
+
+        # Cleanup after service teardown
+        registry.cleanup_service_state("svc-1")
 
     Creating custom event types (how-to)::
 
@@ -107,7 +109,6 @@ from panther.core.events.assertion import (
     AssertionEventEmitter,
     AssertionProgressEvent,
     AssertionResultEvent,
-    AssertionState,
     AssertionsValidationCompletedEvent,
     AssertionsValidationStartedEvent,
     AssertionUnknownEvent,
@@ -133,7 +134,6 @@ from panther.core.events.environment import (  # Deployment Events; Network Envi
     EnvironmentSetupCompletedEvent,
     EnvironmentSetupFailedEvent,
     EnvironmentSetupStartedEvent,
-    EnvironmentState,
     EnvironmentTeardownCompletedEvent,
     EnvironmentTeardownFailedEvent,
     EnvironmentTeardownStartedEvent,
@@ -167,7 +167,6 @@ from panther.core.events.experiment import (
     ExperimentPluginLoadingCompletedEvent,
     ExperimentPluginLoadingFailedEvent,
     ExperimentPluginLoadingStartedEvent,
-    ExperimentState,
     ExperimentTestCasesInitializedEvent,
 )
 from panther.core.events.metrics import (
@@ -175,7 +174,6 @@ from panther.core.events.metrics import (
     MetricCollectedEvent,
     MetricsEvent,
     MetricsEventEmitter,
-    MetricsState,
     MetricsSummaryEvent,
     ResourceMetricEvent,
     TimingMetricEvent,
@@ -192,7 +190,6 @@ from panther.core.events.plugin import (
     PluginServiceStartedEvent,
     PluginServiceStoppedEvent,
     PluginStartedEvent,
-    PluginState,
     PluginStoppedEvent,
 )
 from panther.core.events.service import (
@@ -229,7 +226,6 @@ from panther.core.events.step import (
     StepExecutionStartedEvent,
     StepProgressEvent,
     StepSkippedEvent,
-    StepState,
     StepUnsupportedEvent,
 )
 from panther.core.events.test import (
@@ -256,7 +252,6 @@ from panther.core.events.test import (
     TestSetupCompletedEvent,
     TestSetupFailedEvent,
     TestSetupStartedEvent,
-    TestState,
     TestStepCompletedEvent,
     TestStepFailedEvent,
     TestStepStartedEvent,
@@ -271,11 +266,9 @@ __all__ = [
     "BaseState",
     "StateManager",
     # Experiment
-    "ExperimentState",
     "ExperimentEvent",
     "ExperimentEventEmitter",
     # Test
-    "TestState",
     "TestEvent",
     "TestEventEmitter",
     "TestCreatedEvent",
@@ -330,7 +323,6 @@ __all__ = [
     "TesterAnalysisStartedEvent",
     "TesterAnalysisCompletedEvent",
     # Environment
-    "EnvironmentState",
     "EnvironmentEvent",
     "EnvironmentEventEmitter",
     "EnvironmentCreatedEvent",
@@ -371,7 +363,6 @@ __all__ = [
     "OutputCollectedEvent",
     "OutputCollectionCompletedEvent",
     # Metrics
-    "MetricsState",
     "MetricsEvent",
     "MetricsEventEmitter",
     "MetricCollectedEvent",
@@ -380,7 +371,6 @@ __all__ = [
     "CounterMetricEvent",
     "MetricsSummaryEvent",
     # Step
-    "StepState",
     "StepEvent",
     "StepEventEmitter",
     "StepExecutionStartedEvent",
@@ -390,7 +380,6 @@ __all__ = [
     "StepUnsupportedEvent",
     "StepSkippedEvent",
     # Assertion
-    "AssertionState",
     "AssertionEvent",
     "AssertionEventEmitter",
     "AssertionsValidationStartedEvent",
@@ -400,7 +389,6 @@ __all__ = [
     "AssertionErrorEvent",
     "AssertionUnknownEvent",
     # Plugin
-    "PluginState",
     "PluginEvent",
     "PluginEventEmitter",
     "PluginLoadingStartedEvent",

@@ -1,9 +1,9 @@
 """Dashboard page -- overview with summary statistics and real-time monitoring.
 
-Provides an overview of the PANTHER (Protocol ANalyzer and THreat
-Evaluator for Research) system status.
+Provides an overview of the PANTHER (Protocol ANalysis and Testing
+Harness for Extensible Research) system status.
 
-This is the landing page users see after logging in. It provides three
+This is the landing page users see when they open the webapp. It provides three
 sections:
 
 1. **Overview cards** -- static statistics fetched once when the page loads:
@@ -44,10 +44,10 @@ from nicegui import app, ui
 
 from panther.core.events.base.event_base import BaseEvent
 from panther.core.events.event_summarizer import EventImportance
-from panther.webapp.components.stat_cards import stat_card
+from panther.webapp.components.display.stat_cards import stat_card
 from panther.webapp.services.experiment_service import get_experiment_service
 from panther.webapp.services.plugin_service import PluginService
-from panther.webapp.services.results_service import ResultsService
+from panther.webapp.services.results import ResultsService
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +72,7 @@ def content():
     5. Registers a disconnect handler to unsubscribe automatically.
     6. Adds a "Quick Actions" row with navigation buttons.
     """
+    logger.info("Loading dashboard page")
     output_dir = app.storage.general.get("output_dir", "outputs")
 
     plugin_svc = PluginService()
@@ -80,6 +81,9 @@ def content():
 
     plugin_count = len(plugin_svc.list_plugins())
     experiment_count = results_svc.count_experiments()
+    logger.debug(
+        "Dashboard stats: %d plugins, %d experiments", plugin_count, experiment_count
+    )
     config_path = app.storage.general.get("config_path")
 
     ui.label("Overview").classes("text-h5 q-mb-md")
@@ -160,13 +164,14 @@ def content():
                 elif event_type == "experiment.failed":
                     status_label.text = "Failed"
         except RuntimeError:
-            pass  # client disconnected
+            logger.debug("Client disconnected during UI update")
 
     sub = experiment_svc.web_observer.subscribe(
         _on_live_event,
         event_types={"experiment", "test"},
         importance=EventImportance.HIGH,
     )
+    logger.debug("Dashboard subscribed to live experiment events")
 
     # Unsubscribe on page disconnect
     client.on_disconnect(lambda: experiment_svc.web_observer.unsubscribe(sub))

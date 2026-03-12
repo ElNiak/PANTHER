@@ -102,7 +102,7 @@ class DockerBuildCacheMixin(LoggerMixin):
                 try:
                     with open(file_path, "rb") as f:
                         hasher.update(f.read(1024))
-                except:
+                except OSError:
                     pass
 
             return hasher.hexdigest()
@@ -131,6 +131,10 @@ class DockerBuildCacheMixin(LoggerMixin):
             Image tag if cache should be used, None if build is needed
         """
         if not self._cache_enabled:
+            return None
+
+        if force_build:
+            self.logger.info(f"Force build enabled, rebuilding image {image_tag}.")
             return None
 
         # Check build cache
@@ -162,14 +166,6 @@ class DockerBuildCacheMixin(LoggerMixin):
                 f"No cached build found for {image_tag}, proceeding with build."
             )
             self._cache_misses += 1
-            return None
-
-        self.logger.info(f"Using cached image for {image_tag}: {cached_image_id}")
-
-        if force_build:
-            self.logger.info(
-                f"Force build enabled, rebuilding image {image_tag} even if cache exists."
-            )
             return None
 
         try:
@@ -283,7 +279,7 @@ class DockerBuildCacheMixin(LoggerMixin):
             if layers_result.returncode == 0:
                 try:
                     layers = json.loads(layers_result.stdout.strip())
-                except:
+                except (json.JSONDecodeError, ValueError):
                     pass
 
             return {"size": size, "layers": layers}

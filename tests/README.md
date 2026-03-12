@@ -32,7 +32,7 @@ tests/
 │   ├── test_non_critical_commands.py
 │   ├── test_plugin_manager_singleton.py
 │   └── test_structure_debug.py
-├── cli_click/                           # Click CLI unit & integration tests
+├── cli/                           # Click CLI unit & integration tests
 │   ├── unit/core/                       # CLI base & main entry
 │   └── unit/commands/                   # Individual command tests
 ├── functional/                          # Placeholder resolution & failure scenarios
@@ -79,7 +79,7 @@ pytest tests/unit/test_core/test_docker_builder_tag_generation.py -v
 pytest tests/ -n auto -m property
 
 # Click CLI tests
-pytest tests/cli_click/ -n auto -v
+pytest tests/cli/ -n auto -v
 ```
 
 ## Test Markers

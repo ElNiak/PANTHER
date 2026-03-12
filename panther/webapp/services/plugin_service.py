@@ -74,6 +74,7 @@ class PluginService:
             discovered plugins.  Returns an empty list on failure.
         """
         if self._plugins_cache is not None:
+            logger.debug("Returning %d cached plugins", len(self._plugins_cache))
             return self._plugins_cache
 
         try:
@@ -82,6 +83,9 @@ class PluginService:
             pm = PluginManager()
             discovered = pm.discover_plugins()
             self._plugins_cache = list(discovered.values())
+            logger.info(
+                "Plugin discovery complete: %d plugins found", len(self._plugins_cache)
+            )
         except Exception as e:
             logger.warning("Failed to discover plugins: %s", e)
             return []  # Don't cache failure — allow retry on next call
@@ -102,6 +106,7 @@ class PluginService:
         for p in self.list_plugins():
             if p.name == name:
                 return p
+        logger.debug("Plugin not found: %s", name)
         return None
 
     def get_plugin_manifest(self, name: str):
@@ -126,11 +131,8 @@ class PluginService:
             plugin is not found or discovery fails.
         """
         try:
-            from panther.plugins.plugin_manager import PluginManager
-
-            # Ensure plugins are imported and decorators have run
-            pm = PluginManager()
-            pm.discover_plugins()
+            # Ensure discovery has run (uses cached result if available)
+            self.list_plugins()
 
             from panther.plugins.core.plugin_decorators import get_decorated_plugins
 

@@ -65,7 +65,7 @@ class CachingMixin(LoggerMixin):
             try:
                 mtime = Path(source).stat().st_mtime
                 key_parts.append(f"mtime:{mtime}")
-            except:
+            except (OSError, TypeError):
                 pass
         elif isinstance(source, dict):
             # Hash the dictionary content

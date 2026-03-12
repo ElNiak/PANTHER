@@ -74,7 +74,6 @@ class ConfigValidator(BaseValidator):
         super().__init__()
         self.pydantic_validator = PydanticValidator()
         self.business_validator = BusinessRulesValidator()
-        self.compatibility_validator = CompatibilityValidator()
 
     def validate(self, config: Any) -> ValidationResult:
         """Validate configuration using all validators.
@@ -94,10 +93,6 @@ class ConfigValidator(BaseValidator):
         # Run business rules validation
         business_result = self.business_validator.validate(config)
         result.merge(business_result)
-
-        # Run compatibility validation
-        compat_result = self.compatibility_validator.validate(config)
-        result.merge(compat_result)
 
         return result
 
@@ -649,21 +644,3 @@ def validate_config_dict(data: dict) -> ValidationResult:
                     result.add_error("logging", stripped)
 
     return result
-
-
-class CompatibilityValidator(BaseValidator):
-    """Validator for checking legacy format compatibility."""
-
-    def validate(self, config: Any) -> ValidationResult:
-        """Validate configuration compatibility.
-
-        All legacy format checks have been removed. This validator is retained
-        as an extension point for future compatibility checks.
-
-        Args:
-            config: Configuration to validate
-
-        Returns:
-            Validation result
-        """
-        return ValidationResult()

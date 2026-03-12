@@ -63,11 +63,11 @@ panther --help          # Should list 'web' command
 python -c "import nicegui; print(nicegui.__version__)"   # Should print 3.x
 
 # 3. Check PydanticForm works with PANTHER models
-python -c "from panther.webapp.components.pydantic_form import PydanticForm; print('PydanticForm OK')"
+python -c "from panther.webapp.components.forms.pydantic_form import PydanticForm; print('PydanticForm OK')"
 
-# 4. Start the server and check all 5 pages load
+# 4. Start the server and check all 6 pages load
 panther web --reload
-# Navigate to: /, /config, /experiments, /results, /plugins
+# Navigate to: /, /config, /topology, /experiments, /results, /plugins
 ```
 
 ## How NiceGUI Development Works
@@ -91,24 +91,50 @@ Files you will work in most often:
 panther/webapp/
     app.py                  # Start here. Application factory, page registration.
     pages/                  # One file per page. Each exports a content() function.
-        dashboard.py        # /           (working)
-        config_builder.py   # /config     (skeleton -- forms to build)
-        experiments.py      # /experiments (skeleton -- launch works, monitoring to build)
-        results.py          # /results    (working -- row-click wired, analysis to build)
-        plugins.py          # /plugins    (working)
+        dashboard.py        # /
+        config_builder.py   # /config
+        topology.py         # /topology
+        experiments.py      # /experiments
+        results.py          # /results
+        plugins.py          # /plugins
     components/             # Reusable UI pieces shared across pages.
         layout.py           # Sidebar, header, shared wrapper.
-        yaml_editor.py      # CodeMirror YAML editor component.
-        log_viewer.py       # Scrolling log display.
-        stat_cards.py       # Stat counter cards.
-        topology_editor.py  # Topology editor placeholder (student implements).
-    utils/                  # Utility modules.
-        form_models.py      # Type introspection utilities for PydanticForm.
+        forms/              # Form-related components.
+            pydantic_form.py    # Recursive Pydantic-to-NiceGUI form renderer.
+            model_renderers.py  # Nested model and plugin-aware renderers (mixin).
+            config_form_panel.py
+            test_list_editor.py
+            yaml_editor.py      # CodeMirror YAML editor component.
+            dict_list_widgets.py
+            form_models.py      # Type introspection utilities for PydanticForm.
+            plugin_forms.py     # Plugin registry helpers for form dropdowns.
+        display/            # Read-only display components.
+            stat_cards.py       # Stat counter cards.
+            log_viewer.py       # Scrolling log display.
+            metrics_panel.py
+            event_viewer.py
+            test_detail_panel.py
+            plugin_card.py
+            plugin_detail_panel.py
+            service_health_card.py
+            service_log_browser.py
+        status/             # Status indicators and feedback.
+            status_badge.py
+            progress_bar.py
+            error_boundary.py
+            notifications.py
+        topology/           # Topology editor (student landing zone).
+            topology_editor.py
+    infra/                  # Cross-cutting infrastructure.
+        web_observer.py     # PANTHER event bridge to NiceGUI UI callbacks.
     services/               # Business logic. Thin wrappers around PANTHER core.
         experiment_service.py
         plugin_service.py
         config_service.py
-        results_service.py
+        results/            # Split from results_service.py for maintainability.
+            results_service.py  # Facade + experiment-level methods.
+            test_data_mixin.py  # Per-test data access.
+            analytics_mixin.py  # Summaries, metrics, aggregation.
 ```
 
 Core PANTHER files you will read but rarely edit:
@@ -133,7 +159,7 @@ panther/webapp/GETTING_STARTED.md # First-day walkthrough
 ## Running Tests
 
 ```bash
-# Run webapp tests (40 tests covering services, form models, app factory)
+# Run webapp tests (services, form models, app factory)
 pytest tests/unit/test_webapp/ -v -o "addopts=-v --tb=short"
 
 # Run all project unit tests

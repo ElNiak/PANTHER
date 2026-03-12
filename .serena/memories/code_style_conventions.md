@@ -40,7 +40,7 @@
 - Configuration via OmegaConf + Pydantic hybrid
 - Each plugin has its own `config_schema.py`
 - Core functionality in `panther/core/`
-- CLI in `panther/cli_click/` (new) - USE THIS
+- CLI in `panther/cli/` (new) - USE THIS
 - Legacy CLI in `panther/cli/` (deprecated) - DO NOT USE
 
 ## Pre-commit Hooks

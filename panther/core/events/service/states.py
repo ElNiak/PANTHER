@@ -1,5 +1,4 @@
-"""
-Service State Management
+"""Service state management.
 
 This module defines state management for service lifecycle.
 """
@@ -42,6 +41,7 @@ class ServiceStateManager(StateManager):
     """State manager for service lifecycle."""
 
     def __init__(self, service_id: str):
+        """Initialize with the given service ID."""
         super().__init__(service_id, ServiceState.CREATED)
         self.setup_transitions()
 
@@ -111,71 +111,3 @@ class ServiceStateManager(StateManager):
             # Terminal state (no transitions out)
             ServiceState.DESTROYED: set(),
         }
-
-    def is_preparing(self) -> bool:
-        """Check if service is in preparation phase."""
-        return self.is_in_any_state({ServiceState.PREPARING, ServiceState.PREPARED})
-
-    def is_deploying(self) -> bool:
-        """Check if service is being deployed."""
-        return self.is_in_state(ServiceState.DEPLOYING)
-
-    def is_running(self) -> bool:
-        """Check if service is running (but may not be ready)."""
-        return self.is_in_any_state({ServiceState.RUNNING, ServiceState.READY})
-
-    def is_ready(self) -> bool:
-        """Check if service is ready to accept requests."""
-        return self.is_in_state(ServiceState.READY)
-
-    def is_operational(self) -> bool:
-        """Check if service is operational (deployed and running/ready)."""
-        return self.is_in_any_state(
-            {
-                ServiceState.DEPLOYED,
-                ServiceState.STARTING,
-                ServiceState.RUNNING,
-                ServiceState.READY,
-            }
-        )
-
-    def is_stopped(self) -> bool:
-        """Check if service is stopped."""
-        return self.is_in_state(ServiceState.STOPPED)
-
-    def is_error(self) -> bool:
-        """Check if service is in error state."""
-        return self.is_in_state(ServiceState.ERROR)
-
-    def is_destroyed(self) -> bool:
-        """Check if service has been destroyed."""
-        return self.is_in_state(ServiceState.DESTROYED)
-
-    def can_prepare(self) -> bool:
-        """Check if service can start preparation."""
-        return self.is_in_state(ServiceState.CREATED)
-
-    def can_deploy(self) -> bool:
-        """Check if service can be deployed."""
-        return self.is_in_state(ServiceState.PREPARED)
-
-    def can_start(self) -> bool:
-        """Check if service can be started."""
-        return self.is_in_any_state({ServiceState.DEPLOYED, ServiceState.STOPPED})
-
-    def can_stop(self) -> bool:
-        """Check if service can be stopped."""
-        return self.is_in_any_state(
-            {
-                ServiceState.DEPLOYED,
-                ServiceState.STARTING,
-                ServiceState.RUNNING,
-                ServiceState.READY,
-                ServiceState.ERROR,
-            }
-        )
-
-    def can_destroy(self) -> bool:
-        """Check if service can be destroyed."""
-        # Can destroy from most states except already destroyed
-        return not self.is_in_state(ServiceState.DESTROYED)

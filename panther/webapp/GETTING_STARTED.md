@@ -39,7 +39,7 @@ Verify:
 ```bash
 panther --help          # Should show CLI commands including 'web'
 python -c "import nicegui; print(nicegui.__version__)"   # Should print 3.x
-python -c "from panther.webapp.components.pydantic_form import PydanticForm; print('OK')"  # Should print OK
+python -c "from panther.webapp.components.forms.pydantic_form import PydanticForm; print('OK')"  # Should print OK
 ```
 
 ## Step 2: Run the Webapp (5 minutes)
@@ -48,17 +48,18 @@ python -c "from panther.webapp.components.pydantic_form import PydanticForm; pri
 panther web --reload
 ```
 
-Open `http://localhost:8080`. You should see a sidebar with 5 navigation links.
+Open `http://localhost:8080`. You should see a sidebar with 6 navigation links.
 
 Click through every page and note the current status:
 
 | Page | Route | Status |
 |------|-------|--------|
 | Dashboard | `/` | Working -- stat cards, quick actions |
-| Config Builder | `/config` | Skeleton -- placeholder forms, YAML editor works |
-| Experiments | `/experiments` | Skeleton -- launch works, monitoring to build |
+| Config Builder | `/config` | Working -- PydanticForm editors, YAML preview, import/export |
+| Topology Editor | `/topology` | Placeholder -- student thesis work |
+| Experiments | `/experiments` | Working -- launch, live logs via WebObserver |
 | Results | `/results` | Working -- table with row-click detail view |
-| Plugins | `/plugins` | Working -- plugin table grouped by type |
+| Plugins | `/plugins` | Working -- plugin cards grouped by type |
 
 ## Step 3: Understand the Code (1 hour)
 
@@ -66,7 +67,7 @@ Read these files in this order:
 
 ### Webapp files (your main working area):
 
-1. **`panther/webapp/app.py`** -- Application factory. Registers all 5 pages.
+1. **`panther/webapp/app.py`** -- Application factory. Registers all 6 pages.
 2. **`panther/webapp/components/layout.py`** -- Shared sidebar, header. Every page uses this.
 3. **`panther/webapp/pages/plugins.py`** -- Simplest complete page. Shows the pattern: import service -> call method -> render.
 4. **`panther/webapp/services/plugin_service.py`** -- Simplest service. Wraps `PluginManager`.
@@ -85,7 +86,7 @@ The config builder uses `PydanticForm` — a custom component that recursively
 renders any Pydantic `BaseModel` as editable NiceGUI widgets.
 
 ```python
-from panther.webapp.components.pydantic_form import PydanticForm, FormConfig
+from panther.webapp.components.forms.pydantic_form import PydanticForm, FormConfig
 from panther.config.core.models.global_config import LoggingConfig
 
 # PydanticForm handles nested models, enums, Optional fields, etc. automatically
@@ -96,7 +97,7 @@ form.set_value({"level": "DEBUG"})
 
 Run `panther web --reload` and navigate to `/config` to see PydanticForm in action.
 
-See `panther/webapp/components/pydantic_form.py` for the implementation and
+See `panther/webapp/components/forms/pydantic_form.py` for the implementation and
 `tests/integration/test_pydantic_form_browser.py` for comprehensive tests.
 
 ## Step 5: Verify Bug Fixes (15 minutes)
@@ -121,7 +122,7 @@ The webapp uses 4 service wrappers to talk to PANTHER core. Pages never import c
 
 **Important patterns:**
 - `ExperimentService` is a singleton — get it via `get_experiment_service()`. It persists log buffer and status across page navigations.
-- All other services are stateless — instantiated once in `app.py` and passed to pages.
+- All other services are stateless — instantiated in each page's `content()` function as needed.
 - Experiment execution runs in a background thread (`asyncio.to_thread`). Subscribe to events for real-time updates; unsubscribe on page disconnect to prevent stale callbacks.
 
 For full API reference and architectural details, see `ARCHITECTURE.md` § "Service Layer Pattern" and § "Service API Reference".
@@ -136,7 +137,7 @@ Now read your development plan and architecture docs:
 Run the existing test suite to make sure everything works:
 ```bash
 pytest tests/unit/test_webapp/ -v -o "addopts=-v --tb=short"
-# Should show 40 passed
+# Check that all tests pass
 ```
 
 ## Key Concepts
@@ -164,7 +165,7 @@ pytest tests/unit/test_webapp/ -v -o "addopts=-v --tb=short"
 - `form.get_value()` returns a validated dict; `form.set_value(data)` populates fields
 - `FormConfig` controls layout: section style (expansion/card/flat), advanced toggle, CSS prefix
 - Nested models are handled recursively; enums become dropdowns; Optional[BaseModel] gets a toggle
-- See `panther/webapp/components/pydantic_form.py` for implementation details
+- See `panther/webapp/components/forms/pydantic_form.py` for implementation details
 
 ## Understanding Config as a Graph
 

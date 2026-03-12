@@ -9,9 +9,12 @@ benefits:
    ``ExperimentService`` run blocking work in background threads
    (via ``asyncio.to_thread``) so the NiceGUI event loop stays
    responsive.
-2. **Caching and state management** -- Services maintain in-memory
-   caches (e.g. plugin lists, result summaries) and singleton state
-   that persists across page navigations within the same process.
+2. **Caching and state management** -- ``ExperimentService`` is a
+   singleton with state that persists across page navigations.
+   ``PluginService`` and ``ResultsService`` maintain in-memory caches
+   that benefit multiple calls within a single page load (services are
+   instantiated per page, so caches do not persist across navigations).
+   ``ConfigService`` is stateless.
 3. **Error boundaries** -- Services catch exceptions from core
    components and translate them into user-friendly messages or
    fallback values, preventing raw tracebacks from reaching the UI.
@@ -38,11 +41,10 @@ Service inventory
 |                    | (the plugin registry)          | lookup, graceful fallback on       |
 |                    |                                | discovery failure                  |
 +--------------------+--------------------------------+------------------------------------+
-| ``WebObserver``    | ``GUIObserver``                | Event-to-UI callback bridge with   |
-|                    | (the observer base)            | per-subscriber filtering (type,    |
-|                    |                                | importance, predicate), batching,  |
-|                    |                                | and thread-safe dispatch           |
-+--------------------+--------------------------------+------------------------------------+
+
+``WebObserver`` lives in ``panther.webapp.infra``, not in this package.
+It bridges PANTHER events to NiceGUI UI callbacks with per-subscriber
+filtering, batching, and thread-safe dispatch.
 
 Usage pattern
 -------------
@@ -52,7 +54,7 @@ functions or cached as module-level singletons (see
 compose multiple services to build their UI::
 
     from panther.webapp.services.config_service import ConfigService
-    from panther.webapp.services.results_service import ResultsService
+    from panther.webapp.services.results import ResultsService
 
     svc = ConfigService()
     results = ResultsService(output_dir="outputs")

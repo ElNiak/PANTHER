@@ -1,5 +1,4 @@
-"""
-Unit tests for ExperimentManager - the core orchestration component of PANTHER.
+"""Unit tests for ExperimentManager - the core orchestration component of PANTHER.
 
 Tests exercise the real ExperimentManager with IO boundaries mocked
 (Docker daemon, subprocess, filesystem). No fake/shadow classes.
@@ -43,7 +42,7 @@ class TestExperimentManagerInitialization:
         self, mock_docker_client, minimal_global_config, tmp_path
     ):
         """Test that special characters in experiment_name are sanitized to underscores."""
-        import panther.core.observer.factory.observer_factory as _of_mod
+        import panther.core.observer.factory as _of_mod
         from panther.config.core.models.global_config import PathsConfig
         from panther.core.docker_builder.docker_builder import DockerBuilder
         from panther.core.experiment_manager import ExperimentManager
@@ -227,7 +226,7 @@ class TestExperimentManagerContextManager:
         self, mock_docker_client, minimal_global_config, tmp_path
     ):
         """Test using ExperimentManager in a with statement."""
-        import panther.core.observer.factory.observer_factory as _of_mod
+        import panther.core.observer.factory as _of_mod
         from panther.config.core.models.global_config import PathsConfig
         from panther.core.docker_builder.docker_builder import DockerBuilder
         from panther.core.experiment_manager import ExperimentManager

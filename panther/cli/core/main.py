@@ -1,0 +1,233 @@
+#!/usr/bin/env python3
+"""PANTHER CLI - Main entry point.
+
+Modern CLI implementation with enhanced user experience,
+improved error handling, and maintainability.
+"""
+
+import sys
+from pathlib import Path
+
+import click
+from termcolor import colored
+
+from panther import __version__
+from panther.cli.core.base import PantherGroup, setup_logging
+
+
+@click.group(cls=PantherGroup)
+@click.option(
+    "--debug/--no-debug",
+    default=False,
+    help="Enable debug logging with detailed output",
+)
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
+@click.version_option(version=__version__, prog_name="panther")
+@click.pass_context
+def cli(ctx, debug, verbose):
+    r"""PANTHER - Protocol Analysis and Testing Harness for Extensible Research.
+
+    Modern CLI for network protocol testing, formal verification, and automated
+    analysis of protocol implementations across multiple environments.
+
+    \b
+    Key Features:
+    🔬 Protocol formal analysis and verification
+    🐋 Docker-based isolated testing environments
+    🌐 Network simulation and testing
+    📊 Comprehensive metrics and reporting
+    🔧 Extensible plugin architecture
+    """
+    # Ensure context object exists
+    ctx.ensure_object(dict)
+    ctx.obj["debug"] = debug
+    ctx.obj["verbose"] = verbose
+
+    # Setup logging based on flags
+    setup_logging(debug, verbose)
+
+    if debug:
+        click.echo(colored("🐛 Debug mode enabled", "yellow"))
+    if verbose:
+        click.echo(colored("🔍 Verbose mode enabled", "blue"))
+
+
+@cli.command()
+@click.option(
+    "--output", "-o", type=click.Path(), help="Output format for shell completion"
+)
+@click.argument("shell", type=click.Choice(["bash", "zsh", "fish"]), required=False)
+def completion(output, shell):
+    r"""Setup shell completion for PANTHER CLI.
+
+    Enables tab completion for commands, options, and arguments in your shell.
+    Supports bash, zsh, and fish shells.
+
+    \b
+    Examples:
+      panther completion bash              # Show bash completion script
+      panther completion bash > ~/.panther-complete.bash
+      echo 'source ~/.panther-complete.bash' >> ~/.bashrc
+    """
+    if not shell:
+        # Auto-detect shell
+        shell_path = (
+            Path("/proc/self/comm").read_text().strip()
+            if Path("/proc/self/comm").exists()
+            else "bash"
+        )
+        if "zsh" in shell_path:
+            shell = "zsh"
+        elif "fish" in shell_path:
+            shell = "fish"
+        else:
+            shell = "bash"
+
+    # Generate completion script
+    if shell == "bash":
+        completion_script = """
+# PANTHER bash completion
+_panther_completion() {
+    local IFS=$'\\t'
+    COMPREPLY=( $( env COMP_WORDS="${COMP_WORDS[*]}" \\
+                   COMP_CWORD=${COMP_CWORD} \\
+                   _PANTHER_COMPLETE=complete $1 ) )
+    return 0
+}
+
+complete -F _panther_completion -o default panther;
+"""
+    elif shell == "zsh":
+        completion_script = """
+# PANTHER zsh completion
+#compdef panther
+
+_panther_completion() {
+    local -a completions
+    local -a completions_with_descriptions
+    local -a response
+    response=("${(@f)$( env COMP_WORDS="${words[*]}" \\
+                        COMP_CWORD=${#words[@]} \\
+                        _PANTHER_COMPLETE="complete_zsh" panther )}")
+
+    for key descr in ${(kv)response}; do
+        if [[ "$key" == "$descr" ]]; then
+            completions+=("$key")
+        else
+            completions_with_descriptions+=("$key":"$descr")
+        fi
+    done
+
+    if [ "$#completions_with_descriptions" -eq "0" ]; then
+        compadd -Q -S '' -a completions
+    else
+        _describe -V unsorted completions_with_descriptions -U -Q -S ''
+    fi
+}
+
+compdef _panther_completion panther;
+"""
+    else:  # fish
+        completion_script = """
+# PANTHER fish completion
+complete -c panther -f -a "(env _PANTHER_COMPLETE=complete_fish panther)"
+"""
+
+    if output:
+        with open(output, "w") as f:
+            f.write(completion_script)
+        click.echo(colored(f"✅ Completion script written to {output}", "green"))
+        click.echo(f"Add 'source {output}' to your shell config file")
+    else:
+        click.echo(completion_script)
+
+
+# Import and register command groups
+def register_commands():
+    """Register all command groups with the main CLI.
+
+    This function imports and registers command groups, allowing for
+    lazy loading of command modules to improve startup performance.
+    """
+    commands_to_register = [
+        ("tools", "panther.cli.commands.tools", "tools"),
+        ("run", "panther.cli.commands.run", "run"),
+        ("config", "panther.cli.commands.config", "config"),
+        ("plugins", "panther.cli.commands.plugins", "plugins"),
+        ("create", "panther.cli.commands.create", "create"),
+        ("tutorial", "panther.cli.commands.tutorial", "tutorial"),
+        ("admin", "panther.cli.commands.admin", "admin"),
+        ("check", "panther.cli.commands.check", "check"),
+        ("metrics", "panther.cli.commands.metrics", "metrics"),
+        ("ivy", "panther.cli.commands.ivy", "ivy"),
+        ("web", "panther.cli.commands.web", "web"),
+        ("build", "panther.cli.commands.build", "build"),
+        ("docs", "panther.cli.commands.docs", "docs"),
+    ]
+
+    missing_commands = []
+
+    for cmd_name, module_path, attr_name in commands_to_register:
+        try:
+            module = __import__(module_path, fromlist=[attr_name])
+            command = getattr(module, attr_name)
+            cli.add_command(command)
+        except ImportError as e:
+            missing_commands.append(f"{cmd_name} ({e})")
+        except AttributeError as e:
+            missing_commands.append(f"{cmd_name} (missing attribute {attr_name})")
+
+    if missing_commands:
+        ctx = click.get_current_context(silent=True)
+        if ctx:
+            click.echo(
+                colored(
+                    f"⚠️  Some commands not available: {', '.join(missing_commands)}",
+                    "yellow",
+                ),
+                err=True,
+            )
+
+
+def main():
+    """Main entry point for PANTHER CLI.
+
+    This function is called when the CLI is invoked and handles
+    command registration and execution.
+
+    Returns:
+        int: Exit code following Unix conventions:
+             0 = success
+             1 = general error
+             130 = terminated by Control-C
+    """
+    try:
+        # Commands are already registered at module import time (below).
+        # Execute CLI - Click handles the exit codes internally now
+        cli()
+
+        # If we reach here, execution was successful
+        return 0
+
+    except KeyboardInterrupt:
+        click.echo(colored("⚠️  Operation cancelled by user", "yellow"), err=True)
+        return 130
+    except SystemExit as e:
+        # Let Click's SystemExit through (preserves Click's exit code handling)
+        return e.code if e.code is not None else 0
+    except Exception as e:
+        debug_mode = "--debug" in sys.argv
+        if debug_mode:
+            import logging
+
+            logging.error(f"❌ Fatal error: {e}", exc_info=True)
+        else:
+            click.echo(colored(f"❌ Fatal error: {e}", "red"), err=True)
+        return 1
+
+
+# Register commands when module is imported
+register_commands()
+
+if __name__ == "__main__":
+    sys.exit(main() or 0)

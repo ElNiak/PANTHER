@@ -60,7 +60,7 @@ def make_form_page(model_cls, instance=None, config=None):
     """
     from nicegui import ui
 
-    from panther.webapp.components.pydantic_form import PydanticForm
+    from panther.webapp.components.forms.pydantic_form import PydanticForm
 
     form_ref = {}
 

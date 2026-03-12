@@ -1,5 +1,4 @@
-"""
-Tests for the modernized event system's YAML configuration and metrics integration.
+"""Tests for the modernized event system's YAML configuration and metrics integration.
 
 This module contains tests for the new observer configuration system
 and metrics integration features.
@@ -11,7 +10,7 @@ import unittest
 from pathlib import Path
 
 from panther.core.metrics.metrics_collector import MetricsCollector
-from panther.core.observer.factory.observer_factory import ObserverFactory
+from panther.core.observer.factory import ObserverFactory
 from panther.core.observer.impl.metrics_observer import MetricsObserver
 from panther.core.observer.management.event_manager import EventManager
 

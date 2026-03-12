@@ -1,7 +1,6 @@
-"""
-Assertion Module
+"""Assertion Module.
 
-This module provides assertion-related events, emitters, and states.
+This module provides assertion-related events and emitters.
 """
 
 from .emitter import AssertionEventEmitter
@@ -15,7 +14,6 @@ from .events import (
     AssertionsValidationStartedEvent,
     AssertionUnknownEvent,
 )
-from .states import AssertionState, AssertionValidationState
 
 __all__ = [
     # Event types and base classes
@@ -30,7 +28,4 @@ __all__ = [
     "AssertionUnknownEvent",
     # Event emitter
     "AssertionEventEmitter",
-    # States
-    "AssertionState",
-    "AssertionValidationState",
 ]

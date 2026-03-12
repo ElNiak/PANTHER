@@ -1,5 +1,4 @@
-"""
-Plugin Observer Module
+"""Plugin Observer Module.
 
 This module provides a concrete implementation of the PluginManager interface
 to facilitate event delivery to plugins in the PANTHER framework.
@@ -10,22 +9,21 @@ from collections import defaultdict
 from typing import Dict, List, Optional, Set
 
 from panther.core.events.base.event_base import BaseEvent as Event
-from panther.core.observer.base.observer_plugin_interface import IPluginObserver
+from panther.core.observer.base.observer_interface import IObserver
 from panther.plugins.plugin_interface import IPlugin
 
 
-class PluginObserver(IPluginObserver):
-    """
-    Concrete implementation of IPluginObserver that manages event interests
-    for plugins and delivers events to interested plugins.
+class PluginObserver(IObserver):
+    """Plugin observer that manages event interests.
+
+    Manages event interests for plugins and delivers events to interested plugins.
 
     This observer serves as a bridge between the event system and plugins,
     ensuring that plugins only receive events they are interested in.
     """
 
     def __init__(self, event_manager=None):
-        """
-        Initialize the plugin observer.
+        """Initialize the plugin observer.
 
         Args:
             event_manager: Optional event manager for plugin events
@@ -40,8 +38,7 @@ class PluginObserver(IPluginObserver):
         self.event_subscribers: Dict[str, Set[str]] = defaultdict(set)
 
     def register_plugin(self, plugin: IPlugin) -> None:
-        """
-        Register a plugin with the observer.
+        """Register a plugin with the observer.
 
         Args:
             plugin: The plugin instance to register
@@ -61,8 +58,7 @@ class PluginObserver(IPluginObserver):
         )
 
     def register_plugin_events(self, plugin_id: str, event_types: List[str]) -> None:
-        """
-        Register event types that a plugin is interested in.
+        """Register event types that a plugin is interested in.
 
         Args:
             plugin_id: Unique identifier for the plugin
@@ -83,8 +79,7 @@ class PluginObserver(IPluginObserver):
         )
 
     def unregister_plugin(self, plugin_id: str) -> None:
-        """
-        Unregister a plugin and its event interests.
+        """Unregister a plugin and its event interests.
 
         Args:
             plugin_id: Unique identifier for the plugin
@@ -113,8 +108,7 @@ class PluginObserver(IPluginObserver):
         self.logger.debug("Unregistered plugin '%s'", plugin_id)
 
     def get_plugin_events(self, plugin_id: str) -> List[str]:
-        """
-        Get the event types a plugin is interested in.
+        """Get the event types a plugin is interested in.
 
         Args:
             plugin_id: Unique identifier for the plugin
@@ -125,8 +119,7 @@ class PluginObserver(IPluginObserver):
         return list(self.plugin_interests.get(plugin_id, []))
 
     def get_plugins_for_event(self, event_type: str) -> List[str]:
-        """
-        Get plugins interested in a specific event type.
+        """Get plugins interested in a specific event type.
 
         Args:
             event_type: The event type to check
@@ -146,8 +139,7 @@ class PluginObserver(IPluginObserver):
         return list(matches)
 
     def is_interested(self, event_type: str) -> bool:
-        """
-        Check if any plugin is interested in this event type.
+        """Check if any plugin is interested in this event type.
 
         Args:
             event_type: The event type to check
@@ -161,8 +153,7 @@ class PluginObserver(IPluginObserver):
         return False
 
     def on_event(self, event: Event) -> None:
-        """
-        Handle an event by routing it to interested plugins.
+        """Handle an event by routing it to interested plugins.
 
         Args:
             event: The event to handle

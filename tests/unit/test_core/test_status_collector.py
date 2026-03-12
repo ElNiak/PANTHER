@@ -371,6 +371,79 @@ class TestExperimentSummary:
 
 
 # ---------------------------------------------------------------------------
+# TestServiceHealthTestName
+# ---------------------------------------------------------------------------
+
+
+class TestServiceHealthTestName:
+    """Verify _extract_service_health includes test_name for disambiguation."""
+
+    def test_service_health_includes_test_name(self, tmp_path):
+        """Service health entries should include which test they belong to."""
+        for test_name in ["0_TestA", "1_TestB"]:
+            analysis_dir = tmp_path / test_name / "analysis"
+            analysis_dir.mkdir(parents=True)
+            (analysis_dir / "service_health.json").write_text(
+                json.dumps(
+                    [
+                        {
+                            "service_name": "ivy_client",
+                            "service_type": "tester",
+                            "status": "healthy",
+                            "compilation_succeeded": True,
+                            "phases_completed": {
+                                "compile": True,
+                                "runtime": True,
+                            },
+                        },
+                    ]
+                )
+            )
+
+        collector = _make_collector(tmp_path)
+        summaries = collector._extract_service_health()
+
+        assert len(summaries) == 2
+        for s in summaries:
+            assert (
+                s.test_name is not None
+            ), "Service health entries must include test_name"
+        test_names = {s.test_name for s in summaries}
+        assert test_names == {"0_TestA", "1_TestB"}
+
+
+# ---------------------------------------------------------------------------
+# TestErrorCategoryMatching
+# ---------------------------------------------------------------------------
+
+
+class TestErrorCategoryMatching:
+    """Verify _extract_fast_fail_info error category detection."""
+
+    def test_error_category_not_matched_from_env_vars(self, tmp_path):
+        """DOCKER_BUILD category should not match DOCKER_BUILDKIT env var."""
+        (tmp_path / "experiment.log").write_text(
+            "DOCKER_BUILDKIT=1 docker compose up\n" "Environment: DOCKER_BUILDKIT=1\n"
+        )
+        collector = _make_collector(tmp_path)
+        ff_info = collector._extract_fast_fail_info()
+        assert (
+            ff_info.error_category is None
+        ), f"Expected no error_category but got {ff_info.error_category}"
+
+    def test_error_category_matched_in_fast_fail_context(self, tmp_path):
+        """DOCKER_BUILD category should match when in fast-fail context."""
+        (tmp_path / "experiment.log").write_text(
+            "2024-01-01 00:00:00 fast_fail(enabled=True)\n"
+            "2024-01-01 00:01:00 Critical error, terminating experiment\n"
+            "error_category=DOCKER_BUILD\n"
+        )
+        collector = _make_collector(tmp_path)
+        ff_info = collector._extract_fast_fail_info()
+        assert ff_info.error_category == "DOCKER_BUILD"
+
+
+# ---------------------------------------------------------------------------
 # TestExtractErrorMessage
 # ---------------------------------------------------------------------------
 

@@ -375,11 +375,12 @@ class CommandUtils:
         """
         cert_path = shlex.quote(f"{cert_dir}/{cert_name}.pem")
         key_path = shlex.quote(f"{cert_dir}/{key_name}.pem")
+        safe_subj = shlex.quote(f"/CN={common_name}")
 
         return (
             f"openssl req -x509 -newkey rsa:4096 -nodes "
             f"-keyout {key_path} -out {cert_path} "
-            f"-days {days} -subj '/CN={common_name}'"
+            f"-days {days} -subj {safe_subj}"
         )
 
     @staticmethod

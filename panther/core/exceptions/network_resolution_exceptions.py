@@ -1,5 +1,4 @@
-"""
-Network resolution exceptions for network-aware command resolution.
+"""Network resolution exceptions for network-aware command resolution.
 
 This module provides specific exceptions for handling network parameter
 resolution failures in the placeholder system.
@@ -23,6 +22,7 @@ class NetworkResolutionException(PantherException):
         resolution_context: Optional[Dict[str, Any]] = None,
         severity: ErrorSeverity = ErrorSeverity.HIGH,
     ):
+        """Initialize network resolution exception."""
         context = {"resolution_context": resolution_context or {}}
         super().__init__(message, severity, ErrorCategory.NETWORK_SETUP, context)
 
@@ -37,6 +37,7 @@ class PlaceholderParsingException(NetworkResolutionException):
         command_template: str,
         parsing_error: Optional[str] = None,
     ):
+        """Initialize placeholder parsing exception."""
         resolution_context = {
             "placeholder": placeholder,
             "command_template": command_template,
@@ -60,6 +61,7 @@ class ServiceResolutionException(NetworkResolutionException):
         format_type: str,
         available_services: Optional[list] = None,
     ):
+        """Initialize service resolution exception."""
         resolution_context = {
             "service_name": service_name,
             "attribute": attribute,
@@ -83,6 +85,7 @@ class EnvironmentResolutionException(NetworkResolutionException):
         resolution_method: str,
         error_details: Optional[str] = None,
     ):
+        """Initialize environment resolution exception."""
         resolution_context = {
             "environment_type": environment_type,
             "resolution_method": resolution_method,
@@ -105,6 +108,7 @@ class PlaceholderValidationException(NetworkResolutionException):
         validation_rule: str,
         expected_format: str,
     ):
+        """Initialize placeholder validation exception."""
         resolution_context = {
             "placeholder": placeholder,
             "validation_rule": validation_rule,
@@ -127,6 +131,7 @@ class NetworkDiscoveryException(NetworkResolutionException):
         network_environment: str,
         discovery_error: Optional[str] = None,
     ):
+        """Initialize network discovery exception."""
         resolution_context = {
             "discovery_method": discovery_method,
             "network_environment": network_environment,

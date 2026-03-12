@@ -70,8 +70,12 @@ class StagedDockerMixin(DockerOperationsMixin, CommandEventMixin):
                         global_config=getattr(self, "global_config", None),
                         experiment_context=getattr(self, "experiment_context", None),
                     )
-                    docker_builder.build_docker_image_from_path(
-                        base_dockerfile, env_name, version
+                    docker_builder.build_image(
+                        impl_name=env_name,
+                        version=version,
+                        dockerfile_path=base_dockerfile,
+                        context_path=base_dockerfile.parent,
+                        config={},
                     )
                     self._env_base_service_image_built = True
                     self.emit_docker_build_completed(base_image_tag, True)

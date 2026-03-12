@@ -15,6 +15,7 @@ class PantherMetricsPlugin:
     """Pytest plugin for collecting metrics during test sessions."""
 
     def __init__(self):
+        """Initialize metrics plugin with default values."""
         self.session_start_time: Optional[float] = None
         self.resource_sampler: Optional[ResourceSampler] = None
         self.test_results: Dict[str, int] = {
@@ -105,7 +106,7 @@ class PantherMetricsPlugin:
                     continue
 
         # Try to get from pytest-cov plugin if available
-        return self._get_coverage_from_plugin()
+        return None
 
     def _parse_coverage_xml(self, coverage_file: Path) -> Optional[float]:
         """Parse coverage percentage from coverage.xml file."""
@@ -127,21 +128,6 @@ class PantherMetricsPlugin:
                     return float(line_rate) * 100
 
         except (ET.ParseError, ValueError, TypeError):
-            pass
-
-        return None
-
-    def _get_coverage_from_plugin(self) -> Optional[float]:
-        """Try to get coverage from pytest-cov plugin if available."""
-        try:
-            # This is a bit hacky but works if pytest-cov is loaded
-            import coverage
-
-            cov = coverage.Coverage()
-            if hasattr(cov, "_data") and cov._data:
-                # Try to get coverage percentage
-                return None  # Would need more complex implementation
-        except ImportError:
             pass
 
         return None

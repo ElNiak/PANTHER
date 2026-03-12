@@ -34,10 +34,8 @@ Key design principles:
       event routing to typed handler methods with compile-time type checking.
     - **Thread-safe observer management**: RLock-based synchronization for
       concurrent access in all management classes.
-    - **Configuration-driven**: Factory system supports both programmatic and
-      YAML-based observer setup.
-    - **Plugin extensibility**: Plugin system enables runtime observer loading
-      without framework modification.
+    - **Configuration-driven**: Factory module supports programmatic
+      observer setup via Pydantic-validated config.
 
 Event Processing Pipeline:
     1. **Event Emission** -- Events broadcast through ``EventManager.notify()``
@@ -56,7 +54,6 @@ Built-in Observer Types:
       output and event serialization.
     - **ExperimentObserver**: High-level experiment execution coordination,
       multi-test orchestration, and result aggregation.
-    - **GUIObserver**: GUI event handling for the NiceGUI webapp.
 
 Example:
     Create and register a custom observer::
@@ -85,10 +82,10 @@ Example:
         logger_obs = factory.create_observer("logger", auto_register=True)
 
 See Also:
-    `panther.core.events` - Event system implementation
-    `panther.core.observer.management.event_manager` - Central event coordination
-    `panther.core.observer.factory` - Observer creation and configuration
-    `panther.core.observer.workflow` - Workflow state tracking
+    `panther.core.events` -- Event system implementation
+    `panther.core.observer.management.event_manager` -- Central event coordination
+    `panther.core.observer.factory` -- Observer creation, builders, and configuration
+    `panther.core.observer.workflow` -- Workflow state tracking
 """
 
 # Base interfaces
@@ -96,7 +93,7 @@ from .base.observer_interface import IObserver
 from .base.typed_observer_interface import ITypedObserver
 
 # Factory system
-from .factory import (  # Builder methods; Config loading
+from .factory import (  # Builder methods
     ObserverFactory,
     create_default_observer_set,
     create_default_observers,
@@ -106,13 +103,11 @@ from .factory import (  # Builder methods; Config loading
     create_observer,
     create_storage,
     get_observer_factory,
-    load_observer_config,
 )
 
 # Observer implementations
 from .impl import (
     ExperimentObserver,
-    GUIObserver,
     LoggerObserver,
     MetricsObserver,
     PluginObserver,
@@ -121,14 +116,6 @@ from .impl import (
 
 # Event and results management
 from .management import EventManager, ResultsManager
-
-# Plugin observer infrastructure
-from .plugins.plugin_interface import IPluginObserver
-from .plugins.plugin_observer_factory import (
-    PluginObserverFactory,
-    create_plugin_observer,
-    register_plugin_observer,
-)
 
 # Define the public API
 __all__ = [
@@ -140,9 +127,7 @@ __all__ = [
     "LoggerObserver",
     "MetricsObserver",
     "StorageObserver",
-    "GUIObserver",
     "PluginObserver",
-    "IPluginObserver",
     # Management
     "EventManager",
     "ResultsManager",
@@ -156,9 +141,4 @@ __all__ = [
     "create_storage",
     "create_experiment_observer",
     "create_default_observer_set",
-    "load_observer_config",
-    # Plugin observer
-    "PluginObserverFactory",
-    "create_plugin_observer",
-    "register_plugin_observer",
 ]

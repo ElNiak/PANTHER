@@ -1,5 +1,4 @@
-"""
-Experiment-related exceptions for PANTHER.
+"""Experiment-related exceptions for PANTHER.
 
 This module provides custom exceptions for errors that occur during experiment
 execution, initialization, and test case management.
@@ -23,6 +22,7 @@ class PantherExperimentError(PantherException):
         severity: ErrorSeverity = ErrorSeverity.HIGH,
         context: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize experiment error."""
         super().__init__(
             message=message,
             severity=severity,
@@ -41,6 +41,7 @@ class ExperimentInitializationError(PantherExperimentError):
         config_path: Optional[str] = None,
         context: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize experiment initialization error."""
         full_context = context or {}
         if experiment_name:
             full_context["experiment_name"] = experiment_name
@@ -64,6 +65,7 @@ class TestCaseInitializationError(PantherExperimentError):
         severity: ErrorSeverity = ErrorSeverity.HIGH,
         context: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize test case initialization error."""
         full_context = context or {}
         if test_name:
             full_context["test_name"] = test_name
@@ -86,6 +88,7 @@ class TestExecutionError(PantherExperimentError):
         severity: ErrorSeverity = ErrorSeverity.HIGH,
         context: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize test execution error."""
         full_context = context or {}
         if test_name:
             full_context["test_name"] = test_name
@@ -109,6 +112,7 @@ class ConfigurationError(PantherExperimentError):
         config_value: Optional[Any] = None,
         context: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize configuration error."""
         full_context = context or {}
         if config_field:
             full_context["config_field"] = config_field
@@ -133,6 +137,7 @@ class PluginValidationError(PantherExperimentError):
         severity: ErrorSeverity = ErrorSeverity.HIGH,
         context: Optional[Dict[str, Any]] = None,
     ):
+        """Initialize plugin validation error."""
         full_context = context or {}
         if plugin_name:
             full_context["plugin_name"] = plugin_name
