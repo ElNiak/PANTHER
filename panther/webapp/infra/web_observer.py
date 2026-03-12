@@ -237,7 +237,8 @@ class WebObserver(GUIObserver):
             predicate=predicate,
             batched=batched,
         )
-        self._subscriptions.append(sub)
+        with self._batch_lock:
+            self._subscriptions.append(sub)
         return sub
 
     def unsubscribe(self, subscription_or_callback: Union[Subscription, Callable]):
@@ -253,18 +254,19 @@ class WebObserver(GUIObserver):
             subscription_or_callback: The ``Subscription`` handle or the
                 raw callback function to remove.
         """
-        if isinstance(subscription_or_callback, Subscription):
-            try:
-                self._subscriptions.remove(subscription_or_callback)
-            except ValueError:
-                pass
-        else:
-            # Legacy path: match by callback reference
-            self._subscriptions = [
-                s
-                for s in self._subscriptions
-                if s.callback is not subscription_or_callback
-            ]
+        with self._batch_lock:
+            if isinstance(subscription_or_callback, Subscription):
+                try:
+                    self._subscriptions.remove(subscription_or_callback)
+                except ValueError:
+                    pass
+            else:
+                # Legacy path: match by callback reference
+                self._subscriptions = [
+                    s
+                    for s in self._subscriptions
+                    if s.callback is not subscription_or_callback
+                ]
 
     # ── Dispatch ──────────────────────────────────────────────────────
 
@@ -296,8 +298,11 @@ class WebObserver(GUIObserver):
             == EventImportance.CRITICAL
         )
 
+        with self._batch_lock:
+            subs_snapshot = list(self._subscriptions)
+
         should_buffer = False
-        for sub in list(self._subscriptions):
+        for sub in subs_snapshot:
             if not self._matches_subscription(event, sub):
                 continue
 
@@ -361,7 +366,9 @@ class WebObserver(GUIObserver):
             self._batch_buffer.clear()
 
         for event in events:
-            for sub in list(self._subscriptions):
+            with self._batch_lock:
+                subs_snapshot = list(self._subscriptions)
+            for sub in subs_snapshot:
                 if not sub.batched:
                     continue  # already received immediately
                 if not self._matches_subscription(event, sub):

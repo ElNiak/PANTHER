@@ -43,7 +43,7 @@ The scaffold provides a fully functional NiceGUI webapp:
 - **Config builder** has Form Editor + YAML Preview tabs with auto-sync, save/load/validate
 - **Experiment launcher** with `asyncio.to_thread()`, WebObserver, live log viewer
 - **Results browser** with filtering, tabbed detail view, ECharts metrics
-- **60+ unit tests**, 30+ browser integration tests, 7 E2E tests passing
+- **Unit, browser integration, and E2E tests** passing (run `pytest tests/unit/test_webapp/ -v` to see current count)
 
 ---
 
@@ -70,9 +70,9 @@ The scaffold provides a fully functional NiceGUI webapp:
 NOTE:
 - It is advice to produce frequently diagrams during development — these become thesis figures and help clarify design decisions.
 
-## Phase 2: Topology Editor Implementation + Parallel UX (Week 2-5)
+## Phase 2: Topology Editor Implementation (Week 2-5)
 
-**Goal**: Build a working topology editor and improve overall webapp UX.
+**Goal**: Build a working visual topology editor — the core thesis contribution.
 
 ### Topology Editor
 
@@ -83,13 +83,6 @@ Design and implement a visual topology editor where:
 - Node properties are editable (consider reusing PydanticForm)
 - The topology can be exported to valid PANTHER YAML config
 - Existing YAML configs can be imported and rendered as graphs
-
-### UX Improvements
-
-Improve the overall webapp experience as you encounter friction:
-- Navigation aids (breadcrumbs, "next step" buttons, workflow stepper)
-- Structured data display (replace raw JSON with formatted views where appropriate)
-- Cross-page linking (e.g., results linking back to source config)
 
 ---
 
@@ -112,15 +105,22 @@ Key integration paths to consider:
 
 The existing test infrastructure provides patterns to build on.
 
+### UX Improvements
+
+Improve the overall webapp experience as you encounter friction:
+- Navigation aids (breadcrumbs, "next step" buttons, workflow stepper)
+- Structured data display (replace raw JSON with formatted views where appropriate)
+- Cross-page linking (e.g., results linking back to source config)
+
 ### Workflow Polish
 
 - Make the Config → Topology → Launch → Results flow seamless
 - Fix all bugs found during Phase 1
 - Verify `pip install .[web]` works in a fresh venv
 
-### Stretch Goals (Priority Order)
+### Stretch Goals (bonus if time permits)
 
-Implement as time allows:
+These are aspirational — prioritize the core topology editor and evaluation first:
 1. CLI command integration (expose CLI commands as webapp actions)
 2. Conformance matrix (IUT × Test pass/fail grid)
 3. Batch comparison (same test across multiple IUTs)
@@ -148,12 +148,16 @@ Implement as time allows:
 
 ## Existing Test Suite
 
-Tests in `tests/unit/test_webapp/`, `tests/integration/`, `tests/e2e/`:
+Tests in `tests/unit/test_webapp/`, `tests/integration/`:
 
-| Category | Count | What they test |
-|----------|-------|---------------|
-| Unit tests | 60+ | Services, WebObserver, forms, models |
-| Browser tests | 30+ | Page rendering via Selenium (services mocked) |
-| E2E tests | 7 | Page loads via NiceGUI user simulation |
+| Category | Location | What they test |
+|----------|----------|---------------|
+| Unit tests | `tests/unit/test_webapp/` | Services, WebObserver, forms, models |
+| Browser tests | `tests/integration/` | Page rendering via Selenium (services mocked) |
+
+**Test infrastructure requirements:**
+- Unit tests: no extra dependencies, just `pytest`
+- Browser integration tests: require Chrome/Chromium + ChromeDriver installed, and `selenium` package
+- NiceGUI provides a `User` test helper for simulating browser interactions
 
 Run with: `pytest tests/unit/test_webapp/ -v -o "addopts=-v --tb=short"`

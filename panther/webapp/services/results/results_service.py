@@ -33,6 +33,7 @@ serialised to JSON for the NiceGUI frontend.  Large files are read through
 ``FileUtils.read_text_bounded`` to cap memory usage.
 """
 
+import itertools
 import json
 import logging
 from pathlib import Path
@@ -277,20 +278,31 @@ class ResultsService(TestDataMixin, AnalyticsMixin):
                     logger.warning("Error reading report %s: %s", report, e)
         return None
 
+    _MAX_ARTIFACT_FILES = 500
+
     def _list_artifacts(self, exp_dir: Path) -> list[dict[str, str]]:
-        """List downloadable artifacts organized by test directory."""
+        """List downloadable artifacts organized by test directory.
+
+        Caps results at ``_MAX_ARTIFACT_FILES`` to avoid excessive memory
+        use on large experiment outputs.
+        """
         artifacts = []
         artifact_exts = {".pcap", ".json", ".csv", ".yaml", ".yml", ".log"}
-        for f in exp_dir.rglob("*"):
-            if f.is_file() and f.suffix in artifact_exts:
-                # Determine which test this artifact belongs to
-                try:
-                    rel = f.relative_to(exp_dir)
-                    test_name = rel.parts[0] if len(rel.parts) > 1 else ""
-                except ValueError:
-                    rel = Path(f.name)
-                    test_name = ""
-                artifacts.append(
-                    {"name": f.name, "path": str(rel), "test_name": test_name}
-                )
+        matching = (
+            f for f in exp_dir.rglob("*") if f.is_file() and f.suffix in artifact_exts
+        )
+        for f in itertools.islice(matching, self._MAX_ARTIFACT_FILES):
+            try:
+                rel = f.relative_to(exp_dir)
+                test_name = rel.parts[0] if len(rel.parts) > 1 else ""
+            except ValueError:
+                rel = Path(f.name)
+                test_name = ""
+            artifacts.append({"name": f.name, "path": str(rel), "test_name": test_name})
+        if len(artifacts) == self._MAX_ARTIFACT_FILES:
+            logger.warning(
+                "Artifact listing for %s capped at %d files",
+                exp_dir,
+                self._MAX_ARTIFACT_FILES,
+            )
         return artifacts

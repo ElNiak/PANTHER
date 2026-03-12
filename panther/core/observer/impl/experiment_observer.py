@@ -464,18 +464,10 @@ class ExperimentObserver(IObserver):
         """Handle environment teardown events."""
         self.current_phase = "environment_teardown"
         env_type = event.data.get("type")
-        success = event.data.get("success", False)
         details = event.data.get("details") or {}
 
-        self.logger.info(
-            "Environment teardown: %s - %s",
-            env_type,
-            "Success" if success else "Failed",
-        )
-
-        # Just note that we've seen this environment teardown
         env_name = details.get("environment_name", env_type)
-        self.logger.debug(f"Observed environment '{env_name}' teardown")
+        self.logger.info("Environment teardown started: %s", env_name)
 
         # Record timing information
         if self.track_timing:
@@ -485,9 +477,6 @@ class ExperimentObserver(IObserver):
         if details:
             for key, value in details.items():
                 self.logger.debug(f"  {key}: {value}")
-
-        # Just log the teardown
-        self.logger.debug(f"Environment '{env_name}' teardown observed")
 
         return True
 
@@ -576,8 +565,17 @@ class ExperimentObserver(IObserver):
             reason,
         )
 
-        self._should_terminate_early = True
-        self.experiment_finished_early = True
+        # Only flag early termination for unexpected stops (non-zero exit code
+        # or explicit "unexpected" reason).  Normal post-test shutdowns should
+        # not trigger early termination.
+        is_unexpected = (exit_code is not None and exit_code != 0) or reason in (
+            "unexpected",
+            "crashed",
+            "killed",
+        )
+        if is_unexpected:
+            self._should_terminate_early = True
+            self.experiment_finished_early = True
 
         # Just log that the service stopped
         self.logger.debug(f"Observed service '{service_name}' stop")

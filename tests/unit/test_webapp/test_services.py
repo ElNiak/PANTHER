@@ -565,3 +565,238 @@ class TestResultsServiceCaching:
 
         svc = ResultsService()
         assert svc._summary_cache == {}
+
+
+@pytest.mark.unit
+class TestExperimentServiceOnEvent:
+    """Tests for ExperimentService._on_event() status mapping."""
+
+    def _make_event(self, event_name, entity_type_value="experiment"):
+        from panther.core.events.base.event_base import BaseEvent, EventType
+
+        entity_type_map = {
+            "experiment": EventType.EXPERIMENT,
+            "test": EventType.TEST,
+            "service": EventType.SERVICE,
+        }
+        et = entity_type_map.get(entity_type_value, EventType.EXPERIMENT)
+
+        class _ConcreteEvent(BaseEvent):
+            pass
+
+        return _ConcreteEvent(
+            name=event_name,
+            entity_type=et,
+            entity_id="test-entity-001",
+        )
+
+    def test_experiment_started_maps_to_running(self):
+        from panther.webapp.services.experiment_service import ExperimentService
+
+        svc = ExperimentService()
+        event = self._make_event("started", "experiment")
+        svc._on_event(event)
+        assert svc.status == "Running"
+
+    def test_experiment_completed_maps_to_completed(self):
+        from panther.webapp.services.experiment_service import ExperimentService
+
+        svc = ExperimentService()
+        event = self._make_event("completed", "experiment")
+        svc._on_event(event)
+        assert svc.status == "Completed"
+
+    def test_experiment_failed_maps_to_failed(self):
+        from panther.webapp.services.experiment_service import ExperimentService
+
+        svc = ExperimentService()
+        event = self._make_event("failed", "experiment")
+        svc._on_event(event)
+        assert svc.status == "Failed"
+
+    def test_unmatched_event_does_not_change_status(self):
+        from panther.webapp.services.experiment_service import ExperimentService
+
+        svc = ExperimentService()
+        svc._emit_status("Running")
+        event = self._make_event("some_random_event", "test")
+        svc._on_event(event)
+        assert svc.status == "Running"
+
+    def test_log_line_format(self):
+        from panther.webapp.services.experiment_service import ExperimentService
+
+        svc = ExperimentService()
+        received = []
+        svc.register_callbacks(lambda line: received.append(line), lambda s: None)
+
+        event = self._make_event("completed", "experiment")
+        svc._on_event(event)
+
+        assert len(received) == 1
+        assert received[0].startswith("[experiment.completed]")
+
+    def test_non_experiment_event_only_emits_log(self):
+        from panther.webapp.services.experiment_service import ExperimentService
+
+        svc = ExperimentService()
+        received_statuses = []
+        svc.register_callbacks(lambda line: None, lambda s: received_statuses.append(s))
+
+        event = self._make_event("container_started", "service")
+        svc._on_event(event)
+
+        # No status update for non-experiment events
+        assert received_statuses == []
+        # But the log buffer should have the entry
+        assert len(svc.log_lines) == 1
+
+
+@pytest.mark.unit
+class TestExperimentServiceRunExperiment:
+    """Tests for ExperimentService.run_experiment() lifecycle."""
+
+    @pytest.fixture
+    def svc(self):
+        from panther.webapp.services.experiment_service import ExperimentService
+
+        return ExperimentService()
+
+    @pytest.fixture
+    def status_log(self):
+        return {"statuses": [], "logs": []}
+
+    @pytest.fixture
+    def svc_with_callbacks(self, svc, status_log):
+        svc.register_callbacks(
+            on_log=lambda line: status_log["logs"].append(line),
+            on_status=lambda s: status_log["statuses"].append(s),
+        )
+        return svc
+
+    def _mock_patches(self, run_tests_return=True):
+        """Return a context manager that patches all lazy imports in _run()."""
+        import contextlib
+        from unittest.mock import MagicMock, patch
+
+        # Pre-import to avoid recursion from panther.core.__getattr__
+        import panther.core.experiment_manager  # noqa: F401
+        import panther.core.observer.management.event_manager  # noqa: F401
+
+        mock_manager = MagicMock()
+        mock_manager.__enter__ = MagicMock(return_value=mock_manager)
+        mock_manager.__exit__ = MagicMock(return_value=False)
+        mock_manager.run_tests.return_value = run_tests_return
+
+        mock_event_mgr = MagicMock()
+
+        stack = contextlib.ExitStack()
+
+        class _Patches:
+            def __enter__(self_inner):
+                stack.__enter__()
+                stack.enter_context(
+                    patch("panther.config.load_experiment", return_value=MagicMock())
+                )
+                stack.enter_context(
+                    patch(
+                        "panther.core.experiment_manager.ExperimentManager",
+                        return_value=mock_manager,
+                    )
+                )
+                stack.enter_context(patch("panther.config.GlobalConfig"))
+                stack.enter_context(
+                    patch(
+                        "panther.core.observer.management.event_manager.get_event_manager",
+                        return_value=mock_event_mgr,
+                    )
+                )
+                stack.enter_context(patch("builtins.open", MagicMock()))
+                stack.enter_context(
+                    patch("yaml.safe_load", return_value={"metadata": {"name": "test"}})
+                )
+                return self_inner
+
+            def __exit__(self_inner, *args):
+                stack.__exit__(*args)
+
+        return _Patches()
+
+    def test_status_transitions_on_success(self, svc_with_callbacks, status_log):
+        import asyncio
+
+        with self._mock_patches(run_tests_return=True):
+            asyncio.run(svc_with_callbacks.run_experiment("/fake/config.yaml"))
+
+        assert "Loading config..." in status_log["statuses"]
+        assert "Initializing..." in status_log["statuses"]
+        assert "Running tests..." in status_log["statuses"]
+        assert "Completed" in status_log["statuses"]
+
+    def test_status_failed_when_run_tests_returns_false(
+        self, svc_with_callbacks, status_log
+    ):
+        import asyncio
+
+        with self._mock_patches(run_tests_return=False):
+            asyncio.run(svc_with_callbacks.run_experiment("/fake/config.yaml"))
+
+        assert status_log["statuses"][-1] == "Failed"
+
+    def test_is_running_false_after_completion(self, svc):
+        import asyncio
+
+        with self._mock_patches():
+            asyncio.run(svc.run_experiment("/fake/config.yaml"))
+
+        assert svc.is_running is False
+
+    def test_exception_sets_error_status(self, svc_with_callbacks, status_log):
+        import asyncio
+        from unittest.mock import MagicMock, patch
+
+        with (
+            patch(
+                "panther.config.load_experiment",
+                side_effect=ValueError("bad config file"),
+            ),
+            patch("builtins.open", MagicMock()),
+            patch("yaml.safe_load", return_value={}),
+        ):
+            asyncio.run(svc_with_callbacks.run_experiment("/fake/config.yaml"))
+
+        assert any(s.startswith("Error:") for s in status_log["statuses"])
+        assert any("bad config file" in s for s in status_log["statuses"])
+        assert svc_with_callbacks.is_running is False
+
+    def test_log_lines_emitted(self, svc_with_callbacks, status_log):
+        import asyncio
+
+        with self._mock_patches():
+            asyncio.run(svc_with_callbacks.run_experiment("/fake/config.yaml"))
+
+        assert any("Loaded config from" in line for line in status_log["logs"])
+        assert any("succeeded" in line for line in status_log["logs"])
+
+    def test_config_path_stored(self, svc):
+        import asyncio
+
+        with self._mock_patches():
+            asyncio.run(svc.run_experiment("/my/experiment.yaml"))
+
+        assert svc.config_path == "/my/experiment.yaml"
+
+    def test_log_buffer_cleared_between_runs(self, svc):
+        import asyncio
+
+        with self._mock_patches():
+            asyncio.run(svc.run_experiment("/fake/config.yaml"))
+
+        first_count = len(svc.log_lines)
+        assert first_count > 0
+
+        with self._mock_patches():
+            asyncio.run(svc.run_experiment("/fake/config.yaml"))
+
+        # Buffer was cleared before second run, so count should be same
+        assert len(svc.log_lines) == first_count

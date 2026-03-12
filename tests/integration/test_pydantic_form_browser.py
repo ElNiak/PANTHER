@@ -449,9 +449,10 @@ def test_kv_editor_fill_and_get_value(screen: Screen):
     inputs = screen.selenium.find_elements("tag name", "input")
     key_inputs = [i for i in inputs if i.get_attribute("aria-label") == "Key"]
     value_inputs = [i for i in inputs if i.get_attribute("aria-label") == "Value"]
-    if key_inputs and value_inputs:
-        key_inputs[-1].send_keys("mykey")
-        value_inputs[-1].send_keys("myval")
+    assert key_inputs, "Expected Key input elements after clicking 'Add row'"
+    assert value_inputs, "Expected Value input elements after clicking 'Add row'"
+    key_inputs[-1].send_keys("mykey")
+    value_inputs[-1].send_keys("myval")
     screen.click("Get Value")
     screen.wait(0.5)
     screen.should_contain("mykey")
@@ -480,8 +481,8 @@ def test_keyed_model_editor_add_and_close(screen: Screen):
     # Fill key input in dialog
     inputs = screen.selenium.find_elements("tag name", "input")
     key_inputs = [i for i in inputs if i.get_attribute("aria-label") == "Key"]
-    if key_inputs:
-        key_inputs[0].send_keys("server1")
+    assert key_inputs, "Expected Key input in dialog after clicking 'Add entry'"
+    key_inputs[0].send_keys("server1")
     # Click the dialog's "Add" button (Quasar renders text as UPPERCASE)
     from selenium.webdriver.common.by import By
 
@@ -507,17 +508,15 @@ def test_keyed_model_editor_delete_entry(screen: Screen):
     close_buttons = screen.selenium.find_elements(
         "css selector", "button[class*='negative'], button .q-icon"
     )
+    assert close_buttons, "Expected close/delete buttons for the entry"
+    clicked = False
     for btn in close_buttons:
-        try:
-            if (
-                "close" in btn.text.lower()
-                or btn.get_attribute("innerHTML")
-                and "close" in btn.get_attribute("innerHTML")
-            ):
-                btn.click()
-                break
-        except Exception:
-            continue
+        inner_html = btn.get_attribute("innerHTML") or ""
+        if "close" in btn.text.lower() or "close" in inner_html:
+            btn.click()
+            clicked = True
+            break
+    assert clicked, "Expected to find and click a close/delete button"
     screen.wait(0.5)
     screen.should_contain("No entries")
 
@@ -569,8 +568,8 @@ def test_model_list_editor_delete_entry(screen: Screen):
     close_buttons = screen.selenium.find_elements(
         "css selector", "button[class*='negative']"
     )
-    if close_buttons:
-        close_buttons[0].click()
+    assert close_buttons, "Expected delete button for list entry"
+    close_buttons[0].click()
     screen.wait(0.5)
     screen.should_contain("No entries")
 

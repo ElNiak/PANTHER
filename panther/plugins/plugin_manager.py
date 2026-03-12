@@ -824,20 +824,6 @@ class PluginManager(LoggerMixin):
         if experiment_context and not self.experiment_context:
             self.set_experiment_context(experiment_context)
 
-        # Emit plugin service created event
-        if self.plugin_event_emitter:
-            self.plugin_event_emitter.emit_plugin_service_created(
-                plugin_id=f"service:{implementation_name}",
-                plugin_name=implementation_name,
-                plugin_type=str(implementation.type),
-                service_id=implementation_name,
-                service_name=implementation_name,
-                service_type=str(implementation.type),
-                service_config={
-                    "protocol": str(protocol.name) if protocol else "unknown"
-                },
-            )
-
         service_mgr = self.plugin_factory.create_service_manager(
             protocol=protocol,
             implementation=implementation,
@@ -849,6 +835,20 @@ class PluginManager(LoggerMixin):
             experiment_context=experiment_context,
             test_case=experiment_context,
         )
+
+        # Emit plugin service created event (after successful creation)
+        if self.plugin_event_emitter and service_mgr:
+            self.plugin_event_emitter.emit_plugin_service_created(
+                plugin_id=f"service:{implementation_name}",
+                plugin_name=implementation_name,
+                plugin_type=str(implementation.type),
+                service_id=implementation_name,
+                service_name=implementation_name,
+                service_type=str(implementation.type),
+                service_config={
+                    "protocol": str(protocol.name) if protocol else "unknown"
+                },
+            )
 
         # Emit plugin service started event
         if self.plugin_event_emitter and service_mgr:

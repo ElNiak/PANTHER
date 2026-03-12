@@ -34,6 +34,7 @@ State management:
 import asyncio
 import logging
 import threading
+from collections import deque
 from typing import Callable, Optional
 
 from panther.core.events.base.event_base import BaseEvent
@@ -97,7 +98,7 @@ class ExperimentService:
         self._lock = threading.Lock()
         self._running = False
         self._stop_requested = False
-        self._log_lines: list[str] = []
+        self._log_lines: deque[str] = deque(maxlen=10000)
         self._max_log_lines: int = 10000
         self._status: str = "Idle"
         self._config_path: str = ""
@@ -186,8 +187,6 @@ class ExperimentService:
     def _emit_log(self, line: str):
         """Append a line to the buffer and notify all log callbacks."""
         self._log_lines.append(line)
-        if len(self._log_lines) > self._max_log_lines:
-            self._log_lines = self._log_lines[-self._max_log_lines :]
         for cb in list(self._log_callbacks):
             try:
                 cb(line)
@@ -453,10 +452,12 @@ class ExperimentService:
     @property
     def is_running(self) -> bool:
         """Whether an experiment is currently executing in the background thread."""
-        return self._running
+        with self._lock:
+            return self._running
 
 
 _instance: Optional[ExperimentService] = None
+_instance_lock = threading.Lock()
 
 
 def get_experiment_service() -> ExperimentService:
@@ -471,5 +472,7 @@ def get_experiment_service() -> ExperimentService:
     """
     global _instance
     if _instance is None:
-        _instance = ExperimentService()
+        with _instance_lock:
+            if _instance is None:
+                _instance = ExperimentService()
     return _instance

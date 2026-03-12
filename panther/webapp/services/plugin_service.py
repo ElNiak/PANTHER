@@ -131,11 +131,8 @@ class PluginService:
             plugin is not found or discovery fails.
         """
         try:
-            from panther.plugins.plugin_manager import PluginManager
-
-            # Ensure plugins are imported and decorators have run
-            pm = PluginManager()
-            pm.discover_plugins()
+            # Ensure discovery has run (uses cached result if available)
+            self.list_plugins()
 
             from panther.plugins.core.plugin_decorators import get_decorated_plugins
 
