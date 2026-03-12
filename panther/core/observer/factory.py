@@ -35,6 +35,7 @@ Example:
         logger_obs = factory.create_observer("logger", log_level="DEBUG")
 """
 
+import inspect
 import logging
 from typing import Any, Dict, List, Optional, Union
 
@@ -159,6 +160,13 @@ class ObserverFactory:
 
         # Override with provided kwargs
         config.update(kwargs)
+
+        # Filter config to only include parameters accepted by the constructor
+        sig = inspect.signature(observer_class.__init__)
+        params = sig.parameters
+        if not any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values()):
+            accepted = set(params.keys()) - {"self"}
+            config = {k: v for k, v in config.items() if k in accepted}
 
         try:
             observer = observer_class(**config)

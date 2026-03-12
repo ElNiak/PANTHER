@@ -57,7 +57,15 @@ def sample_config():
                     "server": {
                         "implementation": {"name": "picoquic", "type": "iut"},
                         "protocol": {"name": "quic", "role": "server"},
-                    }
+                    },
+                    "client": {
+                        "implementation": {"name": "picoquic", "type": "iut"},
+                        "protocol": {
+                            "name": "quic",
+                            "role": "client",
+                            "target": "server",
+                        },
+                    },
                 },
             }
         ],
