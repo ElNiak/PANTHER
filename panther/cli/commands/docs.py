@@ -14,48 +14,15 @@ import click
 from panther.cli.core.base import (
     error_message,
     featured_example,
+    find_project_root,
     handle_errors,
     info_message,
     pass_context_and_setup_logging,
+    rmtree_onerror,
+    run_command,
     success_message,
     warning_message,
 )
-
-
-def _find_project_root() -> Path:
-    """Find the project root directory (where pyproject.toml lives)."""
-    current = Path.cwd()
-    for parent in [current, *current.parents]:
-        if (parent / "pyproject.toml").exists():
-            return parent
-    return current
-
-
-def _run_command(cmd, cwd=None):
-    """Run a command and return the exit code."""
-    click.echo(f"Running: {' '.join(str(c) for c in cmd)}")
-    try:
-        result = subprocess.run(cmd, cwd=cwd, check=True, capture_output=False)
-        return result.returncode
-    except subprocess.CalledProcessError as e:
-        return e.returncode
-    except FileNotFoundError:
-        click.echo(f"Error: Command not found: {cmd[0]}", err=True)
-        return 1
-
-
-def _rmtree_onerror(func, path, exc_info):
-    """Handle permission errors during shutil.rmtree."""
-    import os
-    import stat
-
-    try:
-        os.chmod(path, stat.S_IRWXU)
-        func(path)
-    except PermissionError:
-        subprocess.run(["xattr", "-c", path], capture_output=True)
-        os.chmod(path, stat.S_IRWXU)
-        func(path)
 
 
 def _build_documentation(project_root: Path) -> int:
@@ -94,7 +61,7 @@ def _build_documentation(project_root: Path) -> int:
     for dir_name in ["docs", "site"]:
         dir_path = project_root / dir_name
         if dir_path.exists():
-            shutil.rmtree(dir_path, onerror=_rmtree_onerror)
+            shutil.rmtree(dir_path, onerror=rmtree_onerror)
 
     # Install dependencies if not editable install
     _is_editable = (project_root / "panther_net.egg-info").exists() or any(
@@ -104,7 +71,7 @@ def _build_documentation(project_root: Path) -> int:
         info_message("Editable install detected, skipping pip install .[doc,tests,web]")
     else:
         info_message("Installing documentation dependencies...")
-        result = _run_command(
+        result = run_command(
             [sys.executable, "-m", "pip", "install", ".[doc,tests,web]"],
             cwd=project_root,
         )
@@ -123,7 +90,7 @@ def _build_documentation(project_root: Path) -> int:
         project_root / "panther" / "tools" / "docs_gen" / "generate_plugin_inventory.py"
     )
     if inventory_script.exists():
-        result = _run_command(
+        result = run_command(
             [
                 sys.executable,
                 str(inventory_script),
@@ -191,7 +158,7 @@ def _build_documentation(project_root: Path) -> int:
     )
     if ivy_setup.exists():
         info_message("Installing ivy for documentation conversion...")
-        _run_command(
+        run_command(
             [sys.executable, "-m", "pip", "install", "-e", str(ivy_setup)],
             cwd=project_root,
         )
@@ -213,7 +180,7 @@ def _build_documentation(project_root: Path) -> int:
                 rel = ivy_file.relative_to(ivy_setup)
                 dest_md = panther_ivy_docs / rel.with_suffix(".md")
                 dest_md.parent.mkdir(parents=True, exist_ok=True)
-                _run_command(
+                run_command(
                     [
                         sys.executable,
                         "-c",
@@ -242,7 +209,7 @@ def _build_documentation(project_root: Path) -> int:
         )
         if result.returncode == 0:
             info_message("Generating coverage report...")
-            _run_command(
+            run_command(
                 [
                     sys.executable,
                     "-m",
@@ -267,7 +234,7 @@ def _build_documentation(project_root: Path) -> int:
 
     # Build with MkDocs
     info_message("Building documentation with MkDocs...")
-    return _run_command(
+    return run_command(
         ["mkdocs", "build", "--verbose", "--config-file", "mkdocs.yml"],
         cwd=project_root,
     )
@@ -297,7 +264,7 @@ def docs_build(ctx):
     Example:
       panther docs build
     """
-    root = _find_project_root()
+    root = find_project_root()
     result = _build_documentation(root)
     if result == 0:
         success_message("Documentation built successfully.")
@@ -317,17 +284,17 @@ def serve(ctx):
     Example:
       panther docs serve
     """
-    root = _find_project_root()
+    root = find_project_root()
     result = _build_documentation(root)
     if result != 0:
         error_message("Documentation build failed.")
         sys.exit(result)
 
     info_message("Serving documentation locally...")
-    mkdocs_result = _run_command(["mkdocs", "--version"], cwd=root)
+    mkdocs_result = run_command(["mkdocs", "--version"], cwd=root)
     if mkdocs_result != 0:
         info_message("Installing MkDocs...")
-        _run_command(
+        run_command(
             [
                 sys.executable,
                 "-m",
@@ -340,7 +307,7 @@ def serve(ctx):
             cwd=root,
         )
     sys.exit(
-        _run_command(
+        run_command(
             ["mkdocs", "serve", "--verbose", "--config-file", "mkdocs.yml"], cwd=root
         )
     )
@@ -359,7 +326,7 @@ def deploy(ctx):
     Example:
       panther docs deploy
     """
-    root = _find_project_root()
+    root = find_project_root()
     result = _build_documentation(root)
     if result != 0:
         error_message("Documentation build failed.")
@@ -367,7 +334,7 @@ def deploy(ctx):
 
     info_message("Deploying documentation to GitHub Pages...")
     sys.exit(
-        _run_command(
+        run_command(
             [
                 "mkdocs",
                 "gh-deploy",

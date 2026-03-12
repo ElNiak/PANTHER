@@ -1,12 +1,15 @@
 """Base utilities and decorators for CLI commands.
 
 Provides common patterns used across all PANTHER CLI commands including
-error handling, logging setup, and shared options.
+error handling, logging setup, shared options, and project-level helpers.
 """
 
 import logging
+import os
+import stat
 import subprocess
 from functools import wraps
+from pathlib import Path
 from typing import Any, Callable
 
 import click
@@ -240,29 +243,40 @@ def error_message(message: str) -> None:
     _cli_message(message, "error")
 
 
-def legacy_command_pattern(func: Callable) -> Callable:
-    """Decorator that provides legacy command pattern compatibility.
+# ── Project-level helpers shared across CLI commands ─────────────────
 
-    Enables CLI commands to behave more like legacy BaseCommand pattern
-    with proper return code handling and error patterns.
 
-    Args:
-        func: CLI command function to decorate
+def find_project_root() -> Path:
+    """Find the project root directory (where pyproject.toml lives)."""
+    current = Path.cwd()
+    for parent in [current, *current.parents]:
+        if (parent / "pyproject.toml").exists():
+            return parent
+    return current
 
-    Returns:
-        Decorated function with legacy behavior patterns
-    """
 
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        try:
-            result = func(*args, **kwargs)
-            # Legacy commands return 0 for success, None is treated as success
-            if result is None:
-                return 0
-            return result
-        except Exception as e:
-            # Let error handling decorator handle the exception
-            raise
+def rmtree_onerror(func, path, exc_info):
+    """Handle permission errors during shutil.rmtree."""
+    try:
+        os.chmod(path, stat.S_IRWXU)
+        func(path)
+    except PermissionError:
+        subprocess.run(["xattr", "-c", path], capture_output=True)
+        os.chmod(path, stat.S_IRWXU)
+        func(path)
 
-    return wrapper
+
+def run_command(cmd, cwd=None):
+    """Run a command, echo it, and return the exit code."""
+    if not cmd:
+        click.echo("Error: Empty command provided", err=True)
+        return 1
+    click.echo(f"Running: {' '.join(str(c) for c in cmd)}")
+    try:
+        result = subprocess.run(cmd, cwd=cwd, check=True, capture_output=False)
+        return result.returncode
+    except subprocess.CalledProcessError as e:
+        return e.returncode
+    except FileNotFoundError:
+        click.echo(f"Error: Command not found: {cmd[0]}", err=True)
+        return 1

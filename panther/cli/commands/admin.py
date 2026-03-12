@@ -106,7 +106,9 @@ def teardown(ctx, force):
                     # Handle shell commands with variable substitution
                     if "$(" in " ".join(cmd):
                         result = subprocess.run(
-                            " ".join(cmd), shell=True, capture_output=True, text=True
+                            ["bash", "-c", " ".join(cmd)],
+                            capture_output=True,
+                            text=True,
                         )
                     else:
                         result = subprocess.run(cmd, capture_output=True, text=True)

@@ -6,8 +6,6 @@ the PANTHER package. Replaces the standalone panther_builder.py build commands.
 
 import os
 import shutil
-import stat
-import subprocess
 import sys
 from pathlib import Path
 
@@ -16,48 +14,15 @@ import click
 from panther.cli.core.base import (
     error_message,
     featured_example,
+    find_project_root,
     handle_errors,
     info_message,
     pass_context_and_setup_logging,
+    rmtree_onerror,
+    run_command,
     success_message,
     warning_message,
 )
-
-
-def _find_project_root() -> Path:
-    """Find the project root directory (where pyproject.toml lives)."""
-    current = Path.cwd()
-    for parent in [current, *current.parents]:
-        if (parent / "pyproject.toml").exists():
-            return parent
-    return current
-
-
-def _rmtree_onerror(func, path, exc_info):
-    """Handle permission errors during shutil.rmtree."""
-    try:
-        os.chmod(path, stat.S_IRWXU)
-        func(path)
-    except PermissionError:
-        subprocess.run(["xattr", "-c", path], capture_output=True)
-        os.chmod(path, stat.S_IRWXU)
-        func(path)
-
-
-def _run_command(cmd, cwd=None):
-    """Run a command and return the exit code."""
-    if not cmd:
-        click.echo("Error: Empty command provided", err=True)
-        return 1
-    click.echo(f"Running: {' '.join(str(c) for c in cmd)}")
-    try:
-        result = subprocess.run(cmd, cwd=cwd, check=True, capture_output=False)
-        return result.returncode
-    except subprocess.CalledProcessError as e:
-        return e.returncode
-    except FileNotFoundError:
-        click.echo(f"Error: Command not found: {cmd[0]}", err=True)
-        return 1
 
 
 def _clean_build_artifacts(project_root: Path) -> int:
@@ -68,16 +33,16 @@ def _clean_build_artifacts(project_root: Path) -> int:
         dir_path = project_root / dir_name
         if dir_path.exists():
             click.echo(f"Removing {dir_path}")
-            shutil.rmtree(dir_path, onerror=_rmtree_onerror)
+            shutil.rmtree(dir_path, onerror=rmtree_onerror)
 
     for egg_info in project_root.glob("*.egg-info"):
         click.echo(f"Removing {egg_info}")
-        shutil.rmtree(egg_info, onerror=_rmtree_onerror)
+        shutil.rmtree(egg_info, onerror=rmtree_onerror)
 
     for pycache in project_root.rglob("__pycache__"):
         if ".git" in pycache.parts:
             continue
-        shutil.rmtree(pycache, onerror=_rmtree_onerror)
+        shutil.rmtree(pycache, onerror=rmtree_onerror)
 
     for pyc_file in project_root.rglob("*.pyc"):
         if ".git" in pyc_file.parts:
@@ -88,26 +53,37 @@ def _clean_build_artifacts(project_root: Path) -> int:
     return 0
 
 
+def _run_steps(*steps) -> int:
+    """Run build steps sequentially, stopping on first failure."""
+    for step in steps:
+        result = step()
+        if result != 0:
+            return result
+    return 0
+
+
 def _install_dependencies(project_root: Path) -> int:
     """Install build dependencies."""
     info_message("Installing build dependencies...")
-    return (
-        _run_command(
+    return _run_steps(
+        lambda: run_command(
             [sys.executable, "-m", "pip", "install", "build", "wheel", "setuptools"],
             cwd=project_root,
-        )
-        + _run_command(
+        ),
+        lambda: run_command(
             [sys.executable, "-m", "pip", "install", "--upgrade", "pip"],
             cwd=project_root,
-        )
-        + _run_command([sys.executable, "-m", "pip", "install", "."], cwd=project_root)
+        ),
+        lambda: run_command(
+            [sys.executable, "-m", "pip", "install", "."], cwd=project_root
+        ),
     )
 
 
 def _uninstall_package(project_root: Path) -> int:
     """Uninstall existing package."""
     info_message("Uninstalling existing panther-net...")
-    return _run_command(
+    return run_command(
         [sys.executable, "-m", "pip", "uninstall", "--yes", "panther-net"],
         cwd=project_root,
     )
@@ -116,7 +92,7 @@ def _uninstall_package(project_root: Path) -> int:
 def _build_wheel(project_root: Path) -> int:
     """Build the wheel package."""
     info_message("Building wheel...")
-    return _run_command(
+    return run_command(
         [sys.executable, "-m", "build", "--wheel", "--no-isolation"],
         cwd=project_root,
     )
@@ -130,7 +106,7 @@ def _install_wheel(project_root: Path) -> int:
     if not wheel_files:
         error_message("No wheel file found in dist/")
         return 1
-    return _run_command(
+    return run_command(
         [sys.executable, "-m", "pip", "install", str(wheel_files[0])],
         cwd=project_root,
     )
@@ -139,7 +115,7 @@ def _install_wheel(project_root: Path) -> int:
 def _install_editable(project_root: Path) -> int:
     """Install in editable/development mode."""
     info_message("Installing in editable mode...")
-    return _run_command(
+    return run_command(
         [
             sys.executable,
             "-m",
@@ -171,7 +147,7 @@ def _install_ivy_submodule(project_root: Path) -> int:
     old_val = os.environ.get("CMAKE_POLICY_VERSION_MINIMUM")
     os.environ["CMAKE_POLICY_VERSION_MINIMUM"] = "3.5"
     try:
-        return _run_command(
+        return run_command(
             [sys.executable, "-m", "pip", "install", "--editable", str(ivy_path)],
             cwd=project_root,
         )
@@ -185,12 +161,12 @@ def _install_ivy_submodule(project_root: Path) -> int:
 def _run_tests(project_root: Path) -> int:
     """Run the test suite."""
     info_message("Running tests...")
-    result = _run_command(
+    result = run_command(
         [sys.executable, "-m", "pip", "install", ".[tests]"], cwd=project_root
     )
     if result != 0:
         return result
-    return _run_command(
+    return run_command(
         [
             sys.executable,
             "-m",
@@ -223,13 +199,13 @@ def package(ctx):
 
     Cleans artifacts, installs dependencies, builds a wheel, and installs it.
     """
-    root = _find_project_root()
-    result = (
-        _clean_build_artifacts(root)
-        + _install_dependencies(root)
-        + _uninstall_package(root)
-        + _build_wheel(root)
-        + _install_wheel(root)
+    root = find_project_root()
+    result = _run_steps(
+        lambda: _clean_build_artifacts(root),
+        lambda: _install_dependencies(root),
+        lambda: _uninstall_package(root),
+        lambda: _build_wheel(root),
+        lambda: _install_wheel(root),
     )
     if result == 0:
         success_message("Package built and installed successfully.")
@@ -249,13 +225,13 @@ def dev(ctx):
     Example:
       panther build dev
     """
-    root = _find_project_root()
-    result = (
-        _clean_build_artifacts(root)
-        + _install_dependencies(root)
-        + _uninstall_package(root)
-        + _install_editable(root)
-        + _install_ivy_submodule(root)
+    root = find_project_root()
+    result = _run_steps(
+        lambda: _clean_build_artifacts(root),
+        lambda: _install_dependencies(root),
+        lambda: _uninstall_package(root),
+        lambda: _install_editable(root),
+        lambda: _install_ivy_submodule(root),
     )
     if result == 0:
         success_message("Development install completed successfully.")
@@ -270,14 +246,14 @@ def test(ctx):
 
     Builds a wheel package, installs it, then runs pytest with coverage.
     """
-    root = _find_project_root()
-    result = (
-        _clean_build_artifacts(root)
-        + _install_dependencies(root)
-        + _uninstall_package(root)
-        + _build_wheel(root)
-        + _install_wheel(root)
-        + _run_tests(root)
+    root = find_project_root()
+    result = _run_steps(
+        lambda: _clean_build_artifacts(root),
+        lambda: _install_dependencies(root),
+        lambda: _uninstall_package(root),
+        lambda: _build_wheel(root),
+        lambda: _install_wheel(root),
+        lambda: _run_tests(root),
     )
     if result == 0:
         success_message("Tests completed successfully.")
@@ -293,11 +269,11 @@ def install(ctx):
     Installs build dependencies, performs editable install, and installs
     the panther_ivy submodule if present.
     """
-    root = _find_project_root()
-    result = (
-        _install_dependencies(root)
-        + _install_editable(root)
-        + _install_ivy_submodule(root)
+    root = find_project_root()
+    result = _run_steps(
+        lambda: _install_dependencies(root),
+        lambda: _install_editable(root),
+        lambda: _install_ivy_submodule(root),
     )
     if result == 0:
         success_message("Install completed successfully.")
@@ -313,6 +289,6 @@ def clean(ctx):
     Removes build/, dist/, docs/, site/, htmlcov/, egg-info, __pycache__,
     and .pyc files.
     """
-    root = _find_project_root()
+    root = find_project_root()
     result = _clean_build_artifacts(root)
     sys.exit(result)

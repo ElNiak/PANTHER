@@ -85,32 +85,32 @@ def completion(output, shell):
 
     # Generate completion script
     if shell == "bash":
-        completion_script = f"""
+        completion_script = """
 # PANTHER bash completion
-_panther_completion() {{
+_panther_completion() {
     local IFS=$'\\t'
-    COMPREPLY=( $( env COMP_WORDS="${{COMP_WORDS[*]}}" \\
-                   COMP_CWORD=${{COMP_CWORD}} \\
+    COMPREPLY=( $( env COMP_WORDS="${COMP_WORDS[*]}" \\
+                   COMP_CWORD=${COMP_CWORD} \\
                    _PANTHER_COMPLETE=complete $1 ) )
     return 0
-}}
+}
 
 complete -F _panther_completion -o default panther;
 """
     elif shell == "zsh":
-        completion_script = f"""
+        completion_script = """
 # PANTHER zsh completion
 #compdef panther
 
-_panther_completion() {{
+_panther_completion() {
     local -a completions
     local -a completions_with_descriptions
     local -a response
-    response=("${{(@f)$( env COMP_WORDS="${{words[*]}}" \\
-                        COMP_CWORD=${{#words[@]}} \\
-                        _PANTHER_COMPLETE="complete_zsh" panther )}}")
+    response=("${(@f)$( env COMP_WORDS="${words[*]}" \\
+                        COMP_CWORD=${#words[@]} \\
+                        _PANTHER_COMPLETE="complete_zsh" panther )}")
 
-    for key descr in ${{(kv)response}}; do
+    for key descr in ${(kv)response}; do
         if [[ "$key" == "$descr" ]]; then
             completions+=("$key")
         else
@@ -123,12 +123,12 @@ _panther_completion() {{
     else
         _describe -V unsorted completions_with_descriptions -U -Q -S ''
     fi
-}}
+}
 
 compdef _panther_completion panther;
 """
     else:  # fish
-        completion_script = f"""
+        completion_script = """
 # PANTHER fish completion
 complete -c panther -f -a "(env _PANTHER_COMPLETE=complete_fish panther)"
 """
@@ -202,9 +202,7 @@ def main():
              130 = terminated by Control-C
     """
     try:
-        # Register commands
-        register_commands()
-
+        # Commands are already registered at module import time (below).
         # Execute CLI - Click handles the exit codes internally now
         cli()
 
