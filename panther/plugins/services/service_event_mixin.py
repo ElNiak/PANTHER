@@ -4,7 +4,7 @@ from typing import Any, Dict, Optional
 
 from panther.core.events.test.events import (
     TestCompletedEvent,
-    TestExecutionStartedEvent,
+    TestEvent,
     TestFailedEvent,
 )
 
@@ -811,8 +811,8 @@ class ServiceManagerEventMixin:
         if not (hasattr(self, "event_emitter") and self.event_emitter):
             self.logger.debug("Skipping event emission: no event_emitter configured")
             return
-        event = TestExecutionStartedEvent(
-            test_id=test_id,
+        event = TestEvent.execution_started(
+            test_id,
             steps=details.get("steps", []) if details else [],
         )
         self.event_emitter.emit_event(event)

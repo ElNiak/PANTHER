@@ -10,12 +10,7 @@ if TYPE_CHECKING:
 
 from panther.core.events.base.event_emitter_base import EventEmitterBase
 
-from .events import (
-    PluginLoadingCompletedEvent,
-    PluginLoadingStartedEvent,
-    PluginServiceCreatedEvent,
-    PluginServiceStartedEvent,
-)
+from .events import PluginEvent
 
 
 class PluginEventEmitter(EventEmitterBase):
@@ -34,10 +29,10 @@ class PluginEventEmitter(EventEmitterBase):
         loading_config: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Emit a plugin loading started event."""
-        event = PluginLoadingStartedEvent(
-            plugin_id=plugin_id,
-            plugin_name=plugin_name,
-            plugin_type=plugin_type,
+        event = PluginEvent.loading_started(
+            plugin_id,
+            plugin_name,
+            plugin_type,
             plugin_path=plugin_path,
             loading_config=loading_config,
         )
@@ -53,10 +48,10 @@ class PluginEventEmitter(EventEmitterBase):
         version: Optional[str] = None,
     ) -> None:
         """Emit a plugin loading completed event."""
-        event = PluginLoadingCompletedEvent(
-            plugin_id=plugin_id,
-            plugin_name=plugin_name,
-            plugin_type=plugin_type,
+        event = PluginEvent.loading_completed(
+            plugin_id,
+            plugin_name,
+            plugin_type,
             duration=duration,
             capabilities=capabilities,
             version=version,
@@ -74,10 +69,10 @@ class PluginEventEmitter(EventEmitterBase):
         service_config: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Emit a plugin service created event."""
-        event = PluginServiceCreatedEvent(
-            plugin_id=plugin_id,
-            plugin_name=plugin_name,
-            plugin_type=plugin_type,
+        event = PluginEvent.service_created(
+            plugin_id,
+            plugin_name,
+            plugin_type,
             service_id=service_id,
             service_name=service_name,
             service_type=service_type,
@@ -95,10 +90,10 @@ class PluginEventEmitter(EventEmitterBase):
         startup_duration: Optional[float] = None,
     ) -> None:
         """Emit a plugin service started event."""
-        event = PluginServiceStartedEvent(
-            plugin_id=plugin_id,
-            plugin_name=plugin_name,
-            plugin_type=plugin_type,
+        event = PluginEvent.service_started(
+            plugin_id,
+            plugin_name,
+            plugin_type,
             service_id=service_id,
             service_name=service_name,
             startup_duration=startup_duration,

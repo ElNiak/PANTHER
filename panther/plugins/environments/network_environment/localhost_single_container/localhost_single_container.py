@@ -26,7 +26,6 @@ from pathlib import Path
 
 from panther.config.core.models import GlobalConfig, TestConfig
 from panther.config.core.models.environment import EnvironmentConfig
-from panther.core.events.experiment.events import ExperimentFinishedEarlyEvent
 from panther.core.observer.management.event_manager import EventManager
 from panther.core.outputs.output_environment_mixins import StandardOutputCollectorMixin
 from panther.plugins.core.plugin_decorators import register_plugin

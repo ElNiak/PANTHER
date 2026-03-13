@@ -1,5 +1,4 @@
-"""
-Metrics Enums Module
+"""Metrics Enums Module.
 
 This module contains enum definitions for the metrics system to avoid circular imports.
 """

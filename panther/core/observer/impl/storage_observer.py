@@ -1,3 +1,5 @@
+"""Storage Observer Module."""
+
 from typing import Any, Dict, List, Optional
 
 """
@@ -14,18 +16,11 @@ from datetime import datetime
 from pathlib import Path
 
 from panther.core.events.base.event_base import BaseEvent
-from panther.core.events.environment.events import EnvironmentErrorEvent
-from panther.core.events.experiment.events import (
-    ExperimentCompletedEvent,
-    ExperimentExecutionStartedEvent,
-    ExperimentFailedEvent,
-    ExperimentFinishedEarlyEvent,
-)
+from panther.core.events.experiment.events import ExperimentFinishedEarlyEvent
 from panther.core.events.metrics.events import MetricCollectedEvent, MetricsSummaryEvent
-from panther.core.events.service.events import ServiceErrorEvent
 from panther.core.events.test.events import (
+    EnhancedResultEvent,
     TestCompletedEvent,
-    TestExecutionStartedEvent,
     TestFailedEvent,
     TestResultEvent,
 )
@@ -35,8 +30,7 @@ from panther.core.observer.management.results_manager import ResultsManager
 
 
 class StorageObserver(ITypedObserver):
-    """
-    Storage observer that provides comprehensive data persistence using ResultsManager.
+    """Storage observer that provides comprehensive data persistence using ResultsManager.
 
     Implements singleton pattern per storage path to prevent duplicate event logging.
 
@@ -53,8 +47,7 @@ class StorageObserver(ITypedObserver):
     _instance_lock = None
 
     def __new__(cls, storage_path: Optional[str] = None, **kwargs):
-        """
-        Implement singleton pattern per storage path.
+        """Implement singleton pattern per storage path.
 
         Returns existing instance if one exists for the same storage path,
         otherwise creates new instance.
@@ -100,8 +93,7 @@ class StorageObserver(ITypedObserver):
         batch_size: int = 100,
         log_level: str = "INFO",
     ):
-        """
-        Initialize the storage observer.
+        """Initialize the storage observer.
 
         Args:
             storage_path: Base path for storage (defaults to outputs/<timestamp>)
@@ -112,6 +104,7 @@ class StorageObserver(ITypedObserver):
             retention_days: Number of days to retain data
             event_type_filters: List of event types to store (None for all)
             batch_size: Number of events to batch before writing
+            log_level: Logging level for the observer
         """
         # Skip initialization if this instance is already initialized
         if hasattr(self, "_initialized") and self._initialized:
@@ -184,8 +177,7 @@ class StorageObserver(ITypedObserver):
         self._initialized = True
 
     def on_event(self, event: BaseEvent) -> bool:
-        """
-        Handle generic events and route to typed handlers.
+        """Handle generic events and route to typed handlers.
 
         This method handles special cases like the experiment finished early check,
         then delegates to the parent class for typed event routing.
@@ -212,7 +204,7 @@ class StorageObserver(ITypedObserver):
 
     # Typed event handlers
 
-    def on_test_execution_started(self, event: TestExecutionStartedEvent) -> bool:
+    def on_test_execution_started(self, event: BaseEvent) -> bool:
         """Handle test started event."""
         self._store_test_event(event, "test.started")
         return True
@@ -266,33 +258,31 @@ class StorageObserver(ITypedObserver):
             self.logger.warning("Failed to flush events after test failed: %s", e)
         return True
 
-    def on_experiment_execution_started(
-        self, event: ExperimentExecutionStartedEvent
-    ) -> bool:
+    def on_experiment_execution_started(self, event: BaseEvent) -> bool:
         """Handle experiment started event."""
         self._store_system_event(event, "experiment.started")
         return True
 
-    def on_experiment_completed(self, event: ExperimentCompletedEvent) -> bool:
+    def on_experiment_completed(self, event: BaseEvent) -> bool:
         """Handle experiment completed event."""
         self._store_system_event(event, "experiment.completed")
         # Flush all pending data when experiment completes
         self.flush_all()
         return True
 
-    def on_experiment_failed(self, event: ExperimentFailedEvent) -> bool:
+    def on_experiment_failed(self, event: BaseEvent) -> bool:
         """Handle experiment failed event."""
         self._store_error_event(event, "experiment.failed")
         # Flush all pending data when experiment fails
         self.flush_all()
         return True
 
-    def on_service_error(self, event: ServiceErrorEvent) -> bool:
+    def on_service_error(self, event: BaseEvent) -> bool:
         """Handle service error event."""
         self._store_error_event(event, "service.error")
         return True
 
-    def on_environment_error(self, event: EnvironmentErrorEvent) -> bool:
+    def on_environment_error(self, event: BaseEvent) -> bool:
         """Handle environment error event."""
         self._store_error_event(event, "environment.error")
         return True
@@ -645,8 +635,7 @@ class StorageObserver(ITypedObserver):
         end_time: Optional[datetime] = None,
         limit: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
-        """
-        Query stored events with filters.
+        """Query stored events with filters.
 
         Args:
             event_type: Filter by event type (supports prefix matching)
@@ -706,8 +695,7 @@ class StorageObserver(ITypedObserver):
         export_format: str = "json",
         include_categories: Optional[List[str]] = None,
     ) -> bool:
-        """
-        Export stored data in various formats.
+        """Export stored data in various formats.
 
         Args:
             export_path: Path to export the data
@@ -811,9 +799,9 @@ class StorageObserver(ITypedObserver):
 
             # Add metadata
             metadata = ET.SubElement(root, "metadata")
-            ET.SubElement(
-                metadata, "export_timestamp"
-            ).text = datetime.now().isoformat()
+            ET.SubElement(metadata, "export_timestamp").text = (
+                datetime.now().isoformat()
+            )
             ET.SubElement(metadata, "storage_path").text = str(self.storage_path)
 
             # Add events

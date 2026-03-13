@@ -8,13 +8,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 if TYPE_CHECKING:
     from panther.core.observer.management.event_manager import EventManager
 
-from panther.core.events.step.events import (
-    StepExecutionCompletedEvent,
-    StepExecutionFailedEvent,
-    StepExecutionStartedEvent,
-    StepProgressEvent,
-    StepUnsupportedEvent,
-)
+from panther.core.events.step.events import StepEvent
 
 
 class StepEventEmitter:
@@ -49,9 +43,9 @@ class StepEventEmitter:
             step_config: Step configuration details
             prerequisites: List of prerequisite steps or conditions
         """
-        event = StepExecutionStartedEvent(
-            step_id=step_id,
-            step_name=step_name,
+        event = StepEvent.execution_started(
+            step_id,
+            step_name,
             test_case_id=test_case_id,
             step_config=step_config,
             prerequisites=prerequisites,
@@ -77,9 +71,9 @@ class StepEventEmitter:
             result: Step execution result details
             output: Step execution output/logs
         """
-        event = StepExecutionCompletedEvent(
-            step_id=step_id,
-            step_name=step_name,
+        event = StepEvent.execution_completed(
+            step_id,
+            step_name,
             test_case_id=test_case_id,
             duration=duration,
             result=result,
@@ -108,9 +102,9 @@ class StepEventEmitter:
             duration: Step execution duration before failure
             retry_count: Number of retry attempts
         """
-        event = StepExecutionFailedEvent(
-            step_id=step_id,
-            step_name=step_name,
+        event = StepEvent.execution_failed(
+            step_id,
+            step_name,
             test_case_id=test_case_id,
             error_message=error_message,
             error_details=error_details,
@@ -138,9 +132,9 @@ class StepEventEmitter:
             progress_message: Human-readable progress message
             current_operation: Description of current operation
         """
-        event = StepProgressEvent(
-            step_id=step_id,
-            step_name=step_name,
+        event = StepEvent.progress(
+            step_id,
+            step_name,
             test_case_id=test_case_id,
             progress_percentage=progress_percentage,
             progress_message=progress_message,
@@ -165,9 +159,9 @@ class StepEventEmitter:
             reason: Reason why the step is unsupported
             alternative_steps: List of alternative steps that could be used
         """
-        event = StepUnsupportedEvent(
-            step_id=step_id,
-            step_name=step_name,
+        event = StepEvent.unsupported(
+            step_id,
+            step_name,
             test_case_id=test_case_id,
             reason=reason,
             alternative_steps=alternative_steps,

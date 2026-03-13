@@ -1,5 +1,4 @@
-"""
-Resource Monitor Module
+"""Resource Monitor Module.
 
 This module provides system resource monitoring capabilities during
 experiment execution, tracking CPU, memory, disk I/O, and network usage.
@@ -34,8 +33,7 @@ class ResourceSnapshot:
 
 
 class ResourceMonitor:
-    """
-    System resource monitoring for PANTHER experiments.
+    """System resource monitoring for PANTHER experiments.
 
     Continuously monitors CPU, memory, disk, and network usage,
     recording metrics at regular intervals during experiment execution.
@@ -47,8 +45,7 @@ class ResourceMonitor:
         interval: float = 5.0,
         detailed_monitoring: bool = True,
     ):
-        """
-        Initialize the resource monitor.
+        """Initialize the resource monitor.
 
         Args:
             metrics_collector: MetricsCollector instance to record metrics
@@ -113,8 +110,7 @@ class ResourceMonitor:
             self.logger.error("Failed to record baseline metrics: %s", e)
 
     def start(self, phase: Optional[Phase] = None) -> None:
-        """
-        Start resource monitoring.
+        """Start resource monitoring.
 
         Args:
             phase: Current experiment phase
@@ -397,8 +393,7 @@ class ResourceMonitor:
         phase: Optional[Phase] = None,
         test_case: Optional[str] = None,
     ) -> None:
-        """
-        Record a custom resource-related metric.
+        """Record a custom resource-related metric.
 
         Args:
             name: Metric name
