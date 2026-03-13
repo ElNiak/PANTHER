@@ -1,56 +1,14 @@
 """Observer that tracks experiment lifecycle events and manages state."""
 
 import logging
-import sys
 import threading
 from datetime import datetime
 from typing import Any, Dict, Optional, Set
 
-from panther.core.events.base.event_base import BaseEvent
-from panther.core.events.environment.events import (
-    EnvironmentCreatedEvent,
-    EnvironmentDeploymentStartedEvent,
-    EnvironmentDestroyedEvent,
-    EnvironmentErrorEvent,
-    EnvironmentSetupCompletedEvent,
-    EnvironmentSetupStartedEvent,
-    EnvironmentTeardownStartedEvent,
-)
+from panther.core.events.base.event_base import BaseEvent, EventType
 from panther.core.events.experiment.events import (
     ExperimentFinishedEarlyEvent,
     ExperimentServiceFailureEvent,
-)
-from panther.core.events.metrics.events import MetricCollectedEvent
-from panther.core.events.service.events import (
-    DockerBuildCompletedEvent,
-    DockerBuildStartedEvent,
-    ServiceDeploymentFailedEvent,
-    ServiceDestroyedEvent,
-    ServiceEvent,
-    ServicePreparationCompletedEvent,
-    ServicePreparationStartedEvent,
-    ServiceStartedEvent,
-    ServiceStoppedEvent,
-)
-from panther.core.events.step.events import (
-    StepExecutionCompletedEvent,
-    StepProgressEvent,
-)
-from panther.core.events.test.events import (
-    TestAssertionsCompletedEvent,
-    TestAssertionsStartedEvent,
-    TestCompletedEvent,
-    TestCreatedEvent,
-    TestDeploymentCompletedEvent,
-    TestDeploymentStartedEvent,
-    TestExecutionCompletedEvent,
-    TestExecutionFailedEvent,
-    TestExecutionStartedEvent,
-    TestFailedEvent,
-    TestSetupCompletedEvent,
-    TestSetupStartedEvent,
-    TestTeardownCompletedEvent,
-    TestTeardownStartedEvent,
 )
 from panther.core.observer.base.observer_interface import IObserver
 
@@ -77,7 +35,6 @@ class ExperimentObserver(IObserver):
         track_steps: bool = True,
         global_config: Any = None,
         log_level: str = "INFO",
-        log_unhandled_events: bool = False,
     ) -> None:
         """Initialize the experiment observer with optional configuration.
 
@@ -89,7 +46,6 @@ class ExperimentObserver(IObserver):
             track_steps: Whether to track step completion
             global_config: Global configuration object with logging settings
             log_level: Log level string (default "INFO")
-            log_unhandled_events: Whether to log unhandled event types at DEBUG level
         """
         # Track what we've observed for logging purposes only
         self.observed_environments: Set[str] = set()  # Just track what we've seen
@@ -124,7 +80,6 @@ class ExperimentObserver(IObserver):
         self.track_timing = track_timing
         self.track_steps = track_steps
         self.global_config = global_config
-        self.log_unhandled_events = log_unhandled_events
 
         # Track experiment state (guarded by _state_lock for cross-thread access)
         self._state_lock = threading.Lock()
@@ -133,50 +88,67 @@ class ExperimentObserver(IObserver):
         self.step_progress = {}
         self.events_received = 0
 
-        # Define mapping of event classes to their handler methods
-        self.event_handlers = {
-            ExperimentFinishedEarlyEvent: self._handle_experiment_finished_early,
-            ExperimentServiceFailureEvent: self._handle_experiment_service_failure,
-            StepProgressEvent: self._handle_step_progress,
-            StepExecutionCompletedEvent: self._handle_step_completed,
-            EnvironmentCreatedEvent: self._handle_environment_created,
-            EnvironmentSetupStartedEvent: self._handle_environment_setup_started,
-            EnvironmentSetupCompletedEvent: self._handle_environment_setup_completed,
-            EnvironmentDeploymentStartedEvent: self._handle_environment_deployment_started,
-            EnvironmentTeardownStartedEvent: self._handle_environment_teardown,
-            EnvironmentErrorEvent: self._handle_environment_error,
-            ServiceEvent: self._handle_service_event,
-            ServiceStartedEvent: self._handle_service_started,
-            ServiceStoppedEvent: self._handle_service_stopped,
-            ServiceDeploymentFailedEvent: self._handle_service_deployment_failed,
-            ServiceDestroyedEvent: self._handle_service_destroyed,
-            ServicePreparationStartedEvent: self._handle_service_setup_started,
-            ServicePreparationCompletedEvent: self._handle_service_setup_completed,
-            EnvironmentDestroyedEvent: self._handle_environment_destroyed,
-            TestExecutionFailedEvent: self._handle_test_execution_failed,
-            TestExecutionStartedEvent: self._handle_test_execution_started,
-            TestCompletedEvent: self._handle_test_completed,
-            TestFailedEvent: self._handle_test_failed,
-            TestExecutionCompletedEvent: self._handle_test_execution_completed,
-            MetricCollectedEvent: self._handle_metric_collected,
-            # Lifecycle events handled silently (no logging needed)
-            TestCreatedEvent: self._handle_noop,
-            TestSetupStartedEvent: self._handle_noop,
-            TestSetupCompletedEvent: self._handle_noop,
-            TestDeploymentStartedEvent: self._handle_noop,
-            TestDeploymentCompletedEvent: self._handle_noop,
-            TestTeardownStartedEvent: self._handle_noop,
-            TestTeardownCompletedEvent: self._handle_noop,
-            TestAssertionsStartedEvent: self._handle_noop,
-            TestAssertionsCompletedEvent: self._handle_noop,
-            DockerBuildStartedEvent: self._handle_noop,
-            DockerBuildCompletedEvent: self._handle_noop,
+        # Dispatch by (entity_type, event_name) → handler.
+        # This avoids isinstance() on backward-compat alias functions.
+        self._event_handlers = {
+            (
+                EventType.EXPERIMENT,
+                "finished_early",
+            ): self._handle_experiment_finished_early,
+            (
+                EventType.EXPERIMENT,
+                "service_failure",
+            ): self._handle_experiment_service_failure,
+            (EventType.STEP, "progress"): self._handle_step_progress,
+            (EventType.STEP, "execution_completed"): self._handle_step_completed,
+            (EventType.ENVIRONMENT, "created"): self._handle_environment_created,
+            (
+                EventType.ENVIRONMENT,
+                "setup_started",
+            ): self._handle_environment_setup_started,
+            (
+                EventType.ENVIRONMENT,
+                "setup_completed",
+            ): self._handle_environment_setup_completed,
+            (
+                EventType.ENVIRONMENT,
+                "deployment_started",
+            ): self._handle_environment_deployment_started,
+            (
+                EventType.ENVIRONMENT,
+                "teardown_started",
+            ): self._handle_environment_teardown,
+            (EventType.ENVIRONMENT, "error"): self._handle_environment_error,
+            (EventType.ENVIRONMENT, "destroyed"): self._handle_environment_destroyed,
+            (EventType.SERVICE, "started"): self._handle_service_started,
+            (EventType.SERVICE, "stopped"): self._handle_service_stopped,
+            (
+                EventType.SERVICE,
+                "deployment_failed",
+            ): self._handle_service_deployment_failed,
+            (EventType.SERVICE, "destroyed"): self._handle_service_destroyed,
+            (
+                EventType.SERVICE,
+                "preparation_started",
+            ): self._handle_service_setup_started,
+            (
+                EventType.SERVICE,
+                "preparation_completed",
+            ): self._handle_service_setup_completed,
+            (EventType.TEST, "execution_failed"): self._handle_test_execution_failed,
+            (EventType.TEST, "execution_started"): self._handle_test_execution_started,
+            (EventType.TEST, "completed"): self._handle_test_completed,
+            (
+                EventType.TEST,
+                "execution_completed",
+            ): self._handle_test_execution_completed,
+            (EventType.METRICS, "metric_collected"): self._handle_metric_collected,
         }
 
     def on_event(self, event: BaseEvent) -> bool:
         """Handles an experiment-related event with enhanced tracking.
 
-        Uses type-based dispatch to specialized handler methods.
+        Uses (entity_type, event_name) dispatch to specialized handler methods.
 
         Args:
             event: BaseEvent to handle
@@ -192,29 +164,18 @@ class ExperimentObserver(IObserver):
         if event_data.get("already_logged", False):
             return True
 
-        # Find a handler for this event type using inheritance
-        best_match = None
-        best_match_cls = None
+        # Look up handler by (entity_type, event_name) tuple
+        handler = self._event_handlers.get((event.entity_type, event.name))
 
-        # Find the most specific handler based on class hierarchy
-        for event_cls, handler in self.event_handlers.items():
-            if isinstance(event, event_cls) and (
-                best_match_cls is None or issubclass(event_cls, best_match_cls)
-            ):
-                best_match = handler
-                best_match_cls = event_cls
+        # Fallback for unmatched service events
+        if handler is None and event.entity_type == EventType.SERVICE:
+            handler = self._handle_service_event
 
-        # Call the handler if we found one
-        if best_match:
-            return best_match(event)
+        if handler:
+            return handler(event)
 
         # Default handling for unrecognized events
-        if self.log_unhandled_events:
-            self.logger.debug("Unhandled event type: %s", event.__class__.__name__)
-        return True
-
-    def _handle_noop(self, event: BaseEvent) -> bool:
-        """Silently acknowledge known lifecycle events that need no processing."""
+        self.logger.debug("Unhandled event type: %s", event.__class__.__name__)
         return True
 
     def _handle_experiment_finished_early(
@@ -246,7 +207,7 @@ class ExperimentObserver(IObserver):
 
         return self.experiment_finished_early
 
-    def _handle_step_progress(self, event: StepProgressEvent) -> bool:
+    def _handle_step_progress(self, event: BaseEvent) -> bool:
         """Handle step progress events with progress bar support."""
         self.current_phase = "running_steps"
         step_id = event.data.get("step_id")
@@ -390,7 +351,7 @@ class ExperimentObserver(IObserver):
         except Exception as e:
             self.logger.debug(f"Error during progress tracking cleanup: {e}")
 
-    def _handle_step_completed(self, event: StepExecutionCompletedEvent) -> bool:
+    def _handle_step_completed(self, event: BaseEvent) -> bool:
         """Handle step completion events."""
         step_id = event.data.get("step_id")
         success = event.data.get("success", False)
@@ -407,9 +368,7 @@ class ExperimentObserver(IObserver):
 
         return True
 
-    def _handle_environment_setup_started(
-        self, event: EnvironmentSetupStartedEvent
-    ) -> bool:
+    def _handle_environment_setup_started(self, event: BaseEvent) -> bool:
         """Handle environment setup started events with enhanced state tracking."""
         self.current_phase = "environment_setup"
 
@@ -448,9 +407,7 @@ class ExperimentObserver(IObserver):
 
         return True
 
-    def _handle_environment_setup_completed(
-        self, event: EnvironmentSetupCompletedEvent
-    ) -> bool:
+    def _handle_environment_setup_completed(self, event: BaseEvent) -> bool:
         """Handle environment setup completed events with enhanced state tracking."""
         success = event.data.get(
             "success", True
@@ -495,9 +452,7 @@ class ExperimentObserver(IObserver):
 
         return True
 
-    def _handle_environment_teardown(
-        self, event: EnvironmentTeardownStartedEvent
-    ) -> bool:
+    def _handle_environment_teardown(self, event: BaseEvent) -> bool:
         """Handle environment teardown events."""
         self.current_phase = "environment_teardown"
         env_type = event.data.get("type")
@@ -517,7 +472,7 @@ class ExperimentObserver(IObserver):
 
         return True
 
-    def _handle_service_event(self, event: ServiceEvent) -> bool:
+    def _handle_service_event(self, event: BaseEvent) -> bool:
         """Handle generic service events."""
         event_name = event.name
         data = event.data or {}
@@ -568,7 +523,7 @@ class ExperimentObserver(IObserver):
 
         return True
 
-    def _handle_service_started(self, event: ServiceStartedEvent) -> bool:
+    def _handle_service_started(self, event: BaseEvent) -> bool:
         """Handle service started events."""
         service_name = event.data.get("service_name")
         pid = event.data.get("pid")
@@ -589,7 +544,7 @@ class ExperimentObserver(IObserver):
 
         return True
 
-    def _handle_service_stopped(self, event: ServiceStoppedEvent) -> bool:
+    def _handle_service_stopped(self, event: BaseEvent) -> bool:
         """Handle service stopped events."""
         service_name = event.data.get("service_name")
         exit_code = event.data.get("exit_code")
@@ -627,9 +582,7 @@ class ExperimentObserver(IObserver):
 
         return True
 
-    def _handle_service_deployment_failed(
-        self, event: ServiceDeploymentFailedEvent
-    ) -> bool:
+    def _handle_service_deployment_failed(self, event: BaseEvent) -> bool:
         """Handle service deployment failure events."""
         data = event.data or {}
         environment = data.get("environment", "unknown")
@@ -655,9 +608,7 @@ class ExperimentObserver(IObserver):
 
         return True
 
-    def _handle_service_setup_started(
-        self, event: ServicePreparationStartedEvent
-    ) -> bool:
+    def _handle_service_setup_started(self, event: BaseEvent) -> bool:
         """Handle service setup started events with enhanced state tracking."""
         # Extract data from the actual event structure
         service_name = event.data.get("service_name") or "unknown_service"
@@ -689,9 +640,7 @@ class ExperimentObserver(IObserver):
 
         return True
 
-    def _handle_service_setup_completed(
-        self, event: ServicePreparationCompletedEvent
-    ) -> bool:
+    def _handle_service_setup_completed(self, event: BaseEvent) -> bool:
         """Handle service setup completed events with enhanced state tracking."""
         # Extract data from the actual event structure
         service_name = event.data.get("service_name") or "unknown_service"
@@ -721,7 +670,7 @@ class ExperimentObserver(IObserver):
 
         return True
 
-    def _handle_test_execution_failed(self, event: TestExecutionFailedEvent) -> bool:
+    def _handle_test_execution_failed(self, event: BaseEvent) -> bool:
         """Handle test execution failed events.
 
         Args:
@@ -755,7 +704,7 @@ class ExperimentObserver(IObserver):
 
         return True
 
-    def _handle_test_execution_started(self, event: TestExecutionStartedEvent) -> bool:
+    def _handle_test_execution_started(self, event: BaseEvent) -> bool:
         """Handle test execution started events.
 
         Args:
@@ -777,7 +726,7 @@ class ExperimentObserver(IObserver):
 
         return True
 
-    def _handle_test_completed(self, event: TestCompletedEvent) -> bool:
+    def _handle_test_completed(self, event: BaseEvent) -> bool:
         """Handle test completed events.
 
         Args:
@@ -788,8 +737,7 @@ class ExperimentObserver(IObserver):
         """
         self.current_phase = "test_completed"
         test_name = event.data.get("test_name")
-        # TestCompletedEvent inherently means success; failures use TestFailedEvent
-        success = True
+        success = event.data.get("success", False)
         result = event.data.get("result") or {}
 
         self.logger.info(
@@ -809,26 +757,7 @@ class ExperimentObserver(IObserver):
 
         return True
 
-    def _handle_test_failed(self, event: TestFailedEvent) -> bool:
-        """Handle test failed events."""
-        self.current_phase = "test_failed"
-        test_name = event.data.get("test_name")
-        error_message = event.data.get("error_message", "Unknown")
-
-        self.logger.info("Test completed: %s - Failed", test_name)
-        self.logger.debug("  Failure reason: %s", error_message[:200])
-
-        # Clean up step progress bars for this test
-        self._cleanup_step_progress_bars(test_name)
-
-        if self.track_timing:
-            self._record_timing_info("test_failed", self.start_time)
-
-        return True
-
-    def _handle_test_execution_completed(
-        self, event: TestExecutionCompletedEvent
-    ) -> bool:
+    def _handle_test_execution_completed(self, event: BaseEvent) -> bool:
         """Handle test execution completed events.
 
         Args:
@@ -864,7 +793,7 @@ class ExperimentObserver(IObserver):
 
         return True
 
-    def _handle_metric_collected(self, event: MetricCollectedEvent) -> bool:
+    def _handle_metric_collected(self, event: BaseEvent) -> bool:
         """Handle metric collected events.
 
         Args:
@@ -948,7 +877,7 @@ class ExperimentObserver(IObserver):
         # but keeping for compatibility with observer registry
         return True
 
-    def _handle_environment_created(self, event: EnvironmentCreatedEvent) -> bool:
+    def _handle_environment_created(self, event: BaseEvent) -> bool:
         """Handle environment created events."""
         environment_type = (
             event.environment_type if hasattr(event, "environment_type") else "unknown"
@@ -969,9 +898,7 @@ class ExperimentObserver(IObserver):
 
         return True
 
-    def _handle_environment_deployment_started(
-        self, event: EnvironmentDeploymentStartedEvent
-    ) -> bool:
+    def _handle_environment_deployment_started(self, event: BaseEvent) -> bool:
         """Handle environment deployment started events."""
         self.current_phase = "environment_deployment"
 
@@ -996,7 +923,7 @@ class ExperimentObserver(IObserver):
 
         return True
 
-    def _handle_environment_destroyed(self, event: EnvironmentDestroyedEvent) -> bool:
+    def _handle_environment_destroyed(self, event: BaseEvent) -> bool:
         """Handle environment destroyed events."""
         environment_type = getattr(event, "environment_type", "unknown")
         environment_name = getattr(event, "environment_name", "unknown")
@@ -1010,7 +937,7 @@ class ExperimentObserver(IObserver):
 
         return True
 
-    def _handle_service_destroyed(self, event: ServiceDestroyedEvent) -> bool:
+    def _handle_service_destroyed(self, event: BaseEvent) -> bool:
         """Handle service destroyed events."""
         service_name = event.data.get("service_name", "unknown")
 
@@ -1021,7 +948,7 @@ class ExperimentObserver(IObserver):
 
         return True
 
-    def _handle_environment_error(self, event: EnvironmentErrorEvent) -> bool:
+    def _handle_environment_error(self, event: BaseEvent) -> bool:
         """Handle environment error events and check for early termination.
 
         Args:
@@ -1030,8 +957,8 @@ class ExperimentObserver(IObserver):
         Returns:
             bool: True if the event was processed successfully
         """
-        error_message = event.error_message
-        error_type = event.error_type
+        error_message = event.data.get("error_message", "Unknown error")
+        error_type = event.data.get("error_type", "unknown")
 
         self.logger.error("Environment error: %s (type: %s)", error_message, error_type)
 

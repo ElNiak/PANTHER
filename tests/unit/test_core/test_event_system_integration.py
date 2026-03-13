@@ -4,16 +4,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from panther.core.events.experiment.events import (
-    ExperimentEvent,
-    ExperimentEventType,
-    ExperimentExecutionStartedEvent,
-)
-from panther.core.events.service.events import (
-    ServiceDeploymentCompletedEvent,
-    ServiceEvent,
-    ServiceEventType,
-)
+from panther.core.events.experiment.events import ExperimentEvent, ExperimentEventType
+from panther.core.events.service.events import ServiceEvent, ServiceEventType
 from panther.core.events.test.events import TestCompletedEvent, TestEvent, TestEventType
 
 pytestmark = [pytest.mark.unit, pytest.mark.event_system]
@@ -36,7 +28,7 @@ class TestEventSystemIntegration:
 
     def test_experiment_event_creation(self, mock_event_manager):
         """Test that experiment events are created correctly."""
-        event = ExperimentExecutionStartedEvent(experiment_id="test_experiment")
+        event = ExperimentEvent.execution_started(experiment_id="test_experiment")
 
         assert event.event_type == ExperimentEventType.EXECUTION_STARTED
         assert event.entity_id == "test_experiment"
@@ -46,7 +38,7 @@ class TestEventSystemIntegration:
 
     def test_service_event_creation(self, mock_event_manager):
         """Test that service events are created correctly."""
-        event = ServiceDeploymentCompletedEvent(
+        event = ServiceEvent.deployment_completed(
             service_id="test_service",
             service_name="test_service",
             environment="docker",
@@ -77,7 +69,7 @@ class TestEventSystemIntegration:
         mock_manager_class.return_value = mock_manager
 
         # Simulate event emission
-        event = ExperimentExecutionStartedEvent(experiment_id="test_experiment")
+        event = ExperimentEvent.execution_started(experiment_id="test_experiment")
         mock_manager.emit_event(event)
 
         # Verify the event was emitted
@@ -93,7 +85,7 @@ class TestEventSystemIntegration:
         mock_event_manager.add_observer(mock_metrics_observer)
 
         # Create and emit an event
-        event = ServiceDeploymentCompletedEvent(
+        event = ServiceEvent.deployment_completed(
             service_id="test_service",
             service_name="test_service",
             environment="docker",

@@ -16,16 +16,11 @@ except ImportError:
     CLICK_AVAILABLE = False
 
 from panther.core.events.base.event_base import BaseEvent
-from panther.core.events.environment.events import EnvironmentErrorEvent
-from panther.core.events.experiment.events import (
-    ExperimentFailedEvent,
-    ExperimentFinishedEarlyEvent,
-)
+from panther.core.events.experiment.events import ExperimentFinishedEarlyEvent
 from panther.core.events.service.events import (
     DockerBuildCompletedEvent,
     DockerBuildFailedEvent,
     DockerBuildStartedEvent,
-    ServiceErrorEvent,
 )
 from panther.core.events.test.events import TestFailedEvent
 from panther.core.observer.base.typed_observer_interface import ITypedObserver
@@ -491,7 +486,7 @@ class LoggerObserver(ITypedObserver):
 
     # Override specific typed event handlers for important events
 
-    def on_experiment_failed(self, event: ExperimentFailedEvent) -> bool:
+    def on_experiment_failed(self, event: BaseEvent) -> bool:
         """Handle experiment failed event with special attention."""
         self.logger.error(
             "🔴 EXPERIMENT FAILED: %s - %s",
@@ -510,7 +505,7 @@ class LoggerObserver(ITypedObserver):
         )
         return True
 
-    def on_service_error(self, event: ServiceErrorEvent) -> bool:
+    def on_service_error(self, event: BaseEvent) -> bool:
         """Handle service error event with emphasis."""
         self.logger.error(
             "⚠️  SERVICE ERROR: %s - %s",
@@ -519,7 +514,7 @@ class LoggerObserver(ITypedObserver):
         )
         return True
 
-    def on_environment_error(self, event: EnvironmentErrorEvent) -> bool:
+    def on_environment_error(self, event: BaseEvent) -> bool:
         """Handle environment error event."""
         self.logger.error(
             "🔥 ENVIRONMENT ERROR: %s - %s",

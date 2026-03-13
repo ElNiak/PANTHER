@@ -1,6 +1,8 @@
 """Experiment Events.
 
 This module defines events specific to experiment lifecycle management.
+Uses factory classmethods on the base ExperimentEvent class instead of
+individual subclasses for most event types.
 """
 
 from enum import Enum
@@ -27,7 +29,12 @@ class ExperimentEventType(Enum):
 
 
 class ExperimentEvent(BaseEvent):
-    """Base class for all experiment events."""
+    """Base class for all experiment events.
+
+    Most experiment events are created via factory classmethods rather than
+    individual subclasses. The event_type discriminant identifies the
+    specific event kind.
+    """
 
     def __init__(
         self,
@@ -44,70 +51,59 @@ class ExperimentEvent(BaseEvent):
         )
         self.event_type = event_type
 
+    # -- Factory classmethods --------------------------------------------------
 
-class ExperimentInitializedEvent(ExperimentEvent):
-    """Event emitted when an experiment is initialized."""
-
-    def __init__(self, experiment_id: str, config: Optional[Dict[str, Any]] = None):
-        """Initialize experiment initialized event."""
-        super().__init__(
-            event_type=ExperimentEventType.INITIALIZED,
-            experiment_id=experiment_id,
+    @classmethod
+    def initialized(
+        cls, experiment_id: str, config: Optional[Dict[str, Any]] = None
+    ) -> "ExperimentEvent":
+        """Create initialized event."""
+        return cls(
+            ExperimentEventType.INITIALIZED,
+            experiment_id,
             data={"config": config or {}},
         )
 
-    @property
-    def config(self) -> Dict[str, Any]:
-        """Return the experiment configuration."""
-        return self.data.get("config", {})
-
-
-class ExperimentPluginLoadingStartedEvent(ExperimentEvent):
-    """Event emitted when plugin loading starts."""
-
-    def __init__(self, experiment_id: str, plugin_count: Optional[int] = None):
-        """Initialize plugin loading started event."""
-        super().__init__(
-            event_type=ExperimentEventType.PLUGIN_LOADING_STARTED,
-            experiment_id=experiment_id,
+    @classmethod
+    def plugin_loading_started(
+        cls, experiment_id: str, plugin_count: Optional[int] = None
+    ) -> "ExperimentEvent":
+        """Create plugin loading started event."""
+        return cls(
+            ExperimentEventType.PLUGIN_LOADING_STARTED,
+            experiment_id,
             data={"plugin_count": plugin_count},
         )
 
-
-class ExperimentPluginLoadingCompletedEvent(ExperimentEvent):
-    """Event emitted when plugin loading completes."""
-
-    def __init__(
-        self,
+    @classmethod
+    def plugin_loading_completed(
+        cls,
         experiment_id: str,
         loaded_plugins: Optional[list] = None,
         plugin_count: Optional[int] = None,
-    ):
-        """Initialize plugin loading completed event."""
-        super().__init__(
-            event_type=ExperimentEventType.PLUGIN_LOADING_COMPLETED,
-            experiment_id=experiment_id,
+    ) -> "ExperimentEvent":
+        """Create plugin loading completed event."""
+        return cls(
+            ExperimentEventType.PLUGIN_LOADING_COMPLETED,
+            experiment_id,
             data={
                 "loaded_plugins": loaded_plugins or [],
                 "plugin_count": plugin_count or len(loaded_plugins or []),
             },
         )
 
-
-class ExperimentPluginLoadingFailedEvent(ExperimentEvent):
-    """Event emitted when plugin loading fails."""
-
-    def __init__(
-        self,
+    @classmethod
+    def plugin_loading_failed(
+        cls,
         experiment_id: str,
         error_message: str,
         error_type: Optional[str] = None,
         failed_plugins: Optional[list] = None,
-    ):
-        """Initialize plugin loading failed event."""
-        super().__init__(
-            event_type=ExperimentEventType.PLUGIN_LOADING_FAILED,
-            experiment_id=experiment_id,
+    ) -> "ExperimentEvent":
+        """Create plugin loading failed event."""
+        return cls(
+            ExperimentEventType.PLUGIN_LOADING_FAILED,
+            experiment_id,
             data={
                 "error_message": error_message,
                 "error_type": error_type,
@@ -115,48 +111,44 @@ class ExperimentPluginLoadingFailedEvent(ExperimentEvent):
             },
         )
 
-
-class ExperimentTestCasesInitializedEvent(ExperimentEvent):
-    """Event emitted when test cases are initialized."""
-
-    def __init__(
-        self, experiment_id: str, test_count: int, test_names: Optional[list] = None
-    ):
-        """Initialize test cases initialized event."""
-        super().__init__(
-            event_type=ExperimentEventType.TEST_CASES_INITIALIZED,
-            experiment_id=experiment_id,
+    @classmethod
+    def test_cases_initialized(
+        cls,
+        experiment_id: str,
+        test_count: int,
+        test_names: Optional[list] = None,
+    ) -> "ExperimentEvent":
+        """Create test cases initialized event."""
+        return cls(
+            ExperimentEventType.TEST_CASES_INITIALIZED,
+            experiment_id,
             data={"test_count": test_count, "test_names": test_names or []},
         )
 
-
-class ExperimentExecutionStartedEvent(ExperimentEvent):
-    """Event emitted when experiment execution starts."""
-
-    def __init__(self, experiment_id: str, test_count: Optional[int] = None):
-        """Initialize execution started event."""
-        super().__init__(
-            event_type=ExperimentEventType.EXECUTION_STARTED,
-            experiment_id=experiment_id,
+    @classmethod
+    def execution_started(
+        cls, experiment_id: str, test_count: Optional[int] = None
+    ) -> "ExperimentEvent":
+        """Create execution started event."""
+        return cls(
+            ExperimentEventType.EXECUTION_STARTED,
+            experiment_id,
             data={"test_count": test_count},
         )
 
-
-class ExperimentExecutionCompletedEvent(ExperimentEvent):
-    """Event emitted when experiment execution completes successfully."""
-
-    def __init__(
-        self,
+    @classmethod
+    def execution_completed(
+        cls,
         experiment_id: str,
         success_count: int,
         failure_count: int,
         total_count: int,
         duration_seconds: Optional[float] = None,
-    ):
-        """Initialize execution completed event."""
-        super().__init__(
-            event_type=ExperimentEventType.EXECUTION_COMPLETED,
-            experiment_id=experiment_id,
+    ) -> "ExperimentEvent":
+        """Create execution completed event."""
+        return cls(
+            ExperimentEventType.EXECUTION_COMPLETED,
+            experiment_id,
             data={
                 "success_count": success_count,
                 "failure_count": failure_count,
@@ -165,27 +157,57 @@ class ExperimentExecutionCompletedEvent(ExperimentEvent):
             },
         )
 
-
-class ExperimentExecutionFailedEvent(ExperimentEvent):
-    """Event emitted when experiment execution fails."""
-
-    def __init__(
-        self,
+    @classmethod
+    def execution_failed(
+        cls,
         experiment_id: str,
         error_message: str,
         error_type: Optional[str] = None,
         phase: Optional[str] = None,
-    ):
-        """Initialize execution failed event."""
-        super().__init__(
-            event_type=ExperimentEventType.EXECUTION_FAILED,
-            experiment_id=experiment_id,
+    ) -> "ExperimentEvent":
+        """Create execution failed event."""
+        return cls(
+            ExperimentEventType.EXECUTION_FAILED,
+            experiment_id,
             data={
                 "error_message": error_message,
                 "error_type": error_type,
                 "phase": phase,
             },
         )
+
+    @classmethod
+    def completed(
+        cls, experiment_id: str, summary: Optional[Dict[str, Any]] = None
+    ) -> "ExperimentEvent":
+        """Create completed event."""
+        return cls(
+            ExperimentEventType.COMPLETED,
+            experiment_id,
+            data={"summary": summary or {}},
+        )
+
+    @classmethod
+    def failed(
+        cls,
+        experiment_id: str,
+        error_message: str,
+        error_type: Optional[str] = None,
+        summary: Optional[Dict[str, Any]] = None,
+    ) -> "ExperimentEvent":
+        """Create failed event."""
+        return cls(
+            ExperimentEventType.FAILED,
+            experiment_id,
+            data={
+                "error_message": error_message,
+                "error_type": error_type,
+                "summary": summary or {},
+            },
+        )
+
+
+# -- Subclasses kept for isinstance() compatibility ---------------------------
 
 
 class ExperimentFinishedEarlyEvent(ExperimentEvent):
@@ -194,45 +216,11 @@ class ExperimentFinishedEarlyEvent(ExperimentEvent):
     def __init__(
         self, experiment_id: str, reason: str, details: Optional[Dict[str, Any]] = None
     ):
-        """Initialize finished early event."""
+        """Initialize with experiment ID, reason, and optional details."""
         super().__init__(
             event_type=ExperimentEventType.FINISHED_EARLY,
             experiment_id=experiment_id,
             data={"reason": reason, "details": details or {}},
-        )
-
-
-class ExperimentCompletedEvent(ExperimentEvent):
-    """Event emitted when experiment completes successfully."""
-
-    def __init__(self, experiment_id: str, summary: Optional[Dict[str, Any]] = None):
-        """Initialize experiment completed event."""
-        super().__init__(
-            event_type=ExperimentEventType.COMPLETED,
-            experiment_id=experiment_id,
-            data={"summary": summary or {}},
-        )
-
-
-class ExperimentFailedEvent(ExperimentEvent):
-    """Event emitted when experiment fails."""
-
-    def __init__(
-        self,
-        experiment_id: str,
-        error_message: str,
-        error_type: Optional[str] = None,
-        summary: Optional[Dict[str, Any]] = None,
-    ):
-        """Initialize experiment failed event."""
-        super().__init__(
-            event_type=ExperimentEventType.FAILED,
-            experiment_id=experiment_id,
-            data={
-                "error_message": error_message,
-                "error_type": error_type,
-                "summary": summary or {},
-            },
         )
 
 
@@ -246,7 +234,7 @@ class ExperimentServiceFailureEvent(ExperimentEvent):
         reason: str,
         details: Optional[Dict[str, Any]] = None,
     ):
-        """Initialize service failure event."""
+        """Initialize with experiment ID, failed service, and reason."""
         super().__init__(
             event_type=ExperimentEventType.SERVICE_FAILURE,
             experiment_id=experiment_id,

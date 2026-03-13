@@ -10,27 +10,10 @@ if TYPE_CHECKING:
 
 from panther.core.events.base.event_emitter_base import EventEmitterBase
 from panther.core.events.service.events import (
-    CommandGeneratedEvent,
-    CommandGenerationStartedEvent,
     DockerBuildCompletedEvent,
     DockerBuildFailedEvent,
     DockerBuildStartedEvent,
-    ServiceCreatedEvent,
-    ServiceDeploymentCompletedEvent,
-    ServiceDeploymentFailedEvent,
-    ServiceDeploymentStartedEvent,
-    ServiceDestroyedEvent,
-    ServiceErrorEvent,
-    ServiceHealthCheckFailedEvent,
-    ServiceHealthCheckPassedEvent,
-    ServicePreparationCompletedEvent,
-    ServicePreparationFailedEvent,
-    ServicePreparationStartedEvent,
-    ServiceReadyEvent,
-    ServiceStartedEvent,
-    ServiceStoppedEvent,
-    TesterAnalysisCompletedEvent,
-    TesterAnalysisStartedEvent,
+    ServiceEvent,
 )
 
 
@@ -66,14 +49,10 @@ class ServiceEventEmitter(EventEmitterBase):
             implementation: Implementation name
             config: Service configuration
         """
-        self._create_and_emit_event(
-            ServiceCreatedEvent,
-            service_id=service_id,
-            service_name=service_name,
-            service_type=service_type,
-            implementation=implementation,
-            config=config,
+        event = ServiceEvent.created(
+            service_id, service_name, service_type, implementation, config
         )
+        self.event_manager.notify(event)
 
     def emit_service_setup_started(
         self,
@@ -104,20 +83,14 @@ class ServiceEventEmitter(EventEmitterBase):
             config = metadata.get("config", {"test_case": test_case})
 
             # Emit service created event first
-            created_event = ServiceCreatedEvent(
-                service_id=service_id,
-                service_name=service_name,
-                service_type=service_type,
-                implementation=implementation,
-                config=config,
+            created_event = ServiceEvent.created(
+                service_id, service_name, service_type, implementation, config
             )
             self.event_manager.notify(created_event)
 
             # Then emit service preparation started event
-            prep_event = ServicePreparationStartedEvent(
-                service_id=service_id,
-                service_name=service_name,
-                preparation_steps=["setup"],
+            prep_event = ServiceEvent.preparation_started(
+                service_id, service_name, ["setup"]
             )
             # Add test metadata to the event data
             prep_event.add_data("test_case", test_case)
@@ -139,10 +112,8 @@ class ServiceEventEmitter(EventEmitterBase):
             preparation_steps: List of preparation steps to be performed
             test_case: Optional test case name for context
         """
-        event = ServicePreparationStartedEvent(
-            service_id=service_id,
-            service_name=service_name,
-            preparation_steps=preparation_steps,
+        event = ServiceEvent.preparation_started(
+            service_id, service_name, preparation_steps
         )
         # Add test metadata if provided
         if test_case:
@@ -164,11 +135,8 @@ class ServiceEventEmitter(EventEmitterBase):
             duration_seconds: Time taken for preparation in seconds
             artifacts: Artifacts created during preparation
         """
-        event = ServicePreparationCompletedEvent(
-            service_id=service_id,
-            service_name=service_name,
-            duration_seconds=duration_seconds,
-            artifacts=artifacts,
+        event = ServiceEvent.preparation_completed(
+            service_id, service_name, duration_seconds, artifacts
         )
         self.event_manager.notify(event)
 
@@ -189,12 +157,8 @@ class ServiceEventEmitter(EventEmitterBase):
             error_type: Type/category of error
             failed_step: The preparation step that failed
         """
-        event = ServicePreparationFailedEvent(
-            service_id=service_id,
-            service_name=service_name,
-            error_message=error_message,
-            error_type=error_type,
-            failed_step=failed_step,
+        event = ServiceEvent.preparation_failed(
+            service_id, service_name, error_message, error_type, failed_step
         )
         self.event_manager.notify(event)
 
@@ -213,11 +177,8 @@ class ServiceEventEmitter(EventEmitterBase):
             environment: Target environment for deployment
             deployment_config: Deployment configuration
         """
-        event = ServiceDeploymentStartedEvent(
-            service_id=service_id,
-            service_name=service_name,
-            environment=environment,
-            deployment_config=deployment_config,
+        event = ServiceEvent.deployment_started(
+            service_id, service_name, environment, deployment_config
         )
         self.event_manager.notify(event)
 
@@ -240,13 +201,8 @@ class ServiceEventEmitter(EventEmitterBase):
             ports: Service ports if available
             deployment_details: Additional deployment details
         """
-        event = ServiceDeploymentCompletedEvent(
-            service_id=service_id,
-            service_name=service_name,
-            environment=environment,
-            endpoint=endpoint,
-            ports=ports,
-            deployment_details=deployment_details,
+        event = ServiceEvent.deployment_completed(
+            service_id, service_name, environment, endpoint, ports, deployment_details
         )
         self.event_manager.notify(event)
 
@@ -267,12 +223,8 @@ class ServiceEventEmitter(EventEmitterBase):
             error_message: Error message describing the failure
             error_type: Type/category of error
         """
-        event = ServiceDeploymentFailedEvent(
-            service_id=service_id,
-            service_name=service_name,
-            environment=environment,
-            error_message=error_message,
-            error_type=error_type,
+        event = ServiceEvent.deployment_failed(
+            service_id, service_name, environment, error_message, error_type
         )
         self.event_manager.notify(event)
 
@@ -291,12 +243,7 @@ class ServiceEventEmitter(EventEmitterBase):
             pid: Process ID if available
             start_time: Service start time
         """
-        event = ServiceStartedEvent(
-            service_id=service_id,
-            service_name=service_name,
-            pid=pid,
-            start_time=start_time,
-        )
+        event = ServiceEvent.started(service_id, service_name, pid, start_time)
         self.event_manager.notify(event)
 
     def emit_service_ready(
@@ -312,11 +259,7 @@ class ServiceEventEmitter(EventEmitterBase):
             service_name: Human-readable service name
             readiness_checks: Results of readiness checks
         """
-        event = ServiceReadyEvent(
-            service_id=service_id,
-            service_name=service_name,
-            readiness_checks=readiness_checks,
-        )
+        event = ServiceEvent.ready(service_id, service_name, readiness_checks)
         self.event_manager.notify(event)
 
     def emit_service_health_check_passed(
@@ -336,12 +279,8 @@ class ServiceEventEmitter(EventEmitterBase):
             endpoint: Endpoint that was checked
             response_time_ms: Response time in milliseconds
         """
-        event = ServiceHealthCheckPassedEvent(
-            service_id=service_id,
-            service_name=service_name,
-            check_type=check_type,
-            endpoint=endpoint,
-            response_time_ms=response_time_ms,
+        event = ServiceEvent.health_check_passed(
+            service_id, service_name, check_type, endpoint, response_time_ms
         )
         self.event_manager.notify(event)
 
@@ -364,13 +303,8 @@ class ServiceEventEmitter(EventEmitterBase):
             endpoint: Endpoint that was checked
             status_code: HTTP status code if applicable
         """
-        event = ServiceHealthCheckFailedEvent(
-            service_id=service_id,
-            service_name=service_name,
-            check_type=check_type,
-            error_message=error_message,
-            endpoint=endpoint,
-            status_code=status_code,
+        event = ServiceEvent.health_check_failed(
+            service_id, service_name, check_type, error_message, endpoint, status_code
         )
         self.event_manager.notify(event)
 
@@ -391,12 +325,8 @@ class ServiceEventEmitter(EventEmitterBase):
             reason: Reason for stopping
             uptime_seconds: Service uptime in seconds
         """
-        event = ServiceStoppedEvent(
-            service_id=service_id,
-            service_name=service_name,
-            exit_code=exit_code,
-            reason=reason,
-            uptime_seconds=uptime_seconds,
+        event = ServiceEvent.stopped(
+            service_id, service_name, exit_code, reason, uptime_seconds
         )
         self.event_manager.notify(event)
 
@@ -417,12 +347,8 @@ class ServiceEventEmitter(EventEmitterBase):
             error_type: Type/category of error
             error_details: Additional error details
         """
-        event = ServiceErrorEvent(
-            service_id=service_id,
-            service_name=service_name,
-            error_message=error_message,
-            error_type=error_type,
-            error_details=error_details,
+        event = ServiceEvent.error(
+            service_id, service_name, error_message, error_type, error_details
         )
         self.event_manager.notify(event)
 
@@ -439,11 +365,7 @@ class ServiceEventEmitter(EventEmitterBase):
             service_name: Human-readable service name
             cleanup_details: Details about what was cleaned up
         """
-        event = ServiceDestroyedEvent(
-            service_id=service_id,
-            service_name=service_name,
-            cleanup_details=cleanup_details,
-        )
+        event = ServiceEvent.destroyed(service_id, service_name, cleanup_details)
         self.event_manager.notify(event)
 
     def emit_tester_analysis_started(
@@ -470,11 +392,8 @@ class ServiceEventEmitter(EventEmitterBase):
             "tester_config": str(tester_config or {}),
         }
 
-        event = TesterAnalysisStartedEvent(
-            service_id=service_id,
-            tester_name=service_name,
-            inputs=inputs,
-            analysis_type="tester_analysis",
+        event = ServiceEvent.tester_analysis_started(
+            service_id, service_name, inputs, "tester_analysis"
         )
         self.event_manager.notify(event)
 
@@ -525,14 +444,14 @@ class ServiceEventEmitter(EventEmitterBase):
             "findings": findings,
         }
 
-        # Create the event with the correct constructor signature
-        event = TesterAnalysisCompletedEvent(
-            service_id=service_id,
-            tester_name=service_name,
-            passed=analysis_passed,
-            failed_checks=failed_checks,
-            warnings=warnings,
-            detailed_results=detailed_results,
+        # Create the event with the correct factory method signature
+        event = ServiceEvent.tester_analysis_completed(
+            service_id,
+            service_name,
+            analysis_passed,
+            failed_checks,
+            warnings,
+            detailed_results,
         )
         self.event_manager.notify(event)
 
@@ -594,11 +513,8 @@ class ServiceEventEmitter(EventEmitterBase):
             protocol: Protocol name
             config: Configuration for command generation
         """
-        event = CommandGenerationStartedEvent(
-            service_id=service_id,
-            service_name=service_name,
-            phase=phase,
-            config=config,
+        event = ServiceEvent.command_generation_started(
+            service_id, service_name, phase, config
         )
         self.event_manager.notify(event)
 
@@ -621,12 +537,7 @@ class ServiceEventEmitter(EventEmitterBase):
             implementation: Implementation name
             protocol: Protocol name
         """
-        event = CommandGeneratedEvent(
-            service_id=service_id,
-            service_name=service_name,
-            phase=phase,
-            command=command,
-        )
+        event = ServiceEvent.command_generated(service_id, service_name, phase, command)
         self.event_manager.notify(event)
 
     def emit_docker_build_started(

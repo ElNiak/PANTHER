@@ -1,3 +1,5 @@
+"""Command Audit Observer."""
+
 from typing import Any, Dict, List, Optional
 
 """
@@ -13,19 +15,12 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
-from panther.core.events.service.events import (
-    CommandGeneratedEvent,
-    CommandGenerationStartedEvent,
-    CommandModifiedEvent,
-    ConfigGeneratedEvent,
-)
+from panther.core.events.base.event_base import BaseEvent
 from panther.core.observer.base.typed_observer_interface import ITypedObserver
 
 
 class CommandAuditObserver(ITypedObserver):
-    """
-
-    Observer that tracks all command generation and modification events.
+    """Observer that tracks all command generation and modification events.
 
     This observer maintains a complete audit trail of:
     - Command generation for each service and phase
@@ -39,8 +34,7 @@ class CommandAuditObserver(ITypedObserver):
     """
 
     def __init__(self, output_dir: Path):
-        """
-        Initialize the command audit observer.
+        """Initialize the command audit observer.
 
         Args:
             output_dir: Directory to store audit logs
@@ -57,18 +51,11 @@ class CommandAuditObserver(ITypedObserver):
         # Ensure output directory exists
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-    def get_supported_event_types(self) -> List[type]:
+    def get_supported_event_types(self) -> list:
         """Return the list of event types this observer handles."""
-        return [
-            CommandGenerationStartedEvent,
-            CommandGeneratedEvent,
-            CommandModifiedEvent,
-            ConfigGeneratedEvent,
-        ]
+        return []
 
-    def handle_command_generation_started(
-        self, event: CommandGenerationStartedEvent
-    ) -> None:
+    def handle_command_generation_started(self, event: BaseEvent) -> None:
         """Handle command generation started event."""
         service_id = f"{event.data.get('service_name', 'unknown')}_{event.data.get('phase', 'unknown')}"
 
@@ -85,7 +72,7 @@ class CommandAuditObserver(ITypedObserver):
             event.data.get("phase"),
         )
 
-    def handle_command_generated(self, event: CommandGeneratedEvent) -> None:
+    def handle_command_generated(self, event: BaseEvent) -> None:
         """Handle command generated event."""
         service_id = f"{event.data.get('service_name', 'unknown')}_{event.data.get('phase', 'unknown')}"
 
@@ -123,7 +110,7 @@ class CommandAuditObserver(ITypedObserver):
         # Save audit trail
         self._save_audit_trail()
 
-    def handle_command_modified(self, event: CommandModifiedEvent) -> None:
+    def handle_command_modified(self, event: BaseEvent) -> None:
         """Handle command modified event."""
         service_id = f"{event.data.get('service_name', 'unknown')}_{event.data.get('phase', 'unknown')}"
 
@@ -165,7 +152,7 @@ class CommandAuditObserver(ITypedObserver):
                 "Received command modification for unknown service: %s", service_id
             )
 
-    def handle_config_generated(self, event: ConfigGeneratedEvent) -> None:
+    def handle_config_generated(self, event: BaseEvent) -> None:
         """Handle configuration generated event."""
         config_record = {
             "timestamp": datetime.now().isoformat(),
@@ -254,8 +241,7 @@ class CommandAuditObserver(ITypedObserver):
     def get_command_history(
         self, service_name: Optional[str] = None
     ) -> Dict[str, List[Dict[str, Any]]]:
-        """
-        Get command history, optionally filtered by service name.
+        """Get command history, optionally filtered by service name.
 
         Args:
             service_name: Optional service name to filter by

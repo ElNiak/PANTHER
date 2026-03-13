@@ -223,9 +223,9 @@ class TestEarlyTermination:
         )
 
         # Create environment error event
-        from panther.core.events.environment.events import EnvironmentErrorEvent
+        from panther.core.events.environment.events import EnvironmentEvent
 
-        error_event = EnvironmentErrorEvent(
+        error_event = EnvironmentEvent.error(
             environment_id="test_env",
             environment_name="test",
             environment_type="docker_compose",
