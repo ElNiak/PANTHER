@@ -9,7 +9,11 @@ if TYPE_CHECKING:
     from panther.core.observer.management.event_manager import EventManager
 
 from panther.core.events.base.event_emitter_base import EntityEventEmitterBase
-from panther.core.events.test.events import *
+from panther.core.events.test.events import (
+    TestCompletedEvent,
+    TestEvent,
+    TestFailedEvent,
+)
 
 
 class TestEventEmitter(EntityEventEmitterBase):
@@ -36,12 +40,10 @@ class TestEventEmitter(EntityEventEmitterBase):
         config: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Emit test created event."""
-        self._create_and_emit_entity_event(
-            TestCreatedEvent,
-            test_name=test_name,
-            description=description,
-            config=config,
+        event = TestEvent.created(
+            self.test_id, test_name=test_name, description=description, config=config
         )
+        self.event_manager.notify(event)
 
     def emit_setup_started(
         self,
@@ -49,11 +51,10 @@ class TestEventEmitter(EntityEventEmitterBase):
         service_names: Optional[List[str]] = None,
     ) -> None:
         """Emit test setup started event."""
-        self._create_and_emit_entity_event(
-            TestSetupStartedEvent,
-            service_count=service_count,
-            service_names=service_names,
+        event = TestEvent.setup_started(
+            self.test_id, service_count=service_count, service_names=service_names
         )
+        self.event_manager.notify(event)
 
     def emit_setup_completed(
         self,
@@ -61,8 +62,8 @@ class TestEventEmitter(EntityEventEmitterBase):
         duration_seconds: Optional[float] = None,
     ) -> None:
         """Emit test setup completed event."""
-        event = TestSetupCompletedEvent(
-            test_id=self.test_id, services=services, duration_seconds=duration_seconds
+        event = TestEvent.setup_completed(
+            self.test_id, services=services, duration_seconds=duration_seconds
         )
         self.event_manager.notify(event)
 
@@ -73,9 +74,9 @@ class TestEventEmitter(EntityEventEmitterBase):
         failed_component: Optional[str] = None,
     ) -> None:
         """Emit test setup failed event."""
-        event = TestSetupFailedEvent(
-            test_id=self.test_id,
-            error_message=error_message,
+        event = TestEvent.setup_failed(
+            self.test_id,
+            error_message,
             error_type=error_type,
             failed_component=failed_component,
         )
@@ -85,9 +86,9 @@ class TestEventEmitter(EntityEventEmitterBase):
         self, environment_type: str, environment_config: Optional[Dict[str, Any]] = None
     ) -> None:
         """Emit test environment setup started event."""
-        event = TestEnvironmentSetupStartedEvent(
-            test_id=self.test_id,
-            environment_type=environment_type,
+        event = TestEvent.environment_setup_started(
+            self.test_id,
+            environment_type,
             environment_config=environment_config,
         )
         self.event_manager.notify(event)
@@ -98,9 +99,9 @@ class TestEventEmitter(EntityEventEmitterBase):
         environment_details: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Emit test environment setup completed event."""
-        event = TestEnvironmentSetupCompletedEvent(
-            test_id=self.test_id,
-            environment_type=environment_type,
+        event = TestEvent.environment_setup_completed(
+            self.test_id,
+            environment_type,
             environment_details=environment_details,
         )
         self.event_manager.notify(event)
@@ -112,10 +113,10 @@ class TestEventEmitter(EntityEventEmitterBase):
         error_type: Optional[str] = None,
     ) -> None:
         """Emit test environment setup failed event."""
-        event = TestEnvironmentSetupFailedEvent(
-            test_id=self.test_id,
-            environment_type=environment_type,
-            error_message=error_message,
+        event = TestEvent.environment_setup_failed(
+            self.test_id,
+            environment_type,
+            error_message,
             error_type=error_type,
         )
         self.event_manager.notify(event)
@@ -124,8 +125,8 @@ class TestEventEmitter(EntityEventEmitterBase):
         self, services_to_deploy: Optional[List[str]] = None
     ) -> None:
         """Emit test deployment started event."""
-        event = TestDeploymentStartedEvent(
-            test_id=self.test_id, services_to_deploy=services_to_deploy
+        event = TestEvent.deployment_started(
+            self.test_id, services_to_deploy=services_to_deploy
         )
         self.event_manager.notify(event)
 
@@ -135,8 +136,8 @@ class TestEventEmitter(EntityEventEmitterBase):
         deployment_details: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Emit test deployment completed event."""
-        event = TestDeploymentCompletedEvent(
-            test_id=self.test_id,
+        event = TestEvent.deployment_completed(
+            self.test_id,
             deployed_services=deployed_services,
             deployment_details=deployment_details,
         )
@@ -149,9 +150,9 @@ class TestEventEmitter(EntityEventEmitterBase):
         error_type: Optional[str] = None,
     ) -> None:
         """Emit test deployment failed event."""
-        event = TestDeploymentFailedEvent(
-            test_id=self.test_id,
-            error_message=error_message,
+        event = TestEvent.deployment_failed(
+            self.test_id,
+            error_message,
             failed_services=failed_services,
             error_type=error_type,
         )
@@ -163,8 +164,8 @@ class TestEventEmitter(EntityEventEmitterBase):
         expected_duration: Optional[float] = None,
     ) -> None:
         """Emit test execution started event."""
-        event = TestExecutionStartedEvent(
-            test_id=self.test_id, steps=steps, expected_duration=expected_duration
+        event = TestEvent.execution_started(
+            self.test_id, steps=steps, expected_duration=expected_duration
         )
         self.event_manager.notify(event)
 
@@ -175,8 +176,8 @@ class TestEventEmitter(EntityEventEmitterBase):
         assertions_passed: Optional[bool] = None,
     ) -> None:
         """Emit test execution completed event."""
-        event = TestExecutionCompletedEvent(
-            test_id=self.test_id,
+        event = TestEvent.execution_completed(
+            self.test_id,
             duration_seconds=duration_seconds,
             steps_completed=steps_completed,
             assertions_passed=assertions_passed,
@@ -190,9 +191,9 @@ class TestEventEmitter(EntityEventEmitterBase):
         phase: Optional[str] = None,
     ) -> None:
         """Emit test execution failed event."""
-        event = TestExecutionFailedEvent(
-            test_id=self.test_id,
-            error_message=error_message,
+        event = TestEvent.execution_failed(
+            self.test_id,
+            error_message,
             error_type=error_type,
             phase=phase,
         )
@@ -200,13 +201,13 @@ class TestEventEmitter(EntityEventEmitterBase):
 
     def emit_teardown_started(self) -> None:
         """Emit test teardown started event."""
-        event = TestTeardownStartedEvent(test_id=self.test_id)
+        event = TestEvent.teardown_started(self.test_id)
         self.event_manager.notify(event)
 
     def emit_teardown_completed(self, duration_seconds: Optional[float] = None) -> None:
         """Emit test teardown completed event."""
-        event = TestTeardownCompletedEvent(
-            test_id=self.test_id, duration_seconds=duration_seconds
+        event = TestEvent.teardown_completed(
+            self.test_id, duration_seconds=duration_seconds
         )
         self.event_manager.notify(event)
 

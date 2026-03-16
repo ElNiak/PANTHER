@@ -12,10 +12,10 @@ from panther.core.exceptions.error_handler_mixin import ErrorHandlerMixin
 from panther.plugins.core.plugin_decorators import register_plugin
 from panther.plugins.core.structures.plugin_type import PluginType
 from panther.plugins.services.base.quic_service_base import BaseQUICServiceManager
-from panther.plugins.services.iut.iut_event_mixin import IUTManagerEventMixin
 from panther.plugins.services.iut.iut_service_manager_mixin import (
     IUTServiceManagerMixin,
 )
+from panther.plugins.services.service_event_mixin import ServiceManagerEventMixin
 
 if TYPE_CHECKING:
     from panther.plugins.plugin_manager import PluginManager
@@ -51,7 +51,7 @@ if TYPE_CHECKING:
 class PicoquicServiceManager(
     IUTServiceManagerMixin,
     ServiceManagerDockerMixin,
-    IUTManagerEventMixin,
+    ServiceManagerEventMixin,
     BaseQUICServiceManager,
     ErrorHandlerMixin,
 ):

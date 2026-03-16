@@ -60,7 +60,25 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from .console_formatter import ConsoleFormatter
 from .feature_registry import feature_registry
+from .structured_formatter import StructuredJsonFormatter
+
+
+class _FeatureInjectionFilter(logging.Filter):
+    """Inject _panther_feature into every logging.LogRecord.
+
+    Attached to individual loggers so that StructuredJsonFormatter
+    can read the feature without needing a reference to the logger.
+    """
+
+    def __init__(self, feature: str):
+        super().__init__()
+        self._feature = feature
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        record._panther_feature = self._feature  # type: ignore[attr-defined]
+        return True
 
 
 class LoggerFactory:
@@ -86,6 +104,8 @@ class LoggerFactory:
     _config: Dict[str, Any] = {}
     _handler_cache: Dict[str, logging.Handler] = {}
     _feature_levels: Dict[str, Any] = {}
+    _structured_log_file: Optional[str] = None
+    _verbose: bool = False
 
     # Feature to logger name mapping for intelligent routing
     FEATURE_MAPPINGS = {
@@ -257,50 +277,42 @@ class LoggerFactory:
         console_handler.setFormatter(formatter)
         root_logger.addHandler(console_handler)
 
-        # File handler: always DEBUG level if debug_file_logging is enabled
-        if output_file := cls._config.get("output_file"):
-            debug_file_logging = cls._config.get("debug_file_logging", True)
-            file_level = logging.DEBUG if debug_file_logging else console_level
-
+        # Structured JSONL file handler (replaces old text file handler)
+        structured_path = cls._structured_log_file or cls._config.get("output_file")
+        if structured_path:
+            structured_formatter = StructuredJsonFormatter()
             file_handler = cls._get_or_create_handler(
-                "file", logging.FileHandler(output_file, mode="a")
+                "file", logging.FileHandler(structured_path, mode="a")
             )
-            file_handler.setLevel(file_level)
-            file_handler.setFormatter(formatter)
+            file_handler.setLevel(logging.DEBUG)
+            file_handler.setFormatter(structured_formatter)
             root_logger.addHandler(file_handler)
 
         cls._root_logger_configured = True
 
+    # Color mapping shared between console formatter creation paths
+    _LOG_COLORS = {
+        "TRACE": "blue",
+        "DEBUG": "cyan",
+        "INFO": "green",
+        "WARNING": "yellow",
+        "ERROR": "red",
+        "CRITICAL": "red,bg_white",
+    }
+
     @classmethod
     def _create_formatter(cls) -> logging.Formatter:
-        """Create a formatter based on configuration."""
-        format_string = cls._config.get(
-            "format", "%(asctime)s [%(levelname)s] - %(module)s - %(message)s"
+        """Create a console formatter with optional color and context support.
+
+        Returns a ``ConsoleFormatter`` that shows short timestamps, phase/service
+        context from ``LogContext``, and abbreviated module names.  When
+        ``enable_colors`` is true, the formatter delegates to
+        ``colorlog.ColoredFormatter`` internally.
+        """
+        log_colors = (
+            cls._LOG_COLORS if cls._config.get("enable_colors", False) else None
         )
-
-        if cls._config.get("enable_colors", False):
-            with contextlib.suppress(ImportError):
-                import colorlog
-
-                # Use colorlog exactly like the original ExperimentManager did
-                color_format = format_string.replace(
-                    "%(levelname)s", "%(log_color)s%(levelname)s"
-                )
-                return colorlog.ColoredFormatter(
-                    color_format,
-                    datefmt="%Y-%m-%d %H:%M:%S",
-                    log_colors={
-                        "TRACE": "blue",
-                        "DEBUG": "cyan",
-                        "INFO": "green",
-                        "WARNING": "yellow",
-                        "ERROR": "red",
-                        "CRITICAL": "red,bg_white",
-                    },
-                    reset=True,
-                    # style='%'
-                )
-        return logging.Formatter(format_string, datefmt="%Y-%m-%d %H:%M:%S")
+        return ConsoleFormatter(log_colors=log_colors)
 
     @classmethod
     def _patch_logging_getlogger(cls) -> None:
@@ -382,15 +394,21 @@ class LoggerFactory:
         console_handler.setFormatter(formatter)
         logger.addHandler(console_handler)
 
-        # Add file handler if output_file is configured
-        if output_file := cls._config.get("output_file"):
-            debug_file_logging = cls._config.get("debug_file_logging", True)
-            file_level = logging.DEBUG if debug_file_logging else console_level
-
-            file_handler = logging.FileHandler(output_file, mode="a")
-            file_handler.setLevel(file_level)
-            file_handler.setFormatter(formatter)
+        # Add structured JSONL file handler if output_file is configured
+        structured_path = cls._structured_log_file or cls._config.get("output_file")
+        if structured_path:
+            structured_formatter = StructuredJsonFormatter()
+            file_handler = logging.FileHandler(structured_path, mode="a")
+            file_handler.setLevel(logging.DEBUG)
+            file_handler.setFormatter(structured_formatter)
             logger.addHandler(file_handler)
+
+        # Store detected feature on the logger and inject it into every record
+        # via a filter so StructuredJsonFormatter can access it
+        detected = feature or cls._detect_feature_from_name(name)
+        if detected:
+            logger._panther_feature = detected
+            logger.addFilter(_FeatureInjectionFilter(detected))
 
         # Mark this logger as configured by us
         logger._panther_configured = True
@@ -575,19 +593,12 @@ class LoggerFactory:
                     else:
                         new_level = getattr(logging, level_name, logging.INFO)
 
-                    # Update only console handlers, keep file handlers at DEBUG
+                    # Update only console handlers; structured file handlers stay at DEBUG
                     for handler in logger.handlers:
                         if isinstance(
                             handler, logging.StreamHandler
                         ) and not isinstance(handler, logging.FileHandler):
                             handler.setLevel(new_level)
-                        # File handlers keep their debug level if debug_file_logging is enabled
-                        elif isinstance(handler, logging.FileHandler):
-                            debug_file_logging = cls._config.get(
-                                "debug_file_logging", True
-                            )
-                            if not debug_file_logging:
-                                handler.setLevel(new_level)
                     updated_count += 1
 
                     if logger_name in problematic_loggers:
@@ -602,6 +613,45 @@ class LoggerFactory:
                     logging.debug(f"Skipped {logger_name} (no _panther_configured)")
 
         logging.debug(f"Updated {updated_count} loggers, skipped {skipped_count}")
+
+    @classmethod
+    def set_console_level(cls, level: int) -> None:
+        """Set the console log level on all StreamHandlers across all configured loggers.
+
+        Iterates the root logger and every logger in the manager dict,
+        setting only ``StreamHandler`` (non-``FileHandler``) handlers to
+        *level*.  ``FileHandler`` instances are left at DEBUG so that
+        structured JSONL output continues to capture everything.
+
+        This is the recommended way to honour ``--verbose`` / ``--debug``
+        CLI flags *after* ``LoggerFactory.initialize()`` has already run.
+
+        Args:
+            level: The numeric logging level to apply to console handlers
+                (e.g. ``logging.DEBUG``, ``logging.INFO``, or the custom
+                ``TRACE`` constant which equals 5).
+        """
+        if not cls._initialized:
+            return
+
+        # Track verbose mode for components that adapt output (e.g. Docker build)
+        cls._verbose = level <= logging.DEBUG
+
+        def _apply_to_handlers(lgr: logging.Logger) -> None:
+            for handler in lgr.handlers:
+                if isinstance(handler, logging.StreamHandler) and not isinstance(
+                    handler, logging.FileHandler
+                ):
+                    handler.setLevel(level)
+
+        # Root logger
+        _apply_to_handlers(logging.getLogger())
+
+        # All named loggers that we have configured
+        for logger_name in logging.Logger.manager.loggerDict:
+            logger_obj = logging.Logger.manager.loggerDict[logger_name]
+            if isinstance(logger_obj, logging.Logger):
+                _apply_to_handlers(logger_obj)
 
     @classmethod
     def add_file_handler(cls, filepath: Path, level: Optional[str] = None) -> None:

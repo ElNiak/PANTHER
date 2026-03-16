@@ -8,13 +8,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 if TYPE_CHECKING:
     from panther.core.observer.management.event_manager import EventManager
 
-from panther.core.events.assertion.events import (
-    AssertionErrorEvent,
-    AssertionProgressEvent,
-    AssertionResultEvent,
-    AssertionsValidationCompletedEvent,
-    AssertionsValidationStartedEvent,
-)
+from panther.core.events.assertion.events import AssertionEvent
 
 
 class AssertionEventEmitter:
@@ -65,9 +59,9 @@ class AssertionEventEmitter:
         if total_assertions is None:
             total_assertions = assertion_count
 
-        event = AssertionsValidationStartedEvent(
-            assertion_id=assertion_id,
-            assertion_name=assertion_name,
+        event = AssertionEvent.validation_started(
+            assertion_id,
+            assertion_name,
             test_case_id=test_case_id,
             step_id=step_id,
             total_assertions=total_assertions,
@@ -120,9 +114,9 @@ class AssertionEventEmitter:
         if total_count == 0:
             total_count = passed_count + failed_count
 
-        event = AssertionsValidationCompletedEvent(
-            assertion_id=assertion_id,
-            assertion_name=assertion_name,
+        event = AssertionEvent.validation_completed(
+            assertion_id,
+            assertion_name,
             test_case_id=test_case_id,
             step_id=step_id,
             duration=duration,
@@ -154,9 +148,9 @@ class AssertionEventEmitter:
             total_assertions: Total number of assertions
             progress_message: Human-readable progress message
         """
-        event = AssertionProgressEvent(
-            assertion_id=assertion_id,
-            assertion_name=assertion_name,
+        event = AssertionEvent.progress(
+            assertion_id,
+            assertion_name,
             test_case_id=test_case_id,
             step_id=step_id,
             current_assertion=current_assertion,
@@ -190,9 +184,9 @@ class AssertionEventEmitter:
             assertion_message: Human-readable assertion message
             assertion_details: Additional assertion details
         """
-        event = AssertionResultEvent(
-            assertion_id=assertion_id,
-            assertion_name=assertion_name,
+        event = AssertionEvent.result(
+            assertion_id,
+            assertion_name,
             test_case_id=test_case_id,
             step_id=step_id,
             assertion_passed=assertion_passed,
@@ -226,9 +220,9 @@ class AssertionEventEmitter:
             error_details: Additional error details
             recoverable: Whether the error is recoverable
         """
-        event = AssertionErrorEvent(
-            assertion_id=assertion_id,
-            assertion_name=assertion_name,
+        event = AssertionEvent.error(
+            assertion_id,
+            assertion_name,
             test_case_id=test_case_id,
             step_id=step_id,
             error_message=error_message,
@@ -270,9 +264,9 @@ class AssertionEventEmitter:
         if test_case_id is None:
             test_case_id = test_name
 
-        event = AssertionErrorEvent(
-            assertion_id=assertion_id,
-            assertion_name=assertion_name,
+        event = AssertionEvent.error(
+            assertion_id,
+            assertion_name,
             test_case_id=test_case_id,
             step_id=step_id,
             error_message=error,

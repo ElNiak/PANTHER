@@ -49,6 +49,7 @@ from panther.config.core.models.observer import (
 from panther.core.events.base.event_base import BaseEvent as Event
 from panther.core.observer.base.observer_interface import IObserver
 from panther.core.observer.impl import (
+    EventStreamRecorder,
     ExperimentObserver,
     LoggerObserver,
     MetricsObserver,
@@ -106,6 +107,7 @@ class ObserverFactory:
                 "metrics": MetricsObserver,
                 "storage": StorageObserver,
                 "experiment": ExperimentObserver,
+                "event_stream": EventStreamRecorder,
             }
         )
 

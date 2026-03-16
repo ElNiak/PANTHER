@@ -108,9 +108,9 @@ class LoggingConfig(BaseConfig):
         description="Log format string",
     )
     enable_colors: bool = Field(True, description="Enable colored output")
-    debug_file_logging: bool = Field(
-        True,
-        description="Enable debug-level logging to files while respecting configured level for console",
+    structured_log_file: Optional[str] = Field(
+        None,
+        description="Custom path for structured JSONL log file (auto-set by ExperimentManager if None)",
     )
     feature_levels: Optional[FeatureLogLevelsConfig] = Field(
         default_factory=FeatureLogLevelsConfig,

@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, List, Optional
 
+import click
 from docker.errors import DockerException
 from docker.errors import NotFound as DockerNotFound
 
@@ -157,6 +158,7 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
                 self.logger.info(
                     f"Base Docker image verified and exists, skipping build: {base_image_tag}"
                 )
+                click.echo(f"  \u2713 Image cached: {base_image_tag} (skipped)")
                 self._base_image_built = True
                 return
 
@@ -328,6 +330,7 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
                 self.logger.info(
                     f"Service Docker image verified and exists, skipping build: {expected_image_tag}"
                 )
+                click.echo(f"  \u2713 Image cached: {expected_image_tag} (skipped)")
                 # Set runtime_mode even when using cached image (for docker-compose template)
                 self.runtime_mode = runtime_mode
                 self.build_mode = docker_builder.validate_build_mode_for_architecture(

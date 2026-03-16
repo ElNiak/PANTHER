@@ -1,4 +1,20 @@
-# panther/core/docker_builder/output_parser.py
+# panther/core/docker_builder/utils/docker_output_parser.py
+"""Docker build output parser with verbose-aware formatting.
+
+Parses Docker build output line by line, extracting step progress,
+download/extraction status, errors, and warnings. Output verbosity adapts
+to the current console log level via ``LoggerFactory._verbose``.
+
+When **not** verbose (default):
+    - Step progress is shown as a concise one-liner with step number and
+      a brief description of the Docker instruction.
+    - Layer download and extraction details are suppressed entirely.
+
+When **verbose** (console level <= DEBUG):
+    - Full Docker output is shown without RUN-command truncation.
+    - Download and extraction progress lines are forwarded at DEBUG level.
+"""
+
 import re
 from datetime import datetime
 from typing import Optional, Tuple
@@ -8,7 +24,13 @@ from panther.core.utils.logging_mixin import LoggerMixin
 
 
 class DockerOutputParser(LoggerMixin):
-    """Parse Docker build output for progress tracking."""
+    """Parse Docker build output for progress tracking.
+
+    Args:
+        verbose: If ``None`` (the default), verbose mode is read from
+            ``LoggerFactory._verbose`` on each call. Pass an explicit
+            ``bool`` to override.
+    """
 
     STEP_PATTERN = re.compile(r"Step (\d+)/(\d+) : (.+)")
     DOWNLOAD_PATTERN = re.compile(
@@ -25,20 +47,81 @@ class DockerOutputParser(LoggerMixin):
     WARNING_PATTERN = re.compile(r"(WARNING|warning|Warning):")
     BUILD_CONTEXT_PATTERN = re.compile(r"Sending build context.*\s(\d+\.?\d*)([KMG]?B)")
 
-    def __init__(self):
+    # Brief labels for Docker instructions used in concise mode
+    _INSTRUCTION_LABELS = {
+        "FROM": "Base image",
+        "RUN": "Run",
+        "COPY": "Copy files",
+        "ADD": "Add files",
+        "ENV": "Set env",
+        "WORKDIR": "Set workdir",
+        "EXPOSE": "Expose port",
+        "CMD": "Set command",
+        "ENTRYPOINT": "Set entrypoint",
+        "ARG": "Build arg",
+        "LABEL": "Set label",
+        "VOLUME": "Declare volume",
+        "USER": "Set user",
+        "SHELL": "Set shell",
+    }
+
+    def __init__(self, verbose: Optional[bool] = None):
+        """Initialize the parser.
+
+        Args:
+            verbose: Explicit verbose override. ``None`` means read from
+                ``LoggerFactory._verbose`` dynamically.
+        """
         self.total_steps = 0
         self.current_step = 0
         self.last_message = ""
         self.last_progress_update = datetime.now()
         self.build_stage = None
         self.last_significant_message = None
+        self._verbose_override = verbose
 
-    def parse_line(self, line: str) -> Optional[Tuple[str, float, str]]:
-        """
-        Parse a Docker output line and return (message, progress%, level).
+    @property
+    def verbose(self) -> bool:
+        """Whether verbose output is active.
 
         Returns:
-            Tuple of (message, progress percentage, log level) or None if line should be skipped
+            True when the console is in DEBUG/TRACE mode or when an
+            explicit ``verbose=True`` was passed to the constructor.
+        """
+        if self._verbose_override is not None:
+            return self._verbose_override
+        from panther.core.utils.logger_factory import LoggerFactory
+
+        return LoggerFactory._verbose
+
+    def _concise_step_label(self, step_desc: str) -> str:
+        """Derive a short human-readable label from a Dockerfile instruction.
+
+        Args:
+            step_desc: The raw instruction text (e.g. ``RUN apt-get install ...``).
+
+        Returns:
+            A short label such as ``"Run"`` or ``"Copy files"``.
+        """
+        first_word = step_desc.split()[0].upper() if step_desc.split() else ""
+        return self._INSTRUCTION_LABELS.get(first_word, first_word.capitalize())
+
+    def parse_line(self, line: str) -> Optional[Tuple[str, float, str]]:
+        """Parse a Docker output line and return (message, progress%, level).
+
+        The output varies depending on :pyattr:`verbose`:
+
+        * **Concise** (default): step lines produce a short one-liner like
+          ``Step 5/12: Run``; download/extract lines are suppressed.
+        * **Verbose**: the full instruction text is shown without
+          truncation and download/extract lines are forwarded.
+
+        Args:
+            line: Raw Docker build output line.
+
+        Returns:
+            Tuple of (message, progress_percentage, log_level) or ``None``
+            if the line should be skipped.
         """
         line = line.strip()
         if not line:
@@ -62,40 +145,7 @@ class DockerOutputParser(LoggerMixin):
         # Check for step progress
         step_match = self.STEP_PATTERN.match(line)
         if step_match:
-            self.current_step = int(step_match.group(1))
-            self.total_steps = int(step_match.group(2))
-            step_desc = step_match.group(3)
-            progress = (self.current_step / self.total_steps) * 100
-
-            # Extract key information from step description
-            if "FROM" in step_desc:
-                self.build_stage = "Base image"
-                return (
-                    f"Step {self.current_step}/{self.total_steps}: Setting base image",
-                    progress,
-                    "INFO",
-                )
-            elif "RUN" in step_desc:
-                # Truncate long RUN commands
-                if len(step_desc) > 80:
-                    step_desc = step_desc[:77] + "..."
-                return (
-                    f"Step {self.current_step}/{self.total_steps}: {step_desc}",
-                    progress,
-                    "INFO",
-                )
-            elif "COPY" in step_desc or "ADD" in step_desc:
-                return (
-                    f"Step {self.current_step}/{self.total_steps}: Adding files",
-                    progress,
-                    "INFO",
-                )
-            else:
-                return (
-                    f"Step {self.current_step}/{self.total_steps}: {step_desc}",
-                    progress,
-                    "INFO",
-                )
+            return self._parse_step(step_match)
 
         # Check for pull operations
         pull_match = self.PULL_PATTERN.search(line)
@@ -111,44 +161,10 @@ class DockerOutputParser(LoggerMixin):
         if self.ALREADY_EXISTS_PATTERN.search(line):
             return None
 
-        # Check for download progress
-        download_match = self.DOWNLOAD_PATTERN.search(line)
-        if download_match:
-            # Only report significant download progress (every 10%)
-            progress_bar = download_match.group(1)
-            progress_pct = (
-                len([c for c in progress_bar if c == "="]) / len(progress_bar) * 100
-                if progress_bar
-                else 0
-            )
-            if progress_pct % 10 < 1:  # Report at 10% intervals
-                size_current = download_match.group(2)
-                unit_current = download_match.group(3) or ""
-                size_total = download_match.group(4) or ""
-                unit_total = download_match.group(5) or ""
-                if size_total:
-                    return (
-                        f"Downloading: {size_current}{unit_current}/{size_total}{unit_total} ({progress_pct:.0f}%)",
-                        progress_pct,
-                        "DEBUG",
-                    )
-                else:
-                    return (f"Downloading: {progress_pct:.0f}%", progress_pct, "DEBUG")
-            return None
-
-        # Check for extract progress
-        extract_match = self.EXTRACT_PATTERN.search(line)
-        if extract_match:
-            # Only report significant extract progress
-            progress_bar = extract_match.group(1)
-            progress_pct = (
-                len([c for c in progress_bar if c == "="]) / len(progress_bar) * 100
-                if progress_bar
-                else 0
-            )
-            if progress_pct % 20 < 1:  # Report at 20% intervals for extraction
-                return (f"Extracting: {progress_pct:.0f}%", progress_pct, "DEBUG")
-            return None
+        # Download / extract progress -- suppressed in concise mode
+        matched, result = self._parse_download_extract(line)
+        if matched:
+            return result  # result is None when suppressed, tuple when verbose
 
         # Skip redundant messages
         if line == self.last_message:
@@ -181,6 +197,99 @@ class DockerOutputParser(LoggerMixin):
         # Log everything else at TRACE level
         return (line, self.current_step / max(self.total_steps, 1) * 100, "TRACE")
 
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _parse_step(
+        self,
+        step_match: re.Match,
+    ) -> Tuple[str, float, str]:
+        """Format a Step line according to current verbosity.
+
+        Args:
+            step_match: Regex match from ``STEP_PATTERN``.
+
+        Returns:
+            Tuple of (message, progress, level).
+        """
+        self.current_step = int(step_match.group(1))
+        self.total_steps = int(step_match.group(2))
+        step_desc = step_match.group(3)
+        progress = (self.current_step / self.total_steps) * 100
+
+        if self.verbose:
+            # Verbose: show full instruction without truncation
+            if "FROM" in step_desc:
+                self.build_stage = "Base image"
+            return (
+                f"Step {self.current_step}/{self.total_steps}: {step_desc}",
+                progress,
+                "INFO",
+            )
+
+        # Concise: one-liner with brief label
+        if "FROM" in step_desc:
+            self.build_stage = "Base image"
+        label = self._concise_step_label(step_desc)
+        return (
+            f"Step {self.current_step}/{self.total_steps}: {label}",
+            progress,
+            "INFO",
+        )
+
+    def _parse_download_extract(
+        self,
+        line: str,
+    ) -> Tuple[bool, Optional[Tuple[str, float, str]]]:
+        """Parse download/extraction lines, suppressing them in concise mode.
+
+        Args:
+            line: Raw Docker build output line.
+
+        Returns:
+            A two-element tuple ``(matched, result)``.  ``matched`` is
+            ``True`` when the line *is* a download or extract line (even
+            if suppressed).  ``result`` is the parsed ``(message,
+            progress, level)`` tuple when the line should be emitted, or
+            ``None`` when it should be suppressed.
+        """
+        download_match = self.DOWNLOAD_PATTERN.search(line)
+        if download_match:
+            if not self.verbose:
+                return True, None  # matched but suppress in concise mode
+            progress_bar = download_match.group(1)
+            progress_pct = (
+                len([c for c in progress_bar if c == "="]) / len(progress_bar) * 100
+                if progress_bar
+                else 0
+            )
+            size_current = download_match.group(2)
+            unit_current = download_match.group(3) or ""
+            size_total = download_match.group(4) or ""
+            unit_total = download_match.group(5) or ""
+            if size_total:
+                return True, (
+                    f"Downloading: {size_current}{unit_current}/{size_total}{unit_total} ({progress_pct:.0f}%)",
+                    progress_pct,
+                    "DEBUG",
+                )
+            return True, (f"Downloading: {progress_pct:.0f}%", progress_pct, "DEBUG")
+
+        extract_match = self.EXTRACT_PATTERN.search(line)
+        if extract_match:
+            if not self.verbose:
+                return True, None  # matched but suppress in concise mode
+            progress_bar = extract_match.group(1)
+            progress_pct = (
+                len([c for c in progress_bar if c == "="]) / len(progress_bar) * 100
+                if progress_bar
+                else 0
+            )
+            return True, (f"Extracting: {progress_pct:.0f}%", progress_pct, "DEBUG")
+
+        return False, None  # not a download/extract line
+
     def get_summary(self) -> str:
         """Get a summary of the build process."""
         if self.total_steps > 0:
@@ -199,16 +308,21 @@ class DockerOutputParser(LoggerMixin):
     def log_docker_output(
         self, generator, task_name: str = "docker command execution", log_f=None
     ) -> None:
-        """
-        Logs the output of a Docker command execution with smart progress tracking.
-        This method processes the output from a generator that yields Docker command
-        execution results. It logs the output to a specified log file and the logger.
+        """Log the output of a Docker command execution with smart progress tracking.
+
+        Processes the output from a generator that yields Docker command
+        execution results. Logs to the specified log file and to the logger.
+
         Args:
-            generator (Generator): A generator that yields Docker command execution results.
-            task_name (str, optional): The name of the task being executed. Defaults to "docker command execution".
-            log_f (file object, optional): A file object to write log output to. Defaults to None.
+            generator: A generator (or list) that yields Docker command
+                execution results (dicts with ``stream``/``error`` keys,
+                or raw strings/bytes).
+            task_name: Human-readable name of the task being executed.
+            log_f: Optional file object to write raw log output to.
+
         Raises:
-            ValueError: If an error is encountered in the Docker command execution output.
+            ValueError: If an error is encountered in the Docker command
+                execution output.
         """
         output = None
 
@@ -262,7 +376,19 @@ class DockerOutputParser(LoggerMixin):
                 self.logger.error("Error parsing output from %s: %s", task_name, output)
 
     def log_message_by_level(self, task_name, message, level):
-        if level == "INFO":
+        """Route a parsed message to the appropriate logger level.
+
+        Args:
+            task_name: Human-readable task name for context.
+            message: Parsed message text.
+            level: String log level (``ERROR``, ``WARNING``, ``INFO``,
+                ``DEBUG``, or ``TRACE``).
+        """
+        if level == "ERROR":
+            self.logger.error("%s: %s", task_name, message)
+        elif level == "WARNING":
+            self.logger.warning("%s: %s", task_name, message)
+        elif level == "INFO":
             self.logger.info("%s: %s", task_name, message)
         elif level == "DEBUG":
             self.logger.debug("%s: %s", task_name, message)
@@ -270,6 +396,14 @@ class DockerOutputParser(LoggerMixin):
             self.logger.trace("%s: %s", task_name, message)
 
     def log_message_with_level(self, task_name, message, progress, level):
+        """Route a parsed message with progress to the appropriate logger level.
+
+        Args:
+            task_name: Human-readable task name for context.
+            message: Parsed message text.
+            progress: Build progress percentage (0-100).
+            level: String log level.
+        """
         if level == "ERROR":
             self.logger.error("%s: %s", task_name, message)
         elif level == "WARNING":
@@ -284,6 +418,18 @@ class DockerOutputParser(LoggerMixin):
     def log_and_raise_build_exception(
         self, impl_name, dockerfile_path, image_tag, e, log_f
     ):
+        """Log remaining build output and raise a ``DockerBuildException``.
+
+        Args:
+            impl_name: Implementation name (for the exception).
+            dockerfile_path: Path to the Dockerfile.
+            image_tag: Docker image tag that was being built.
+            e: Original exception (must have a ``build_log`` attribute).
+            log_f: Optional open file handle for writing raw logs.
+
+        Raises:
+            DockerBuildException: Always raised.
+        """
         if log_f:
             self.log_docker_output(
                 e.build_log, f"Building Docker image '{image_tag}'", log_f

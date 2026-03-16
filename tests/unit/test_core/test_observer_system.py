@@ -61,9 +61,9 @@ class TestMetricsObserver:
         self, real_metrics_observer
     ):
         """on_test_execution_started creates a TestCaseMetrics for the current test."""
-        from panther.core.events.test.events import TestExecutionStartedEvent
+        from panther.core.events.test.events import TestEvent
 
-        event = TestExecutionStartedEvent(test_id="test-001")
+        event = TestEvent.execution_started(test_id="test-001")
         result = real_metrics_observer.on_test_execution_started(event)
 
         assert result is True
@@ -72,13 +72,10 @@ class TestMetricsObserver:
 
     def test_on_test_completed_finalizes_metrics(self, real_metrics_observer):
         """on_test_completed finalizes the current test metrics and stores them."""
-        from panther.core.events.test.events import (
-            TestCompletedEvent,
-            TestExecutionStartedEvent,
-        )
+        from panther.core.events.test.events import TestCompletedEvent, TestEvent
 
         # Start a test first
-        start_event = TestExecutionStartedEvent(test_id="test-002")
+        start_event = TestEvent.execution_started(test_id="test-002")
         real_metrics_observer.on_test_execution_started(start_event)
 
         # Complete the test
@@ -99,12 +96,9 @@ class TestMetricsObserver:
 
     def test_on_test_failed_records_error_and_finalizes(self, real_metrics_observer):
         """on_test_failed increments error count and finalizes like completed."""
-        from panther.core.events.test.events import (
-            TestExecutionStartedEvent,
-            TestFailedEvent,
-        )
+        from panther.core.events.test.events import TestEvent, TestFailedEvent
 
-        start_event = TestExecutionStartedEvent(test_id="test-003")
+        start_event = TestEvent.execution_started(test_id="test-003")
         real_metrics_observer.on_test_execution_started(start_event)
 
         fail_event = TestFailedEvent(
@@ -123,37 +117,32 @@ class TestMetricsObserver:
 
     def test_step_event_tracking(self, real_metrics_observer):
         """Step events increment the appropriate counters on current test metrics."""
-        from panther.core.events.step.events import (
-            StepExecutionCompletedEvent,
-            StepExecutionFailedEvent,
-            StepExecutionStartedEvent,
-            StepSkippedEvent,
-        )
-        from panther.core.events.test.events import TestExecutionStartedEvent
+        from panther.core.events.step.events import StepEvent
+        from panther.core.events.test.events import TestEvent
 
         # Start a test
-        start = TestExecutionStartedEvent(test_id="test-step")
+        start = TestEvent.execution_started(test_id="test-step")
         real_metrics_observer.on_test_execution_started(start)
 
         # Execute step events
         real_metrics_observer.on_step_execution_started(
-            StepExecutionStartedEvent(step_id="step-0", step_name="build")
+            StepEvent.execution_started(step_id="step-0", step_name="build")
         )
         real_metrics_observer.on_step_execution_completed(
-            StepExecutionCompletedEvent(step_id="step-0", step_name="build")
+            StepEvent.execution_completed(step_id="step-0", step_name="build")
         )
         real_metrics_observer.on_step_execution_started(
-            StepExecutionStartedEvent(step_id="step-1", step_name="deploy")
+            StepEvent.execution_started(step_id="step-1", step_name="deploy")
         )
         real_metrics_observer.on_step_execution_failed(
-            StepExecutionFailedEvent(
+            StepEvent.execution_failed(
                 step_id="step-1",
                 step_name="deploy",
                 error_message="Network error",
             )
         )
         real_metrics_observer.on_step_skipped(
-            StepSkippedEvent(
+            StepEvent.skipped(
                 step_id="step-2",
                 step_name="analyze",
                 skip_reason="Previous step failed",
@@ -180,14 +169,11 @@ class TestMetricsObserver:
 
     def test_multiple_test_lifecycle(self, real_metrics_observer):
         """Multiple test start/complete cycles accumulate in completed_test_metrics."""
-        from panther.core.events.test.events import (
-            TestCompletedEvent,
-            TestExecutionStartedEvent,
-        )
+        from panther.core.events.test.events import TestCompletedEvent, TestEvent
 
         for i in range(3):
             real_metrics_observer.on_test_execution_started(
-                TestExecutionStartedEvent(test_id=f"tid-{i}")
+                TestEvent.execution_started(test_id=f"tid-{i}")
             )
             real_metrics_observer.on_test_completed(
                 TestCompletedEvent(test_id=f"tid-{i}", test_name=f"test_{i}")
@@ -233,10 +219,10 @@ class TestStateEventObserver:
         self, real_state_observer, real_workflow_tracker
     ):
         """on_experiment_initialized sets workflow to CREATED."""
-        from panther.core.events.experiment.events import ExperimentInitializedEvent
+        from panther.core.events.experiment.events import ExperimentEvent
         from panther.core.observer.workflow import WorkflowState
 
-        event = ExperimentInitializedEvent(experiment_id="exp-init-001")
+        event = ExperimentEvent.initialized(experiment_id="exp-init-001")
         result = real_state_observer.on_experiment_initialized(event)
 
         assert result is True
@@ -248,30 +234,23 @@ class TestStateEventObserver:
         self, real_state_observer, real_workflow_tracker
     ):
         """StateEventObserver drives valid workflow state transitions."""
-        from panther.core.events.environment.events import (
-            EnvironmentSetupStartedEvent,
-            OutputCollectionCompletedEvent,
-            OutputCollectionStartedEvent,
-        )
-        from panther.core.events.experiment.events import (
-            ExperimentInitializedEvent,
-            ExperimentPluginLoadingStartedEvent,
-        )
+        from panther.core.events.environment.events import EnvironmentEvent
+        from panther.core.events.experiment.events import ExperimentEvent
         from panther.core.events.service.events import (
-            CommandGenerationStartedEvent,
             DockerBuildStartedEvent,
+            ServiceEvent,
         )
-        from panther.core.events.test.events import TestExecutionStartedEvent
+        from panther.core.events.test.events import TestEvent
         from panther.core.observer.workflow import WorkflowState
 
         # Initialize
-        init_event = ExperimentInitializedEvent(experiment_id="exp-lifecycle")
+        init_event = ExperimentEvent.initialized(experiment_id="exp-lifecycle")
         real_state_observer.on_experiment_initialized(init_event)
         exp_id = "exp-lifecycle"
 
         # Plugin loading
         real_state_observer.on_experiment_plugin_loading_started(
-            ExperimentPluginLoadingStartedEvent(experiment_id=exp_id)
+            ExperimentEvent.plugin_loading_started(experiment_id=exp_id)
         )
         assert (
             real_workflow_tracker.get_workflow_state(exp_id)
@@ -280,7 +259,7 @@ class TestStateEventObserver:
 
         # Command generation
         real_state_observer.on_command_generation_started(
-            CommandGenerationStartedEvent(
+            ServiceEvent.command_generation_started(
                 service_id="svc-1",
                 service_name="picoquic",
                 phase="build",
@@ -306,7 +285,7 @@ class TestStateEventObserver:
 
         # Deployment
         real_state_observer.on_environment_setup_started(
-            EnvironmentSetupStartedEvent(
+            EnvironmentEvent.setup_started(
                 environment_id="env-1",
                 environment_name="docker_compose",
                 environment_type="docker_compose",
@@ -318,13 +297,13 @@ class TestStateEventObserver:
 
         # Running
         real_state_observer.on_test_execution_started(
-            TestExecutionStartedEvent(test_id="t-1")
+            TestEvent.execution_started(test_id="t-1")
         )
         assert real_workflow_tracker.get_workflow_state(exp_id) == WorkflowState.RUNNING
 
         # Collecting outputs
         real_state_observer.on_output_collection_started(
-            OutputCollectionStartedEvent(
+            EnvironmentEvent.output_collection_started(
                 environment_id="env-1",
                 environment_name="docker_compose",
                 environment_type="docker_compose",
@@ -337,7 +316,7 @@ class TestStateEventObserver:
 
         # Analyzing results (via output_collection completed)
         real_state_observer.on_output_collection_completed(
-            OutputCollectionCompletedEvent(
+            EnvironmentEvent.output_collection_completed(
                 environment_id="env-1",
                 environment_name="docker_compose",
                 environment_type="docker_compose",
@@ -352,16 +331,13 @@ class TestStateEventObserver:
 
     def test_experiment_failed(self, real_state_observer, real_workflow_tracker):
         """on_experiment_failed transitions to FAILED from any state."""
-        from panther.core.events.experiment.events import (
-            ExperimentFailedEvent,
-            ExperimentInitializedEvent,
-        )
+        from panther.core.events.experiment.events import ExperimentEvent
         from panther.core.observer.workflow import WorkflowState
 
-        init_event = ExperimentInitializedEvent(experiment_id="exp-fail")
+        init_event = ExperimentEvent.initialized(experiment_id="exp-fail")
         real_state_observer.on_experiment_initialized(init_event)
 
-        fail_event = ExperimentFailedEvent(
+        fail_event = ExperimentEvent.failed(
             experiment_id="exp-fail",
             error_message="Critical error",
         )
@@ -372,9 +348,9 @@ class TestStateEventObserver:
 
     def test_get_state_history(self, real_state_observer, real_workflow_tracker):
         """get_state_history returns the workflow tracker's history."""
-        from panther.core.events.experiment.events import ExperimentInitializedEvent
+        from panther.core.events.experiment.events import ExperimentEvent
 
-        event = ExperimentInitializedEvent(experiment_id="exp-history")
+        event = ExperimentEvent.initialized(experiment_id="exp-history")
         real_state_observer.on_experiment_initialized(event)
 
         history = real_state_observer.get_state_history("exp-history")
@@ -385,22 +361,18 @@ class TestStateEventObserver:
         self, real_state_observer, real_workflow_tracker
     ):
         """on_experiment_plugin_loading_failed forces workflow to FAILED."""
-        from panther.core.events.experiment.events import (
-            ExperimentInitializedEvent,
-            ExperimentPluginLoadingFailedEvent,
-            ExperimentPluginLoadingStartedEvent,
-        )
+        from panther.core.events.experiment.events import ExperimentEvent
         from panther.core.observer.workflow import WorkflowState
 
-        init = ExperimentInitializedEvent(experiment_id="exp-plugin-fail")
+        init = ExperimentEvent.initialized(experiment_id="exp-plugin-fail")
         real_state_observer.on_experiment_initialized(init)
 
         real_state_observer.on_experiment_plugin_loading_started(
-            ExperimentPluginLoadingStartedEvent(experiment_id="exp-plugin-fail")
+            ExperimentEvent.plugin_loading_started(experiment_id="exp-plugin-fail")
         )
 
         real_state_observer.on_experiment_plugin_loading_failed(
-            ExperimentPluginLoadingFailedEvent(
+            ExperimentEvent.plugin_loading_failed(
                 experiment_id="exp-plugin-fail",
                 error_message="Missing dependency",
             )
@@ -443,9 +415,9 @@ class TestStorageObserver:
 
     def test_on_test_execution_started_stores_event(self, real_storage_observer):
         """on_test_execution_started adds event to pending_events."""
-        from panther.core.events.test.events import TestExecutionStartedEvent
+        from panther.core.events.test.events import TestEvent
 
-        event = TestExecutionStartedEvent(test_id="test-001")
+        event = TestEvent.execution_started(test_id="test-001")
         result = real_storage_observer.on_test_execution_started(event)
 
         assert result is True
@@ -488,18 +460,18 @@ class TestStorageObserver:
         results_manager.export_results() without the required format_type argument.
         We mock that method to isolate the flush logic being tested.
         """
-        from panther.core.events.experiment.events import ExperimentCompletedEvent
-        from panther.core.events.test.events import TestExecutionStartedEvent
+        from panther.core.events.experiment.events import ExperimentEvent
+        from panther.core.events.test.events import TestEvent
 
         # Add some pending events
         real_storage_observer.on_test_execution_started(
-            TestExecutionStartedEvent(test_id="tid-1")
+            TestEvent.execution_started(test_id="tid-1")
         )
 
         # Work around pre-existing bug: export_results() missing format_type arg
         real_storage_observer.results_manager.export_results = MagicMock()
 
-        event = ExperimentCompletedEvent(experiment_id="exp-1")
+        event = ExperimentEvent.completed(experiment_id="exp-1")
         result = real_storage_observer.on_experiment_completed(event)
 
         assert result is True
@@ -634,9 +606,9 @@ class TestCommandAuditObserver:
 
     def test_handle_command_generation_started(self, command_audit_observer):
         """handle_command_generation_started tracks in-progress generation."""
-        from panther.core.events.service.events import CommandGenerationStartedEvent
+        from panther.core.events.service.events import ServiceEvent
 
-        event = CommandGenerationStartedEvent(
+        event = ServiceEvent.command_generation_started(
             service_id="svc-1",
             service_name="picoquic",
             phase="build",
@@ -651,9 +623,9 @@ class TestCommandAuditObserver:
 
     def test_handle_command_generated(self, command_audit_observer):
         """handle_command_generated records the command and saves audit trail."""
-        from panther.core.events.service.events import CommandGeneratedEvent
+        from panther.core.events.service.events import ServiceEvent
 
-        event = CommandGeneratedEvent(
+        event = ServiceEvent.command_generated(
             service_id="svc-1",
             service_name="picoquic",
             phase="build",
@@ -672,13 +644,10 @@ class TestCommandAuditObserver:
 
     def test_handle_command_modified(self, command_audit_observer):
         """handle_command_modified appends modification to latest command record."""
-        from panther.core.events.service.events import (
-            CommandGeneratedEvent,
-            CommandModifiedEvent,
-        )
+        from panther.core.events.service.events import ServiceEvent
 
         # First generate a command
-        gen_event = CommandGeneratedEvent(
+        gen_event = ServiceEvent.command_generated(
             service_id="svc-2",
             service_name="aioquic",
             phase="run",
@@ -688,7 +657,7 @@ class TestCommandAuditObserver:
         command_audit_observer.handle_command_generated(gen_event)
 
         # Then modify it
-        mod_event = CommandModifiedEvent(
+        mod_event = ServiceEvent.command_modified(
             service_id="svc-2",
             service_name="aioquic",
             phase="run",
@@ -705,10 +674,10 @@ class TestCommandAuditObserver:
 
     def test_get_command_history_all(self, command_audit_observer):
         """get_command_history returns full history when no filter given."""
-        from panther.core.events.service.events import CommandGeneratedEvent
+        from panther.core.events.service.events import ServiceEvent
 
         for i, svc in enumerate(["picoquic", "aioquic"]):
-            event = CommandGeneratedEvent(
+            event = ServiceEvent.command_generated(
                 service_id=f"svc-{i}",
                 service_name=svc,
                 phase="build",
@@ -722,10 +691,10 @@ class TestCommandAuditObserver:
 
     def test_get_command_history_filtered(self, command_audit_observer):
         """get_command_history filters by service name."""
-        from panther.core.events.service.events import CommandGeneratedEvent
+        from panther.core.events.service.events import ServiceEvent
 
         for i, svc in enumerate(["picoquic", "aioquic"]):
-            event = CommandGeneratedEvent(
+            event = ServiceEvent.command_generated(
                 service_id=f"svc-{i}",
                 service_name=svc,
                 phase="build",
@@ -752,9 +721,9 @@ class TestCommandAuditObserver:
 
     def test_handle_config_generated(self, command_audit_observer):
         """handle_config_generated stores config generation record."""
-        from panther.core.events.service.events import ConfigGeneratedEvent
+        from panther.core.events.service.events import ServiceEvent
 
-        event = ConfigGeneratedEvent(
+        event = ServiceEvent.config_generated(
             service_id="config-gen",
             config_type="docker_compose",
             config_path="/tmp/docker-compose.yml",
@@ -1058,7 +1027,7 @@ class TestEventManager:
 
     def test_register_and_notify_observer(self, real_event_manager):
         """Observers registered for specific events receive those events."""
-        from panther.core.events.test.events import TestExecutionStartedEvent
+        from panther.core.events.test.events import TestEvent
 
         mock_observer = MagicMock()
         mock_observer.is_interested.return_value = True
@@ -1066,7 +1035,7 @@ class TestEventManager:
             mock_observer, ["test.execution_started"], priority=5
         )
 
-        event = TestExecutionStartedEvent(test_id="tid-notify")
+        event = TestEvent.execution_started(test_id="tid-notify")
         result = real_event_manager.notify(event)
 
         assert result is True
@@ -1074,20 +1043,20 @@ class TestEventManager:
 
     def test_global_observer_receives_all(self, real_event_manager):
         """Global observers (no event_types filter) receive all events."""
-        from panther.core.events.test.events import TestExecutionStartedEvent
+        from panther.core.events.test.events import TestEvent
 
         mock_observer = MagicMock()
         mock_observer.is_interested.return_value = True
         real_event_manager.register_observer(mock_observer, None, priority=0)
 
-        event = TestExecutionStartedEvent(test_id="tid-global")
+        event = TestEvent.execution_started(test_id="tid-global")
         real_event_manager.notify(event)
 
         mock_observer.on_event.assert_called()
 
     def test_unregister_observer(self, real_event_manager):
         """Unregistered observers no longer receive events."""
-        from panther.core.events.test.events import TestExecutionStartedEvent
+        from panther.core.events.test.events import TestEvent
 
         mock_observer = MagicMock()
         mock_observer.is_interested.return_value = True
@@ -1096,7 +1065,7 @@ class TestEventManager:
             mock_observer, ["test.execution_started"]
         )
 
-        event = TestExecutionStartedEvent(test_id="tid-unreg")
+        event = TestEvent.execution_started(test_id="tid-unreg")
         # Ensure dedup window passes
         time.sleep(0.01)
         real_event_manager.notify(event)
@@ -1105,7 +1074,7 @@ class TestEventManager:
 
     def test_priority_ordering(self, real_event_manager):
         """Higher priority observers are notified first."""
-        from panther.core.events.test.events import TestExecutionStartedEvent
+        from panther.core.events.test.events import TestEvent
 
         call_order = []
 
@@ -1129,16 +1098,16 @@ class TestEventManager:
             obs_high, ["test.execution_started"], priority=10
         )
 
-        event = TestExecutionStartedEvent(test_id="tid-priority")
+        event = TestEvent.execution_started(test_id="tid-priority")
         real_event_manager.notify(event)
 
         assert call_order == ["high", "low"]
 
     def test_event_history_tracking(self, real_event_manager):
         """Events are recorded in event_history."""
-        from panther.core.events.test.events import TestExecutionStartedEvent
+        from panther.core.events.test.events import TestEvent
 
-        event = TestExecutionStartedEvent(test_id="tid-history")
+        event = TestEvent.execution_started(test_id="tid-history")
         real_event_manager.notify(event)
 
         history = real_event_manager.get_event_history()
@@ -1146,9 +1115,9 @@ class TestEventManager:
 
     def test_metrics_tracking(self, real_event_manager):
         """Event processing metrics are updated."""
-        from panther.core.events.test.events import TestExecutionStartedEvent
+        from panther.core.events.test.events import TestEvent
 
-        event = TestExecutionStartedEvent(test_id="tid-metrics")
+        event = TestEvent.execution_started(test_id="tid-metrics")
         real_event_manager.notify(event)
 
         metrics = real_event_manager.get_metrics()
@@ -1184,7 +1153,7 @@ class TestEventManager:
 
     def test_observer_error_isolation(self, real_event_manager):
         """Observer errors don't prevent other observers from receiving events."""
-        from panther.core.events.test.events import TestExecutionStartedEvent
+        from panther.core.events.test.events import TestEvent
 
         class FailingObserver:
             def is_interested(self, event_type):
@@ -1214,7 +1183,7 @@ class TestEventManager:
             working, ["test.execution_started"], priority=1
         )
 
-        event = TestExecutionStartedEvent(test_id="tid-isolation")
+        event = TestEvent.execution_started(test_id="tid-isolation")
         real_event_manager.notify(event)
 
         # Working observer should still receive the event
@@ -1238,14 +1207,14 @@ class TestObserverSystemIntegration:
     ):
         """EventManager distributes events to registered real observers.
 
-        Uses TestExecutionStartedEvent which both StateEventObserver and
+        Uses TestEvent.execution_started() which both StateEventObserver and
         StorageObserver explicitly handle (via on_test_execution_started).
         StateEventObserver advances workflow to RUNNING (requires prior
         experiment init + DEPLOYING state). StorageObserver adds to
         pending_events via _store_test_event.
         """
-        from panther.core.events.experiment.events import ExperimentInitializedEvent
-        from panther.core.events.test.events import TestExecutionStartedEvent
+        from panther.core.events.experiment.events import ExperimentEvent
+        from panther.core.events.test.events import TestEvent
         from panther.core.observer.workflow import WorkflowState
 
         # Register both observers as global
@@ -1253,7 +1222,7 @@ class TestObserverSystemIntegration:
         real_event_manager.register_observer(real_storage_observer, None, priority=3)
 
         # Initialize experiment so state observer has context
-        init_event = ExperimentInitializedEvent(experiment_id="int-001")
+        init_event = ExperimentEvent.initialized(experiment_id="int-001")
         real_event_manager.notify(init_event)
         assert (
             real_workflow_tracker.get_workflow_state("int-001") == WorkflowState.CREATED
@@ -1273,7 +1242,7 @@ class TestObserverSystemIntegration:
 
         # Send a test event that both observers explicitly handle
         time.sleep(0.01)
-        test_event = TestExecutionStartedEvent(test_id="int-test-001")
+        test_event = TestEvent.execution_started(test_id="int-test-001")
         real_event_manager.notify(test_event)
 
         # StateEventObserver should have advanced to RUNNING
@@ -1288,14 +1257,14 @@ class TestObserverSystemIntegration:
         self, real_event_manager, real_state_observer, real_workflow_tracker
     ):
         """StateEventObserver correctly processes events distributed by EventManager."""
-        from panther.core.events.experiment.events import ExperimentInitializedEvent
+        from panther.core.events.experiment.events import ExperimentEvent
         from panther.core.observer.workflow import WorkflowState
 
         real_event_manager.register_observer(
             real_state_observer, ["experiment.initialized"], priority=10
         )
 
-        event = ExperimentInitializedEvent(experiment_id="integrated-exp")
+        event = ExperimentEvent.initialized(experiment_id="integrated-exp")
         real_event_manager.notify(event)
 
         state = real_workflow_tracker.get_workflow_state("integrated-exp")
@@ -1309,7 +1278,7 @@ class TestObserverSystemIntegration:
         Uses StorageObserver (which accepts all event types via is_interested)
         rather than MetricsObserver (which only accepts 'metrics.*' events).
         """
-        from panther.core.events.test.events import TestExecutionStartedEvent
+        from panther.core.events.test.events import TestEvent
         from panther.core.observer.impl.storage_observer import StorageObserver
 
         real_observer_factory.set_event_manager(real_event_manager)
@@ -1323,7 +1292,7 @@ class TestObserverSystemIntegration:
             log_level="WARNING",
         )
 
-        event = TestExecutionStartedEvent(test_id="fint-001")
+        event = TestEvent.execution_started(test_id="fint-001")
         real_event_manager.notify(event)
 
         assert len(storage_obs.pending_events) >= 1
@@ -1342,11 +1311,8 @@ class TestObserverSystemIntegration:
         is excluded because its is_interested() only accepts 'metrics.*'
         events through EventManager routing.
         """
-        from panther.core.events.experiment.events import ExperimentInitializedEvent
-        from panther.core.events.test.events import (
-            TestCompletedEvent,
-            TestExecutionStartedEvent,
-        )
+        from panther.core.events.experiment.events import ExperimentEvent
+        from panther.core.events.test.events import TestCompletedEvent, TestEvent
         from panther.core.observer.workflow import WorkflowState
 
         # Register observers
@@ -1354,7 +1320,7 @@ class TestObserverSystemIntegration:
         real_event_manager.register_observer(real_state_observer, None, priority=10)
 
         # 1. Initialize experiment (only StateEventObserver handles this)
-        init_event = ExperimentInitializedEvent(experiment_id="lifecycle-exp")
+        init_event = ExperimentEvent.initialized(experiment_id="lifecycle-exp")
         real_event_manager.notify(init_event)
         exp_id = "lifecycle-exp"
 
@@ -1370,7 +1336,7 @@ class TestObserverSystemIntegration:
         real_workflow_tracker.set_workflow_state(exp_id, WorkflowState.DEPLOYING)
 
         # 3. Start test (both observers handle this)
-        test_start = TestExecutionStartedEvent(test_id="lc-001")
+        test_start = TestEvent.execution_started(test_id="lc-001")
         time.sleep(0.01)
         real_event_manager.notify(test_start)
 
