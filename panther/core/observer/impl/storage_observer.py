@@ -40,6 +40,14 @@ class StorageObserver(ITypedObserver):
     - Metrics persistence
     - Data export and import
     - Historical data management
+
+    Note:
+        As of Batch 2, all events are also written to ``structured.jsonl``
+        by :class:`EventStreamRecorder`. The separate per-category JSONL files
+        (events.jsonl, error_events.jsonl, performance_metrics.jsonl) written
+        by this observer are retained for backward-compatible query/export but
+        may be removed in a future refactoring once query methods are migrated
+        to read from ``structured.jsonl`` with filtering.
     """
 
     # Class-level registry to maintain one instance per storage path
