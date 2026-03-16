@@ -15,9 +15,9 @@ interleaving with concurrent log handler writes.
 import json
 import logging
 import threading
-from datetime import datetime, timezone
+from datetime import timezone
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from panther.core.events.base.event_base import BaseEvent
 from panther.core.observer.base.typed_observer_interface import ITypedObserver
@@ -141,11 +141,11 @@ class EventStreamRecorder(ITypedObserver):
 
         return record
 
-    def is_interested(self, event_type: str) -> bool:
+    def is_interested(self, event_type: str) -> bool:  # noqa: ARG002
         """Accept all event types for recording.
 
         Args:
-            event_type: Event type string (unused).
+            event_type: Event type string (unused — records everything).
 
         Returns:
             Always True.
