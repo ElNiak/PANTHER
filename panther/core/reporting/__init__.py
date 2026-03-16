@@ -15,6 +15,7 @@ timing breakdowns, and configuration metadata.
 """
 
 from .experiment_reporter import ExperimentReporter
+from .log_query_engine import LogFilter, LogQueryEngine
 from .result_serialization import (
     save_experiment_result,
     save_implementation_logs,
@@ -25,6 +26,8 @@ from .status_collector import StatusCollector
 
 __all__ = [
     "ExperimentReporter",
+    "LogFilter",
+    "LogQueryEngine",
     "StatusCollector",
     "save_experiment_result",
     "save_test_result",

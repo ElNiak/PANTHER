@@ -166,6 +166,7 @@ def register_commands():
         ("build-metrics", "panther.cli.commands.build_metrics", "build_metrics"),
         ("report", "panther.cli.commands.report", "report"),
         ("debug", "panther.cli.commands.debug", "debug"),
+        ("logs", "panther.cli.commands.logs", "logs"),
     ]
 
     missing_commands = []
