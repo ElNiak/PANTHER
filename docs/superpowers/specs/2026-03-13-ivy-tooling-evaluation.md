@@ -1,430 +1,368 @@
-# Ivy Tooling Ecosystem: Strategic Evaluation & Consolidation
+# Ivy Tooling Ecosystem: Strategic Evaluation (Post-Consolidation)
 
 **Date**: 2026-03-13
-**Scope**: Full strategic assessment of Ivy formal verification tooling (MCP + LSP + Claude Code integration)
-**Inputs**: Audit scorecard (25 MCP tools, 14 LSP features), state-of-the-art survey, over-engineering analysis
-**Goal**: Consolidation plan, gap analysis, and implementation roadmap
+**Status**: Post-consolidation assessment (tools reduced from 25→15, mode-based dispatch implemented)
+**Scope**: LSP + MCP + Claude Code plugin evaluation against protocol-focused SOTA
+**Prior work**: `2026-03-13-ivy-tooling-audit-design.md` (audit), `2026-03-13-ivy-tooling-audit-results.md` (results)
+**Goal**: Identify strengths, over-engineering, dead code, and gaps vs state-of-the-art protocol verification tools
 
 ---
 
-## 1. State of the Art Comparison
+## 1. State-of-the-Art Comparison (Protocol Verification Tools)
 
-This section compares the Ivy tooling ecosystem against established formal verification, specification management, and AI-assisted development platforms across five dimensions. Each dimension surfaces where Ivy leads, where it lags, and where consolidation would sharpen its competitive position.
+### 1.1 Code Intelligence (LSP)
 
-### Dimension 1: Code Intelligence (LSP)
+| Capability | Ivy LSP | TLA+ (VS Code ext) | SPIN/Promela | Tamarin (VS Code ext) | ProVerif (vscode-proverif) |
+|---|---|---|---|---|---|
+| **LSP server** | Full (pygls, 17 registered features) | Shipping (SANY-based VS Code ext); TLAPM proof LSP in development | None | None (tree-sitter grammar; interactive web prover provides exploration) | Partial (syntax + parse errors + signatures) |
+| **Go-to-definition** | Cross-file + include resolution | Yes | No | No | Yes (Ctrl+click) |
+| **Find references** | Workspace-wide | Yes | No | No | Yes |
+| **Completions** | Context-aware (dot-access, includes, keywords, semantic) | Basic (keywords + identifiers) | No | No | No |
+| **Hover info** | Types + RFC annotations + cross-ref summaries | Types + operator definitions | No | No | Signatures |
+| **Diagnostics** | 3-tier: structural (<50ms) → AST (<200ms) → compiler (background) | SANY inline (single tier) | iSpin panel (external GUI) | Wellformedness via tree-sitter | Parse errors only |
+| **Code actions** | Quick fixes for common issues | No | No | In-rule rename only | No |
+| **Code lens** | RFC coverage metrics per action/monitor | No | No | No | No |
+| **Rename** | Lexical with validation | In development (proof step rename) | No | In-rule only | Semantic (F2) |
+| **Folding ranges** | Yes (structural) | No | No | No | No |
+| **Selection range** | Yes (smart expansion) | No | No | No | No |
+| **Signature help** | Action parameter hints | No | No | No | Yes |
 
-| Capability | Lean 4 LSP | Dafny VS Code | TLA+ Toolbox | SPARK Ada GPS | Ivy LSP |
-|------------|:----------:|:-------------:|:------------:|:-------------:|:-------:|
-| Go-to-definition | Full (cross-file, cross-import) | Full | Full | Full | Partial (cross-include works; declarations return "not found"; dotted paths fail) |
-| Find references | Full with scope awareness | Full | Find-in-project | Full with read/write distinction | Good cross-file (376 refs for `cid`); self-refs omitted; no read/write split |
-| Hover info | Type + tactic state + doc | Type + triggers + verified status | Operator definitions | Type + contracts + SPARK annotations | Nearly broken (1/6 correct); no RFC enrichment active yet |
-| Completion | Context-aware (tactics, terms) | Context-aware (keywords, ghost vars) | Action/variable names | Contracts + aspects | Keyword-only (not implemented in current LSP) |
-| Diagnostics | Real-time, per-line verification status | Real-time, error squiggles + counterexample gutter marks | Model-check error overlay | Flow analysis + runtime checks | 5-layer graduated analysis (structural, lexer, semantic, coverage, pattern) via MCP; push-based LSP diagnostics not testable |
-| Code lens | Proof state per declaration | Verify/debug lenses | N/A | Prove/examine lenses | Not implemented |
-| Code actions | Quick fixes for proof failures | Quick fixes, extract method | N/A | Refactoring, proof completion | Not implemented |
-| Rename | Full, safe | Full, safe | Basic find-replace | Full with semantic checks | Not tested (not exposed via Claude Code LSP tool); scope detection present |
+**Verdict**: Ivy LSP is the **most feature-complete language server** among all protocol verification tools (17 registered feature handlers). TLA+'s shipping VS Code extension provides go-to-definition, find-refs, and SANY diagnostics, but lacks completions, code lens, and code actions. ProVerif's extension provides syntax and parse error reporting but is not a full LSP. SPIN and Tamarin have no LSP (Tamarin's web prover offers interactive exploration outside the LSP protocol).
 
-**Ivy LSP strengths**:
-- **3-tier graduated analysis** (structural, semantic, pattern) via `ivy_diagnostics` provides depth no other tool matches for a single diagnostics call
-- **RFC annotation enrichment** in hover (when bracket tags exist) is unique -- no other LSP ties code symbols to normative requirements
-- **Proximity-based disambiguation** in go-to-definition resolves ambiguous names using include-graph distance, handling Ivy's flat namespace without module qualifiers
+### 1.2 Verification Integration
 
-**Ivy LSP gaps**:
-- No interactive proof state display (Lean 4 and Dafny show tactic goals/verification status per line)
-- No verification-as-you-type (Dafny and Lean 4 verify incrementally on keystroke; Ivy requires explicit `ivy_verify` MCP call)
-- Keyword-only completion (Lean 4 and Dafny offer context-aware completions including tactic suggestions)
-- No per-line verification status gutter marks (Dafny and SPARK show green/red per declaration)
+| Capability | Ivy MCP | TLA+ Toolbox | SPIN (iSpin) | Tamarin | ProVerif |
+|---|---|---|---|---|---|
+| **Verification trigger** | MCP `ivy_verify` (programmatic, cached, per-isolate) | TLC GUI + MCP (2025) | iSpin GUI panel | CLI + web prover | VS Code Ctrl+Shift+B |
+| **Counterexample output** | Structured JSON (parsed from ivy_check, wired in verification.py:155) | State graph + heatmap profiling (2025) | MSC diagrams + automata view | Interactive attack graph (web GUI) | Derivation trees (Graphviz) |
+| **Incremental verification** | Per-isolate caching (file-level, not sub-file) | Per-model (full re-check) | Per-model | Per-lemma | Full model |
+| **Interactive exploration** | No | No | Automata view | **Yes** (web-based proof tree, step-by-step goal selection) | No |
+| **Test generation** | **Yes** (`ivyc target=test` → C++ test binary) | No | No | No | No |
+| **Docker integration** | **Yes** (Docker-aware fallback for verification + compilation) | No | No | No | No |
+| **LLM orchestration** | **Yes** (15 MCP tools with typed JSON schemas) | Yes (MCP server, 2025) | No | No | No |
 
-### Dimension 2: Verification Integration
+**Ivy strengths**: Unique end-to-end pipeline (verify → compile → test binary → Docker execution). MCP integration enables AI-driven verification workflows. Per-isolate caching reduces redundant verification.
 
-| Capability | Dafny | Lean 4 | TLA+ Toolbox | Tamarin | ProVerif | Ivy MCP |
-|------------|:-----:|:------:|:------------:|:-------:|:--------:|:-------:|
-| Incremental verification | Yes (per-method, cached) | Yes (per-definition) | Per-model (full re-check) | Per-lemma | Full model | No (full model re-check each time) |
-| Counterexample display | Rich: variable values, execution trace, gutter marks | Tactic state at cursor | State graph + trace explorer | Attack graphs with MSC diagrams | Derivation trees | Raw text output only; no structured rendering |
-| State space exploration | Bounded model checking | Proof search tree | Explicit-state model checker with state graph | Constraint solving trace | Horn clause resolution | No exploration; binary pass/fail |
-| Verification-as-you-type | Yes (background worker, incremental) | Yes (persistent environment) | No (explicit run) | No (explicit run) | No (explicit run) | No (explicit `ivy_verify` call) |
-| Docker/container support | No (native or dotnet) | No (native) | No (native Java) | No (native) | No (native) | Yes (Docker-aware pipeline with fallback) |
-| Test binary generation | No (verified code is the artifact) | No (extracted code via tactics) | No | No | No | Yes (`ivyc target=test` produces C++ test binaries) |
+**Ivy gaps**: No interactive proof exploration (Tamarin's web prover is unique). Counterexample data is parsed and structured but lacks rich visualization (TLA+ has heatmaps, SPIN has MSC diagrams). No verification-as-you-type (but no competitor in this category has it either — only Lean 4 and Dafny from the general FV space offer this).
 
-**Ivy strengths**:
-- **Docker-aware pipeline**: Verification, compilation, and test execution all work inside containers, enabling CI/CD integration that no other formal tool offers natively
-- **Verification + compilation + test in one toolchain**: `ivy_verify` -> `ivy_compile` -> test binary execution is a unique pipeline; other tools stop at verification or code extraction
-- **LLM can orchestrate verification via MCP**: 25 tools with typed JSON schemas let an AI agent drive the entire verification workflow -- no other formal tool has this level of programmatic access
+### 1.3 Specification Traceability (Unique to Ivy)
 
-**Ivy gaps**:
-- **No incremental verification**: Every `ivy_verify` call re-checks the entire model. For QUIC (202 files), this is prohibitive for iterative development
-- **Raw text counterexamples**: When verification fails, output is unstructured text from `ivy_check`. Dafny and TLA+ render counterexamples as interactive execution traces
-- **No state space exploration**: The tool reports pass/fail but provides no mechanism to explore why a property holds or what states were checked
+| Capability | Ivy MCP+LSP | TLA+ | SPIN | Tamarin | ProVerif |
+|---|---|---|---|---|---|
+| **RFC requirement extraction** | Automated (`ivy_extract_requirements`): MUST/SHOULD/MAY parsing from RFC text | None | None | None | None |
+| **Inline requirement annotation** | Bracket-tags (`# [rfc9000:4.2]`) in `.ivy` files | None | None | None | None |
+| **Coverage matrix** | `ivy_coverage(mode="matrix")`: requirement → annotation mapping | None | None | None | None |
+| **Coverage gaps** | `ivy_coverage(mode="gaps")`: unguarded state vars, uncovered reqs | None | None | None | None |
+| **Coverage regression** | `ivy_coverage(mode="diff")`: baseline comparison | None | None | None | None |
+| **MUST/SHOULD/MAY metrics** | `ivy_coverage(mode="stats")`: coverage by level and layer | None | None | None | None |
+| **Manifest generation** | YAML manifests from RFC text (`ivy_extract_requirements(output="manifest")`) | None | None | None | None |
 
-### Dimension 3: Specification Traceability
+**This is a genuinely novel contribution.** No other formal verification tool — protocol-focused or general-purpose — integrates requirements traceability into the specification language. IBM DOORS, Reqtify, and Polarion exist as external traceability tools but operate outside the verification toolchain. Ivy's bracket-tag system embeds requirements directly in verified assertions, enabling simultaneous formal property verification and normative coverage tracking.
 
-| Capability | IBM DOORS Next | Reqtify | Polarion | Ivy MCP+LSP |
-|------------|:--------------:|:-------:|:--------:|:-----------:|
-| Requirement extraction | Manual import from documents | Regex-based extraction from documents | Manual + document connectors | Automated: `ivy_extract_requirements` parses MUST/SHOULD/MAY from RFC text with sentence boundary detection (4.6/5 audit score) |
-| Annotation syntax | External linking (IDs in tool, not in code) | Pragma comments in code | External linking | Inline bracket tags `[rfc9000:4.1]` embedded directly in Ivy assertions |
-| Coverage matrix | Full bidirectional traceability matrix | Forward trace from req to test | Bidirectional with work items | `ivy_traceability_matrix` + `ivy_requirement_coverage`: functional but tag format mismatch (bare `[4]` vs `rfc9000:4.1`) currently breaks matching (0% coverage despite annotations) |
-| Gap analysis | Orphan detection both directions | Missing-link reports | Gap analysis dashboards | `ivy_coverage_gaps`: detects unguarded state variables, actions without requirement annotations, missing monitor patterns |
-| Impact analysis | Change impact via bidirectional links | File-level impact tracing | Work item dependency graph | `ivy_impact_analysis`: symbol-level impact through semantic graph edges (types, actions, relations, read/write) |
-| Integration with code | Separate from code (external tool) | Embedded pragmas, build integration | Separate tool with IDE plugins | **Native**: requirements live in the same `.ivy` files as the specification, verified by the same toolchain |
+### 1.4 AI-Assisted Specification
 
-**Novel contribution**: No other formal verification tool integrates requirement traceability into the specification language itself. IBM DOORS, Reqtify, and Polarion are all external tools that link to code via IDs or pragmas. Ivy's bracket-tag annotation system (`[rfc9000:4.1]`) embeds requirements directly in assertions, enabling the toolchain to verify both the formal property AND its normative coverage simultaneously.
+| Capability | Ivy MCP+Plugin | TLA+ (MCP, 2025) | Quint (MCP) | Alloy (MCP) |
+|---|---|---|---|---|
+| **MCP tools** | 15 unified tools (verification, analysis, traceability, visualization, patterns, quality) | SANY parsing + TLC model checking | Type-check + simulate + model-check | Model generation + analysis |
+| **Specification scaffolding** | Pattern library (6 patterns) + 14-layer template + `ivy_pattern_scaffold` | None | None | None |
+| **Quality gates** | 3-tier (minimal/standard/comprehensive) via `ivy_quality(mode="gate")` | None | None | None |
+| **Workflow guidance** | 6 skills + 4 agents with methodology knowledge | None | None | None |
+| **Architecture validation** | `ivy_patterns(mode="check")`: 14-layer completeness scoring | None | None | None |
 
-**Current limitation**: The tag format mismatch (C4 in audit backlog) means this capability is architecturally present but operationally broken. Fixing the `[N]` to `rfc9000:N` mapping would unlock what is genuinely a differentiating feature.
+**Ivy is ahead** in structured semantic access for AI agents. The 15 MCP tools with typed JSON provide deeper specification-model access than any competitor. TLA+ and Quint have MCP servers but with narrower scope (parse + check).
 
-### Dimension 4: AI-Assisted Specification
+### 1.5 Protocol-Specific Analysis
 
-| Capability | GitHub Copilot | Cursor | LLM+Lean (LeanDojo) | LLM+Coq (Proverbot9001) | Ivy MCP+Plugin |
-|------------|:--------------:|:------:|:--------------------:|:------------------------:|:--------------:|
-| Code completion | Token-level, statistical | Token + semantic (codebase RAG) | Tactic prediction | Tactic prediction | Not implemented (keyword-only LSP completion) |
-| Structured semantic access | None (text-only context) | Codebase indexing (AST-level) | Lean server API (JSON) | SerAPI (S-expressions) | **21 MCP tools** with typed JSON schemas providing symbol info, include graphs, dependency analysis, traceability matrices, pattern detection |
-| Specification generation | General code generation | General with context | Proof step generation | Proof search | `ivy_pattern_scaffold` generates complete Ivy specification templates for 5 pattern types (serdes, shim, entity, variants, monitors) with documentation |
-| Workflow guidance | None | Tab-based suggestions | None | None | 14 Claude Code skills + 9 agents with methodology knowledge (specification creation workflow, quality gates, RFC analysis) |
-| Quality enforcement | Linting only | Linting + review | Type checking | Type checking | `ivy_quality_gate` (3-tier: minimal/standard/comprehensive) + `ivy_scaffold_check` (14-layer architecture validation) + `ivy_diagnostics` (5-layer graduated analysis) |
+| Capability | Ivy PANTHER | Tamarin | ProVerif | SPIN |
+|---|---|---|---|---|
+| **Protocol compliance testing** | **Yes**: RFC-level compliance with traceability | No (security properties only) | No (security properties only) | No (generic model checking) |
+| **Security property verification** | Partial (safety invariants, MitM scenarios) | **Full** (Dolev-Yao, equational theories, unbounded sessions) | **Full** (Horn clauses, unbounded) | State-based only |
+| **Test generation** | **Yes** (`ivyc target=test` → executable C++ tests) | No | No | Partial (iSpin counterexample traces) |
+| **Multi-protocol workspace** | **Yes** (QUIC, BGP, CoAP in unified workspace) | One model per analysis | One model per analysis | One model per analysis |
+| **Deployment integration** | **Yes** (Docker, CI/CD via PANTHER) | Standalone | Standalone | Standalone |
 
-**Ivy is ahead in one critical area**: Structured semantic access for AI agents. The 21 MCP tools provide typed, queryable access to the specification model that goes far beyond what any LLM+prover integration offers. LeanDojo and Proverbot9001 give LLMs access to tactic state; Ivy gives LLMs access to the entire specification architecture (symbols, dependencies, requirements, patterns, coverage, quality metrics).
-
-**Diluted by over-proliferation**: The audit found that many tools overlap significantly (e.g., `ivy_impact_analysis` / `ivy_cross_references` / `ivy_query_symbol` query the same semantic model) and 7 visualization tools ignore their scoping parameters. Consolidation from 25 to ~12 tools would improve AI performance by reducing tool-selection confusion and ensuring each tool does one thing well.
-
-### Dimension 5: Protocol-Specific Analysis
-
-| Capability | Tamarin | ProVerif | Scyther | UPPAAL | Ivy PANTHER |
-|------------|:-------:|:--------:|:-------:|:------:|:-----------:|
-| Security property verification | Yes (Dolev-Yao, equational theories) | Yes (Horn clauses, unbounded) | Yes (bounded, automatic) | Timed automata only | Partial (safety properties, invariants, not cryptographic) |
-| Compliance testing | No (security properties only) | No (security properties only) | No (security properties only) | No (timed properties only) | **Yes**: RFC requirement-level compliance with bracket-tag traceability |
-| Attack visualization | MSC attack traces | Derivation graphs | Attack graphs | Simulation traces | Raw text only (no structured attack rendering) |
-| Test generation | No (model checking only) | No (analysis only) | No (analysis only) | Test generation from traces | **Yes**: `ivyc target=test` generates executable C++ test binaries |
-| Deployment integration | No (standalone analysis) | No (standalone analysis) | No (standalone analysis) | No (standalone analysis) | **Yes**: Docker-aware, integrated with PANTHER CI/CD pipeline, tests run against real implementations |
-| Multi-protocol | No (one model per analysis) | No (one model per analysis) | Multi-protocol (limited) | Component-based | **Yes**: QUIC, BGP, CoAP, custom protocols in unified workspace |
-
-**Ivy's niche**: Protocol compliance testing with deployment integration. Tamarin, ProVerif, and Scyther excel at cryptographic security analysis but produce no executable tests and cannot check RFC compliance. UPPAAL handles timed systems but not protocol specifications. Ivy PANTHER uniquely bridges formal specification to executable conformance testing against real protocol implementations in Docker containers.
-
-**Ivy's weakness**: Security property verification. Tamarin and ProVerif handle Dolev-Yao attackers, equational theories, and unbounded sessions -- capabilities fundamentally absent from Ivy's first-order logic framework. Ivy's `quic_attacks_stack/` models MitM scenarios but at a much coarser granularity.
+**Ivy's niche**: Protocol compliance testing with deployment integration. Tamarin and ProVerif excel at cryptographic security analysis (fundamentally different capability). SPIN handles generic concurrent systems but has no protocol awareness. Ivy uniquely bridges formal specification → executable conformance testing against real implementations.
 
 ---
 
-## 2. Over-Engineering Assessment
+## 2. Correctly Implemented (Strengths)
 
-This section evaluates the current tooling surface for over-engineering: features that add complexity without proportional value, and identifies what to consolidate, cut, or keep.
+### A. Three-Tier Diagnostic Pipeline — Best-in-Class Architecture
+- **Tier 1** (<50ms): Structural checks (missing `#lang`, unmatched braces, unresolved includes) — works offline, no compiler needed
+- **Tier 2** (<200ms): AST-enriched semantic analysis via parser or fallback scanner — requirement extraction, test scope detection
+- **Tier 3** (background): Full Ivy compiler verification — type checking, invariant verification
+- **Why it matters**: No surveyed tool separates fast/slow diagnostics this cleanly. TLA+ has single-speed SANY, Tamarin has single-speed wellformedness. This lets the LSP stay responsive while deferring expensive work.
+- **Files**: `semantic/analysis_pipeline.py`, `features/diagnostics.py`
 
-### 2.1 MCP Tool Proliferation (25 -> 12)
+### B. Graceful Degradation — Adapter Pattern (Justified Complexity)
+- `NullAdapter` implementations enable full LSP functionality without Ivy compiler installed
+- Runtime-checkable Protocols (`adapters/protocols.py`) isolate heavy imports from LSP startup
+- Formula analyzer: `ImportError` fallback at `mcp_server.py:695-698` (skips READS wiring if unavailable)
+- Pattern library: `ImportError` fallback at `features/patterns.py:60-67` (returns error response if unavailable)
+- **Assessment**: NOT over-engineering. This is correct defensive design enabling light-mode LSP and MCP operation on machines without full Ivy toolchain.
+- **Files**: `adapters/null_adapter.py`, `adapters/protocols.py`, `adapters/compiler_adapter.py`
 
-**Problem**: 25 MCP tools cause tool-selection confusion for AI agents. The audit found:
-- 3 tools query the same semantic model with overlapping results (`ivy_impact_analysis`, `ivy_cross_references`, `ivy_query_symbol`)
-- `ivy_lint` is a strict subset of `ivy_diagnostics` (structural layer)
-- 7 visualization tools share broken `test_file` handling code
-- Several tools produce unusably large output without working scoping parameters
+### C. Complete Code Wiring — No Dead Code
+After deep import-chain audit (tracing from `server.py` and `mcp_server.py` through all modules):
+- **`counterexample_parser.py`** → Called at `tools/verification.py:155-160` on verification failure — parses raw ivy_check output into structured JSON
+- **`formula_analyzer.py`** → Called at `requirement_graph.py:365` via `wire_state_var_edges()`, invoked from `mcp_server.py:694` — extracts state variable references from requirement formulas
+- **`impl_block_parser.py`** → Called at `pattern_library.py:147,358` via `analyze_impl_blocks()`, used by `features/patterns.py:60` and `features/visualization.py:602` — parses implementation blocks for pattern detection
+- **`snapshots.py`** → Used by `compiler_adapter.py:166,262,289-330` — extracts module and signature snapshots from compiler state for Tier 3 enrichment
+- **All 17 LSP features**: Each has a `register()` function called from `server.py` (confirmed by grep across features/)
+- **All 15 MCP tools**: All registered via 6 modules in `tools/__init__.py` → `mcp_server.py`
+- **All 3 CLI tools**: `ivy_check`, `ivyc`, `ivy_show` confirmed available via `ivy_capabilities`
 
-**Consolidation table**:
+### D. MCP Tool Consolidation — Well-Executed (25→15)
+The consolidation recommended in the prior audit has been implemented:
 
-| Current Tool(s) | Merged Into | Rationale |
-|-----------------|-------------|-----------|
-| `ivy_lint` + `ivy_diagnostics` | **`ivy_diagnostics`** (add `layers` param) | ivy_lint is structural layer only; diagnostics is superset. Keep lint logic as fast path when `layers=["structural"]`. |
-| `ivy_impact_analysis` + `ivy_cross_references` + `ivy_query_symbol` | **`ivy_symbol_info`** | All three query the semantic graph for a symbol. Merge into one tool: symbol name -> type info + edges + references. Accept both symbol names and node_ids. |
-| `ivy_traceability_matrix` + `ivy_requirement_coverage` | **`ivy_traceability`** | Both query the same requirement manifest + annotation data. Matrix is the detail view, coverage is the summary. One tool with `detail` param. |
-| `ivy_action_requirements` + `ivy_coverage_gaps` | **`ivy_coverage`** | Both analyze action-to-requirement mapping. Action_requirements shows what's covered; coverage_gaps shows what's missing. One tool with `mode=covered|gaps|both`. |
-| `ivy_model_summary` + `ivy_layered_overview` | **`ivy_overview`** | Both produce high-level model summaries with different grouping. One tool with `group_by=file|module|layer`. |
-| `ivy_action_dependency_graph` + `ivy_state_machine_view` | **`ivy_graph`** | Both produce graph structures over actions and state. One tool with `view=dependencies|state_machine`. |
-| `ivy_scaffold_check` + `ivy_quality_gate` | **`ivy_quality`** | Scaffold_check evaluates 14-layer completeness; quality_gate checks 3-tier pass/fail. Both assess model maturity. One tool with `mode=check|gate`, `level=minimal|standard|comprehensive`. |
-| `ivy_smart_suggestions` | **Cut entirely** | All parameters ignored (1.6/5 audit score). Returns identical 114KB dump regardless of input. Resurrect only after implementing actual context-awareness. |
-| `ivy_verify` | **Keep** | Core verification, no overlap |
-| `ivy_compile` | **Keep** | Core compilation, no overlap |
-| `ivy_capabilities` | **Keep** | Environment introspection, no overlap |
-| `ivy_include_graph` | **Keep** | Unique include-chain analysis |
-| `ivy_model_info` | **Keep** | Raw `ivy_show` output, useful for debugging |
-| `ivy_extract_requirements` | **Keep** | RFC text parsing, highest audit score (4.6/5) |
-| `ivy_generate_manifest` | **Keep** | Manifest generation from RFC text |
-| `ivy_pattern_analysis` | **Keep** | Pattern detection/validation/comparison, high audit score (4.4/5) |
-| `ivy_pattern_scaffold` | **Keep** | Template generation, highest audit score (4.6/5) |
+| Unified Tool | Modes/Views | Original Tools Absorbed |
+|---|---|---|
+| `ivy_coverage` | `stats`, `matrix`, `gaps`, `diff` | `ivy_traceability_matrix`, `ivy_requirement_coverage`, `ivy_coverage_gaps` |
+| `ivy_query` | `info`, `impact`, `xrefs` | `ivy_query_symbol`, `ivy_impact_analysis`, `ivy_cross_references` |
+| `ivy_visualize` | `dependencies`, `state_machine`, `layers` | `ivy_action_dependency_graph`, `ivy_state_machine_view`, `ivy_layered_overview` |
+| `ivy_model_summary` | `summary`, `requirements` | `ivy_model_summary` (old), `ivy_action_requirements` |
+| `ivy_quality` | `suggestions`, `gate` | `ivy_smart_suggestions`, `ivy_quality_gate` |
+| `ivy_patterns` | `analyze`, `validate`, `compare`, `check` | `ivy_pattern_analysis`, `ivy_scaffold_check` |
 
-**Result**: 25 tools -> 12 tools (7 merged pairs, 1 cut, 10 kept, 1 new merged tool)
+Retained as independent: `ivy_verify`, `ivy_compile`, `ivy_model_info`, `ivy_diagnostics`, `ivy_lint`, `ivy_include_graph`, `ivy_capabilities`, `ivy_extract_requirements`, `ivy_pattern_scaffold`
 
-### 2.2 Agent Proliferation (9 -> 4)
+**Result**: Clean mode-based dispatch. Reduced tool-selection confusion for AI agents. Lazy initialization of expensive models.
 
-**Problem**: 9 specialized agents fragment the workflow. An LLM choosing between 9 agents faces the same combinatorial confusion as choosing between 25 tools.
+### E. RFC Traceability — Unique and Unmatched
+See §1.3. No other formal verification tool integrates this. The system is architecturally complete: extraction → manifest → annotation → coverage → gap analysis → regression detection.
 
-| Current Agents | Merged Into | Rationale |
-|----------------|-------------|-----------|
-| `spec-author`, `spec-reviewer`, `pattern-advisor` | **`specification-agent`** | All three operate on specification creation/editing. One agent with mode switching. |
-| `verification-runner`, `diagnostics-analyst` | **`verification-agent`** | Both drive verification tools and interpret results. |
-| `coverage-tracker`, `traceability-auditor` | **`compliance-agent`** | Both analyze requirement coverage and traceability. |
-| `scaffold-generator`, `quality-assessor` | **`quality-agent`** | Both evaluate and improve model quality/completeness. |
-| `workflow-orchestrator` | **Cut** | Meta-agent that dispatches to other agents; with 4 well-scoped agents, orchestration is simpler and can be handled by the primary Claude conversation. |
+### F. Pattern Library + Scaffolding — Unique Differentiator
+- 14-layer canonical decomposition: types → frames → packets → connection → crypto → shim → behavior → monitors → properties → test_specs → application → recovery → extensions → documentation
+- 6 pattern types: serdes, variants, monitors, shims, modules, entities
+- Connected chain: `pattern_library.py` → `features/patterns.py` → MCP `ivy_patterns` tool → `ivy_pattern_scaffold` tool
+- Completeness checking: `ivy_patterns(mode="check")` scores against 14-layer template
+- **Files**: `analysis/pattern_library.py`, `analysis/impl_block_parser.py`, `features/patterns.py`, `tools/patterns.py`
 
-**Result**: 9 agents -> 4 agents
+### G. Plugin Enforcement Architecture — Good Developer Experience
+- **PreToolUse hook** (`block-direct-ivy.sh`): Warns about direct `ivy_check`/`ivyc`/`ivy_show` CLI calls, maps to MCP equivalents
+- **PostToolUse hook** (`post-write-ivy-lint.sh`): Auto-lints `.ivy` files on Write/Edit (checks `#lang`, brace balance, non-empty)
+- **SessionStart hook** (`detect-ivy-workspace.sh`): Auto-detects workspace type (PANTHER project vs standalone), sets `IVY_WORKSPACE_ROOT`
+- All hooks non-blocking (exit 0, advisory only), correct behavior
 
-### 2.3 Skill Proliferation (16 -> 6)
-
-**Problem**: 16 skills create a large surface area where many skills overlap or are thin wrappers around a single MCP tool call.
-
-| Current Skills | Merged Into | Rationale |
-|----------------|-------------|-----------|
-| `create-spec`, `create-from-rfc`, `scaffold-protocol` | **`/spec-create`** | All produce new specification files. One skill with `--from-rfc`, `--from-pattern`, `--blank` flags. |
-| `run-verification`, `run-diagnostics`, `run-lint` | **`/verify`** | All invoke verification/analysis tools. One skill with `--mode verify|diagnostics|lint`. |
-| `check-coverage`, `check-traceability`, `check-quality` | **`/assess`** | All evaluate model quality from different angles. One skill combining all checks with summary. |
-| `generate-manifest`, `extract-requirements` | **`/rfc-tools`** | Both process RFC text. One skill with subcommands. |
-| `show-model`, `show-graph`, `show-overview` | **`/inspect`** | All display model information. One skill with `--view model|graph|overview|symbols`. |
-| `pattern-detect`, `pattern-scaffold` | **`/patterns`** | Both work with the pattern catalog. One skill with `--detect` and `--scaffold` modes. |
-| Remaining standalone skills | **Keep individually if distinct** | Skills that map to unique workflows (e.g., `fix-diagnostics`, `explain-error`) remain if they provide genuine multi-step orchestration. |
-
-**Result**: 16 skills -> 6 skills
-
-### 2.4 SubagentStop Quality Gates: Cut
-
-**Current behavior**: A `SubagentStop` hook kills sub-agents if quality thresholds are not met.
-
-**Cut rationale**:
-- Produces confusing UX when agents are terminated mid-task
-- Quality enforcement is better handled at the _result_ level (reject output, don't kill the worker)
-- The consolidated `ivy_quality` tool provides the same gate checks on demand
-- Agents should be allowed to complete and report, with quality issues surfaced in the response
-
-### 2.5 PreToolUse Hook: Soften to Warning
-
-**Current behavior**: A `PreToolUse` hook blocks tool calls that violate preconditions (e.g., calling `ivy_verify` without an active test file).
-
-**Soften rationale**:
-- Blocking tool calls disrupts agent workflow and produces cryptic "tool call rejected" errors
-- The underlying tools already have error handling (audit scored 3-4/5 on error handling)
-- Better approach: emit a warning in the tool response (e.g., `"warning": "No active test file set; results may be workspace-global"`) and let the agent decide
-- Keep the hook for genuinely dangerous operations (path traversal is already handled by `_validate_path`)
-
-### 2.6 Borderline (Keep but Simplify)
-
-| Component | Current State | Simplification |
-|-----------|---------------|----------------|
-| **14-layer template architecture** | Scaffold_check evaluates 14 layers (types, packet, frame, connection, crypto, shim, behavior, monitors, properties, test_specs, application, recovery, extensions, documentation). | Keep the layer model -- it's architecturally sound and unique. But simplify scoring: instead of binary present/absent per layer, add weighted scoring based on layer importance for the target protocol. Not every protocol needs all 14 layers. |
-| **Docker executor in MCP** | `ivy_compile` and `ivy_verify` spawn Docker containers when tools aren't on PATH. Silent fallback. | Keep Docker execution (it's a competitive advantage). Add `"execution_mode": "docker"|"subprocess"` to response (M2 from audit backlog). Log fallback at INFO. |
-| **Slash command routing** | 16 slash commands route to skills via Claude Code's skill system. | Reduce to 6 slash commands (matching consolidated skills). Ensure each maps to a genuine multi-step workflow, not a single tool call. |
-
-### 2.7 Well-Designed (Keep As-Is)
-
-These components scored well in the audit and represent genuine engineering value:
-
-| Component | Why Keep | Audit Evidence |
-|-----------|----------|----------------|
-| **RFC traceability system** | Unique in formal verification space. Bracket-tag annotations + manifest + coverage matrix = novel contribution. | `ivy_extract_requirements` scored 4.6/5. Architecture is sound; only tag format matching needs fixing (C4). |
-| **Semantic graph** | Powers symbol resolution, impact analysis, cross-references. Lightweight regex-based but effective for Ivy's syntax. | Correctly resolves types, actions, relations, functions. Sparse edges are a known limitation, not a design flaw. |
-| **3-tier graduated analysis** | Structural (fast, no state) -> Semantic (model-aware) -> Pattern (architecture-aware). Each layer adds cost and depth. | `ivy_diagnostics` scored 3.6/5, best in G3. 182 diagnostics for quic_frame.ivy across 5 layers shows depth. |
-| **Include resolver** | Handles Ivy's include-path-based module system with ambiguity detection and proximity ranking. | Powers go-to-definition (cross-include works), findReferences (376 results for `cid`), and the include graph. |
-| **Lazy initialization** | Semantic model, include graph, and file index built on first access, not on server startup. | Prevents 680-file indexing on cold start. Tools that don't need the semantic model don't pay for it. |
-| **PostToolUse lint hook** | Runs `ivy_lint` automatically after file modifications to catch structural errors immediately. | Fast feedback loop. Lint is cheap (sub-millisecond for structural checks). Keeps the "break early" philosophy. |
-| **SessionStart detection** | Detects workspace layout, available protocols, and tool capabilities at session start. | Provides context to agents/skills without requiring explicit initialization calls. |
-| **Path traversal protection** | `_validate_path()` uses `os.path.realpath` + prefix check. Rejects `../../../etc/passwd`. | Confirmed working in audit (security scenario 7). Correct approach. |
+### H. Agent Specialization — Well-Scoped
+| Agent | Focus | Tool Access | Assessment |
+|---|---|---|---|
+| `spec-analyst` | Navigation, exploration, verification, error diagnosis | Read, Write, Edit, Bash, Grep, Glob | Correct: broadest toolset for broadest scope |
+| `model-reviewer` | Quality review, invariant checking, best practices | Read, Grep, Glob (read-only) | Correct: read-only enforces review-not-modify |
+| `methodology-guide` | NCT/NACT/NSCT workflow guidance | Read, Write, Edit, Bash, Grep, Glob | Correct: needs write access for guided creation |
+| `traceability-agent` | RFC extraction, manifest generation, coverage audits | Read, Write, Edit, Bash, Grep, Glob, WebFetch | Correct: WebFetch for RFC access |
 
 ---
 
-## 3. Missing Capabilities (Post-Consolidation)
+## 3. Over-Engineered / Should Be Optimized
 
-After consolidation reduces noise, these are the genuine capability gaps that, if filled, would move Ivy tooling from "useful" to "competitive with state-of-the-art."
+### A. Dual Graph Storage — MEDIUM Priority
 
-### Priority 1: Incremental Verification Feedback
+**Problem**: Two parallel graph structures maintain overlapping data with separate locks.
 
-**Gap**: Every `ivy_verify` call re-checks the entire model. For QUIC (202 files), this means multi-minute verification cycles even for single-line changes. Lean 4 and Dafny verify incrementally per-definition.
+| Graph | File | Purpose | Size |
+|---|---|---|---|
+| `SemanticModel` | `semantic/model.py` (252 lines) | General-purpose graph: symbols, types, RFC annotations | 4 index structures, 5 query methods |
+| `RequirementGraph` | `analysis/requirement_graph.py` (400+ lines) | Specialized: actions → requirements → state vars | Domain-specific edges (CONSTRAINS, WRITES, COVERS, READS, DEPENDS_ON) |
 
-**Proposed approach**:
-- Track file modification timestamps and include-graph edges
-- On `ivy_verify`, compute the "dirty set" (modified files + their transitive dependents)
-- If dirty set is small, pass only affected isolates to `ivy_check`
-- Cache verification results keyed by file content hash + dependency hashes
-- Expose `"incremental": true|false` and `"cached_isolates": N` in response
+**Evidence of duplication**:
+- Both store requirements as nodes with edges
+- `coverage_hints.py` queries RequirementGraph directly
+- `features/*.py` query SemanticModel
+- `semantic/nodes.py:14` imports from `requirement_graph` (tight coupling)
+- `mcp_server.py` builds both sequentially (lines ~650-710)
 
-**Complexity**: High. Requires understanding Ivy's isolate boundaries and which checked properties depend on which definitions. May require cooperation with `ivy_check` itself (currently treats the model as monolithic).
+**Recommendation**: Migrate RequirementGraph's specialized queries into SemanticModel as domain-specific methods. Reconcile edge type enums (`EdgeType` in requirement_graph vs `SemanticEdgeType` in semantic model). Single graph, single lock, single source of truth.
 
-**Impact**: Transforms the development loop from "edit -> wait minutes -> see result" to "edit -> wait seconds -> see result." This is the single biggest productivity gap versus Lean 4 and Dafny.
+**Risk**: RequirementGraph's edge types are more granular. Need careful mapping.
 
-### Priority 2: Counterexample Rendering
+### B. Analysis Pipeline State Complexity — MEDIUM Priority
 
-**Gap**: When `ivy_verify` fails, the output is raw `ivy_check` text. Dafny shows variable values at each step; TLA+ shows a state graph; Tamarin shows MSC attack traces.
+**File**: `semantic/analysis_pipeline.py` (874 lines, 37+ public methods)
 
-**Proposed approach**:
-- Parse `ivy_check` failure output to extract: failing property, counterexample trace (variable assignments per step), and the violated invariant
-- Structure as JSON: `{"property": "...", "trace": [{"step": 1, "state": {"var": "val", ...}}, ...], "violated_invariant": "..."}`
-- For protocol-specific rendering: map state variables to protocol concepts (e.g., `stream_seen` -> "Stream X is in state Y")
-- Optionally generate Mermaid sequence diagrams for protocol traces
+**Problem**: Tier 2 (AST) and Tier 3 (compiler) have overlapping parse+analyze steps with separate thread coordination:
+- `file_generation` OrderedDict tracks per-file generation counts
+- `_bulk_running` and `_bulk_compile_running` boolean flags
+- Separate locks for different tiers
 
-**Complexity**: Medium. `ivy_check` output format is semi-structured. Parsing requires pattern matching but not compiler-level analysis.
+**Recommendation**: The 3-tier *concept* is excellent (§2A). The *implementation* could consolidate Tier 2/3 coordination into a single "deep analysis" state machine. Estimated ~30% reduction in coordination complexity without changing the user-facing behavior.
 
-**Impact**: Makes verification failures actionable. Currently, an LLM receiving raw counterexample text must guess at the structure. Structured traces let the agent explain failures and suggest fixes.
+### C. SemanticModel Over-Indexed — LOW Priority
 
-### Priority 3: Coverage Regression Detection
+**File**: `semantic/model.py` (252 lines)
 
-**Gap**: No mechanism detects when code changes reduce requirement coverage. The `ivy_traceability` tools report current coverage but don't compare against a baseline.
+4 index structures maintained eagerly on every `add_node`/`add_edge`:
+- `_edges`: Set[Tuple] for deduplication
+- `_outgoing`: Dict[str, List[Tuple]] for forward queries
+- `_incoming`: Dict[str, List[Tuple]] for backward queries
+- `_nodes_by_file`: Dict[str, Set[str]] for file-scoped queries
+- `_nodes_by_type`: Dict[type, Dict[str, Any]] for type-scoped queries
 
-**Proposed approach**:
-- Store coverage snapshots as JSON baselines (per-protocol, per-commit)
-- On `ivy_coverage --mode=regression`, diff current coverage against baseline
-- Report: newly uncovered requirements, newly covered requirements, coverage delta percentage
-- Integrate with PANTHER CI/CD: fail the pipeline if coverage drops below threshold
+Only 5 public query methods actually used. Typical graph: <10K nodes.
 
-**Complexity**: Low-medium. Coverage computation already exists. The addition is baseline storage and diffing.
+**Recommendation**: Lazy-build `_nodes_by_file` and `_nodes_by_type` indexes on first query. Keep `_outgoing`/`_incoming` eagerly built (justified for cross-reference queries).
 
-**Impact**: Prevents silent requirement de-coverage during model evolution. Essential for any project using Ivy for compliance testing.
+### D. Compilation IR Sub-Type Granularity — LOW Priority
 
-### Priority 4: Guided Spec Creation Wizard
+**File**: `compilation/ir.py`
 
-**Gap**: Creating a new protocol specification requires knowing the 14-layer architecture, naming conventions, include patterns, and requirement annotation syntax. Currently, `ivy_pattern_scaffold` generates individual files but doesn't orchestrate the full creation workflow.
+Defines `CompiledModuleIR`, `RequirementIR`, `MixinIR`, `InvariantIR`, etc. Only `CompiledModuleIR` and its top-level fields are consumed by `graph_enrichment.py`. Sub-IR types have unused granularity.
 
-**Proposed approach**:
-- Interactive multi-step workflow (via Claude Code skill):
-  1. Input: protocol name, RFC document(s), target layers
-  2. Extract requirements from RFC (`ivy_extract_requirements`)
-  3. Generate manifest (`ivy_generate_manifest`)
-  4. Scaffold each requested layer (`ivy_pattern_scaffold`)
-  5. Run quality gate (`ivy_quality` in `gate` mode)
-  6. Report: created files, coverage baseline, next steps
-- Store the result as a new protocol directory with proper structure
-
-**Complexity**: Medium. All building blocks exist. The addition is orchestration logic and state management across steps.
-
-**Impact**: Lowers the barrier to entry for new protocol models. Currently requires deep Ivy expertise; the wizard would make it accessible to protocol engineers who know their RFC but not Ivy syntax.
+**Recommendation**: Trim to the fields actually consumed. Low urgency — it works, just has unused data classes.
 
 ---
 
-## 4. Implementation Roadmap
+## 4. Gaps vs SOTA — Improvement Opportunities
 
-### Phase 1: Consolidation (2-3 weeks)
+### A. Counterexample Visualization — HIGH Value (Foundation Exists)
 
-| Step | Action | Files Affected | Risk |
-|------|--------|----------------|------|
-| 1 | **Merge `ivy_lint` into `ivy_diagnostics`**: Add `layers` parameter. When `layers=["structural"]`, use fast path. Deprecate `ivy_lint` tool registration. | `tools/verification.py`, `tools/analysis.py`, `mcp_server.py` | Low. Lint logic already exists in diagnostics structural layer. |
-| 2 | **Merge semantic query tools**: Combine `ivy_impact_analysis` + `ivy_cross_references` + `ivy_query_symbol` into `ivy_symbol_info`. Accept both symbol names and node_ids. Return unified response with type info, edges, and references. | `tools/traceability.py`, `tools/analysis.py`, `mcp_server.py` | Medium. Three different response schemas must be unified. |
-| 3 | **Merge traceability tools**: Combine `ivy_traceability_matrix` + `ivy_requirement_coverage` into `ivy_traceability` with `detail` parameter. | `tools/traceability.py` | Low. Both already query the same data. |
-| 4 | **Merge visualization tools**: Combine overlapping pairs (`action_requirements`+`coverage_gaps`, `model_summary`+`layered_overview`, `dependency_graph`+`state_machine_view`). Cut `ivy_smart_suggestions`. Fix `test_file` filtering for all remaining tools. | `tools/visualization.py`, `features/visualization.py` | High. 7 tools with shared broken code. Fix the filtering first, then merge. |
-| 5 | **Merge quality tools**: Combine `ivy_scaffold_check` + `ivy_quality_gate` into `ivy_quality`. | `tools/quality.py`, `features/quality_gates.py` | Low. Distinct logic, just needs unified entry point. |
+**Current state**: `counterexample_parser.py` IS wired in at `tools/verification.py:155-160`. When `ivy_verify` fails, it parses raw output and adds a structured `counterexample` field to the JSON result.
 
-### Phase 2: Gap Filling (3-4 weeks)
+**Gap**: The parsed data is returned but not richly formatted. Compare:
+- **TLA+ Toolbox**: State graph + heatmap execution profiling (new 2025)
+- **SPIN**: MSC diagrams + automata view (iSpin GUI)
+- **Tamarin**: Interactive attack graph in web browser
 
-| Step | Action | Dependencies | Risk |
-|------|--------|--------------|------|
-| 6 | **Fix critical bugs (C1-C8)**: Workspace root misconfiguration, `test_file` parameter ignored, tag format mismatch, include graph path mismatch, hover broken, workspaceSymbol unfiltered, `file_path` returns empty, `includes_resolve` always fails. | Phase 1 Step 4 fixes C2/C3. Others are independent. | Medium. C1 and C5 require path normalization changes that could break existing users. |
-| 7 | **Implement counterexample rendering (Priority 2)**: Parse `ivy_check` failure output into structured JSON. | Independent of Phase 1. | Medium. Output format parsing is fragile. |
-| 8 | **Implement coverage regression detection (Priority 3)**: Baseline storage, diffing, CI integration. | Phase 1 Step 3 (merged traceability tool). | Low. Incremental addition to existing coverage logic. |
+**Improvement**: Add formatted counterexample display:
+1. Format parsed counterexample as a readable state trace in `ivy_verify` output
+2. Map state variables to protocol concepts (e.g., `stream_seen` → "Stream X is in state Y")
+3. Add LSP diagnostics with "related information" links to counterexample states
+4. Optionally generate Mermaid sequence diagrams for protocol state traces
 
-### Phase 3: Design Document (1 week)
+**Effort**: Small-Medium. Parser exists and works. Need formatting logic.
 
-| Step | Action | Dependencies |
-|------|--------|--------------|
-| 9 | **Write strategic evaluation document** (this document). Produce consolidated architecture diagram, updated tool catalog, and handoff notes for incremental verification (Priority 1) and guided spec wizard (Priority 4) as future work. | Phases 1-2 for validation data. |
+### B. Verification Status Dashboard — MEDIUM Value
 
-### Timeline Summary
+**Current**: `monitoring.py` provides 11 RPC handlers for server status, pipeline progress, indexer stats, etc.
 
-```
-Week 1-2:  Phase 1 Steps 1-3 (low-risk merges)
-Week 2-3:  Phase 1 Steps 4-5 (visualization merge + quality merge)
-Week 3-5:  Phase 2 Step 6 (critical bug fixes, parallelizable with Step 5)
-Week 5-6:  Phase 2 Steps 7-8 (counterexample rendering + coverage regression)
-Week 7:    Phase 3 Step 9 (this document finalized, architecture review)
-```
+**Gap**: No unified "verification dashboard" showing per-isolate pass/fail across all workspace files.
 
----
+**Improvement**: Add workspace-level verification summary tool/view. The per-isolate cache in `tools/verification.py` already tracks this data (`_verify_cache` with per-file entries). Expose as a new MCP tool mode or monitoring RPC.
 
-## 5. Verification Checklist
+### C. Incremental Verification — MEDIUM Value
 
-### After Phase 1 (Consolidation)
+**Current**: Full `ivy_check` on each `ivy_verify` call. Per-isolate caching helps (skip if file unchanged).
 
-- [ ] Tool count reduced from 25 to 12 (verify with `ivy_capabilities`)
-- [ ] All deprecated tool names return a helpful deprecation message pointing to the replacement
-- [ ] `ivy_diagnostics` with `layers=["structural"]` produces identical output to old `ivy_lint`
-- [ ] `ivy_symbol_info` with symbol name returns type info + edges (formerly 3 separate calls)
-- [ ] `ivy_traceability` with `detail=true` returns full matrix; `detail=false` returns coverage summary
-- [ ] `ivy_coverage` with `mode=covered` matches old `ivy_action_requirements`; `mode=gaps` matches old `ivy_coverage_gaps`
-- [ ] `ivy_overview` with `group_by=file` matches old `ivy_model_summary`; `group_by=layer` matches old `ivy_layered_overview`
-- [ ] `ivy_graph` with `view=dependencies` matches old `ivy_action_dependency_graph`; `view=state_machine` matches old `ivy_state_machine_view`
-- [ ] `ivy_quality` with `mode=check` matches old `ivy_scaffold_check`; `mode=gate` matches old `ivy_quality_gate`
-- [ ] `ivy_smart_suggestions` is removed; no tool registered under that name
-- [ ] All 12 remaining tools have working `protocol` parameter for scoping
-- [ ] All visualization tools correctly filter by `test_file` when provided
-- [ ] Output size for QUIC full model < 100KB for any single tool call (relative paths, proper scoping)
-- [ ] Existing test suite passes (adjust for new tool names)
-- [ ] Claude Code plugin configuration updated: 6 skills, 4 agents
+**Gap**: Modifying one isolate re-verifies the whole file. TLA+ Toolbox re-checks the full model too, so this is not a gap vs SOTA in this category — only vs general FV tools (Lean 4, Dafny).
 
-### After Phase 2 (Gap Filling)
+**Improvement**: Track file content hash per isolate. Only re-verify isolates whose definitions (or transitive dependencies) changed. The caching infrastructure already exists.
 
-- [ ] C1 fixed: `ivy_verify`/`ivy_compile`/`ivy_lint`/`ivy_model_info` resolve paths with `protocol-testing/` prefix fallback; error messages include resolved absolute path
-- [ ] C4 fixed: `ivy_traceability` correctly maps bare numeric bracket tags `[N]` to manifest requirement IDs `rfc9000:N`; QUIC coverage > 0%
-- [ ] C5 fixed: `ivy_include_graph` path keys normalized; individual file queries return non-empty `includes` list
-- [ ] C6 fixed: LSP hover returns correct info for at least 4/6 original test scenarios
-- [ ] C7 fixed: LSP workspaceSymbol filters results by query text
-- [ ] H8 fixed: `ivy_quality` gate `includes_resolve` exempts known Ivy stdlib modules; QUIC passes `minimal` gate
-- [ ] H10 fixed: Dotted names (`frame.stream.handle`) resolve correctly in `ivy_symbol_info`
-- [ ] Counterexample rendering: `ivy_verify` failure response includes `"counterexample": {"trace": [...], "violated_property": "..."}` when available
-- [ ] Coverage regression: `ivy_traceability --mode=regression --baseline=<path>` correctly reports coverage delta
-- [ ] No regressions in audit scores: re-run audit scenarios for merged tools, all scores >= original tool scores
+### D. Semantic Rename — LOW Value
+
+**Current**: Lexical rename with validation at `features/rename.py`.
+
+**Gap**: ProVerif has semantic rename (F2). For Ivy's `include`-based composition, semantic rename requires full type resolution across files.
+
+**Assessment**: Not worth the complexity investment for the protocol verification use case. Current lexical approach is safe and works for common cases.
 
 ---
 
-## Appendix A: Current Tool Inventory (Pre-Consolidation)
+## 5. Skill/Agent Optimization
 
-For reference, the full list of 25 MCP tools with their audit scores and consolidation target:
+### Well-Designed (Keep As-Is)
+- **`spec-analyst` agent**: Correct tool restrictions, comprehensive LSP+MCP coordination
+- **`tooling-reference` skill**: Essential decision table (15+ tasks → recommended tool)
+- **`ivy-lsp-walkthrough` skill**: Best onboarding material — concrete end-to-end example on QUIC spec
+- **`traceability-agent`**: Well-scoped (RFC extraction → manifest → coverage audit)
+- **`ivy-writing-guide` skill**: Covers Ivy syntax, test spec patterns, RFC bracket-tag annotations
 
-| # | Current Tool | Avg Score | Group | Consolidation Target |
-|---|-------------|:---------:|:-----:|---------------------|
-| 1 | ivy_lint | 2.0 | G1 | Merge into `ivy_diagnostics` |
-| 2 | ivy_verify | 2.0 | G1 | **Keep** |
-| 3 | ivy_compile | 2.0 | G1 | **Keep** |
-| 4 | ivy_model_info | 2.2 | G1 | **Keep** |
-| 5 | ivy_capabilities | 3.2 | G2 | **Keep** |
-| 6 | ivy_include_graph | 2.4 | G2 | **Keep** |
-| 7 | ivy_diagnostics | 3.6 | G3 | **Keep** (absorbs ivy_lint) |
-| 8 | ivy_traceability_matrix | 2.4 | G4 | Merge into `ivy_traceability` |
-| 9 | ivy_requirement_coverage | 2.6 | G4 | Merge into `ivy_traceability` |
-| 10 | ivy_impact_analysis | 2.8 | G4 | Merge into `ivy_symbol_info` |
-| 11 | ivy_extract_requirements | 4.6 | G4 | **Keep** |
-| 12 | ivy_generate_manifest | 3.8 | G4 | **Keep** |
-| 13 | ivy_cross_references | 2.4 | G4 | Merge into `ivy_symbol_info` |
-| 14 | ivy_query_symbol | 3.2 | G4 | Merge into `ivy_symbol_info` |
-| 15 | ivy_action_requirements | 2.6 | G5 | Merge into `ivy_coverage` |
-| 16 | ivy_model_summary | 2.6 | G5 | Merge into `ivy_overview` |
-| 17 | ivy_coverage_gaps | 2.2 | G5 | Merge into `ivy_coverage` |
-| 18 | ivy_action_dependency_graph | 2.6 | G5 | Merge into `ivy_graph` |
-| 19 | ivy_state_machine_view | 3.2 | G5 | Merge into `ivy_graph` |
-| 20 | ivy_layered_overview | 2.8 | G5 | Merge into `ivy_overview` |
-| 21 | ivy_smart_suggestions | 1.6 | G5 | **Cut** |
-| 22 | ivy_pattern_analysis | 4.4 | G6 | **Keep** |
-| 23 | ivy_pattern_scaffold | 4.6 | G6 | **Keep** |
-| 24 | ivy_scaffold_check | 4.4 | G6 | Merge into `ivy_quality` |
-| 25 | ivy_quality_gate | 4.2 | G6 | Merge into `ivy_quality` |
+### Could Be Optimized
+- **`methodology-reference` skill**: Covers all three methodologies (NCT + NACT + NSCT) in one document. Consider splitting into 3 focused sub-skills with a dispatcher that auto-selects based on context keywords (specification/compliance → NCT, attack/security → NACT, simulation/topology → NSCT).
+- **`specification-patterns` skill**: The 14-layer template is front-loaded. The "minimum viable set" (7 layers) exists but presentation buries it. Restructure to lead with quick-start path, expand to full 14 layers as needed.
+- **`workflow-reference` skill**: Overlaps with `methodology-reference` on verification workflow. Could merge verification-specific content or add clearer cross-references.
 
-## Appendix B: Post-Consolidation Tool Catalog (12 Tools)
-
-| # | Tool | Source(s) | Key Parameters | Purpose |
-|---|------|-----------|----------------|---------|
-| 1 | `ivy_verify` | Keep | `file_path`, `isolate`, `timeout` | Run formal verification via `ivy_check` |
-| 2 | `ivy_compile` | Keep | `file_path`, `target`, `timeout` | Compile Ivy model to C++ test binary |
-| 3 | `ivy_model_info` | Keep | `file_path`, `isolate` | Raw `ivy_show` model structure output |
-| 4 | `ivy_capabilities` | Keep | (none) | Report available tools, versions, Docker status |
-| 5 | `ivy_include_graph` | Keep | `file_path`, `protocol`, `max_depth` | Include chain analysis with transitive closure |
-| 6 | `ivy_diagnostics` | Keep + ivy_lint | `file_path`, `protocol`, `layers[]`, `min_severity` | Graduated 5-layer analysis |
-| 7 | `ivy_symbol_info` | impact_analysis + cross_references + query_symbol | `symbol`, `node_id`, `protocol` | Unified symbol lookup: type info + edges + references |
-| 8 | `ivy_traceability` | traceability_matrix + requirement_coverage | `protocol`, `scope_file`, `detail`, `mode` | Requirement coverage matrix and summary |
-| 9 | `ivy_coverage` | action_requirements + coverage_gaps | `protocol`, `scope_file`, `mode` | Action-to-requirement mapping (covered/gaps/both) |
-| 10 | `ivy_overview` | model_summary + layered_overview | `protocol`, `scope_file`, `group_by` | High-level model structure view |
-| 11 | `ivy_graph` | action_dependency_graph + state_machine_view | `protocol`, `scope_file`, `view`, `include_state_vars`, `state_var_filter` | Dependency and state machine graph views |
-| 12 | `ivy_quality` | scaffold_check + quality_gate | `protocol`, `mode`, `level` | Model maturity assessment (check/gate) |
-
-Plus 5 standalone tools kept as-is:
-- `ivy_extract_requirements` (4.6/5)
-- `ivy_generate_manifest` (3.8/5)
-- `ivy_pattern_analysis` (4.4/5)
-- `ivy_pattern_scaffold` (4.6/5)
-
-**Total**: 12 merged/kept + 5 standalone = 17. Further consolidation of the 5 standalone tools is not recommended as they each serve distinct, high-scoring functions.
-
-*Correction*: The 5 standalone tools are counted within the 12 above. The final tool count is **12** unique tools total (7 merged entries + 5 kept as-is = 12, after cutting `ivy_smart_suggestions` and absorbing `ivy_lint`).
+### Missing
+- **Counterexample interpretation skill**: When `ivy_verify` fails, no skill guides understanding of the structured counterexample output
+- **Incremental spec development skill**: No guided workflow for "add one requirement → verify → iterate". Current skills assume whole-file or whole-protocol scope.
+- **Automated review via quality tools**: `model-reviewer` agent uses manual checklist. Could integrate `ivy_quality(mode="gate")` and `ivy_patterns(mode="validate")` for semi-automated assessment with tool-backed evidence.
 
 ---
 
-## Appendix C: Comparison with Prior Art in Combined Verification+Traceability
+## 6. Summary: Priority Action Matrix
 
-No existing tool combines:
-1. Formal protocol specification language
-2. Automated RFC requirement extraction
-3. Inline requirement annotation in specifications
-4. Formal verification of annotated properties
-5. Executable test generation from verified models
-6. Deployment-integrated conformance testing
-7. AI-accessible tooling surface (MCP) for all of the above
+| # | Action | Priority | Effort | Impact | Justification |
+|---|---|---|---|---|---|
+| 1 | Enrich counterexample display formatting in `ivy_verify` results | HIGH | Small | Closes biggest SOTA gap | TLA+/SPIN/Tamarin all have structured counterexample rendering; Ivy has the parser but not the presentation |
+| 2 | Add verification status dashboard (workspace-level summary) | MEDIUM | Medium | Better UX for large specs | Per-isolate cache already has the data; need exposure as tool/view |
+| 3 | Merge RequirementGraph into SemanticModel | MEDIUM | Large | Single source of truth, reduced lock contention | Dual graph is the main remaining over-engineering |
+| 4 | Simplify analysis_pipeline.py Tier 2/3 state management | MEDIUM | Medium | ~30% less coordination code | 874 lines with 37+ methods; Tier 2/3 overlap in parse+analyze |
+| 5 | Split `methodology-reference` skill into 3 focused sub-skills | LOW | Small | Better skill triggering accuracy | One skill covering NCT+NACT+NSCT is too broad for auto-selection |
+| 6 | Add counterexample interpretation skill | LOW | Small | Better failure UX | No guidance for understanding verification failures |
+| 7 | Add incremental spec development skill | LOW | Small | Better iteration workflow | Current skills assume whole-file/protocol scope |
+| 8 | Lazy-build SemanticModel secondary indexes | LOW | Small | Minor perf improvement | 4 eager indexes but only 5 query methods |
+| 9 | Trim unused IR sub-types in compilation/ir.py | LOW | Small | Code clarity | Sub-IR types defined but underutilized |
 
-Each capability exists independently in various tools (Dafny for #1/#4, DOORS for #2/#3, Tamarin for #1/#4, PANTHER for #5/#6, LeanDojo for #7). The Ivy PANTHER ecosystem is, to our knowledge, the only system that integrates all seven in a single toolchain.
+---
 
-The consolidation proposed in this document does not reduce this capability set. It reduces the _surface area_ through which these capabilities are accessed, making the system easier to use for both human engineers and AI agents.
+## 7. Conclusion
+
+The Ivy LSP + MCP tooling is **well-positioned relative to SOTA protocol verification tools**. It is:
+- The **most feature-complete LSP** in the protocol verification space (17 features vs ProVerif's ~8, TLA+'s in-development, SPIN/Tamarin's zero)
+- The **only tool with RFC traceability** integrated into the specification language
+- The **only tool with specification scaffolding** (pattern library + 14-layer template)
+- The **only tool with both verification AND test generation** in one pipeline
+- **Well-wired with no dead code** (all modules connected through verified import chains)
+- **Already consolidated** (25→15 tools with clean mode-based dispatch)
+
+The main optimization opportunities are architectural simplification (dual graph merge, pipeline state reduction) rather than missing functionality. The highest-value gap to close is counterexample visualization, where the foundation (parser) already exists.
+
+---
+
+## Appendix A: Post-Consolidation Tool Catalog (15 Tools)
+
+| # | Tool | Modes/Params | Backend | Purpose |
+|---|---|---|---|---|
+| 1 | `ivy_verify` | `isolate`, `use_cache` | `ivy_check` CLI | Formal property verification with per-isolate caching |
+| 2 | `ivy_compile` | `target`, `isolate` | `ivyc` CLI / Docker | Compile to test executable |
+| 3 | `ivy_model_info` | `isolate` | `ivy_show` CLI | Display model structure |
+| 4 | `ivy_diagnostics` | `layers[]`, `min_severity` | Internal analyzers | 5-layer graduated analysis |
+| 5 | `ivy_lint` | — | Internal structural checks | Fast structural lint (<50ms) |
+| 6 | `ivy_include_graph` | `relative_path` | Regex parsing | Include dependency graph |
+| 7 | `ivy_capabilities` | — | `shutil.which()` | Report available CLI tools |
+| 8 | `ivy_coverage` | `mode`: stats/matrix/gaps/diff | SemanticModel | RFC coverage analysis |
+| 9 | `ivy_query` | `mode`: info/impact/xrefs | SemanticModel | Unified semantic query |
+| 10 | `ivy_extract_requirements` | `output`: structured/manifest | Regex | RFC text → requirements |
+| 11 | `ivy_visualize` | `view`: dependencies/state_machine/layers | RequirementGraph | Model visualization |
+| 12 | `ivy_model_summary` | `detail`: summary/requirements | RequirementGraph | Per-action summary |
+| 13 | `ivy_quality` | `mode`: suggestions/gate | RequirementGraph | Quality analysis |
+| 14 | `ivy_patterns` | `mode`: analyze/validate/compare/check | RequirementGraph | Pattern analysis + scaffold checking |
+| 15 | `ivy_pattern_scaffold` | `pattern`, `protocol`, `wire_format` | Templates | Generate Ivy source from pattern |
+
+## Appendix B: LSP Feature Registration (17 Features)
+
+All registered in `server.py` via `register()` calls:
+
+| Feature | Handler File | LSP Method |
+|---|---|---|
+| Document Symbols | `features/document_symbols.py` | `textDocument/documentSymbol` |
+| Workspace Symbols | `features/workspace_symbols.py` | `workspace/symbol` |
+| Go-to-Definition | `features/definition.py` | `textDocument/definition` |
+| Find References | `features/references.py` | `textDocument/references` |
+| Document Highlight | `features/document_highlight.py` | `textDocument/documentHighlight` |
+| Hover | `features/hover.py` | `textDocument/hover` |
+| Completion | `features/completion.py` | `textDocument/completion` |
+| Signature Help | `features/signature_help.py` | `textDocument/signatureHelp` |
+| Code Action | `features/code_action.py` | `textDocument/codeAction` |
+| Code Lens | `features/code_lens.py` | `textDocument/codeLens` |
+| Diagnostics | `features/diagnostics.py` | `textDocument/diagnostic` |
+| Rename | `features/rename.py` | `textDocument/rename` |
+| Selection Range | `features/selection_range.py` | `textDocument/selectionRange` |
+| Folding Range | `features/folding_range.py` | `textDocument/foldingRange` |
+| Commands | `features/commands.py` | Custom LSP commands |
+| Visualization | `features/visualization.py` | Custom RPC handlers (action reqs, coverage, graphs) |
+| Monitoring | `features/monitoring.py` | Custom RPC handlers (11 endpoints) |
+
+## Appendix C: Unique Capability Combination
+
+No existing tool combines all of these in a single toolchain:
+
+1. Formal protocol specification language (Ivy)
+2. Automated RFC requirement extraction (`ivy_extract_requirements`)
+3. Inline requirement annotation in specifications (bracket-tags)
+4. Formal verification of annotated properties (`ivy_verify`)
+5. Executable test generation from verified models (`ivy_compile`)
+6. Deployment-integrated conformance testing (Docker + PANTHER CI/CD)
+7. AI-accessible tooling surface (15 MCP tools) for all of the above
+8. Full IDE-grade code intelligence (17-feature LSP)
+
+Each capability exists independently in various tools. The Ivy PANTHER ecosystem is, to our knowledge, the only system that integrates all eight in a single toolchain.
