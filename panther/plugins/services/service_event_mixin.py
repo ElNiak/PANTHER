@@ -15,7 +15,7 @@ class ServiceManagerEventMixin:
     Standalone mixin providing helper methods for service managers to emit standard events.
     It supports the event-driven architecture by providing consistent event emission patterns.
 
-    MRO: Base event mixin. Used by: IUTManagerEventMixin, TesterManagerEventMixin
+    MRO: Base event mixin. Used by: TesterManagerEventMixin and IUT service managers directly
     """
 
     def _get_service_identifier(self):
