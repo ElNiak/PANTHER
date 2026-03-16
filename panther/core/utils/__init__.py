@@ -8,6 +8,7 @@ Utility Groups:
         - `LoggerMixin` -- adds ``self.logger`` to any class
         - `LoggerFactory` -- standardized logger creation
         - `get_feature_logger()` -- feature-scoped logger factory function
+        - `ConsoleFormatter` -- context-aware console formatter with banners
 
     Configuration:
         - `ConfigSummarizer` -- compact config display
@@ -34,6 +35,7 @@ from .config_summarizer import (
     log_omega_config_full,
     log_omega_config_summary,
 )
+from .console_formatter import ConsoleFormatter
 from .feature_logger_mixin import get_feature_logger
 from .feature_registry import (
     detect_module_feature,
@@ -50,6 +52,7 @@ from .logging_mixin import LoggerMixin
 __all__ = [
     "LoggerMixin",
     "LoggerFactory",
+    "ConsoleFormatter",
     "get_feature_logger",
     "ConfigSummarizer",
     "log_omega_config_summary",
