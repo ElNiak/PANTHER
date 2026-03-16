@@ -68,6 +68,7 @@ from panther.core.observer.workflow import (  # pylint: disable=import-outside-t
 from panther.core.outputs.output_index import OutputIndexBuilder
 from panther.core.test_cases.test_case_impl import TestCase
 from panther.core.test_cases.test_interface_impl import ITestCase
+from panther.core.utils.console_formatter import ConsoleFormatter
 from panther.core.utils.log_context import log_context
 from panther.core.utils.logger_factory import LoggerFactory
 from panther.plugins.plugin_manager import PluginManager
@@ -385,6 +386,7 @@ class ExperimentManager(
             TestCaseInitializationError: When test cases cannot be initialized
         """
         try:
+            ConsoleFormatter.banner("Phase 1: Initialization")
             with log_context(
                 experiment_id=self.experiment_name, phase="initialization"
             ):
@@ -406,10 +408,14 @@ class ExperimentManager(
                     }
                 )
 
+                click.echo("  \u2713 Initialization complete")
+
+                ConsoleFormatter.banner("Phase 2: Plugin Loading")
                 with log_context(phase="plugin_loading"):
                     self.experiment_emitter.emit_plugin_loading_started()
                     self._validate_plugins()
                     self.experiment_emitter.emit_plugin_loading_completed()
+                click.echo("  \u2713 Plugin loading complete")
 
                 with log_context(phase="test_case_initialization"):
                     self._initialize_test_cases()
@@ -613,6 +619,9 @@ class ExperimentManager(
             TestExecutionError: When execution infrastructure fails
         """
         try:
+            ConsoleFormatter.banner(
+                f"Phase 3: Test Execution ({len(self.test_cases)} tests)"
+            )
             with log_context(
                 experiment_id=self.experiment_name, phase="test_execution"
             ):
@@ -899,6 +908,9 @@ class ExperimentManager(
                     successful_tests,
                     failed_tests,
                 )
+                click.echo(
+                    f"  \u2713 Test execution complete ({successful_tests} passed, {failed_tests} failed)"
+                )
 
                 return successful_tests > 0
 
@@ -959,6 +971,7 @@ class ExperimentManager(
         step does not prevent subsequent steps (e.g., metrics export) from running.
         """
         # Push cleanup phase context (no with-block to avoid re-indenting entire method)
+        ConsoleFormatter.banner("Phase 4: Cleanup")
         _cleanup_ctx = log_context(experiment_id=self.experiment_name, phase="cleanup")
         _cleanup_ctx.__enter__()
         self.logger.info("Starting experiment cleanup")
@@ -1090,6 +1103,8 @@ class ExperimentManager(
             self._cleanup_docker_resources()
         except Exception as e:  # pylint: disable=broad-exception-caught
             self.logger.warning("Docker resource cleanup failed: %s", e)
+
+        click.echo("  \u2713 Cleanup complete")
 
         # Pop cleanup phase context
         _cleanup_ctx.__exit__(None, None, None)

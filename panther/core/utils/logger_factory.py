@@ -60,6 +60,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from .console_formatter import ConsoleFormatter
 from .feature_registry import feature_registry
 from .structured_formatter import StructuredJsonFormatter
 
@@ -288,36 +289,29 @@ class LoggerFactory:
 
         cls._root_logger_configured = True
 
+    # Color mapping shared between console formatter creation paths
+    _LOG_COLORS = {
+        "TRACE": "blue",
+        "DEBUG": "cyan",
+        "INFO": "green",
+        "WARNING": "yellow",
+        "ERROR": "red",
+        "CRITICAL": "red,bg_white",
+    }
+
     @classmethod
     def _create_formatter(cls) -> logging.Formatter:
-        """Create a formatter based on configuration."""
-        format_string = cls._config.get(
-            "format", "%(asctime)s [%(levelname)s] - %(module)s - %(message)s"
+        """Create a console formatter with optional color and context support.
+
+        Returns a ``ConsoleFormatter`` that shows short timestamps, phase/service
+        context from ``LogContext``, and abbreviated module names.  When
+        ``enable_colors`` is true, the formatter delegates to
+        ``colorlog.ColoredFormatter`` internally.
+        """
+        log_colors = (
+            cls._LOG_COLORS if cls._config.get("enable_colors", False) else None
         )
-
-        if cls._config.get("enable_colors", False):
-            with contextlib.suppress(ImportError):
-                import colorlog
-
-                # Use colorlog exactly like the original ExperimentManager did
-                color_format = format_string.replace(
-                    "%(levelname)s", "%(log_color)s%(levelname)s"
-                )
-                return colorlog.ColoredFormatter(
-                    color_format,
-                    datefmt="%Y-%m-%d %H:%M:%S",
-                    log_colors={
-                        "TRACE": "blue",
-                        "DEBUG": "cyan",
-                        "INFO": "green",
-                        "WARNING": "yellow",
-                        "ERROR": "red",
-                        "CRITICAL": "red,bg_white",
-                    },
-                    reset=True,
-                    # style='%'
-                )
-        return logging.Formatter(format_string, datefmt="%Y-%m-%d %H:%M:%S")
+        return ConsoleFormatter(log_colors=log_colors)
 
     @classmethod
     def _patch_logging_getlogger(cls) -> None:
