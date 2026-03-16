@@ -65,6 +65,7 @@ from panther.core.observer.management.event_manager import EventManager
 from panther.core.observer.workflow import (  # pylint: disable=import-outside-toplevel
     WorkflowStateTracker,
 )
+from panther.core.outputs.output_index import OutputIndexBuilder
 from panther.core.test_cases.test_case_impl import TestCase
 from panther.core.test_cases.test_interface_impl import ITestCase
 from panther.core.utils.log_context import log_context
@@ -251,6 +252,12 @@ class ExperimentManager(
 
         self.test_cases: List[ITestCase] = []
 
+        # Initialize output index builder for tracking experiment artifacts
+        self.output_index_builder = OutputIndexBuilder(
+            experiment_dir=self.experiment_dir,
+            experiment_id=self.experiment_name,
+        )
+
     def configure_logging_features(self):
         """Configure feature-level logging from global config."""
         if (
@@ -383,6 +390,14 @@ class ExperimentManager(
             ):
                 self.experiment_config = experiment_config
                 self._save_configuration()
+
+                # Register the saved config in the output index
+                self.output_index_builder.register(
+                    "experiment_config.yaml",
+                    file_type="config",
+                    file_format="yaml",
+                    description="Experiment configuration snapshot",
+                )
 
                 self.experiment_emitter.emit_initialized(
                     config={
@@ -1028,6 +1043,47 @@ class ExperimentManager(
                 )
         except Exception as e:  # pylint: disable=broad-exception-caught
             self.logger.warning("Empty directory cleanup failed: %s", e, exc_info=True)
+
+        # Register generated reports and metrics in the output index, then flush
+        try:
+            report_files = {
+                "EXPERIMENT_REPORT.md": ("report", "markdown", "Experiment report"),
+                "experiment_summary.json": ("report", "json", "Experiment summary"),
+                "experiment_summary.txt": (
+                    "report",
+                    "text",
+                    "Experiment summary (text)",
+                ),
+            }
+            for filename, (ftype, ffmt, desc) in report_files.items():
+                if (self.experiment_dir / filename).exists():
+                    self.output_index_builder.register(
+                        filename,
+                        file_type=ftype,
+                        file_format=ffmt,
+                        description=desc,
+                    )
+
+            # Register metrics files if they were exported
+            metrics_dir = self.experiment_dir / "metrics"
+            if metrics_dir.exists():
+                for mf in metrics_dir.iterdir():
+                    if mf.is_file():
+                        self.output_index_builder.register(str(mf))
+
+            # Register structured log if present
+            structured_log = self.experiment_dir / "structured.jsonl"
+            if structured_log.exists():
+                self.output_index_builder.register(
+                    "structured.jsonl",
+                    file_type="log",
+                    file_format="jsonl",
+                    description="Structured event log",
+                )
+
+            self.output_index_builder.flush()
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            self.logger.warning("Failed to write output index: %s", e)
 
         # Clean up stale Docker resources (dangling images, exited containers, orphan volumes)
         try:
