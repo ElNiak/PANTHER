@@ -1,5 +1,4 @@
-"""
-Output Management System
+"""Output management system.
 
 This module provides a comprehensive framework for collecting, aggregating, and managing outputs
 from PANTHER execution environments during protocol testing.
@@ -54,5 +53,6 @@ while maintaining consistency and discoverability for analysis workflows.
 
 from .output_aggregator import OutputAggregator
 from .output_cleanup import remove_empty_directories
+from .output_index import OutputIndexBuilder
 
-__all__ = ["OutputAggregator", "remove_empty_directories"]
+__all__ = ["OutputAggregator", "OutputIndexBuilder", "remove_empty_directories"]
