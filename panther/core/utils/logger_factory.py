@@ -614,6 +614,42 @@ class LoggerFactory:
         logging.debug(f"Updated {updated_count} loggers, skipped {skipped_count}")
 
     @classmethod
+    def set_console_level(cls, level: int) -> None:
+        """Set the console log level on all StreamHandlers across all configured loggers.
+
+        Iterates the root logger and every logger in the manager dict,
+        setting only ``StreamHandler`` (non-``FileHandler``) handlers to
+        *level*.  ``FileHandler`` instances are left at DEBUG so that
+        structured JSONL output continues to capture everything.
+
+        This is the recommended way to honour ``--verbose`` / ``--debug``
+        CLI flags *after* ``LoggerFactory.initialize()`` has already run.
+
+        Args:
+            level: The numeric logging level to apply to console handlers
+                (e.g. ``logging.DEBUG``, ``logging.INFO``, or the custom
+                ``TRACE`` constant which equals 5).
+        """
+        if not cls._initialized:
+            return
+
+        def _apply_to_handlers(lgr: logging.Logger) -> None:
+            for handler in lgr.handlers:
+                if isinstance(handler, logging.StreamHandler) and not isinstance(
+                    handler, logging.FileHandler
+                ):
+                    handler.setLevel(level)
+
+        # Root logger
+        _apply_to_handlers(logging.getLogger())
+
+        # All named loggers that we have configured
+        for logger_name in logging.Logger.manager.loggerDict:
+            logger_obj = logging.Logger.manager.loggerDict[logger_name]
+            if isinstance(logger_obj, logging.Logger):
+                _apply_to_handlers(logger_obj)
+
+    @classmethod
     def add_file_handler(cls, filepath: Path, level: Optional[str] = None) -> None:
         """Add a file handler dynamically."""
         if not cls._initialized:
