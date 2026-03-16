@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+import click
 from docker.errors import BuildError
 
 from panther.core.exceptions.fast_fail import (
@@ -223,6 +224,7 @@ class ImageOperationsMixin:
                         image_tag,
                         impl_name,
                     )
+                    click.echo(f"  \u2713 Image cached: {image_tag} (skipped)")
                     return cached_result
 
             log_f = None
@@ -294,6 +296,7 @@ class ImageOperationsMixin:
                 image_tag,
                 effective_platform,
             )
+            click.echo(f"  Building image: {image_tag}")
 
             # Import here to avoid circular dependency at module level
             from panther.core.docker_builder.docker_builder import DockerBuilder
@@ -340,6 +343,7 @@ class ImageOperationsMixin:
             )
             DockerBuilder.mark_session_built(image_tag)
 
+            click.echo(f"  \u2713 Image built: {image_tag} ({build_time:.1f}s)")
             self.logger.info(
                 "Successfully built Docker image '%s' with context '%s' and build args '%s'",
                 image_tag,

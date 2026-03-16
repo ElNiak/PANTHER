@@ -11,6 +11,8 @@ import time
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+import click
+
 from panther.core.exceptions.fast_fail import (
     DockerBuildException,
     ErrorCategory,
@@ -352,6 +354,7 @@ class BuildxOperationsMixin:
                 image_tag,
                 self.get_effective_build_platform(),
             )
+            click.echo(f"  Building image: {image_tag} (buildx)")
             # Prepare build arguments
             dependencies = config.get("dependencies", {})
             dependencies_json = json.dumps(dependencies) if dependencies else "[]"
@@ -628,6 +631,7 @@ class BuildxOperationsMixin:
             )
             DockerBuilder.mark_session_built(image_tag)
 
+            click.echo(f"  \u2713 Image built: {image_tag} ({build_time:.1f}s)")
             self.logger.info(
                 "Successfully built Docker image '%s' with buildx for platform '%s'",
                 image_tag,

@@ -105,6 +105,7 @@ class LoggerFactory:
     _handler_cache: Dict[str, logging.Handler] = {}
     _feature_levels: Dict[str, Any] = {}
     _structured_log_file: Optional[str] = None
+    _verbose: bool = False
 
     # Feature to logger name mapping for intelligent routing
     FEATURE_MAPPINGS = {
@@ -632,6 +633,9 @@ class LoggerFactory:
         """
         if not cls._initialized:
             return
+
+        # Track verbose mode for components that adapt output (e.g. Docker build)
+        cls._verbose = level <= logging.DEBUG
 
         def _apply_to_handlers(lgr: logging.Logger) -> None:
             for handler in lgr.handlers:
