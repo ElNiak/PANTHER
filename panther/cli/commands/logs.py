@@ -47,9 +47,18 @@ def _build_filter(
     phases = {phase} if phase else None
     sources = {source} if source else None
 
-    after_dt = datetime.fromisoformat(after) if after else None
-    before_dt = datetime.fromisoformat(before) if before else None
-    msg_pattern = re.compile(pattern) if pattern else None
+    try:
+        after_dt = datetime.fromisoformat(after) if after else None
+    except ValueError as exc:
+        raise click.BadParameter(f"Invalid --after timestamp: {exc}") from exc
+    try:
+        before_dt = datetime.fromisoformat(before) if before else None
+    except ValueError as exc:
+        raise click.BadParameter(f"Invalid --before timestamp: {exc}") from exc
+    try:
+        msg_pattern = re.compile(pattern) if pattern else None
+    except re.error as exc:
+        raise click.BadParameter(f"Invalid --pattern regex: {exc}") from exc
 
     return LogFilter(
         levels=levels,
@@ -249,3 +258,80 @@ def errors(_ctx, directory, service, test, limit, output_json):
     if not output_json:
         click.echo("-" * 90)
         click.echo(colored(f"  {count} error(s) found", "green"))
+
+
+def _format_metric_human(record):
+    """Format a metric record as a human-readable line.
+
+    Args:
+        record: Parsed JSONL record dictionary with source="metrics".
+
+    Returns:
+        Formatted string for terminal output.
+    """
+    ts = record.get("ts", "")[:23]
+    name = record.get("metric_name", "?")
+    value = record.get("metric_value", "?")
+    mtype = record.get("metric_type", "")
+    phase = record.get("phase", "")
+    phase_str = f" ({phase})" if phase else ""
+    return f"{ts:<23}  {colored('METRIC', 'magenta'):<17}  {name} = {value}{phase_str}  [{mtype}]"
+
+
+@logs.command("metrics")
+@click.argument("directory", type=click.Path(exists=True))
+@click.option("--name", default=None, help="Filter by metric_name")
+@click.option(
+    "--type",
+    "metric_type",
+    default=None,
+    help="Filter by metric_type (timing/counter/gauge/histogram/status)",
+)
+@click.option("--limit", default=0, type=int, help="Max results (0 = unlimited)")
+@click.option(
+    "--json/--human",
+    "output_json",
+    default=True,
+    help="Output format: --json (JSONL, default) or --human (table)",
+)
+@handle_errors
+@pass_context_and_setup_logging
+def metrics(_ctx, directory, name, metric_type, limit, output_json):
+    r"""Show metric records from structured logs.
+
+    Shorthand for ``panther logs query <dir> --source metrics``.
+
+    \b
+    Examples:
+      panther logs metrics outputs/2024-01-01/exp1
+      panther logs metrics outputs/2024-01-01/exp1 --type timing --human
+      panther logs metrics outputs/2024-01-01/exp1 --name setup_services_duration
+    """
+    from panther.core.reporting.log_query_engine import LogFilter, LogQueryEngine
+
+    metric_names = {name} if name else None
+    metric_types = {metric_type} if metric_type else None
+
+    log_filter = LogFilter(
+        sources={"metrics"},
+        metric_names=metric_names,
+        metric_types=metric_types,
+    )
+    engine = LogQueryEngine(Path(directory))
+
+    if not output_json:
+        header = f"{'Timestamp':<23}  {'Level':<8}  {'Metric':<30}  Value"
+        click.echo(colored(header, "cyan", attrs=["bold"]))
+        click.echo("-" * 90)
+
+    count = 0
+    for record in engine.query(log_filter, limit=limit):
+        if output_json:
+            click.echo(json.dumps(record, default=str))
+        else:
+            click.echo(_format_metric_human(record))
+        count += 1
+
+    if not output_json:
+        click.echo("-" * 90)
+        click.echo(colored(f"  {count} metric(s) found", "green"))

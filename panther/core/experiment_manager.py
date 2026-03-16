@@ -506,6 +506,12 @@ class ExperimentManager(
         # Create a directory for logs if it doesn't exist
         self.logs_dir.mkdir(parents=True, exist_ok=True)
 
+        # Wire metrics collector to structured.jsonl if present
+        if self.metrics_collector is not None:
+            self.metrics_collector._structured_log_path = (
+                self.logs_dir / "structured.jsonl"
+            )
+
         # The logger is already configured through LoggerFactory, just log initialization
         self.logger.info(
             "ExperimentManager initialized for experiment: %s", self.experiment_name
@@ -987,6 +993,7 @@ class ExperimentManager(
                         except Exception as test_error:  # pylint: disable=broad-except
                             elapsed = time.monotonic() - test_start
                             failed_tests += 1
+                            self._record_test_metric("failed")
                             failed_test_info.append((test_name, str(test_error)[:80]))
 
                             if show_status:
@@ -1123,140 +1130,129 @@ class ExperimentManager(
         ConsoleFormatter.banner("Phase 4: Cleanup")
         _cleanup_ctx = log_context(experiment_id=self.experiment_name, phase="cleanup")
         _cleanup_ctx.__enter__()
-        self.logger.info("Starting experiment cleanup")
-
-        # Generate final log statistics report if enabled
         try:
-            self._generate_final_log_report()
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            self.logger.warning("Failed to generate final log report: %s", e)
+            self.logger.info("Starting experiment cleanup")
 
-        # Stop log statistics display if running
-        try:
-            if self.log_statistics_display and self.log_statistics_display.running:
-                self.log_statistics_display.stop_display()
-                self.logger.info("Stopped log statistics display")
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            self.logger.warning("Failed to stop log statistics display: %s", e)
-
-        # Clean up state observer
-        try:
-            if hasattr(self, "state_observer"):
-                self.event_manager.unregister_observer(self.state_observer)
-                self.logger.debug("Unregistered StateEventObserver")
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            self.logger.warning("Failed to unregister state observer: %s", e)
-
-        # Clean up other observers through factory
-        try:
-            factory = get_observer_factory()
-            observer_names = [
-                "experiment_logger",
-                "experiment_metrics",
-                "experiment_observer",
-            ]
-            for observer_name in observer_names:
-                if factory.unregister_observer(observer_name):
-                    self.logger.debug("Unregistered %s", observer_name)
-                else:
-                    self.logger.debug(
-                        "%s was not registered or already removed", observer_name
-                    )
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            self.logger.warning("Failed to unregister observers: %s", e)
-
-        # Clear workflow tracker states for this experiment
-        try:
-            if hasattr(self, "workflow_tracker"):
-                self.workflow_tracker.clear_workflow_state(self.experiment_name)
-                self.logger.debug("Cleared workflow state for experiment")
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            self.logger.warning("Failed to clear workflow state: %s", e)
-
-        # Generate experiment report
-        try:
-            self._generate_experiment_report()
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            self.logger.warning("Failed to generate report: %s", e)
-
-        # Export metrics to disk if collector is present
-        if self.metrics_collector is not None:
+            # Generate final log statistics report if enabled
             try:
-                from panther.core.metrics import MetricsExporter
-
-                self.metrics_collector.finalize()
-                exporter = MetricsExporter(self.metrics_collector)
-                metrics_dir = self.experiment_dir / "metrics"
-                metrics_dir.mkdir(parents=True, exist_ok=True)
-                exporter.export_to_json(metrics_dir / "metrics.json")
-                exporter.export_to_csv(metrics_dir)
-                self.logger.info("Metrics exported to: %s", metrics_dir)
+                self._generate_final_log_report()
             except Exception as e:  # pylint: disable=broad-exception-caught
-                self.logger.warning("Failed to export metrics: %s", e)
+                self.logger.warning("Failed to generate final log report: %s", e)
 
-        # Clean up empty directories from the experiment output tree
-        try:
-            from panther.core.outputs.output_cleanup import remove_empty_directories
+            # Stop log statistics display if running
+            try:
+                if self.log_statistics_display and self.log_statistics_display.running:
+                    self.log_statistics_display.stop_display()
+                    self.logger.info("Stopped log statistics display")
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                self.logger.warning("Failed to stop log statistics display: %s", e)
 
-            removed = remove_empty_directories(self.experiment_dir)
-            if removed:
-                self.logger.info(
-                    "Cleaned %d empty directories from experiment output", removed
+            # Clean up state observer
+            try:
+                if hasattr(self, "state_observer"):
+                    self.event_manager.unregister_observer(self.state_observer)
+                    self.logger.debug("Unregistered StateEventObserver")
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                self.logger.warning("Failed to unregister state observer: %s", e)
+
+            # Clean up other observers through factory
+            try:
+                factory = get_observer_factory()
+                observer_names = [
+                    "experiment_logger",
+                    "experiment_metrics",
+                    "experiment_observer",
+                ]
+                for observer_name in observer_names:
+                    if factory.unregister_observer(observer_name):
+                        self.logger.debug("Unregistered %s", observer_name)
+                    else:
+                        self.logger.debug(
+                            "%s was not registered or already removed", observer_name
+                        )
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                self.logger.warning("Failed to unregister observers: %s", e)
+
+            # Clear workflow tracker states for this experiment
+            try:
+                if hasattr(self, "workflow_tracker"):
+                    self.workflow_tracker.clear_workflow_state(self.experiment_name)
+                    self.logger.debug("Cleared workflow state for experiment")
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                self.logger.warning("Failed to clear workflow state: %s", e)
+
+            # Generate experiment report
+            try:
+                self._generate_experiment_report()
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                self.logger.warning("Failed to generate report: %s", e)
+
+            # Finalize metrics collector (metrics already written to structured.jsonl)
+            if self.metrics_collector is not None:
+                try:
+                    self.metrics_collector.finalize()
+                except Exception as e:  # pylint: disable=broad-exception-caught
+                    self.logger.warning("Failed to finalize metrics: %s", e)
+
+            # Clean up empty directories from the experiment output tree
+            try:
+                from panther.core.outputs.output_cleanup import remove_empty_directories
+
+                removed = remove_empty_directories(self.experiment_dir)
+                if removed:
+                    self.logger.info(
+                        "Cleaned %d empty directories from experiment output", removed
+                    )
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                self.logger.warning(
+                    "Empty directory cleanup failed: %s", e, exc_info=True
                 )
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            self.logger.warning("Empty directory cleanup failed: %s", e, exc_info=True)
 
-        # Register generated reports and metrics in the output index, then flush
-        try:
-            report_files = {
-                "EXPERIMENT_REPORT.md": ("report", "markdown", "Experiment report"),
-                "experiment_summary.json": ("report", "json", "Experiment summary"),
-                "experiment_summary.txt": (
-                    "report",
-                    "text",
-                    "Experiment summary (text)",
-                ),
-            }
-            for filename, (ftype, ffmt, desc) in report_files.items():
-                if (self.experiment_dir / filename).exists():
+            # Register generated reports and metrics in the output index, then flush
+            try:
+                report_files = {
+                    "EXPERIMENT_REPORT.md": ("report", "markdown", "Experiment report"),
+                    "experiment_summary.json": ("report", "json", "Experiment summary"),
+                    "experiment_summary.txt": (
+                        "report",
+                        "text",
+                        "Experiment summary (text)",
+                    ),
+                }
+                for filename, (ftype, ffmt, desc) in report_files.items():
+                    if (self.experiment_dir / filename).exists():
+                        self.output_index_builder.register(
+                            filename,
+                            file_type=ftype,
+                            file_format=ffmt,
+                            description=desc,
+                        )
+
+                # Register structured log if present
+                structured_log = self.experiment_dir / "structured.jsonl"
+                if structured_log.exists():
                     self.output_index_builder.register(
-                        filename,
-                        file_type=ftype,
-                        file_format=ffmt,
-                        description=desc,
+                        "structured.jsonl",
+                        file_type="log",
+                        file_format="jsonl",
+                        description="Structured event log",
                     )
 
-            # Register metrics files if they were exported
-            metrics_dir = self.experiment_dir / "metrics"
-            if metrics_dir.exists():
-                for mf in metrics_dir.iterdir():
-                    if mf.is_file():
-                        self.output_index_builder.register(str(mf))
+                self.output_index_builder.flush()
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                self.logger.warning("Failed to write output index: %s", e)
 
-            # Register structured log if present
-            structured_log = self.experiment_dir / "structured.jsonl"
-            if structured_log.exists():
-                self.output_index_builder.register(
-                    "structured.jsonl",
-                    file_type="log",
-                    file_format="jsonl",
-                    description="Structured event log",
-                )
+            # Clean up stale Docker resources (dangling images, exited containers, orphan volumes)
+            try:
+                self._cleanup_docker_resources()
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                self.logger.warning("Docker resource cleanup failed: %s", e)
 
-            self.output_index_builder.flush()
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            self.logger.warning("Failed to write output index: %s", e)
+            click.echo("  \u2713 Cleanup complete")
 
-        # Clean up stale Docker resources (dangling images, exited containers, orphan volumes)
-        try:
-            self._cleanup_docker_resources()
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            self.logger.warning("Docker resource cleanup failed: %s", e)
-
-        click.echo("  \u2713 Cleanup complete")
-
-        # Pop cleanup phase context
-        _cleanup_ctx.__exit__(None, None, None)
+        finally:
+            # Pop cleanup phase context — guaranteed even if cleanup raises
+            _cleanup_ctx.__exit__(None, None, None)
 
     def _cleanup_docker_resources(self):
         """Remove stale Docker resources left over from the experiment.

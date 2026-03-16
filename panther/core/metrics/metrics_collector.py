@@ -13,15 +13,18 @@ Usage::
     collector.start_collection_thread(interval=1.0)
 """
 
+import json
 import logging
 import os
 import threading
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from panther.core.metrics.enums import MetricType, Phase
 from panther.core.metrics.metric_types import Metric, TimingContext
+from panther.core.utils.log_context import get_log_context
 from panther.core.utils.logging_mixin import LoggerMixin
 
 try:
@@ -43,14 +46,20 @@ class MetricsCollector(LoggerMixin):
     """
 
     def __init__(
-        self, experiment_name: str, output_dir: Path, collection_interval: float = 5.0
+        self,
+        experiment_name: str,
+        output_dir: Path,
+        collection_interval: float = 5.0,
+        structured_log_path: Optional[Path] = None,
     ):
         """Initialize the metrics collector.
 
         Args:
-            experiment_name: Name of the experiment
-            output_dir: Directory where metrics will be stored
-            collection_interval: Background collection interval in seconds
+            experiment_name: Name of the experiment.
+            output_dir: Directory where metrics will be stored.
+            collection_interval: Background collection interval in seconds.
+            structured_log_path: Path to structured.jsonl for inline metric writing.
+                When set, each recorded metric is also appended as a JSONL line.
         """
         super().__init__()
         self.experiment_name = experiment_name
@@ -59,6 +68,7 @@ class MetricsCollector(LoggerMixin):
         self.active_timers: Dict[str, TimingContext] = {}
         self.metrics_lock = threading.Lock()
         self.timers_lock = threading.Lock()
+        self._jsonl_lock = threading.Lock()
 
         # Thread management
         self.collection_thread = None
@@ -69,9 +79,8 @@ class MetricsCollector(LoggerMixin):
         self.experiment_start_time = time.time()
         self._finalized = False
 
-        # Create metrics output directory
-        self.metrics_dir = output_dir / "metrics"
-        self.metrics_dir.mkdir(parents=True, exist_ok=True)
+        # Structured JSONL output (shared with logging/event handlers)
+        self._structured_log_path = structured_log_path
 
         # Record experiment start
         self.record_metric(
@@ -209,7 +218,42 @@ class MetricsCollector(LoggerMixin):
         with self.metrics_lock:
             self.metrics.append(metric)
 
+        self._write_metric_jsonl(metric)
         self.logger.debug("Recorded metric: %s=%s (%s)", name, value, metric_type.value)
+
+    def _write_metric_jsonl(self, metric: Metric) -> None:
+        """Append a metric as a JSONL line to the structured log.
+
+        Args:
+            metric: The metric to write.
+        """
+        if self._structured_log_path is None:
+            return
+        ctx = get_log_context()
+        record: Dict[str, Any] = {
+            "ts": datetime.fromtimestamp(metric.timestamp, tz=timezone.utc).isoformat(
+                timespec="microseconds"
+            ),
+            "level": "METRIC",
+            "level_num": 15,
+            "source": "metrics",
+            "metric_name": metric.name,
+            "metric_type": metric.metric_type.value,
+            "metric_value": metric.value,
+            "phase": metric.phase.value if metric.phase else ctx.phase,
+            "experiment_id": ctx.experiment_id,
+            "test_id": metric.test_case or ctx.test_id,
+            "service_id": ctx.service_id,
+            "component": metric.component,
+        }
+        record = {k: v for k, v in record.items() if v is not None}
+        try:
+            line = json.dumps(record, default=str)
+            with self._jsonl_lock:
+                with open(self._structured_log_path, "a", encoding="utf-8") as fh:
+                    fh.write(line + "\n")
+        except Exception:  # pylint: disable=broad-exception-caught
+            pass  # Don't let metric writing failures break experiment
 
     def start_timer(
         self,
@@ -415,13 +459,13 @@ class MetricsCollector(LoggerMixin):
                 try:
                     final_message = str(error_message)
                 except Exception:
-                    pass
+                    self.logger.debug("Error building error metadata", exc_info=True)
 
             if final_message is None and message is not None:
                 try:
                     final_message = str(message)
                 except Exception:
-                    pass
+                    self.logger.debug("Error building error metadata", exc_info=True)
 
             if final_message is None:
                 final_message = f"Error of type {safe_error_type}"
@@ -432,6 +476,7 @@ class MetricsCollector(LoggerMixin):
                     "error_message": final_message,
                 }
             except Exception:
+                self.logger.debug("Error building error metadata", exc_info=True)
                 meta_dict = {"error_occurred": "true"}
 
             if exception is not None:
@@ -458,7 +503,7 @@ class MetricsCollector(LoggerMixin):
                         except Exception:
                             continue
                 except Exception:
-                    pass
+                    self.logger.debug("Error building error metadata", exc_info=True)
 
             if metadata is not None:
                 try:
@@ -474,7 +519,7 @@ class MetricsCollector(LoggerMixin):
                         except Exception:
                             continue
                 except Exception:
-                    pass
+                    self.logger.debug("Error building error metadata", exc_info=True)
 
             try:
                 self.record_metric(
@@ -496,7 +541,7 @@ class MetricsCollector(LoggerMixin):
             try:
                 self.logger.error("Exception in record_error: %s", e)
             except Exception:  # pylint: disable=broad-exception-caught
-                pass
+                self.logger.debug("Error building error metadata", exc_info=True)
 
     def record_artifact_info(
         self,
