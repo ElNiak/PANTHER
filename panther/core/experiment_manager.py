@@ -30,7 +30,7 @@ import subprocess
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import click
 import yaml
@@ -134,6 +134,93 @@ def format_test_result(
         msg = f": {error_message}" if error_message else ""
         hint = "\n    Check logs for details." if error_message else ""
         return f"  {icon}FAILED {duration}{msg}{hint}"
+
+
+def format_experiment_summary(
+    *,
+    successful_tests: int,
+    failed_tests: int,
+    total_tests: int,
+    elapsed_seconds: float,
+    output_dir: str,
+    failed_test_names: List[Tuple[str, str]],
+    use_emojis: bool = True,
+) -> str:
+    """Build a structured experiment summary banner.
+
+    Produces output like::
+
+        ==================================================
+         Experiment Complete
+        --------------------------------------------------
+         Tests:  3 passed, 1 failed (75.0%)
+         Time:   5m 12s
+         Output: outputs/2026-03-16_14-30/quic_test
+
+         Failed tests:
+           X QUIC Stream Test -- Docker build failed
+           X TLS Resumption -- Timeout after 60s
+
+         Next steps:
+           panther report diagnose <output_dir>
+           panther logs errors <output_dir>
+        ==================================================
+
+    Args:
+        successful_tests: Number of tests that passed.
+        failed_tests: Number of tests that failed.
+        total_tests: Total number of tests executed.
+        elapsed_seconds: Wall-clock duration of the entire run in seconds.
+        output_dir: Path to the experiment output directory.
+        failed_test_names: List of ``(test_name, error_message)`` tuples for
+            each failed test.  The error_message may be empty.
+        use_emojis: Whether to use emoji indicators in the output.
+
+    Returns:
+        Formatted multi-line summary string (without leading/trailing newlines
+        from the banner helper -- those are handled by ``ConsoleFormatter.banner``).
+    """
+    width = _HEADER_WIDTH
+    double_line = "\u2550" * width  # BOX DRAWINGS DOUBLE HORIZONTAL
+    single_line = "\u2500" * width  # BOX DRAWINGS LIGHT HORIZONTAL
+
+    # Duration formatting
+    if elapsed_seconds >= 60:
+        minutes = int(elapsed_seconds) // 60
+        seconds = int(elapsed_seconds) % 60
+        duration = f"{minutes}m {seconds}s"
+    else:
+        duration = f"{elapsed_seconds:.0f}s"
+
+    # Success percentage
+    percentage = (successful_tests / total_tests * 100) if total_tests > 0 else 0.0
+
+    lines: List[str] = []
+    lines.append("")
+    lines.append(double_line)
+    lines.append(" Experiment Complete")
+    lines.append(single_line)
+    lines.append(
+        f" Tests:  {successful_tests} passed, {failed_tests} failed ({percentage:.1f}%)"
+    )
+    lines.append(f" Time:   {duration}")
+    lines.append(f" Output: {output_dir}")
+
+    if failed_test_names:
+        lines.append("")
+        lines.append(" Failed tests:")
+        fail_icon = "\u274c " if use_emojis else "X "
+        for name, reason in failed_test_names:
+            reason_part = f" \u2014 {reason}" if reason else ""
+            lines.append(f"   {fail_icon}{name}{reason_part}")
+
+    lines.append("")
+    lines.append(" Next steps:")
+    lines.append(f"   panther report diagnose {output_dir}")
+    lines.append(f"   panther logs errors {output_dir}")
+    lines.append(double_line)
+
+    return "\n".join(lines)
 
 
 # TODO implement errors management strategy (e.g., retry, fail, etc.)
@@ -725,6 +812,8 @@ class ExperimentManager(
                 total_tests = len(self.test_cases)
                 use_emojis = self.global_config.progress.use_emojis
                 show_status = self.global_config.progress.show_test_status
+                experiment_start = time.monotonic()
+                failed_test_info: List[Tuple[str, str]] = []
 
                 for i, test_case in enumerate(self.test_cases):
                     with log_context(test_id=test_case.test_name):
@@ -758,6 +847,9 @@ class ExperimentManager(
 
                             if test_result is False:
                                 failed_tests += 1
+                                failed_test_info.append(
+                                    (test_name, "Test analysis failed")
+                                )
                                 self._record_test_metric("failed")
                                 if show_status:
                                     click.echo(
@@ -830,6 +922,7 @@ class ExperimentManager(
                         ) as test_error:
                             elapsed = time.monotonic() - test_start
                             failed_tests += 1
+                            failed_test_info.append((test_name, str(test_error)[:80]))
                             self._record_test_metric("failed")
 
                             if show_status:
@@ -894,6 +987,7 @@ class ExperimentManager(
                         except Exception as test_error:  # pylint: disable=broad-except
                             elapsed = time.monotonic() - test_start
                             failed_tests += 1
+                            failed_test_info.append((test_name, str(test_error)[:80]))
 
                             if show_status:
                                 click.echo(
@@ -954,13 +1048,17 @@ class ExperimentManager(
                     failed_tests,
                 )
 
-                self.logger.info(
-                    "All experiment tests completed. Success: %s, Failed: %s",
-                    successful_tests,
-                    failed_tests,
-                )
+                experiment_elapsed = time.monotonic() - experiment_start
                 click.echo(
-                    f"  \u2713 Test execution complete ({successful_tests} passed, {failed_tests} failed)"
+                    format_experiment_summary(
+                        successful_tests=successful_tests,
+                        failed_tests=failed_tests,
+                        total_tests=total_tests,
+                        elapsed_seconds=experiment_elapsed,
+                        output_dir=str(self.experiment_dir),
+                        failed_test_names=failed_test_info,
+                        use_emojis=use_emojis,
+                    )
                 )
 
                 return successful_tests > 0
