@@ -321,10 +321,7 @@ class ExperimentManager(
             "level": level_str,
             "format": self.log_format,
             "enable_colors": getattr(self.global_config.logging, "enable_colors", True),
-            "debug_file_logging": getattr(
-                self.global_config.logging, "debug_file_logging", True
-            ),
-            "output_file": str(self.logs_dir / "experiment.log"),
+            "output_file": str(self.logs_dir / "structured.jsonl"),
         }
 
         # Add feature levels if available
