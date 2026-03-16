@@ -7,3 +7,7 @@ Contains protocol definitions for peer-to-peer architectures:
 Each sub-package registers itself via `@register_protocol()` and
 provides a `config_schema.py` with Pydantic validation.
 """
+
+from .peer_to_peer import PeerToPeerProtocolBase
+
+__all__ = ["PeerToPeerProtocolBase"]

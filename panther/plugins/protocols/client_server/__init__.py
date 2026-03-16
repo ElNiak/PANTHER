@@ -9,3 +9,7 @@ Contains protocol definitions for traditional client-server architectures:
 Each sub-package registers itself via `@register_protocol()` and
 provides a `config_schema.py` with Pydantic validation.
 """
+
+from .client_server import ClientServerProtocolBase
+
+__all__ = ["ClientServerProtocolBase"]
