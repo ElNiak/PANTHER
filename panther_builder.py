@@ -150,13 +150,13 @@ Bootstrap commands:
         result = _run([sys.executable, "-m", "pip", "install", "--upgrade", "pip"])
         if result != 0:
             return result
-        result = _run([sys.executable, "-m", "pip", "install", "."])
+        result = _run([sys.executable, "-m", "pip", "install", ".[dev]"])
         if result != 0:
             return result
         result = _run([sys.executable, "-m", "pip", "uninstall", "--yes", "panther-net"])
         if result != 0:
             return result
-        result = _run([sys.executable, "-m", "pip", "install", "--force-reinstall", "--editable", "."])
+        result = _run([sys.executable, "-m", "pip", "install", "--force-reinstall", "--editable", ".[dev]"])
         if result != 0:
             return result
 
