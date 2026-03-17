@@ -305,7 +305,12 @@ def run(
 
                 cli_overrides = extract_cli_overrides(ctx)
 
-                manager = ConfigurationManager()
+                manager = ConfigurationManager(
+                    exec_env_dir=exec_env_dir or "",
+                    net_env_dir=net_env_dir or "",
+                    iut_dir=iut_dir or "",
+                    testers_dir=tester_dir or "",
+                )
                 global_config, experiment_config = manager.load_full_config(
                     config, cli_overrides=cli_overrides
                 )

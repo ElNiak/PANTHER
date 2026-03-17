@@ -16,6 +16,10 @@ CLI_CONFIG_MAP: Dict[str, str] = {
     "no_docker_cache": "docker.no_docker_cache",
     "enable_metrics": "observers.metrics.enabled",
     "output_dir": "paths.output_dir",
+    "docker_run_as_host": "docker.user_mapping.run_as_host_user",
+    "docker_user_id": "docker.user_mapping.custom_uid",
+    "docker_group_id": "docker.user_mapping.custom_gid",
+    "docker_user_name": "docker.user_mapping.user_name",
 }
 
 # Params that, when set, also force-set other params.
