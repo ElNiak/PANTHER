@@ -26,12 +26,13 @@ Architecture::
 Key design principles:
     - **Interest-based filtering**: Observers implement ``is_interested()`` to
       efficiently filter relevant events, reducing processing overhead.
-    - **Deduplication protection**: Built-in protection against duplicate event
-      processing through UUID tracking and content-based signatures.
+    - **Multi-layer deduplication**: EventManager performs content-based and
+      time-based dedup before dispatch; observers track processed UUIDs via
+      ``processed_events_uuids`` for per-observer deduplication.
     - **Priority-based notification**: Higher-priority observers are notified
       first via priority queue ordering.
     - **Type-safe observer registration**: ``ITypedObserver`` provides automatic
-      event routing to typed handler methods with compile-time type checking.
+      event routing to typed handler methods based on runtime type dispatch.
     - **Thread-safe observer management**: RLock-based synchronization for
       concurrent access in all management classes.
     - **Configuration-driven**: Factory module supports programmatic
@@ -47,7 +48,7 @@ Event Processing Pipeline:
 
 Built-in Observer Types:
     - **LoggerObserver**: Structured event logging with color-coded terminal output,
-      severity indicators, and TQDM integration.
+      severity indicators, and Click-based progress coordination.
     - **MetricsObserver**: CPU, memory, network monitoring, test timing, and
       resource metric aggregation.
     - **StorageObserver**: Event persistence for audit and analytics with file
@@ -69,7 +70,7 @@ Example:
                 if event.id in self.processed_events_uuids:
                     return
                 print(f"Event: {event.event_type}")
-                self.processed_events_uuids.append(event.id)
+                self.processed_events_uuids.add(event.id)
 
         event_manager = EventManager.get_instance()
         event_manager.register_observer(MyObserver(), priority=5)
@@ -85,7 +86,6 @@ See Also:
     `panther.core.events` -- Event system implementation
     `panther.core.observer.management.event_manager` -- Central event coordination
     `panther.core.observer.factory` -- Observer creation, builders, and configuration
-    `panther.core.observer.workflow` -- Workflow state tracking
 """
 
 # Base interfaces

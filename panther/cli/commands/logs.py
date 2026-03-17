@@ -299,7 +299,8 @@ def _format_metric_human(record):
 def metrics(_ctx, directory, name, metric_type, limit, output_json):
     r"""Show metric records from structured logs.
 
-    Shorthand for ``panther logs query <dir> --source metrics``.
+    Filters for records with ``source="metrics"`` in the JSONL schema.
+    Metric records are emitted by the metrics observer during experiment runs.
 
     \b
     Examples:

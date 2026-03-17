@@ -9,6 +9,7 @@ Default observer types registered at initialization:
     - ``"metrics"`` --> ``MetricsObserver``
     - ``"storage"`` --> ``StorageObserver``
     - ``"experiment"`` --> ``ExperimentObserver``
+    - ``"event_stream"`` --> ``EventStreamRecorder``
 
 Module-level convenience functions:
     - ``get_observer_factory()`` -- get/create the global factory singleton
@@ -89,13 +90,11 @@ class ObserverFactory:
     ):
         """Initialize ObserverFactory."""
         self.logger = logging.getLogger(__name__)
-        self._registered_types: Dict[str, type[IObserver]] = {}  # Observer class types
-        self._observer_instances: Dict[str, IObserver] = {}  # Named observer instances
-        self._configurations: Dict[str, Dict[str, Any]] = {}  # Observer configurations
-        self._event_manager = event_manager  # Event manager for registering observers
-        self._observer_config = (
-            observer_config or BaseObserverConfig()
-        )  # Global observer configuration
+        self._registered_types: Dict[str, type[IObserver]] = {}
+        self._observer_instances: Dict[str, IObserver] = {}
+        self._configurations: Dict[str, Dict[str, Any]] = {}
+        self._event_manager = event_manager
+        self._observer_config = observer_config or BaseObserverConfig()
         self._initialize_default_observers()
 
     def _initialize_default_observers(self):

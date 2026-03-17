@@ -58,8 +58,7 @@ class ExperimentObserver(ITypedObserver):
             structured_output=True,
         )
 
-        if not hasattr(self, "_step_progress_bars"):
-            self._step_progress_bars = {}
+        self._step_progress_bars = {}
 
         self.experiment_finished_early = False
         self._should_terminate_early = False
@@ -709,9 +708,6 @@ class ExperimentObserver(ITypedObserver):
 
     def _cleanup_step_progress_bars(self, test_name: str = None) -> None:
         """Clean up step progress bars for a specific test or all tests."""
-        if not hasattr(self, "_step_progress_bars"):
-            return
-
         try:
             keys_to_remove = []
 

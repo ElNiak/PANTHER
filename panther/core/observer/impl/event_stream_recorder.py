@@ -55,9 +55,7 @@ class EventStreamRecorder(ITypedObserver):
         self.output_path = Path(output_path)
         self._lock = threading.Lock()
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.processed_events_uuids: set = (
-            set()
-        )  # Override list with set for O(1) lookup
+        self.processed_events_uuids: set = set()  # Explicit initialization for clarity
 
     def on_event(self, event: BaseEvent) -> bool:
         """Serialize an event to the structured JSONL file.
@@ -156,9 +154,9 @@ class EventStreamRecorder(ITypedObserver):
         return True
 
     def get_priority(self) -> int:
-        """Return low priority so business observers run first.
+        """Return priority 10 -- above default (0) but below business observers (50).
 
         Returns:
-            Priority value of 10 (low, runs after higher-priority observers).
+            Priority value of 10.
         """
         return 10

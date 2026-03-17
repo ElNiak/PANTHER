@@ -27,7 +27,7 @@ Example:
             def on_event(self, event: BaseEvent):
                 if event.id in self.processed_events_uuids:
                     return  # Skip duplicate
-                self.processed_events_uuids.append(event.id)
+                self.processed_events_uuids.add(event.id)
                 self.event_count += 1
 
 See Also:
@@ -36,15 +36,9 @@ See Also:
 
 import logging
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import Optional
 
 from panther.core.events.base.event_base import BaseEvent
-
-# Try to import ColoredFormatter, fallback gracefully if not available
-try:
-    from colorlog import ColoredFormatter
-except ImportError:
-    ColoredFormatter = None
 
 
 class IObserver(ABC):
@@ -55,8 +49,8 @@ class IObserver(ABC):
     and may optionally override ``is_interested()`` and ``get_priority()``.
 
     Attributes:
-        processed_events_uuids: List of UUIDs for events already processed
-            by this observer, used for deduplication.
+        processed_events_uuids: Set of UUIDs for events already processed
+            by this observer, used for O(1) deduplication lookup.
 
     Example:
         Minimal observer implementation::
@@ -66,7 +60,7 @@ class IObserver(ABC):
                     if event.id in self.processed_events_uuids:
                         return
                     # process event ...
-                    self.processed_events_uuids.append(event.id)
+                    self.processed_events_uuids.add(event.id)
 
     See Also:
         `ITypedObserver` for automatic event routing by type.

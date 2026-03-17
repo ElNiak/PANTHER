@@ -1,14 +1,7 @@
 """Logging mixin with feature-aware capabilities for PANTHER components."""
 
-from typing import Any, Dict, Optional, Union
-
-"""
-Logging Mixin
-
-This module provides a reusable logging mixin for classes across PANTHER.
-"""
-
 import logging
+from typing import Any, Dict, Optional, Union
 
 from .config_summarizer import ConfigSummarizer
 from .logger_factory import LoggerFactory
@@ -142,48 +135,33 @@ class LoggerMixin:
             *args: Additional positional arguments
             **kwargs: Additional keyword arguments
         """
-        if not hasattr(self, "logger"):
-            self.__init_logger__()
-
         log_method = getattr(self.logger, level.lower(), None)
         if log_method:
             log_method(message, *args, **kwargs)
 
     def trace(self, message: str, *args, **kwargs):
         """Log a TRACE level message."""
-        if not hasattr(self, "logger"):
-            self.__init_logger__()
         if hasattr(self.logger, "trace"):
             self.logger.trace(message, *args, **kwargs)
 
     def debug(self, message: str, *args, **kwargs):
         """Log a DEBUG level message."""
-        if not hasattr(self, "logger"):
-            self.__init_logger__()
         self.logger.debug(message, *args, **kwargs)
 
     def info(self, message: str, *args, **kwargs):
         """Log an INFO level message."""
-        if not hasattr(self, "logger"):
-            self.__init_logger__()
         self.logger.info(message, *args, **kwargs)
 
     def warning(self, message: str, *args, **kwargs):
         """Log a WARNING level message."""
-        if not hasattr(self, "logger"):
-            self.__init_logger__()
         self.logger.warning(message, *args, **kwargs)
 
     def error(self, message: str, *args, **kwargs):
         """Log an ERROR level message."""
-        if not hasattr(self, "logger"):
-            self.__init_logger__()
         self.logger.error(message, *args, **kwargs)
 
     def critical(self, message: str, *args, **kwargs):
         """Log a CRITICAL level message."""
-        if not hasattr(self, "logger"):
-            self.__init_logger__()
         self.logger.critical(message, *args, **kwargs)
 
     def get_effective_feature(self) -> Optional[str]:

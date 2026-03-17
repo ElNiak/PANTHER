@@ -113,7 +113,7 @@ class ITypedObserver(IObserver):
 
     Extends ``IObserver`` to provide automatic routing of events to named
     ``on_*`` handler methods. Subclasses override only the handlers they need;
-    unhandled events silently return ``True``.
+    unhandled events are logged at DEBUG level and return ``True``.
 
     Dispatch order:
         1. Exact ``type(event)`` lookup in ``_type_handlers`` (kept subclasses,

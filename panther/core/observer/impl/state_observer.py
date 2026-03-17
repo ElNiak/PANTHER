@@ -114,6 +114,9 @@ class StateEventObserver(ITypedObserver):
         key = (event.entity_type.value, event.name)
         mapping = _EVENT_STATE_MAP.get(key)
         if mapping is None:
+            self.logger.debug(
+                "No state mapping for (%s, %s)", event.entity_type.value, event.name
+            )
             return self.on_unknown_event(event)
 
         state, use_entity_id = mapping

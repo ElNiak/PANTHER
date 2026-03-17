@@ -1,6 +1,7 @@
 """Tests for plugin_forms.py — plugin discovery bridge for webapp forms."""
 
 from enum import Enum
+from unittest.mock import patch
 
 import pytest
 from pydantic import BaseModel, Field
@@ -14,7 +15,8 @@ class TestPluginFormInfo:
         result = get_plugin_form_info("__nonexistent_plugin__")
         assert result is None
 
-    def test_get_plugin_form_info_picoquic(self):
+    @patch("panther.core.docker_builder.DockerBuilder.get_instance")
+    def test_get_plugin_form_info_picoquic(self, mock_get_instance):
         """Picoquic should be discoverable via well-known import paths."""
         from panther.webapp.components.forms.plugin_forms import get_plugin_form_info
 

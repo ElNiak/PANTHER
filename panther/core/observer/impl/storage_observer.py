@@ -1,9 +1,4 @@
-"""Storage Observer Module."""
-
-from typing import Any, Dict, List, Optional
-
-"""
-Storage Observer Module
+"""Storage Observer Module.
 
 This module provides a storage observer that leverages the ResultsManager
 for comprehensive data persistence and retrieval capabilities.
@@ -14,6 +9,7 @@ import shutil
 import time
 from datetime import datetime
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from panther.core.events.base.event_base import BaseEvent
 from panther.core.events.experiment.events import ExperimentFinishedEarlyEvent

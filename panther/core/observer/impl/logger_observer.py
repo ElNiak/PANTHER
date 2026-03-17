@@ -272,7 +272,7 @@ class LoggerObserver(ITypedObserver):
 
         try:
             # For Click progress bars, we check if progress configuration is enabled
-            # This is a simpler check since Click progress bars don't maintain global state like tqdm
+            # Click progress bars don't maintain global state
             # We can check if the global config indicates progress bars are enabled
             if hasattr(self, "config") and self.config:
                 return getattr(self.config, "progress", {}).get(
@@ -441,11 +441,11 @@ class LoggerObserver(ITypedObserver):
             dockerfile_path = event_data.get("dockerfile_path", "Unknown")
 
             # Show a concise, informative message
-            tqdm_msg = f"🐳 Building Docker image: {service_name} ({image_name})"
+            build_msg = f"🐳 Building Docker image: {service_name} ({image_name})"
             if self.debug_mode:
-                tqdm_msg += f" from {dockerfile_path}"
+                build_msg += f" from {dockerfile_path}"
 
-            self.logger.info(tqdm_msg)
+            self.logger.info(build_msg)
 
         elif isinstance(event, DockerBuildCompletedEvent):
             service_name = event_data.get("service_name", "Unknown")
@@ -454,25 +454,25 @@ class LoggerObserver(ITypedObserver):
             build_duration = event_data.get("build_duration", 0)
 
             if success:
-                tqdm_msg = f"✅ Docker build completed: {service_name} ({image_name})"
+                build_msg = f"✅ Docker build completed: {service_name} ({image_name})"
                 if build_duration and build_duration > 0:
-                    tqdm_msg += f" in {build_duration:.1f}s"
+                    build_msg += f" in {build_duration:.1f}s"
             else:
                 error_message = event_data.get("error_message", "Unknown error")
-                tqdm_msg = f"❌ Docker build failed: {service_name} ({image_name}) - {error_message}"
+                build_msg = f"❌ Docker build failed: {service_name} ({image_name}) - {error_message}"
 
-            self.logger.info(tqdm_msg)
+            self.logger.info(build_msg)
 
         elif isinstance(event, DockerBuildFailedEvent):
             service_name = event_data.get("service_name", "Unknown")
             error_message = event_data.get("error_message", "Unknown error")
             build_duration = event_data.get("build_duration", 0)
 
-            tqdm_msg = f"❌ Docker build failed: {service_name} - {error_message}"
+            build_msg = f"❌ Docker build failed: {service_name} - {error_message}"
             if build_duration and build_duration > 0:
-                tqdm_msg += f" after {build_duration:.1f}s"
+                build_msg += f" after {build_duration:.1f}s"
 
-            self.logger.info(tqdm_msg)
+            self.logger.info(build_msg)
 
         # Still log to the regular logger for file output and detailed analysis
         self.logger.log(log_level, msg)
@@ -554,20 +554,17 @@ class LoggerObserver(ITypedObserver):
         return True
 
     def on_docker_build_started(self, event: DockerBuildStartedEvent) -> bool:
-        """Handle Docker build started event with special tqdm support."""
-        # Process the event normally - tqdm.write will be used automatically if tqdm is active
+        """Handle Docker build started event."""
         self._log_event(event)
         return True
 
     def on_docker_build_completed(self, event: DockerBuildCompletedEvent) -> bool:
-        """Handle Docker build completed event with special tqdm support."""
-        # Process the event normally - tqdm.write will be used automatically if tqdm is active
+        """Handle Docker build completed event."""
         self._log_event(event)
         return True
 
     def on_docker_build_failed(self, event: DockerBuildFailedEvent) -> bool:
-        """Handle Docker build failed event with special tqdm support."""
-        # Process the event normally - tqdm.write will be used automatically if tqdm is active
+        """Handle Docker build failed event."""
         self._log_event(event)
         return True
 

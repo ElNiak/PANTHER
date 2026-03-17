@@ -11,7 +11,8 @@ pytestmark = [pytest.mark.unit, pytest.mark.plugin_test]
 class TestModernPluginSystem:
     """Test the modernized plugin loading and management system."""
 
-    def test_plugin_discovery_mechanism(self, temp_dir):
+    @patch("panther.core.docker_builder.DockerBuilder.get_instance")
+    def test_plugin_discovery_mechanism(self, mock_get_instance, temp_dir):
         """Test that plugins are discovered correctly in the new system."""
         # Create a fake plugin directory structure
         plugin_dir = (

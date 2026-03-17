@@ -1,56 +1,13 @@
-"""Centralized logger factory system for PANTHER framework with sophisticated feature-aware logging.
+"""Centralized logger factory for PANTHER framework.
 
-This module implements a comprehensive logging infrastructure that provides centralized logger
-creation and configuration, ensuring consistent formatting, feature-aware log level management,
-and advanced log statistics collection across the entire PANTHER testing framework.
+Provides consistent logger creation with feature-aware log level management,
+color terminal support, and optional statistics collection.
 
-**Key Architecture Features**:
-- **Centralized Configuration**: Single point of configuration for all framework loggers
-- **Feature-Aware Logging**: Dynamic log levels based on component features and functionality
-- **Color Support**: Rich colored output with fallback for non-supporting terminals
-- **Statistics Collection**: Real-time log analysis and performance monitoring
-- **Auto-Detection**: Intelligent feature detection from logger names and patterns
-- **Handler Management**: Sophisticated console and file handler coordination
-
-**Design Patterns**:
-- **Factory Pattern**: Centralized logger creation with consistent configuration
-- **Singleton Pattern**: Global configuration state with thread-safe initialization
-- **Strategy Pattern**: Pluggable formatters and handlers based on capabilities
-- **Observer Pattern**: Statistics collection via logging handler interception
-
-**Feature Mapping System**:
-```
-Feature Categories:
-├── Core Components (command_generation, template_rendering, docker_operations)
-├── Service Management (service_managers, ivy_operations, quic_services)
-├── Environment Management (network_environments, execution_environment)
-├── Event System (event_emission, event_processing, state_management)
-├── Protocol Operations (certificate_management, network_setup, port_management)
-├── Data & Metrics (metrics_collection, data_storage, result_processing)
-└── Development & Debugging (test_execution, experiment_workflow, error_handling)
-```
-
-**Log Level Hierarchy**:
-- **TRACE**: Detailed execution flow for deep debugging
-- **DEBUG**: Development debugging and internal state information
-- **INFO**: General operational information and progress updates
-- **WARNING**: Recoverable issues and potential problems
-- **ERROR**: Error conditions that don't prevent operation
-- **CRITICAL**: Fatal errors requiring immediate attention
-
-**Performance Characteristics**:
-- **Logger Creation**: <1ms overhead for logger instantiation
-- **Feature Detection**: Dictionary lookup with linear pattern fallback
-- **Statistics Collection**: <5% performance impact when enabled
-- **Memory Usage**: Unbounded handler cache (one entry per handler name)
-- **File I/O**: Synchronous file writing via standard logging FileHandler
-
-**Integration Features**:
-- **Automatic Initialization**: Self-configuring defaults for early components
-- **Runtime Updates**: Dynamic log level changes without restart
-- **Plugin Support**: Feature detection for dynamically loaded plugins
-- **Export Capabilities**: JSON, CSV, and text format statistics export
-- **Handler Coordination**: Separate console and file handler level management
+Design patterns:
+    - **Factory Pattern**: Centralized logger creation with consistent configuration
+    - **Singleton Pattern**: Global configuration state with thread-safe initialization
+    - **Strategy Pattern**: Pluggable formatters and handlers based on capabilities
+    - **Handler Chain Pattern**: Statistics collection via logging handler interception
 """
 
 import contextlib
@@ -619,7 +576,10 @@ class LoggerFactory:
 
                     if cls._DEBUG_FACTORY and logger_name in cls._DEBUG_LOGGERS:
                         logging.debug(
-                            f"Updated {logger_name} -> {detected_feature} -> {level_name}"
+                            "Updated %s -> %s -> %s",
+                            logger_name,
+                            detected_feature,
+                            level_name,
                         )
                 else:
                     skipped_count += 1
