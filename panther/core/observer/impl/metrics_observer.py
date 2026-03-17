@@ -344,7 +344,11 @@ class MetricsObserver(ITypedObserver):
         self.resource_collection_interval = resource_collection_interval
         self.metric_collection_interval = metric_collection_interval
 
-        self.log_level = log_level
+        self.log_level = (
+            getattr(logging, log_level.upper(), logging.INFO)
+            if isinstance(log_level, str)
+            else log_level
+        )
 
         # Initialize metrics collector with default values or use provided one
         # Will be properly configured when connected to a test case if not provided

@@ -91,41 +91,6 @@ _HANDLER_OVERRIDES: Dict[Tuple[EventType, str], str] = {
     (EventType.ASSERTION, "result"): "on_assertion_result",
     (EventType.ASSERTION, "error"): "on_assertion_error",
     (EventType.ASSERTION, "unknown"): "on_assertion_unknown",
-    # Environment network events use dot-separated names
-    (EventType.ENVIRONMENT, "network.setup.started"): "on_network_setup_started",
-    (EventType.ENVIRONMENT, "network.setup.completed"): "on_network_setup_completed",
-    (EventType.ENVIRONMENT, "network.setup.failed"): "on_network_setup_failed",
-    (EventType.ENVIRONMENT, "network.teardown.started"): "on_network_teardown_started",
-    (
-        EventType.ENVIRONMENT,
-        "network.teardown.completed",
-    ): "on_network_teardown_completed",
-    # Environment execution events
-    (
-        EventType.ENVIRONMENT,
-        "execution.setup.started",
-    ): "on_execution_environment_setup_started",
-    (
-        EventType.ENVIRONMENT,
-        "execution.setup.completed",
-    ): "on_execution_environment_setup_completed",
-    (
-        EventType.ENVIRONMENT,
-        "execution.monitoring",
-    ): "on_execution_environment_resource_monitoring",
-    (
-        EventType.ENVIRONMENT,
-        "execution.limit.exceeded",
-    ): "on_execution_environment_limit_exceeded",
-    # Output collection events
-    (
-        EventType.ENVIRONMENT,
-        "output_collection_started",
-    ): "on_output_collection_started",
-    (
-        EventType.ENVIRONMENT,
-        "output_collection_completed",
-    ): "on_output_collection_completed",
 }
 
 
@@ -139,7 +104,8 @@ def _handler_name_for(entity_type: EventType, event_name: str) -> str:
     if override:
         return override
     prefix = _ENTITY_PREFIX.get(entity_type, entity_type.value)
-    return f"on_{prefix}_{event_name}"
+    safe_name = event_name.replace(".", "_")
+    return f"on_{prefix}_{safe_name}"
 
 
 class ITypedObserver(IObserver):

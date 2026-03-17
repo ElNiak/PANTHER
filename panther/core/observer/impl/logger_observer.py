@@ -322,6 +322,10 @@ class LoggerObserver(ITypedObserver):
         # Determine log level based on event importance
         log_level = self._get_log_level_from_importance(event_summary.importance)
 
+        # Skip message construction if this level won't be logged
+        if not self.logger.isEnabledFor(log_level):
+            return
+
         if self.structured_output:
             self._log_structured_event(event, event_type, event_summary)
         else:
@@ -352,7 +356,7 @@ class LoggerObserver(ITypedObserver):
             if hasattr(self.logger, "trace") and self.logger.isEnabledFor(
                 5
             ):  # TRACE = 5
-                self.logger.trace(f"Full event data for {event_type}: {event_data}")
+                self.logger.trace("Full event data for %s: %s", event_type, event_data)
 
     def _get_log_level_from_importance(self, importance):
         """Convert EventImportance to logging level."""
@@ -472,15 +476,6 @@ class LoggerObserver(ITypedObserver):
 
         # Still log to the regular logger for file output and detailed analysis
         self.logger.log(log_level, msg)
-
-    def _get_event_type_safely(self, event: BaseEvent) -> str:
-        """Safely get the event type from an event object."""
-        if hasattr(event, "get_type") and callable(getattr(event, "get_type")):
-            return event.get_type()
-        elif hasattr(event, "name"):
-            return event.name
-        else:
-            return str(event.__class__.__name__)
 
     def is_interested(self, event_type: str) -> bool:
         """Check if the observer is interested in an event type."""
@@ -668,7 +663,7 @@ class LoggerObserver(ITypedObserver):
                 raise ValueError(f"Unsupported export format: {format}")
             return True
         except Exception as e:
-            self.logger.error(f"Failed to export logs: {e}")
+            self.logger.error("Failed to export logs: %s", e)
             return False
 
     def _export_json(self, output_path: str):

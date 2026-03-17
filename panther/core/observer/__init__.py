@@ -106,13 +106,7 @@ from .factory import (  # Builder methods
 )
 
 # Observer implementations
-from .impl import (
-    ExperimentObserver,
-    LoggerObserver,
-    MetricsObserver,
-    PluginObserver,
-    StorageObserver,
-)
+from .impl import ExperimentObserver, LoggerObserver, MetricsObserver, StorageObserver
 
 # Event and results management
 from .management import EventManager, ResultsManager
@@ -127,7 +121,6 @@ __all__ = [
     "LoggerObserver",
     "MetricsObserver",
     "StorageObserver",
-    "PluginObserver",
     # Management
     "EventManager",
     "ResultsManager",

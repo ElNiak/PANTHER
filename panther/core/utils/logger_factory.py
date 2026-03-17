@@ -105,8 +105,20 @@ class LoggerFactory:
     _config: Dict[str, Any] = {}
     _handler_cache: Dict[str, logging.Handler] = {}
     _feature_levels: Dict[str, Any] = {}
-    _structured_log_file: Optional[str] = None
     _verbose: bool = False
+
+    # Logger names that get extra debug output when _DEBUG_FACTORY is True
+    _DEBUG_LOGGERS: frozenset = frozenset(
+        [
+            "event_manager",
+            "plugin_catalog",
+            "plugin_discovery",
+            "docker_cache_mixin",
+            "docker_builder",
+            "docker_registry",
+            "EventManager",
+        ]
+    )
 
     # Feature to logger name mapping for intelligent routing
     FEATURE_MAPPINGS = {
@@ -225,15 +237,17 @@ class LoggerFactory:
         # Debug logging to track feature levels extraction
         if cls._DEBUG_FACTORY:
             logging.debug(
-                f"_extract_feature_levels called with: {type(feature_config)}"
+                "_extract_feature_levels called with: %s", type(feature_config)
             )
             if hasattr(feature_config, "__dict__"):
                 logging.debug(
-                    f"feature_config attributes: {list(feature_config.__dict__.keys())[:5]}..."
+                    "feature_config attributes: %s...",
+                    list(feature_config.__dict__.keys())[:5],
                 )
             elif isinstance(feature_config, dict):
                 logging.debug(
-                    f"feature_config keys: {list(feature_config.keys())[:5]}..."
+                    "feature_config keys: %s...",
+                    list(feature_config.keys())[:5],
                 )
 
         # Handle different config formats (dict or dataclass)
@@ -284,7 +298,7 @@ class LoggerFactory:
         root_logger.addHandler(console_handler)
 
         # Structured JSONL file handler (replaces old text file handler)
-        structured_path = cls._structured_log_file or cls._config.get("output_file")
+        structured_path = cls._config.get("output_file")
         if structured_path:
             structured_formatter = StructuredJsonFormatter()
             file_handler = cls._get_or_create_handler(
@@ -401,7 +415,7 @@ class LoggerFactory:
         logger.addHandler(console_handler)
 
         # Add structured JSONL file handler if output_file is configured
-        structured_path = cls._structured_log_file or cls._config.get("output_file")
+        structured_path = cls._config.get("output_file")
         if structured_path:
             structured_formatter = StructuredJsonFormatter()
             file_handler = logging.FileHandler(structured_path, mode="a")
@@ -428,23 +442,13 @@ class LoggerFactory:
         cls, logger_name: str, feature: Optional[str] = None
     ) -> int:
         """Get the effective logging level for a logger, considering feature mappings."""
-        # Debug for problematic loggers (use actual logger names from log output)
-        problematic_loggers = [
-            "event_manager",
-            "plugin_catalog",
-            "plugin_discovery",
-            "docker_cache_mixin",
-            "docker_builder",
-            "docker_registry",
-            "EventManager",
-        ]
         if cls._DEBUG_FACTORY:
-            if logger_name in problematic_loggers:
+            if logger_name in cls._DEBUG_LOGGERS:
                 logging.debug(
-                    f"_get_effective_level for {logger_name}, feature={feature}"
+                    "_get_effective_level for %s, feature=%s", logger_name, feature
                 )
                 logging.debug(
-                    f"Available feature_levels: {len(cls._feature_levels)} features"
+                    "Available feature_levels: %d features", len(cls._feature_levels)
                 )
 
         # If explicit feature is provided and configured, use it
@@ -457,18 +461,20 @@ class LoggerFactory:
         if detected_feature and detected_feature in cls._feature_levels:
             level_name = cls._feature_levels[detected_feature].upper()
 
-            if cls._DEBUG_FACTORY and logger_name in problematic_loggers:
-                logging.debug(f"{logger_name} -> {detected_feature} -> {level_name}")
+            if cls._DEBUG_FACTORY and logger_name in cls._DEBUG_LOGGERS:
+                logging.debug(
+                    "%s -> %s -> %s", logger_name, detected_feature, level_name
+                )
 
             # Handle TRACE level specially
             return TRACE if level_name == "TRACE" else getattr(logging, level_name)
         else:
-            if cls._DEBUG_FACTORY and logger_name in problematic_loggers:
+            if cls._DEBUG_FACTORY and logger_name in cls._DEBUG_LOGGERS:
                 logging.debug(
-                    f"{logger_name} -> {detected_feature} (not in feature_levels)"
+                    "%s -> %s (not in feature_levels)", logger_name, detected_feature
                 )
                 logging.debug(
-                    f"Available features: {list(cls._feature_levels.keys())[:5]}..."
+                    "Available features: %s...", list(cls._feature_levels.keys())[:5]
                 )
 
         # Fall back to default level
@@ -561,16 +567,24 @@ class LoggerFactory:
 
         if cls._DEBUG_FACTORY:
             logging.debug(
-                f"update_all_feature_levels called with {len(feature_levels_dict)} features"
+                "update_all_feature_levels called with %d features",
+                len(feature_levels_dict),
             )
             logging.debug(
-                f"Existing loggers count: {len(logging.Logger.manager.loggerDict)}"
+                "Existing loggers count: %d",
+                len(logging.Logger.manager.loggerDict),
             )
             logging.debug(
-                f"Sample features being set: {list(list(feature_levels_dict.items())[:3])}"
+                "Sample features being set: %s",
+                list(feature_levels_dict.items())[:3],
             )
             logging.debug(
-                f"Current feature_levels before update: {list(list(cls._feature_levels.items())[:3]) if cls._feature_levels else 'empty'}"
+                "Current feature_levels before update: %s",
+                (
+                    list(cls._feature_levels.items())[:3]
+                    if cls._feature_levels
+                    else "empty"
+                ),
             )
 
         # Update the internal feature levels dictionary
@@ -581,16 +595,6 @@ class LoggerFactory:
         # Update all existing loggers that have been configured by us
         updated_count = 0
         skipped_count = 0
-        problematic_loggers = [
-            "event_manager",
-            "plugin_catalog",
-            "plugin_discovery",
-            "docker_cache_mixin",
-            "docker_builder",
-            "docker_registry",
-            "EventManager",
-        ]
-
         for logger_name in logging.Logger.manager.loggerDict:
             logger = logging.getLogger(logger_name)
             if hasattr(logger, "_panther_configured"):
@@ -613,7 +617,7 @@ class LoggerFactory:
                             handler.setLevel(new_level)
                     updated_count += 1
 
-                    if cls._DEBUG_FACTORY and logger_name in problematic_loggers:
+                    if cls._DEBUG_FACTORY and logger_name in cls._DEBUG_LOGGERS:
                         logging.debug(
                             f"Updated {logger_name} -> {detected_feature} -> {level_name}"
                         )
@@ -621,11 +625,13 @@ class LoggerFactory:
                     skipped_count += 1
             else:
                 skipped_count += 1
-                if cls._DEBUG_FACTORY and logger_name in problematic_loggers:
-                    logging.debug(f"Skipped {logger_name} (no _panther_configured)")
+                if cls._DEBUG_FACTORY and logger_name in cls._DEBUG_LOGGERS:
+                    logging.debug("Skipped %s (no _panther_configured)", logger_name)
 
         if cls._DEBUG_FACTORY:
-            logging.debug(f"Updated {updated_count} loggers, skipped {skipped_count}")
+            logging.debug(
+                "Updated %d loggers, skipped %d", updated_count, skipped_count
+            )
 
     @classmethod
     def set_console_level(cls, level: int) -> None:

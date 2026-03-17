@@ -158,15 +158,13 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
             not force_build or DockerBuilder.was_built_this_session(base_image_tag)
         ):
             if self._verify_cached_image(docker_builder, base_image_tag):
-                self.logger.info(
-                    f"Base Docker image verified and exists, skipping build: {base_image_tag}"
-                )
                 self.logger.info("Image cached: %s (skipped)", base_image_tag)
                 self._base_image_built = True
                 return
 
         self.logger.info(
-            f"Building base Docker image with runtime_mode='{runtime_mode}' (once per experiment)"
+            "Building base Docker image with runtime_mode='%s' (once per experiment)",
+            runtime_mode,
         )
         self.emit_docker_build_started(
             "panther/plugins/services/Dockerfile",
@@ -343,9 +341,6 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
             not force_build or DockerBuilder.was_built_this_session(expected_image_tag)
         ):
             if self._verify_cached_image(docker_builder, expected_image_tag):
-                self.logger.info(
-                    f"Service Docker image verified and exists, skipping build: {expected_image_tag}"
-                )
                 self.logger.info("Image cached: %s (skipped)", expected_image_tag)
                 # Set runtime_mode even when using cached image (for docker-compose template)
                 self.runtime_mode = runtime_mode
@@ -357,7 +352,7 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
                 self.emit_docker_build_completed(expected_image_tag, True)
                 return
 
-        self.logger.info(f"Building service Docker image: {expected_image_tag}")
+        self.logger.info("Building service Docker image: %s", expected_image_tag)
 
         self.emit_docker_build_started(str(dockerfile_path), expected_image_tag)
 

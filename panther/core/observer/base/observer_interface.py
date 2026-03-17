@@ -98,6 +98,15 @@ class IObserver(ABC):
         """
         return True
 
+    def _get_event_type_safely(self, event: BaseEvent) -> str:
+        """Safely get the event type from an event object."""
+        if hasattr(event, "get_type") and callable(getattr(event, "get_type")):
+            return event.get_type()
+        elif hasattr(event, "name"):
+            return event.name
+        else:
+            return str(event.__class__.__name__)
+
     def get_priority(self) -> int:
         """Get the priority for this observer.
 

@@ -539,7 +539,7 @@ class StorageObserver(ITypedObserver):
                 f.write(json.dumps(data, default=str) + "\n")
             return True
         except Exception as e:
-            self.logger.error(f"Failed to write to {file_path}: {e}")
+            self.logger.error("Failed to write to %s: %s", file_path, e)
             return False
 
     def _update_storage_size(self):
@@ -550,16 +550,7 @@ class StorageObserver(ITypedObserver):
             )
             self.storage_stats["storage_size"] = total_size
         except Exception as e:
-            self.logger.error(f"Failed to calculate storage size: {e}")
-
-    def _get_event_type_safely(self, event: BaseEvent) -> str:
-        """Safely get the event type from an event object."""
-        if hasattr(event, "get_type") and callable(getattr(event, "get_type")):
-            return event.get_type()
-        elif hasattr(event, "name"):
-            return event.name
-        else:
-            return str(event.__class__.__name__)
+            self.logger.error("Failed to calculate storage size: %s", e)
 
     def is_interested(self, event_type: str) -> bool:
         """Check if the observer is interested in an event type."""
@@ -608,12 +599,12 @@ class StorageObserver(ITypedObserver):
             for file_path in self.storage_path.rglob("*"):
                 if file_path.is_file() and file_path.stat().st_mtime < cutoff_date:
                     file_path.unlink()
-                    self.logger.info(f"Deleted old file: {file_path}")
+                    self.logger.info("Deleted old file: %s", file_path)
 
             self.storage_stats["last_cleanup"] = datetime.now().isoformat()
 
         except Exception as e:
-            self.logger.error(f"Failed to cleanup old data: {e}")
+            self.logger.error("Failed to cleanup old data: %s", e)
 
     def backup_data(self, backup_path: Optional[str] = None) -> bool:
         """Create a backup of all stored data."""
@@ -632,12 +623,12 @@ class StorageObserver(ITypedObserver):
 
             if backup_success:
                 self.storage_stats["last_backup"] = datetime.now().isoformat()
-                self.logger.info(f"Data backup created at: {backup_path}")
+                self.logger.info("Data backup created at: %s", backup_path)
 
             return backup_success
 
         except Exception as e:
-            self.logger.error(f"Failed to create backup: {e}")
+            self.logger.error("Failed to create backup: %s", e)
             return False
 
     def query_events(
@@ -692,13 +683,13 @@ class StorageObserver(ITypedObserver):
                             break
 
                     except (json.JSONDecodeError, ValueError) as e:
-                        self.logger.warning(f"Failed to parse event line: {e}")
+                        self.logger.warning("Failed to parse event line: %s", e)
                         continue
 
             return events
 
         except Exception as e:
-            self.logger.error(f"Failed to query events: {e}")
+            self.logger.error("Failed to query events: %s", e)
             return []
 
     def export_data(
@@ -731,7 +722,7 @@ class StorageObserver(ITypedObserver):
                 raise ValueError(f"Unsupported export format: {export_format}")
 
         except Exception as e:
-            self.logger.error(f"Failed to export data: {e}")
+            self.logger.error("Failed to export data: %s", e)
             return False
 
     def _export_json(
@@ -849,7 +840,7 @@ class StorageObserver(ITypedObserver):
             self.logger.error("XML export requires xml.etree.ElementTree")
             return False
         except Exception as e:
-            self.logger.error(f"XML export failed: {e}")
+            self.logger.error("XML export failed: %s", e)
             return False
 
     def _check_disk_space(self):
@@ -864,7 +855,7 @@ class StorageObserver(ITypedObserver):
         stat = shutil.disk_usage(str(self.storage_path))
         available_gb = stat.free / (1024**3)
 
-        self.logger.debug(f"Disk space check: {available_gb:.2f}GB available")
+        self.logger.debug("Disk space check: %.2fGB available", available_gb)
 
         if available_gb < self.disk_critical_threshold:
             raise ResourceExhaustionException(

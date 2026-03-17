@@ -225,11 +225,15 @@ class LoggerMixin:
         """
         entity_part = f" for '{entity_name}'" if entity_name else ""
 
-        # Use ConfigSummarizer for smart logging
-        summary = ConfigSummarizer.summarize(config)
-        self.logger.debug(
-            f"Loaded {self.__class__.__name__} configuration{entity_part}: {summary}"
-        )
+        # Use ConfigSummarizer for smart logging — gate to avoid work at INFO+
+        if self.logger.isEnabledFor(logging.DEBUG):
+            summary = ConfigSummarizer.summarize(config)
+            self.logger.debug(
+                "Loaded %s configuration%s: %s",
+                self.__class__.__name__,
+                entity_part,
+                summary,
+            )
 
         # Log full config at TRACE level
         if self.logger.isEnabledFor(TRACE):
@@ -310,12 +314,14 @@ class LoggerMixin:
                 for k, v in kwargs.items()
                 if k in ["name", "type", "count", "target"]
             }
-            context = f" with {filtered_kwargs}" if filtered_kwargs else ""
-            self.logger.info(f"Starting {operation}{context}")
+            if filtered_kwargs:
+                self.logger.info("Starting %s with %s", operation, filtered_kwargs)
+            else:
+                self.logger.info("Starting %s", operation)
 
         # Log full context at DEBUG level
         if kwargs and self.logger.isEnabledFor(logging.DEBUG):
-            self.logger.debug(f"Full context for {operation}: {kwargs}")
+            self.logger.debug("Full context for %s: %s", operation, kwargs)
 
     def log_operation_complete(self, operation: str, **kwargs) -> None:
         """Log the completion of an operation.
@@ -331,12 +337,14 @@ class LoggerMixin:
                 for k, v in kwargs.items()
                 if k in ["name", "duration", "result", "count"]
             }
-            context = f" with {filtered_kwargs}" if filtered_kwargs else ""
-            self.logger.info(f"Completed {operation}{context}")
+            if filtered_kwargs:
+                self.logger.info("Completed %s with %s", operation, filtered_kwargs)
+            else:
+                self.logger.info("Completed %s", operation)
 
         # Log full context at DEBUG level
         if kwargs and self.logger.isEnabledFor(logging.DEBUG):
-            self.logger.debug(f"Full context for completed {operation}: {kwargs}")
+            self.logger.debug("Full context for completed %s: %s", operation, kwargs)
 
     def log_operation_failed(self, operation: str, error: Exception, **kwargs) -> None:
         """Log the failure of an operation.

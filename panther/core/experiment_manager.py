@@ -361,7 +361,6 @@ class ExperimentManager(
         self._setup_log_statistics()
 
         self.logs_dir = self.experiment_dir
-        self.plugin_dir = plugin_dir
         # Don't assign to self.logger directly as it's a property from LoggerMixin
         if logger:
             self._logger = logger
@@ -428,9 +427,13 @@ class ExperimentManager(
         feature_levels_dict = {}
         # Convert feature_levels dataclass to dictionary
         if hasattr(self.global_config.logging.feature_levels, "__dict__"):
-            self.logger.debug(
-                f"Feature_levels in global_config: {list(list(self.global_config.logging.feature_levels.__dict__.items())[:3])}"
-            )
+            if self.logger.isEnabledFor(logging.DEBUG):
+                self.logger.debug(
+                    "Feature_levels in global_config: %s",
+                    list(self.global_config.logging.feature_levels.__dict__.items())[
+                        :3
+                    ],
+                )
             for (
                 attr_name,
                 attr_value,
@@ -724,9 +727,11 @@ class ExperimentManager(
 
         except Exception as e:
             self.logger.warning(
-                "Failed to save test configuration to %s: %s", test_dir, e
+                "Failed to save test configuration to %s: %s",
+                test_dir,
+                e,
+                exc_info=True,
             )
-            self.logger.debug("Traceback:", exc_info=True)
 
     def _initialize_test_cases(self):
         """Initialize test cases from the experiment configuration."""
@@ -764,7 +769,6 @@ class ExperimentManager(
                 self.test_cases.append(test_case)
 
             self.logger.info("Initialized %d test cases: %s", test_count, test_names)
-            self.logger.info("Initialized %s test cases.", len(self.test_cases))
 
         except Exception as e:  # pylint: disable=broad-except
             self.experiment_emitter.emit_finished_early(

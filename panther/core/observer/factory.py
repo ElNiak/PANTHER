@@ -384,6 +384,63 @@ def create_default_observers(config: Dict[str, Any]) -> List[IObserver]:
 # ── Builder Functions ────────────────────────────────────────────────
 
 
+def _create_typed_observer(
+    observer_type: str,
+    config_attr: str,
+    default_config_cls: type,
+    name: Optional[str] = None,
+    global_config=None,
+    auto_register: bool = False,
+    event_types: Optional[list] = None,
+    priority: int = 0,
+    extra_config: Optional[Dict[str, Any]] = None,
+    **kwargs,
+) -> IObserver:
+    """Shared builder logic for typed observer creation.
+
+    Args:
+        observer_type: Factory type key (e.g. "logger", "metrics")
+        config_attr: Attribute name on _observer_config (e.g. "logger", "metrics")
+        default_config_cls: Default Pydantic config class to use as fallback
+        name: Optional name to register the observer with
+        global_config: Optional global configuration object
+        auto_register: Whether to auto-register with event manager
+        event_types: Optional event type filter for auto-registration
+        priority: Priority for observer registration
+        extra_config: Extra config fields to set before kwargs merge
+        **kwargs: Additional configuration parameters
+    """
+    factory = get_observer_factory(global_config)
+
+    typed_config = (
+        getattr(factory._observer_config, config_attr, None)
+        if factory._observer_config
+        else None
+    ) or default_config_cls()
+
+    config = typed_config.model_dump(exclude_none=True)
+    if extra_config:
+        config.update(extra_config)
+    config |= kwargs
+
+    for key in ("priority", "auto_register", "enabled"):
+        config.pop(key, None)
+
+    if priority == 0:
+        priority = typed_config.priority
+    if not auto_register:
+        auto_register = typed_config.auto_register
+
+    return factory.create_observer(
+        observer_type,
+        name=name,
+        auto_register=auto_register,
+        event_types=event_types,
+        priority=priority,
+        **config,
+    )
+
+
 def create_logger(
     name: Optional[str] = None,
     global_config=None,
@@ -392,50 +449,18 @@ def create_logger(
     priority: int = 0,
     **kwargs,
 ) -> LoggerObserver:
-    """Create an enhanced event-aware logger observer.
-
-    Args:
-        name: Optional name to register the observer with
-        global_config: Global configuration for the logger
-        auto_register: Whether to automatically register the observer with the event manager
-        event_types: Optional list of event types to subscribe to if auto_register is True
-        priority: Priority for observer registration if auto_register is True
-        **kwargs: Additional configuration parameters
-
-    Returns:
-        LoggerObserver: Configured logger observer
-    """
-    factory = get_observer_factory(global_config)
-
-    # Start with default config from observer_config if available
-    logger_config = (
-        factory._observer_config.logger
-        if hasattr(factory, "_observer_config") and factory._observer_config
-        else LoggerObserverConfig()
-    )
-
-    # Use model_dump to get all config fields, then add extra params
-    config = logger_config.model_dump(exclude_none=True)
-    config["global_config"] = global_config
-    config |= kwargs
-
-    # Remove fields that are passed as explicit keyword args to create_observer
-    for key in ("priority", "auto_register", "enabled"):
-        config.pop(key, None)
-
-    # Use configured priority/auto_register if not explicitly provided
-    if priority == 0:
-        priority = logger_config.priority
-    if not auto_register:
-        auto_register = logger_config.auto_register
-
-    return factory.create_observer(
+    """Create an enhanced event-aware logger observer."""
+    return _create_typed_observer(
         "logger",
+        "logger",
+        LoggerObserverConfig,
         name=name,
+        global_config=global_config,
         auto_register=auto_register,
         event_types=event_types,
         priority=priority,
-        **config,
+        extra_config={"global_config": global_config},
+        **kwargs,
     )
 
 
@@ -449,53 +474,18 @@ def create_metrics(
     metrics_collector=None,
     **kwargs,
 ) -> MetricsObserver:
-    """Create an enhanced metrics observer.
-
-    Args:
-        name: Optional name to register the observer with
-        global_config: Optional global configuration object
-        auto_register: Whether to automatically register the observer with the event manager
-        event_types: Optional list of event types to subscribe to if auto_register is True
-        priority: Priority for observer registration if auto_register is True
-        output_dir: Output directory for metrics
-        metrics_collector: Optional metrics collector instance
-        **kwargs: Configuration parameters
-
-    Returns:
-        MetricsObserver: Configured metrics observer
-    """
-    factory = get_observer_factory()
-
-    # Start with default config from observer_config if available
-    metrics_config = (
-        factory._observer_config.metrics
-        if hasattr(factory, "_observer_config") and factory._observer_config
-        else MetricsObserverConfig()
-    )
-
-    # Use model_dump to get all config fields, then add extra params
-    config = metrics_config.model_dump(exclude_none=True)
-    config["output_dir"] = output_dir
-    config["metrics_collector"] = metrics_collector
-    config |= kwargs
-
-    # Remove fields that are passed as explicit keyword args to create_observer
-    for key in ("priority", "auto_register", "enabled"):
-        config.pop(key, None)
-
-    # Use configured priority/auto_register if not explicitly provided
-    if priority == 0:
-        priority = metrics_config.priority
-    if not auto_register:
-        auto_register = metrics_config.auto_register
-
-    return factory.create_observer(
+    """Create an enhanced metrics observer."""
+    return _create_typed_observer(
         "metrics",
+        "metrics",
+        MetricsObserverConfig,
         name=name,
+        global_config=global_config,
         auto_register=auto_register,
         event_types=event_types,
         priority=priority,
-        **config,
+        extra_config={"output_dir": output_dir, "metrics_collector": metrics_collector},
+        **kwargs,
     )
 
 
@@ -508,51 +498,28 @@ def create_storage(
     priority: int = 0,
     **kwargs,
 ) -> StorageObserver:
-    """Create an enhanced storage observer.
-
-    Args:
-        name: Optional name to register the observer with
-        global_config: Optional global configuration object
-        output_dir: Output directory for storage
-        auto_register: Whether to automatically register the observer with the event manager
-        event_types: Optional list of event types to subscribe to if auto_register is True
-        priority: Priority for observer registration if auto_register is True
-        **kwargs: Additional configuration parameters
-
-    Returns:
-        StorageObserver: Configured storage observer
-    """
+    """Create an enhanced storage observer."""
     factory = get_observer_factory()
-
-    # Start with default config from observer_config if available
     storage_config = (
-        factory._observer_config.storage
-        if hasattr(factory, "_observer_config") and factory._observer_config
-        else StorageObserverConfig()
+        getattr(factory._observer_config, "storage", None)
+        if factory._observer_config
+        else None
+    ) or StorageObserverConfig()
+    default_path = storage_config.model_dump(exclude_none=True).get(
+        "storage_path", "outputs"
     )
 
-    # Use model_dump to get all config fields, then override storage_path
-    config = storage_config.model_dump(exclude_none=True)
-    config["storage_path"] = output_dir or config.get("storage_path") or "outputs"
-    config |= kwargs
-
-    # Remove fields that are passed as explicit keyword args to create_observer
-    for key in ("priority", "auto_register", "enabled"):
-        config.pop(key, None)
-
-    # Use configured priority/auto_register if not explicitly provided
-    if priority == 0:
-        priority = storage_config.priority
-    if not auto_register:
-        auto_register = storage_config.auto_register
-
-    return factory.create_observer(
+    return _create_typed_observer(
         "storage",
+        "storage",
+        StorageObserverConfig,
         name=name,
+        global_config=global_config,
         auto_register=auto_register,
         event_types=event_types,
         priority=priority,
-        **config,
+        extra_config={"storage_path": output_dir or default_path},
+        **kwargs,
     )
 
 
@@ -566,54 +533,22 @@ def create_experiment_observer(
     priority: int = 0,
     **kwargs,
 ) -> ExperimentObserver:
-    """Create an enhanced experiment observer.
-
-    Args:
-        name: Optional name to register the observer with
-        test_name: Name of the test being observed
-        output_dir: Output directory path
-        global_config: Global configuration object
-        auto_register: Whether to automatically register the observer with the event manager
-        event_types: Optional list of event types to subscribe to if auto_register is True
-        priority: Priority for observer registration if auto_register is True
-        **kwargs: Additional configuration parameters
-
-    Returns:
-        ExperimentObserver: Configured experiment observer
-    """
-    factory = get_observer_factory(global_config)
-
-    # Start with default config from observer_config if available
-    exp_config = (
-        factory._observer_config.experiment
-        if hasattr(factory, "_observer_config") and factory._observer_config
-        else ExperimentObserverConfig()
-    )
-
-    # Use model_dump to get all config fields, then override specifics
-    config = exp_config.model_dump(exclude_none=True)
-    config["output_dir"] = output_dir or config.get("output_dir") or "outputs"
-    config["test_name"] = test_name or config.get("test_name")
-    config["global_config"] = global_config
-    config |= kwargs
-
-    # Remove fields that are passed as explicit keyword args to create_observer
-    for key in ("priority", "auto_register", "enabled"):
-        config.pop(key, None)
-
-    # Use configured priority/auto_register if not explicitly provided
-    if priority == 0:
-        priority = exp_config.priority
-    if not auto_register:
-        auto_register = exp_config.auto_register
-
-    return factory.create_observer(
+    """Create an enhanced experiment observer."""
+    return _create_typed_observer(
         "experiment",
+        "experiment",
+        ExperimentObserverConfig,
         name=name,
+        global_config=global_config,
         auto_register=auto_register,
         event_types=event_types,
         priority=priority,
-        **config,
+        extra_config={
+            "output_dir": output_dir or "outputs",
+            "test_name": test_name,
+            "global_config": global_config,
+        },
+        **kwargs,
     )
 
 
