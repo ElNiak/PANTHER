@@ -95,8 +95,6 @@ from .base.typed_observer_interface import ITypedObserver
 # Factory system
 from .factory import (  # Builder methods
     ObserverFactory,
-    create_default_observer_set,
-    create_default_observers,
     create_experiment_observer,
     create_logger,
     create_metrics,
@@ -128,10 +126,8 @@ __all__ = [
     "ObserverFactory",
     "get_observer_factory",
     "create_observer",
-    "create_default_observers",
     "create_logger",
     "create_metrics",
     "create_storage",
     "create_experiment_observer",
-    "create_default_observer_set",
 ]

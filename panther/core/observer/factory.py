@@ -14,14 +14,12 @@ Default observer types registered at initialization:
 Module-level convenience functions:
     - ``get_observer_factory()`` -- get/create the global factory singleton
     - ``create_observer(type, **kwargs)`` -- shorthand for factory creation
-    - ``create_default_observers(config)`` -- create a standard observer set
 
 Builder functions:
     - ``create_logger()`` -- Create a ``LoggerObserver`` with color/format config
     - ``create_metrics()`` -- Create a ``MetricsObserver`` with collection intervals
     - ``create_storage()`` -- Create a ``StorageObserver`` with path/retention config
     - ``create_experiment_observer()`` -- Create an ``ExperimentObserver`` with timing/steps
-    - ``create_default_observer_set()`` -- Create the standard observer set from config dict
 
 Example:
     Programmatic observer creation::
@@ -375,11 +373,6 @@ def create_observer(observer_type: str, **kwargs) -> IObserver:
     return factory.create_observer(observer_type, **kwargs)
 
 
-def create_default_observers(config: Dict[str, Any]) -> List[IObserver]:
-    """Convenience function to create default observers."""
-    return create_default_observer_set(config)
-
-
 # ── Builder Functions ────────────────────────────────────────────────
 
 
@@ -498,16 +491,7 @@ def create_storage(
     **kwargs,
 ) -> StorageObserver:
     """Create an enhanced storage observer."""
-    factory = get_observer_factory()
-    storage_config = (
-        getattr(factory._observer_config, "storage", None)
-        if factory._observer_config
-        else None
-    ) or StorageObserverConfig()
-    default_path = storage_config.model_dump(exclude_none=True).get(
-        "storage_path", "outputs"
-    )
-
+    extra = {"storage_path": output_dir} if output_dir else {}
     return _create_typed_observer(
         "storage",
         "storage",
@@ -517,7 +501,7 @@ def create_storage(
         auto_register=auto_register,
         event_types=event_types,
         priority=priority,
-        extra_config={"storage_path": output_dir or default_path},
+        extra_config=extra,
         **kwargs,
     )
 
@@ -551,80 +535,14 @@ def create_experiment_observer(
     )
 
 
-def create_default_observer_set(config: Dict[str, Any]) -> List[IObserver]:
-    """Create a default set of observers based on configuration.
-
-    Args:
-        config: Framework configuration dictionary
-
-    Returns:
-        List of configured observer instances
-    """
-    factory = get_observer_factory()
-    observers = []
-
-    # Get global configuration if available
-    global_config = config.get("global_config")
-    output_dir = config.get("paths", {}).get("output_dir", "outputs")
-    test_name = config.get("test_name")
-
-    # Always create enhanced logger
-    logger_config = config.get("observer", {}).get("logger", {})
-    logger_obs = create_logger(
-        name="default_logger",
-        log_level=config.get("logging", {}).get("level", "INFO"),
-        global_config=global_config,
-        **logger_config,
-    )
-    observers.append(logger_obs)
-
-    # Create metrics observer if enabled
-    metrics_config = config.get("observer", {}).get("metrics", {})
-    if metrics_config.get("enabled", False):
-        metrics_obs = create_metrics(
-            name="default_metrics", output_dir=output_dir, **metrics_config
-        )
-        observers.append(metrics_obs)
-
-    # Create storage observer if enabled
-    storage_config = config.get("observer", {}).get("storage", {})
-    if storage_config.get("enabled", False):
-        storage_obs = create_storage(
-            name="default_storage", output_dir=output_dir, **storage_config
-        )
-        observers.append(storage_obs)
-
-    # Always create experiment observer for tracking and coordination
-    experiment_config = config.get("observer", {}).get("experiment", {})
-    experiment_obs = create_experiment_observer(
-        name="default_experiment",
-        test_name=test_name,
-        output_dir=output_dir,
-        global_config=global_config,
-        **experiment_config,
-    )
-    observers.append(experiment_obs)
-
-    # Register with event manager if available
-    if factory._event_manager:
-        for observer in observers:
-            factory._event_manager.register_observer(observer)
-
-    logger = logging.getLogger(__name__)
-    logger.info("Created default observer set with %d observers", len(observers))
-    return observers
-
-
 __all__ = [
     # Core factory
     "ObserverFactory",
     "get_observer_factory",
     "create_observer",
-    "create_default_observers",
     # Builder functions
     "create_logger",
     "create_metrics",
     "create_storage",
     "create_experiment_observer",
-    "create_default_observer_set",
 ]
