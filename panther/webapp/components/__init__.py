@@ -54,5 +54,24 @@ try:
     )
     from panther.webapp.components.status.progress_bar import ExperimentProgress
     from panther.webapp.components.status.status_badge import status_badge
+
+    __all__ = [
+        "event_viewer",
+        "metrics_panel",
+        "plugin_card",
+        "render_plugin_detail",
+        "service_health_card",
+        "service_log_browser",
+        "test_detail_panel",
+        "config_form_panel",
+        "TestListEditor",
+        "error_boundary",
+        "notify_error",
+        "notify_info",
+        "notify_success",
+        "notify_warning",
+        "ExperimentProgress",
+        "status_badge",
+    ]
 except ImportError:
-    pass
+    __all__ = []
