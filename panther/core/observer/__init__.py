@@ -66,10 +66,10 @@ Example:
                 return event_type.startswith("test.")
 
             def on_event(self, event: BaseEvent):
-                if event.uuid in self.processed_events_uuids:
+                if event.id in self.processed_events_uuids:
                     return
                 print(f"Event: {event.event_type}")
-                self.processed_events_uuids.append(event.uuid)
+                self.processed_events_uuids.append(event.id)
 
         event_manager = EventManager.get_instance()
         event_manager.register_observer(MyObserver(), priority=5)

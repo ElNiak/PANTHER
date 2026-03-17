@@ -25,9 +25,9 @@ Example:
                 return event_type.startswith("test.")
 
             def on_event(self, event: BaseEvent):
-                if event.uuid in self.processed_events_uuids:
+                if event.id in self.processed_events_uuids:
                     return  # Skip duplicate
-                self.processed_events_uuids.append(event.uuid)
+                self.processed_events_uuids.append(event.id)
                 self.event_count += 1
 
 See Also:
@@ -63,10 +63,10 @@ class IObserver(ABC):
 
             class MinimalObserver(IObserver):
                 def on_event(self, event: BaseEvent):
-                    if event.uuid in self.processed_events_uuids:
+                    if event.id in self.processed_events_uuids:
                         return
                     # process event ...
-                    self.processed_events_uuids.append(event.uuid)
+                    self.processed_events_uuids.append(event.id)
 
     See Also:
         `ITypedObserver` for automatic event routing by type.

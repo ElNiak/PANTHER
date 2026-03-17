@@ -15,8 +15,9 @@ Dispatch strategy:
        requiring base class stubs.
 
 Handler naming convention:
-    ``on_{entity_prefix}_{event_name}`` where dots in event names are replaced
-    with underscores and the entity prefix comes from the ``_ENTITY_PREFIX`` map.
+    ``on_{entity_prefix}_{event_name}`` where the entity prefix comes from
+    the ``_ENTITY_PREFIX`` map.  Dot-separated event names (e.g.
+    ``network.setup.started``) are handled via ``_HANDLER_OVERRIDES``.
 
 Example:
     Create a typed observer that only handles test lifecycle events::
@@ -202,9 +203,11 @@ class ITypedObserver(IObserver):
         Returns:
             The return value from the matched handler, or False on error.
         """
-        # Track processed event
-        if hasattr(event, "event_id"):
-            self.processed_events_uuids.append(event.event_id)
+        # Deduplication check via event.id
+        if hasattr(event, "id"):
+            if event.id in self.processed_events_uuids:
+                return True
+            self.processed_events_uuids.append(event.id)
 
         # 1. Try exact type match (kept subclasses, metrics)
         handler = self._type_handlers.get(type(event))
@@ -324,16 +327,24 @@ class ITypedObserver(IObserver):
         Returns:
             True if a matching handler likely exists.
         """
+        if not event_type or len(event_type) < 2:
+            return False
+
         event_type_lower = event_type.lower()
 
-        # Check type-based handlers
+        # Check type-based handlers (bidirectional prefix matching)
         for event_class in self._type_handlers:
-            if event_type_lower in event_class.__name__.lower():
+            class_lower = event_class.__name__.lower()
+            if class_lower.startswith(event_type_lower) or event_type_lower.startswith(
+                class_lower
+            ):
                 return True
 
-        # Check if any entity prefix matches
+        # Check if any entity prefix matches (bidirectional prefix matching)
         for prefix in _ENTITY_PREFIX.values():
-            if event_type_lower in prefix:
+            if prefix.startswith(event_type_lower) or event_type_lower.startswith(
+                prefix
+            ):
                 return True
 
         return False
