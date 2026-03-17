@@ -61,7 +61,6 @@ class ExperimentObserver(ITypedObserver):
         self._step_progress_bars = {}
 
         self.experiment_finished_early = False
-        self._should_terminate_early = False
         self._termination_reason = None
 
         self.name = name
@@ -79,13 +78,9 @@ class ExperimentObserver(ITypedObserver):
         self.events_received = 0
 
     def on_event(self, event: BaseEvent) -> bool:
-        """Thin wrapper adding event counting and already_logged check."""
+        """Thin wrapper adding event counting before typed dispatch."""
         with self._state_lock:
             self.events_received += 1
-
-        event_data = getattr(event, "data", {})
-        if event_data.get("already_logged", False):
-            return True
 
         return super().on_event(event)
 
@@ -133,7 +128,6 @@ class ExperimentObserver(ITypedObserver):
         self.logger.error("Service failure detected: %s - %s", failed_service, reason)
 
         with self._state_lock:
-            self._should_terminate_early = True
             self._termination_reason = f"Service failure: {reason}"
             self.experiment_finished_early = True
 
@@ -386,7 +380,6 @@ class ExperimentObserver(ITypedObserver):
         self.logger.error("Environment error: %s (type: %s)", error_message, error_type)
 
         with self._state_lock:
-            self._should_terminate_early = True
             self._termination_reason = error_message
             self.experiment_finished_early = True
         self.logger.warning(
@@ -449,7 +442,6 @@ class ExperimentObserver(ITypedObserver):
         )
         if is_unexpected:
             with self._state_lock:
-                self._should_terminate_early = True
                 self.experiment_finished_early = True
 
         self.logger.debug("Observed service '%s' stop", service_name)
@@ -584,15 +576,15 @@ class ExperimentObserver(ITypedObserver):
         return True
 
     def on_test_completed(self, event: BaseEvent) -> bool:
-        """Handle test completed events."""
+        """Handle test completed events.
+
+        Note: Failed tests route through on_test_failed / TestFailedEvent.
+        """
         self.current_phase = "test_completed"
         test_name = event.data.get("test_name")
-        success = event.data.get("success", True)
         result = event.data.get("result") or {}
 
-        self.logger.info(
-            "Test completed: %s - %s", test_name, "Success" if success else "Failed"
-        )
+        self.logger.info("Test completed: %s", test_name)
 
         self._cleanup_step_progress_bars(test_name)
 
@@ -624,14 +616,12 @@ class ExperimentObserver(ITypedObserver):
         """Handle test execution completed events."""
         self.current_phase = "test_execution_completed"
         test_name = event.data.get("test_name")
-        success = event.data.get("success", True)
         results = event.data.get("results") or {}
         duration_ms = event.data.get("duration_ms")
 
         self.logger.info(
-            "Test execution completed: %s - %s (Duration: %s ms)",
+            "Test execution completed: %s (Duration: %s ms)",
             test_name,
-            "Success" if success else "Failed",
             duration_ms if duration_ms is not None else "unknown",
         )
 
@@ -771,7 +761,7 @@ class ExperimentObserver(ITypedObserver):
     def should_terminate_early(self) -> bool:
         """Check if the experiment should terminate early (thread-safe)."""
         with self._state_lock:
-            return self._should_terminate_early or self.experiment_finished_early
+            return self.experiment_finished_early
 
     def is_interested(self, event_type: str) -> bool:
         """Check if this observer is interested in an event type."""

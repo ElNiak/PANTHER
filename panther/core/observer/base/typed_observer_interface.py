@@ -156,6 +156,18 @@ class ITypedObserver(IObserver):
             MetricsSummaryEvent: self.on_metrics_summary,
         }
 
+    def _is_duplicate(self, event: BaseEvent) -> bool:
+        """Check if event was already processed, tracking it if new.
+
+        Subclasses that override ``on_event`` should call this instead of
+        reimplementing the UUID check.
+        """
+        if hasattr(event, "id") and event.id:
+            if event.id in self.processed_events_uuids:
+                return True
+            self.processed_events_uuids.add(event.id)
+        return False
+
     def on_event(self, event: BaseEvent):
         """Route an event to its specific typed handler method.
 
@@ -169,11 +181,8 @@ class ITypedObserver(IObserver):
         Returns:
             The return value from the matched handler, or False on error.
         """
-        # Deduplication check via event.id
-        if hasattr(event, "id"):
-            if event.id in self.processed_events_uuids:
-                return True
-            self.processed_events_uuids.add(event.id)
+        if self._is_duplicate(event):
+            return True
 
         # 1. Try exact type match (kept subclasses, metrics)
         handler = self._type_handlers.get(type(event))

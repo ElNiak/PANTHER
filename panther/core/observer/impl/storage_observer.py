@@ -6,6 +6,7 @@ for comprehensive data persistence and retrieval capabilities.
 
 import json
 import shutil
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -48,7 +49,7 @@ class StorageObserver(ITypedObserver):
 
     # Class-level registry to maintain one instance per storage path
     _instances = {}
-    _instance_lock = None
+    _instance_lock = threading.Lock()
 
     def __new__(cls, storage_path: Optional[str] = None, **kwargs):
         """Implement singleton pattern per storage path.
@@ -56,12 +57,6 @@ class StorageObserver(ITypedObserver):
         Returns existing instance if one exists for the same storage path,
         otherwise creates new instance.
         """
-        # Initialize lock if not exists
-        if cls._instance_lock is None:
-            import threading
-
-            cls._instance_lock = threading.Lock()
-
         # Normalize storage path for consistent keys
         if storage_path is None:
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")

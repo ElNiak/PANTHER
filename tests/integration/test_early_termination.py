@@ -237,7 +237,6 @@ class TestEarlyTermination:
         result = observer.on_event(error_event)
 
         assert result is True
-        assert observer._should_terminate_early
         assert observer.experiment_finished_early
         assert "Service failure" in observer._termination_reason
 

@@ -14,21 +14,29 @@ class TestModernPluginSystem:
     @patch("panther.core.docker_builder.DockerBuilder.get_instance")
     def test_plugin_discovery_mechanism(self, mock_get_instance, temp_dir):
         """Test that plugins are discovered correctly in the new system."""
-        # Create a fake plugin directory structure
-        plugin_dir = (
-            Path(temp_dir)
-            / "plugins"
-            / "services"
-            / "iut"
-            / "test_protocol"
-            / "test_impl"
-        )
-        plugin_dir.mkdir(parents=True)
+        from panther.core.docker_builder import DockerBuilder
+        from panther.plugins.plugin_manager import PluginManager
 
-        # Create a fake plugin file
-        plugin_file = plugin_dir / "test_impl.py"
-        plugin_file.write_text(
-            """
+        # Reset singletons to avoid interference from other tests in xdist
+        PluginManager.reset_singleton()
+        DockerBuilder.reset_singleton()
+
+        try:
+            # Create a fake plugin directory structure
+            plugin_dir = (
+                Path(temp_dir)
+                / "plugins"
+                / "services"
+                / "iut"
+                / "test_protocol"
+                / "test_impl"
+            )
+            plugin_dir.mkdir(parents=True)
+
+            # Create a fake plugin file
+            plugin_file = plugin_dir / "test_impl.py"
+            plugin_file.write_text(
+                """
 class TestImplServiceManager:
     def __init__(self, *args, **kwargs):
         pass
@@ -36,15 +44,16 @@ class TestImplServiceManager:
     def generate_commands(self):
         return {"run_cmd": {"command_binary": "test"}}
 """
-        )
+            )
 
-        # Test plugin discovery
-        from panther.plugins.plugin_manager import PluginManager
+            # Test plugin discovery
+            plugin_manager = PluginManager(str(plugin_dir.parent.parent.parent.parent))
 
-        plugin_manager = PluginManager(str(plugin_dir.parent.parent.parent.parent))
-
-        # This would test the actual discovery mechanism
-        assert plugin_dir.exists()
+            # This would test the actual discovery mechanism
+            assert plugin_dir.exists()
+        finally:
+            PluginManager.reset_singleton()
+            DockerBuilder.reset_singleton()
 
     @patch("panther.plugins.plugin_manager.PluginManager")
     def test_service_manager_creation(

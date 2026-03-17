@@ -24,10 +24,9 @@ class TestPluginFormInfo:
         if info is None:
             pytest.skip("picoquic plugin not importable in test environment")
         assert info.plugin_name == "picoquic"
-        assert info.form_model is not None
-        assert "omega_config" not in info.form_model.model_fields
+        assert info.config_model is not None
+        assert "omega_config" not in info.config_model.model_fields
         assert isinstance(info.defaults, dict)
-        assert isinstance(info.id_field, str)
 
     def test_enum_extraction(self):
         from panther.webapp.components.forms.plugin_forms import _extract_enum_choices

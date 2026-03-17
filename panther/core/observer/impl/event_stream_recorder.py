@@ -55,7 +55,7 @@ class EventStreamRecorder(ITypedObserver):
         self.output_path = Path(output_path)
         self._lock = threading.Lock()
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.processed_events_uuids: set = set()  # Explicit initialization for clarity
+        self._file_handle = None
 
     def on_event(self, event: BaseEvent) -> bool:
         """Serialize an event to the structured JSONL file.
@@ -70,26 +70,46 @@ class EventStreamRecorder(ITypedObserver):
         Returns:
             True on success, False if writing failed.
         """
-        # Track processed events for deduplication
-        if hasattr(event, "id") and event.id:
-            if event.id in self.processed_events_uuids:
-                return True
-            self.processed_events_uuids.add(event.id)
+        if self._is_duplicate(event):
+            return True
 
         try:
             record = self._event_to_jsonl_record(event)
             line = json.dumps(record, default=str)
             with self._lock:
-                with open(self.output_path, "a", encoding="utf-8") as fh:
-                    fh.write(line + "\n")
+                fh = self._get_file_handle()
+                fh.write(line + "\n")
+                fh.flush()
             return True
         except Exception as exc:  # pylint: disable=broad-exception-caught
+            self._file_handle = None  # Reset handle on error
             self.logger.warning(
                 "EventStreamRecorder failed to write event %s: %s. Structured log may be incomplete.",
                 getattr(event, "id", "?"),
                 exc,
             )
             return False
+
+    def _get_file_handle(self):
+        """Get or open the file handle for writing (caller must hold _lock)."""
+        if self._file_handle is None or self._file_handle.closed:
+            self._file_handle = open(self.output_path, "a", encoding="utf-8")
+        return self._file_handle
+
+    def close(self):
+        """Close the file handle if open."""
+        with self._lock:
+            if self._file_handle is not None and not self._file_handle.closed:
+                self._file_handle.close()
+                self._file_handle = None
+
+    def __del__(self):
+        """Ensure the file handle is closed on garbage collection."""
+        if self._file_handle is not None and not self._file_handle.closed:
+            try:
+                self._file_handle.close()
+            except Exception:
+                pass
 
     def _event_to_jsonl_record(self, event: BaseEvent) -> Dict[str, Any]:
         """Convert a BaseEvent into the structured JSONL schema.

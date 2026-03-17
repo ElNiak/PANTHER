@@ -8,13 +8,6 @@ import logging
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
 
-try:
-    import click
-
-    CLICK_AVAILABLE = True
-except ImportError:
-    CLICK_AVAILABLE = False
-
 from panther.core.events.base.event_base import BaseEvent
 from panther.core.events.experiment.events import ExperimentFinishedEarlyEvent
 from panther.core.events.service.events import (
@@ -117,16 +110,17 @@ class LoggerObserver(ITypedObserver):
             structured_output=self.structured_output,
         )
 
-        # Event correlation tracking
+        # Event correlation tracking (bounded to prevent unbounded memory growth)
+        self._max_context_size = 10000
         self.event_correlations: Dict[str, List[str]] = {}
         self.event_context: Dict[str, Dict[str, Any]] = {}
 
         # Statistics tracking
         self.event_counts: Dict[str, int] = {}
         self.error_events: List[Dict[str, Any]] = []
+        self._max_error_events = 1000
 
         # Recursion protection
-        self._processing_event = False
         self._recursion_depth = 0
         self._max_recursion_depth = 5
 
@@ -190,10 +184,8 @@ class LoggerObserver(ITypedObserver):
             self._track_event_in_history(event, event_type)
 
         # Dedup check (LoggerObserver.on_event bypasses ITypedObserver.on_event)
-        if hasattr(event, "id") and event.id:
-            if event.id in self.processed_events_uuids:
-                return True
-            self.processed_events_uuids.add(event.id)
+        if self._is_duplicate(event):
+            return True
 
         # Dispatch to typed handler if one exists on this class.
         # Typed handlers provide specialized formatting (emoji, ERROR level).
@@ -234,8 +226,10 @@ class LoggerObserver(ITypedObserver):
         """Update event statistics and tracking."""
         self.event_counts[event_type] = self.event_counts.get(event_type, 0) + 1
 
-        # Track error events
+        # Track error events (bounded)
         if "error" in event_type.lower() or "fail" in event_type.lower():
+            if len(self.error_events) >= self._max_error_events:
+                self.error_events.pop(0)
             self.error_events.append(
                 {
                     "type": event_type,
@@ -246,9 +240,16 @@ class LoggerObserver(ITypedObserver):
             )
 
     def _track_event_correlation(self, event: BaseEvent):
-        """Track event correlations and context."""
+        """Track event correlations and context (bounded)."""
         event_id = str(getattr(event, "id", "unknown"))
         event_type = self._get_event_type_safely(event)
+
+        # Evict oldest entries when at capacity
+        if len(self.event_context) >= self._max_context_size:
+            # Remove oldest 10% to amortize eviction cost
+            evict_count = self._max_context_size // 10
+            for key in list(self.event_context)[:evict_count]:
+                del self.event_context[key]
 
         # Store event context
         self.event_context[event_id] = {
@@ -264,34 +265,6 @@ class LoggerObserver(ITypedObserver):
             if corr_id not in self.event_correlations:
                 self.event_correlations[corr_id] = []
             self.event_correlations[corr_id].append(event_id)
-
-    def _is_progress_active(self) -> bool:
-        """Check if a Click progress bar is currently active."""
-        if not CLICK_AVAILABLE:
-            return False
-
-        try:
-            # For Click progress bars, we check if progress configuration is enabled
-            # Click progress bars don't maintain global state
-            # We can check if the global config indicates progress bars are enabled
-            if hasattr(self, "config") and self.config:
-                return getattr(self.config, "progress", {}).get(
-                    "enable_progress_bar", False
-                )
-
-            # Default to False if we can't determine progress state
-            return False
-        except (AttributeError, TypeError, ImportError):
-            return False
-
-    def _should_use_progress_coordination(self, event: BaseEvent) -> bool:
-        """Determine if we should use progress coordination for this event."""
-        if not self._is_progress_active():
-            return False
-
-        # Use coordinated logging for all events when progress bars are active to prevent interleaving
-        # This ensures coordinated output between progress bars and log messages
-        return True
 
     def _log_event(self, event: BaseEvent):
         """Format and log the event with enhanced formatting using EventSummarizer."""
@@ -370,44 +343,6 @@ class LoggerObserver(ITypedObserver):
         }
         return mapping.get(importance, logging.INFO)
 
-    def _get_event_priority(self, event_type: str, event: BaseEvent) -> str:
-        """Determine the priority of an event."""
-        # Check for explicit priority in event data
-        event_data = getattr(event, "data", {})
-        if "priority" in event_data:
-            return event_data["priority"]
-
-        # Check priority boost configuration
-        for boost_type, boost_level in self.priority_boost.items():
-            if event_type.startswith(boost_type):
-                return ["debug", "info", "low", "medium", "high", "critical"][
-                    min(boost_level, 5)
-                ]
-
-        # Default priority based on event type
-        if "error" in event_type.lower() or "fail" in event_type.lower():
-            return "high"
-        elif "warning" in event_type.lower():
-            return "medium"
-        elif "critical" in event_type.lower():
-            return "critical"
-        elif "security" in event_type.lower():
-            return "high"
-        else:
-            return "info"
-
-    def _get_log_level_for_event(self, event_type: str, priority: str) -> int:
-        """Map event priority to logging level."""
-        priority_to_level = {
-            "critical": logging.CRITICAL,
-            "high": logging.ERROR,
-            "medium": logging.WARNING,
-            "low": logging.INFO,
-            "info": logging.INFO,
-            "debug": logging.DEBUG,
-        }
-        return priority_to_level.get(priority, logging.INFO)
-
     def _log_structured_event(self, event: BaseEvent, event_type: str, event_summary):
         """Log event in structured JSON format with smart summarization."""
         import json
@@ -422,60 +357,6 @@ class LoggerObserver(ITypedObserver):
         }
 
         self.logger.info(json.dumps(structured_data, default=str))
-
-    def _log_docker_build_event_with_click(
-        self, event: BaseEvent, msg: str, log_level: int
-    ):
-        """Log Docker build events using coordinated logging to avoid progress bar interference."""
-        if not CLICK_AVAILABLE:
-            # Fallback to regular logging if click is not available
-            self.logger.log(log_level, msg)
-            return
-
-        # Create user-friendly messages for Docker build events
-        event_data = getattr(event, "data", {})
-
-        if isinstance(event, DockerBuildStartedEvent):
-            service_name = event_data.get("service_name", "Unknown")
-            image_name = event_data.get("image_name", "Unknown")
-            dockerfile_path = event_data.get("dockerfile_path", "Unknown")
-
-            # Show a concise, informative message
-            build_msg = f"🐳 Building Docker image: {service_name} ({image_name})"
-            if self.debug_mode:
-                build_msg += f" from {dockerfile_path}"
-
-            self.logger.info(build_msg)
-
-        elif isinstance(event, DockerBuildCompletedEvent):
-            service_name = event_data.get("service_name", "Unknown")
-            image_name = event_data.get("image_name", "Unknown")
-            success = event_data.get("success", False)
-            build_duration = event_data.get("build_duration", 0)
-
-            if success:
-                build_msg = f"✅ Docker build completed: {service_name} ({image_name})"
-                if build_duration and build_duration > 0:
-                    build_msg += f" in {build_duration:.1f}s"
-            else:
-                error_message = event_data.get("error_message", "Unknown error")
-                build_msg = f"❌ Docker build failed: {service_name} ({image_name}) - {error_message}"
-
-            self.logger.info(build_msg)
-
-        elif isinstance(event, DockerBuildFailedEvent):
-            service_name = event_data.get("service_name", "Unknown")
-            error_message = event_data.get("error_message", "Unknown error")
-            build_duration = event_data.get("build_duration", 0)
-
-            build_msg = f"❌ Docker build failed: {service_name} - {error_message}"
-            if build_duration and build_duration > 0:
-                build_msg += f" after {build_duration:.1f}s"
-
-            self.logger.info(build_msg)
-
-        # Still log to the regular logger for file output and detailed analysis
-        self.logger.log(log_level, msg)
 
     def is_interested(self, event_type: str) -> bool:
         """Check if the observer is interested in an event type."""

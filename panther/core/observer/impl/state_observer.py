@@ -87,11 +87,8 @@ class StateEventObserver(ITypedObserver):
 
     def on_event(self, event: BaseEvent) -> bool:
         """Route events to workflow state transitions via lookup table."""
-        # Let ITypedObserver handle dedup
-        if hasattr(event, "id"):
-            if event.id in self.processed_events_uuids:
-                return True
-            self.processed_events_uuids.add(event.id)
+        if self._is_duplicate(event):
+            return True
 
         # Special case: experiment initialized (also sets current_experiment_id)
         if event.entity_type.value == "experiment" and event.name == "initialized":
