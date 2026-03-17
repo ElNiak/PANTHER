@@ -1,6 +1,7 @@
 """Tests for Bug 1: experiment_manager correctly increments summary counters."""
 
-import sys
+import tempfile
+from pathlib import Path
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -35,6 +36,10 @@ def _make_manager(mock_collector, test_cases=None):
     mgr.fast_fail_handler = MagicMock()
     mgr.emitter_registry = MagicMock()
     mgr._save_test_configuration = MagicMock()
+
+    # experiment_dir is required by run_tests()
+    mgr.experiment_dir = Path(tempfile.mkdtemp()) / "experiment"
+    mgr.experiment_dir.mkdir(parents=True, exist_ok=True)
 
     # global_config stub with all required attributes
     gc = MagicMock()

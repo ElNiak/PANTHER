@@ -639,9 +639,17 @@ class PluginFactory(LoggerMixin):
                 if config_class and env_config_data:
                     # Convert config data to dict if it's a Pydantic model
                     if hasattr(env_config_data, "dict"):
-                        config_dict = env_config_data.dict()
+                        config_dict = {
+                            k: v
+                            for k, v in env_config_data.dict().items()
+                            if v is not None
+                        }
                     elif hasattr(env_config_data, "__dict__"):
-                        config_dict = env_config_data.__dict__
+                        config_dict = {
+                            k: v
+                            for k, v in env_config_data.__dict__.items()
+                            if v is not None
+                        }
                     else:
                         config_dict = env_config_data
 
@@ -683,11 +691,21 @@ class PluginFactory(LoggerMixin):
                     )
                     # Convert config data to dict if it's a Pydantic model
                     if hasattr(env_config_data, "dict"):
-                        config_dict = env_config_data.dict()
+                        config_dict = {
+                            k: v
+                            for k, v in env_config_data.dict().items()
+                            if v is not None
+                        }
                     elif hasattr(env_config_data, "__dict__"):
-                        config_dict = env_config_data.__dict__
+                        config_dict = {
+                            k: v
+                            for k, v in env_config_data.__dict__.items()
+                            if v is not None
+                        }
                     elif isinstance(env_config_data, dict):
-                        config_dict = env_config_data
+                        config_dict = {
+                            k: v for k, v in env_config_data.items() if v is not None
+                        }
                     else:
                         config_dict = {}
                     self.logger.debug(

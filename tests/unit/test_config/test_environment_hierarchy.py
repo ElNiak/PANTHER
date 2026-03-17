@@ -94,7 +94,7 @@ class TestExecutionEnvironmentHierarchy:
     def test_exec_env_has_exec_fields(self):
         """ExecutionEnvironmentConfig should have output_format, collect_metrics."""
         eec = ExecutionEnvironmentConfig(type="test")
-        assert eec.output_format == "json"
+        assert eec.output_format is None
         assert eec.collect_metrics is True
 
     def test_strace_inherits_monitoring_and_overrides(self):

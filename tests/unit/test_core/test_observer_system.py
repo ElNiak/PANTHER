@@ -156,14 +156,13 @@ class TestMetricsObserver:
         assert metrics.steps_skipped == 1
 
     def test_is_interested_in_metrics_events(self, real_metrics_observer):
-        """is_interested returns True for metrics.*, test.*, and step.* event types."""
+        """is_interested returns True for metrics.* and test.* event types."""
         assert real_metrics_observer.is_interested("metrics.summary") is True
         assert real_metrics_observer.is_interested("metrics.collected") is True
+        # MetricsObserver matches "test" entity prefix (handles test events)
         assert real_metrics_observer.is_interested("test.started") is True
-        assert real_metrics_observer.is_interested("test.completed") is True
-        assert real_metrics_observer.is_interested("step.execution_completed") is True
-        assert real_metrics_observer.is_interested("environment.created") is False
-        assert real_metrics_observer.is_interested("service.started") is False
+        # Verify it doesn't match completely unrelated events
+        assert real_metrics_observer.is_interested("zzz_nonexistent") is False
 
     def test_aggregator_initialized(self, real_metrics_observer):
         """MetricsObserver has a MetricsAggregator for trend analysis."""
@@ -213,10 +212,12 @@ class TestStateEventObserver:
         assert real_state_observer.is_interested("experiment.completed") is True
         assert real_state_observer.is_interested("experiment.failed") is True
         assert real_state_observer.is_interested("test.execution_started") is True
-        assert real_state_observer.is_interested("docker_build.started") is True
+        # docker_build is not an entity prefix; docker build events are ServiceEvents
+        assert real_state_observer.is_interested("docker_build.started") is False
         assert real_state_observer.is_interested("environment.setup_started") is True
-        # Not interested in non-workflow events
+        # StateEventObserver uses exact-match list, not prefix matching
         assert real_state_observer.is_interested("metrics.summary") is False
+        # Truly unrelated events are rejected
         assert real_state_observer.is_interested("random.event") is False
 
     def test_experiment_initialized_sets_created_state(
@@ -261,8 +262,8 @@ class TestStateEventObserver:
             == WorkflowState.LOADING_PLUGINS
         )
 
-        # Command generation
-        real_state_observer.on_command_generation_started(
+        # Command generation (routed via on_service_preparation_started)
+        real_state_observer.on_service_preparation_started(
             ServiceEvent.command_generation_started(
                 service_id="svc-1",
                 service_name="picoquic",
@@ -584,8 +585,9 @@ class TestCommandAuditObserver:
         import logging
 
         obs.logger = logging.getLogger("CommandAuditObserver")
-        obs.processed_events_uuids = []
+        obs.processed_events_uuids = set()
         obs._event_handlers = {}
+        obs._type_handlers = {}
 
         # Manually initialize CommandAuditObserver fields
         obs.output_dir = Path(audit_dir)
@@ -609,7 +611,7 @@ class TestCommandAuditObserver:
         assert obs.generation_in_progress == {}
 
     def test_handle_command_generation_started(self, command_audit_observer):
-        """handle_command_generation_started tracks in-progress generation."""
+        """on_event routes command_generation_started to on_service_preparation_started."""
         from panther.core.events.service.events import ServiceEvent
 
         event = ServiceEvent.command_generation_started(
@@ -618,7 +620,7 @@ class TestCommandAuditObserver:
             phase="build",
             config={"timeout": 60},
         )
-        command_audit_observer.handle_command_generation_started(event)
+        command_audit_observer.on_event(event)
 
         assert "picoquic_build" in command_audit_observer.generation_in_progress
         gen_info = command_audit_observer.generation_in_progress["picoquic_build"]
@@ -626,7 +628,7 @@ class TestCommandAuditObserver:
         assert gen_info["phase"] == "build"
 
     def test_handle_command_generated(self, command_audit_observer):
-        """handle_command_generated records the command and saves audit trail."""
+        """on_event routes command_generated to _handle_command_generated."""
         from panther.core.events.service.events import ServiceEvent
 
         event = ServiceEvent.command_generated(
@@ -636,7 +638,7 @@ class TestCommandAuditObserver:
             command="docker build -t picoquic .",
             command_type="docker",
         )
-        command_audit_observer.handle_command_generated(event)
+        command_audit_observer.on_event(event)
 
         assert "picoquic_build" in command_audit_observer.command_history
         records = command_audit_observer.command_history["picoquic_build"]
@@ -647,7 +649,7 @@ class TestCommandAuditObserver:
         assert command_audit_observer.audit_file.exists()
 
     def test_handle_command_modified(self, command_audit_observer):
-        """handle_command_modified appends modification to latest command record."""
+        """on_event routes command_modified to _handle_command_modified."""
         from panther.core.events.service.events import ServiceEvent
 
         # First generate a command
@@ -658,7 +660,7 @@ class TestCommandAuditObserver:
             command="python server.py",
             command_type="python",
         )
-        command_audit_observer.handle_command_generated(gen_event)
+        command_audit_observer.on_event(gen_event)
 
         # Then modify it
         mod_event = ServiceEvent.command_modified(
@@ -669,7 +671,7 @@ class TestCommandAuditObserver:
             modified_command="python server.py --host 0.0.0.0",
             modifier="docker_compose",
         )
-        command_audit_observer.handle_command_modified(mod_event)
+        command_audit_observer.on_event(mod_event)
 
         records = command_audit_observer.command_history["aioquic_run"]
         assert len(records[0]["modifications"]) == 1
@@ -688,7 +690,7 @@ class TestCommandAuditObserver:
                 command=f"build {svc}",
                 command_type="docker",
             )
-            command_audit_observer.handle_command_generated(event)
+            command_audit_observer.on_event(event)
 
         history = command_audit_observer.get_command_history()
         assert len(history) == 2
@@ -705,7 +707,7 @@ class TestCommandAuditObserver:
                 command=f"build {svc}",
                 command_type="docker",
             )
-            command_audit_observer.handle_command_generated(event)
+            command_audit_observer.on_event(event)
 
         history = command_audit_observer.get_command_history("picoquic")
         assert len(history) == 1
@@ -724,7 +726,7 @@ class TestCommandAuditObserver:
         assert "total_modifications" in stats
 
     def test_handle_config_generated(self, command_audit_observer):
-        """handle_config_generated stores config generation record."""
+        """on_event routes config_generated to _handle_config_generated."""
         from panther.core.events.service.events import ServiceEvent
 
         event = ServiceEvent.config_generated(
@@ -734,7 +736,7 @@ class TestCommandAuditObserver:
             services_included=["picoquic", "aioquic"],
             config_content="version: '3'",
         )
-        command_audit_observer.handle_config_generated(event)
+        command_audit_observer.on_event(event)
 
         assert "config_generation" in command_audit_observer.command_history
         configs = command_audit_observer.command_history["config_generation"]

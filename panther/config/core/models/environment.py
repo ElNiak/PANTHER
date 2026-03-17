@@ -78,5 +78,7 @@ class ExecutionEnvironmentConfig(EnvironmentConfig):
     )
 
     # Fields merged from former ExecutionEnvironmentPluginConfig
-    output_format: str = Field("json", description="Output format for results")
+    output_format: Optional[str] = Field(
+        None, description="Output format for results (subclass-specific)"
+    )
     collect_metrics: bool = Field(True, description="Whether to collect metrics")
