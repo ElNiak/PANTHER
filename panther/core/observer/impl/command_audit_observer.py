@@ -56,8 +56,7 @@ class CommandAuditObserver(ITypedObserver):
         return [
             "service.preparation_started",
             "service.preparation_completed",
-            "service.command_modified",
-            "service.config_generated",
+            "service.deployment_started",
         ]
 
     def on_service_preparation_started(self, event: BaseEvent) -> bool:
@@ -79,6 +78,29 @@ class CommandAuditObserver(ITypedObserver):
         return True
 
     def on_service_preparation_completed(self, event: BaseEvent) -> bool:
+        """Handle preparation_completed events (command_generated and command_modified).
+
+        Both ServiceEvent.command_generated() and ServiceEvent.command_modified()
+        produce events with name="preparation_completed". The ``action`` field
+        in event.data distinguishes them.
+        """
+        action = event.data.get("action", "")
+        if action == "command_modified":
+            return self._handle_command_modified(event)
+        return self._handle_command_generated(event)
+
+    def on_service_deployment_started(self, event: BaseEvent) -> bool:
+        """Handle deployment_started events (including config_generated).
+
+        ServiceEvent.config_generated() produces an event with
+        name="deployment_started" and action="config_generated".
+        """
+        action = event.data.get("action", "")
+        if action == "config_generated":
+            return self._handle_config_generated(event)
+        return True
+
+    def _handle_command_generated(self, event: BaseEvent) -> bool:
         """Handle command generated event."""
         service_id = f"{event.data.get('service_name', 'unknown')}_{event.data.get('phase', 'unknown')}"
 
@@ -94,7 +116,7 @@ class CommandAuditObserver(ITypedObserver):
             "command": event.data.get("command"),
             "command_type": event.data.get("command_type"),
             "generation_info": self.generation_in_progress.get(service_id, {}),
-            "modifications": [],  # Will be populated by CommandModifiedEvent
+            "modifications": [],  # Will be populated by command_modified events
         }
 
         self.command_history[service_id].append(command_record)
@@ -117,7 +139,7 @@ class CommandAuditObserver(ITypedObserver):
         self._save_audit_trail()
         return True
 
-    def on_service_command_modified(self, event: BaseEvent) -> bool:
+    def _handle_command_modified(self, event: BaseEvent) -> bool:
         """Handle command modified event."""
         service_id = f"{event.data.get('service_name', 'unknown')}_{event.data.get('phase', 'unknown')}"
 
@@ -160,7 +182,7 @@ class CommandAuditObserver(ITypedObserver):
             )
         return True
 
-    def on_service_config_generated(self, event: BaseEvent) -> bool:
+    def _handle_config_generated(self, event: BaseEvent) -> bool:
         """Handle configuration generated event."""
         config_record = {
             "timestamp": datetime.now().isoformat(),

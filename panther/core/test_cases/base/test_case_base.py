@@ -11,13 +11,6 @@ from colorlog import ColoredFormatter
 from panther.config.core.models.experiment import TestConfig
 from panther.config.core.models.global_config import GlobalConfig
 from panther.core.exceptions.fast_fail import FastFailHandler, TimeoutCascadeException
-from panther.core.observer.factory import (
-    create_logger,
-    create_metrics,
-    create_storage,
-    get_observer_factory,
-)
-from panther.core.observer.impl.experiment_observer import ExperimentObserver
 from panther.core.observer.management.event_manager import EventManager
 from panther.core.test_cases.test_interface_impl import ITestCase
 from panther.plugins.plugin_manager import PluginManager
