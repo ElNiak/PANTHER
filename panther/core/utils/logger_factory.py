@@ -40,10 +40,10 @@ Feature Categories:
 
 **Performance Characteristics**:
 - **Logger Creation**: <1ms overhead for logger instantiation
-- **Feature Detection**: O(1) lookup via cached mappings
+- **Feature Detection**: Dictionary lookup with linear pattern fallback
 - **Statistics Collection**: <5% performance impact when enabled
-- **Memory Usage**: Bounded handler cache with automatic cleanup
-- **File I/O**: Asynchronous file writing with configurable buffering
+- **Memory Usage**: Unbounded handler cache (one entry per handler name)
+- **File I/O**: Synchronous file writing via standard logging FileHandler
 
 **Integration Features**:
 - **Automatic Initialization**: Self-configuring defaults for early components

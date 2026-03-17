@@ -159,8 +159,8 @@ class ITypedObserver(IObserver):
     Error handling:
         - Exceptions in individual handlers are caught and logged without
           propagating to other observers.
-        - ``RecursionError`` is caught specially and printed to stderr.
-        - Error/failure event handlers print to stderr to avoid cascading events.
+        - ``RecursionError`` is caught specially and logged at ERROR level.
+        - Error/failure event handlers are logged at ERROR level to avoid cascading events.
     """
 
     def __init__(self):
