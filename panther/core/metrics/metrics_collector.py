@@ -139,7 +139,11 @@ class MetricsCollector(LoggerMixin):
             try:
                 self._collect_basic_metrics()
             except Exception as e:  # pylint: disable=broad-exception-caught
-                self.logger.error("Error in metrics collection loop: %s", e)
+                self.logger.error(
+                    "Error in metrics collection loop (interval=%.1fs): %s",
+                    self.collection_interval,
+                    e,
+                )
 
             elapsed = time.time() - start_time
             sleep_duration = max(0, self.collection_interval - elapsed)

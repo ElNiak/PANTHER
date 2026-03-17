@@ -275,7 +275,7 @@ class ConfigLoadingMixin(LoggerMixin):
         # Validate if requested
         if validate:
             # Pydantic automatically validates during instantiation
-            self.logger.debug("Pydantic validation completed successfully")
+            self.logger.info("Pydantic validation completed successfully")
 
             # Run business rules validation if available
             if hasattr(self, "validate_experiment_config"):
@@ -346,7 +346,7 @@ class ConfigLoadingMixin(LoggerMixin):
 
         # Validate if requested
         if validate:
-            self.logger.debug("Global configuration validation completed successfully")
+            self.logger.info("Global configuration validation completed successfully")
 
         # Store as current global config
         self.current_global_config = global_config

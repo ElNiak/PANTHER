@@ -157,7 +157,12 @@ class ResourceMonitor:
                     self._record_process_metrics(phase)
 
             except Exception as e:
-                self.logger.error("Error in resource monitoring: %s", e)
+                self.logger.error(
+                    "Error in resource monitoring (phase=%s, detailed=%s): %s",
+                    phase,
+                    self.detailed_monitoring,
+                    e,
+                )
 
             # Sleep in small increments to allow quick shutdown
             sleep_time = 0

@@ -99,6 +99,7 @@ class LoggerFactory:
         >>> LoggerFactory.update_feature_level("event_system", "DEBUG")
     """
 
+    _DEBUG_FACTORY: bool = False
     _initialized = False
     _root_logger_configured = False
     _config: Dict[str, Any] = {}
@@ -222,13 +223,18 @@ class LoggerFactory:
         feature_levels = {}
 
         # Debug logging to track feature levels extraction
-        logging.debug(f"_extract_feature_levels called with: {type(feature_config)}")
-        if hasattr(feature_config, "__dict__"):
+        if cls._DEBUG_FACTORY:
             logging.debug(
-                f"feature_config attributes: {list(feature_config.__dict__.keys())[:5]}..."
+                f"_extract_feature_levels called with: {type(feature_config)}"
             )
-        elif isinstance(feature_config, dict):
-            logging.debug(f"feature_config keys: {list(feature_config.keys())[:5]}...")
+            if hasattr(feature_config, "__dict__"):
+                logging.debug(
+                    f"feature_config attributes: {list(feature_config.__dict__.keys())[:5]}..."
+                )
+            elif isinstance(feature_config, dict):
+                logging.debug(
+                    f"feature_config keys: {list(feature_config.keys())[:5]}..."
+                )
 
         # Handle different config formats (dict or dataclass)
         if hasattr(feature_config, "__dict__"):
@@ -432,11 +438,14 @@ class LoggerFactory:
             "docker_registry",
             "EventManager",
         ]
-        if logger_name in problematic_loggers:
-            logging.debug(f"_get_effective_level for {logger_name}, feature={feature}")
-            logging.debug(
-                f"Available feature_levels: {len(cls._feature_levels)} features"
-            )
+        if cls._DEBUG_FACTORY:
+            if logger_name in problematic_loggers:
+                logging.debug(
+                    f"_get_effective_level for {logger_name}, feature={feature}"
+                )
+                logging.debug(
+                    f"Available feature_levels: {len(cls._feature_levels)} features"
+                )
 
         # If explicit feature is provided and configured, use it
         if feature and feature in cls._feature_levels:
@@ -448,13 +457,13 @@ class LoggerFactory:
         if detected_feature and detected_feature in cls._feature_levels:
             level_name = cls._feature_levels[detected_feature].upper()
 
-            if logger_name in problematic_loggers:
+            if cls._DEBUG_FACTORY and logger_name in problematic_loggers:
                 logging.debug(f"{logger_name} -> {detected_feature} -> {level_name}")
 
             # Handle TRACE level specially
             return TRACE if level_name == "TRACE" else getattr(logging, level_name)
         else:
-            if logger_name in problematic_loggers:
+            if cls._DEBUG_FACTORY and logger_name in problematic_loggers:
                 logging.debug(
                     f"{logger_name} -> {detected_feature} (not in feature_levels)"
                 )
@@ -550,18 +559,19 @@ class LoggerFactory:
         if not cls._initialized:
             return
 
-        logging.debug(
-            f"update_all_feature_levels called with {len(feature_levels_dict)} features"
-        )
-        logging.debug(
-            f"Existing loggers count: {len(logging.Logger.manager.loggerDict)}"
-        )
-        logging.debug(
-            f"Sample features being set: {list(list(feature_levels_dict.items())[:3])}"
-        )
-        logging.debug(
-            f"Current feature_levels before update: {list(list(cls._feature_levels.items())[:3]) if cls._feature_levels else 'empty'}"
-        )
+        if cls._DEBUG_FACTORY:
+            logging.debug(
+                f"update_all_feature_levels called with {len(feature_levels_dict)} features"
+            )
+            logging.debug(
+                f"Existing loggers count: {len(logging.Logger.manager.loggerDict)}"
+            )
+            logging.debug(
+                f"Sample features being set: {list(list(feature_levels_dict.items())[:3])}"
+            )
+            logging.debug(
+                f"Current feature_levels before update: {list(list(cls._feature_levels.items())[:3]) if cls._feature_levels else 'empty'}"
+            )
 
         # Update the internal feature levels dictionary
         cls._feature_levels.update(
@@ -603,7 +613,7 @@ class LoggerFactory:
                             handler.setLevel(new_level)
                     updated_count += 1
 
-                    if logger_name in problematic_loggers:
+                    if cls._DEBUG_FACTORY and logger_name in problematic_loggers:
                         logging.debug(
                             f"Updated {logger_name} -> {detected_feature} -> {level_name}"
                         )
@@ -611,10 +621,11 @@ class LoggerFactory:
                     skipped_count += 1
             else:
                 skipped_count += 1
-                if logger_name in problematic_loggers:
+                if cls._DEBUG_FACTORY and logger_name in problematic_loggers:
                     logging.debug(f"Skipped {logger_name} (no _panther_configured)")
 
-        logging.debug(f"Updated {updated_count} loggers, skipped {skipped_count}")
+        if cls._DEBUG_FACTORY:
+            logging.debug(f"Updated {updated_count} loggers, skipped {skipped_count}")
 
     @classmethod
     def set_console_level(cls, level: int) -> None:

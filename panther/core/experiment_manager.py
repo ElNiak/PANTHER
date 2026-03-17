@@ -32,7 +32,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-import click
 import yaml
 from omegaconf import OmegaConf
 
@@ -574,14 +573,14 @@ class ExperimentManager(
                     }
                 )
 
-                click.echo("  \u2713 Initialization complete")
+                self.logger.info("Phase complete: Initialization")
 
                 ConsoleFormatter.banner("Phase 2: Plugin Loading")
                 with log_context(phase="plugin_loading"):
                     self.experiment_emitter.emit_plugin_loading_started()
                     self._validate_plugins()
                     self.experiment_emitter.emit_plugin_loading_completed()
-                click.echo("  \u2713 Plugin loading complete")
+                self.logger.info("Phase complete: Plugin loading")
 
                 with log_context(phase="test_case_initialization"):
                     self._initialize_test_cases()
@@ -592,7 +591,11 @@ class ExperimentManager(
                 )
 
         except PluginValidationError as e:
-            self.logger.error("Plugin validation failed: %s", e)
+            self.logger.error(
+                "Plugin validation failed for experiment '%s': %s",
+                self.experiment_name,
+                e,
+            )
             self.experiment_emitter.emit_finished_early(
                 reason="Plugin Validation Failed",
                 details={
@@ -626,7 +629,9 @@ class ExperimentManager(
                     "error_message": str(e),
                 },
             )
-            self.logger.error("Initialization failed: %s", e, exc_info=True)
+            self.logger.error(
+                "Initialization failed during setup phase: %s", e, exc_info=True
+            )
             raise ExperimentInitializationError(
                 f"Failed to initialize experiment: {e}"
             ) from e
@@ -648,7 +653,7 @@ class ExperimentManager(
             available_plugins = self.plugin_manager.plugins
             self.logger.info("Available plugins:")
             for plugin_type, plugins in available_plugins.items():
-                self.logger.debug("  %s: %s", plugin_type, plugins)
+                self.logger.info("  %s: %s", plugin_type, plugins)
 
             raise PluginValidationError(error_message)
 
@@ -758,7 +763,7 @@ class ExperimentManager(
                 self.logger.info("Initialized test case '%s'", test_case)
                 self.test_cases.append(test_case)
 
-            self.logger.debug("Initialized %d test cases: %s", test_count, test_names)
+            self.logger.info("Initialized %d test cases: %s", test_count, test_names)
             self.logger.info("Initialized %s test cases.", len(self.test_cases))
 
         except Exception as e:  # pylint: disable=broad-except
@@ -770,7 +775,12 @@ class ExperimentManager(
                     "error_message": str(e),
                 },
             )
-            self.logger.error("Failed to initialize test cases: %s", e, exc_info=True)
+            self.logger.error(
+                "Failed to initialize test cases (%d configured): %s",
+                test_count,
+                e,
+                exc_info=True,
+            )
             raise TestCaseInitializationError(
                 f"Failed to initialize test cases: {e}"
             ) from e
@@ -826,7 +836,9 @@ class ExperimentManager(
                         test_name = test_case.test_config.name
 
                         if show_status:
-                            click.echo(format_test_header(i, total_tests, test_name))
+                            self.logger.info(
+                                format_test_header(i, total_tests, test_name)
+                            )
 
                         self.logger.info("Running test case: %s", test_name)
 
@@ -858,7 +870,7 @@ class ExperimentManager(
                                 )
                                 self._record_test_metric("failed")
                                 if show_status:
-                                    click.echo(
+                                    self.logger.info(
                                         format_test_result(
                                             passed=False,
                                             elapsed=elapsed,
@@ -880,7 +892,7 @@ class ExperimentManager(
                             successful_tests += 1
                             self._record_test_metric("successful")
                             if show_status:
-                                click.echo(
+                                self.logger.info(
                                     format_test_result(
                                         passed=True,
                                         elapsed=elapsed,
@@ -932,7 +944,7 @@ class ExperimentManager(
                             self._record_test_metric("failed")
 
                             if show_status:
-                                click.echo(
+                                self.logger.info(
                                     format_test_result(
                                         passed=False,
                                         elapsed=elapsed,
@@ -997,7 +1009,7 @@ class ExperimentManager(
                             failed_test_info.append((test_name, str(test_error)[:80]))
 
                             if show_status:
-                                click.echo(
+                                self.logger.info(
                                     format_test_result(
                                         passed=False,
                                         elapsed=elapsed,
@@ -1054,7 +1066,7 @@ class ExperimentManager(
                 )
 
                 experiment_elapsed = time.monotonic() - experiment_start
-                click.echo(
+                self.logger.info(
                     format_experiment_summary(
                         successful_tests=successful_tests,
                         failed_tests=failed_tests,
@@ -1085,7 +1097,13 @@ class ExperimentManager(
                     "experiment_name": self.experiment_name,
                 },
             )
-            self.logger.error("Failed during test execution: %s", e, exc_info=True)
+            self.logger.error(
+                "Failed during test execution (%d/%d tests completed): %s",
+                successful_tests + failed_tests,
+                total_tests,
+                e,
+                exc_info=True,
+            )
             raise TestExecutionError(f"Failed during test execution: {e}") from e
 
     def _perform_dry_run(self) -> bool:
@@ -1135,7 +1153,10 @@ class ExperimentManager(
             try:
                 self._generate_final_log_report()
             except Exception as e:  # pylint: disable=broad-exception-caught
-                self.logger.warning("Failed to generate final log report: %s", e)
+                self.logger.warning(
+                    "Failed to generate final log report (skipping, experiment results still available): %s",
+                    e,
+                )
 
             # Stop log statistics display if running
             try:
@@ -1143,7 +1164,10 @@ class ExperimentManager(
                     self.log_statistics_display.stop_display()
                     self.logger.info("Stopped log statistics display")
             except Exception as e:  # pylint: disable=broad-exception-caught
-                self.logger.warning("Failed to stop log statistics display: %s", e)
+                self.logger.warning(
+                    "Failed to stop log statistics display (ignoring, process will exit): %s",
+                    e,
+                )
 
             # Clean up state observer
             try:
@@ -1151,7 +1175,10 @@ class ExperimentManager(
                     self.event_manager.unregister_observer(self.state_observer)
                     self.logger.debug("Unregistered StateEventObserver")
             except Exception as e:  # pylint: disable=broad-exception-caught
-                self.logger.warning("Failed to unregister state observer: %s", e)
+                self.logger.warning(
+                    "Failed to unregister state observer (ignoring during cleanup): %s",
+                    e,
+                )
 
             # Clean up other observers through factory
             try:
@@ -1169,7 +1196,10 @@ class ExperimentManager(
                             "%s was not registered or already removed", observer_name
                         )
             except Exception as e:  # pylint: disable=broad-exception-caught
-                self.logger.warning("Failed to unregister observers: %s", e)
+                self.logger.warning(
+                    "Failed to unregister observers (ignoring, cleanup continuing): %s",
+                    e,
+                )
 
             # Clear workflow tracker states for this experiment
             try:
@@ -1177,13 +1207,18 @@ class ExperimentManager(
                     self.workflow_tracker.clear_workflow_state(self.experiment_name)
                     self.logger.debug("Cleared workflow state for experiment")
             except Exception as e:  # pylint: disable=broad-exception-caught
-                self.logger.warning("Failed to clear workflow state: %s", e)
+                self.logger.warning(
+                    "Failed to clear workflow state (stale state may remain): %s", e
+                )
 
             # Generate experiment report
             try:
                 self._generate_experiment_report()
             except Exception as e:  # pylint: disable=broad-exception-caught
-                self.logger.warning("Failed to generate report: %s", e)
+                self.logger.warning(
+                    "Failed to generate report (results still in output directory): %s",
+                    e,
+                )
 
             # Finalize metrics collector (metrics already written to structured.jsonl)
             if self.metrics_collector is not None:
@@ -1246,7 +1281,7 @@ class ExperimentManager(
             except Exception as e:  # pylint: disable=broad-exception-caught
                 self.logger.warning("Docker resource cleanup failed: %s", e)
 
-            click.echo("  \u2713 Cleanup complete")
+            self.logger.info("Phase complete: Cleanup")
 
         finally:
             # Pop cleanup phase context — guaranteed even if cleanup raises

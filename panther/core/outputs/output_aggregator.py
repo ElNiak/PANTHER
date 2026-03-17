@@ -94,8 +94,8 @@ class OutputAggregator:
                                      }
         """
         self.logger.info("Starting output collection from execution environments")
-        self.logger.info(f"Number of environments passed: {len(environments)}")
-        self.logger.info(
+        self.logger.debug(f"Number of environments passed: {len(environments)}")
+        self.logger.debug(
             f"Environment types: {[env.__class__.__name__ for env in environments]}"
         )
 
@@ -128,7 +128,7 @@ class OutputAggregator:
             # Check for collect_outputs method instead of interface
             # This allows mixins that provide the method without declaring the interface
             if hasattr(env, "collect_outputs") and hasattr(env, "get_output_metadata"):
-                self.logger.info(f"Collecting outputs from {env_type}")
+                self.logger.debug(f"Collecting outputs from {env_type}")
 
                 try:
                     # Collect outputs from this environment
@@ -157,11 +157,13 @@ class OutputAggregator:
                             metadata=metadata,
                         )
 
-                        self.logger.info(
+                        self.logger.debug(
                             f"Collected {len(outputs)} outputs from {env_type}: {list(outputs.keys())}"
                         )
                     else:
-                        self.logger.warning(f"No outputs collected from {env_type}")
+                        self.logger.warning(
+                            f"No outputs collected from {env_type} (skipping this environment)"
+                        )
 
                 except Exception as e:
                     self.logger.error(

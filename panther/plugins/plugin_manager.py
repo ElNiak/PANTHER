@@ -476,7 +476,7 @@ class PluginManager(LoggerMixin):
         self._last_discovery_time = time.time() - start_time
 
         self.logger.info(
-            "Discovered %d plugins in %.2fs",
+            "Completed fresh plugin discovery: %d plugins in %.2fs",
             len(discovered_plugins),
             self._last_discovery_time,
         )

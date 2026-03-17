@@ -757,6 +757,8 @@ class MetricsObserver(ITypedObserver):
                 self.monitoring_thread.join(timeout=self.publish_interval + 1)
             self.logger.debug("Monitoring thread stopped")
 
+        self.logger.info("Completed real-time resource monitoring")
+
     def _collect_current_metrics(self):
         """Collect metrics from all registered collectors and aggregate them."""
         if not self.monitoring_active:

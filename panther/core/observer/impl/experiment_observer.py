@@ -267,6 +267,7 @@ class ExperimentObserver(IObserver):
                     step_state["current_progress"] = new_progress
 
                     # Render in-place progress bar on stderr
+                    # click.echo intentional: \r carriage-return for in-place terminal updates
                     bar_width = 30
                     filled = int(bar_width * new_progress / 100)
                     bar = "\u2588" * filled + "\u2591" * (bar_width - filled)
@@ -279,7 +280,7 @@ class ExperimentObserver(IObserver):
 
                 # Close progress bar when complete (only when step is truly finished)
                 if progress_percentage >= 100.0:
-                    # Finalize the in-place bar with a newline
+                    # click.echo intentional: finalize in-place progress bar with newline
                     click.echo("", file=sys.stderr)
                     # Use logger for coordinated completion message
                     self.logger.info(
