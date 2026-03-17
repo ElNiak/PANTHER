@@ -1,6 +1,7 @@
 """Methods for IServiceManager to emit standardized events."""
 
 import logging
+from functools import wraps
 from typing import Any, Dict, Optional, Tuple
 
 from panther.core.events.test.events import (
@@ -8,6 +9,18 @@ from panther.core.events.test.events import (
     TestEvent,
     TestFailedEvent,
 )
+
+
+def _requires_emitter(func):
+    """Skip the method if event_emitter is not set."""
+
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        if not (hasattr(self, "event_emitter") and self.event_emitter):
+            return
+        return func(self, *args, **kwargs)
+
+    return wrapper
 
 
 class ServiceManagerEventMixin:
@@ -57,40 +70,26 @@ class ServiceManagerEventMixin:
         service_id = f"{service_type}_{implementation}_{service_name}"
         return service_id, service_name
 
-    def _emit_with_fallback(self, event_name: str, **kwargs) -> None:
-        """Emit a service event using triple-fallback pattern.
-
-        Tries in order:
-        1. ``emit_{event_name}_with_validation`` on the emitter registry
-        2. ``service_emitter.emit_{event_name}`` (direct sub-emitter)
-        3. ``emit_{event_name}`` on the emitter (flat API)
+    def _emit_event(self, event_name: str, **kwargs) -> None:
+        """Emit a service event via the event emitter.
 
         Args:
             event_name: The event method suffix (e.g. "service_started")
             **kwargs: Keyword arguments forwarded to the emit method
         """
-        validated_method = f"emit_{event_name}_with_validation"
-        direct_method = f"emit_{event_name}"
-
-        if hasattr(self.event_emitter, validated_method):
-            success = getattr(self.event_emitter, validated_method)(**kwargs)
-            if not success:
-                getattr(self.event_emitter.service_emitter, direct_method)(**kwargs)
-        else:
-            getattr(self.event_emitter, direct_method)(**kwargs)
+        getattr(self.event_emitter, f"emit_{event_name}")(**kwargs)
 
     # ── notify_service_* methods ────────────────────────────────────
 
+    @_requires_emitter
     def notify_service_started(self, details: Dict[str, Any] | None = None):
         """Notify that the service has started using the event emitter.
 
         Args:
             details: Additional details about the service start
         """
-        if not (hasattr(self, "event_emitter") and self.event_emitter):
-            return
         service_id, service_name = self._get_service_context()
-        self._emit_with_fallback(
+        self._emit_event(
             "service_started",
             service_id=service_id,
             service_name=service_name,
@@ -98,6 +97,7 @@ class ServiceManagerEventMixin:
             start_time=details.get("start_time") if details else None,
         )
 
+    @_requires_emitter
     def notify_service_stopped(
         self, success: bool, details: Optional[Dict[str, Any]] = None
     ):
@@ -107,10 +107,8 @@ class ServiceManagerEventMixin:
             success: Whether the service stopped cleanly
             details: Additional details about the service stop
         """
-        if not (hasattr(self, "event_emitter") and self.event_emitter):
-            return
         service_id, service_name = self._get_service_context()
-        self._emit_with_fallback(
+        self._emit_event(
             "service_stopped",
             service_id=service_id,
             service_name=service_name,
@@ -123,6 +121,7 @@ class ServiceManagerEventMixin:
             uptime_seconds=details.get("uptime_seconds") if details else None,
         )
 
+    @_requires_emitter
     def notify_service_error(
         self,
         error_type: str,
@@ -136,10 +135,8 @@ class ServiceManagerEventMixin:
             error_message: Error message
             details: Additional details about the error
         """
-        if not (hasattr(self, "event_emitter") and self.event_emitter):
-            return
         service_id, service_name = self._get_service_context()
-        self._emit_with_fallback(
+        self._emit_event(
             "service_error",
             service_id=service_id,
             service_name=service_name,
@@ -148,18 +145,17 @@ class ServiceManagerEventMixin:
             error_details=details,
         )
 
+    @_requires_emitter
     def notify_service_created(self, config: Optional[Dict[str, Any]] = None):
         """Notify that the service has been created, with state validation.
 
         Args:
             config: Optional service configuration data
         """
-        if not (hasattr(self, "event_emitter") and self.event_emitter):
-            return
         service_id, service_name = self._get_service_context()
         service_type = getattr(self, "service_type", "unknown")
         implementation = getattr(self, "implementation_name", "unknown")
-        self._emit_with_fallback(
+        self._emit_event(
             "service_created",
             service_id=service_id,
             service_name=service_name,
@@ -168,6 +164,7 @@ class ServiceManagerEventMixin:
             config=config,
         )
 
+    @_requires_emitter
     def notify_service_preparation_started(
         self, details: Optional[Dict[str, Any]] = None
     ):
@@ -176,15 +173,14 @@ class ServiceManagerEventMixin:
         Args:
             details: Additional details about the preparation
         """
-        if not (hasattr(self, "event_emitter") and self.event_emitter):
-            return
         service_id, service_name = self._get_service_context()
-        self._emit_with_fallback(
+        self._emit_event(
             "service_preparation_started",
             service_id=service_id,
             service_name=service_name,
         )
 
+    @_requires_emitter
     def notify_service_deployment_started(
         self,
         environment: str = "default",
@@ -196,10 +192,8 @@ class ServiceManagerEventMixin:
             environment: Deployment environment name
             deployment_config: Optional deployment configuration
         """
-        if not (hasattr(self, "event_emitter") and self.event_emitter):
-            return
         service_id, service_name = self._get_service_context()
-        self._emit_with_fallback(
+        self._emit_event(
             "service_deployment_started",
             service_id=service_id,
             service_name=service_name,
@@ -207,6 +201,7 @@ class ServiceManagerEventMixin:
             deployment_config=deployment_config,
         )
 
+    @_requires_emitter
     def notify_service_deployment_completed(
         self,
         environment: str = "default",
@@ -222,10 +217,8 @@ class ServiceManagerEventMixin:
             ports: Exposed ports
             deployment_details: Additional deployment details
         """
-        if not (hasattr(self, "event_emitter") and self.event_emitter):
-            return
         service_id, service_name = self._get_service_context()
-        self._emit_with_fallback(
+        self._emit_event(
             "service_deployment_completed",
             service_id=service_id,
             service_name=service_name,
@@ -235,16 +228,15 @@ class ServiceManagerEventMixin:
             deployment_details=deployment_details,
         )
 
+    @_requires_emitter
     def notify_service_ready(self, readiness_checks: Optional[Dict[str, bool]] = None):
         """Notify that the service is ready, with state validation.
 
         Args:
             readiness_checks: Results of readiness checks
         """
-        if not (hasattr(self, "event_emitter") and self.event_emitter):
-            return
         service_id, service_name = self._get_service_context()
-        self._emit_with_fallback(
+        self._emit_event(
             "service_ready",
             service_id=service_id,
             service_name=service_name,
@@ -253,6 +245,7 @@ class ServiceManagerEventMixin:
 
     # ── notify_service_event (dispatch table) ───────────────────────
 
+    @_requires_emitter
     def notify_service_event(
         self,
         event_name: str,
@@ -271,9 +264,6 @@ class ServiceManagerEventMixin:
             service_name: Human-readable service name (unused when delegating)
             details: Additional event details
         """
-        if not (hasattr(self, "event_emitter") and self.event_emitter):
-            return
-
         # Events that delegate to state-validated notify_* methods
         if event_name == "service_created":
             self.notify_service_created(config=details)
@@ -438,6 +428,7 @@ class ServiceManagerEventMixin:
 
     # ── Step progress / completion (use _get_service_context) ───────
 
+    @_requires_emitter
     def notify_service_step_progress(
         self,
         step_id: str,
@@ -453,8 +444,6 @@ class ServiceManagerEventMixin:
             message: Optional progress message
             details: Additional progress details
         """
-        if not (hasattr(self, "event_emitter") and self.event_emitter):
-            return
         service_id, service_name = self._get_service_context()
 
         if step_id.startswith("deploy"):
@@ -479,6 +468,7 @@ class ServiceManagerEventMixin:
                 },
             )
 
+    @_requires_emitter
     def notify_service_step_completed(
         self, step_id: str, success: bool, result: Optional[Dict[str, Any]] = None
     ):
@@ -489,8 +479,6 @@ class ServiceManagerEventMixin:
             success: Whether the step completed successfully
             result: Result data from the step
         """
-        if not (hasattr(self, "event_emitter") and self.event_emitter):
-            return
         service_id, service_name = self._get_service_context()
 
         if step_id.startswith("deploy"):
@@ -551,6 +539,7 @@ class ServiceManagerEventMixin:
 
     # ── Metric reporting ────────────────────────────────────────────
 
+    @_requires_emitter
     def notify_service_metric(
         self,
         metric_type: str,
@@ -568,8 +557,6 @@ class ServiceManagerEventMixin:
             step_id: Optional step identifier
             details: Additional metric details
         """
-        if not (hasattr(self, "event_emitter") and self.event_emitter):
-            return
         service_id, service_name = self._get_service_context()
 
         if metric_type == "health" or metric_name.startswith("health_"):
@@ -613,6 +600,7 @@ class ServiceManagerEventMixin:
 
     # ── Test lifecycle events (different pattern - kept as-is) ──────
 
+    @_requires_emitter
     def emit_test_starting(
         self, test_id: str, test_type: str, details: Optional[Dict[str, Any]] = None
     ) -> None:
@@ -623,15 +611,13 @@ class ServiceManagerEventMixin:
             test_type: Type of test being started
             details: Additional details about the test
         """
-        if not (hasattr(self, "event_emitter") and self.event_emitter):
-            self.logger.debug("Skipping event emission: no event_emitter configured")
-            return
         event = TestEvent.execution_started(
             test_id,
             steps=details.get("steps", []) if details else [],
         )
         self.event_emitter.emit_event(event)
 
+    @_requires_emitter
     def emit_test_completed(
         self,
         test_id: str,
@@ -649,9 +635,6 @@ class ServiceManagerEventMixin:
             error_message: Error message if test was unsuccessful
             details: Additional details about the test completion
         """
-        if not (hasattr(self, "event_emitter") and self.event_emitter):
-            self.logger.debug("Skipping event emission: no event_emitter configured")
-            return
         if success:
             summary = {"result": result or {}, "details": details or {}}
             event = TestCompletedEvent(
