@@ -49,6 +49,18 @@ class ValidationResult:
         self.warnings.extend(other.warnings)
         self.is_valid = self.is_valid and other.is_valid
 
+    def __str__(self):  # noqa: D105
+        lines = []
+        if self.errors:
+            lines.append("Errors:")
+            for error in self.errors:
+                lines.append(f"  - {error}")
+        if self.warnings:
+            lines.append("Warnings:")
+            for warning in self.warnings:
+                lines.append(f"  - {warning}")
+        return "\n".join(lines)
+
 
 class BaseValidator(LoggerMixin, ABC):
     """Base class for validators."""
