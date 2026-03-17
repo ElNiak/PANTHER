@@ -131,18 +131,16 @@ class BaseExecutionEnvironment(
         Args:
             event: The event to handle
         """
-        event_type = type(event).__name__
-        self.logger.debug(f"{self.__class__.__name__} received event: %s", event_type)
-
-        # Handle common environment-specific events
-        if event_type == "ServiceStartedEvent":
+        event_name = getattr(event, "name", type(event).__name__)
+        self.logger.debug(f"{self.__class__.__name__} received event: %s", event_name)
+        if event_name == "started":
             self.logger.debug(
                 "Service started, environment monitoring should be active"
             )
-        elif event_type == "ServiceStoppedEvent":
+        elif event_name == "stopped":
             self.logger.debug("Service stopped, environment collection complete")
         else:
-            self.logger.debug("Unhandled event type: %s", event_type)
+            self.logger.debug("Unhandled event type: %s", event_name)
 
     def setup_environment(
         self,

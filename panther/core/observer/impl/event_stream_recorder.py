@@ -55,6 +55,9 @@ class EventStreamRecorder(ITypedObserver):
         self.output_path = Path(output_path)
         self._lock = threading.Lock()
         self.logger = logging.getLogger(self.__class__.__name__)
+        self.processed_events_uuids: set = (
+            set()
+        )  # Override list with set for O(1) lookup
 
     def on_event(self, event: BaseEvent) -> bool:
         """Serialize an event to the structured JSONL file.
@@ -70,10 +73,10 @@ class EventStreamRecorder(ITypedObserver):
             True on success, False if writing failed.
         """
         # Track processed events for deduplication
-        if hasattr(event, "id"):
+        if hasattr(event, "id") and event.id:
             if event.id in self.processed_events_uuids:
                 return True
-            self.processed_events_uuids.append(event.id)
+            self.processed_events_uuids.add(event.id)
 
         try:
             record = self._event_to_jsonl_record(event)

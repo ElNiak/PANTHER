@@ -791,7 +791,9 @@ class ExperimentObserver(IObserver):
         self.current_phase = "test_execution_completed"
         test_id = event.data.get("test_id")
         test_name = event.data.get("test_name")
-        success = event.data.get("success", False)
+        success = event.data.get(
+            "success", True
+        )  # Default to True: "completed" implies success
         results = event.data.get("results") or {}
         duration_ms = event.data.get("duration_ms")
 
@@ -873,9 +875,9 @@ class ExperimentObserver(IObserver):
         """Get the priority for this observer.
 
         Returns:
-            int: Priority value (lower number = higher priority)
+            int: Priority value (higher number = higher priority). Returns 50 (medium-high).
         """
-        return 50  # Medium priority
+        return 50  # Medium-high priority
 
     def should_terminate_early(self) -> bool:
         """Check if the experiment should terminate early (thread-safe).

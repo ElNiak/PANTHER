@@ -23,7 +23,10 @@ from panther.core.events.service.events import (
     DockerBuildStartedEvent,
 )
 from panther.core.events.test.events import TestFailedEvent
-from panther.core.observer.base.typed_observer_interface import ITypedObserver
+from panther.core.observer.base.typed_observer_interface import (
+    ITypedObserver,
+    _handler_name_for,
+)
 from panther.core.observer.impl.event_colors import (
     get_severity_indicator,
     is_terminal_capable,
@@ -127,6 +130,18 @@ class LoggerObserver(ITypedObserver):
         self._recursion_depth = 0
         self._max_recursion_depth = 5
 
+        # Handler names defined on LoggerObserver for typed dispatch.
+        # These provide specialized formatting (emoji indicators, ERROR level).
+        self._logger_typed_handlers = {
+            "on_experiment_failed",
+            "on_test_failed",
+            "on_service_error",
+            "on_environment_error",
+            "on_docker_build_started",
+            "on_docker_build_completed",
+            "on_docker_build_failed",
+        }
+
         # Debug mode event history tracking
         if self.track_event_history:
             self.event_history: List[Dict[str, Any]] = []
@@ -177,10 +192,21 @@ class LoggerObserver(ITypedObserver):
         if self.track_event_history:
             self._track_event_in_history(event, event_type)
 
-        # Format and log the event
-        self._log_event(event)
+        # Dispatch to typed handler if one exists on this class.
+        # Typed handlers provide specialized formatting (emoji, ERROR level).
+        typed_handler = self._type_handlers.get(type(event))
+        if typed_handler is not None:
+            typed_handler(event)
+            return True
 
-        # Call parent's on_event to handle typed event routing
+        # Try name-based dispatch for non-subclass events
+        handler_name = _handler_name_for(event.entity_type, event.name)
+        if handler_name in self._logger_typed_handlers:
+            getattr(self, handler_name)(event)
+            return True
+
+        # Generic path: format and log via EventSummarizer
+        self._log_event(event)
         return True
 
     def _should_exclude_event(self, event_type: str) -> bool:
