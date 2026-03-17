@@ -53,9 +53,14 @@ class CommandAuditObserver(ITypedObserver):
 
     def get_supported_event_types(self) -> list:
         """Return the list of event types this observer handles."""
-        return []
+        return [
+            "service.preparation_started",
+            "service.preparation_completed",
+            "service.command_modified",
+            "service.config_generated",
+        ]
 
-    def handle_command_generation_started(self, event: BaseEvent) -> None:
+    def on_service_preparation_started(self, event: BaseEvent) -> bool:
         """Handle command generation started event."""
         service_id = f"{event.data.get('service_name', 'unknown')}_{event.data.get('phase', 'unknown')}"
 
@@ -71,8 +76,9 @@ class CommandAuditObserver(ITypedObserver):
             event.data.get("service_name"),
             event.data.get("phase"),
         )
+        return True
 
-    def handle_command_generated(self, event: BaseEvent) -> None:
+    def on_service_preparation_completed(self, event: BaseEvent) -> bool:
         """Handle command generated event."""
         service_id = f"{event.data.get('service_name', 'unknown')}_{event.data.get('phase', 'unknown')}"
 
@@ -109,8 +115,9 @@ class CommandAuditObserver(ITypedObserver):
 
         # Save audit trail
         self._save_audit_trail()
+        return True
 
-    def handle_command_modified(self, event: BaseEvent) -> None:
+    def on_service_command_modified(self, event: BaseEvent) -> bool:
         """Handle command modified event."""
         service_id = f"{event.data.get('service_name', 'unknown')}_{event.data.get('phase', 'unknown')}"
 
@@ -151,8 +158,9 @@ class CommandAuditObserver(ITypedObserver):
             self.logger.warning(
                 "Received command modification for unknown service: %s", service_id
             )
+        return True
 
-    def handle_config_generated(self, event: BaseEvent) -> None:
+    def on_service_config_generated(self, event: BaseEvent) -> bool:
         """Handle configuration generated event."""
         config_record = {
             "timestamp": datetime.now().isoformat(),
@@ -181,6 +189,7 @@ class CommandAuditObserver(ITypedObserver):
 
         # Save audit trail
         self._save_audit_trail()
+        return True
 
     def _save_audit_trail(self) -> None:
         """Save the complete audit trail to disk."""

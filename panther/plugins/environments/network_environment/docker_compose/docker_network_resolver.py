@@ -1,5 +1,4 @@
-"""
-Docker Compose network resolver for network-aware command resolution.
+"""Docker Compose network resolver for network-aware command resolution.
 
 This module provides Docker Compose-specific implementation of network
 placeholder resolution using Docker DNS and runtime hostname resolution.
@@ -33,8 +32,7 @@ class DockerComposeNetworkResolver(BaseNetworkResolver):
     def _generate_resolved_value(
         self, placeholder: PlaceholderInfo, service_info: NetworkServiceInfo
     ) -> str:
-        """
-        Generate resolved value for Docker Compose environment.
+        """Generate resolved value for Docker Compose environment.
 
         Docker Compose strategy:
         - Use $(resolve_hostname service_name format) for runtime resolution
@@ -84,8 +82,7 @@ class DockerComposeNetworkResolver(BaseNetworkResolver):
     def get_service_ip(
         self, service_name: str, context: NetworkResolutionContext
     ) -> str:
-        """
-        Get IP address for a service in Docker Compose environment.
+        """Get IP address for a service in Docker Compose environment.
 
         Args:
             service_name: Name of the service
@@ -100,8 +97,7 @@ class DockerComposeNetworkResolver(BaseNetworkResolver):
     def get_service_info(
         self, service_name: str, context: NetworkResolutionContext
     ) -> NetworkServiceInfo:
-        """
-        Get service information for Docker Compose service.
+        """Get service information for Docker Compose service.
 
         Args:
             service_name: Name of the service
@@ -127,8 +123,7 @@ class DockerComposeNetworkResolver(BaseNetworkResolver):
         return service_info
 
     def populate_service_network_info(self, context: NetworkResolutionContext) -> None:
-        """
-        Populate network information for Docker Compose services.
+        """Populate network information for Docker Compose services.
 
         For Docker Compose, this method ensures all services have basic
         network information with runtime resolution capabilities.
@@ -157,7 +152,7 @@ class DockerComposeNetworkResolver(BaseNetworkResolver):
 
         except Exception as e:
             raise NetworkDiscoveryException(
-                f"Failed to populate service network info: {str(e)}",
+                f"Failed to populate service network info: {e}",
                 "docker_compose_service_discovery",
                 "docker_compose",
                 str(e),

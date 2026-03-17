@@ -204,7 +204,7 @@ class PluginFactory(LoggerMixin):
             return instance
 
         except Exception as e:
-            error = f"Failed to create plugin '{plugin_name}': {str(e)}"
+            error = f"Failed to create plugin '{plugin_name}': {e}"
             self._handle_plugin_error(error, ErrorSeverity.HIGH)
             raise PluginLoadException(
                 error,
@@ -480,10 +480,14 @@ class PluginFactory(LoggerMixin):
                                 test_case=test_case,  # Pass test case reference for execution environment access
                             )
                         else:
-                            self.logger.error(f"Error creating service manager: {e2}")
+                            self.logger.error(
+                                "Error creating service manager: %s", e2, exc_info=True
+                            )
                             raise
                 else:
-                    self.logger.error(f"Error creating service manager: {e}")
+                    self.logger.error(
+                        "Error creating service manager: %s", e, exc_info=True
+                    )
                     raise
 
             self.logger.info(
@@ -494,7 +498,7 @@ class PluginFactory(LoggerMixin):
             return service_manager
 
         except Exception as e:
-            error = f"Failed to create service manager for '{implementation_name}': {str(e)}"
+            error = f"Failed to create service manager for '{implementation_name}': {e}"
             self._handle_plugin_error(error, ErrorSeverity.HIGH)
             raise PluginLoadException(
                 error, implementation_name, implementation_type
@@ -729,10 +733,8 @@ class PluginFactory(LoggerMixin):
             return env_manager
 
         except Exception as e:
-            error = (
-                f"Failed to create environment manager for '{environment}': {str(e)}"
-            )
-            self.logger.error("%s\nTraceback: %s", error, str(e), exc_info=True)
+            error = f"Failed to create environment manager for '{environment}': {e}"
+            self.logger.error("%s\nTraceback: %s", error, e, exc_info=True)
             self._handle_plugin_error(error, ErrorSeverity.HIGH)
             raise PluginLoadException(error, environment, "environment") from e
 
@@ -851,7 +853,7 @@ class PluginFactory(LoggerMixin):
         except (ImportError, AttributeError, ModuleNotFoundError) as e:
             error = (
                 f"Failed to load plugin class for '{plugin_metadata.name}': "
-                f"module={module_path}, class={class_name}, error={str(e)}"
+                f"module={module_path}, class={class_name}, error={e}"
             )
             raise PluginLoadException(error, plugin_metadata.name, type_value) from e
 

@@ -42,7 +42,13 @@ class DockerOutputParser(LoggerMixin):
     PULL_PATTERN = re.compile(r"Pulling from (.+)")
     ALREADY_EXISTS_PATTERN = re.compile(r"Already exists")
     ERROR_PATTERN = re.compile(
-        r'(?<!echo\s["\'])(?<!echo\s")(?<!Failed to add )(?<!Failed to build )(ERROR|error|Error):|(?<!echo\s["\'])(?<!echo\s")failed|Failed(?!\s*to\s*(add|build))|FAILED'
+        r"^\s*#?\d*\s+ERROR\b"  # BuildKit error: "#11 ERROR ..."
+        r"|^ERROR:"  # Docker daemon error prefix
+        r"|^error:"  # Generic error at line start
+        r"|\bexited with (?:code|error)\b"  # Process exit errors
+        r"|\breturn(?:ed)? (?:a )?non-zero"  # Build step failures
+        r"|\bfailed to (?:solve|compute|create|build)\b",  # BuildKit solve errors
+        re.IGNORECASE,
     )
     WARNING_PATTERN = re.compile(r"(WARNING|warning|Warning):")
     BUILD_CONTEXT_PATTERN = re.compile(r"Sending build context.*\s(\d+\.?\d*)([KMG]?B)")

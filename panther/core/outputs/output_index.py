@@ -229,10 +229,14 @@ class OutputIndexBuilder:
     def flush(self) -> Path:
         """Write the accumulated index to ``output_index.json``.
 
+        Uses atomic write (temp file + rename) to prevent corruption
+        if the process is interrupted mid-write.
+
         Returns:
             Absolute path to the written index file.
         """
         output_path = self._experiment_dir / self.INDEX_FILENAME
+        tmp_path = output_path.with_suffix(".tmp")
 
         with self._lock:
             entries_snapshot = list(self._entries)
@@ -244,9 +248,15 @@ class OutputIndexBuilder:
             "files": [e.to_dict() for e in entries_snapshot],
         }
 
-        self._experiment_dir.mkdir(parents=True, exist_ok=True)
-        with open(output_path, "w", encoding="utf-8") as fh:
-            json.dump(manifest, fh, indent=2, sort_keys=False)
+        try:
+            self._experiment_dir.mkdir(parents=True, exist_ok=True)
+            with open(tmp_path, "w", encoding="utf-8") as fh:
+                json.dump(manifest, fh, indent=2, sort_keys=False)
+            tmp_path.replace(output_path)
+        except OSError as exc:
+            logger.error("Failed to write output index: %s", exc)
+            tmp_path.unlink(missing_ok=True)
+            raise
 
         logger.info(
             "Wrote output index with %d entries to %s",

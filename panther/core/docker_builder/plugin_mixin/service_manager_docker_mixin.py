@@ -200,11 +200,10 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
             )
             self._base_image_built = True
             self.emit_docker_build_completed("panther_base_service", True)
-            self.logger.info("Base Docker image built successfully")
         except Exception as e:
             # For error case, emit failed event with proper parameters
             self.emit_docker_build_completed("panther_base_service", False)
-            self.logger.error(f"Failed to build base Docker image: {str(e)}")
+            self.logger.error("Failed to build base Docker image: %s", e, exc_info=True)
             raise
 
     def _generate_service_docker_image(self, plugin_manager: "PluginManager") -> None:
@@ -409,12 +408,9 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
             # Use the actual image tag returned by docker_builder (which includes modes)
             final_image_tag = actual_image_tag or expected_image_tag
             self.emit_docker_build_completed(final_image_tag, True)
-            self.logger.info(
-                f"Service Docker image {final_image_tag} built successfully"
-            )
         except Exception as e:
             self.emit_docker_build_completed(expected_image_tag, False)
-            self.logger.error(f"Failed to build service image: {str(e)}")
+            self.logger.error("Failed to build service image: %s", e, exc_info=True)
             raise
 
     def load_version_config(self):  # noqa: D102

@@ -83,8 +83,8 @@ class EventStreamRecorder(ITypedObserver):
                     fh.write(line + "\n")
             return True
         except Exception as exc:  # pylint: disable=broad-exception-caught
-            self.logger.debug(
-                "EventStreamRecorder failed to write event %s: %s",
+            self.logger.warning(
+                "EventStreamRecorder failed to write event %s: %s. Structured log may be incomplete.",
                 getattr(event, "id", "?"),
                 exc,
             )

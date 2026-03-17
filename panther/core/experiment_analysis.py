@@ -1,5 +1,4 @@
-"""
-Experiment Analysis Mixin for PANTHER framework.
+"""Experiment Analysis Mixin for PANTHER framework.
 
 This module contains the ExperimentObserverMixin class which provides observer setup
 and management functionality that can be mixed into the ExperimentManager.
@@ -13,14 +12,13 @@ from panther.core.utils.logger_factory import LoggerFactory
 
 
 class ExperimentAnalysisMixin:
-    """
-    Mixin class for managing experiment observers in the PANTHER framework.
+    """Mixin class for managing experiment observers in the PANTHER framework.
 
     This class provides methods to create and manage observers for experiments,
     including logging and metrics collection.
     """
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:  # noqa: D107
         super().__init__(*args, **kwargs)
 
     def _setup_log_statistics(self):
@@ -63,7 +61,7 @@ class ExperimentAnalysisMixin:
             self.logger.debug("Log statistics collection enabled")
 
         except Exception as e:
-            self.logger.warning("Failed to setup log statistics: %s", e)
+            self.logger.warning("Failed to setup log statistics: %s", e, exc_info=True)
 
     def _generate_final_log_report(self):
         """Generate final logging statistics report."""
@@ -116,6 +114,7 @@ class ExperimentAnalysisMixin:
                         "Failed to generate %s log statistics report: %s",
                         format_type,
                         e,
+                        exc_info=True,
                     )
 
             # Also save a real-time snapshot for comparison purposes
@@ -134,7 +133,7 @@ class ExperimentAnalysisMixin:
                 session = stats["session_info"]
                 errors = stats["error_statistics"]
 
-                self.logger.info("📊 Final Logging Statistics Summary:")
+                self.logger.info("Final Logging Statistics Summary:")
                 self.logger.info("   Total Messages: %d", session["total_messages"])
                 self.logger.info(
                     "   Duration: %.1f seconds", session["duration_seconds"]
@@ -162,7 +161,9 @@ class ExperimentAnalysisMixin:
                 self.logger.debug("Failed to log statistics summary: %s", e)
 
         except Exception as e:
-            self.logger.warning("Failed to generate final log statistics report: %s", e)
+            self.logger.warning(
+                "Failed to generate final log statistics report: %s", e, exc_info=True
+            )
 
     def _generate_experiment_report(self):
         """Generate comprehensive experiment status report."""
@@ -210,20 +211,20 @@ class ExperimentAnalysisMixin:
         # Basic configuration analysis
         config = test_case.test_config
 
-        self.logger.info("    📝 Test Name: %s", config.name)
+        self.logger.info("    Test Name: %s", config.name)
 
         if hasattr(config, "iut") and config.iut:
-            self.logger.info("    🎯 IUT: %s", config.iut.name)
+            self.logger.info("    IUT: %s", config.iut.name)
 
         if hasattr(config, "tester") and config.tester:
-            self.logger.info("    🧪 Tester: %s", config.tester.name)
+            self.logger.info("    Tester: %s", config.tester.name)
 
         if hasattr(config, "network_environment") and config.network_environment:
             self.logger.info(
-                "    🌐 Network Environment: %s", config.network_environment.name
+                "    Network Environment: %s", config.network_environment.name
             )
 
         if hasattr(config, "execution_environment") and config.execution_environment:
             self.logger.info(
-                "    ⚙️  Execution Environment: %s", config.execution_environment.name
+                "    Execution Environment: %s", config.execution_environment.name
             )

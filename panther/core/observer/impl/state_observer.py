@@ -44,7 +44,6 @@ class StateEventObserver(ITypedObserver):
 
     def is_interested(self, event_type: str) -> bool:
         """Check if this observer is interested in workflow coordination events."""
-        # Focus only on workflow-level events for coordination
         workflow_event_types = [
             "experiment.initialized",
             "experiment.plugin_loading_started",
@@ -52,17 +51,16 @@ class StateEventObserver(ITypedObserver):
             "experiment.execution_started",
             "experiment.completed",
             "experiment.failed",
-            "command_generation.started",
-            "docker_build.started",
+            "service.preparation_started",
+            "service.docker_build_started",
             "environment.setup_started",
             "test.execution_started",
             "test.setup_started",
             "test.teardown_started",
-            "output_collection.started",
-            "output_collection.completed",
-            "tester_analysis.started",
+            "environment.output_collection_started",
+            "environment.output_collection_completed",
+            "service.test_results",
         ]
-
         return event_type in workflow_event_types
 
     # Workflow coordination event handlers (simplified)
@@ -96,7 +94,7 @@ class StateEventObserver(ITypedObserver):
             )
         return True
 
-    def on_command_generation_started(self, event: BaseEvent) -> bool:
+    def on_service_preparation_started(self, event: BaseEvent) -> bool:
         """Handle command generation phase."""
         try:
             if self.current_experiment_id:
@@ -174,7 +172,7 @@ class StateEventObserver(ITypedObserver):
             )
         return True
 
-    def on_tester_analysis_started(self, event: BaseEvent) -> bool:
+    def on_service_test_results(self, event: BaseEvent) -> bool:
         """Handle analysis phase."""
         try:
             if self.current_experiment_id:

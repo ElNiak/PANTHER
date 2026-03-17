@@ -535,7 +535,7 @@ class FastFailHandler:
         context_str = ", ".join(f"{k}={v}" for k, v in error.context.items())
         return (
             f"[{error.category.value.upper()}] "
-            f"{error.severity.name}: {str(error)} "
+            f"{error.severity.name}: {error} "
             f"({context_str})"
         )
 

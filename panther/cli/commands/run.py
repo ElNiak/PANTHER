@@ -20,6 +20,7 @@ from panther.cli.core.base import (
     pass_context_and_setup_logging,
     success_message,
 )
+from panther.core.utils.logger_factory import TRACE
 
 
 @featured_example("panther run --config experiment.yaml")
@@ -216,7 +217,7 @@ def run(
     # Determine console_level: --debug (TRACE=5) wins over --verbose (DEBUG)
     console_level = None
     if debug:
-        console_level = 5  # TRACE
+        console_level = TRACE
     elif verbose:
         console_level = logging.DEBUG
 

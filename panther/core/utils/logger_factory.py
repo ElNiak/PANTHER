@@ -399,7 +399,7 @@ class LoggerFactory:
         if structured_path:
             structured_formatter = StructuredJsonFormatter()
             file_handler = logging.FileHandler(structured_path, mode="a")
-            file_handler.setLevel(logging.DEBUG)
+            file_handler.setLevel(console_level)  # Respect feature levels
             file_handler.setFormatter(structured_formatter)
             logger.addHandler(file_handler)
 

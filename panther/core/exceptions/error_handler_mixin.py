@@ -68,7 +68,7 @@ class ErrorHandlerMixin:
             category: Override category for non-PantherException errors
         """
         # Build error message
-        error_msg = f"Failed to {operation}: {type(error).__name__}: {str(error)}"
+        error_msg = f"Failed to {operation}: {type(error).__name__}: {error}"
 
         # Convert to PantherException if not already one
         if not isinstance(error, PantherException):
@@ -234,7 +234,7 @@ class ErrorHandlerMixin:
                     )
 
                     if transform_error:
-                        raise transform_error(f"Failed to {op_name}: {str(e)}") from e
+                        raise transform_error(f"Failed to {op_name}: {e}") from e
                     elif reraise:
                         raise
                     else:
@@ -257,12 +257,10 @@ class ErrorHandlerMixin:
             context: Context for the error message
             error_type: Optional exception type to raise instead
         """
-        self.logger.error(
-            f"{context}: {type(error).__name__}: {str(error)}", exc_info=True
-        )
+        self.logger.error(f"{context}: {type(error).__name__}: {error}", exc_info=True)
 
         if error_type and not isinstance(error, error_type):
-            raise error_type(f"{context}: {str(error)}") from error
+            raise error_type(f"{context}: {error}") from error
         else:
             raise error
 

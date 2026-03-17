@@ -7,6 +7,8 @@ import logging
 from pathlib import Path
 
 import click
+
+logger = logging.getLogger(__name__)
 from termcolor import colored
 
 from panther.cli.core.base import (
@@ -119,6 +121,7 @@ def teardown(ctx, force):
                         click.echo(f"  ⚠️ {step_name} completed with warnings")
 
                 except Exception as e:
+                    logger.debug("CLI error in teardown: %s", e, exc_info=True)
                     click.echo(f"  ⚠️ {step_name} failed: {e}")
 
                 bar.update(1)
@@ -385,6 +388,7 @@ def clean(ctx, logs, cache, all):
                     total_removed += removed
                     click.echo(f"  ✅ {operation_name}: {removed} items removed")
                 except Exception as e:
+                    logger.debug("CLI error in clean: %s", e, exc_info=True)
                     click.echo(f"  ⚠️ {operation_name}: {e}")
 
         success_message(
@@ -754,6 +758,7 @@ def docker(
                                 f"  ✅ {operation_name}: {processed} items processed"
                             )
                         except Exception as e:
+                            logger.debug("CLI error in docker: %s", e, exc_info=True)
                             click.echo(f"  ⚠️ {operation_name}: {e}")
             else:
                 # For registry operations, no progress bar needed
@@ -766,6 +771,7 @@ def docker(
                             f"  ✅ {operation_name}: {processed} items processed"
                         )
                     except Exception as e:
+                        logger.debug("CLI error in docker: %s", e, exc_info=True)
                         click.echo(f"  ⚠️ {operation_name}: {e}")
 
         success_message(

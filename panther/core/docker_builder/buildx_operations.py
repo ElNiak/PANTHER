@@ -538,7 +538,11 @@ class BuildxOperationsMixin:
 
                 # Execute buildx build
                 result = subprocess.run(
-                    buildx_cmd, cwd=str(context_path), capture_output=True, text=True
+                    buildx_cmd,
+                    cwd=str(context_path),
+                    capture_output=True,
+                    text=True,
+                    timeout=1800,
                 )
 
             finally:

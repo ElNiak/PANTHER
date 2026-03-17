@@ -158,14 +158,16 @@ class TestCommandAuditObserverInit:
 class TestGetSupportedEventTypes:
     """Test the get_supported_event_types method."""
 
-    def test_returns_empty_list(self, real_command_audit_observer):
-        """Observer returns empty list (backward-compat aliases removed)."""
+    def test_returns_supported_event_types(self, real_command_audit_observer):
+        """Observer returns its supported service event types."""
         types = real_command_audit_observer.get_supported_event_types()
-        assert types == []
+        assert "service.preparation_started" in types
+        assert "service.preparation_completed" in types
+        assert len(types) == 4
 
 
 # ===================================================================
-# handle_command_generation_started
+# on_service_preparation_started
 # ===================================================================
 
 
@@ -175,7 +177,7 @@ class TestHandleCommandGenerationStarted:
     def test_records_generation_in_progress(self, real_command_audit_observer):
         """Event is recorded in generation_in_progress dict."""
         event = _make_cmd_gen_started_event(service_name="picoquic", phase="run")
-        real_command_audit_observer.handle_command_generation_started(event)
+        real_command_audit_observer.on_service_preparation_started(event)
 
         key = "picoquic_run"
         assert key in real_command_audit_observer.generation_in_progress
@@ -188,7 +190,7 @@ class TestHandleCommandGenerationStarted:
         """Config data from the event is stored in generation_in_progress."""
         cfg = {"port": 4433, "version": "rfc9000"}
         event = _make_cmd_gen_started_event(config=cfg)
-        real_command_audit_observer.handle_command_generation_started(event)
+        real_command_audit_observer.on_service_preparation_started(event)
 
         key = "picoquic_run"
         assert real_command_audit_observer.generation_in_progress[key]["config"] == cfg
@@ -197,8 +199,8 @@ class TestHandleCommandGenerationStarted:
         """A second started event for the same service+phase overwrites the first."""
         e1 = _make_cmd_gen_started_event(config={"v": 1})
         e2 = _make_cmd_gen_started_event(config={"v": 2})
-        real_command_audit_observer.handle_command_generation_started(e1)
-        real_command_audit_observer.handle_command_generation_started(e2)
+        real_command_audit_observer.on_service_preparation_started(e1)
+        real_command_audit_observer.on_service_preparation_started(e2)
 
         key = "picoquic_run"
         assert real_command_audit_observer.generation_in_progress[key]["config"] == {
@@ -208,12 +210,12 @@ class TestHandleCommandGenerationStarted:
     def test_does_not_affect_command_history(self, real_command_audit_observer):
         """Started events do not create entries in command_history."""
         event = _make_cmd_gen_started_event()
-        real_command_audit_observer.handle_command_generation_started(event)
+        real_command_audit_observer.on_service_preparation_started(event)
         assert real_command_audit_observer.command_history == {}
 
 
 # ===================================================================
-# handle_command_generated
+# on_service_preparation_completed
 # ===================================================================
 
 
@@ -225,7 +227,7 @@ class TestHandleCommandGenerated:
         event = _make_cmd_generated_event(
             service_name="picoquic", phase="run", command="./run.sh"
         )
-        real_command_audit_observer.handle_command_generated(event)
+        real_command_audit_observer.on_service_preparation_completed(event)
 
         key = "picoquic_run"
         assert key in real_command_audit_observer.command_history
@@ -236,7 +238,7 @@ class TestHandleCommandGenerated:
         event = _make_cmd_generated_event(
             service_name="aioquic", phase="setup", command="pip install ."
         )
-        real_command_audit_observer.handle_command_generated(event)
+        real_command_audit_observer.on_service_preparation_completed(event)
 
         record = real_command_audit_observer.command_history["aioquic_setup"][0]
         assert record["service_name"] == "aioquic"
@@ -249,11 +251,11 @@ class TestHandleCommandGenerated:
         """After a generated event, the corresponding in-progress entry is removed."""
         obs = real_command_audit_observer
         started = _make_cmd_gen_started_event(service_name="pico", phase="run")
-        obs.handle_command_generation_started(started)
+        obs.on_service_preparation_started(started)
         assert "pico_run" in obs.generation_in_progress
 
         generated = _make_cmd_generated_event(service_name="pico", phase="run")
-        obs.handle_command_generated(generated)
+        obs.on_service_preparation_completed(generated)
         assert "pico_run" not in obs.generation_in_progress
 
     def test_links_generation_info(self, real_command_audit_observer):
@@ -262,12 +264,12 @@ class TestHandleCommandGenerated:
         started = _make_cmd_gen_started_event(
             service_name="pico", phase="run", config={"port": 4433}
         )
-        obs.handle_command_generation_started(started)
+        obs.on_service_preparation_started(started)
 
         generated = _make_cmd_generated_event(
             service_name="pico", phase="run", command="./run"
         )
-        obs.handle_command_generated(generated)
+        obs.on_service_preparation_completed(generated)
 
         record = obs.command_history["pico_run"][0]
         assert record["generation_info"]["config"] == {"port": 4433}
@@ -279,7 +281,7 @@ class TestHandleCommandGenerated:
             event = _make_cmd_generated_event(
                 service_name="pico", phase="run", command=f"cmd-{i}"
             )
-            obs.handle_command_generated(event)
+            obs.on_service_preparation_completed(event)
 
         assert len(obs.command_history["pico_run"]) == 3
         assert obs.command_history["pico_run"][2]["command"] == "cmd-2"
@@ -288,7 +290,7 @@ class TestHandleCommandGenerated:
         """Generated event triggers a save of the audit JSON to disk."""
         obs = real_command_audit_observer
         event = _make_cmd_generated_event(command="echo test")
-        obs.handle_command_generated(event)
+        obs.on_service_preparation_completed(event)
 
         assert obs.audit_file.exists()
         data = json.loads(obs.audit_file.read_text())
@@ -297,7 +299,7 @@ class TestHandleCommandGenerated:
 
 
 # ===================================================================
-# handle_command_modified
+# on_service_command_modified
 # ===================================================================
 
 
@@ -310,7 +312,7 @@ class TestHandleCommandModified:
         gen = _make_cmd_generated_event(
             service_name="pico", phase="run", command="./run.sh"
         )
-        obs.handle_command_generated(gen)
+        obs.on_service_preparation_completed(gen)
 
         mod = _make_cmd_modified_event(
             service_name="pico",
@@ -319,7 +321,7 @@ class TestHandleCommandModified:
             modified_command="strace ./run.sh",
             modifier="strace",
         )
-        obs.handle_command_modified(mod)
+        obs.on_service_command_modified(mod)
 
         record = obs.command_history["pico_run"][0]
         assert len(record["modifications"]) == 1
@@ -335,7 +337,7 @@ class TestHandleCommandModified:
         gen = _make_cmd_generated_event(
             service_name="pico", phase="run", command="./run.sh"
         )
-        obs.handle_command_generated(gen)
+        obs.on_service_preparation_completed(gen)
 
         for modifier in ["strace", "gperf", "wrapper"]:
             mod = _make_cmd_modified_event(
@@ -343,7 +345,7 @@ class TestHandleCommandModified:
                 phase="run",
                 modifier=modifier,
             )
-            obs.handle_command_modified(mod)
+            obs.on_service_command_modified(mod)
 
         record = obs.command_history["pico_run"][0]
         assert len(record["modifications"]) == 3
@@ -353,7 +355,7 @@ class TestHandleCommandModified:
     def test_modification_with_details(self, real_command_audit_observer):
         """modification_details from the event are preserved."""
         obs = real_command_audit_observer
-        obs.handle_command_generated(
+        obs.on_service_preparation_completed(
             _make_cmd_generated_event(service_name="pico", phase="run")
         )
 
@@ -364,7 +366,7 @@ class TestHandleCommandModified:
             modifier="strace",
             modification_details=details,
         )
-        obs.handle_command_modified(mod)
+        obs.on_service_command_modified(mod)
 
         record = obs.command_history["pico_run"][0]
         assert record["modifications"][0]["modification_details"] == details
@@ -374,26 +376,26 @@ class TestHandleCommandModified:
         obs = real_command_audit_observer
         mod = _make_cmd_modified_event(service_name="nonexistent", phase="run")
         # Should not raise
-        obs.handle_command_modified(mod)
+        obs.on_service_command_modified(mod)
         assert obs.command_history == {}
 
     def test_modification_saves_audit_trail(self, real_command_audit_observer):
         """Modification triggers an audit trail save."""
         obs = real_command_audit_observer
-        obs.handle_command_generated(
+        obs.on_service_preparation_completed(
             _make_cmd_generated_event(service_name="pico", phase="run")
         )
         # Remove the file to prove modification re-creates it
         obs.audit_file.unlink()
 
-        obs.handle_command_modified(
+        obs.on_service_command_modified(
             _make_cmd_modified_event(service_name="pico", phase="run")
         )
         assert obs.audit_file.exists()
 
 
 # ===================================================================
-# handle_config_generated
+# on_service_config_generated
 # ===================================================================
 
 
@@ -408,7 +410,7 @@ class TestHandleConfigGenerated:
             config_path="/tmp/dc.yml",
             services_included=["picoquic", "aioquic"],
         )
-        obs.handle_config_generated(event)
+        obs.on_service_config_generated(event)
 
         assert "config_generation" in obs.command_history
         assert len(obs.command_history["config_generation"]) == 1
@@ -422,7 +424,7 @@ class TestHandleConfigGenerated:
             config_content="apiVersion: v1\nkind: Pod",
             services_included=["svc-a"],
         )
-        obs.handle_config_generated(event)
+        obs.on_service_config_generated(event)
 
         record = obs.command_history["config_generation"][0]
         assert record["config_type"] == "kubernetes"
@@ -435,7 +437,7 @@ class TestHandleConfigGenerated:
         obs = real_command_audit_observer
         long_content = "x" * 1000
         event = _make_config_generated_event(config_content=long_content)
-        obs.handle_config_generated(event)
+        obs.on_service_config_generated(event)
 
         record = obs.command_history["config_generation"][0]
         assert record["config_preview"] is not None
@@ -445,7 +447,7 @@ class TestHandleConfigGenerated:
         """When config_content is None, config_preview is also None."""
         obs = real_command_audit_observer
         event = _make_config_generated_event(config_content=None)
-        obs.handle_config_generated(event)
+        obs.on_service_config_generated(event)
 
         record = obs.command_history["config_generation"][0]
         assert record["config_preview"] is None
@@ -453,7 +455,7 @@ class TestHandleConfigGenerated:
     def test_config_saves_audit_trail(self, real_command_audit_observer):
         """Config event triggers an audit trail save."""
         obs = real_command_audit_observer
-        obs.handle_config_generated(_make_config_generated_event())
+        obs.on_service_config_generated(_make_config_generated_event())
         assert obs.audit_file.exists()
 
 
@@ -468,7 +470,7 @@ class TestSaveAuditTrail:
     def test_audit_json_structure(self, real_command_audit_observer):
         """Saved JSON contains generated_at, command_history, statistics."""
         obs = real_command_audit_observer
-        obs.handle_command_generated(
+        obs.on_service_preparation_completed(
             _make_cmd_generated_event(service_name="pico", phase="run")
         )
 
@@ -488,7 +490,7 @@ class TestSaveAuditTrail:
         """Each generated event updates the audit file."""
         obs = real_command_audit_observer
         for i in range(3):
-            obs.handle_command_generated(
+            obs.on_service_preparation_completed(
                 _make_cmd_generated_event(
                     service_name=f"svc-{i}", phase="run", command=f"cmd-{i}"
                 )
@@ -518,13 +520,13 @@ class TestCalculateStatistics:
         """Statistics count services (distinct keys) and total commands."""
         obs = real_command_audit_observer
         # 2 services, 3 commands total
-        obs.handle_command_generated(
+        obs.on_service_preparation_completed(
             _make_cmd_generated_event(service_name="pico", phase="run")
         )
-        obs.handle_command_generated(
+        obs.on_service_preparation_completed(
             _make_cmd_generated_event(service_name="pico", phase="run")
         )
-        obs.handle_command_generated(
+        obs.on_service_preparation_completed(
             _make_cmd_generated_event(service_name="aio", phase="setup")
         )
 
@@ -535,15 +537,15 @@ class TestCalculateStatistics:
     def test_counts_modifications(self, real_command_audit_observer):
         """Statistics count total modifications across all commands."""
         obs = real_command_audit_observer
-        obs.handle_command_generated(
+        obs.on_service_preparation_completed(
             _make_cmd_generated_event(service_name="pico", phase="run")
         )
-        obs.handle_command_modified(
+        obs.on_service_command_modified(
             _make_cmd_modified_event(
                 service_name="pico", phase="run", modifier="strace"
             )
         )
-        obs.handle_command_modified(
+        obs.on_service_command_modified(
             _make_cmd_modified_event(service_name="pico", phase="run", modifier="gperf")
         )
 
@@ -553,20 +555,20 @@ class TestCalculateStatistics:
     def test_modifications_by_type(self, real_command_audit_observer):
         """Statistics track modifications grouped by modifier name."""
         obs = real_command_audit_observer
-        obs.handle_command_generated(
+        obs.on_service_preparation_completed(
             _make_cmd_generated_event(service_name="pico", phase="run")
         )
-        obs.handle_command_modified(
+        obs.on_service_command_modified(
             _make_cmd_modified_event(
                 service_name="pico", phase="run", modifier="strace"
             )
         )
-        obs.handle_command_modified(
+        obs.on_service_command_modified(
             _make_cmd_modified_event(
                 service_name="pico", phase="run", modifier="strace"
             )
         )
-        obs.handle_command_modified(
+        obs.on_service_command_modified(
             _make_cmd_modified_event(service_name="pico", phase="run", modifier="gperf")
         )
 
@@ -577,13 +579,13 @@ class TestCalculateStatistics:
     def test_commands_by_phase(self, real_command_audit_observer):
         """Statistics track commands grouped by phase."""
         obs = real_command_audit_observer
-        obs.handle_command_generated(
+        obs.on_service_preparation_completed(
             _make_cmd_generated_event(service_name="pico", phase="run")
         )
-        obs.handle_command_generated(
+        obs.on_service_preparation_completed(
             _make_cmd_generated_event(service_name="pico", phase="setup")
         )
-        obs.handle_command_generated(
+        obs.on_service_preparation_completed(
             _make_cmd_generated_event(service_name="aio", phase="run")
         )
 
@@ -596,10 +598,10 @@ class TestCalculateStatistics:
     ):
         """The 'config_generation' key is excluded from service count."""
         obs = real_command_audit_observer
-        obs.handle_command_generated(
+        obs.on_service_preparation_completed(
             _make_cmd_generated_event(service_name="pico", phase="run")
         )
-        obs.handle_config_generated(_make_config_generated_event())
+        obs.on_service_config_generated(_make_config_generated_event())
 
         stats = obs._calculate_statistics()
         assert stats["total_services"] == 1  # only pico_run, not config_generation
@@ -616,10 +618,10 @@ class TestGetCommandHistory:
     def test_returns_all_history_when_no_filter(self, real_command_audit_observer):
         """Without a service_name filter, returns the entire history dict."""
         obs = real_command_audit_observer
-        obs.handle_command_generated(
+        obs.on_service_preparation_completed(
             _make_cmd_generated_event(service_name="pico", phase="run")
         )
-        obs.handle_command_generated(
+        obs.on_service_preparation_completed(
             _make_cmd_generated_event(service_name="aio", phase="setup")
         )
 
@@ -630,13 +632,13 @@ class TestGetCommandHistory:
     def test_filters_by_service_name(self, real_command_audit_observer):
         """With a service_name, returns only matching keys."""
         obs = real_command_audit_observer
-        obs.handle_command_generated(
+        obs.on_service_preparation_completed(
             _make_cmd_generated_event(service_name="pico", phase="run")
         )
-        obs.handle_command_generated(
+        obs.on_service_preparation_completed(
             _make_cmd_generated_event(service_name="pico", phase="setup")
         )
-        obs.handle_command_generated(
+        obs.on_service_preparation_completed(
             _make_cmd_generated_event(service_name="aio", phase="run")
         )
 
@@ -650,7 +652,7 @@ class TestGetCommandHistory:
     ):
         """Filtering for a service that has no history returns empty dict."""
         obs = real_command_audit_observer
-        obs.handle_command_generated(
+        obs.on_service_preparation_completed(
             _make_cmd_generated_event(service_name="pico", phase="run")
         )
 
@@ -682,7 +684,7 @@ class TestGetAuditSummary:
     def test_summary_statistics_reflect_state(self, real_command_audit_observer):
         """Summary statistics are calculated from current state."""
         obs = real_command_audit_observer
-        obs.handle_command_generated(
+        obs.on_service_preparation_completed(
             _make_cmd_generated_event(service_name="pico", phase="run")
         )
 
@@ -700,7 +702,7 @@ class TestOnEventRouting:
     """Test event routing through ITypedObserver.on_event.
 
     NOTE: CommandAuditObserver uses 'handle_*' method names (e.g.
-    handle_command_generation_started) but ITypedObserver._event_handlers
+    on_service_preparation_started) but ITypedObserver._event_handlers
     maps to 'on_*' method names (e.g. on_command_generation_started).
     As a result, on_event() calls the base ITypedObserver no-op handlers
     rather than CommandAuditObserver's handle_* methods. This is a
@@ -708,27 +710,25 @@ class TestOnEventRouting:
     methods must be called directly.
     """
 
-    def test_on_event_routes_to_base_handler_not_custom(
-        self, real_command_audit_observer
-    ):
-        """on_event calls on_command_generation_started (base), not handle_*."""
+    def test_on_event_routes_to_named_handler(self, real_command_audit_observer):
+        """on_event routes to on_service_preparation_started via name dispatch."""
         obs = real_command_audit_observer
         event = _make_cmd_gen_started_event(service_name="pico", phase="run")
         result = obs.on_event(event)
 
-        # Base handler returns True without modifying state
+        # Handler is now found by name dispatch and modifies state
         assert result is True
-        assert obs.generation_in_progress == {}
+        assert "pico_run" in obs.generation_in_progress
 
     def test_direct_handle_methods_work(self, real_command_audit_observer):
         """Calling handle_* methods directly processes events correctly."""
         obs = real_command_audit_observer
-        obs.handle_command_generation_started(
+        obs.on_service_preparation_started(
             _make_cmd_gen_started_event(service_name="pico", phase="run")
         )
         assert "pico_run" in obs.generation_in_progress
 
-        obs.handle_command_generated(
+        obs.on_service_preparation_completed(
             _make_cmd_generated_event(
                 service_name="pico", phase="run", command="./run.sh"
             )
@@ -760,7 +760,7 @@ class TestFullWorkflow:
         obs = real_command_audit_observer
 
         # Step 1: generation started
-        obs.handle_command_generation_started(
+        obs.on_service_preparation_started(
             _make_cmd_gen_started_event(
                 service_name="picoquic",
                 phase="run",
@@ -770,7 +770,7 @@ class TestFullWorkflow:
         assert "picoquic_run" in obs.generation_in_progress
 
         # Step 2: command generated
-        obs.handle_command_generated(
+        obs.on_service_preparation_completed(
             _make_cmd_generated_event(
                 service_name="picoquic",
                 phase="run",
@@ -781,7 +781,7 @@ class TestFullWorkflow:
         assert len(obs.command_history["picoquic_run"]) == 1
 
         # Step 3: command modified by strace
-        obs.handle_command_modified(
+        obs.on_service_command_modified(
             _make_cmd_modified_event(
                 service_name="picoquic",
                 phase="run",
@@ -809,10 +809,10 @@ class TestFullWorkflow:
         ]
 
         for svc, phase, cmd in services:
-            obs.handle_command_generation_started(
+            obs.on_service_preparation_started(
                 _make_cmd_gen_started_event(service_name=svc, phase=phase)
             )
-            obs.handle_command_generated(
+            obs.on_service_preparation_completed(
                 _make_cmd_generated_event(service_name=svc, phase=phase, command=cmd)
             )
 
@@ -831,19 +831,19 @@ class TestFullWorkflow:
         obs = real_command_audit_observer
 
         # Generate commands for services
-        obs.handle_command_generated(
+        obs.on_service_preparation_completed(
             _make_cmd_generated_event(
                 service_name="picoquic", phase="run", command="./run.sh"
             )
         )
-        obs.handle_command_generated(
+        obs.on_service_preparation_completed(
             _make_cmd_generated_event(
                 service_name="aioquic", phase="run", command="python srv.py"
             )
         )
 
         # Generate the final config
-        obs.handle_config_generated(
+        obs.on_service_config_generated(
             _make_config_generated_event(
                 config_type="docker-compose",
                 config_path="/tmp/dc.yml",
@@ -866,7 +866,7 @@ class TestFullWorkflow:
 
         start = time.time()
         for i in range(100):
-            obs.handle_command_generated(
+            obs.on_service_preparation_completed(
                 _make_cmd_generated_event(
                     service_name=f"svc-{i % 10}",
                     phase=f"phase-{i % 3}",
@@ -895,7 +895,7 @@ class TestEdgeCases:
         event = _make_cmd_generated_event(
             service_name="pico", phase="run", command="./run.sh"
         )
-        obs.handle_command_generated(event)
+        obs.on_service_preparation_completed(event)
 
         record = obs.command_history["pico_run"][0]
         assert record["generation_info"] == {}  # no started event was recorded
@@ -904,14 +904,14 @@ class TestEdgeCases:
         """Events with empty service_name are handled (key becomes '_phase')."""
         obs = real_command_audit_observer
         event = _make_cmd_generated_event(service_name="", phase="run", command="echo")
-        obs.handle_command_generated(event)
+        obs.on_service_preparation_completed(event)
         assert "_run" in obs.command_history
 
     def test_special_characters_in_command(self, real_command_audit_observer):
         """Commands with special characters are stored correctly."""
         obs = real_command_audit_observer
         cmd = "bash -c \"echo 'hello world' && exit 0\""
-        obs.handle_command_generated(
+        obs.on_service_preparation_completed(
             _make_cmd_generated_event(service_name="pico", phase="run", command=cmd)
         )
         assert obs.command_history["pico_run"][0]["command"] == cmd
@@ -920,7 +920,7 @@ class TestEdgeCases:
         """Very long commands are stored in full (no truncation in history)."""
         obs = real_command_audit_observer
         long_cmd = "x" * 10000
-        obs.handle_command_generated(
+        obs.on_service_preparation_completed(
             _make_cmd_generated_event(
                 service_name="pico", phase="run", command=long_cmd
             )
@@ -936,7 +936,7 @@ class TestEdgeCases:
             command="./run.sh",
             command_type="shell",
         )
-        obs.handle_command_generated(event)
+        obs.on_service_preparation_completed(event)
         assert obs.command_history["pico_run"][0]["command_type"] == "shell"
 
 

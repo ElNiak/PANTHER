@@ -1,5 +1,4 @@
-"""
-Shadow NS network resolver for network-aware command resolution.
+"""Shadow NS network resolver for network-aware command resolution.
 
 This module provides Shadow NS-specific implementation of network
 placeholder resolution using static IP assignment following Shadow networking patterns.
@@ -37,8 +36,7 @@ class ShadowNetworkResolver(BaseNetworkResolver):
         self.service_roles: Dict[str, str] = {}  # service_name -> role
 
     def _get_service_ip_by_role(self, service_name: str) -> str:
-        """
-        Get IP address for service based on its role following Shadow patterns.
+        """Get IP address for service based on its role following Shadow patterns.
 
         Args:
             service_name: Name of the service
@@ -56,8 +54,7 @@ class ShadowNetworkResolver(BaseNetworkResolver):
     def _generate_resolved_value(
         self, placeholder: PlaceholderInfo, service_info: NetworkServiceInfo
     ) -> str:
-        """
-        Generate resolved value for Shadow NS environment.
+        """Generate resolved value for Shadow NS environment.
 
         Shadow NS strategy:
         - IP: Use static assignment (11.0.0.1 for servers, 11.0.0.2 for clients)
@@ -98,8 +95,7 @@ class ShadowNetworkResolver(BaseNetworkResolver):
             )
 
     def _format_ip_address(self, ip_address: str, format_type: NetworkFormat) -> str:
-        """
-        Format Shadow NS IP address in requested format.
+        """Format Shadow NS IP address in requested format.
 
         Args:
             ip_address: IP address to format (e.g., "11.0.0.1")
@@ -145,8 +141,7 @@ class ShadowNetworkResolver(BaseNetworkResolver):
     def get_service_ip(
         self, service_name: str, context: NetworkResolutionContext
     ) -> str:
-        """
-        Get IP address for a service in Shadow NS environment.
+        """Get IP address for a service in Shadow NS environment.
 
         Args:
             service_name: Name of the service
@@ -160,8 +155,7 @@ class ShadowNetworkResolver(BaseNetworkResolver):
     def get_service_info(
         self, service_name: str, context: NetworkResolutionContext
     ) -> NetworkServiceInfo:
-        """
-        Get service information for Shadow NS service.
+        """Get service information for Shadow NS service.
 
         Args:
             service_name: Name of the service
@@ -194,8 +188,7 @@ class ShadowNetworkResolver(BaseNetworkResolver):
         return service_info
 
     def populate_service_network_info(self, context: NetworkResolutionContext) -> None:
-        """
-        Populate network information for Shadow NS services.
+        """Populate network information for Shadow NS services.
 
         For Shadow NS, this method ensures all services have proper
         IP assignments based on their roles (client vs server).
@@ -234,15 +227,14 @@ class ShadowNetworkResolver(BaseNetworkResolver):
 
         except Exception as e:
             raise NetworkDiscoveryException(
-                f"Failed to populate service network info: {str(e)}",
+                f"Failed to populate service network info: {e}",
                 "shadow_service_discovery",
                 "shadow_ns",
                 str(e),
             )
 
     def register_service_roles(self, service_roles: Dict[str, str]) -> None:
-        """
-        Register service roles for IP assignment.
+        """Register service roles for IP assignment.
 
         Args:
             service_roles: Dictionary mapping service name to role (client/server)
@@ -273,8 +265,7 @@ class ShadowNetworkResolver(BaseNetworkResolver):
     def _create_default_service_info(
         self, placeholder: PlaceholderInfo
     ) -> NetworkServiceInfo:
-        """
-        Create Shadow NS specific default service info.
+        """Create Shadow NS specific default service info.
 
         For Shadow NS, creates service info with static IP assignment based on service role.
 
@@ -317,8 +308,7 @@ class ShadowNetworkResolver(BaseNetworkResolver):
     def create_resolution_context(
         self, environment_type: str, service_managers: Dict[str, "IServiceManager"]
     ) -> NetworkResolutionContext:
-        """
-        Create network resolution context for Shadow NS environment.
+        """Create network resolution context for Shadow NS environment.
 
         Args:
             environment_type: Type of environment (should be "shadow_ns")

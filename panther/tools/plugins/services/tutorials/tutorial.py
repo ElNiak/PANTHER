@@ -331,7 +331,7 @@ class {config_class}(ImplementationConfig):
                     config = OmegaConf.load(version_path)
                     return {version_class}(**config)
                 except Exception as e:
-                    logging.warning(f"Failed to load version config {{version_file}}: {{e}}")
+                    logging.warning("Failed to load version config %s: %s", version_file, e)
 
         # Return default version if no config files found
         return {version_class}()

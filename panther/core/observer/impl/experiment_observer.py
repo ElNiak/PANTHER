@@ -1,9 +1,12 @@
 """Observer that tracks experiment lifecycle events and manages state."""
 
 import logging
+import sys
 import threading
 from datetime import datetime
 from typing import Any, Dict, Optional, Set
+
+import click
 
 from panther.core.events.base.event_base import BaseEvent, EventType
 from panther.core.events.experiment.events import (
@@ -138,6 +141,7 @@ class ExperimentObserver(IObserver):
             (EventType.TEST, "execution_failed"): self._handle_test_execution_failed,
             (EventType.TEST, "execution_started"): self._handle_test_execution_started,
             (EventType.TEST, "completed"): self._handle_test_completed,
+            (EventType.TEST, "failed"): self._handle_test_failed,
             (
                 EventType.TEST,
                 "execution_completed",
@@ -191,10 +195,7 @@ class ExperimentObserver(IObserver):
             self.logger.info("Experiment finished early")
 
             reason = event.data.get("reason", "No reason provided")
-            self.logger.debug(f"Reason: {reason}")
-
-            # Just log that experiment finished early - no orchestration
-            self.logger.info("Experiment finished early notification received")
+            self.logger.debug("Early termination reason: %s", reason)
 
             if self.track_timing:
                 self._record_timing_info("early_termination", self.start_time)
@@ -245,7 +246,9 @@ class ExperimentObserver(IObserver):
 
                     # Log initial progress bar creation using logger for coordination
                     self.logger.info(
-                        f"🚀 Started progress tracking for {step_name} in {test_case_id or 'unknown test'}"
+                        "Started progress tracking for %s in %s",
+                        step_name,
+                        test_case_id or "unknown test",
                     )
 
                     # Store progress state for this step
@@ -263,21 +266,24 @@ class ExperimentObserver(IObserver):
                 if new_progress > step_state["current_progress"]:
                     step_state["current_progress"] = new_progress
 
-                    # Update message if provided
-                    if (
-                        progress_message
-                        and progress_message != step_state["last_message"]
-                    ):
+                    # Render in-place progress bar on stderr
+                    bar_width = 30
+                    filled = int(bar_width * new_progress / 100)
+                    bar = "\u2588" * filled + "\u2591" * (bar_width - filled)
+                    line = f"\r  [{bar}] {new_progress}% - {progress_message}"
+                    click.echo(line, nl=False, file=sys.stderr)
+
+                    # Update last message for dedup
+                    if progress_message:
                         step_state["last_message"] = progress_message
-                        self.logger.info(
-                            f"⏳ {step_name} ({test_case_id or 'unknown test'}): {progress_message} [{new_progress}%]"
-                        )
 
                 # Close progress bar when complete (only when step is truly finished)
                 if progress_percentage >= 100.0:
+                    # Finalize the in-place bar with a newline
+                    click.echo("", file=sys.stderr)
                     # Use logger for coordinated completion message
                     self.logger.info(
-                        f"✅ {step_name} completed in {test_case_id or 'unknown test'}"
+                        "%s completed in %s", step_name, test_case_id or "unknown test"
                     )
                     # Don't close immediately - let test completion handle cleanup
                     # This prevents premature disappearing during step execution
@@ -299,7 +305,7 @@ class ExperimentObserver(IObserver):
         # Log details with consistent indentation
         if details:
             for key, value in details.items():
-                self.logger.debug(f"  {key}: {value}")
+                self.logger.debug("  %s: %s", key, value)
 
         return True
 
@@ -329,19 +335,19 @@ class ExperimentObserver(IObserver):
                     ):
                         step_name = step_state.get("step_name", "Unknown Step")
                         test_case_id = step_state.get("test_case_id", "unknown test")
-                        self.logger.info(f"✅ {step_name} completed in {test_case_id}")
+                        self.logger.info("%s completed in %s", step_name, test_case_id)
 
                     keys_to_remove.append(pbar_key)
 
                     # Use logger for coordinated cleanup message
                     if test_name:
                         self.logger.info(
-                            f"🧹 Cleaned up progress tracking for {test_name}"
+                            "Cleaned up progress tracking for %s", test_name
                         )
 
                 except Exception as e:
                     self.logger.debug(
-                        f"Error cleaning up progress tracking {pbar_key}: {e}"
+                        "Error cleaning up progress tracking %s: %s", pbar_key, e
                     )
 
             # Remove cleaned up progress trackers from our tracking dict
@@ -349,7 +355,7 @@ class ExperimentObserver(IObserver):
                 del self._step_progress_bars[key]
 
         except Exception as e:
-            self.logger.debug(f"Error during progress tracking cleanup: {e}")
+            self.logger.debug("Error during progress tracking cleanup: %s", e)
 
     def _handle_step_completed(self, event: BaseEvent) -> bool:
         """Handle step completion events."""
@@ -364,7 +370,7 @@ class ExperimentObserver(IObserver):
         # Log details with consistent indentation
         if result:
             for key, value in result.items():
-                self.logger.debug(f"  {key}: {value}")
+                self.logger.debug("  %s: %s", key, value)
 
         return True
 
@@ -468,7 +474,7 @@ class ExperimentObserver(IObserver):
         # Log details with consistent indentation
         if details:
             for key, value in details.items():
-                self.logger.debug(f"  {key}: {value}")
+                self.logger.debug("  %s: %s", key, value)
 
         return True
 
@@ -499,7 +505,7 @@ class ExperimentObserver(IObserver):
                 if isinstance(service_instances, dict):
                     for name in service_instances.keys():
                         self.observed_services.add(name)
-                        self.logger.debug(f"Observed service '{name}' deployment")
+                        self.logger.debug("Observed service '%s' deployment", name)
 
             # Record timing information
             if self.track_timing:
@@ -519,7 +525,7 @@ class ExperimentObserver(IObserver):
                 "service_instances",
                 "services",
             ]:  # Don't log instance objects
-                self.logger.debug(f"  {key}: {value}")
+                self.logger.debug("  %s: %s", key, value)
 
         return True
 
@@ -537,7 +543,7 @@ class ExperimentObserver(IObserver):
 
         # Log start time if available
         if start_time:
-            self.logger.debug(f"  Start time: {start_time}")
+            self.logger.debug("  Start time: %s", start_time)
 
         # Just track that we've seen this service
         self.observed_services.add(service_name)
@@ -571,12 +577,12 @@ class ExperimentObserver(IObserver):
                 self.experiment_finished_early = True
 
         # Just log that the service stopped
-        self.logger.debug(f"Observed service '{service_name}' stop")
+        self.logger.debug("Observed service '%s' stop", service_name)
 
         # Log uptime if available
         uptime = event.data.get("uptime_seconds")
         if uptime is not None:
-            self.logger.debug(f"  Service uptime: {uptime:.2f} seconds")
+            self.logger.debug("  Service uptime: %.2f seconds", uptime)
 
         # Service stop observed
 
@@ -604,7 +610,7 @@ class ExperimentObserver(IObserver):
         # Log additional details with consistent indentation
         for key, value in data.items():
             if key not in ["environment", "service_name", "error", "error_type"]:
-                self.logger.debug(f"  {key}: {value}")
+                self.logger.debug("  %s: %s", key, value)
 
         return True
 
@@ -696,7 +702,7 @@ class ExperimentObserver(IObserver):
         # Log error details with consistent indentation
         if error_details:
             for key, value in error_details.items():
-                self.logger.debug(f"  {key}: {value}")
+                self.logger.debug("  %s: %s", key, value)
 
         # Record timing information
         if self.track_timing:
@@ -737,7 +743,7 @@ class ExperimentObserver(IObserver):
         """
         self.current_phase = "test_completed"
         test_name = event.data.get("test_name")
-        success = event.data.get("success", False)
+        success = event.data.get("success", True)
         result = event.data.get("result") or {}
 
         self.logger.info(
@@ -753,7 +759,23 @@ class ExperimentObserver(IObserver):
         # Log result details with consistent indentation
         if result:
             for key, value in result.items():
-                self.logger.debug(f"  {key}: {value}")
+                self.logger.debug("  %s: %s", key, value)
+
+        return True
+
+    def _handle_test_failed(self, event: BaseEvent) -> bool:
+        """Handle test failed events."""
+        self.current_phase = "test_failed"
+        test_name = event.data.get("test_name")
+        error_message = event.data.get("error_message", "Unknown error")
+
+        self.logger.error("Test failed: %s - %s", test_name, error_message)
+
+        # Clean up step progress bars for this test
+        self._cleanup_step_progress_bars(test_name)
+
+        if self.track_timing:
+            self._record_timing_info("test_failed", self.start_time)
 
         return True
 
@@ -786,7 +808,7 @@ class ExperimentObserver(IObserver):
         # Log results details with consistent indentation
         if results:
             for key, value in results.items():
-                self.logger.debug(f"  {key}: {value}")
+                self.logger.debug("  %s: %s", key, value)
 
         if self.track_timing:
             self._record_timing_info("test_execution_completed", self.start_time)
@@ -999,7 +1021,7 @@ class ExperimentObserver(IObserver):
         # Log additional details
         if details:
             for key, value in details.items():
-                self.logger.debug(f"  {key}: {value}")
+                self.logger.debug("  %s: %s", key, value)
 
         return True
 

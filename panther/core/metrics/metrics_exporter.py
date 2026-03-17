@@ -78,7 +78,7 @@ class MetricsExporter:
             return True
 
         except Exception as e:
-            logger.error("Failed to export metrics to JSON: %s", e)
+            logger.error("Failed to export metrics to JSON: %s", e, exc_info=True)
             return False
 
     def export_to_csv(self, output_dir: Union[str, Path]) -> bool:
@@ -116,7 +116,7 @@ class MetricsExporter:
             return True
 
         except Exception as e:
-            logger.error("Failed to export metrics to CSV: %s", e)
+            logger.error("Failed to export metrics to CSV: %s", e, exc_info=True)
             return False
 
     @staticmethod
@@ -217,7 +217,9 @@ class MetricsExporter:
             }
 
         except Exception as e:
-            logger.error("Error generating resource metrics summary: %s", e)
+            logger.error(
+                "Error generating resource metrics summary: %s", e, exc_info=True
+            )
             return {
                 "cpu_usage": {"average": 0, "peak": 0, "min": 0},
                 "memory_usage": {"average": 0, "peak": 0, "min": 0},
@@ -329,7 +331,7 @@ class MetricsExporter:
                         "component": None,
                         "test_case": None,
                         "error_type": "serialization_error",
-                        "error_message": f"Error processing metric: {str(e)}",
+                        "error_message": f"Error processing metric: {e}",
                     }
                 )
 
@@ -410,7 +412,9 @@ class MetricsExporter:
                 metrics_as_dicts.append(metric_dict)
             except Exception as e:
                 # Log and skip problematic metrics instead of crashing
-                logger.error("Error processing metric for serialization: %s", e)
+                logger.error(
+                    "Error processing metric for serialization: %s", e, exc_info=True
+                )
                 continue
 
         # Process resource metrics for serialization
@@ -423,7 +427,9 @@ class MetricsExporter:
                     component="resource_monitor"
                 )
             except Exception as e:
-                logger.error("Failed to get resource monitor metrics: %s", e)
+                logger.error(
+                    "Failed to get resource monitor metrics: %s", e, exc_info=True
+                )
 
             for metric in resource_monitor_metrics:
                 try:
@@ -473,10 +479,14 @@ class MetricsExporter:
                     resource_metrics.append(resource_dict)
                 except Exception as e:
                     # Log and skip problematic resource metrics
-                    logger.error("Error processing resource metric: %s", e)
+                    logger.error(
+                        "Error processing resource metric: %s", e, exc_info=True
+                    )
                     continue
         except Exception as e:
-            logger.error("Failed to process resource metrics section: %s", e)
+            logger.error(
+                "Failed to process resource metrics section: %s", e, exc_info=True
+            )
 
         # Prepare the final metrics dictionary with robust error handling
         result = {}
@@ -489,7 +499,9 @@ class MetricsExporter:
                         self.metrics_collector.timing_metrics
                     )
                 except Exception as e:
-                    logger.error("Error converting timing metrics: %s", e)
+                    logger.error(
+                        "Error converting timing metrics: %s", e, exc_info=True
+                    )
                     result["timing_metrics"] = {}
             else:
                 result["timing_metrics"] = {}
@@ -499,7 +511,7 @@ class MetricsExporter:
                 try:
                     result["counters"] = dict(self.metrics_collector.counters)
                 except Exception as e:
-                    logger.error("Error converting counters: %s", e)
+                    logger.error("Error converting counters: %s", e, exc_info=True)
                     result["counters"] = {}
             else:
                 result["counters"] = {}
@@ -509,7 +521,7 @@ class MetricsExporter:
                 try:
                     result["gauges"] = dict(self.metrics_collector.gauges)
                 except Exception as e:
-                    logger.error("Error converting gauges: %s", e)
+                    logger.error("Error converting gauges: %s", e, exc_info=True)
                     result["gauges"] = {}
             else:
                 result["gauges"] = {}
@@ -520,7 +532,7 @@ class MetricsExporter:
                 try:
                     result["histograms"] = self.metrics_collector.histograms
                 except Exception as e:
-                    logger.error("Error accessing histograms: %s", e)
+                    logger.error("Error accessing histograms: %s", e, exc_info=True)
 
             # Add resource metrics
             result["resource_metrics"] = resource_metrics
@@ -531,11 +543,11 @@ class MetricsExporter:
                     m for m in metrics_as_dicts if m.get("metric_type") == "error"
                 ]
             except Exception as e:
-                logger.error("Error filtering error metrics: %s", e)
+                logger.error("Error filtering error metrics: %s", e, exc_info=True)
                 result["errors"] = []
 
         except Exception as e:
-            logger.error("Error assembling raw metrics result: %s", e)
+            logger.error("Error assembling raw metrics result: %s", e, exc_info=True)
 
         return result
 
@@ -612,6 +624,6 @@ class MetricsExporter:
                 for key, value in summary.items():
                     writer.writerow([key, str(value), "summary"])
             except Exception as e:
-                logger.error("Error exporting summary CSV: %s", e)
+                logger.error("Error exporting summary CSV: %s", e, exc_info=True)
                 # Write a placeholder if we can't get the real data
                 writer.writerow(["error", "Failed to get summary data", "error"])

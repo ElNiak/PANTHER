@@ -615,7 +615,7 @@ class ExperimentManager(
             self.logger.error(
                 "Initialization failed due to import error: %s", e, exc_info=True
             )
-            raise ExperimentInitializationError(f"Import error: {str(e)}") from e
+            raise ExperimentInitializationError(f"Import error: {e}") from e
 
         except Exception as e:  # pylint: disable=broad-except
             self.experiment_emitter.emit_finished_early(
@@ -628,7 +628,7 @@ class ExperimentManager(
             )
             self.logger.error("Initialization failed: %s", e, exc_info=True)
             raise ExperimentInitializationError(
-                f"Failed to initialize experiment: {str(e)}"
+                f"Failed to initialize experiment: {e}"
             ) from e
 
     def _validate_plugins(self):
@@ -648,7 +648,7 @@ class ExperimentManager(
             available_plugins = self.plugin_manager.plugins
             self.logger.info("Available plugins:")
             for plugin_type, plugins in available_plugins.items():
-                self.logger.info("  %s: %s", plugin_type, plugins)
+                self.logger.debug("  %s: %s", plugin_type, plugins)
 
             raise PluginValidationError(error_message)
 
@@ -715,7 +715,7 @@ class ExperimentManager(
                     complete_config, config_file, default_flow_style=False, indent=2
                 )
 
-            self.logger.info(f"Saved test configuration to: {config_file_path}")
+            self.logger.info("Saved test configuration to: %s", config_file_path)
 
         except Exception as e:
             self.logger.warning(
@@ -772,7 +772,7 @@ class ExperimentManager(
             )
             self.logger.error("Failed to initialize test cases: %s", e, exc_info=True)
             raise TestCaseInitializationError(
-                f"Failed to initialize test cases: {str(e)}"
+                f"Failed to initialize test cases: {e}"
             ) from e
 
     def run_tests(self) -> bool:
@@ -1028,8 +1028,6 @@ class ExperimentManager(
                                     cleanup_error,
                                 )
 
-                self.logger.info("")
-
                 try:
                     if self.metrics_collector:
                         if failed_tests == 0:
@@ -1088,15 +1086,15 @@ class ExperimentManager(
                 },
             )
             self.logger.error("Failed during test execution: %s", e, exc_info=True)
-            raise TestExecutionError(f"Failed during test execution: {str(e)}") from e
+            raise TestExecutionError(f"Failed during test execution: {e}") from e
 
     def _perform_dry_run(self) -> bool:
         """Perform a dry-run analysis of the experiment without executing commands."""
-        self.logger.info("🔍 DRY-RUN: Analyzing experiment configuration...")
+        self.logger.info("DRY-RUN: Analyzing experiment configuration...")
 
         for i, test_case in enumerate(self.test_cases, 1):
             self.logger.info(
-                "🔍 DRY-RUN: Test %d/%d - %s",
+                "DRY-RUN: Test %d/%d - %s",
                 i,
                 len(self.test_cases),
                 test_case.test_config.name,
@@ -1108,14 +1106,14 @@ class ExperimentManager(
 
             try:
                 if test_case.perform_dry_run():
-                    self.logger.info("  ✅ DRY-RUN: Configuration valid")
+                    self.logger.info("  DRY-RUN: Configuration valid")
                 else:
-                    self.logger.info("  ❌ DRY-RUN: Configuration issues detected")
+                    self.logger.info("  DRY-RUN: Configuration issues detected")
             except AttributeError:
-                self.logger.info("  📋 DRY-RUN: Basic configuration analysis")
+                self.logger.info("  DRY-RUN: Basic configuration analysis")
                 self._analyze_test_case_config(test_case)
 
-        self.logger.info("🔍 DRY-RUN: Analysis complete - no commands executed")
+        self.logger.info("DRY-RUN: Analysis complete - no commands executed")
         return True
 
     # -- Experiment cleanup (formerly ExperimentCleanupMixin) ---------------

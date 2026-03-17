@@ -206,7 +206,7 @@ class OutputAnalyzer:
                     test_name=self.test_case.test_name,
                     analysis_passed=False,
                     findings={"error": str(e)},
-                    summary=f"Analysis failed: {str(e)}",
+                    summary=f"Analysis failed: {e}",
                     duration=0,
                 )
             return analysis_results
@@ -371,24 +371,24 @@ class OutputAnalyzer:
 
     def _analyze_test_configuration(self):
         """Analyze basic test configuration."""
-        self.logger.info("    📝 Test Name: %s", self.test_config.name)
-        self.logger.info("    📄 Description: %s", self.test_config.description)
+        self.logger.info("    Test Name: %s", self.test_config.name)
+        self.logger.info("    Description: %s", self.test_config.description)
 
         if hasattr(self.test_config, "timeout") and self.test_config.timeout:
-            self.logger.info("    ⏱️  Timeout: %s", self.test_config.timeout)
+            self.logger.info("    Timeout: %s", self.test_config.timeout)
 
     def _analyze_service_configurations(self) -> bool:
         """Analyze service configurations for dry-run."""
         try:
             if hasattr(self.test_config, "iut") and self.test_config.iut:
-                self.logger.info("    🎯 IUT: %s", self.test_config.iut.name)
+                self.logger.info("    IUT: %s", self.test_config.iut.name)
 
             if hasattr(self.test_config, "tester") and self.test_config.tester:
-                self.logger.info("    🧪 Tester: %s", self.test_config.tester.name)
+                self.logger.info("    Tester: %s", self.test_config.tester.name)
 
             if hasattr(self.test_config, "services") and self.test_config.services:
                 self.logger.info(
-                    "    ⚙️  Services: %d configured", len(self.test_config.services)
+                    "    Services: %d configured", len(self.test_config.services)
                 )
                 for service_name, service_config in self.test_config.services.items():
                     self.logger.info(
@@ -399,7 +399,7 @@ class OutputAnalyzer:
 
             return True
         except Exception as e:
-            self.logger.error("    ❌ Service configuration analysis failed: %s", e)
+            self.logger.error("    Service configuration analysis failed: %s", e)
             return False
 
     def _analyze_environment_configuration(self) -> bool:
@@ -412,7 +412,7 @@ class OutputAnalyzer:
                 env_type = getattr(
                     self.test_config.network_environment, "type", "unknown"
                 )
-                self.logger.info("    🌐 Network Environment: %s", env_type)
+                self.logger.info("    Network Environment: %s", env_type)
 
             if (
                 hasattr(self.test_config, "execution_environment")
@@ -420,7 +420,7 @@ class OutputAnalyzer:
             ):
                 if isinstance(self.test_config.execution_environment, list):
                     self.logger.info(
-                        "    ⚙️  Execution Environments: %d configured",
+                        "    Execution Environments: %d configured",
                         len(self.test_config.execution_environment),
                     )
                     for env in self.test_config.execution_environment:
@@ -434,13 +434,13 @@ class OutputAnalyzer:
                             self.test_config.execution_environment, "type", "unnamed"
                         ),
                     )
-                    self.logger.info("    ⚙️  Execution Environment: %s", env_name)
+                    self.logger.info("    Execution Environment: %s", env_name)
             else:
-                self.logger.info("    ⚙️  Execution Environment: None configured")
+                self.logger.info("    Execution Environment: None configured")
 
             return True
         except Exception as e:
-            self.logger.error("    ❌ Environment configuration analysis failed: %s", e)
+            self.logger.error("    Environment configuration analysis failed: %s", e)
             return False
 
     def _analyze_steps_configuration(self) -> bool:
@@ -449,7 +449,7 @@ class OutputAnalyzer:
             if hasattr(self.test_config, "steps") and self.test_config.steps:
                 # Handle StepsConfig object structure
                 if hasattr(self.test_config.steps, "wait"):
-                    self.logger.info("    📋 Steps: Wait step configured")
+                    self.logger.info("    Steps: Wait step configured")
                     self.logger.info(
                         "      - Wait: %s seconds", self.test_config.steps.wait
                     )
@@ -457,7 +457,7 @@ class OutputAnalyzer:
                     # If it's a list-like object
                     try:
                         step_count = len(self.test_config.steps)
-                        self.logger.info("    📋 Steps: %d configured", step_count)
+                        self.logger.info("    Steps: %d configured", step_count)
                         for i, step in enumerate(self.test_config.steps, 1):
                             step_type = getattr(step, "type", "unknown")
                             self.logger.info("      %d. %s step", i, step_type)
@@ -469,7 +469,7 @@ class OutputAnalyzer:
                                 self.logger.info("         Wait: %s seconds", step.wait)
                     except (TypeError, AttributeError):
                         # Fallback for complex step objects
-                        self.logger.info("    📋 Steps: Custom steps configured")
+                        self.logger.info("    Steps: Custom steps configured")
                         step_attrs = [
                             attr
                             for attr in dir(self.test_config.steps)
@@ -481,7 +481,7 @@ class OutputAnalyzer:
                             )
                 else:
                     # Handle single step object
-                    self.logger.info("    📋 Steps: Single step configured")
+                    self.logger.info("    Steps: Single step configured")
                     step_attrs = [
                         attr
                         for attr in dir(self.test_config.steps)
@@ -494,9 +494,9 @@ class OutputAnalyzer:
                             step_attrs[0] if step_attrs else "unknown",
                         )
             else:
-                self.logger.info("    📋 Steps: None configured")
+                self.logger.info("    Steps: None configured")
 
             return True
         except Exception as e:
-            self.logger.error("    ❌ Steps configuration analysis failed: %s", e)
+            self.logger.error("    Steps configuration analysis failed: %s", e)
             return False

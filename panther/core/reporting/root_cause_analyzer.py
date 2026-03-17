@@ -231,7 +231,10 @@ class RootCauseAnalyzer:
             best_confidence = 0.0
 
             for pattern in self._patterns:
-                confidence = pattern.matches(primary)
+                try:
+                    confidence = pattern.matches(primary)
+                except Exception:
+                    continue
                 if confidence > best_confidence:
                     best_confidence = confidence
                     best_pattern = pattern
@@ -240,7 +243,10 @@ class RootCauseAnalyzer:
             if best_confidence < 0.4 and len(records) > 1:
                 for record in records[1:]:
                     for pattern in self._patterns:
-                        confidence = pattern.matches(record)
+                        try:
+                            confidence = pattern.matches(record)
+                        except Exception:
+                            continue
                         if confidence > best_confidence:
                             best_confidence = confidence
                             best_pattern = pattern

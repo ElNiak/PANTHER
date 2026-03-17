@@ -220,18 +220,15 @@ class ITypedObserver(IObserver):
         try:
             return handler(event)
         except RecursionError:
-            import sys
-
-            print(f"RecursionError in handler for {event.name}", file=sys.stderr)
+            logging.getLogger("ITypedObserver").error(
+                "RecursionError in handler for %s", event.name
+            )
             return False
         except Exception as e:
             # Avoid cascading events from error handlers
             if event.name in ("failed", "error"):
-                import sys
-
-                print(
-                    f"Error handling {event.name}: {str(e)}",
-                    file=sys.stderr,
+                logging.getLogger("ITypedObserver").error(
+                    "Error handling %s: %s", event.name, e
                 )
             else:
                 self.logger.error(

@@ -1,11 +1,14 @@
 """Create Command - Plugin and component creation."""
 
 import json
+import logging
 import traceback
 from pathlib import Path
 from typing import Optional
 
 import click
+
+logger = logging.getLogger(__name__)
 from termcolor import colored
 
 from panther.cli.core.base import (
@@ -212,10 +215,12 @@ def plugin(
                 return 1
 
     except ImportError as e:
+        logger.debug("CLI error in plugin: %s", e, exc_info=True)
         error_message(f"❌ Plugin creator not available: {e}")
         error_message("💡 Make sure PANTHER plugin tools are properly installed")
         return 1
     except Exception as e:
+        logger.debug("CLI error in plugin: %s", e, exc_info=True)
         error_message(f"❌ Error creating plugin: {e}")
         if ctx.obj.get("debug", False):
             error_message("\n🔍 Full traceback:")
@@ -344,9 +349,11 @@ def subplugin(
                 return 1
 
     except ImportError as e:
+        logger.debug("CLI error in subplugin: %s", e, exc_info=True)
         error_message(f"❌ Subplugin creator not available: {e}")
         return 1
     except Exception as e:
+        logger.debug("CLI error in subplugin: %s", e, exc_info=True)
         error_message(f"❌ Error creating subplugin: {e}")
         if ctx.obj.get("debug", False):
             error_message("\n🔍 Full traceback:")
@@ -455,6 +462,7 @@ def template(
         return 0
 
     except Exception as e:
+        logger.debug("CLI error in template: %s", e, exc_info=True)
         error_message(f"❌ Error creating template: {e}")
         if ctx.obj.get("debug", False):
             error_message("\n🔍 Full traceback:")

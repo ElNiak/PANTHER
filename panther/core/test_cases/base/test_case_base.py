@@ -116,10 +116,19 @@ class TestCaseBase(ITestCase):
         return self.__str__()
 
     def _setup_logging(self):
-        """Load and configure logging for the test case."""
-        # Set up the logger
-        self.logger = logging.getLogger(self.test_name)
-        self.logger.setLevel(self.log_level)
+        """Load and configure logging for the test case.
+
+        Uses LoggerFactory.get_logger() so that feature-specific log levels
+        from the experiment config are respected for both console and file output.
+        """
+        from panther.core.utils.logger_factory import LoggerFactory
+
+        # Use LoggerFactory to create the logger — this applies feature-level
+        # detection and filtering (e.g. test_execution: ERROR suppresses DEBUG)
+        self.logger = LoggerFactory.get_logger(self.test_name, feature="test_execution")
+
+        # Add a test-specific file handler for the test output directory
+        self.test_experiment_dir.mkdir(parents=True, exist_ok=True)
 
         # Configure formatter based on color preference
         if getattr(self.global_config.logging, "enable_colors", True):
@@ -139,37 +148,11 @@ class TestCaseBase(ITestCase):
         else:
             formatter = logging.Formatter(self.log_format, datefmt="%Y-%m-%d %H:%M:%S")
 
-        if not self.logger.hasHandlers():
-            # Prevent duplicate handlers if logger is already configured
-            self.logger.propagate = False
-        else:
-            # Clear existing handlers to avoid duplicates
-            self.logger.handlers.clear()
-
-        # Create file handler for logging
-        self.test_experiment_dir.mkdir(parents=True, exist_ok=True)
-        self.logger.debug("Creating log directory at '%s'", self.test_experiment_dir)
+        # Add test-specific file handler (always captures at the configured level)
         file_handler = logging.FileHandler(self.test_experiment_dir / "test.log")
         file_handler.setLevel(self.log_level)
         file_handler.setFormatter(formatter)
-
-        # Add console handler for colored output
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(self.log_level)
-        console_handler.setFormatter(formatter)
-
-        # Add both handlers to the logger
         self.logger.addHandler(file_handler)
-        self.logger.addHandler(console_handler)
-
-        # Add file handler if specified
-        if hasattr(self.global_config.logging, "file_path"):
-            file_handler = logging.FileHandler(
-                self.test_experiment_dir / "test_case.log"
-            )
-            file_handler.setLevel(self.log_level)
-            file_handler.setFormatter(logging.Formatter(self.log_format))
-            self.logger.addHandler(file_handler)
 
     def _init_fast_fail_handler(
         self, test_config: TestConfig, global_config: GlobalConfig

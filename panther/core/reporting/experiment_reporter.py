@@ -212,7 +212,7 @@ class ExperimentReporter:
             return True
 
         except Exception as e:
-            self.logger.error(f"Failed to generate JSON report: {e}")
+            self.logger.error(f"Failed to generate JSON report: {e}", exc_info=True)
             return False
 
     def _generate_markdown_report(self, summary: ExperimentSummary) -> bool:
@@ -224,7 +224,7 @@ class ExperimentReporter:
                 return self._generate_basic_markdown_report(summary)
 
         except Exception as e:
-            self.logger.error(f"Failed to generate Markdown report: {e}")
+            self.logger.error(f"Failed to generate Markdown report: {e}", exc_info=True)
             return False
 
     def _generate_jinja_markdown_report(self, summary: ExperimentSummary) -> bool:
@@ -253,7 +253,9 @@ class ExperimentReporter:
             return True
 
         except Exception as e:
-            self.logger.error(f"Failed to generate Jinja2 Markdown report: {e}")
+            self.logger.error(
+                f"Failed to generate Jinja2 Markdown report: {e}", exc_info=True
+            )
             return False
 
     def _generate_basic_markdown_report(self, summary: ExperimentSummary) -> bool:
@@ -448,7 +450,9 @@ class ExperimentReporter:
             return True
 
         except Exception as e:
-            self.logger.error(f"Failed to generate basic Markdown report: {e}")
+            self.logger.error(
+                f"Failed to generate basic Markdown report: {e}", exc_info=True
+            )
             return False
 
     def _generate_simple_text_report(self, summary: ExperimentSummary) -> bool:
@@ -479,7 +483,7 @@ class ExperimentReporter:
             return True
 
         except Exception as e:
-            self.logger.error(f"Failed to generate text report: {e}")
+            self.logger.error(f"Failed to generate text report: {e}", exc_info=True)
             return False
 
     def _get_status_emoji(self, status: ExperimentStatus) -> str:
@@ -561,7 +565,12 @@ class ExperimentReporter:
             causes = analyzer.analyze_as_dicts()
             return causes if causes else None
         except Exception as exc:
-            self.logger.debug("RCA skipped: %s", exc)
+            self.logger.warning(
+                "RCA failed (%s: %s), diagnosis section omitted",
+                type(exc).__name__,
+                exc,
+                exc_info=True,
+            )
             return None
 
     def _get_artifact_summary(self) -> Optional[List[Dict[str, Any]]]:
@@ -577,7 +586,12 @@ class ExperimentReporter:
             artifacts = browser.list_artifacts()
             return artifacts if artifacts else None
         except Exception as exc:
-            self.logger.debug("Artifact browsing skipped: %s", exc)
+            self.logger.warning(
+                "Artifact browsing failed (%s: %s), artifacts section omitted",
+                type(exc).__name__,
+                exc,
+                exc_info=True,
+            )
             return None
 
     def _format_rca_markdown(self) -> List[str]:
@@ -668,5 +682,5 @@ class ExperimentReporter:
             )
 
         except Exception as e:
-            self.logger.error(f"Failed to generate quick summary: {e}")
+            self.logger.error(f"Failed to generate quick summary: {e}", exc_info=True)
             return None
