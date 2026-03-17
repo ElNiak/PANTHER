@@ -126,8 +126,7 @@ class ExperimentReporter:
     """
 
     def __init__(self, experiment_dir: Path, experiment_name: Optional[str] = None):
-        """
-        Initialize experiment reporter.
+        """Initialize experiment reporter.
 
         Args:
             experiment_dir: Path to experiment output directory
@@ -145,15 +144,16 @@ class ExperimentReporter:
                 loader=FileSystemLoader(templates_dir),
                 trim_blocks=True,
                 lstrip_blocks=True,
-                autoescape=True,
+                # Templates produce Markdown, not HTML — autoescape would
+                # corrupt <, >, & in variable content.
+                autoescape=False,
             )
         else:
             self.jinja_env = None
             self.logger.warning("Jinja2 not available - using basic templates")
 
     def generate_reports(self) -> Dict[str, bool]:
-        """
-        Generate all experiment reports.
+        """Generate all experiment reports.
 
         Returns:
             Dict[str, bool]: Success status for each report type
@@ -321,13 +321,20 @@ class ExperimentReporter:
                     if svcs:
                         lines.append(f"### {label} ({len(svcs)})")
                         lines.append(
-                            "| Service | Status | Compilation | Exit Code | Errors |"
+                            "| Service | Status | Compilation | Phases | Exit Code | Errors |"
                         )
                         lines.append(
-                            "|---------|--------|-------------|-----------|--------|"
+                            "|---------|--------|-------------|--------|-----------|--------|"
                         )
                         for svc in svcs:
                             comp = "OK" if svc.compilation_succeeded else "FAIL"
+                            if svc.phases_completed:
+                                done = sum(
+                                    1 for v in svc.phases_completed.values() if v
+                                )
+                                phases = f"{done}/{len(svc.phases_completed)}"
+                            else:
+                                phases = "N/A"
                             ec = (
                                 str(svc.exit_code)
                                 if svc.exit_code is not None
@@ -335,7 +342,7 @@ class ExperimentReporter:
                             )
                             err = svc.error_summary or "None"
                             lines.append(
-                                f"| {svc.service_name} | {svc.status} | {comp} | {ec} | {err} |"
+                                f"| {svc.service_name} | {svc.status} | {comp} | {phases} | {ec} | {err} |"
                             )
                         lines.append("")
 
@@ -518,8 +525,7 @@ class ExperimentReporter:
         return "Development"
 
     def generate_quick_summary(self) -> Optional[str]:
-        """
-        Generate a quick one-line summary for logging.
+        """Generate a quick one-line summary for logging.
 
         Returns:
             str: Quick summary string

@@ -584,7 +584,6 @@ class MetricsObserver(ITypedObserver):
 
     def is_interested(self, event_type: str) -> bool:
         """Check if this observer is interested in metrics events."""
-        # We're interested in all metrics events
         return event_type.startswith("metrics.")
 
     def _ensure_metrics_collector(self) -> bool:

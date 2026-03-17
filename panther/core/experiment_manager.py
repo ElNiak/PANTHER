@@ -732,7 +732,8 @@ class ExperimentManager(
                                 self.logger.info(
                                     f"{emoji}Failed: {test_case.test_config.name} - Test analysis failed"
                                 )
-                            # Emit test failed event
+                            # Emit test failed event — TestCase.run() does not emit
+                            # failure events itself, so the manager is responsible.
                             test_specific_emitter.emit_failed(
                                 error_message="Test analysis failed",
                                 error_type="TestAnalysisFailure",
@@ -754,7 +755,9 @@ class ExperimentManager(
                                 f"{emoji}Completed: {test_case.test_config.name}"
                             )
 
-                        # Emit test completed successfully event
+                        # Emit test completed event — the manager owns emission
+                        # because TestCase.run() delegates analysis but does not
+                        # emit lifecycle events itself.
                         test_specific_emitter.emit_completed(
                             summary={
                                 "status": "success",

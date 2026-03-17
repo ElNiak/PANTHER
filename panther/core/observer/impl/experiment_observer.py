@@ -47,7 +47,8 @@ class ExperimentObserver(IObserver):
     """Enhanced ExperimentObserver that monitors experiment execution and tracks experiment state.
 
     This observer handles experiment-specific events, tracks environment monitoring,
-    and provides status reporting for experiment execution.
+    and provides status reporting for experiment execution. Unhandled event types
+    are logged at DEBUG level and do not cause errors.
 
     It integrates with the global logging configuration and supports:
     - Tracking experiment state and progress
@@ -81,8 +82,10 @@ class ExperimentObserver(IObserver):
         self.observed_environments: Set[str] = set()  # Just track what we've seen
         self.observed_services: Set[str] = set()  # Just track what we've seen
 
-        # Remove all state dictionaries - state is managed centrally by StateManager
-        # These were causing orchestration behavior
+        # Removed legacy per-environment/per-service state dictionaries that
+        # duplicated orchestration concerns.  This observer now only tracks
+        # which environments/services it has *observed* (for logging) and
+        # maintains its own minimal experiment-level state below.
 
         # Set up logging using the interface method
         self.log_level = getattr(logging, log_level.upper(), logging.INFO)
@@ -96,7 +99,7 @@ class ExperimentObserver(IObserver):
             structured_output=True,
         )
 
-        # Create or update progress bar for this step
+        # Lazy-init progress tracking dict (guards against repeated __init__ calls)
         if not hasattr(self, "_step_progress_bars"):
             self._step_progress_bars = {}
 

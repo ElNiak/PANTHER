@@ -328,7 +328,7 @@ The main optimization opportunities are architectural simplification (dual graph
 | 14 | `ivy_patterns` | `mode`: analyze/validate/compare/check | RequirementGraph | Pattern analysis + scaffold checking |
 | 15 | `ivy_pattern_scaffold` | `pattern`, `protocol`, `wire_format` | Templates | Generate Ivy source from pattern |
 
-*Note: 15 backward-compatibility aliases for the pre-consolidation tool names are also registered but not listed here.*
+*Note: 15 backward-compatibility aliases for the pre-consolidation tool names are also registered (see `ivy_lsp/tools/{traceability,visualization,quality,patterns}.py` — sections marked "Individual tool aliases (backward compatibility)") but not listed here.*
 
 ## Appendix B: LSP Feature Registration (19 Features)
 

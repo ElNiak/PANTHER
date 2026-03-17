@@ -117,6 +117,8 @@ class ServiceHealthSummary:
     phases_completed: Optional[Dict[str, bool]] = None
     error_summary: Optional[str] = None
     output_completeness: float = 0.0
+    # Retained for JSON serialization (included via asdict in to_dict)
+    # even though no template currently renders it.
     test_name: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
@@ -582,7 +584,9 @@ class StatusCollector:
         end_time = None
         duration = 0.0
 
-        # Extract start time (first log entry)
+        # Extract start time from the first log entry.  This includes
+        # initialization overhead (not just test execution), which is
+        # intentional — the log reflects wall-clock elapsed time.
         if lines:
             start_match = re.search(r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})", lines[0])
             if start_match:
