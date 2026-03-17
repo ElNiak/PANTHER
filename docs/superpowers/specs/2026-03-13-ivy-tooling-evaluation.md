@@ -1,7 +1,7 @@
 # Ivy Tooling Ecosystem: Strategic Evaluation (Post-Consolidation)
 
 **Date**: 2026-03-13
-**Status**: Post-consolidation assessment (tools reduced from 25→15, mode-based dispatch implemented)
+**Status**: Post-consolidation assessment (tools reduced from 25→17, mode-based dispatch implemented)
 **Scope**: LSP + MCP + Claude Code plugin evaluation against protocol-focused SOTA
 **Prior work**: `2026-03-13-ivy-tooling-audit-design.md` (audit), `2026-03-13-ivy-tooling-audit-results.md` (results)
 **Goal**: Identify strengths, over-engineering, dead code, and gaps vs state-of-the-art protocol verification tools
@@ -39,7 +39,7 @@
 | **Interactive exploration** | No | No | Automata view | **Yes** (web-based proof tree, step-by-step goal selection) | No |
 | **Test generation** | **Yes** (`ivyc target=test` → C++ test binary) | No | No | No | No |
 | **Docker integration** | **Yes** (Docker-aware fallback for verification + compilation) | No | No | No | No |
-| **LLM orchestration** | **Yes** (15 MCP tools with typed JSON schemas) | Yes (MCP server, 2025) | No | No | No |
+| **LLM orchestration** | **Yes** (17 MCP tools with typed JSON schemas) | Yes (MCP server, 2025) | No | No | No |
 
 **Ivy strengths**: Unique end-to-end pipeline (verify → compile → test binary → Docker execution). MCP integration enables AI-driven verification workflows. Per-isolate caching reduces redundant verification.
 
@@ -63,13 +63,13 @@
 
 | Capability | Ivy MCP+Plugin | TLA+ (MCP, 2025) | Quint (MCP) | Alloy (MCP) |
 |---|---|---|---|---|
-| **MCP tools** | 15 unified tools (verification, analysis, traceability, visualization, patterns, quality) | SANY parsing + TLC model checking | Type-check + simulate + model-check | Model generation + analysis |
+| **MCP tools** | 17 unified tools (verification, analysis, traceability, visualization, patterns, quality) | SANY parsing + TLC model checking | Type-check + simulate + model-check | Model generation + analysis |
 | **Specification scaffolding** | Pattern library (7 patterns) + 14-layer template + `ivy_pattern_scaffold` | None | None | None |
 | **Quality gates** | 3-tier (minimal/standard/comprehensive) via `ivy_quality(mode="gate")` | None | None | None |
 | **Workflow guidance** | 6 skills + 4 agents with methodology knowledge | None | None | None |
 | **Architecture validation** | `ivy_patterns(mode="check")`: 14-layer completeness scoring | None | None | None |
 
-**Ivy is ahead** in structured semantic access for AI agents. The 15 MCP tools with typed JSON provide deeper specification-model access than any competitor. TLA+ and Quint have MCP servers but with narrower scope (parse + check).
+**Ivy is ahead** in structured semantic access for AI agents. The 17 MCP tools with typed JSON provide deeper specification-model access than any competitor. TLA+ and Quint have MCP servers but with narrower scope (parse + check).
 
 ### 1.5 Protocol-Specific Analysis
 
@@ -97,7 +97,7 @@
 ### B. Graceful Degradation — Adapter Pattern (Justified Complexity)
 - `NullAdapter` implementations enable full LSP functionality without Ivy compiler installed
 - Runtime-checkable Protocols (`adapters/protocols.py`) isolate heavy imports from LSP startup
-- Formula analyzer: `ImportError` fallback at `mcp_server.py:695-698` (skips READS wiring if unavailable)
+- Formula analyzer: `ImportError` fallback at `mcp_server.py:688-691` (skips READS wiring if unavailable)
 - Pattern library: `ImportError` fallback at `features/patterns.py:60-67` (returns error response if unavailable)
 - **Assessment**: NOT over-engineering. This is correct defensive design enabling light-mode LSP and MCP operation on machines without full Ivy toolchain.
 - **Files**: `adapters/null_adapter.py`, `adapters/protocols.py`, `adapters/compiler_adapter.py`
@@ -105,14 +105,14 @@
 ### C. Complete Code Wiring — No Dead Code
 After deep import-chain audit (tracing from `server.py` and `mcp_server.py` through all modules):
 - **`counterexample_parser.py`** → Called at `tools/verification.py:155-160` on verification failure — parses raw ivy_check output into structured JSON
-- **`formula_analyzer.py`** → Called at `requirement_graph.py:365` via `wire_state_var_edges()`, invoked from `mcp_server.py:694` — extracts state variable references from requirement formulas
-- **`impl_block_parser.py`** → Called at `pattern_library.py:147,358` via `analyze_impl_blocks()`, used by `features/patterns.py:60` and `features/visualization.py:602` — parses implementation blocks for pattern detection
-- **`snapshots.py`** → Used by `compiler_adapter.py:166,262,289-330` — extracts module and signature snapshots from compiler state for Tier 3 enrichment
+- **`formula_analyzer.py`** → Called at `requirement_graph.py:386` via `wire_state_var_edges()`, invoked from `mcp_server.py:687` — extracts state variable references from requirement formulas
+- **`impl_block_parser.py`** → Called at `pattern_library.py:147,378` via `analyze_impl_blocks()`, used by `features/patterns.py:60` — parses implementation blocks for pattern detection
+- **`snapshots.py`** → Used by `compiler_adapter.py:174,270,299-318` — extracts module and signature snapshots from compiler state for Tier 3 enrichment
 - **All 19 LSP features**: Each has a `register()` function called from `server.py` (confirmed by grep across features/)
-- **All 15 MCP tools**: All registered via 6 modules in `tools/__init__.py` → `mcp_server.py`
+- **All 17 MCP tools**: All registered via 6 modules in `tools/__init__.py` → `mcp_server.py`
 - **All 3 CLI tools**: `ivy_check`, `ivyc`, `ivy_show` confirmed available via `ivy_capabilities`
 
-### D. MCP Tool Consolidation — Well-Executed (25→15)
+### D. MCP Tool Consolidation — Well-Executed (25→17)
 The consolidation recommended in the prior audit has been implemented:
 
 | Unified Tool | Modes/Views | Original Tools Absorbed |
@@ -132,7 +132,7 @@ Retained as independent: `ivy_verify`, `ivy_compile`, `ivy_model_info`, `ivy_dia
 See §1.3. No other formal verification tool integrates this. The system is architecturally complete: extraction → manifest → annotation → coverage → gap analysis → regression detection.
 
 ### F. Pattern Library + Scaffolding — Unique Differentiator
-- 14-layer canonical decomposition: types → frames → packets → connection → crypto → shim → behavior → monitors → properties → test_specs → application → recovery → extensions → documentation
+- 14-layer canonical decomposition: types → codec → frame → packet → connection → transport → security → application → shim → test_specs → entities → behavior → recovery → extensions
 - 7 pattern types: serdes, variants, monitors, shims, modules, entities, include-chain
 - Connected chain: `pattern_library.py` → `features/patterns.py` → MCP `ivy_patterns` tool → `ivy_pattern_scaffold` tool
 - Completeness checking: `ivy_patterns(mode="check")` scores against 14-layer template
@@ -267,13 +267,13 @@ Defines `CompiledModuleIR`, `RequirementIR`, `MixinIR`, `InvariantIR`, etc. Only
 - **`ivy-writing-guide` skill**: Covers Ivy syntax, test spec patterns, RFC bracket-tag annotations
 
 ### Could Be Optimized
-- **`methodology-reference` skill**: Covers all three methodologies (NCT + NACT + NSCT) in one document. Consider splitting into 3 focused sub-skills with a dispatcher that auto-selects based on context keywords (specification/compliance → NCT, attack/security → NACT, simulation/topology → NSCT).
+- **`methodology-reference` skill**: [RESOLVED: split into `nct-methodology`, `nact-methodology`, `nsct-methodology` in this PR] Covers all three methodologies (NCT + NACT + NSCT) in one document. Consider splitting into 3 focused sub-skills with a dispatcher that auto-selects based on context keywords (specification/compliance → NCT, attack/security → NACT, simulation/topology → NSCT).
 - **`specification-patterns` skill**: The 14-layer template is front-loaded. The "minimum viable set" (7 layers) exists but presentation buries it. Restructure to lead with quick-start path, expand to full 14 layers as needed.
 - **`workflow-reference` skill**: Overlaps with `methodology-reference` on verification workflow. Could merge verification-specific content or add clearer cross-references.
 
 ### Missing
-- **Counterexample interpretation skill**: When `ivy_verify` fails, no skill guides understanding of the structured counterexample output
-- **Incremental spec development skill**: No guided workflow for "add one requirement → verify → iterate". Current skills assume whole-file or whole-protocol scope.
+- **Counterexample interpretation skill**: [RESOLVED: `counterexample-guide` skill created in this PR] When `ivy_verify` fails, no skill guides understanding of the structured counterexample output
+- **Incremental spec development skill**: [RESOLVED: `incremental-spec-dev` skill created in this PR] No guided workflow for "add one requirement → verify → iterate". Current skills assume whole-file or whole-protocol scope.
 - **Automated review via quality tools**: `model-reviewer` agent uses manual checklist. Could integrate `ivy_quality(mode="gate")` and `ivy_patterns(mode="validate")` for semi-automated assessment with tool-backed evidence.
 
 ---
@@ -302,13 +302,13 @@ The Ivy LSP + MCP tooling is **well-positioned relative to SOTA protocol verific
 - The **only tool with specification scaffolding** (pattern library + 14-layer template)
 - The **only tool with both verification AND test generation** in one pipeline
 - **Well-wired with no dead code** (all modules connected through verified import chains)
-- **Already consolidated** (25→15 tools with clean mode-based dispatch)
+- **Already consolidated** (25→17 tools with clean mode-based dispatch)
 
 The main optimization opportunities are architectural simplification (dual graph merge, pipeline state reduction) rather than missing functionality. The highest-value gap to close is counterexample visualization, where the foundation (parser) already exists.
 
 ---
 
-## Appendix A: Post-Consolidation Tool Catalog (15 Tools)
+## Appendix A: Post-Consolidation Tool Catalog (17 Tools)
 
 | # | Tool | Modes/Params | Backend | Purpose |
 |---|---|---|---|---|
@@ -327,6 +327,8 @@ The main optimization opportunities are architectural simplification (dual graph
 | 13 | `ivy_quality` | `mode`: suggestions/gate | RequirementGraph | Quality analysis |
 | 14 | `ivy_patterns` | `mode`: analyze/validate/compare/check | RequirementGraph | Pattern analysis + scaffold checking |
 | 15 | `ivy_pattern_scaffold` | `pattern`, `protocol`, `wire_format` | Templates | Generate Ivy source from pattern |
+| 16 | `ivy_verification_dashboard` | — | Internal analyzers | Workspace-level verification status summary |
+| 17 | `ivy_generate_manifest` | `rfc_name`, `rfc_text` | Regex + YAML | Generate YAML requirement manifest from RFC text |
 
 *Note: 15 backward-compatibility aliases for the pre-consolidation tool names are also registered (see `ivy_lsp/tools/{traceability,visualization,quality,patterns}.py` — sections marked "Individual tool aliases (backward compatibility)") but not listed here.*
 
@@ -366,7 +368,7 @@ No existing tool combines all of these in a single toolchain:
 4. Formal verification of annotated properties (`ivy_verify`)
 5. Executable test generation from verified models (`ivy_compile`)
 6. Deployment-integrated conformance testing (Docker + PANTHER CI/CD)
-7. AI-accessible tooling surface (15 MCP tools) for all of the above
+7. AI-accessible tooling surface (17 MCP tools) for all of the above
 8. Full IDE-grade code intelligence (19-feature LSP)
 
 Each capability exists independently in various tools. The Ivy PANTHER ecosystem is, to our knowledge, the only system that integrates all eight in a single toolchain.
