@@ -74,7 +74,7 @@ class IObserver(ABC):
 
     def __init__(self):
         """Initialize IObserver."""
-        self.processed_events_uuids: List[str] = []
+        self.processed_events_uuids: set = set()  # O(1) dedup lookup
 
     @abstractmethod
     def on_event(self, event: BaseEvent):

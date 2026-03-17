@@ -207,7 +207,7 @@ class ITypedObserver(IObserver):
         if hasattr(event, "id"):
             if event.id in self.processed_events_uuids:
                 return True
-            self.processed_events_uuids.append(event.id)
+            self.processed_events_uuids.add(event.id)
 
         # 1. Try exact type match (kept subclasses, metrics)
         handler = self._type_handlers.get(type(event))

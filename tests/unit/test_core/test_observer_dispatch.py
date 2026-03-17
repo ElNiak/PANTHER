@@ -208,10 +208,10 @@ class TestIsInterested:
         # "TestCompletedEvent" contains "testcompleted" when lowered
         assert obs.is_interested("testcompleted") is True
 
-    def test_partial_prefix_no_false_positive(self):
-        """'ste' should NOT match 'step' (it is not a prefix of 'step' nor vice versa)."""
+    def test_partial_prefix_match(self):
+        """'ste' IS a prefix of 'step' so it should match via startswith."""
         obs = ConcreteObserver()
-        # "ste" is a prefix of "step" -> should match via startswith
+        # "ste" is a prefix of "step" -> matches via startswith
         assert obs.is_interested("ste") is True
 
     def test_case_insensitive(self):

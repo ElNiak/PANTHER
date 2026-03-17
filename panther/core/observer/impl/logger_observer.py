@@ -130,16 +130,13 @@ class LoggerObserver(ITypedObserver):
         self._recursion_depth = 0
         self._max_recursion_depth = 5
 
-        # Handler names defined on LoggerObserver for typed dispatch.
-        # These provide specialized formatting (emoji indicators, ERROR level).
+        # Name-based handler names for typed dispatch (factory events only).
+        # Type-based handlers (DockerBuild*, TestFailed) are dispatched via
+        # _type_handlers and don't need to be listed here.
         self._logger_typed_handlers = {
             "on_experiment_failed",
-            "on_test_failed",
             "on_service_error",
             "on_environment_error",
-            "on_docker_build_started",
-            "on_docker_build_completed",
-            "on_docker_build_failed",
         }
 
         # Debug mode event history tracking
@@ -192,17 +189,29 @@ class LoggerObserver(ITypedObserver):
         if self.track_event_history:
             self._track_event_in_history(event, event_type)
 
+        # Dedup check (LoggerObserver.on_event bypasses ITypedObserver.on_event)
+        if hasattr(event, "id") and event.id:
+            if event.id in self.processed_events_uuids:
+                return True
+            self.processed_events_uuids.add(event.id)
+
         # Dispatch to typed handler if one exists on this class.
         # Typed handlers provide specialized formatting (emoji, ERROR level).
         typed_handler = self._type_handlers.get(type(event))
         if typed_handler is not None:
-            typed_handler(event)
+            try:
+                typed_handler(event)
+            except Exception as exc:
+                self.logger.error("Typed handler error: %s", exc)
             return True
 
         # Try name-based dispatch for non-subclass events
         handler_name = _handler_name_for(event.entity_type, event.name)
         if handler_name in self._logger_typed_handlers:
-            getattr(self, handler_name)(event)
+            try:
+                getattr(self, handler_name)(event)
+            except Exception as exc:
+                self.logger.error("Named handler '%s' error: %s", handler_name, exc)
             return True
 
         # Generic path: format and log via EventSummarizer
