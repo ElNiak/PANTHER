@@ -176,7 +176,11 @@ class MetricsCollector(LoggerMixin):
             )
 
         except Exception as e:  # pylint: disable=broad-exception-caught
-            self.logger.debug("Error collecting basic metrics: %s", e)
+            if not getattr(self, "_basic_metrics_warned", False):
+                self._basic_metrics_warned = True
+                self.logger.warning(
+                    "Error collecting basic metrics (further errors suppressed): %s", e
+                )
 
     # ── Core recording methods ───────────────────────────────────────
 
@@ -252,8 +256,13 @@ class MetricsCollector(LoggerMixin):
             with self._jsonl_lock:
                 with open(self._structured_log_path, "a", encoding="utf-8") as fh:
                     fh.write(line + "\n")
-        except Exception:  # pylint: disable=broad-exception-caught
-            pass  # Don't let metric writing failures break experiment
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            if not getattr(self, "_jsonl_write_warned", False):
+                self._jsonl_write_warned = True
+                self.logger.warning(
+                    "Failed to write metric to structured JSONL (further errors suppressed): %s",
+                    exc,
+                )
 
     def start_timer(
         self,

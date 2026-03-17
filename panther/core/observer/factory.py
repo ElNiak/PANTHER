@@ -191,8 +191,12 @@ class ObserverFactory:
                     ):
                         try:
                             self._event_manager.unregister_observer(old_observer)
-                        except Exception:
-                            pass  # Best effort cleanup
+                        except Exception as exc:
+                            self.logger.warning(
+                                "Failed to unregister old observer '%s' during replacement: %s",
+                                name,
+                                exc,
+                            )
                 self.register_observer(name, observer)
 
             # Auto-register with event manager if requested and event manager is set

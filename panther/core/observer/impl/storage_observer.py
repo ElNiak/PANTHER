@@ -521,22 +521,26 @@ class StorageObserver(ITypedObserver):
         # Store events in main event log
         events_file = self.storage_path / "events.jsonl"
 
+        failed = []
         for event_data in self.pending_events:
-            self._append_to_file(events_file, event_data)
+            if not self._append_to_file(events_file, event_data):
+                failed.append(event_data)
 
-        # Clear pending events
-        self.pending_events.clear()
+        # Keep only events that failed to write
+        self.pending_events = failed
 
         # Update storage size
         self._update_storage_size()
 
-    def _append_to_file(self, file_path: Path, data: Dict[str, Any]):
-        """Append data to a JSONL file."""
+    def _append_to_file(self, file_path: Path, data: Dict[str, Any]) -> bool:
+        """Append data to a JSONL file. Returns True on success."""
         try:
             with open(file_path, "a") as f:
                 f.write(json.dumps(data, default=str) + "\n")
+            return True
         except Exception as e:
             self.logger.error(f"Failed to write to {file_path}: {e}")
+            return False
 
     def _update_storage_size(self):
         """Update storage size statistics."""
