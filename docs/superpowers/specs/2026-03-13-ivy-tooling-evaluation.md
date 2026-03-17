@@ -14,7 +14,7 @@
 
 | Capability | Ivy LSP | TLA+ (VS Code ext) | SPIN/Promela | Tamarin (VS Code ext) | ProVerif (vscode-proverif) |
 |---|---|---|---|---|---|
-| **LSP server** | Full (pygls, 17 registered features) | Shipping (SANY-based VS Code ext); TLAPM proof LSP in development | None | None (tree-sitter grammar; interactive web prover provides exploration) | Partial (syntax + parse errors + signatures) |
+| **LSP server** | Full (pygls, 19 registered features) | Shipping (SANY-based VS Code ext); TLAPM proof LSP in development | None | None (tree-sitter grammar; interactive web prover provides exploration) | Partial (syntax + parse errors + signatures) |
 | **Go-to-definition** | Cross-file + include resolution | Yes | No | No | Yes (Ctrl+click) |
 | **Find references** | Workspace-wide | Yes | No | No | Yes |
 | **Completions** | Context-aware (dot-access, includes, keywords, semantic) | Basic (keywords + identifiers) | No | No | No |
@@ -27,7 +27,7 @@
 | **Selection range** | Yes (smart expansion) | No | No | No | No |
 | **Signature help** | Action parameter hints | No | No | No | Yes |
 
-**Verdict**: Ivy LSP is the **most feature-complete language server** among all protocol verification tools (17 registered feature handlers). TLA+'s shipping VS Code extension provides go-to-definition, find-refs, and SANY diagnostics, but lacks completions, code lens, and code actions. ProVerif's extension provides syntax and parse error reporting but is not a full LSP. SPIN and Tamarin have no LSP (Tamarin's web prover offers interactive exploration outside the LSP protocol).
+**Verdict**: Ivy LSP is the **most feature-complete language server** among all protocol verification tools (19 registered feature handlers). TLA+'s shipping VS Code extension provides go-to-definition, find-refs, and SANY diagnostics, but lacks completions, code lens, and code actions. ProVerif's extension provides syntax and parse error reporting but is not a full LSP. SPIN and Tamarin have no LSP (Tamarin's web prover offers interactive exploration outside the LSP protocol).
 
 ### 1.2 Verification Integration
 
@@ -64,7 +64,7 @@
 | Capability | Ivy MCP+Plugin | TLA+ (MCP, 2025) | Quint (MCP) | Alloy (MCP) |
 |---|---|---|---|---|
 | **MCP tools** | 15 unified tools (verification, analysis, traceability, visualization, patterns, quality) | SANY parsing + TLC model checking | Type-check + simulate + model-check | Model generation + analysis |
-| **Specification scaffolding** | Pattern library (6 patterns) + 14-layer template + `ivy_pattern_scaffold` | None | None | None |
+| **Specification scaffolding** | Pattern library (7 patterns) + 14-layer template + `ivy_pattern_scaffold` | None | None | None |
 | **Quality gates** | 3-tier (minimal/standard/comprehensive) via `ivy_quality(mode="gate")` | None | None | None |
 | **Workflow guidance** | 6 skills + 4 agents with methodology knowledge | None | None | None |
 | **Architecture validation** | `ivy_patterns(mode="check")`: 14-layer completeness scoring | None | None | None |
@@ -108,7 +108,7 @@ After deep import-chain audit (tracing from `server.py` and `mcp_server.py` thro
 - **`formula_analyzer.py`** → Called at `requirement_graph.py:365` via `wire_state_var_edges()`, invoked from `mcp_server.py:694` — extracts state variable references from requirement formulas
 - **`impl_block_parser.py`** → Called at `pattern_library.py:147,358` via `analyze_impl_blocks()`, used by `features/patterns.py:60` and `features/visualization.py:602` — parses implementation blocks for pattern detection
 - **`snapshots.py`** → Used by `compiler_adapter.py:166,262,289-330` — extracts module and signature snapshots from compiler state for Tier 3 enrichment
-- **All 17 LSP features**: Each has a `register()` function called from `server.py` (confirmed by grep across features/)
+- **All 19 LSP features**: Each has a `register()` function called from `server.py` (confirmed by grep across features/)
 - **All 15 MCP tools**: All registered via 6 modules in `tools/__init__.py` → `mcp_server.py`
 - **All 3 CLI tools**: `ivy_check`, `ivyc`, `ivy_show` confirmed available via `ivy_capabilities`
 
@@ -133,7 +133,7 @@ See §1.3. No other formal verification tool integrates this. The system is arch
 
 ### F. Pattern Library + Scaffolding — Unique Differentiator
 - 14-layer canonical decomposition: types → frames → packets → connection → crypto → shim → behavior → monitors → properties → test_specs → application → recovery → extensions → documentation
-- 6 pattern types: serdes, variants, monitors, shims, modules, entities
+- 7 pattern types: serdes, variants, monitors, shims, modules, entities, include-chain
 - Connected chain: `pattern_library.py` → `features/patterns.py` → MCP `ivy_patterns` tool → `ivy_pattern_scaffold` tool
 - Completeness checking: `ivy_patterns(mode="check")` scores against 14-layer template
 - **Files**: `analysis/pattern_library.py`, `analysis/impl_block_parser.py`, `features/patterns.py`, `tools/patterns.py`
@@ -162,8 +162,8 @@ See §1.3. No other formal verification tool integrates this. The system is arch
 
 | Graph | File | Purpose | Size |
 |---|---|---|---|
-| `SemanticModel` | `semantic/model.py` (252 lines) | General-purpose graph: symbols, types, RFC annotations | 4 index structures, 5 query methods |
-| `RequirementGraph` | `analysis/requirement_graph.py` (400+ lines) | Specialized: actions → requirements → state vars | Domain-specific edges (CONSTRAINS, WRITES, COVERS, READS, DEPENDS_ON) |
+| `SemanticModel` | `semantic/model.py` (295 lines) | General-purpose graph: symbols, types, RFC annotations | 4 index structures, 5 query methods |
+| `RequirementGraph` | `analysis/requirement_graph.py` (718 lines) | Specialized: actions → requirements → state vars | Domain-specific edges (CONSTRAINS, WRITES, COVERS, READS, DEPENDS_ON) |
 
 **Evidence of duplication**:
 - Both store requirements as nodes with edges
@@ -178,7 +178,7 @@ See §1.3. No other formal verification tool integrates this. The system is arch
 
 ### B. Analysis Pipeline State Complexity — MEDIUM Priority
 
-**File**: `semantic/analysis_pipeline.py` (874 lines, 37+ public methods)
+**File**: `semantic/analysis_pipeline.py` (896 lines, ~17 methods)
 
 **Problem**: Tier 2 (AST) and Tier 3 (compiler) have overlapping parse+analyze steps with separate thread coordination:
 - `file_generation` OrderedDict tracks per-file generation counts
@@ -189,7 +189,7 @@ See §1.3. No other formal verification tool integrates this. The system is arch
 
 ### C. SemanticModel Over-Indexed — LOW Priority
 
-**File**: `semantic/model.py` (252 lines)
+**File**: `semantic/model.py` (295 lines)
 
 4 index structures maintained eagerly on every `add_node`/`add_edge`:
 - `_edges`: Set[Tuple] for deduplication
@@ -285,7 +285,7 @@ Defines `CompiledModuleIR`, `RequirementIR`, `MixinIR`, `InvariantIR`, etc. Only
 | 1 | Enrich counterexample display formatting in `ivy_verify` results | HIGH | Small | Closes biggest SOTA gap | TLA+/SPIN/Tamarin all have structured counterexample rendering; Ivy has the parser but not the presentation |
 | 2 | Add verification status dashboard (workspace-level summary) | MEDIUM | Medium | Better UX for large specs | Per-isolate cache already has the data; need exposure as tool/view |
 | 3 | Merge RequirementGraph into SemanticModel | MEDIUM | Large | Single source of truth, reduced lock contention | Dual graph is the main remaining over-engineering |
-| 4 | Simplify analysis_pipeline.py Tier 2/3 state management | MEDIUM | Medium | ~30% less coordination code | 874 lines with 37+ methods; Tier 2/3 overlap in parse+analyze |
+| 4 | Simplify analysis_pipeline.py Tier 2/3 state management | MEDIUM | Medium | ~30% less coordination code | 896 lines with ~17 methods; Tier 2/3 overlap in parse+analyze |
 | 5 | Split `methodology-reference` skill into 3 focused sub-skills | LOW | Small | Better skill triggering accuracy | One skill covering NCT+NACT+NSCT is too broad for auto-selection |
 | 6 | Add counterexample interpretation skill | LOW | Small | Better failure UX | No guidance for understanding verification failures |
 | 7 | Add incremental spec development skill | LOW | Small | Better iteration workflow | Current skills assume whole-file/protocol scope |
@@ -297,7 +297,7 @@ Defines `CompiledModuleIR`, `RequirementIR`, `MixinIR`, `InvariantIR`, etc. Only
 ## 7. Conclusion
 
 The Ivy LSP + MCP tooling is **well-positioned relative to SOTA protocol verification tools**. It is:
-- The **most feature-complete LSP** in the protocol verification space (17 features vs ProVerif's ~8, TLA+'s in-development, SPIN/Tamarin's zero)
+- The **most feature-complete LSP** in the protocol verification space (19 features vs ProVerif's ~8, TLA+'s in-development, SPIN/Tamarin's zero)
 - The **only tool with RFC traceability** integrated into the specification language
 - The **only tool with specification scaffolding** (pattern library + 14-layer template)
 - The **only tool with both verification AND test generation** in one pipeline
@@ -328,7 +328,9 @@ The main optimization opportunities are architectural simplification (dual graph
 | 14 | `ivy_patterns` | `mode`: analyze/validate/compare/check | RequirementGraph | Pattern analysis + scaffold checking |
 | 15 | `ivy_pattern_scaffold` | `pattern`, `protocol`, `wire_format` | Templates | Generate Ivy source from pattern |
 
-## Appendix B: LSP Feature Registration (17 Features)
+*Note: 15 backward-compatibility aliases for the pre-consolidation tool names are also registered but not listed here.*
+
+## Appendix B: LSP Feature Registration (19 Features)
 
 All registered in `server.py` via `register()` calls:
 
@@ -351,6 +353,8 @@ All registered in `server.py` via `register()` calls:
 | Commands | `features/commands.py` | Custom LSP commands |
 | Visualization | `features/visualization.py` | Custom RPC handlers (action reqs, coverage, graphs) |
 | Monitoring | `features/monitoring.py` | Custom RPC handlers (11 endpoints) |
+| Implementation | `features/implementation.py` | `textDocument/implementation` |
+| Call Hierarchy | `features/call_hierarchy.py` | `textDocument/prepareCallHierarchy` |
 
 ## Appendix C: Unique Capability Combination
 
@@ -363,6 +367,6 @@ No existing tool combines all of these in a single toolchain:
 5. Executable test generation from verified models (`ivy_compile`)
 6. Deployment-integrated conformance testing (Docker + PANTHER CI/CD)
 7. AI-accessible tooling surface (15 MCP tools) for all of the above
-8. Full IDE-grade code intelligence (17-feature LSP)
+8. Full IDE-grade code intelligence (19-feature LSP)
 
 Each capability exists independently in various tools. The Ivy PANTHER ecosystem is, to our knowledge, the only system that integrates all eight in a single toolchain.
