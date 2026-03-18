@@ -119,7 +119,7 @@ The model treats each test entry point as defining a complete workspace partitio
 | Approach | Verdict | Reasoning |
 |----------|---------|-----------|
 | **Endpoint-mirror (current)** | **Keep** | NCT-aligned, matches PANTHER runtime, enables per-test coverage |
-| Module-based (Lean 4 style) | Incompatible | Ivy `include` is textual inclusion — would require language changes |
+| Module-based (Lean 4 style) | Incompatible (LSP-only prototype feasible) | Ivy `include` is textual inclusion — language changes needed. An LSP-only qualified-include layer (see indexing-improvements WS3-3.2) could provide module-like scoping without changing Ivy itself. |
 | Project-wide | Loses NCT alignment | Can't answer "which tests cover this requirement?" |
 | On-demand/lazy (Coq Fleche) | Incompatible with agent workflow | Agent needs workspace-wide views |
 
@@ -173,6 +173,8 @@ The model treats each test entry point as defining a complete workspace partitio
 | T10 | Observability event-loss | LOW | LOW | `atexit` handlers | Event-loss detection (D5) |
 | T11 | Coverage inflation (NEW) | HIGH | HIGH | None | Tag disambiguation (coverage redesign Phase 1) |
 | T12 | FM-D diagnostic parsing (NEW) | HIGH | HIGH | Errors in `raw_output` field | Fix `parse_ivy_output()` absolute path handling |
+| T13 | Dynamic/conditional includes | LOW | LOW | Ivy syntax does not support parameterized includes | Document as N/A assumption; verify if any Ivy extensions exist |
+| T14 | Single-evaluator bias | MED | MED | None | Second evaluator for RQ1 ground truth and RQ3 manual assessments |
 
 ### 2.5 Related Work Comparison
 
@@ -396,7 +398,7 @@ Script that captures ivyc include resolution, generates `quic-workspace.yaml`. C
 - Compare `ivy_coverage(mode="stats")` globally vs per `test_file`
 - Metrics: false positive rate, phantom coverage inflation
 - Expected: Project-wide inflates by 10-20% due to cross-scope tag bleeding
-- Ground truth: Manual verification of 30 random requirements (from 97 total in `rfc9000_requirements.yaml`)
+- Ground truth: Stratified manual verification of 50 requirements (from 97 total in `rfc9000_requirements.yaml`), with second evaluator for inter-rater reliability (T14)
 
 **RQ2: LSP response latency across workspace sizes**
 - Synthetic workspaces: 10, 50, 100, 200, 500 files
