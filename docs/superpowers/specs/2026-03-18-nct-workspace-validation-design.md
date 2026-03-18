@@ -56,12 +56,15 @@ The model treats each test entry point as defining a complete workspace partitio
 
 **Critical finding — ivyc divergence**: ivyc uses `open(name + '.ivy')` in CWD (2-step: CWD then stdlib). The LSP uses 4-step with staging as bridge. Step 3 (workspace root) is extra and could resolve files ivyc wouldn't find.
 
-**Edge cases**:
-- ~30 basename collisions in QUIC (e.g., `byte_stream.ivy` 3x, `file.ivy` 3x)
-- Dynamic file additions after staging creation miss new files until re-index
-- Symlink permissions on restricted systems
+**Known bug — Errno 17**: `build_partitioned_staging()` at line 446 calls `os.symlink()` without `os.path.lexists()` guard, producing `[Errno 17] File exists` errors. The main `create_staging_directory()` has this guard (line 265) but the partitioned variant does not.
 
-**Gap**: Collisions logged at WARNING level but not surfaced as LSP diagnostics.
+**Edge cases**:
+- ~50 basename collisions between APT and standard models (e.g., `ivy_quic_client.ivy` in both `quic/` and `apt/quic/`) — `.ivyworkspace` v2 `include_paths: ["protocol-testing"]` includes both
+- ~30 additional collisions within QUIC (e.g., `byte_stream.ivy` 3x, `file.ivy` 3x)
+- Dynamic file additions after staging creation miss new files until re-index
+- No VFS abstraction — raw symlink management with no atomic refresh, reference counting, or lifecycle encapsulation
+
+**Gaps**: (a) Collisions logged but not surfaced as LSP diagnostics. (b) Errno 17 bug in partitioned staging. (c) No VFS abstraction layer. (d) APT/standard workspace separation needed (v3 schema).
 
 #### Layer 3: Two-Phase Indexing (`workspace_indexer.py`, ~1400 lines) — Good Tradeoff
 
@@ -95,13 +98,14 @@ The model treats each test entry point as defining a complete workspace partitio
 
 #### Layer 6: MCP Tools (`tools/`, 6 modules, ~130KB) — Novel, Strong
 
-**Implementation**: 15 consolidated tools with mode-based dispatch. `test_file` scoping correctly implements endpoint-mirror: `abs_test = ctx.validate_path(test_file)` -> `scope = graph.get_test_scope(abs_test)` -> filter to `scope.include_closure`. Path traversal prevention. Lazy model construction with async lock and 30s cooldown.
+**Implementation**: 34 registered `@mcp.tool()` functions — **15 primary tools + 19 legacy aliases** (per indexing-improvements audit). `test_file` scoping correctly implements endpoint-mirror: `abs_test = ctx.validate_path(test_file)` -> `scope = graph.get_test_scope(abs_test)` -> filter to `scope.include_closure`. Path traversal prevention. Lazy model construction with async lock and 30s cooldown.
 
 **Edge cases**:
 - MCP standalone vs LSP mode model divergence (different code paths)
 - If `test_file` not yet indexed, fallback filters to just the test file itself, losing scope
+- `ivy_quality(mode="suggestions")` `_resolve_scope` does not derive testFile from filePath (P8 bug)
 
-**Gap**: No CC evidence export format.
+**Gaps**: (a) 19 legacy aliases bloat prompt ~56% (34->15 after removal, per arXiv:2510.14537 tool taxonomy research). (b) No CC evidence export format. (c) No taxonomy-based categorization for 6-category LLM tool selection guidance.
 
 #### Layer 7: Plugin Integration (`panther-ivy-plugin`) — Novel Architecture
 
@@ -194,6 +198,45 @@ The model treats each test entry point as defining a complete workspace partitio
 ---
 
 ## 3. Improvement Roadmap
+
+### Phase 0: Immediate — Remove Legacy Debt & Fix Bugs
+
+#### F0a: Remove 19 Legacy MCP Tool Aliases (34 -> 15 tools)
+
+**Problem**: 19 backward-compatibility `@mcp.tool()` aliases duplicate the 15 primary consolidated tools. They bloat the MCP prompt ~56% and confuse tool selection. Plugin docs already use consolidated names only.
+
+**Aliases to delete** (4 files):
+
+| Module | Aliases | Lines |
+|--------|---------|-------|
+| `traceability.py` | `ivy_requirement_coverage`, `ivy_coverage_gaps`, `ivy_traceability_matrix`, `ivy_query_symbol`, `ivy_impact_analysis`, `ivy_cross_references`, `ivy_generate_manifest` | 1241-1294 |
+| `visualization.py` | `ivy_action_dependency_graph`, `ivy_state_machine_view`, `ivy_layered_overview`, `ivy_action_requirements` | 313-342 |
+| `patterns.py` | `ivy_pattern_analysis`, `ivy_scaffold_check` | 282-297 |
+| `quality.py` | `ivy_smart_suggestions`, `ivy_quality_gate` | 368-383 |
+
+**Verification**: `pytest tests/`, `/nct-validate` (update tool count ground truth), `/nct-health`.
+
+**Effort**: 1 day.
+
+#### F0b: Fix Errno 17 Symlink Bug
+
+`build_partitioned_staging()` at `include_resolver.py:446` — add `if os.path.lexists(link_path): os.unlink(link_path)` before `os.symlink()`. Add startup cleanup for stale `ivy-lsp-stage-*` dirs.
+
+**Effort**: 1 hour.
+
+#### F0c: Fix ivy_quality Context Scoping (P8)
+
+`_resolve_scope` in `visualization.py` — when testFile is None and filePath is provided, derive scope via `graph.get_tests_for_file(file_path)`.
+
+**Effort**: 2 hours.
+
+#### F0d: Demand-Driven Deep Parse for Shared Modules (P4)
+
+Add `deep_parse_on_demand(filepath)` to `WorkspaceIndexer`. Wire into hover, goto-def, and document-symbols handlers. Shared libraries get AST-quality symbols on first interaction.
+
+**Effort**: 1-2 days.
+
+---
 
 ### Phase 1: Foundation (Months 1-2) — LSP Core + LLM Safety
 
@@ -412,12 +455,18 @@ Protocol: QUIC (RFC 9000)
 
 | File | Purpose | Roadmap Items |
 |------|---------|---------------|
-| `ivy_lsp/indexer/workspace_indexer.py` | Central indexer, test scope computation | F1, D3, D4 |
-| `ivy_lsp/indexer/include_resolver.py` | Include resolution, staging, collisions | F2, F5, T8 |
+| `ivy_lsp/tools/traceability.py` | MCP coverage/requirements + 7 legacy aliases | **F0a**, D1, I4 |
+| `ivy_lsp/tools/visualization.py` | MCP visualization + 4 legacy aliases + `_resolve_scope` | **F0a**, **F0c** |
+| `ivy_lsp/tools/patterns.py` | MCP patterns + 2 legacy aliases | **F0a** |
+| `ivy_lsp/tools/quality.py` | MCP quality + 2 legacy aliases | **F0a** |
+| `ivy_lsp/indexer/include_resolver.py` | Include resolution, staging, Errno 17 bug | **F0b**, F2, F5, T8 |
+| `ivy_lsp/indexer/workspace_indexer.py` | Central indexer, deep_parse_on_demand | **F0d**, F1, D3, D4 |
+| `ivy_lsp/features/hover.py` | Hover — wire demand-driven deep parse | **F0d** |
+| `ivy_lsp/features/definition.py` | Goto-def — wire demand-driven deep parse | **F0d** |
+| `ivy_lsp/features/document_symbols.py` | Outline — wire demand-driven deep parse | **F0d** |
 | `ivy_lsp/analysis/test_scope.py` | NCT test scope model | Core novelty |
 | `ivy_lsp/workspace_detection.py` | Workspace auto-detection | D4 |
 | `ivy_lsp/semantic/analysis_pipeline.py` | 3-tier progressive analysis | D3 |
-| `ivy_lsp/tools/traceability.py` | MCP coverage/requirements tools | D1, I4 |
 | `ivy_lsp/tools/verification.py` | ivy_verify, error parsing | D2, F4 |
 | `panther-ivy-plugin/hooks/hooks.json` | Hook definitions | F3, D5 |
 | `panther-ivy-plugin/CLAUDE.md` | Operating guide | All |
