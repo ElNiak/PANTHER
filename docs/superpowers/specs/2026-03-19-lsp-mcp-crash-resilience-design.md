@@ -46,13 +46,20 @@ Targeted fixes to prevent the two observed crash modes. Smallest scope, highest 
 
 **File**: `panther-ivy-plugin/.../scripts/start-ivy-server.sh` (lines 70-98)
 
-**Current behavior**: The script kills any running server with the same `${MODE}-${_WS_HASH}` prefix. When Claude Code spawns a subagent that triggers a new server launch for the same workspace, the stale cleanup kills the live server mid-operation.
+**Current behavior**: The script kills any running server with the same `${MODE}-${_WS_HASH}` prefix. When a concurrent Claude session (or subagent) for the same workspace triggers a new server launch, the stale cleanup (line 86: `kill -TERM "$old_pid"`) kills the other session's live server mid-operation. The existing guard `[ "$old_pid" = "$$" ] && continue` (line 83) only prevents self-kill, not cross-session kill.
 
-**Fix**: Add session scoping to PID prefix using parent PID or Claude session ID:
+**Failure sequence**: Session A starts → launches LSP (PID 100). Session B starts (same workspace) → cleanup finds PID 100 under `lsp-<hash>` → kills it → Session A's LSP dies with exit code 143.
+
+**Fix**: Add session scoping to PID prefix using `$PPID` (parent process ID):
 
 ```bash
 # Session-scoped PID prefix: avoids cross-session kills
-_SESSION_ID="${CLAUDE_SESSION_ID:-$PPID}"
+# $PPID is the Claude Code process that launched this script.
+# NOTE: CLAUDE_SESSION_ID does not exist as an env var today;
+# $PPID is the actual mechanism. If Claude launches through
+# intermediate shells, $PPID may be unreliable — but this still
+# reduces the race window vs. the current approach.
+_SESSION_ID="${PPID}"
 _PID_PREFIX="${MODE}-${_WS_HASH}-${_SESSION_ID}"
 ```
 
@@ -81,30 +88,44 @@ signal.signal(signal.SIGINT, _graceful_shutdown)
 
 This converts SIGTERM into `SystemExit`, which Python's `try/finally` and `atexit` handlers can catch. The existing `on_shutdown` handler in `server.py` and cleanup logic in `mcp_server.py` then execute normally.
 
+**Risk — asyncio interaction**: For MCP mode (which runs under `mcp.run(transport="stdio")`, an asyncio event loop), raising `SystemExit` from a signal handler while inside an asyncio event loop may not allow `atexit` handlers to run if the loop is blocked. For the MCP path, use `loop.add_signal_handler()` instead of raw `signal.signal()`:
+
+```python
+# For MCP (asyncio) path:
+loop = asyncio.get_event_loop()
+loop.add_signal_handler(signal.SIGTERM, lambda: sys.exit(128 + signal.SIGTERM))
+```
+
 **Validation**: Send SIGTERM to running server; verify log file contains shutdown audit summary.
 
 ### 1c. Graceful JSON-RPC error handling
 
-**File**: `ivy-lsp/ivy_lsp/__main__.py` (extend existing `_patch_pygls_converter`)
+**File**: `ivy-lsp/ivy_lsp/pygls_patches.py` (add new patch alongside existing `_patch_pygls_cancelled_future` and `_patch_pygls_closed_pipe`)
 
-**Current behavior**: `json.decoder.JSONDecodeError` in pygls message loop crashes the entire LSP server. The existing `_fixed_params_hook` handles missing `params` but not malformed JSON.
+**Current behavior**: `json.decoder.JSONDecodeError` in pygls message loop crashes the entire LSP server. The existing `_fixed_params_hook` in `__main__.py` handles missing `params` (cattrs converter) but not malformed JSON at the transport layer.
 
-**Fix**: Monkey-patch the pygls protocol's JSON deserialization entry point to catch `JSONDecodeError` and `ValidationError`. Log the malformed message and continue instead of crashing:
+**Implementation note**: pygls 2.0.x does NOT expose `data_received` on `JsonRPCProtocol`. The JSON deserialization happens inside pygls internals before `_handle_request` / `_handle_notification` are called. The exact entry point must be identified by tracing the pygls source for the message-parsing layer (likely in the `JsonRPCProtocol._procedure_handler` or the transport's message framing). The existing `pygls_patches.py` already patches `_handle_response` and `set_writer` on `JsonRPCProtocol`, establishing the pattern.
+
+**Fix approach** (requires sub-investigation of pygls internals):
+
+1. Identify the pygls method that deserializes incoming JSON-RPC messages (the step before `_handle_request`)
+2. Add a new patch function in `pygls_patches.py` that wraps this method
+3. Catch `json.JSONDecodeError` and `cattrs.errors.ClassValidationError`, log at ERROR level, and return (skip the malformed message)
+4. Register the patch in `apply_patches()` alongside the existing patches
 
 ```python
-def _patch_pygls_json_handler(server):
-    """Wrap pygls message deserialization to survive malformed JSON."""
-    protocol = server.protocol
-    _original_data_received = protocol.data_received
+def _patch_pygls_json_safety() -> None:
+    """Wrap pygls message deserialization to survive malformed JSON.
 
-    def _safe_data_received(data):
-        try:
-            _original_data_received(data)
-        except (json.JSONDecodeError, Exception) as e:
-            logger.error("Malformed JSON-RPC message (discarded): %s", e)
-            # Don't crash — continue processing next messages
+    The exact method to patch depends on pygls 2.0.x internals.
+    Candidate: the method that calls json.loads() on incoming data,
+    typically in the transport layer or JsonRPCProtocol._procedure_handler.
+    """
+    from pygls.protocol.json_rpc import JsonRPCProtocol
 
-    protocol.data_received = _safe_data_received
+    # TODO: Identify exact method via pygls source inspection.
+    # Pattern: wrap with try/except json.JSONDecodeError, log, continue.
+    ...
 ```
 
 **Validation**: Send malformed JSON to server stdin; verify server logs error and continues responding to subsequent valid requests.
@@ -121,10 +142,11 @@ Architectural improvements so the system degrades gracefully instead of catastro
 
 **Current behavior**: Semantic model built lazily on first tool call (`_get_model()` at line 471). First `ivy_coverage` takes 6m 55s.
 
-**Fix**: Start model building immediately as a background asyncio task:
+**Fix**: Start model building as a background task. Since `mcp.run(transport="stdio")` starts the asyncio event loop, `asyncio.get_event_loop().create_task()` can't be called before `mcp.run()`. Instead, use FastMCP's lifecycle hooks or schedule the task inside the first tool call, or use a `startup` event:
 
 ```python
-# After register_all_tools(mcp, ctx):
+# Option A: Use FastMCP's lifespan/startup hook if available
+@mcp.on_event("startup")
 async def _prewarm():
     try:
         await _get_model()
@@ -132,10 +154,14 @@ async def _prewarm():
     except Exception:
         logger.warning("Model pre-warm failed; will retry on first tool call", exc_info=True)
 
-# Schedule pre-warming (runs after event loop starts)
-import asyncio
-asyncio.get_event_loop().create_task(_prewarm())
+# Option B: If FastMCP doesn't support lifecycle hooks,
+# add a lightweight wrapper around mcp.run():
+async def _run_with_prewarm():
+    asyncio.create_task(_prewarm())
+    await mcp._run_stdio()  # internal method — check FastMCP API
 ```
+
+The exact approach depends on FastMCP's lifecycle API — requires sub-investigation during implementation.
 
 Add `model_status` field to `ivy_capabilities` response: `"building"` / `"ready"` / `"failed"`.
 
@@ -173,11 +199,14 @@ Phase 1's signal handler (1b) ensures atexit runs on SIGTERM.
 
 **Current behavior**: LSP server writes semantic model cache to disk after bulk analysis. MCP server reads it. But MCP never writes its own builds to the cache.
 
-**Fix**: After MCP's own model build succeeds, write to the shared cache location:
+**Fix**: After MCP's own model build succeeds, write to the shared cache location. The `write_model_cache` signature requires 4 parameters including a freshness key (see `bulk_orchestrator.py:80` for reference):
 
 ```python
-if semantic_model is not None:
-    write_model_cache(root, semantic_model, _req_graph)
+from ivy_lsp.indexer.shared_cache import compute_freshness_key, write_model_cache
+
+ivy_files = _find_ivy_files(root)
+freshness = compute_freshness_key(root, ivy_files)
+write_model_cache(root, semantic_model, _req_graph, freshness)
 ```
 
 This way, if MCP crashes and restarts, the next instance gets a warm cache instead of rebuilding for 7 minutes.
@@ -188,7 +217,9 @@ This way, if MCP crashes and restarts, the next instance gets a warm cache inste
 
 ## Phase 3: Functional Correctness
 
-Six independent bug fixes. Each requires reading the specific handler code to confirm exact root cause. Lower priority — edge cases, not core stability.
+Six independent bug fixes. Lower priority — edge cases, not core stability.
+
+**Sub-investigation required**: Each fix below requires reading the specific handler code to confirm the exact root cause before implementation. The symptom descriptions are from nct-validate observations; the proposed fixes are hypotheses that may need adjustment once the actual code is inspected. Budget investigation time per item.
 
 ### 3a. Hover file attribution
 
@@ -198,19 +229,23 @@ Six independent bug fixes. Each requires reading the specific handler code to co
 
 **Fix**: When multiple files define the same symbol, prefer the file in the current document's include closure over alphabetical first match.
 
-### 3b. workspaceSymbol cursor-to-query extraction
+### 3b. workspaceSymbol query handling
 
-**Files**: `ivy-lsp/ivy_lsp/features/workspace_symbol.py` (or equivalent)
+**Files**: `ivy-lsp/ivy_lsp/features/workspace_symbols.py`
 
-**Symptom**: workspaceSymbol at cursor returns 100 unrelated symbols from `apt_entities/` instead of results for the word under cursor.
+**Symptom**: workspaceSymbol returns 100 unrelated symbols from `apt_entities/` instead of results for `cid`.
 
-**Fix**: Verify whether the handler extracts the word at cursor position. If not, add word extraction from the active document.
+**Note**: LSP `workspace/symbol` is a **query-based** request — the client sends a query string, not a cursor position. The word-at-cursor extraction must happen **client-side** (Claude Code LSP adapter). The server receives `params.query` and does substring matching.
 
-### 3c. MCP xref graph for module-scoped types
+**Fix**: Investigate whether the issue is:
+- **Client-side** (Claude Code sends empty/wrong query) — if so, this is out of scope for ivy-lsp
+- **Server-side** (handler ignores `params.query` or returns truncated/unsorted results) — if so, fix the query matching and result ordering to prioritize exact matches
+
+### 3c. Semantic model xref graph for module-scoped types
 
 **Files**: `ivy-lsp/ivy_lsp/semantic/model.py` or `semantic/cross_refs.py`
 
-**Symptom**: `ivy_query(mode=impact)` returns 0 edges for `quic_packet_type` while LSP `findReferences` returns 406 refs.
+**Symptom**: The semantic model's impact traversal returns 0 cross-reference edges for `quic_packet_type` while LSP `findReferences` (which uses the lexical index) returns 406 refs. Note: the `ivy_query` MCP tool has been removed — the underlying semantic model's impact/xref graph is what needs fixing, as it's used by `ivy_coverage` and visualization tools.
 
 **Fix**: Extend xref graph edge-building to include `object`/`module` declarations, not just `action`/`function`.
 
@@ -258,5 +293,5 @@ Six independent bug fixes. Each requires reading the specific handler code to co
 | Phase | Items | PRs | Risk |
 |-------|-------|-----|------|
 | 1 | 1a, 1b, 1c | 1 PR into ivy-lsp + 1 PR into panther-ivy-plugin | Low — targeted fixes |
-| 2 | 2a, 2b, 2c, 2d | 1 PR into ivy-lsp | Medium — touches startup path |
-| 3 | 3a–3f | 1 PR into ivy-lsp | Low — independent fixes |
+| 2 | 2a, 2b (docs only), 2c, 2d | 1 PR into ivy-lsp (2b is CLAUDE.md update only) | Medium — touches startup path |
+| 3 | 3a–3f (each needs sub-investigation) | 1 PR into ivy-lsp | Low — independent fixes |
