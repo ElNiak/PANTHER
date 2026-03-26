@@ -527,6 +527,7 @@ def validate(ctx, plugin_path: Path, strict: bool, check_imports: bool):
     🔗 Import Check: Verify all dependencies are available
     """
     verbose = ctx.obj.get("verbose", False)
+    plugin_path = Path(plugin_path)  # click.Path() returns str, convert to Path
 
     if verbose:
         info_message(f"Validating plugin: {plugin_path}")
