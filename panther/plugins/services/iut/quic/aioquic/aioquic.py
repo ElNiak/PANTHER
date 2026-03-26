@@ -22,14 +22,9 @@ from panther.plugins.services.iut.iut_event_mixin import IUTManagerEventMixin
 class AioquicServiceManager(IUTManagerEventMixin, PythonQUICServiceManager):
     """Refactored aioquic service manager with minimal code."""
 
-    def __init__(self, service_config=None, global_config=None, **kwargs):
+    def __init__(self, service_config=None, **kwargs):
         """Initialize with service config for plugin config access."""
-        super().__init__(
-            service_config=service_config, global_config=global_config, **kwargs
-        )
-
-        # Store global configuration
-        self.global_config = global_config
+        super().__init__(service_config=service_config, **kwargs)
         self.service_config = service_config
 
     def _get_implementation_name(self) -> str:

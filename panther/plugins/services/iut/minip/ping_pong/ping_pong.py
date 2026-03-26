@@ -55,7 +55,6 @@ class PingPongServiceManager(
         protocol: ProtocolConfig,
         implementation_name: str,
         event_manager=None,
-        global_config=None,
         **kwargs,
     ):
         super().__init__(
@@ -64,11 +63,8 @@ class PingPongServiceManager(
             protocol,
             implementation_name,
             event_manager,
-            global_config=global_config,
+            **kwargs,
         )
-
-        # Store global configuration
-        self.global_config = global_config
         # Use the new template method for standard initialization
         self.standard_iut_initialization(
             service_config_to_test,

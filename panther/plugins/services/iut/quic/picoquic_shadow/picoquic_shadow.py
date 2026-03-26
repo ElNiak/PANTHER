@@ -33,10 +33,6 @@ class PicoquicShadowServiceManager(
 ):
     """Refactored PicoQUIC Shadow service manager for network simulation."""
 
-    def __init__(self, *args, global_config=None, **kwargs):
-        """Initialize PicoQUIC Shadow service manager with dual plugin config approach."""
-        super().__init__(*args, global_config=global_config, **kwargs)
-
     def _get_implementation_name(self) -> str:
         return "picoquic_shadow"
 

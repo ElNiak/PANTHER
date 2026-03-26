@@ -65,12 +65,11 @@ class BaseQUICServiceManager(IImplementationManager, StringRepresentationMixin, 
             protocol,
             implementation_name,
             event_manager,
-            test_case=test_case,  # Pass test case reference to parent classes
+            emitter_registry=emitter_registry,
+            global_config=global_config,
+            test_case=test_case,
             **kwargs,
         )
-
-        # Store global configuration
-        self.global_config = global_config
         self.protocol_name = "quic"
         self.implementation_name = self._get_implementation_name()
 
