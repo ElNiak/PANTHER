@@ -184,8 +184,6 @@ def plugin(
                 plugin_name,
                 in_development_mode=development_mode,
                 create_subplugins=with_subplugins,
-                force_overwrite=force,
-                # Additional parameters based on available API
             )
 
             bar.update(80)
@@ -320,7 +318,6 @@ def subplugin(
                 plugin_name,
                 subplugin_name,
                 in_development_mode=development_mode,
-                force_overwrite=force,
             )
 
             bar.update(80)
