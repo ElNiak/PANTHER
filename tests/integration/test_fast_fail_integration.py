@@ -1,5 +1,4 @@
-"""
-Integration tests for fast-fail behavior across PANTHER components.
+"""Integration tests for fast-fail behavior across PANTHER components.
 
 Tests the interaction between:
 - ExperimentManager with fast-fail
@@ -25,14 +24,12 @@ from panther.core.exceptions.experiment_exceptions import (
 from panther.core.exceptions.fast_fail import (
     DockerBuildException,
     ErrorSeverity,
+    FastFailHandler,
     PluginLoadException,
     ServiceStartException,
 )
 from panther.core.experiment_manager import ExperimentManager
 from panther.plugins.plugin_manager import PluginManager
-
-# Reset DockerBuilder singleton for clean test state
-DockerBuilder.reset_singleton()
 
 
 class TestExperimentManagerFastFail:

@@ -163,6 +163,10 @@ class TestMetricsObserver:
         assert real_metrics_observer.is_interested("test.started") is True
         # Verify it doesn't match completely unrelated events
         assert real_metrics_observer.is_interested("zzz_nonexistent") is False
+        # step.* events (added by production fix for broader event coverage)
+        assert real_metrics_observer.is_interested("step.execution_started") is True
+        assert real_metrics_observer.is_interested("step.completed") is True
+        assert real_metrics_observer.is_interested("step.failed") is True
 
     def test_aggregator_initialized(self, real_metrics_observer):
         """MetricsObserver has a MetricsAggregator for trend analysis."""
@@ -1086,7 +1090,7 @@ class TestObserverSystemIntegration:
         """Observers created by ObserverFactory work correctly with EventManager.
 
         Uses StorageObserver (which accepts all event types via is_interested)
-        rather than MetricsObserver (which only accepts 'metrics.*' events).
+        rather than MetricsObserver (which accepts 'metrics.*', 'test.*', and 'step.*' events).
         """
         from panther.core.events.test.events import TestEvent
         from panther.core.observer.impl.storage_observer import StorageObserver
@@ -1118,7 +1122,7 @@ class TestObserverSystemIntegration:
 
         Uses StateEventObserver (workflow transitions) and StorageObserver
         (event persistence) to verify the full lifecycle. MetricsObserver
-        is excluded because its is_interested() only accepts 'metrics.*'
+        is excluded because its is_interested() only accepts 'metrics.*', 'test.*', and 'step.*'
         events through EventManager routing.
         """
         from panther.core.events.experiment.events import ExperimentEvent
