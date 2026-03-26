@@ -492,7 +492,7 @@ def scan(ctx, directory: Optional[Path], recursive: bool):
 @click.option("--check-imports", is_flag=True, help="Validate all import statements")
 @handle_errors
 @pass_context_and_setup_logging
-def validate(ctx, plugin_path: Path, strict: bool, check_imports: bool):
+def validate(ctx, plugin_path: str, strict: bool, check_imports: bool):
     r"""Validate plugin structure and configuration.
 
     Performs comprehensive validation of plugin files including
@@ -658,7 +658,7 @@ def validate(ctx, plugin_path: Path, strict: bool, check_imports: bool):
 )
 @handle_errors
 @pass_context_and_setup_logging
-def check_deps(ctx, plugin_path: Path, fix: bool, requirements_file: Optional[Path]):
+def check_deps(ctx, plugin_path: str, fix: bool, requirements_file: Optional[str]):
     r"""Check plugin dependencies and availability.
 
     Analyzes plugin files to identify required dependencies and verifies
