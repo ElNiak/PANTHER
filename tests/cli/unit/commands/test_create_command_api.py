@@ -17,7 +17,7 @@ class TestCreateCommandAPI:
     def cli_runner(self):
         return CliRunner()
 
-    def test_create_plugin_does_not_pass_force_overwrite(self, cli_runner, tmp_path):
+    def test_create_plugin_does_not_pass_force_overwrite(self, cli_runner):
         """create_plugin() does not accept force_overwrite; verify it is not passed."""
         with patch(
             "panther.tools.plugins.plugin_creator.create_plugin", return_value=True
@@ -29,8 +29,6 @@ class TestCreateCommandAPI:
                     "plugin",
                     "service",
                     "test_plugin",
-                    "--output-dir",
-                    str(tmp_path),
                 ],
             )
             assert (
