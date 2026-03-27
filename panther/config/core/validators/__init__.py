@@ -4,7 +4,15 @@ This package provides reusable validators that handle common type conversion
 patterns with proper error logging and user-friendly error messages.
 """
 
-# pylint: disable-next=undefined-variable  # Variables defined dynamically via __getattr__
+from .pydantic_factories import (
+    create_enum_validator,
+    create_time_string_validator,
+    implementation_type_validator,
+    logging_level_validator,
+    protocol_role_validator,
+    shadow_time_validator,
+)
+
 __all__ = [
     "create_enum_validator",
     "create_time_string_validator",
@@ -13,45 +21,3 @@ __all__ = [
     "logging_level_validator",
     "shadow_time_validator",
 ]
-
-
-def __getattr__(name):  # pylint: disable=invalid-name
-    """Lazy import implementation to avoid circular imports."""
-    if name == "create_enum_validator":
-        from .pydantic_factories import (  # pylint: disable=import-outside-toplevel
-            create_enum_validator,
-        )
-
-        return create_enum_validator
-    elif name == "create_time_string_validator":
-        from .pydantic_factories import (  # pylint: disable=import-outside-toplevel
-            create_time_string_validator,
-        )
-
-        return create_time_string_validator
-    elif name == "protocol_role_validator":
-        from .pydantic_factories import (  # pylint: disable=import-outside-toplevel
-            protocol_role_validator,
-        )
-
-        return protocol_role_validator
-    elif name == "implementation_type_validator":
-        from .pydantic_factories import (  # pylint: disable=import-outside-toplevel
-            implementation_type_validator,
-        )
-
-        return implementation_type_validator
-    elif name == "logging_level_validator":
-        from .pydantic_factories import (  # pylint: disable=import-outside-toplevel
-            logging_level_validator,
-        )
-
-        return logging_level_validator
-    elif name == "shadow_time_validator":
-        from .pydantic_factories import (  # pylint: disable=import-outside-toplevel
-            shadow_time_validator,
-        )
-
-        return shadow_time_validator
-    else:
-        raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

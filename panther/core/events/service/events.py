@@ -1,6 +1,8 @@
 """Service Events.
 
 This module defines events specific to service lifecycle management.
+Uses factory classmethods on the base ServiceEvent class instead of
+individual subclasses for most event types.
 """
 
 from enum import Enum
@@ -30,7 +32,12 @@ class ServiceEventType(Enum):
 
 
 class ServiceEvent(BaseEvent):
-    """Base class for all service events."""
+    """Base class for all service events.
+
+    Most service events are created via factory classmethods rather than
+    individual subclasses. The event_type discriminant identifies the
+    specific event kind.
+    """
 
     def __init__(
         self,
@@ -47,22 +54,21 @@ class ServiceEvent(BaseEvent):
         )
         self.event_type = event_type
 
+    # -- Factory classmethods --------------------------------------------------
 
-class ServiceCreatedEvent(ServiceEvent):
-    """Event emitted when a service is created."""
-
-    def __init__(
-        self,
+    @classmethod
+    def created(
+        cls,
         service_id: str,
         service_name: str,
         service_type: str,
         implementation: str,
         config: Optional[Dict[str, Any]] = None,
-    ):
-        """Initialize service created event."""
-        super().__init__(
-            event_type=ServiceEventType.CREATED,
-            service_id=service_id,
+    ) -> "ServiceEvent":
+        """Create created event."""
+        return cls(
+            ServiceEventType.CREATED,
+            service_id,
             data={
                 "service_name": service_name,
                 "service_type": service_type,
@@ -71,41 +77,35 @@ class ServiceCreatedEvent(ServiceEvent):
             },
         )
 
-
-class ServicePreparationStartedEvent(ServiceEvent):
-    """Event emitted when service preparation starts."""
-
-    def __init__(
-        self,
+    @classmethod
+    def preparation_started(
+        cls,
         service_id: str,
         service_name: str,
         preparation_steps: Optional[List[str]] = None,
-    ):
-        """Initialize service preparation started event."""
-        super().__init__(
-            event_type=ServiceEventType.PREPARATION_STARTED,
-            service_id=service_id,
+    ) -> "ServiceEvent":
+        """Create preparation started event."""
+        return cls(
+            ServiceEventType.PREPARATION_STARTED,
+            service_id,
             data={
                 "service_name": service_name,
                 "preparation_steps": preparation_steps or [],
             },
         )
 
-
-class ServicePreparationCompletedEvent(ServiceEvent):
-    """Event emitted when service preparation completes."""
-
-    def __init__(
-        self,
+    @classmethod
+    def preparation_completed(
+        cls,
         service_id: str,
         service_name: str,
         duration_seconds: Optional[float] = None,
         artifacts: Optional[Dict[str, Any]] = None,
-    ):
-        """Initialize service preparation completed event."""
-        super().__init__(
-            event_type=ServiceEventType.PREPARATION_COMPLETED,
-            service_id=service_id,
+    ) -> "ServiceEvent":
+        """Create preparation completed event."""
+        return cls(
+            ServiceEventType.PREPARATION_COMPLETED,
+            service_id,
             data={
                 "service_name": service_name,
                 "duration_seconds": duration_seconds,
@@ -113,22 +113,19 @@ class ServicePreparationCompletedEvent(ServiceEvent):
             },
         )
 
-
-class ServicePreparationFailedEvent(ServiceEvent):
-    """Event emitted when service preparation fails."""
-
-    def __init__(
-        self,
+    @classmethod
+    def preparation_failed(
+        cls,
         service_id: str,
         service_name: str,
         error_message: str,
         error_type: Optional[str] = None,
         failed_step: Optional[str] = None,
-    ):
-        """Initialize service preparation failed event."""
-        super().__init__(
-            event_type=ServiceEventType.PREPARATION_FAILED,
-            service_id=service_id,
+    ) -> "ServiceEvent":
+        """Create preparation failed event."""
+        return cls(
+            ServiceEventType.PREPARATION_FAILED,
+            service_id,
             data={
                 "service_name": service_name,
                 "error_message": error_message,
@@ -137,21 +134,18 @@ class ServicePreparationFailedEvent(ServiceEvent):
             },
         )
 
-
-class ServiceDeploymentStartedEvent(ServiceEvent):
-    """Event emitted when service deployment starts."""
-
-    def __init__(
-        self,
+    @classmethod
+    def deployment_started(
+        cls,
         service_id: str,
         service_name: str,
         environment: str,
         deployment_config: Optional[Dict[str, Any]] = None,
-    ):
-        """Initialize service deployment started event."""
-        super().__init__(
-            event_type=ServiceEventType.DEPLOYMENT_STARTED,
-            service_id=service_id,
+    ) -> "ServiceEvent":
+        """Create deployment started event."""
+        return cls(
+            ServiceEventType.DEPLOYMENT_STARTED,
+            service_id,
             data={
                 "service_name": service_name,
                 "environment": environment,
@@ -159,23 +153,20 @@ class ServiceDeploymentStartedEvent(ServiceEvent):
             },
         )
 
-
-class ServiceDeploymentCompletedEvent(ServiceEvent):
-    """Event emitted when service deployment completes."""
-
-    def __init__(
-        self,
+    @classmethod
+    def deployment_completed(
+        cls,
         service_id: str,
         service_name: str,
         environment: str,
         endpoint: Optional[str] = None,
         ports: Optional[List[int]] = None,
         deployment_details: Optional[Dict[str, Any]] = None,
-    ):
-        """Initialize service deployment completed event."""
-        super().__init__(
-            event_type=ServiceEventType.DEPLOYMENT_COMPLETED,
-            service_id=service_id,
+    ) -> "ServiceEvent":
+        """Create deployment completed event."""
+        return cls(
+            ServiceEventType.DEPLOYMENT_COMPLETED,
+            service_id,
             data={
                 "service_name": service_name,
                 "environment": environment,
@@ -185,22 +176,19 @@ class ServiceDeploymentCompletedEvent(ServiceEvent):
             },
         )
 
-
-class ServiceDeploymentFailedEvent(ServiceEvent):
-    """Event emitted when service deployment fails."""
-
-    def __init__(
-        self,
+    @classmethod
+    def deployment_failed(
+        cls,
         service_id: str,
         service_name: str,
         environment: str,
         error_message: str,
         error_type: Optional[str] = None,
-    ):
-        """Initialize service deployment failed event."""
-        super().__init__(
-            event_type=ServiceEventType.DEPLOYMENT_FAILED,
-            service_id=service_id,
+    ) -> "ServiceEvent":
+        """Create deployment failed event."""
+        return cls(
+            ServiceEventType.DEPLOYMENT_FAILED,
+            service_id,
             data={
                 "service_name": service_name,
                 "environment": environment,
@@ -209,60 +197,51 @@ class ServiceDeploymentFailedEvent(ServiceEvent):
             },
         )
 
-
-class ServiceStartedEvent(ServiceEvent):
-    """Event emitted when a service starts."""
-
-    def __init__(
-        self,
+    @classmethod
+    def started(
+        cls,
         service_id: str,
         service_name: str,
         pid: Optional[int] = None,
         start_time: Optional[str] = None,
-    ):
-        """Initialize service started event."""
-        super().__init__(
-            event_type=ServiceEventType.STARTED,
-            service_id=service_id,
+    ) -> "ServiceEvent":
+        """Create started event."""
+        return cls(
+            ServiceEventType.STARTED,
+            service_id,
             data={"service_name": service_name, "pid": pid, "start_time": start_time},
         )
 
-
-class ServiceReadyEvent(ServiceEvent):
-    """Event emitted when a service is ready to accept requests."""
-
-    def __init__(
-        self,
+    @classmethod
+    def ready(
+        cls,
         service_id: str,
         service_name: str,
         readiness_checks: Optional[Dict[str, bool]] = None,
-    ):
-        """Initialize service ready event."""
-        super().__init__(
-            event_type=ServiceEventType.READY,
-            service_id=service_id,
+    ) -> "ServiceEvent":
+        """Create ready event."""
+        return cls(
+            ServiceEventType.READY,
+            service_id,
             data={
                 "service_name": service_name,
                 "readiness_checks": readiness_checks or {},
             },
         )
 
-
-class ServiceHealthCheckPassedEvent(ServiceEvent):
-    """Event emitted when a service health check passes."""
-
-    def __init__(
-        self,
+    @classmethod
+    def health_check_passed(
+        cls,
         service_id: str,
         service_name: str,
         check_type: str,
         endpoint: Optional[str] = None,
         response_time_ms: Optional[float] = None,
-    ):
-        """Initialize service health check passed event."""
-        super().__init__(
-            event_type=ServiceEventType.HEALTH_CHECK_PASSED,
-            service_id=service_id,
+    ) -> "ServiceEvent":
+        """Create health check passed event."""
+        return cls(
+            ServiceEventType.HEALTH_CHECK_PASSED,
+            service_id,
             data={
                 "service_name": service_name,
                 "check_type": check_type,
@@ -271,23 +250,20 @@ class ServiceHealthCheckPassedEvent(ServiceEvent):
             },
         )
 
-
-class ServiceHealthCheckFailedEvent(ServiceEvent):
-    """Event emitted when a service health check fails."""
-
-    def __init__(
-        self,
+    @classmethod
+    def health_check_failed(
+        cls,
         service_id: str,
         service_name: str,
         check_type: str,
         error_message: str,
         endpoint: Optional[str] = None,
         status_code: Optional[int] = None,
-    ):
-        """Initialize service health check failed event."""
-        super().__init__(
-            event_type=ServiceEventType.HEALTH_CHECK_FAILED,
-            service_id=service_id,
+    ) -> "ServiceEvent":
+        """Create health check failed event."""
+        return cls(
+            ServiceEventType.HEALTH_CHECK_FAILED,
+            service_id,
             data={
                 "service_name": service_name,
                 "check_type": check_type,
@@ -297,22 +273,19 @@ class ServiceHealthCheckFailedEvent(ServiceEvent):
             },
         )
 
-
-class ServiceStoppedEvent(ServiceEvent):
-    """Event emitted when a service stops."""
-
-    def __init__(
-        self,
+    @classmethod
+    def stopped(
+        cls,
         service_id: str,
         service_name: str,
         exit_code: Optional[int] = None,
         reason: Optional[str] = None,
         uptime_seconds: Optional[float] = None,
-    ):
-        """Initialize service stopped event."""
-        super().__init__(
-            event_type=ServiceEventType.STOPPED,
-            service_id=service_id,
+    ) -> "ServiceEvent":
+        """Create stopped event."""
+        return cls(
+            ServiceEventType.STOPPED,
+            service_id,
             data={
                 "service_name": service_name,
                 "exit_code": exit_code,
@@ -321,22 +294,19 @@ class ServiceStoppedEvent(ServiceEvent):
             },
         )
 
-
-class ServiceErrorEvent(ServiceEvent):
-    """Event emitted when a service encounters an error."""
-
-    def __init__(
-        self,
+    @classmethod
+    def error(
+        cls,
         service_id: str,
         service_name: str,
         error_message: str,
         error_type: Optional[str] = None,
         error_details: Optional[Dict[str, Any]] = None,
-    ):
-        """Initialize service error event."""
-        super().__init__(
-            event_type=ServiceEventType.ERROR,
-            service_id=service_id,
+    ) -> "ServiceEvent":
+        """Create error event."""
+        return cls(
+            ServiceEventType.ERROR,
+            service_id,
             data={
                 "service_name": service_name,
                 "error_message": error_message,
@@ -345,42 +315,36 @@ class ServiceErrorEvent(ServiceEvent):
             },
         )
 
-
-class ServiceDestroyedEvent(ServiceEvent):
-    """Event emitted when a service is destroyed/cleaned up."""
-
-    def __init__(
-        self,
+    @classmethod
+    def destroyed(
+        cls,
         service_id: str,
         service_name: str,
         cleanup_details: Optional[Dict[str, Any]] = None,
-    ):
-        """Initialize service destroyed event."""
-        super().__init__(
-            event_type=ServiceEventType.DESTROYED,
-            service_id=service_id,
+    ) -> "ServiceEvent":
+        """Create destroyed event."""
+        return cls(
+            ServiceEventType.DESTROYED,
+            service_id,
             data={
                 "service_name": service_name,
                 "cleanup_details": cleanup_details or {},
             },
         )
 
-
-class ServiceTestResultsEvent(ServiceEvent):
-    """Event emitted when service test results are available."""
-
-    def __init__(
-        self,
+    @classmethod
+    def test_results(
+        cls,
         service_id: str,
         service_name: str,
         test_results: Dict[str, Any],
         overall_success: bool,
         test_summary: Optional[Dict[str, Any]] = None,
-    ):
-        """Initialize service test results event."""
-        super().__init__(
-            event_type=ServiceEventType.TEST_RESULTS,
-            service_id=service_id,
+    ) -> "ServiceEvent":
+        """Create test results event."""
+        return cls(
+            ServiceEventType.TEST_RESULTS,
+            service_id,
             data={
                 "service_name": service_name,
                 "test_results": test_results,
@@ -390,36 +354,18 @@ class ServiceTestResultsEvent(ServiceEvent):
             },
         )
 
-    @property
-    def test_results(self) -> Dict[str, Any]:
-        """Return the test results."""
-        return self.data.get("test_results", {})
-
-    @property
-    def overall_success(self) -> bool:
-        """Return whether all tests passed."""
-        return self.data.get("overall_success", False)
-
-    @property
-    def test_summary(self) -> Dict[str, Any]:
-        """Return the test summary."""
-        return self.data.get("test_summary", {})
-
-
-class CommandGenerationStartedEvent(ServiceEvent):
-    """Event emitted when command generation starts for a service."""
-
-    def __init__(
-        self,
+    @classmethod
+    def command_generation_started(
+        cls,
         service_id: str,
         service_name: str,
         phase: str,
         config: Optional[Dict[str, Any]] = None,
-    ):
-        """Initialize command generation started event."""
-        super().__init__(
-            event_type=ServiceEventType.PREPARATION_STARTED,
-            service_id=service_id,
+    ) -> "ServiceEvent":
+        """Create command generation started event."""
+        return cls(
+            ServiceEventType.PREPARATION_STARTED,
+            service_id,
             data={
                 "service_name": service_name,
                 "phase": phase,
@@ -428,22 +374,19 @@ class CommandGenerationStartedEvent(ServiceEvent):
             },
         )
 
-
-class CommandGeneratedEvent(ServiceEvent):
-    """Event emitted when a command is generated for a service."""
-
-    def __init__(
-        self,
+    @classmethod
+    def command_generated(
+        cls,
         service_id: str,
         service_name: str,
         phase: str,
         command: str,
         command_type: Optional[str] = None,
-    ):
-        """Initialize command generated event."""
-        super().__init__(
-            event_type=ServiceEventType.PREPARATION_COMPLETED,
-            service_id=service_id,
+    ) -> "ServiceEvent":
+        """Create command generated event."""
+        return cls(
+            ServiceEventType.PREPARATION_COMPLETED,
+            service_id,
             data={
                 "service_name": service_name,
                 "phase": phase,
@@ -453,24 +396,21 @@ class CommandGeneratedEvent(ServiceEvent):
             },
         )
 
-
-class CommandModifiedEvent(ServiceEvent):
-    """Event emitted when a command is modified by execution environments."""
-
-    def __init__(
-        self,
+    @classmethod
+    def command_modified(
+        cls,
         service_id: str,
         service_name: str,
         phase: str,
         original_command: str,
         modified_command: str,
-        modifier: str,  # e.g., "strace", "gperf", etc.
+        modifier: str,
         modification_details: Optional[Dict[str, Any]] = None,
-    ):
-        """Initialize command modified event."""
-        super().__init__(
-            event_type=ServiceEventType.PREPARATION_COMPLETED,
-            service_id=service_id,
+    ) -> "ServiceEvent":
+        """Create command modified event."""
+        return cls(
+            ServiceEventType.PREPARATION_COMPLETED,
+            service_id,
             data={
                 "service_name": service_name,
                 "phase": phase,
@@ -481,6 +421,76 @@ class CommandModifiedEvent(ServiceEvent):
                 "action": "command_modified",
             },
         )
+
+    @classmethod
+    def config_generated(
+        cls,
+        service_id: str,
+        config_type: str,
+        config_path: str,
+        config_content: Optional[str] = None,
+        services_included: Optional[List[str]] = None,
+    ) -> "ServiceEvent":
+        """Create config generated event."""
+        return cls(
+            ServiceEventType.DEPLOYMENT_STARTED,
+            service_id,
+            data={
+                "config_type": config_type,
+                "config_path": config_path,
+                "config_content": config_content,
+                "services_included": services_included or [],
+                "action": "config_generated",
+            },
+        )
+
+    @classmethod
+    def tester_analysis_started(
+        cls,
+        service_id: str,
+        tester_name: str,
+        inputs: Dict[str, str],
+        analysis_type: str,
+    ) -> "ServiceEvent":
+        """Create tester analysis started event."""
+        return cls(
+            ServiceEventType.TEST_RESULTS,
+            service_id,
+            data={
+                "tester_name": tester_name,
+                "inputs": inputs,
+                "analysis_type": analysis_type,
+                "action": "tester_analysis_started",
+            },
+        )
+
+    @classmethod
+    def tester_analysis_completed(
+        cls,
+        service_id: str,
+        tester_name: str,
+        passed: bool,
+        failed_checks: List[str],
+        warnings: Optional[List[str]] = None,
+        detailed_results: Optional[Dict[str, Any]] = None,
+    ) -> "ServiceEvent":
+        """Create tester analysis completed event."""
+        return cls(
+            ServiceEventType.TEST_RESULTS,
+            service_id,
+            data={
+                "tester_name": tester_name,
+                "passed": passed,
+                "failed_checks": failed_checks,
+                "warnings": warnings or [],
+                "detailed_results": detailed_results or {},
+                "action": "tester_analysis_completed",
+            },
+        )
+
+
+# -- Subclasses kept for isinstance() compatibility ---------------------------
+# These are used in observer isinstance() checks (logger_observer.py).
 
 
 class DockerBuildStartedEvent(ServiceEvent):
@@ -493,7 +503,7 @@ class DockerBuildStartedEvent(ServiceEvent):
         dockerfile_path: str,
         image_name: Optional[str] = None,
     ):
-        """Initialize Docker build started event."""
+        """Initialize with service ID, name, dockerfile path, and image name."""
         super().__init__(
             event_type=ServiceEventType.PREPARATION_STARTED,
             service_id=service_id,
@@ -518,7 +528,7 @@ class DockerBuildCompletedEvent(ServiceEvent):
         error_message: Optional[str] = None,
         build_duration: Optional[float] = None,
     ):
-        """Initialize Docker build completed event."""
+        """Initialize with service ID, image name, and build result."""
         super().__init__(
             event_type=ServiceEventType.PREPARATION_COMPLETED,
             service_id=service_id,
@@ -544,7 +554,7 @@ class DockerBuildFailedEvent(ServiceEvent):
         error_message: str,
         build_duration: Optional[float] = None,
     ):
-        """Initialize Docker build failed event."""
+        """Initialize with service ID, dockerfile path, and error details."""
         super().__init__(
             event_type=ServiceEventType.ERROR,
             service_id=service_id,
@@ -554,80 +564,5 @@ class DockerBuildFailedEvent(ServiceEvent):
                 "error_message": error_message,
                 "build_duration": build_duration,
                 "action": "docker_build_failed",
-            },
-        )
-
-
-class ConfigGeneratedEvent(ServiceEvent):
-    """Event emitted when final configuration (e.g., docker-compose.yml) is generated."""
-
-    def __init__(
-        self,
-        service_id: str,
-        config_type: str,  # e.g., "docker-compose", "kubernetes", etc.
-        config_path: str,
-        config_content: Optional[str] = None,
-        services_included: Optional[List[str]] = None,
-    ):
-        """Initialize config generated event."""
-        super().__init__(
-            event_type=ServiceEventType.DEPLOYMENT_STARTED,
-            service_id=service_id,
-            data={
-                "config_type": config_type,
-                "config_path": config_path,
-                "config_content": config_content,
-                "services_included": services_included or [],
-                "action": "config_generated",
-            },
-        )
-
-
-class TesterAnalysisStartedEvent(ServiceEvent):
-    """Event emitted when tester starts analyzing collected outputs."""
-
-    def __init__(
-        self,
-        service_id: str,
-        tester_name: str,
-        inputs: Dict[str, str],
-        analysis_type: str,
-    ):
-        """Initialize tester analysis started event."""
-        super().__init__(
-            event_type=ServiceEventType.TEST_RESULTS,
-            service_id=service_id,
-            data={
-                "tester_name": tester_name,
-                "inputs": inputs,
-                "analysis_type": analysis_type,
-                "action": "tester_analysis_started",
-            },
-        )
-
-
-class TesterAnalysisCompletedEvent(ServiceEvent):
-    """Event emitted when tester completes analysis of collected outputs."""
-
-    def __init__(
-        self,
-        service_id: str,
-        tester_name: str,
-        passed: bool,
-        failed_checks: List[str],
-        warnings: Optional[List[str]] = None,
-        detailed_results: Optional[Dict[str, Any]] = None,
-    ):
-        """Initialize tester analysis completed event."""
-        super().__init__(
-            event_type=ServiceEventType.TEST_RESULTS,
-            service_id=service_id,
-            data={
-                "tester_name": tester_name,
-                "passed": passed,
-                "failed_checks": failed_checks,
-                "warnings": warnings or [],
-                "detailed_results": detailed_results or {},
-                "action": "tester_analysis_completed",
             },
         )

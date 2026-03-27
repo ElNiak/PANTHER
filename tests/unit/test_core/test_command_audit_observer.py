@@ -30,14 +30,11 @@ def _make_cmd_gen_started_event(
     phase: str = "run",
     config: Dict[str, Any] | None = None,
 ):
-    """Create a real CommandGenerationStartedEvent."""
-    from panther.core.events.service.events import CommandGenerationStartedEvent
+    """Create a real CommandGenerationStartedEvent via ServiceEvent factory."""
+    from panther.core.events.service.events import ServiceEvent
 
-    return CommandGenerationStartedEvent(
-        service_id=service_id,
-        service_name=service_name,
-        phase=phase,
-        config=config,
+    return ServiceEvent.command_generation_started(
+        service_id, service_name, phase, config
     )
 
 
@@ -48,15 +45,11 @@ def _make_cmd_generated_event(
     command: str = "echo hello",
     command_type: str | None = None,
 ):
-    """Create a real CommandGeneratedEvent."""
-    from panther.core.events.service.events import CommandGeneratedEvent
+    """Create a real CommandGeneratedEvent via ServiceEvent factory."""
+    from panther.core.events.service.events import ServiceEvent
 
-    return CommandGeneratedEvent(
-        service_id=service_id,
-        service_name=service_name,
-        phase=phase,
-        command=command,
-        command_type=command_type,
+    return ServiceEvent.command_generated(
+        service_id, service_name, phase, command, command_type
     )
 
 
@@ -69,17 +62,17 @@ def _make_cmd_modified_event(
     modifier: str = "strace",
     modification_details: Dict[str, Any] | None = None,
 ):
-    """Create a real CommandModifiedEvent."""
-    from panther.core.events.service.events import CommandModifiedEvent
+    """Create a real CommandModifiedEvent via ServiceEvent factory."""
+    from panther.core.events.service.events import ServiceEvent
 
-    return CommandModifiedEvent(
-        service_id=service_id,
-        service_name=service_name,
-        phase=phase,
-        original_command=original_command,
-        modified_command=modified_command,
-        modifier=modifier,
-        modification_details=modification_details,
+    return ServiceEvent.command_modified(
+        service_id,
+        service_name,
+        phase,
+        original_command,
+        modified_command,
+        modifier,
+        modification_details,
     )
 
 
@@ -90,15 +83,15 @@ def _make_config_generated_event(
     config_content: str | None = None,
     services_included: list[str] | None = None,
 ):
-    """Create a real ConfigGeneratedEvent."""
-    from panther.core.events.service.events import ConfigGeneratedEvent
+    """Create a real ConfigGeneratedEvent via ServiceEvent factory."""
+    from panther.core.events.service.events import ServiceEvent
 
-    return ConfigGeneratedEvent(
-        service_id=service_id,
-        config_type=config_type,
-        config_path=config_path,
-        config_content=config_content,
-        services_included=services_included,
+    return ServiceEvent.config_generated(
+        service_id,
+        config_type,
+        config_path,
+        config_content,
+        services_included,
     )
 
 
@@ -165,38 +158,10 @@ class TestCommandAuditObserverInit:
 class TestGetSupportedEventTypes:
     """Test the get_supported_event_types method."""
 
-    def test_returns_four_event_types(self, real_command_audit_observer):
-        """Observer supports exactly four event types."""
+    def test_returns_empty_list(self, real_command_audit_observer):
+        """Observer returns empty list (backward-compat aliases removed)."""
         types = real_command_audit_observer.get_supported_event_types()
-        assert len(types) == 4
-
-    def test_includes_command_generation_started(self, real_command_audit_observer):
-        """Supported types include CommandGenerationStartedEvent."""
-        from panther.core.events.service.events import CommandGenerationStartedEvent
-
-        types = real_command_audit_observer.get_supported_event_types()
-        assert CommandGenerationStartedEvent in types
-
-    def test_includes_command_generated(self, real_command_audit_observer):
-        """Supported types include CommandGeneratedEvent."""
-        from panther.core.events.service.events import CommandGeneratedEvent
-
-        types = real_command_audit_observer.get_supported_event_types()
-        assert CommandGeneratedEvent in types
-
-    def test_includes_command_modified(self, real_command_audit_observer):
-        """Supported types include CommandModifiedEvent."""
-        from panther.core.events.service.events import CommandModifiedEvent
-
-        types = real_command_audit_observer.get_supported_event_types()
-        assert CommandModifiedEvent in types
-
-    def test_includes_config_generated(self, real_command_audit_observer):
-        """Supported types include ConfigGeneratedEvent."""
-        from panther.core.events.service.events import ConfigGeneratedEvent
-
-        types = real_command_audit_observer.get_supported_event_types()
-        assert ConfigGeneratedEvent in types
+        assert types == []
 
 
 # ===================================================================
@@ -772,12 +737,12 @@ class TestOnEventRouting:
 
     def test_unknown_event_does_not_crash(self, real_command_audit_observer):
         """An unrelated event type does not crash the observer via on_event."""
-        from panther.core.events.service.events import ServiceStartedEvent
+        from panther.core.events.service.events import ServiceEvent
 
         obs = real_command_audit_observer
-        event = ServiceStartedEvent(service_id="svc-1", service_name="pico")
+        event = ServiceEvent.started(service_id="svc-1", service_name="pico")
         result = obs.on_event(event)
-        # Base handler for ServiceStartedEvent returns True
+        # Base handler for ServiceEvent.started returns True
         assert result is True
         assert obs.command_history == {}
 

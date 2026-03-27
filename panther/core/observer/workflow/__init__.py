@@ -1,5 +1,4 @@
-"""
-Workflow management module for PANTHER.
+"""Workflow management module for PANTHER.
 
 This module provides lightweight workflow state tracking focused on experiment coordination.
 """

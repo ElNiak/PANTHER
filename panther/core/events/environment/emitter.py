@@ -9,20 +9,9 @@ if TYPE_CHECKING:
     from panther.core.observer.management.event_manager import EventManager
 
 from panther.core.events.environment.events import (
-    EnvironmentCreatedEvent,
-    EnvironmentDestroyedEvent,
-    EnvironmentErrorEvent,
-    EnvironmentResourceEvent,
-    EnvironmentSetupCompletedEvent,
-    EnvironmentSetupFailedEvent,
-    EnvironmentSetupStartedEvent,
-    EnvironmentTeardownCompletedEvent,
-    EnvironmentTeardownFailedEvent,
-    EnvironmentTeardownStartedEvent,
-    OutputCollectedEvent,
-    OutputCollectionCompletedEvent,
-    OutputCollectionStartedEvent,
-    OutputsCollectedEvent,
+    EnvironmentEvent,
+    ExecutionEnvironmentEvent,
+    NetworkEnvironmentEvent,
 )
 from panther.core.events.experiment.events import ExperimentFinishedEarlyEvent
 
@@ -57,11 +46,8 @@ class EnvironmentEventEmitter:
             environment_type: Type of environment (docker_compose, shadow, etc.)
             environment_config: Environment configuration details
         """
-        event = EnvironmentCreatedEvent(
-            environment_id=environment_id,
-            environment_name=environment_name,
-            environment_type=environment_type,
-            config=environment_config,
+        event = EnvironmentEvent.created(
+            environment_id, environment_name, environment_type, environment_config
         )
         self.event_manager.notify(event)
 
@@ -80,11 +66,8 @@ class EnvironmentEventEmitter:
             environment_type: Type of environment
             setup_config: Setup configuration details
         """
-        event = EnvironmentSetupStartedEvent(
-            environment_id=environment_id,
-            environment_name=environment_name,
-            environment_type=environment_type,
-            setup_config=setup_config,
+        event = EnvironmentEvent.setup_started(
+            environment_id, environment_name, environment_type, setup_config
         )
         self.event_manager.notify(event)
 
@@ -105,12 +88,12 @@ class EnvironmentEventEmitter:
             duration_seconds: Time taken for setup in seconds
             setup_details: Details about the setup
         """
-        event = EnvironmentSetupCompletedEvent(
-            environment_id=environment_id,
-            environment_name=environment_name,
-            environment_type=environment_type,
-            duration=duration_seconds or 0.0,
-            resources_allocated=setup_details,
+        event = EnvironmentEvent.setup_completed(
+            environment_id,
+            environment_name,
+            environment_type,
+            duration_seconds or 0.0,
+            setup_details,
         )
         self.event_manager.notify(event)
 
@@ -133,11 +116,8 @@ class EnvironmentEventEmitter:
             error_type: Type/category of error
             failed_component: Component that failed during setup
         """
-        event = EnvironmentSetupFailedEvent(
-            environment_id=environment_id,
-            environment_name=environment_name,
-            environment_type=environment_type,
-            error_message=error_message,
+        event = EnvironmentEvent.setup_failed(
+            environment_id, environment_name, environment_type, error_message
         )
         self.event_manager.notify(event)
 
@@ -156,10 +136,8 @@ class EnvironmentEventEmitter:
             environment_type: Type of environment
             reason: Reason for teardown
         """
-        event = EnvironmentTeardownStartedEvent(
-            environment_id=environment_id,
-            environment_name=environment_name,
-            environment_type=environment_type,
+        event = EnvironmentEvent.teardown_started(
+            environment_id, environment_name, environment_type
         )
         self.event_manager.notify(event)
 
@@ -180,12 +158,12 @@ class EnvironmentEventEmitter:
             duration_seconds: Time taken for teardown in seconds
             cleanup_details: Details about the cleanup
         """
-        event = EnvironmentTeardownCompletedEvent(
-            environment_id=environment_id,
-            environment_name=environment_name,
-            environment_type=environment_type,
-            duration=duration_seconds or 0.0,
-            resources_released=cleanup_details,
+        event = EnvironmentEvent.teardown_completed(
+            environment_id,
+            environment_name,
+            environment_type,
+            duration_seconds or 0.0,
+            cleanup_details,
         )
         self.event_manager.notify(event)
 
@@ -208,11 +186,8 @@ class EnvironmentEventEmitter:
             error_type: Type/category of error
             partial_cleanup: Whether partial cleanup was achieved
         """
-        event = EnvironmentTeardownFailedEvent(
-            environment_id=environment_id,
-            environment_name=environment_name,
-            environment_type=environment_type,
-            error_message=error_message,
+        event = EnvironmentEvent.teardown_failed(
+            environment_id, environment_name, environment_type, error_message
         )
         self.event_manager.notify(event)
 
@@ -231,11 +206,8 @@ class EnvironmentEventEmitter:
             environment_type: Type of environment
             cleanup_summary: Summary of what was cleaned up
         """
-        event = EnvironmentDestroyedEvent(
-            environment_id=environment_id,
-            environment_name=environment_name,
-            environment_type=environment_type,
-            cleanup_duration=0.0,
+        event = EnvironmentEvent.destroyed(
+            environment_id, environment_name, environment_type, 0.0
         )
         self.event_manager.notify(event)
 
@@ -273,13 +245,13 @@ class EnvironmentEventEmitter:
                 },
             )
         else:
-            event = EnvironmentErrorEvent(
-                environment_id=environment_id,
-                environment_name=environment_name,
-                environment_type=environment_type,
-                error_message=error_message,
-                error_type=error_type,
-                error_details=error_details,
+            event = EnvironmentEvent.error(
+                environment_id,
+                environment_name,
+                environment_type,
+                error_message,
+                error_type,
+                error_details,
             )
         self.event_manager.notify(event)
 
@@ -302,13 +274,13 @@ class EnvironmentEventEmitter:
             resource_action: Action performed (created, started, stopped, deleted)
             resource_details: Additional resource details
         """
-        event = EnvironmentResourceEvent(
-            environment_id=environment_id,
-            environment_name=environment_name,
-            environment_type=environment_type,
-            resource_type=resource_type,
-            resource_action=resource_action,
-            resource_details=resource_details,
+        event = EnvironmentEvent.resource(
+            environment_id,
+            environment_name,
+            environment_type,
+            resource_type,
+            resource_action,
+            resource_details,
         )
         self.event_manager.notify(event)
 
@@ -352,14 +324,14 @@ class EnvironmentEventEmitter:
             target_service: Name of the service being modified
             modification_type: Type of modification being applied
         """
-        from .events import EnvironmentModificationStartedEvent
+        from .events import EnvironmentEvent as _EnvironmentEvent
 
-        event = EnvironmentModificationStartedEvent(
-            environment_id=environment_id,
-            environment_name=environment_name,
-            environment_type=environment_type,
-            target_service=target_service,
-            modification_type=modification_type,
+        event = _EnvironmentEvent.modification_started(
+            environment_id,
+            environment_name,
+            environment_type,
+            target_service,
+            modification_type,
         )
         self.event_manager.notify(event)
 
@@ -380,14 +352,14 @@ class EnvironmentEventEmitter:
             modifications: Dictionary of modifications applied
             modification_summary: Human-readable summary of modifications
         """
-        from .events import EnvironmentModificationCompletedEvent
+        from .events import EnvironmentEvent as _EnvironmentEvent
 
-        event = EnvironmentModificationCompletedEvent(
-            environment_id=environment_id,
-            environment_name=environment_name,
-            environment_type=environment_type,
-            modifications=modifications,
-            modification_summary=modification_summary,
+        event = _EnvironmentEvent.modification_completed(
+            environment_id,
+            environment_name,
+            environment_type,
+            modifications,
+            modification_summary,
         )
         self.event_manager.notify(event)
 
@@ -408,14 +380,14 @@ class EnvironmentEventEmitter:
             services: List of services being deployed
             deployment_config: Deployment configuration details
         """
-        from .events import EnvironmentDeploymentStartedEvent
+        from .events import EnvironmentEvent as _EnvironmentEvent
 
-        event = EnvironmentDeploymentStartedEvent(
-            environment_id=environment_id,
-            environment_name=environment_name,
-            environment_type=environment_type,
-            services=services,
-            deployment_config=deployment_config,
+        event = _EnvironmentEvent.deployment_started(
+            environment_id,
+            environment_name,
+            environment_type,
+            services,
+            deployment_config,
         )
         self.event_manager.notify(event)
 
@@ -440,16 +412,16 @@ class EnvironmentEventEmitter:
             duration: Time taken for deployment
             deployment_details: Additional deployment details
         """
-        from .events import EnvironmentDeploymentCompletedEvent
+        from .events import EnvironmentEvent as _EnvironmentEvent
 
-        event = EnvironmentDeploymentCompletedEvent(
-            environment_id=environment_id,
-            environment_name=environment_name,
-            environment_type=environment_type,
-            success=success,
-            deployed_services=deployed_services,
-            duration=duration,
-            deployment_details=deployment_details,
+        event = _EnvironmentEvent.deployment_completed(
+            environment_id,
+            environment_name,
+            environment_type,
+            success,
+            deployed_services,
+            duration,
+            deployment_details,
         )
         self.event_manager.notify(event)
 
@@ -474,16 +446,16 @@ class EnvironmentEventEmitter:
             failed_services: List of services that failed to deploy
             error_details: Additional error details
         """
-        from .events import EnvironmentDeploymentFailedEvent
+        from .events import EnvironmentEvent as _EnvironmentEvent
 
-        event = EnvironmentDeploymentFailedEvent(
-            environment_id=environment_id,
-            environment_name=environment_name,
-            environment_type=environment_type,
-            error_message=error_message,
-            error_type=error_type,
-            failed_services=failed_services,
-            error_details=error_details,
+        event = _EnvironmentEvent.deployment_failed(
+            environment_id,
+            environment_name,
+            environment_type,
+            error_message,
+            error_type,
+            failed_services,
+            error_details,
         )
         self.event_manager.notify(event)
 
@@ -504,12 +476,12 @@ class EnvironmentEventEmitter:
             collection_targets: List of environments being collected from
             collection_config: Configuration for the collection process
         """
-        event = OutputCollectionStartedEvent(
-            environment_id=environment_id,
-            environment_name=environment_name,
-            environment_type=environment_type,
-            collection_targets=collection_targets or [],
-            collection_config=collection_config or {},
+        event = EnvironmentEvent.output_collection_started(
+            environment_id,
+            environment_name,
+            environment_type,
+            collection_targets or [],
+            collection_config or {},
         )
         self.event_manager.notify(event)
 
@@ -534,14 +506,14 @@ class EnvironmentEventEmitter:
             output_size: Size of the output file in bytes
             metadata: Additional metadata about the output
         """
-        event = OutputCollectedEvent(
-            environment_id=environment_id,
-            environment_name=environment_name,
-            environment_type=environment_type,
-            output_type=output_type,
-            output_path=output_path,
-            output_size=output_size,
-            metadata=metadata or {},
+        event = EnvironmentEvent.output_collected(
+            environment_id,
+            environment_name,
+            environment_type,
+            output_type,
+            output_path,
+            output_size,
+            metadata or {},
         )
         self.event_manager.notify(event)
 
@@ -581,13 +553,13 @@ class EnvironmentEventEmitter:
                 "metadata": metadata.get(output_type, {}),
             }
 
-        event = OutputsCollectedEvent(
-            environment_id=environment_id,
-            environment_name=environment_name,
-            environment_type=environment_type,
-            outputs=output_details,
-            total_count=len(outputs),
-            total_size=total_size if total_size > 0 else None,
+        event = EnvironmentEvent.outputs_collected(
+            environment_id,
+            environment_name,
+            environment_type,
+            output_details,
+            len(outputs),
+            total_size if total_size > 0 else None,
         )
         self.event_manager.notify(event)
 
@@ -612,14 +584,14 @@ class EnvironmentEventEmitter:
             collection_duration: Duration of the collection process in seconds
             collection_summary: Summary of the collection process
         """
-        event = OutputCollectionCompletedEvent(
-            environment_id=environment_id,
-            environment_name=environment_name,
-            environment_type=environment_type,
-            outputs=outputs,
-            total_outputs=total_outputs,
-            collection_duration=collection_duration,
-            collection_summary=collection_summary or {},
+        event = EnvironmentEvent.output_collection_completed(
+            environment_id,
+            environment_name,
+            environment_type,
+            outputs,
+            total_outputs,
+            collection_duration,
+            collection_summary or {},
         )
         self.event_manager.notify(event)
 
@@ -642,13 +614,13 @@ class EnvironmentEventEmitter:
             error_type: Type of error that occurred
             error_details: Additional error details
         """
-        # Create a generic EnvironmentErrorEvent for output collection failures
-        event = EnvironmentErrorEvent(
-            environment_id=environment_id,
-            environment_name=environment_name,
-            environment_type=environment_type,
-            error_message=f"Output collection failed: {error_message}",
-            error_type=error_type,
-            error_details=error_details or {},
+        # Create a generic EnvironmentEvent.error for output collection failures
+        event = EnvironmentEvent.error(
+            environment_id,
+            environment_name,
+            environment_type,
+            f"Output collection failed: {error_message}",
+            error_type,
+            error_details or {},
         )
         self.event_manager.notify(event)
