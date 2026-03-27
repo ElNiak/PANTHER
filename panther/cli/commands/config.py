@@ -8,8 +8,6 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import click
-
-logger = logging.getLogger(__name__)
 from termcolor import colored
 
 from panther.cli.core.base import (
@@ -21,6 +19,8 @@ from panther.cli.core.base import (
     success_message,
 )
 from panther.config import ConfigurationManager
+
+logger = logging.getLogger(__name__)
 
 
 def _explain_validation_error(error: Exception) -> str:

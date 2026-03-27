@@ -193,18 +193,20 @@ class LoggerObserver(ITypedObserver):
         if typed_handler is not None:
             try:
                 typed_handler(event)
+                return True
             except Exception as exc:
                 self.logger.error("Typed handler error: %s", exc)
-            return True
+                return False
 
         # Try name-based dispatch for non-subclass events
         handler_name = _handler_name_for(event.entity_type, event.name)
         if handler_name in self._logger_typed_handlers:
             try:
                 getattr(self, handler_name)(event)
+                return True
             except Exception as exc:
                 self.logger.error("Named handler '%s' error: %s", handler_name, exc)
-            return True
+                return False
 
         # Generic path: format and log via EventSummarizer
         self._log_event(event)

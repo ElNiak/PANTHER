@@ -7,8 +7,6 @@ from pathlib import Path
 from typing import Optional
 
 import click
-
-logger = logging.getLogger(__name__)
 from termcolor import colored
 
 from panther.cli.core.base import (
@@ -20,6 +18,8 @@ from panther.cli.core.base import (
     success_message,
     warning_message,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @featured_example("panther create plugin service my_service")

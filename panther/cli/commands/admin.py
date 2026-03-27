@@ -7,8 +7,6 @@ import logging
 from pathlib import Path
 
 import click
-
-logger = logging.getLogger(__name__)
 from termcolor import colored
 
 from panther.cli.core.base import (
@@ -19,6 +17,8 @@ from panther.cli.core.base import (
     pass_context_and_setup_logging,
     success_message,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @featured_example("panther admin status")

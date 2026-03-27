@@ -82,7 +82,8 @@ class EventStreamRecorder(ITypedObserver):
                 fh.flush()
             return True
         except Exception as exc:  # pylint: disable=broad-exception-caught
-            self._file_handle = None  # Reset handle on error
+            with self._lock:
+                self._file_handle = None  # Reset handle on error
             self.logger.warning(
                 "EventStreamRecorder failed to write event %s: %s. Structured log may be incomplete.",
                 getattr(event, "id", "?"),

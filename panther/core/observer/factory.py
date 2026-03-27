@@ -476,7 +476,11 @@ def create_metrics(
         auto_register=auto_register,
         event_types=event_types,
         priority=priority,
-        extra_config={"output_dir": output_dir, "metrics_collector": metrics_collector},
+        extra_config={
+            "output_dir": output_dir,
+            "metrics_collector": metrics_collector,
+            "global_config": global_config,
+        },
         **kwargs,
     )
 
@@ -491,7 +495,9 @@ def create_storage(
     **kwargs,
 ) -> StorageObserver:
     """Create an enhanced storage observer."""
-    extra = {"storage_path": output_dir} if output_dir else {}
+    extra: Dict[str, Any] = {"storage_path": output_dir} if output_dir else {}
+    if global_config is not None:
+        extra["global_config"] = global_config
     return _create_typed_observer(
         "storage",
         "storage",

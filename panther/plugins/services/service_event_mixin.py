@@ -10,6 +10,8 @@ from panther.core.events.test.events import (
     TestFailedEvent,
 )
 
+_logger = logging.getLogger(__name__)
+
 
 def _requires_emitter(func):
     """Skip the method if event_emitter is not set."""
@@ -17,6 +19,12 @@ def _requires_emitter(func):
     @wraps(func)
     def wrapper(self, *args, **kwargs):
         if not (hasattr(self, "event_emitter") and self.event_emitter):
+            if not getattr(self, "_emitter_warned", False):
+                self._emitter_warned = True
+                _logger.warning(
+                    "Event emitter not set on %s; events will be dropped",
+                    type(self).__name__,
+                )
             return
         return func(self, *args, **kwargs)
 
@@ -77,7 +85,13 @@ class ServiceManagerEventMixin:
             event_name: The event method suffix (e.g. "service_started")
             **kwargs: Keyword arguments forwarded to the emit method
         """
-        getattr(self.event_emitter, f"emit_{event_name}")(**kwargs)
+        method = getattr(self.event_emitter, f"emit_{event_name}", None)
+        if method is None:
+            _logger.warning(
+                "Event emitter has no method 'emit_%s'; event dropped", event_name
+            )
+            return
+        method(**kwargs)
 
     # ── notify_service_* methods ────────────────────────────────────
 

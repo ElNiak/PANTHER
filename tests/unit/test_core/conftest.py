@@ -351,20 +351,6 @@ def real_storage_observer(tmp_path):
 
 
 @pytest.fixture
-def real_command_audit_observer(tmp_path):
-    """Create a real CommandAuditObserver writing audit logs to tmp_path.
-
-    The observer tracks command generation events and writes audit
-    trails to the provided output directory.
-    """
-    from panther.core.observer.impl.command_audit_observer import CommandAuditObserver
-
-    audit_dir = tmp_path / "audit"
-    audit_dir.mkdir(parents=True, exist_ok=True)
-    return CommandAuditObserver(output_dir=audit_dir)
-
-
-@pytest.fixture
 def real_experiment_observer(tmp_path):
     """Create a real ExperimentObserver writing logs to tmp_path.
 
@@ -396,18 +382,6 @@ def real_logger_observer(tmp_path):
         log_level="WARNING",
         output_file=str(log_file),
     )
-
-
-@pytest.fixture
-def real_plugin_observer(real_event_manager):
-    """Create a real PluginObserver connected to a real EventManager.
-
-    Tracks plugin registrations, event interest mappings, and
-    subscriber routing. No IO in __init__.
-    """
-    from panther.core.observer.impl.plugin_observer import PluginObserver
-
-    return PluginObserver(event_manager=real_event_manager)
 
 
 # ---------------------------------------------------------------------------
