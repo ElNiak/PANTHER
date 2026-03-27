@@ -1,5 +1,4 @@
-"""
-QUIC Protocol Plugin
+"""QUIC Protocol Plugin.
 
 This plugin defines the QUIC protocol metadata including supported versions,
 capabilities, and configuration schema. Service implementations will
@@ -7,7 +6,9 @@ automatically discover and use the versions defined here.
 """
 
 from panther.plugins.core.plugin_decorators import register_protocol
-from panther.plugins.protocols.protocol_interface import IProtocolManager
+from panther.plugins.protocols.client_server.client_server import (
+    ClientServerProtocolBase,
+)
 
 
 @register_protocol(
@@ -88,9 +89,8 @@ from panther.plugins.protocols.protocol_interface import IProtocolManager
         "alpn_protocols": ["h3", "hq-interop"],
     },
 )
-class QUICProtocol(IProtocolManager):
-    """
-    QUIC Protocol Manager
+class QUICProtocol(ClientServerProtocolBase):
+    """QUIC protocol manager.
 
     This class manages QUIC protocol configurations and provides
     version-specific parameters for QUIC implementations.

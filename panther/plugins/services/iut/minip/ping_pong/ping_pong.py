@@ -17,11 +17,11 @@ from panther.core.utils.string_representation_mixin import StringRepresentationM
 from panther.plugins.core.plugin_decorators import register_plugin
 from panther.plugins.core.structures.plugin_type import PluginType
 from panther.plugins.services.iut.implementation_interface import IImplementationManager
-from panther.plugins.services.iut.iut_event_mixin import IUTManagerEventMixin
 from panther.plugins.services.iut.iut_service_manager_mixin import (
     IUTServiceManagerMixin,
 )
 from panther.plugins.services.iut.minip.ping_pong.config_schema import PingPongConfig
+from panther.plugins.services.service_event_mixin import ServiceManagerEventMixin
 
 if TYPE_CHECKING:
     from panther.plugins.plugin_manager import PluginManager
@@ -41,7 +41,7 @@ if TYPE_CHECKING:
 class PingPongServiceManager(
     IUTServiceManagerMixin,
     ServiceManagerDockerMixin,
-    IUTManagerEventMixin,
+    ServiceManagerEventMixin,
     ErrorHandlerMixin,
     IImplementationManager,
     StringRepresentationMixin,

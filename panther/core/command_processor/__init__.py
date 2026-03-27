@@ -9,7 +9,7 @@ Architecture::
          |
          +--> ShellCommand   (models)
          +--> ServiceCommandBuilder   (builders)
-         +--> CommandEventMixin / CommandModificationMixin   (mixins)
+         +--> CommandEventMixin   (mixins)
          +--> CommandUtils / ShellUtils / CommandSummarizer   (utils)
 
     5-layer design:
@@ -17,7 +17,7 @@ Architecture::
     2. Models        -- ShellCommand, CommandMetadata, shell constants
     3. Builders      -- fluent command construction
     4. Utilities     -- escaping, parsing, combining, summarization
-    5. Mixins        -- event emission, command modification
+    5. Mixins        -- event emission
 
 Key design principles:
     - Injection-safe command construction via ShellCommand validation
@@ -45,10 +45,7 @@ from panther.core.command_processor.core import (
     CommandProcessor,
     IEnvironmentCommandAdapter,
 )
-from panther.core.command_processor.mixins import (
-    CommandEventMixin,
-    CommandModificationMixin,
-)
+from panther.core.command_processor.mixins import CommandEventMixin
 from panther.core.command_processor.models import ShellCommand
 from panther.core.command_processor.utils import CommandUtils
 from panther.core.command_processor.utils.summarizer import CommandSummarizer
@@ -57,7 +54,6 @@ __all__ = [
     "IEnvironmentCommandAdapter",
     "CommandProcessor",
     "CommandEventMixin",
-    "CommandModificationMixin",
     "CommandUtils",
     "ShellCommand",
     "ServiceCommandBuilder",
