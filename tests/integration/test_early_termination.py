@@ -1,13 +1,11 @@
 """Integration tests for early termination feature with non-blocking monitoring."""
 
-import threading
 import time
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from panther.config.core.models.experiment import TestConfig
 from panther.config.core.models.global_config import GlobalConfig
 from panther.core.observer.impl.experiment_observer import ExperimentObserver
 from panther.core.observer.management.event_manager import EventManager
@@ -16,8 +14,10 @@ from panther.plugins.environments.config_schema import EnvironmentConfig
 from panther.plugins.environments.network_environment.base_environment_monitor import (
     ServiceHealthState,
 )
-from panther.plugins.environments.network_environment.docker_compose.docker_compose import (
+from panther.plugins.environments.network_environment.docker_compose.background_service_monitor import (
     BackgroundServiceMonitor,
+)
+from panther.plugins.environments.network_environment.docker_compose.docker_compose import (
     DockerComposeEnvironment,
 )
 
