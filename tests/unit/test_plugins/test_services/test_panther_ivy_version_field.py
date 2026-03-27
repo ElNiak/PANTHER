@@ -1,9 +1,13 @@
 """Test that PantherIvyConfig has a declared version field."""
 
-from panther.plugins.services.testers.panther_ivy.config_schema import (
-    PantherIvyConfig,
-    PantherIvyVersion,
+import pytest
+
+_mod = pytest.importorskip(
+    "panther.plugins.services.testers.panther_ivy.config_schema",
+    reason="panther_ivy submodule not installed",
 )
+PantherIvyConfig = _mod.PantherIvyConfig
+PantherIvyVersion = _mod.PantherIvyVersion
 
 
 class TestPantherIvyVersionField:

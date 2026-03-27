@@ -42,10 +42,10 @@ def _short_module(name: str) -> str:
 
 
 def _build_context_tag() -> str:
-    """Build the ``(phase|service)`` tag from the current LogContext.
+    """Build the ``(phase | service)`` tag from the current LogContext.
 
     Returns:
-        A string like ``"(initialization|picoquic) "`` when both fields
+        A string like ``"(initialization | picoquic) "`` when both fields
         are set, ``"(initialization) "`` when only phase is set, or
         ``""`` when no context is available.
     """

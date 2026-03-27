@@ -73,5 +73,10 @@ try:
         "ExperimentProgress",
         "status_badge",
     ]
-except ImportError:
+except ImportError as exc:
+    import logging as _logging
+
+    _logging.getLogger(__name__).debug(
+        "Webapp components unavailable (optional dependency missing): %s", exc
+    )
     __all__ = []

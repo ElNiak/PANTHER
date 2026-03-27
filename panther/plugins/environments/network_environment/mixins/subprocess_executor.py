@@ -309,7 +309,7 @@ class SubprocessExecutorMixin:
         stdout_handle = open(stdout_file, "w")
         stderr_handle = open(stderr_file, "w")
 
-        self.logger.info(f"Starting background process: {' '.join(command)}")
+        self.logger.info("Starting background process: %s", " ".join(command))
 
         # Start process
         process = subprocess.Popen(
@@ -328,7 +328,7 @@ class SubprocessExecutorMixin:
         # Store file handles for cleanup (if needed)
         process._log_files = (stdout_handle, stderr_handle)
 
-        self.logger.info(f"Background process started with PID: {process.pid}")
+        self.logger.info("Background process started with PID: %s", process.pid)
 
         return process
 

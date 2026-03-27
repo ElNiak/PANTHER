@@ -24,8 +24,12 @@ from typing import Dict, Iterator, Optional, Set
 
 
 def _normalize_dt(dt: datetime) -> datetime:
-    """Strip timezone info for safe comparison."""
-    return dt.replace(tzinfo=None) if dt.tzinfo else dt
+    """Normalize datetime to naive UTC for safe comparison."""
+    if dt.tzinfo is not None:
+        from datetime import timezone
+
+        dt = dt.astimezone(timezone.utc)
+    return dt.replace(tzinfo=None)
 
 
 @dataclass
