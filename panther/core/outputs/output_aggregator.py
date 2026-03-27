@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from panther.core.events.environment.emitter import EnvironmentEventEmitter
 from panther.core.outputs.output_collector import IOutputCollector
+from panther.core.outputs.output_index import OutputIndexBuilder
 
 
 class OutputAggregator:
@@ -52,16 +53,22 @@ class OutputAggregator:
     """
 
     def __init__(
-        self, experiment_dir: Path, environment_emitter: EnvironmentEventEmitter
+        self,
+        experiment_dir: Path,
+        environment_emitter: EnvironmentEventEmitter,
+        output_index_builder: Optional[OutputIndexBuilder] = None,
     ):
         """Initialize the OutputAggregator.
 
         Args:
-            experiment_dir: Directory where experiment outputs are stored
-            environment_emitter: Event emitter for environment events
+            experiment_dir: Directory where experiment outputs are stored.
+            environment_emitter: Event emitter for environment events.
+            output_index_builder: Optional index builder to register collected
+                files for the output manifest.
         """
         self.experiment_dir = Path(experiment_dir)
         self.environment_emitter = environment_emitter
+        self.output_index_builder = output_index_builder
         self.logger = logging.getLogger(__name__)
 
         self.outputs_dir = self.experiment_dir / "outputs"
@@ -131,6 +138,15 @@ class OutputAggregator:
                     if outputs:
                         collected_outputs[env_type] = outputs
                         total_outputs += len(outputs)
+
+                        # Register each collected file in the output index
+                        if self.output_index_builder is not None:
+                            for output_name, output_path in outputs.items():
+                                self.output_index_builder.register(
+                                    output_path,
+                                    service_id=env_type,
+                                    description=f"{output_name} from {env_type}",
+                                )
 
                         # Emit batch outputs collected event
                         self.environment_emitter.emit_outputs_collected(

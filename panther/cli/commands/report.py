@@ -2,8 +2,10 @@
 
 Manage experiment reports with generation, viewing, and listing capabilities.
 Wraps the reporting subsystem (ExperimentReporter, StatusCollector) for CLI use.
+Includes timeline and artifact browsing subcommands.
 """
 
+import json
 from datetime import datetime
 from pathlib import Path
 from typing import List, Tuple
@@ -304,6 +306,318 @@ def show(_ctx, experiment_dir):
     _display_resources(exp_summary)
 
     _success("Report displayed")
+
+
+# -- timeline helpers --
+
+
+def _parse_time(value: str) -> datetime:
+    """Parse a time string into a datetime.
+
+    Accepts ISO-8601 format (e.g. ``2025-01-15T10:00:00+00:00``) as well
+    as a bare time like ``10:00:00`` (interpreted as today, UTC).
+
+    Args:
+        value: Time string to parse.
+
+    Returns:
+        Parsed datetime.
+
+    Raises:
+        click.BadParameter: If the string cannot be parsed.
+    """
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        pass
+    try:
+        from datetime import timezone
+
+        t = datetime.strptime(value, "%H:%M:%S").time()
+        return datetime.combine(
+            datetime.now(timezone.utc).date(), t, tzinfo=timezone.utc
+        )
+    except ValueError:
+        raise click.BadParameter(f"Cannot parse time: {value!r}")
+
+
+@report.command("timeline")
+@click.argument("experiment_dir", type=click.Path(exists=True))
+@click.option("--test", "test_id", default=None, help="Filter by test_id")
+@click.option("--service", "service_id", default=None, help="Filter by service_id")
+@click.option(
+    "--after",
+    "after_str",
+    default=None,
+    help="Include entries at or after this time (ISO-8601)",
+)
+@click.option(
+    "--before",
+    "before_str",
+    default=None,
+    help="Include entries strictly before this time (ISO-8601)",
+)
+@click.option(
+    "--limit",
+    default=50,
+    type=int,
+    show_default=True,
+    help="Maximum entries to display",
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output as JSON (default)",
+)
+@click.option(
+    "--human",
+    "output_human",
+    is_flag=True,
+    default=False,
+    help="Output as human-readable swimlane",
+)
+@handle_errors
+@pass_context_and_setup_logging
+def timeline(
+    _ctx,
+    experiment_dir,
+    test_id,
+    service_id,
+    after_str,
+    before_str,
+    limit,
+    output_json,
+    output_human,
+):
+    r"""Display a chronological timeline of log entries.
+
+    Reads structured.jsonl files from the experiment directory, sorts
+    entries by timestamp, and groups them by service for swimlane display.
+
+    \b
+    Examples:
+      panther report timeline outputs/2024-01-01/exp1
+      panther report timeline outputs/2024-01-01/exp1 --human --service picoquic
+      panther report timeline outputs/2024-01-01/exp1 --after 10:00:00 --limit 20
+    """
+    from panther.core.reporting.timeline_renderer import TimelineRenderer
+
+    after = _parse_time(after_str) if after_str else None
+    before = _parse_time(before_str) if before_str else None
+
+    renderer = TimelineRenderer(Path(experiment_dir))
+
+    if output_human:
+        text = renderer.render_human(
+            test=test_id,
+            service=service_id,
+            after=after,
+            before=before,
+            limit=limit,
+        )
+        click.echo(text)
+    else:
+        entries = renderer.render_json(
+            test=test_id,
+            service=service_id,
+            after=after,
+            before=before,
+            limit=limit,
+        )
+        click.echo(json.dumps(entries, indent=2, default=str))
+
+
+# -- artifacts helpers --
+
+
+def _format_artifacts_human(artifacts: List[dict]) -> str:
+    """Format artifact list as a human-readable table.
+
+    Args:
+        artifacts: List of artifact metadata dicts.
+
+    Returns:
+        Formatted table string.
+    """
+    if not artifacts:
+        return "(no matching artifacts)"
+
+    # Compute column widths
+    max_path = max(len(a.get("path", "")) for a in artifacts)
+    max_path = min(max_path, 60)  # Cap path width
+    max_type = max(len(a.get("type", "")) for a in artifacts)
+
+    lines = []
+    header = (
+        f"  {'Path':<{max_path}}  {'Type':<{max_type}}  {'Format':<8}  {'Size':>10}"
+    )
+    lines.append(header)
+    lines.append(f"  {'-' * max_path}  {'-' * max_type}  {'-' * 8}  {'-' * 10}")
+
+    for a in artifacts:
+        path = a.get("path", "")
+        if len(path) > max_path:
+            path = "..." + path[-(max_path - 3) :]
+        size = a.get("size_bytes", 0)
+        if size >= 1024 * 1024:
+            size_str = f"{size / (1024 * 1024):.1f} MB"
+        elif size >= 1024:
+            size_str = f"{size / 1024:.1f} KB"
+        else:
+            size_str = f"{size} B"
+        lines.append(
+            f"  {path:<{max_path}}  "
+            f"{a.get('type', ''):<{max_type}}  "
+            f"{a.get('format', ''):<8}  "
+            f"{size_str:>10}"
+        )
+
+    return "\n".join(lines)
+
+
+@report.command("artifacts")
+@click.argument("experiment_dir", type=click.Path(exists=True))
+@click.option("--test", "test_id", default=None, help="Filter by test_id")
+@click.option("--service", "service_id", default=None, help="Filter by service_id")
+@click.option(
+    "--type",
+    "artifact_type",
+    default=None,
+    help="Filter by artifact type (pcap, qlog, log, etc.)",
+)
+@click.option("--phase", default=None, help="Filter by execution phase")
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output as JSON (default)",
+)
+@click.option(
+    "--human",
+    "output_human",
+    is_flag=True,
+    default=False,
+    help="Output as human-readable table",
+)
+@handle_errors
+@pass_context_and_setup_logging
+def artifacts(
+    _ctx,
+    experiment_dir,
+    test_id,
+    service_id,
+    artifact_type,
+    phase,
+    output_json,
+    output_human,
+):
+    r"""Browse artifacts from an experiment output directory.
+
+    Lists output files (logs, pcaps, qlogs, reports, etc.) from the
+    experiment directory. Reads output_index.json when available, falls
+    back to directory walking otherwise.
+
+    \b
+    Examples:
+      panther report artifacts outputs/2024-01-01/exp1
+      panther report artifacts outputs/2024-01-01/exp1 --human
+      panther report artifacts outputs/2024-01-01/exp1 --type artifact --service picoquic
+    """
+    from panther.core.reporting.artifact_browser import ArtifactBrowser
+
+    browser = ArtifactBrowser(Path(experiment_dir))
+    results = browser.list_artifacts(
+        test_id=test_id,
+        service_id=service_id,
+        artifact_type=artifact_type,
+        phase=phase,
+    )
+
+    if output_human:
+        click.echo(_format_artifacts_human(results))
+        click.echo()
+        _success(f"Found {len(results)} artifact(s)")
+    else:
+        click.echo(json.dumps(results, indent=2, default=str))
+
+
+@report.command("diagnose")
+@click.argument("experiment_dir", type=click.Path(exists=True))
+@click.option(
+    "--format",
+    "fmt",
+    type=click.Choice(["human", "json"]),
+    default="human",
+    help="Output format (default: human)",
+)
+@handle_errors
+@pass_context_and_setup_logging
+def diagnose(_ctx, experiment_dir, fmt):
+    r"""Root cause analysis for a failed experiment.
+
+    Scans structured.jsonl for errors, matches against known failure
+    patterns, and reports ranked root causes with log excerpts and
+    actionable suggestions.
+
+    \b
+    Examples:
+      panther report diagnose outputs/2024-01-01/exp1
+      panther report diagnose outputs/2024-01-01/exp1 --format json
+    """
+    from panther.core.reporting.root_cause_analyzer import RootCauseAnalyzer
+
+    exp_path = Path(experiment_dir)
+    analyzer = RootCauseAnalyzer(exp_path)
+    causes = analyzer.analyze()
+
+    if not causes:
+        _info("No errors found -- nothing to diagnose.")
+        return
+
+    if fmt == "json":
+        output = json.dumps([c.to_dict() for c in causes], indent=2, ensure_ascii=False)
+        click.echo(output)
+        return
+
+    # Human-readable output
+    click.echo(colored("Root Cause Analysis", "blue", attrs=["bold"]))
+    click.echo(colored("=" * 60, "blue"))
+    click.echo()
+
+    for cause in causes:
+        # Rank header
+        conf_pct = f"{cause.confidence:.0%}"
+        click.echo(
+            colored(
+                f"  #{cause.rank}  {cause.pattern_name}  (confidence: {conf_pct})",
+                "yellow",
+                attrs=["bold"],
+            )
+        )
+        click.echo(f"    Category:   {cause.category}")
+
+        msg = cause.event.get("message", "")
+        if msg:
+            click.echo(f"    Trigger:    {msg}")
+
+        svc = cause.event.get("service_id", "")
+        if svc:
+            click.echo(f"    Service:    {svc}")
+
+        if cause.suggestion:
+            click.echo(colored(f"    Suggestion: {cause.suggestion}", "green"))
+
+        if cause.log_excerpt:
+            click.echo(colored("    Log excerpt:", "cyan"))
+            for line in cause.log_excerpt:
+                click.echo(f"      {line}")
+
+        click.echo()
+
+    _success(f"Found {len(causes)} root cause(s)")
 
 
 if __name__ == "__main__":
