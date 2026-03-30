@@ -10,8 +10,7 @@ from panther.plugins.services.services_interface import IServiceManager
 
 
 class BaseHTTPServiceManager(IServiceManager, StringRepresentationMixin, ABC):
-    """
-    Base class for HTTP protocol implementations.
+    """Base class for HTTP protocol implementations.
 
     This class provides common functionality for HTTP service implementations,
     reducing code duplication across different HTTP service managers.

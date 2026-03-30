@@ -236,8 +236,8 @@ class PlatformDetectionMixin:
 
         except (OSError, UnicodeDecodeError) as e:
             self.logger.error(f"Error reading Dockerfile {dockerfile_path}: {e}")
-            # If we can't read the file, assume it doesn't need BuildKit
-            return False
+            # If we can't read the file, assume it MAY need BuildKit (safer fallback)
+            return True
 
     def validate_build_mode_for_architecture(self, build_mode: str) -> str:
         """Validate BUILD_MODE compatibility with host architecture.

@@ -1,11 +1,10 @@
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type
-
 """Mixin for standardized error handling and recovery."""
 
 import re
 import subprocess
 import traceback
 from functools import wraps
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type
 
 from panther.core.exceptions.fast_fail import (
     CertificateException,
@@ -25,9 +24,7 @@ from panther.core.exceptions.fast_fail import (
 
 
 class ErrorHandlerMixin:
-    """
-
-    Mixin providing standardized error handling and recovery mechanisms.
+    """Mixin providing standardized error handling and recovery mechanisms.
 
     This mixin eliminates duplicated error handling patterns across network environments.
     """
@@ -38,8 +35,7 @@ class ErrorHandlerMixin:
         cleanup_func: Optional[Callable] = None,
         context: str = "deployment",
     ) -> None:
-        """
-        Handle deployment errors with consistent logging and optional cleanup.
+        """Handle deployment errors with consistent logging and optional cleanup.
 
         Args:
             error: The exception that occurred
@@ -69,8 +65,7 @@ class ErrorHandlerMixin:
                 self.logger.error(f"Cleanup failed: {cleanup_error}")
 
     def safe_cleanup(self, *cleanup_functions: Callable) -> None:
-        """
-        Execute multiple cleanup functions safely without raising exceptions.
+        """Execute multiple cleanup functions safely without raising exceptions.
 
         Args:
             *cleanup_functions: Variable number of cleanup functions to execute
@@ -85,8 +80,7 @@ class ErrorHandlerMixin:
                 # Continue with other cleanup functions
 
     def with_error_handling(self, operation: str, cleanup_on_error: bool = True):
-        """
-        Decorator for methods that need consistent error handling.
+        """Decorator for methods that need consistent error handling.
 
         Args:
             operation: Description of the operation being performed
@@ -114,8 +108,7 @@ class ErrorHandlerMixin:
         return decorator
 
     def safe_docker_cleanup(self, container_name: str) -> None:
-        """
-        Safely clean up Docker containers and images.
+        """Safely clean up Docker containers and images.
 
         Args:
             container_name: Name of the container to clean up
@@ -139,8 +132,7 @@ class ErrorHandlerMixin:
                 # Continue with next cleanup command
 
     def safe_process_cleanup(self, processes: List[subprocess.Popen]) -> None:
-        """
-        Safely terminate a list of processes.
+        """Safely terminate a list of processes.
 
         Args:
             processes: List of Popen objects to terminate
@@ -178,8 +170,7 @@ class ErrorHandlerMixin:
         delay: int = 5,
         context: str = "operation",
     ) -> Any:
-        """
-        Retry a function on specified exceptions.
+        """Retry a function on specified exceptions.
 
         Args:
             func: Function to execute
@@ -217,8 +208,7 @@ class ErrorHandlerMixin:
         raise last_exception
 
     def ensure_cleanup_on_exit(self, cleanup_func: Callable) -> None:
-        """
-        Register a cleanup function to be called on exit.
+        """Register a cleanup function to be called on exit.
 
         Args:
             cleanup_func: Function to call on exit
@@ -387,8 +377,7 @@ class ErrorClassifier:
         command: Optional[str] = None,
         returncode: Optional[int] = None,
     ) -> Optional[PantherException]:
-        """
-        Classify an error message and return appropriate PantherException.
+        """Classify an error message and return appropriate PantherException.
 
         Args:
             error_message: The error message to classify
@@ -536,8 +525,7 @@ class ErrorClassifier:
         error: subprocess.CalledProcessError,
         context: Optional[Dict[str, Any]] = None,
     ) -> PantherException:
-        """
-        Classify a subprocess.CalledProcessError into appropriate PantherException.
+        """Classify a subprocess.CalledProcessError into appropriate PantherException.
 
         Args:
             error: The subprocess error

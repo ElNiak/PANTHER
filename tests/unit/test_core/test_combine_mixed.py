@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""
-Test script to verify how _combine_shell_constructs handles mixed shell constructs and regular commands.
-"""
+"""Test script to verify how _combine_shell_constructs handles mixed shell constructs and regular commands."""
 import logging
 import os
 

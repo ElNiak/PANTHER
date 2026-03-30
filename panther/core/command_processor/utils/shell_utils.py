@@ -1,4 +1,4 @@
-"""Shell command utility functions.
+r"""Shell command utility functions.
 
 Low-level functions for escaping, parsing, normalizing, splitting, and
 combining shell command strings.  These are used internally by
@@ -48,8 +48,7 @@ if TYPE_CHECKING:
 
 
 def escape_shell_command(cmd: str) -> str:
-    """
-    Properly escape a shell command using Python's built-in tools.
+    """Properly escape a shell command using Python's built-in tools.
 
     This function handles escaping for different contexts:
     - For single-line commands, it properly quotes the entire command
@@ -168,8 +167,7 @@ def _escape_simple_command(cmd: str) -> str:
 
 
 def escape_shell_command_without_redirections(cmd: str) -> str:
-    """
-    Escape a shell command after redirections have been removed.
+    """Escape a shell command after redirections have been removed.
 
     Args:
         cmd: Command string without redirections
@@ -232,8 +230,7 @@ def escape_shell_command_without_redirections(cmd: str) -> str:
 
 
 def parse_command_with_redirections(cmd: str) -> Tuple[str, List[Tuple[str, str]]]:
-    """
-    Parse a command and extract redirection operators.
+    """Parse a command and extract redirection operators.
 
     Args:
         cmd: Command string potentially containing redirections
@@ -263,8 +260,7 @@ def parse_command_with_redirections(cmd: str) -> Tuple[str, List[Tuple[str, str]
 def reconstruct_command_with_redirections(
     cmd: str, redirections: List[Tuple[str, str]]
 ) -> str:
-    """
-    Reconstruct a command with its redirections.
+    """Reconstruct a command with its redirections.
 
     Args:
         cmd: Base command without redirections
@@ -300,8 +296,7 @@ def reconstruct_command_with_redirections(
 
 
 def validate_redirection_syntax(cmd: str) -> bool:
-    """
-    Validate that redirection syntax in a command is correct.
+    """Validate that redirection syntax in a command is correct.
 
     Common issues this catches:
     - Missing > in redirections (e.g., "2/dev/null" should be "2>/dev/null")
@@ -330,8 +325,7 @@ def validate_redirection_syntax(cmd: str) -> bool:
 
 
 def normalize_command_ending(cmd: str) -> str:
-    """
-    Normalize command endings to ensure consistent behavior.
+    """Normalize command endings to ensure consistent behavior.
 
     This function handles:
     - Commands ending with && (removes it)
@@ -356,8 +350,7 @@ def normalize_command_ending(cmd: str) -> str:
 
 
 def split_complex_command(cmd: str) -> List[str]:
-    """
-    Split a complex command into individual commands.
+    """Split a complex command into individual commands.
 
     Handles:
     - Commands separated by &&
@@ -412,8 +405,7 @@ def split_complex_command(cmd: str) -> List[str]:
 
 
 def combine_shell_constructs(command_list):
-    """
-    Combine consecutive elements in a command list that form a single shell construct.
+    r"""Combine consecutive elements in a command list that form a single shell construct.
 
     This function detects shell constructs like loops, functions, and conditional blocks
     that are split across multiple list elements and combines them into a single

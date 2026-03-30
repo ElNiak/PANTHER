@@ -21,7 +21,6 @@ from panther.config.core.models.global_config import GlobalConfig
 from panther.config.core.models.service import ImplementationConfig
 from panther.core.docker_builder import DockerBuilder
 from panther.core.exceptions.fast_fail import FastFailHandler
-from panther.core.observer.impl.plugin_observer import PluginObserver
 from panther.core.observer.management.event_manager import EventManager
 from panther.core.utils.logging_mixin import LoggerMixin
 from panther.plugins.core.plugin_catalog import PluginCatalog
@@ -177,7 +176,6 @@ class PluginManager(LoggerMixin):
         self._last_discovery_time = 0
 
         # Event system setup
-        self.plugin_observer = None
         self.plugin_event_emitter = None
         if self.event_manager:
             self._setup_event_system()
@@ -249,13 +247,8 @@ class PluginManager(LoggerMixin):
     def _setup_event_system(self) -> None:
         """Set up the event system for plugin management."""
         try:
-            # Import event emitter
             from panther.core.events.plugin.emitter import PluginEventEmitter
 
-            # Create plugin observer
-            self.plugin_observer = PluginObserver(event_manager=self.event_manager)
-
-            # Create plugin event emitter
             self.plugin_event_emitter = PluginEventEmitter(self.event_manager)
 
             self.logger.debug("Plugin event system initialized successfully")
@@ -476,7 +469,7 @@ class PluginManager(LoggerMixin):
         self._last_discovery_time = time.time() - start_time
 
         self.logger.info(
-            "Discovered %d plugins in %.2fs",
+            "Completed fresh plugin discovery: %d plugins in %.2fs",
             len(discovered_plugins),
             self._last_discovery_time,
         )

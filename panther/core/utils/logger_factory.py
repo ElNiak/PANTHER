@@ -1,56 +1,13 @@
-"""Centralized logger factory system for PANTHER framework with sophisticated feature-aware logging.
+"""Centralized logger factory for PANTHER framework.
 
-This module implements a comprehensive logging infrastructure that provides centralized logger
-creation and configuration, ensuring consistent formatting, feature-aware log level management,
-and advanced log statistics collection across the entire PANTHER testing framework.
+Provides consistent logger creation with feature-aware log level management,
+color terminal support, and optional statistics collection.
 
-**Key Architecture Features**:
-- **Centralized Configuration**: Single point of configuration for all framework loggers
-- **Feature-Aware Logging**: Dynamic log levels based on component features and functionality
-- **Color Support**: Rich colored output with fallback for non-supporting terminals
-- **Statistics Collection**: Real-time log analysis and performance monitoring
-- **Auto-Detection**: Intelligent feature detection from logger names and patterns
-- **Handler Management**: Sophisticated console and file handler coordination
-
-**Design Patterns**:
-- **Factory Pattern**: Centralized logger creation with consistent configuration
-- **Singleton Pattern**: Global configuration state with thread-safe initialization
-- **Strategy Pattern**: Pluggable formatters and handlers based on capabilities
-- **Observer Pattern**: Statistics collection via logging handler interception
-
-**Feature Mapping System**:
-```
-Feature Categories:
-├── Core Components (command_generation, template_rendering, docker_operations)
-├── Service Management (service_managers, ivy_operations, quic_services)
-├── Environment Management (network_environments, execution_environment)
-├── Event System (event_emission, event_processing, state_management)
-├── Protocol Operations (certificate_management, network_setup, port_management)
-├── Data & Metrics (metrics_collection, data_storage, result_processing)
-└── Development & Debugging (test_execution, experiment_workflow, error_handling)
-```
-
-**Log Level Hierarchy**:
-- **TRACE**: Detailed execution flow for deep debugging
-- **DEBUG**: Development debugging and internal state information
-- **INFO**: General operational information and progress updates
-- **WARNING**: Recoverable issues and potential problems
-- **ERROR**: Error conditions that don't prevent operation
-- **CRITICAL**: Fatal errors requiring immediate attention
-
-**Performance Characteristics**:
-- **Logger Creation**: <1ms overhead for logger instantiation
-- **Feature Detection**: O(1) lookup via cached mappings
-- **Statistics Collection**: <5% performance impact when enabled
-- **Memory Usage**: Bounded handler cache with automatic cleanup
-- **File I/O**: Asynchronous file writing with configurable buffering
-
-**Integration Features**:
-- **Automatic Initialization**: Self-configuring defaults for early components
-- **Runtime Updates**: Dynamic log level changes without restart
-- **Plugin Support**: Feature detection for dynamically loaded plugins
-- **Export Capabilities**: JSON, CSV, and text format statistics export
-- **Handler Coordination**: Separate console and file handler level management
+Design patterns:
+    - **Factory Pattern**: Centralized logger creation with consistent configuration
+    - **Singleton Pattern**: Global configuration state; initialize before spawning threads
+    - **Strategy Pattern**: Pluggable formatters and handlers based on capabilities
+    - **Observer Pattern**: Statistics collection via logging handler interception
 """
 
 import contextlib
@@ -60,7 +17,9 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from .console_formatter import ConsoleFormatter
 from .feature_registry import feature_registry
+from .jsonl_writer import JsonlLogHandler, JsonlWriter
 from .structured_formatter import StructuredJsonFormatter
 
 
@@ -98,12 +57,27 @@ class LoggerFactory:
         >>> LoggerFactory.update_feature_level("event_system", "DEBUG")
     """
 
+    _DEBUG_FACTORY: bool = False
     _initialized = False
     _root_logger_configured = False
     _config: Dict[str, Any] = {}
     _handler_cache: Dict[str, logging.Handler] = {}
     _feature_levels: Dict[str, Any] = {}
-    _structured_log_file: Optional[str] = None
+    _verbose: bool = False
+    _jsonl_writer: Optional[JsonlWriter] = None
+
+    # Logger names that get extra debug output when _DEBUG_FACTORY is True
+    _DEBUG_LOGGERS: frozenset = frozenset(
+        [
+            "event_manager",
+            "plugin_catalog",
+            "plugin_discovery",
+            "docker_cache_mixin",
+            "docker_builder",
+            "docker_registry",
+            "EventManager",
+        ]
+    )
 
     # Feature to logger name mapping for intelligent routing
     FEATURE_MAPPINGS = {
@@ -178,7 +152,6 @@ class LoggerFactory:
             cls.initialize(
                 {
                     "level": "ERROR",  # Default to ERROR level for early loggers
-                    "format": "%(asctime)s [%(levelname)s] - %(module)s - %(message)s",
                     "enable_colors": True,
                 }
             )
@@ -190,7 +163,6 @@ class LoggerFactory:
         Args:
             config: Logging configuration dictionary containing:
                 - level: Logging level (DEBUG, INFO, etc.)
-                - format: Log message format string
                 - enable_colors: Whether to enable colored output
                 - output_file: Optional log file path
                 - feature_levels: Optional feature-specific logging levels
@@ -220,13 +192,20 @@ class LoggerFactory:
         feature_levels = {}
 
         # Debug logging to track feature levels extraction
-        logging.debug(f"_extract_feature_levels called with: {type(feature_config)}")
-        if hasattr(feature_config, "__dict__"):
+        if cls._DEBUG_FACTORY:
             logging.debug(
-                f"feature_config attributes: {list(feature_config.__dict__.keys())[:5]}..."
+                "_extract_feature_levels called with: %s", type(feature_config)
             )
-        elif isinstance(feature_config, dict):
-            logging.debug(f"feature_config keys: {list(feature_config.keys())[:5]}...")
+            if hasattr(feature_config, "__dict__"):
+                logging.debug(
+                    "feature_config attributes: %s...",
+                    list(feature_config.__dict__.keys())[:5],
+                )
+            elif isinstance(feature_config, dict):
+                logging.debug(
+                    "feature_config keys: %s...",
+                    list(feature_config.keys())[:5],
+                )
 
         # Handle different config formats (dict or dataclass)
         if hasattr(feature_config, "__dict__"):
@@ -276,48 +255,42 @@ class LoggerFactory:
         root_logger.addHandler(console_handler)
 
         # Structured JSONL file handler (replaces old text file handler)
-        structured_path = cls._structured_log_file or cls._config.get("output_file")
+        structured_path = cls._config.get("output_file")
         if structured_path:
+            cls._jsonl_writer = JsonlWriter(Path(structured_path))
             structured_formatter = StructuredJsonFormatter()
-            file_handler = cls._get_or_create_handler(
-                "file", logging.FileHandler(structured_path, mode="a")
+            jsonl_handler = cls._get_or_create_handler(
+                "file", JsonlLogHandler(cls._jsonl_writer)
             )
-            file_handler.setLevel(logging.DEBUG)
-            file_handler.setFormatter(structured_formatter)
-            root_logger.addHandler(file_handler)
+            jsonl_handler.setLevel(logging.DEBUG)
+            jsonl_handler.setFormatter(structured_formatter)
+            root_logger.addHandler(jsonl_handler)
 
         cls._root_logger_configured = True
 
+    # Color mapping shared between console formatter creation paths
+    _LOG_COLORS = {
+        "TRACE": "blue",
+        "DEBUG": "cyan",
+        "INFO": "green",
+        "WARNING": "yellow",
+        "ERROR": "red",
+        "CRITICAL": "red,bg_white",
+    }
+
     @classmethod
     def _create_formatter(cls) -> logging.Formatter:
-        """Create a formatter based on configuration."""
-        format_string = cls._config.get(
-            "format", "%(asctime)s [%(levelname)s] - %(module)s - %(message)s"
+        """Create a console formatter with optional color and context support.
+
+        Returns a ``ConsoleFormatter`` that shows short timestamps, phase/service
+        context from ``LogContext``, and abbreviated module names.  When
+        ``enable_colors`` is true, the formatter delegates to
+        ``colorlog.ColoredFormatter`` internally.
+        """
+        log_colors = (
+            cls._LOG_COLORS if cls._config.get("enable_colors", False) else None
         )
-
-        if cls._config.get("enable_colors", False):
-            with contextlib.suppress(ImportError):
-                import colorlog
-
-                # Use colorlog exactly like the original ExperimentManager did
-                color_format = format_string.replace(
-                    "%(levelname)s", "%(log_color)s%(levelname)s"
-                )
-                return colorlog.ColoredFormatter(
-                    color_format,
-                    datefmt="%Y-%m-%d %H:%M:%S",
-                    log_colors={
-                        "TRACE": "blue",
-                        "DEBUG": "cyan",
-                        "INFO": "green",
-                        "WARNING": "yellow",
-                        "ERROR": "red",
-                        "CRITICAL": "red,bg_white",
-                    },
-                    reset=True,
-                    # style='%'
-                )
-        return logging.Formatter(format_string, datefmt="%Y-%m-%d %H:%M:%S")
+        return ConsoleFormatter(log_colors=log_colors)
 
     @classmethod
     def _patch_logging_getlogger(cls) -> None:
@@ -346,6 +319,16 @@ class LoggerFactory:
         if name not in cls._handler_cache:
             cls._handler_cache[name] = handler
         return cls._handler_cache[name]
+
+    @classmethod
+    def get_jsonl_writer(cls) -> Optional[JsonlWriter]:
+        """Return the centralized :class:`JsonlWriter`, or ``None`` if not configured.
+
+        Other components (MetricsCollector, EventStreamRecorder) should
+        use this writer instead of opening the structured JSONL file
+        independently.
+        """
+        return cls._jsonl_writer
 
     @classmethod
     def get_logger(cls, name: str, feature: Optional[str] = None) -> logging.Logger:
@@ -399,14 +382,15 @@ class LoggerFactory:
         console_handler.setFormatter(formatter)
         logger.addHandler(console_handler)
 
-        # Add structured JSONL file handler if output_file is configured
-        structured_path = cls._structured_log_file or cls._config.get("output_file")
-        if structured_path:
+        # Add structured JSONL handler if the centralized writer is available
+        if cls._jsonl_writer is not None:
             structured_formatter = StructuredJsonFormatter()
-            file_handler = logging.FileHandler(structured_path, mode="a")
-            file_handler.setLevel(logging.DEBUG)
-            file_handler.setFormatter(structured_formatter)
-            logger.addHandler(file_handler)
+            jsonl_handler = JsonlLogHandler(cls._jsonl_writer)
+            jsonl_handler.setLevel(
+                logging.DEBUG
+            )  # Always capture everything for post-mortem
+            jsonl_handler.setFormatter(structured_formatter)
+            logger.addHandler(jsonl_handler)
 
         # Store detected feature on the logger and inject it into every record
         # via a filter so StructuredJsonFormatter can access it
@@ -425,21 +409,14 @@ class LoggerFactory:
         cls, logger_name: str, feature: Optional[str] = None
     ) -> int:
         """Get the effective logging level for a logger, considering feature mappings."""
-        # Debug for problematic loggers (use actual logger names from log output)
-        problematic_loggers = [
-            "event_manager",
-            "plugin_catalog",
-            "plugin_discovery",
-            "docker_cache_mixin",
-            "docker_builder",
-            "docker_registry",
-            "EventManager",
-        ]
-        if logger_name in problematic_loggers:
-            logging.debug(f"_get_effective_level for {logger_name}, feature={feature}")
-            logging.debug(
-                f"Available feature_levels: {len(cls._feature_levels)} features"
-            )
+        if cls._DEBUG_FACTORY:
+            if logger_name in cls._DEBUG_LOGGERS:
+                logging.debug(
+                    "_get_effective_level for %s, feature=%s", logger_name, feature
+                )
+                logging.debug(
+                    "Available feature_levels: %d features", len(cls._feature_levels)
+                )
 
         # If explicit feature is provided and configured, use it
         if feature and feature in cls._feature_levels:
@@ -451,18 +428,20 @@ class LoggerFactory:
         if detected_feature and detected_feature in cls._feature_levels:
             level_name = cls._feature_levels[detected_feature].upper()
 
-            if logger_name in problematic_loggers:
-                logging.debug(f"{logger_name} -> {detected_feature} -> {level_name}")
+            if cls._DEBUG_FACTORY and logger_name in cls._DEBUG_LOGGERS:
+                logging.debug(
+                    "%s -> %s -> %s", logger_name, detected_feature, level_name
+                )
 
             # Handle TRACE level specially
             return TRACE if level_name == "TRACE" else getattr(logging, level_name)
         else:
-            if logger_name in problematic_loggers:
+            if cls._DEBUG_FACTORY and logger_name in cls._DEBUG_LOGGERS:
                 logging.debug(
-                    f"{logger_name} -> {detected_feature} (not in feature_levels)"
+                    "%s -> %s (not in feature_levels)", logger_name, detected_feature
                 )
                 logging.debug(
-                    f"Available features: {list(cls._feature_levels.keys())[:5]}..."
+                    "Available features: %s...", list(cls._feature_levels.keys())[:5]
                 )
 
         # Fall back to default level
@@ -553,18 +532,27 @@ class LoggerFactory:
         if not cls._initialized:
             return
 
-        logging.debug(
-            f"update_all_feature_levels called with {len(feature_levels_dict)} features"
-        )
-        logging.debug(
-            f"Existing loggers count: {len(logging.Logger.manager.loggerDict)}"
-        )
-        logging.debug(
-            f"Sample features being set: {list(list(feature_levels_dict.items())[:3])}"
-        )
-        logging.debug(
-            f"Current feature_levels before update: {list(list(cls._feature_levels.items())[:3]) if cls._feature_levels else 'empty'}"
-        )
+        if cls._DEBUG_FACTORY:
+            logging.debug(
+                "update_all_feature_levels called with %d features",
+                len(feature_levels_dict),
+            )
+            logging.debug(
+                "Existing loggers count: %d",
+                len(logging.Logger.manager.loggerDict),
+            )
+            logging.debug(
+                "Sample features being set: %s",
+                list(feature_levels_dict.items())[:3],
+            )
+            logging.debug(
+                "Current feature_levels before update: %s",
+                (
+                    list(cls._feature_levels.items())[:3]
+                    if cls._feature_levels
+                    else "empty"
+                ),
+            )
 
         # Update the internal feature levels dictionary
         cls._feature_levels.update(
@@ -574,16 +562,6 @@ class LoggerFactory:
         # Update all existing loggers that have been configured by us
         updated_count = 0
         skipped_count = 0
-        problematic_loggers = [
-            "event_manager",
-            "plugin_catalog",
-            "plugin_discovery",
-            "docker_cache_mixin",
-            "docker_builder",
-            "docker_registry",
-            "EventManager",
-        ]
-
         for logger_name in logging.Logger.manager.loggerDict:
             logger = logging.getLogger(logger_name)
             if hasattr(logger, "_panther_configured"):
@@ -606,18 +584,63 @@ class LoggerFactory:
                             handler.setLevel(new_level)
                     updated_count += 1
 
-                    if logger_name in problematic_loggers:
+                    if cls._DEBUG_FACTORY and logger_name in cls._DEBUG_LOGGERS:
                         logging.debug(
-                            f"Updated {logger_name} -> {detected_feature} -> {level_name}"
+                            "Updated %s -> %s -> %s",
+                            logger_name,
+                            detected_feature,
+                            level_name,
                         )
                 else:
                     skipped_count += 1
             else:
                 skipped_count += 1
-                if logger_name in problematic_loggers:
-                    logging.debug(f"Skipped {logger_name} (no _panther_configured)")
+                if cls._DEBUG_FACTORY and logger_name in cls._DEBUG_LOGGERS:
+                    logging.debug("Skipped %s (no _panther_configured)", logger_name)
 
-        logging.debug(f"Updated {updated_count} loggers, skipped {skipped_count}")
+        if cls._DEBUG_FACTORY:
+            logging.debug(
+                "Updated %d loggers, skipped %d", updated_count, skipped_count
+            )
+
+    @classmethod
+    def set_console_level(cls, level: int) -> None:
+        """Set the console log level on all StreamHandlers across all configured loggers.
+
+        Iterates the root logger and every logger in the manager dict,
+        setting only ``StreamHandler`` (non-``FileHandler``) handlers to
+        *level*.  ``FileHandler`` instances are left at DEBUG so that
+        structured JSONL output continues to capture everything.
+
+        This is the recommended way to honour ``--verbose`` / ``--debug``
+        CLI flags *after* ``LoggerFactory.initialize()`` has already run.
+
+        Args:
+            level: The numeric logging level to apply to console handlers
+                (e.g. ``logging.DEBUG``, ``logging.INFO``, or the custom
+                ``TRACE`` constant which equals 5).
+        """
+        if not cls._initialized:
+            return
+
+        # Track verbose mode for components that adapt output (e.g. Docker build)
+        cls._verbose = level <= logging.DEBUG
+
+        def _apply_to_handlers(lgr: logging.Logger) -> None:
+            for handler in lgr.handlers:
+                if isinstance(handler, logging.StreamHandler) and not isinstance(
+                    handler, logging.FileHandler
+                ):
+                    handler.setLevel(level)
+
+        # Root logger
+        _apply_to_handlers(logging.getLogger())
+
+        # All named loggers that we have configured
+        for logger_name in logging.Logger.manager.loggerDict:
+            logger_obj = logging.Logger.manager.loggerDict[logger_name]
+            if isinstance(logger_obj, logging.Logger):
+                _apply_to_handlers(logger_obj)
 
     @classmethod
     def add_file_handler(cls, filepath: Path, level: Optional[str] = None) -> None:

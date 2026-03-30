@@ -1,5 +1,4 @@
-"""
-Unit tests for observer logging consistency.
+"""Unit tests for observer logging consistency.
 
 This module tests that all observers use consistent logging through the
 LoggerFactory and that the IObserver._setup_logging method works correctly.
@@ -121,21 +120,17 @@ class TestObserverLogging:
         assert logger is not None
         assert logger.name == "NoFileObserver"
 
-    def test_setup_logging_params_ignored(self):
-        """Test that color and structured output params are ignored (handled by LoggerFactory)."""
+    def test_setup_logging_accepts_minimal_params(self):
+        """Test that _setup_logging works with only required params (colors/structured removed)."""
         LoggerFactory.initialize({"level": "INFO", "enable_colors": False})
 
         observer = TestObserver()
 
-        # These params should be ignored since LoggerFactory handles formatting
         logger = observer._setup_logging(
             logger_name="ParamsObserver",
             log_level=logging.INFO,
-            enable_colors=True,  # Should be ignored
-            structured_output=True,  # Should be ignored
         )
 
-        # Logger should still work
         assert logger is not None
         assert logger.name == "ParamsObserver"
 

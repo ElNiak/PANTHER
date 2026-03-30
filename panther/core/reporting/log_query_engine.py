@@ -16,11 +16,26 @@ Typical usage::
 """
 
 import json
+import logging
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Iterator, Optional, Set
+
+logger = logging.getLogger(__name__)
+
+
+def _normalize_dt(dt: datetime) -> datetime:
+    """Normalize datetime to naive UTC for safe comparison.
+
+    Naive datetimes (without tzinfo) are assumed to be UTC.
+    """
+    if dt.tzinfo is not None:
+        from datetime import timezone
+
+        dt = dt.astimezone(timezone.utc)
+    return dt.replace(tzinfo=None)
 
 
 @dataclass
@@ -52,6 +67,8 @@ class LogFilter:
     correlation_id: Optional[str] = None
     message_pattern: Optional[re.Pattern] = None
     sources: Optional[Set[str]] = None
+    metric_names: Optional[Set[str]] = None
+    metric_types: Optional[Set[str]] = None
 
 
 class LogQueryEngine:
@@ -167,8 +184,10 @@ class LogQueryEngine:
                     try:
                         yield json.loads(line)
                     except json.JSONDecodeError:
+                        logger.debug("Skipping malformed JSONL line in %s", path)
                         continue
-        except OSError:
+        except OSError as exc:
+            logger.warning("Cannot read JSONL file %s: %s", path, exc)
             return
 
     @staticmethod
@@ -211,6 +230,15 @@ class LogQueryEngine:
             if not log_filter.message_pattern.search(message):
                 return False
 
+        # Metric-specific filters
+        if log_filter.metric_names is not None:
+            if record.get("metric_name") not in log_filter.metric_names:
+                return False
+
+        if log_filter.metric_types is not None:
+            if record.get("metric_type") not in log_filter.metric_types:
+                return False
+
         # Time-range filters
         if log_filter.after is not None or log_filter.before is not None:
             ts_str = record.get("ts")
@@ -220,9 +248,14 @@ class LogQueryEngine:
                 ts = datetime.fromisoformat(ts_str)
             except (ValueError, TypeError):
                 return False
-            if log_filter.after is not None and ts < log_filter.after:
+            ts_naive = _normalize_dt(ts)
+            if log_filter.after is not None and ts_naive < _normalize_dt(
+                log_filter.after
+            ):
                 return False
-            if log_filter.before is not None and ts >= log_filter.before:
+            if log_filter.before is not None and ts_naive >= _normalize_dt(
+                log_filter.before
+            ):
                 return False
 
         return True

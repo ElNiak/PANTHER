@@ -352,6 +352,7 @@ class BuildxOperationsMixin:
                 image_tag,
                 self.get_effective_build_platform(),
             )
+            self.logger.info("Building image: %s (buildx)", image_tag)
             # Prepare build arguments
             dependencies = config.get("dependencies", {})
             dependencies_json = json.dumps(dependencies) if dependencies else "[]"
@@ -535,7 +536,11 @@ class BuildxOperationsMixin:
 
                 # Execute buildx build
                 result = subprocess.run(
-                    buildx_cmd, cwd=str(context_path), capture_output=True, text=True
+                    buildx_cmd,
+                    cwd=str(context_path),
+                    capture_output=True,
+                    text=True,
+                    timeout=1800,
                 )
 
             finally:
@@ -628,6 +633,7 @@ class BuildxOperationsMixin:
             )
             DockerBuilder.mark_session_built(image_tag)
 
+            self.logger.info("Image built: %s (%.1fs)", image_tag, build_time)
             self.logger.info(
                 "Successfully built Docker image '%s' with buildx for platform '%s'",
                 image_tag,

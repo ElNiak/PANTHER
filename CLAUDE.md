@@ -24,9 +24,13 @@ git submodule update --init panther/plugins/services/testers/panther_ivy
 # Then re-run package-dev, or install manually:
 pip install -e panther/plugins/services/testers/panther_ivy/
 
-# Run tests
+# Run tests (no coverage by default — fast, low memory)
 pytest tests/ -n auto -m unit             # Fast unit tests
 pytest tests/ -n auto -m integration     # Requires Docker
+
+# Run with coverage (explicit — use -n 4 to cap memory)
+pytest tests/ --cov=panther --cov-report= -n 4
+coverage combine && coverage report --show-missing --fail-under=70
 
 # Code quality
 black panther/                           # Format
@@ -155,7 +159,13 @@ Dependencies defined in `pyproject.toml`
 ## Testing
 
 ```bash
-pytest tests/ -n auto --cov=panther --cov-fail-under=70  # Coverage required: 70%
+# Quick tests (no coverage, low memory)
+pytest tests/ -n auto -m unit
+
+# Full coverage (explicit, capped workers to limit memory)
+pytest tests/ --cov=panther --cov-report= -n 4
+coverage combine && coverage report --show-missing --fail-under=70
+coverage html  # optional: generate HTML report
 ```
 
 **Test Markers**:

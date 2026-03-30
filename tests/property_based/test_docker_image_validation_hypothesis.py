@@ -1,5 +1,4 @@
-"""
-Property-based tests for Docker image validation using Hypothesis.
+"""Property-based tests for Docker image validation using Hypothesis.
 
 This module uses property-based testing to generate thousands of test cases
 automatically, ensuring robust validation of Docker image names, patterns,

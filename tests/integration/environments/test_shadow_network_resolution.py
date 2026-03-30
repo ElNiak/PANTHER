@@ -1,5 +1,4 @@
-"""
-Integration tests for Shadow NS network resolution.
+"""Integration tests for Shadow NS network resolution.
 
 Tests the complete Shadow NS environment integration with network-aware
 command resolution using role-based IP assignment.

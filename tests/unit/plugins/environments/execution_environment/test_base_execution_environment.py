@@ -1,5 +1,4 @@
-"""
-Unit tests for BaseExecutionEnvironment class.
+"""Unit tests for BaseExecutionEnvironment class.
 
 Tests the base functionality and mixin integration for execution environments.
 """
@@ -62,7 +61,6 @@ class TestBaseExecutionEnvironment:
         """Test that BaseExecutionEnvironment has the correct inheritance."""
         from abc import ABC
 
-        from panther.core.command_processor.mixins import CommandModificationMixin
         from panther.core.outputs.output_environment_mixins import (
             StandardOutputCollectorMixin,
         )
@@ -72,13 +70,8 @@ class TestBaseExecutionEnvironment:
         from panther.plugins.environments.execution_environment.execution_environment_interface import (
             IExecutionEnvironment,
         )
-        from panther.plugins.environments.execution_environment_mixin import (
-            ExecutionEnvironmentMixin,
-        )
 
-        assert issubclass(BaseExecutionEnvironment, ExecutionEnvironmentMixin)
         assert issubclass(BaseExecutionEnvironment, StandardOutputCollectorMixin)
-        assert issubclass(BaseExecutionEnvironment, CommandModificationMixin)
         assert issubclass(BaseExecutionEnvironment, IExecutionEnvironment)
         assert issubclass(BaseExecutionEnvironment, StringRepresentationMixin)
         assert issubclass(BaseExecutionEnvironment, ABC)
@@ -231,9 +224,10 @@ class TestBaseExecutionEnvironmentEventHandling:
             event_manager=event_manager,
         )
 
-        # Create mock event
-        mock_event = Mock()
-        mock_event.__class__.__name__ = "ServiceStartedEvent"
+        # Create mock event with proper attributes for entity_type guard
+        mock_event = Mock(spec=[])
+        mock_event.name = "started"
+        mock_event.entity_type = "service"
 
         mock_logger = _inject_mock_logger(env)
         env.handle_event(mock_event)
@@ -242,7 +236,7 @@ class TestBaseExecutionEnvironmentEventHandling:
         assert mock_logger.debug.call_count == 2
         mock_logger.debug.assert_any_call(
             "ConcreteBaseExecutionEnvironment received event: %s",
-            "ServiceStartedEvent",
+            "started",
         )
         mock_logger.debug.assert_any_call(
             "Service started, environment monitoring should be active"
@@ -263,9 +257,10 @@ class TestBaseExecutionEnvironmentEventHandling:
             event_manager=event_manager,
         )
 
-        # Create mock event
-        mock_event = Mock()
-        mock_event.__class__.__name__ = "ServiceStoppedEvent"
+        # Create mock event with proper attributes for entity_type guard
+        mock_event = Mock(spec=[])
+        mock_event.name = "stopped"
+        mock_event.entity_type = "service"
 
         mock_logger = _inject_mock_logger(env)
         env.handle_event(mock_event)
@@ -274,7 +269,7 @@ class TestBaseExecutionEnvironmentEventHandling:
         assert mock_logger.debug.call_count == 2
         mock_logger.debug.assert_any_call(
             "ConcreteBaseExecutionEnvironment received event: %s",
-            "ServiceStoppedEvent",
+            "stopped",
         )
         mock_logger.debug.assert_any_call(
             "Service stopped, environment collection complete"
@@ -295,9 +290,10 @@ class TestBaseExecutionEnvironmentEventHandling:
             event_manager=event_manager,
         )
 
-        # Create mock event with unknown type
-        mock_event = Mock()
-        mock_event.__class__.__name__ = "UnknownEvent"
+        # Create mock event with unknown type and proper attributes
+        mock_event = Mock(spec=[])
+        mock_event.name = "unknown_event"
+        mock_event.entity_type = "service"
 
         mock_logger = _inject_mock_logger(env)
         env.handle_event(mock_event)
@@ -305,9 +301,9 @@ class TestBaseExecutionEnvironmentEventHandling:
         # Verify correct logging
         assert mock_logger.debug.call_count == 2
         mock_logger.debug.assert_any_call(
-            "ConcreteBaseExecutionEnvironment received event: %s", "UnknownEvent"
+            "ConcreteBaseExecutionEnvironment received event: %s", "unknown_event"
         )
-        mock_logger.debug.assert_any_call("Unhandled event type: %s", "UnknownEvent")
+        mock_logger.debug.assert_any_call("Unhandled event type: %s", "unknown_event")
 
 
 class TestBaseExecutionEnvironmentSetup:

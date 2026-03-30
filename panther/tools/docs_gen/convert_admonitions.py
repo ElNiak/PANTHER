@@ -203,6 +203,7 @@ github_to_mkdocs = _github_to_mkdocs
 
 
 def main() -> None:
+    """CLI entry point for converting between MkDocs admonitions and GitHub callouts."""
     parser = argparse.ArgumentParser(
         description="Convert between MkDocs admonitions and GitHub callouts.",
     )

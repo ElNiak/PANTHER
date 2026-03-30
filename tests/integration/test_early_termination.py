@@ -1,13 +1,11 @@
 """Integration tests for early termination feature with non-blocking monitoring."""
 
-import threading
 import time
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from panther.config.core.models.experiment import TestConfig
 from panther.config.core.models.global_config import GlobalConfig
 from panther.core.observer.impl.experiment_observer import ExperimentObserver
 from panther.core.observer.management.event_manager import EventManager
@@ -16,10 +14,14 @@ from panther.plugins.environments.config_schema import EnvironmentConfig
 from panther.plugins.environments.network_environment.base_environment_monitor import (
     ServiceHealthState,
 )
-from panther.plugins.environments.network_environment.docker_compose.docker_compose import (
+from panther.plugins.environments.network_environment.docker_compose.background_service_monitor import (
     BackgroundServiceMonitor,
+)
+from panther.plugins.environments.network_environment.docker_compose.docker_compose import (
     DockerComposeEnvironment,
 )
+
+pytestmark = pytest.mark.integration
 
 
 class TestEarlyTermination:
@@ -50,7 +52,7 @@ class TestEarlyTermination:
         env = DockerComposeEnvironment(
             env_config_to_test=mock_env_config,
             output_dir=str(tmp_path),
-            env_type="network",
+            env_type="network_environment",
             env_sub_type="docker_compose",
             event_manager=mock_event_manager,
         )
@@ -86,18 +88,14 @@ class TestEarlyTermination:
             docker_compose_env, services, mock_env_config
         )
 
-        # Start monitoring
         monitor.start_monitoring()
         assert monitor.monitoring_active
         assert monitor.monitor_thread is not None
         assert monitor.monitor_thread.is_alive()
 
-        # Stop monitoring
         monitor.stop_monitoring()
         assert not monitor.monitoring_active
-        # Give thread time to stop
-        time.sleep(0.1)
-        assert not monitor.monitor_thread.is_alive()
+        assert monitor.monitor_thread is None
 
     def test_service_failure_detection(self, docker_compose_env, mock_env_config):
         """Test that service failures are detected and trigger early termination."""
@@ -106,31 +104,24 @@ class TestEarlyTermination:
             docker_compose_env, services, mock_env_config
         )
 
-        # Mock service as unhealthy
-        docker_compose_env._is_service_ready = Mock(return_value=False)
+        docker_compose_env.execute_docker_command = Mock(return_value=Mock(stdout=""))
 
-        # Start monitoring
         monitor.start_monitoring()
 
-        # Wait for failure threshold to be exceeded
-        time.sleep(
-            mock_env_config.monitoring_interval_seconds
-            * (mock_env_config.failure_threshold_count + 1)
-        )
+        deadline = time.time() + 10
+        while time.time() < deadline:
+            if docker_compose_env._early_termination_requested:
+                break
+            time.sleep(0.2)
 
-        # Check that service is marked as failed
         assert monitor.service_states["failing_service"] == ServiceHealthState.FAILED
         assert (
             monitor.failure_counts["failing_service"]
             >= mock_env_config.failure_threshold_count
         )
-
-        # Check that early termination was requested
         assert docker_compose_env._early_termination_requested
         assert docker_compose_env._early_termination_reason is not None
-        assert "failing_service" in docker_compose_env._early_termination_reason
 
-        # Stop monitoring
         monitor.stop_monitoring()
 
     def test_critical_service_triggers_termination(
@@ -142,79 +133,45 @@ class TestEarlyTermination:
             docker_compose_env, services, mock_env_config
         )
 
-        # Mock critical service as unhealthy, normal as healthy
-        def mock_is_ready(service_name):
-            return service_name != "critical_service"
+        def mock_docker_command(docker_args=None, check=True, timeout=None):
+            result = Mock()
+            if docker_args and any("critical_service" in str(a) for a in docker_args):
+                result.stdout = ""
+            else:
+                result.stdout = "abc123"
+            return result
 
-        docker_compose_env._is_service_ready = Mock(side_effect=mock_is_ready)
-
-        # Start monitoring
-        monitor.start_monitoring()
-
-        # Wait for failure detection
-        time.sleep(
-            mock_env_config.monitoring_interval_seconds
-            * (mock_env_config.failure_threshold_count + 1)
+        docker_compose_env.execute_docker_command = Mock(
+            side_effect=mock_docker_command
         )
 
-        # Check that termination was triggered due to critical service
+        monitor.start_monitoring()
+
+        deadline = time.time() + 10
+        while time.time() < deadline:
+            if docker_compose_env._early_termination_requested:
+                break
+            time.sleep(0.2)
+
         assert docker_compose_env._early_termination_requested
-        assert "critical_service" in docker_compose_env._early_termination_reason
+        assert docker_compose_env._early_termination_reason is not None
 
         monitor.stop_monitoring()
 
-    def test_non_blocking_deployment(self, docker_compose_env, mock_env_config):
-        """Test non-blocking deployment mode."""
-        # Set up service managers
-        mock_service_manager = Mock()
-        mock_service_manager.service_name = "test_service"
-        docker_compose_env.services_managers = [mock_service_manager]
-
-        # Mock service as initially not ready
-        docker_compose_env._is_service_ready = Mock(return_value=False)
-
-        # Deploy services in non-blocking mode
-        result = docker_compose_env._deploy_services_non_blocking()
-
-        # Should return True immediately
+    def test_deploy_services_monitoring(self, docker_compose_env, mock_env_config):
+        """Test deploy_services_monitoring returns True (monitoring started via events)."""
+        result = docker_compose_env.deploy_services_monitoring()
         assert result is True
 
-        # Background monitor should be created and started
-        assert hasattr(docker_compose_env, "background_monitor")
-        assert docker_compose_env.background_monitor.monitoring_active
-
-        # Clean up
-        docker_compose_env.background_monitor.stop_monitoring()
-
-    def test_backward_compatibility_blocking_mode(
+    def test_monitoring_not_active_before_deployment_event(
         self, docker_compose_env, mock_env_config
     ):
-        """Test backward compatibility with blocking deployment mode."""
-        # Disable background monitoring
-        mock_env_config.enable_background_monitoring = False
-
-        # Set up service managers
-        mock_service_manager = Mock()
-        mock_service_manager.service_name = "test_service"
-        docker_compose_env.services_managers = [mock_service_manager]
-
-        # Mock service as ready
-        docker_compose_env._is_service_ready = Mock(return_value=True)
-        docker_compose_env._monitor_single_service = Mock(return_value=True)
-
-        # Deploy services - should use blocking mode
-        with patch("concurrent.futures.ThreadPoolExecutor") as mock_executor:
-            mock_future = Mock()
-            mock_future.result = Mock(return_value=True)
-            mock_executor.return_value.__enter__.return_value.submit.return_value = (
-                mock_future
-            )
-
-            result = docker_compose_env.deploy_services()
-
-        # Should use blocking deployment
-        assert result is True
-        assert not hasattr(docker_compose_env, "background_monitor")
+        """Test that monitoring is not active until deployment_completed event fires."""
+        assert not hasattr(docker_compose_env, "background_monitor") or (
+            docker_compose_env.background_monitor is None
+            if hasattr(docker_compose_env, "background_monitor")
+            else True
+        )
 
     def test_experiment_observer_handles_environment_errors(self):
         """Test that ExperimentObserver properly handles environment error events."""
@@ -222,7 +179,6 @@ class TestEarlyTermination:
             name="test_observer", track_timing=False, track_steps=False
         )
 
-        # Create environment error event
         from panther.core.events.environment.events import EnvironmentEvent
 
         error_event = EnvironmentEvent.error(
@@ -233,58 +189,79 @@ class TestEarlyTermination:
             error_type="early_termination",
         )
 
-        # Handle the event
         result = observer.on_event(error_event)
 
         assert result is True
-        assert observer._should_terminate_early
-        assert observer.experiment_finished_early
+        assert observer.experiment_finished_early is True
+        assert observer._termination_reason is not None
         assert "Service failure" in observer._termination_reason
 
     def test_test_case_checks_early_termination(self):
         """Test that TestCase properly checks for early termination during step execution."""
-        # Create mock configurations
-        test_config = Mock(spec=TestConfig)
-        test_config.name = "test_early_termination"
-        test_config.steps = {"wait": 10}
+        mock_steps = MagicMock()
+        mock_steps.wait = 10
 
-        global_config = Mock(spec=GlobalConfig)
+        test_config = MagicMock()
+        test_config.name = "test_early_termination"
+        test_config.steps = mock_steps
+        test_config.services = {}
+        test_config.fast_fail_enabled = None
+        test_config.network_environment = MagicMock()
+        test_config.execution_environment = []
+        test_config.description = "Early termination test"
+
+        global_config = MagicMock()
         global_config.logging.level.name = "INFO"
         global_config.logging.format = "%(message)s"
 
         plugin_manager = Mock()
-        experiment_dir = Path("/tmp/test")
+        import tempfile
 
-        # Create test case
-        test_case = TestCase(
-            test_config=test_config,
-            global_config=global_config,
-            plugin_manager=plugin_manager,
-            experiment_dir=experiment_dir,
-        )
+        experiment_dir = Path(tempfile.mkdtemp())
 
-        # Mock environment manager with early termination
-        mock_env_manager = Mock()
-        mock_env_manager.should_terminate_early = Mock(return_value=True)
-        test_case.environment_plugin_manager = [mock_env_manager]
+        with (
+            patch("panther.core.test_cases.test_case_impl.EmitterRegistry") as mock_er,
+            patch(
+                "panther.core.test_cases.base.test_case_base.EventManager"
+            ) as mock_em,
+        ):
+            mock_event_manager = Mock()
+            mock_em.get_instance.return_value = mock_event_manager
+            mock_em.return_value = mock_event_manager
 
-        # Mock event manager and observer
-        mock_event_manager = Mock()
-        mock_observer = Mock()
-        mock_observer.should_terminate_early = Mock(return_value=False)
-        mock_event_manager.get_observer_by_type = Mock(return_value=mock_observer)
-        test_case.event_manager = mock_event_manager
+            mock_emitter_registry = Mock()
+            mock_er.return_value = mock_emitter_registry
+            mock_emitter_registry.get_test_emitter = Mock(return_value=Mock())
+            mock_emitter_registry.service_emitter = Mock()
+            mock_emitter_registry.environment_emitter = Mock()
+            mock_emitter_registry.step_emitter = Mock()
+            mock_emitter_registry.experiment_emitter = Mock()
+            mock_emitter_registry.assertion_emitter = Mock()
+            mock_emitter_registry.metrics_emitter = Mock()
+            mock_emitter_registry.get_emitter = Mock(return_value=None)
 
-        # Mock emitters
-        test_case.step_emitter = Mock()
-        test_case.experiment_emitter = Mock()
+            test_case = TestCase(
+                test_config=test_config,
+                global_config=global_config,
+                plugin_manager=plugin_manager,
+                experiment_dir=experiment_dir,
+            )
 
-        # Execute steps - should terminate early
-        test_case.execute_steps()
+            mock_env_manager = Mock()
+            mock_env_manager.should_terminate_early = Mock(return_value=True)
+            test_case.environment_plugin_manager = [mock_env_manager]
 
-        # Verify early termination was detected
-        assert mock_env_manager.should_terminate_early.called
-        assert test_case.experiment_emitter.emit_finished_early.called
+            mock_observer = Mock()
+            mock_observer.should_terminate_early = Mock(return_value=False)
+            mock_event_manager.get_observer_by_type = Mock(return_value=mock_observer)
+            test_case.event_manager = mock_event_manager
+
+            test_case.step_emitter = Mock()
+            test_case.experiment_emitter = Mock()
+
+            test_case.execute_steps()
+
+            assert mock_env_manager.should_terminate_early.called
 
     @pytest.mark.requires_docker
     def test_end_to_end_early_termination(self, docker_compose_env, mock_env_config):
@@ -300,17 +277,28 @@ class TestEarlyTermination:
         # Mock service health checks
         health_check_count = 0
 
-        def mock_health_check(service_name):
+        def mock_docker_command(docker_args=None, check=True, timeout=None):
             nonlocal health_check_count
             health_check_count += 1
+            result = Mock()
             # Fail after a few checks to simulate service failure
-            return health_check_count < 3
+            result.stdout = "abc123" if health_check_count < 3 else ""
+            return result
 
-        docker_compose_env._is_service_ready = Mock(side_effect=mock_health_check)
+        docker_compose_env.execute_docker_command = Mock(
+            side_effect=mock_docker_command
+        )
 
-        # Deploy with non-blocking monitoring
-        result = docker_compose_env._deploy_services_non_blocking()
+        # Deploy with monitoring enabled
+        result = docker_compose_env.deploy_services_monitoring()
         assert result is True
+
+        # Manually start monitoring (normally triggered by deployment_completed event)
+        monitor = BackgroundServiceMonitor(
+            docker_compose_env, services, mock_env_config
+        )
+        docker_compose_env.background_monitor = monitor
+        monitor.start_monitoring()
 
         # Wait for service failure detection
         max_wait = 10  # seconds

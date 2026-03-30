@@ -1,5 +1,4 @@
-"""
-Base Network Resolver for PANTHER Network Environments.
+"""Base Network Resolver for PANTHER Network Environments.
 
 This module provides the common network resolution functionality shared across all network
 environment types (Docker Compose, Localhost, Shadow NS), eliminating 95% code duplication.
@@ -34,8 +33,7 @@ from panther.plugins.environments.network_environment.placeholder_parser import 
 
 
 class BaseNetworkResolver(INetworkResolver, ABC):
-    """
-    Base class for network resolution providing common functionality.
+    """Base class for network resolution providing common functionality.
 
     This class eliminates duplication across DockerComposeNetworkResolver,
     LocalhostNetworkResolver, and ShadowNetworkResolver by providing:
@@ -58,8 +56,7 @@ class BaseNetworkResolver(INetworkResolver, ABC):
     """
 
     def __init__(self):
-        """
-        Initialize base network resolver with common components.
+        """Initialize base network resolver with common components.
 
         Sets up logging and placeholder parser that all environments need.
         Subclasses can extend this to add environment-specific initialization.
@@ -73,8 +70,7 @@ class BaseNetworkResolver(INetworkResolver, ABC):
     def resolve_network_placeholders(
         self, command_template: str, context: NetworkResolutionContext
     ) -> List[NetworkResolutionResult]:
-        """
-        Resolve network placeholders in command template.
+        """Resolve network placeholders in command template.
 
         Common implementation across all network resolver types with 95% identical code.
         The only difference is the environment name in exception handling.
@@ -111,7 +107,7 @@ class BaseNetworkResolver(INetworkResolver, ABC):
         except Exception as e:
             # Standardized exception handling with environment context
             raise EnvironmentResolutionException(
-                f"Failed to resolve placeholders in template: {str(e)}",
+                f"Failed to resolve placeholders in template: {e}",
                 self._get_environment_name(),
                 "resolve_network_placeholders",
                 str(e),
@@ -125,8 +121,7 @@ class BaseNetworkResolver(INetworkResolver, ABC):
         resolved_value: str,
         service_info: NetworkServiceInfo,
     ) -> NetworkResolutionResult:
-        """
-        Create standardized resolution result.
+        """Create standardized resolution result.
 
         Common result creation logic with environment-specific method and type.
 
@@ -149,8 +144,7 @@ class BaseNetworkResolver(INetworkResolver, ABC):
     def _ensure_service_info(
         self, placeholder: PlaceholderInfo, context: NetworkResolutionContext
     ) -> NetworkServiceInfo:
-        """
-        Ensure service info exists in context, creating if necessary.
+        """Ensure service info exists in context, creating if necessary.
 
         Common service info handling with environment-specific defaults.
 
@@ -174,8 +168,7 @@ class BaseNetworkResolver(INetworkResolver, ABC):
         return service_info
 
     def _validate_placeholder(self, placeholder: PlaceholderInfo):
-        """
-        Validate placeholder format and requirements.
+        """Validate placeholder format and requirements.
 
         Common validation logic that can be extended by subclasses.
 
@@ -206,8 +199,7 @@ class BaseNetworkResolver(INetworkResolver, ABC):
     def _resolve_single_placeholder(
         self, placeholder: PlaceholderInfo, context: NetworkResolutionContext
     ) -> NetworkResolutionResult:
-        """
-        Resolve a single placeholder using the standard 4-step pattern.
+        """Resolve a single placeholder using the standard 4-step pattern.
 
         This template method calls environment-specific hooks:
         1. _validate_placeholder() - Validate format (common, overridable)
@@ -227,8 +219,7 @@ class BaseNetworkResolver(INetworkResolver, ABC):
 
     @abstractmethod
     def _get_environment_name(self) -> str:
-        """
-        Get environment name for exception handling and logging.
+        """Get environment name for exception handling and logging.
 
         Examples:
         - "docker_compose"
@@ -244,8 +235,7 @@ class BaseNetworkResolver(INetworkResolver, ABC):
     def _generate_resolved_value(
         self, placeholder: PlaceholderInfo, service_info: NetworkServiceInfo
     ) -> str:
-        """
-        Generate environment-specific resolved value.
+        """Generate environment-specific resolved value.
 
         This contains the core environment differences:
         - Docker Compose: Returns "$(resolve_hostname service decimal)"
@@ -263,8 +253,7 @@ class BaseNetworkResolver(INetworkResolver, ABC):
 
     @abstractmethod
     def _get_resolution_method(self) -> str:
-        """
-        Get environment-specific resolution method name.
+        """Get environment-specific resolution method name.
 
         Examples:
         - "docker_compose_runtime"
@@ -280,8 +269,7 @@ class BaseNetworkResolver(INetworkResolver, ABC):
     def _create_default_service_info(
         self, placeholder: PlaceholderInfo
     ) -> NetworkServiceInfo:
-        """
-        Create environment-specific default service info.
+        """Create environment-specific default service info.
 
         Different environments have different default assumptions:
         - Docker Compose: service name = hostname
@@ -305,8 +293,7 @@ class BaseNetworkResolver(INetworkResolver, ABC):
     def _post_resolution_processing(
         self, results: List[NetworkResolutionResult]
     ) -> List[NetworkResolutionResult]:
-        """
-        Optional post-processing of resolution results (hook for subclasses).
+        """Optional post-processing of resolution results (hook for subclasses).
 
         Args:
             results: Resolution results to process
@@ -319,8 +306,7 @@ class BaseNetworkResolver(INetworkResolver, ABC):
     def _handle_resolution_exception(
         self, exception: Exception, placeholder: PlaceholderInfo
     ):
-        """
-        Optional custom exception handling (hook for subclasses).
+        """Optional custom exception handling (hook for subclasses).
 
         Args:
             exception: Exception that occurred during resolution
@@ -328,7 +314,7 @@ class BaseNetworkResolver(INetworkResolver, ABC):
         """
         # Default: re-raise as EnvironmentResolutionException
         raise EnvironmentResolutionException(
-            f"Failed to resolve placeholder {placeholder.raw_placeholder}: {str(exception)}",
+            f"Failed to resolve placeholder {placeholder.raw_placeholder}: {exception}",
             self._get_environment_name(),
             "resolve_placeholder",
             str(exception),

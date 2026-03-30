@@ -22,8 +22,7 @@ class CommandResult:
 
 
 class SubprocessExecutorMixin:
-    """
-    Mixin providing standardized subprocess execution with consistent error handling and logging.
+    """Mixin providing standardized subprocess execution with consistent error handling and logging.
 
     This mixin eliminates duplicated subprocess execution patterns across network environments.
     """
@@ -38,8 +37,7 @@ class SubprocessExecutorMixin:
         env: Optional[Dict[str, str]] = None,
         log_prefix: Optional[str] = None,
     ) -> CommandResult:
-        """
-        Execute a command with standardized error handling and logging.
+        """Execute a command with standardized error handling and logging.
 
         Args:
             command: Command and arguments to execute
@@ -148,8 +146,7 @@ class SubprocessExecutorMixin:
     def execute_with_retry(
         self, command: List[str], max_retries: int = 3, retry_delay: int = 5, **kwargs
     ) -> CommandResult:
-        """
-        Execute command with automatic retry logic.
+        """Execute command with automatic retry logic.
 
         Args:
             command: Command to execute
@@ -168,7 +165,11 @@ class SubprocessExecutorMixin:
         for attempt in range(max_retries + 1):
             try:
                 return self.execute_command(command, **kwargs)
-            except Exception as e:
+            except (
+                subprocess.CalledProcessError,
+                subprocess.TimeoutExpired,
+                OSError,
+            ) as e:
                 last_exception = e
                 if attempt < max_retries:
                     self.logger.warning(
@@ -190,8 +191,7 @@ class SubprocessExecutorMixin:
         check: bool = True,
         log_prefix: Optional[str] = None,
     ) -> CommandResult:
-        """
-        Execute a Docker command with standard configuration.
+        """Execute a Docker command with standard configuration.
 
         Args:
             docker_args: Arguments to pass to docker command
@@ -219,8 +219,7 @@ class SubprocessExecutorMixin:
         check: bool = True,
         **kwargs,
     ) -> CommandResult:
-        """
-        Execute command and write output to specified log files.
+        """Execute command and write output to specified log files.
 
         This method replicates the common pattern of opening log files
         and writing command output to them.
@@ -292,8 +291,7 @@ class SubprocessExecutorMixin:
         cwd: Optional[str] = None,
         env: Optional[Dict[str, str]] = None,
     ) -> subprocess.Popen:
-        """
-        Start a process in the background with logging.
+        """Start a process in the background with logging.
 
         Args:
             command: Command to execute
@@ -315,7 +313,7 @@ class SubprocessExecutorMixin:
         stdout_handle = open(stdout_file, "w")
         stderr_handle = open(stderr_file, "w")
 
-        self.logger.info(f"Starting background process: {' '.join(command)}")
+        self.logger.info("Starting background process: %s", " ".join(command))
 
         # Start process
         process = subprocess.Popen(
@@ -334,7 +332,7 @@ class SubprocessExecutorMixin:
         # Store file handles for cleanup (if needed)
         process._log_files = (stdout_handle, stderr_handle)
 
-        self.logger.debug(f"Background process started with PID: {process.pid}")
+        self.logger.info("Background process started with PID: %s", process.pid)
 
         return process
 
@@ -345,8 +343,7 @@ class SubprocessExecutorMixin:
         timeout: int = 60,
         check_interval: int = 5,
     ) -> bool:
-        """
-        Monitor Docker container status.
+        """Monitor Docker container status.
 
         Args:
             container_name: Name of container to monitor

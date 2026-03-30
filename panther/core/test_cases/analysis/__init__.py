@@ -1,1 +1,1 @@
-# Output analysis components
+"""Output analysis components for test cases."""

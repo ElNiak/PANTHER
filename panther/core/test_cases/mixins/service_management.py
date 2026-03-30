@@ -49,7 +49,7 @@ class ServiceManagementMixin:
             )
 
         except Exception as e:
-            self.logger.error(f"Failed to setup services: {e}")
+            self.logger.error(f"Failed to setup services (test will be skipped): {e}")
             # Service setup failed
             raise
 
@@ -237,7 +237,7 @@ class ServiceManagementMixin:
                         )
 
         except Exception as e:
-            self.logger.error(f"Service preparation failed: {e}")
+            self.logger.error(f"Service preparation failed for '{service_name}': {e}")
             # Service preparation failed
             raise
 

@@ -1,3 +1,5 @@
+"""Service interface defining the contract for IUT and tester service managers."""
+
 import logging
 import os
 import shlex
@@ -120,6 +122,7 @@ class IServiceManager(IPlugin, CommandEventMixin):
             Any
         ] = None,  # Reference to parent test case for execution environment access
     ):
+        """Initialize service manager with config, protocol, and event wiring."""
         super().__init__()
         CommandEventMixin.__init__(self)  # Initialize the CommandEventMixin
 
@@ -246,8 +249,7 @@ class IServiceManager(IPlugin, CommandEventMixin):
         self.docker_image_tag = ""
 
     def set_test_context(self, test_name: str) -> None:
-        """
-        Set the test context for this service manager.
+        """Set the test context for this service manager.
 
         Args:
             test_name: Name of the test this service belongs to
@@ -258,8 +260,7 @@ class IServiceManager(IPlugin, CommandEventMixin):
         )
 
     def get_test_context(self) -> Optional[str]:
-        """
-        Get the test context for this service manager.
+        """Get the test context for this service manager.
 
         Returns:
             The test name this service belongs to, or None if not set
@@ -269,8 +270,7 @@ class IServiceManager(IPlugin, CommandEventMixin):
     def render_commands(
         self, params, template_name, command_args=None, env_vars=None, extra_fields=None
     ):
-        """
-        Renders a command using a Jinja2 template with the provided parameters.
+        """Renders a command using a Jinja2 template with the provided parameters.
 
         Args:
             params: Dictionary containing regular parameters for template rendering.
@@ -312,15 +312,15 @@ class IServiceManager(IPlugin, CommandEventMixin):
             command_str = command
 
         service_name = self.service_config_to_test.name
-        self.logger.debug("Generated command for '%s': %s", service_name, command_str)
+        self.logger.info("Generated command for '%s': %s", service_name, command_str)
         return command_str
 
     def get_service_name(self) -> str:
+        """Return the service name."""
         return self.service_name
 
     def _load_version_environment_variables(self):
-        """
-        Load environment variables from version_config into self.environments.
+        """Load environment variables from version_config into self.environments.
 
         Extracts environment variables from the 'env' section of version_config
         and makes them available for Docker Compose environment generation.
@@ -423,8 +423,7 @@ class IServiceManager(IPlugin, CommandEventMixin):
             )
 
     def _resolve_environment_variables(self, cmd_str: str) -> str:
-        """
-        Replace ${VAR} patterns with actual values from self.environments.
+        """Replace ${VAR} patterns with actual values from self.environments.
 
         Args:
             cmd_str: Command string potentially containing ${VAR} patterns
@@ -464,8 +463,7 @@ class IServiceManager(IPlugin, CommandEventMixin):
         return resolved
 
     def _apply_network_substitutions(self, cmd_dict: Dict) -> Dict:
-        """
-        Apply environment variable substitutions to all command phases.
+        """Apply environment variable substitutions to all command phases.
 
         Args:
             cmd_dict: Dictionary containing command phases
@@ -502,10 +500,10 @@ class IServiceManager(IPlugin, CommandEventMixin):
         if "run_cmd" in cmd_dict and isinstance(cmd_dict["run_cmd"], dict):
             if "command_args" in cmd_dict["run_cmd"]:
                 if isinstance(cmd_dict["run_cmd"]["command_args"], str):
-                    cmd_dict["run_cmd"][
-                        "command_args"
-                    ] = self._resolve_environment_variables(
-                        cmd_dict["run_cmd"]["command_args"]
+                    cmd_dict["run_cmd"]["command_args"] = (
+                        self._resolve_environment_variables(
+                            cmd_dict["run_cmd"]["command_args"]
+                        )
                     )
                 elif isinstance(cmd_dict["run_cmd"]["command_args"], list):
                     cmd_dict["run_cmd"]["command_args"] = [
@@ -521,15 +519,14 @@ class IServiceManager(IPlugin, CommandEventMixin):
             if "environment" in cmd_dict["run_cmd"]:
                 for key, value in cmd_dict["run_cmd"]["environment"].items():
                     if isinstance(value, str):
-                        cmd_dict["run_cmd"]["environment"][
-                            key
-                        ] = self._resolve_environment_variables(value)
+                        cmd_dict["run_cmd"]["environment"][key] = (
+                            self._resolve_environment_variables(value)
+                        )
 
         return cmd_dict
 
     def generate_pre_compile_commands(self) -> List[Union[str, ShellCommand]]:
-        """
-        Generates a list of shell commands to be executed before compilation.
+        """Generates a list of shell commands to be executed before compilation.
 
         Returns:
             list: A list of either string commands or ShellCommand objects if available
@@ -539,9 +536,7 @@ class IServiceManager(IPlugin, CommandEventMixin):
         return []
 
     def generate_compile_commands(self) -> List[Union[str, ShellCommand]]:
-        """
-        This method generates and returns a list of compile commands.
-        Generates compile commands.
+        """Generate and return a list of compile commands.
 
         Returns:
             list: An empty list representing the compile commands.
@@ -555,10 +550,11 @@ class IServiceManager(IPlugin, CommandEventMixin):
         return commands
 
     def generate_post_compile_commands(self) -> List[Union[str, ShellCommand]]:
-        """
-        Generate a list of post-compile commands.
+        """Generate a list of post-compile commands.
+
         This method returns an empty list of strings representing commands
         to be executed after the compilation process.
+
         Returns:
             List[str]: An empty list of post-compile commands.
         """
@@ -573,10 +569,11 @@ class IServiceManager(IPlugin, CommandEventMixin):
         return commands
 
     def generate_pre_run_commands(self) -> List[Union[str, ShellCommand]]:
-        """
-        Generates a list of pre-run commands.
+        """Generate a list of pre-run commands.
+
         This method returns an empty list of strings, which can be overridden by subclasses
         to provide specific pre-run commands required for their execution context.
+
         Returns:
             List[str]: An empty list of strings representing pre-run commands.
         """
@@ -589,8 +586,8 @@ class IServiceManager(IPlugin, CommandEventMixin):
         return commands
 
     def generate_run_command(self) -> Dict[str, Any]:
-        """
-        Generates a dictionary containing the run command configuration.
+        """Generates a dictionary containing the run command configuration.
+
         Returns:
             dict: A dictionary with the following keys:
             - "working_dir" (str): The working directory for the command.
@@ -619,9 +616,7 @@ class IServiceManager(IPlugin, CommandEventMixin):
         return run_cmd
 
     def generate_post_run_commands(self) -> List[Union[str, ShellCommand]]:
-        """
-        Generates post-run commands.
-        """
+        """Generates post-run commands."""
         # Emit command generation started event
         self.emit_command_generation_started("post_run")
         commands = []
@@ -633,12 +628,11 @@ class IServiceManager(IPlugin, CommandEventMixin):
         return commands
 
     def get_implementation_name(self) -> str:
+        """Return the implementation name."""
         return self.implementation_name
 
     def is_tester(self):
-        """
-        Returns True if this service is a tester (as opposed to an IUT implementation).
-        """
+        """Returns True if this service is a tester (as opposed to an IUT implementation)."""
         return self.service_type_normalized == "TESTERS"
 
     @property
@@ -666,14 +660,11 @@ class IServiceManager(IPlugin, CommandEventMixin):
 
     @abstractmethod
     def generate_deployment_commands(self) -> str:
-        """
-        Generates deployment commands based on the service configuration
-        """
+        """Generates deployment commands based on the service configuration."""
         raise NotImplementedError()
 
     def build_command_args(self, command_args):
-        """
-        Builds a list of command arguments with proper escaping
+        """Builds a list of command arguments with proper escaping.
 
         Args:
             command_args: List of command arguments or a single string.
@@ -703,8 +694,7 @@ class IServiceManager(IPlugin, CommandEventMixin):
         return args
 
     def build_env_vars(self, env_dict):
-        """
-        Builds a dictionary of environment variables with proper escaping
+        """Builds a dictionary of environment variables with proper escaping.
 
         Args:
             env_dict: Dictionary of environment variables
@@ -729,8 +719,7 @@ class IServiceManager(IPlugin, CommandEventMixin):
         env_vars=None,
         extra_fields=None,
     ):
-        """
-        Renders a template with structured parameters for proper quoting
+        """Renders a template with structured parameters for proper quoting.
 
         Args:
             template_name: Name of the template file
@@ -753,8 +742,7 @@ class IServiceManager(IPlugin, CommandEventMixin):
         )
 
     def set_event_manager(self, event_manager: EventManager):
-        """
-        Set the event manager for this service manager.
+        """Set the event manager for this service manager.
 
         Args:
             event_manager: The event manager to set
@@ -763,8 +751,7 @@ class IServiceManager(IPlugin, CommandEventMixin):
         self.event_emitter = ServiceEventEmitter(event_manager)
 
     def _do_prepare(self, plugin_manager: "Optional[PluginManager]" = None):
-        """
-        Prepare the service with proper event notifications.
+        """Prepare the service with proper event notifications.
 
         Args:
             plugin_manager: Plugin manager for creating dependencies
@@ -848,8 +835,7 @@ class IServiceManager(IPlugin, CommandEventMixin):
             raise
 
     def stop(self):
-        """
-        Stop the service.
+        """Stop the service.
 
         This default implementation just handles event notification.
         Subclasses should override _do_stop to implement actual stop logic.
@@ -892,8 +878,7 @@ class IServiceManager(IPlugin, CommandEventMixin):
             raise
 
     def _do_stop(self):
-        """
-        Perform the actual service stop work.
+        """Perform the actual service stop work.
 
         To be implemented by subclasses. The default implementation just returns True.
 
@@ -907,8 +892,7 @@ class IServiceManager(IPlugin, CommandEventMixin):
         return True
 
     def _get_default_output_patterns(self) -> List[Tuple[str, str]]:
-        """
-        Get default output patterns based on service type and protocol.
+        """Get default output patterns based on service type and protocol.
 
         Returns:
             List of (output_type, filename_pattern) tuples
@@ -941,8 +925,7 @@ class IServiceManager(IPlugin, CommandEventMixin):
         return base_patterns
 
     def _get_protocol_specific_patterns(self, protocol: str) -> List[Tuple[str, str]]:
-        """
-        Get protocol-specific output patterns.
+        """Get protocol-specific output patterns.
 
         Args:
             protocol: Protocol name (e.g., 'quic', 'tcp', 'http')
@@ -980,8 +963,7 @@ class IServiceManager(IPlugin, CommandEventMixin):
         return protocol_patterns.get(protocol.lower(), [])
 
     def get_output_patterns(self) -> List[Tuple[str, str]]:
-        """
-        Get output patterns for this service.
+        """Get output patterns for this service.
 
         This method can be overridden by subclasses to provide custom patterns.
 
@@ -993,8 +975,7 @@ class IServiceManager(IPlugin, CommandEventMixin):
         return self._output_patterns
 
     def add_output_pattern(self, output_type: str, filename_pattern: str):
-        """
-        Add a custom output pattern for this service.
+        """Add a custom output pattern for this service.
 
         Args:
             output_type: Type/category of the output
@@ -1004,8 +985,7 @@ class IServiceManager(IPlugin, CommandEventMixin):
         self.logger.debug(f"Added output pattern: {output_type} -> {filename_pattern}")
 
     def configure_environment_outputs(self, env_type: str) -> None:
-        """
-        Configure output patterns based on the environment type.
+        """Configure output patterns based on the environment type.
 
         This method allows services to customize their output patterns based on
         which execution environment they're running in.
@@ -1017,8 +997,7 @@ class IServiceManager(IPlugin, CommandEventMixin):
         pass
 
     def get_additional_output_discovery_patterns(self) -> Dict[str, List[str]]:
-        """
-        Get additional patterns for discovering outputs not covered by standard patterns.
+        """Get additional patterns for discovering outputs not covered by standard patterns.
 
         Override this in subclasses to provide custom discovery patterns.
 
@@ -1028,8 +1007,7 @@ class IServiceManager(IPlugin, CommandEventMixin):
         return {}
 
     def get_output_file_paths(self, log_base_path: str = "/app/logs") -> Dict[str, str]:
-        """
-        Get the actual output file paths that will be used by this service.
+        """Get the actual output file paths that will be used by this service.
 
         This method converts output patterns into concrete file paths that can be
         used in entrypoint scripts for redirecting output.
@@ -1058,8 +1036,7 @@ class IServiceManager(IPlugin, CommandEventMixin):
         return output_paths
 
     def get_standard_redirections(self) -> Dict[str, str]:
-        """
-        Get standard I/O redirections for command execution.
+        """Get standard I/O redirections for command execution.
 
         Returns:
             Dict with 'stdout' and 'stderr' paths, or empty dict if using defaults

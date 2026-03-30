@@ -1,5 +1,4 @@
-"""
-Unit tests for Shadow NS network resolver.
+"""Unit tests for Shadow NS network resolver.
 
 This module tests the Shadow NS-specific implementation of network
 placeholder resolution using static IP assignment patterns.

@@ -5,6 +5,7 @@ wasted resources and improve user experience.
 """
 
 import logging
+import threading
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
@@ -125,8 +126,8 @@ class DockerComposeException(PantherException):
         context = {
             "command": command,
             "returncode": returncode,
-            "stdout": stdout[:500] if stdout else "",  # Truncate for logging
-            "stderr": stderr[:500] if stderr else "",
+            "stdout": stdout[:2000] if stdout else "",
+            "stderr": stderr[:2000] if stderr else "",
         }
         super().__init__(
             message, ErrorSeverity.CRITICAL, ErrorCategory.DOCKER_RUNTIME, context
@@ -293,6 +294,7 @@ class FastFailHandler:
         """Initialize fast-fail handler."""
         self.enabled = enabled
         self.logger = logger or logging.getLogger(__name__)
+        self._lock = threading.Lock()
         self.error_count = 0
         self.critical_error: Optional[PantherException] = None
 
@@ -325,20 +327,18 @@ class FastFailHandler:
         Raises:
             PantherException: If error is critical and raise_on_critical is True
         """
-        self.error_count += 1
-
         # Convert regular exceptions to PantherException if needed
         if not isinstance(error, PantherException):
             error = PantherException(
                 str(error), ErrorSeverity.MEDIUM, ErrorCategory.COMMAND_EXECUTION
             )
 
-        # Add to error history
-        self.error_history.append((datetime.now(), error))
-
-        # Trim old entries from history (keep last 100)
-        if len(self.error_history) > 100:
-            self.error_history = self.error_history[-100:]
+        with self._lock:
+            self.error_count += 1
+            self.error_history.append((datetime.now(), error))
+            # Trim old entries from history (keep last 100)
+            if len(self.error_history) > 100:
+                self.error_history = self.error_history[-100:]
 
         # Check for cascade
         cascade_error = self.detect_cascade(error)
@@ -354,7 +354,8 @@ class FastFailHandler:
         # Log the error with appropriate level
         if error.severity == ErrorSeverity.CRITICAL:
             self.logger.critical(self._format_error(error))
-            self.critical_error = error
+            with self._lock:
+                self.critical_error = error
         elif error.severity == ErrorSeverity.HIGH:
             self.logger.error(self._format_error(error))
         elif error.severity == ErrorSeverity.MEDIUM:
@@ -386,9 +387,11 @@ class FastFailHandler:
         """
         # Check recent errors of same category
         current_time = datetime.now()
+        with self._lock:
+            history_snapshot = list(self.error_history[-10:])
         recent_errors = [
             e
-            for t, e in self.error_history[-10:]
+            for t, e in history_snapshot
             if e.category == error.category
             and (current_time - t).total_seconds() < self.cascade_time_window
         ]
@@ -496,9 +499,10 @@ class FastFailHandler:
 
     def clear_history(self) -> None:
         """Clear error history and reset counters."""
-        self.error_history.clear()
-        self.error_count = 0
-        self.critical_error = None
+        with self._lock:
+            self.error_history.clear()
+            self.error_count = 0
+            self.critical_error = None
 
     def set_cascade_threshold(self, category: ErrorCategory, threshold: int) -> None:
         """Set custom cascade threshold for a specific error category.
@@ -535,7 +539,7 @@ class FastFailHandler:
         context_str = ", ".join(f"{k}={v}" for k, v in error.context.items())
         return (
             f"[{error.category.value.upper()}] "
-            f"{error.severity.name}: {str(error)} "
+            f"{error.severity.name}: {error} "
             f"({context_str})"
         )
 

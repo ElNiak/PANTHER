@@ -223,6 +223,7 @@ class ImageOperationsMixin:
                         image_tag,
                         impl_name,
                     )
+                    self.logger.info("Image cached: %s (skipped)", image_tag)
                     return cached_result
 
             log_f = None
@@ -294,6 +295,7 @@ class ImageOperationsMixin:
                 image_tag,
                 effective_platform,
             )
+            self.logger.info("Building image: %s", image_tag)
 
             # Import here to avoid circular dependency at module level
             from panther.core.docker_builder.docker_builder import DockerBuilder
@@ -340,6 +342,7 @@ class ImageOperationsMixin:
             )
             DockerBuilder.mark_session_built(image_tag)
 
+            self.logger.info("Image built: %s (%.1fs)", image_tag, build_time)
             self.logger.info(
                 "Successfully built Docker image '%s' with context '%s' and build args '%s'",
                 image_tag,

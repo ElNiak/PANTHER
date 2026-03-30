@@ -1,11 +1,8 @@
-"""
-This module contains a function to display an ASCII art banner with a message and author information.
-"""
+"""This module contains a function to display an ASCII art banner with a message and author information."""
 
 
 def display_banner():
-    """
-    Displays an ASCII art banner with a message and author information.
+    """Displays an ASCII art banner with a message and author information.
 
     The banner includes:
     - An ASCII art design

@@ -193,7 +193,7 @@ class EnvironmentManagementMixin:
 
         except Exception as e:
             self.logger.error(f"Failed to setup execution environment: {e}")
-            # Continue with other environments
+            raise
 
     def teardown_environment(self) -> None:
         """Tear down test environment using configured plugins."""

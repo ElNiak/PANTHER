@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""
-Integration test for the PantherIvy service manager with the update_ivy_wrapper function.
+"""Integration test for the PantherIvy service manager with the update_ivy_wrapper function.
+
 This test creates a minimal experiment configuration to validate that:
 1. The update_ivy_wrapper function is properly added to the entrypoint script
 2. The function definitions are properly formatted and positioned in the script
-3. The script can be generated without errors
+3. The script can be generated without errors.
 """
 import logging
 import os
@@ -124,8 +124,7 @@ class TestIvyUpdateWrapperIntegration(unittest.TestCase):
         shutil.rmtree(self.test_dir)
 
     def test_entrypoint_script_generation(self):
-        """
-        Test that the entrypoint script is correctly generated with the update_ivy_wrapper function.
+        """Test that the entrypoint script is correctly generated with the update_ivy_wrapper function.
 
         This test simulates the full process of command generation and entrypoint script rendering
         to ensure that the update_ivy_wrapper function is properly included in the script.

@@ -1,14 +1,10 @@
-from typing import Any, Dict, Optional
+"""Methods for IEnvironmentPlugin to emit standardized events."""
 
-"""
-Methods for IEnvironmentPlugin to emit standardized events.
-"""
+from typing import Any, Dict, Optional
 
 
 class EnvironmentPluginEventMixin:
-    """
-
-    Mixin providing standardized event emission methods for environment plugins.
+    """Mixin providing standardized event emission methods for environment plugins.
 
     This class extends IEnvironmentPlugin with helper methods to emit standard events.
     """
@@ -16,8 +12,7 @@ class EnvironmentPluginEventMixin:
     def notify_environment_setup_started(
         self, details: Optional[Dict[str, Any]] = None
     ):
-        """
-        Notify that environment setup has started using the event emitter.
+        """Notify that environment setup has started using the event emitter.
 
         Args:
             details: Additional details about the setup
@@ -38,8 +33,7 @@ class EnvironmentPluginEventMixin:
             )
 
     def notify_environment_initialized(self, details: Optional[Dict[str, Any]] = None):
-        """
-        Notify that environment has been initialized using the event emitter.
+        """Notify that environment has been initialized using the event emitter.
 
         Args:
             details: Additional details about the initialization
@@ -70,8 +64,7 @@ class EnvironmentPluginEventMixin:
     def notify_environment_setup_completed(
         self, success: bool, details: Dict[str, Any] = None
     ):
-        """
-        Notify that environment setup has completed using the event emitter.
+        """Notify that environment setup has completed using the event emitter.
 
         Args:
             success: Whether the setup was successful
@@ -120,8 +113,7 @@ class EnvironmentPluginEventMixin:
     def notify_environment_teardown(
         self, success: bool, details: Dict[str, Any] = None
     ):
-        """
-        Notify that environment teardown has completed using the event emitter.
+        """Notify that environment teardown has completed using the event emitter.
 
         Args:
             success: Whether the teardown was successful
@@ -160,8 +152,7 @@ class EnvironmentPluginEventMixin:
     def notify_experiment_early_finish(
         self, reason: str, details: Dict[str, Any] = None
     ):
-        """
-        Notify that the experiment should finish early using the event emitter.
+        """Notify that the experiment should finish early using the event emitter.
 
         Args:
             reason: Why the experiment should finish early
@@ -189,8 +180,7 @@ class EnvironmentPluginEventMixin:
     def notify_environment_event(
         self, event_name: str, details: Optional[Dict[str, Any]] = None
     ):
-        """
-        Notify of a generic environment event.
+        """Notify of a generic environment event.
 
         Args:
             event_name: The name of the event

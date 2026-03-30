@@ -49,6 +49,18 @@ class ValidationResult:
         self.warnings.extend(other.warnings)
         self.is_valid = self.is_valid and other.is_valid
 
+    def __str__(self):  # noqa: D105
+        lines = []
+        if self.errors:
+            lines.append("Errors:")
+            for error in self.errors:
+                lines.append(f"  - {error}")
+        if self.warnings:
+            lines.append("Warnings:")
+            for warning in self.warnings:
+                lines.append(f"  - {warning}")
+        return "\n".join(lines)
+
 
 class BaseValidator(LoggerMixin, ABC):
     """Base class for validators."""
@@ -538,7 +550,7 @@ class BusinessRulesValidator(BaseValidator):
             "ivy_server": (4000, 4999),
             "ivy_client": (7000, 7999),
             "picoquic_server": (6000, 6999),
-            "picoquic_client": (5000, 5999),
+            "picoquic_client": (5001, 5999),
             "quic": (4400, 4500),
             "http": (8000, 8999),
             "https": (8400, 8500),

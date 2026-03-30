@@ -8,19 +8,19 @@ unified timeline of everything that happened during an experiment.
 Event records use ``"source": "event"`` (vs ``"source": "logging"`` for log
 records) so consumers can distinguish them.
 
-Thread safety: writes are protected by a threading.Lock to prevent
-interleaving with concurrent log handler writes.
+Thread safety: all writes are delegated to a centralized
+:class:`~panther.core.utils.jsonl_writer.JsonlWriter` which serializes
+access through a single lock.
 """
 
 import json
 import logging
-import threading
 from datetime import timezone
-from pathlib import Path
 from typing import Any, Dict
 
 from panther.core.events.base.event_base import BaseEvent
 from panther.core.observer.base.typed_observer_interface import ITypedObserver
+from panther.core.utils.jsonl_writer import JsonlWriter
 from panther.core.utils.log_context import get_log_context
 
 
@@ -31,37 +31,40 @@ class EventStreamRecorder(ITypedObserver):
     StructuredJsonFormatter, with ``"source": "event"`` and ``"level": "EVENT"``
     to distinguish it from log records.
 
-    The recorder shares the output file with the logging system's file handler,
-    so a threading lock guards all writes.
+    All writes are delegated to a shared :class:`JsonlWriter` so that log
+    records, event records, and metric records are serialized through the
+    same lock and file handle.
 
     Args:
-        output_path: Path to the structured.jsonl file.
-
-    Attributes:
-        output_path: Resolved Path to the JSONL file.
-        _lock: Threading lock for file-write serialization.
+        writer: The centralized :class:`JsonlWriter` for the structured
+            JSONL file.
     """
 
     # Custom log level for events (between INFO=20 and WARNING=30)
     EVENT_LEVEL = 25
 
-    def __init__(self, output_path: str | Path):
+    def __init__(self, writer: JsonlWriter):
         """Initialize EventStreamRecorder.
 
         Args:
-            output_path: Path to the structured JSONL file.
+            writer: Shared :class:`JsonlWriter` instance.
         """
         super().__init__()
-        self.output_path = Path(output_path)
-        self._lock = threading.Lock()
+        self._writer = writer
         self.logger = logging.getLogger(self.__class__.__name__)
+
+    @property
+    def output_path(self):
+        """Return the path of the underlying JSONL writer."""
+        return self._writer.path
 
     def on_event(self, event: BaseEvent) -> bool:
         """Serialize an event to the structured JSONL file.
 
-        Converts the event to the shared JSONL schema and appends it
-        as a single line. The current LogContext is merged into the
-        record so that context fields propagate to events as well.
+        Converts the event to the shared JSONL schema and writes it via
+        the centralized :class:`JsonlWriter`. The current LogContext is
+        merged into the record so that context fields propagate to
+        events as well.
 
         Args:
             event: The event to record.
@@ -69,22 +72,17 @@ class EventStreamRecorder(ITypedObserver):
         Returns:
             True on success, False if writing failed.
         """
-        # Track processed events for deduplication
-        if hasattr(event, "id"):
-            if event.id in self.processed_events_uuids:
-                return True
-            self.processed_events_uuids.append(event.id)
+        if self._is_duplicate(event):
+            return True
 
         try:
             record = self._event_to_jsonl_record(event)
             line = json.dumps(record, default=str)
-            with self._lock:
-                with open(self.output_path, "a", encoding="utf-8") as fh:
-                    fh.write(line + "\n")
+            self._writer.write_line(line)
             return True
         except Exception as exc:  # pylint: disable=broad-exception-caught
-            self.logger.debug(
-                "EventStreamRecorder failed to write event %s: %s",
+            self.logger.warning(
+                "EventStreamRecorder failed to write event %s: %s. Structured log may be incomplete.",
                 getattr(event, "id", "?"),
                 exc,
             )
@@ -153,9 +151,9 @@ class EventStreamRecorder(ITypedObserver):
         return True
 
     def get_priority(self) -> int:
-        """Return low priority so business observers run first.
+        """Return priority 10 -- above default (0) but below business observers (50).
 
         Returns:
-            Priority value of 10 (low, runs after higher-priority observers).
+            Priority value of 10.
         """
         return 10

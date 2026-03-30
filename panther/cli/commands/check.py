@@ -182,14 +182,16 @@ def check(
 
                 if check_type == "format":
                     # Black formatting check
-                    cmd = ["black", "--check" if not fix else "", str(path)]
+                    cmd = ["black"]
                     if not fix:
-                        cmd.remove("")
+                        cmd.append("--check")
+                    cmd.append(str(path))
                 elif check_type == "imports":
                     # isort import sorting
-                    cmd = ["isort", "--check-only" if not fix else "", str(path)]
+                    cmd = ["isort"]
                     if not fix:
-                        cmd.remove("")
+                        cmd.append("--check-only")
+                    cmd.append(str(path))
                 elif check_type == "lint":
                     # flake8 linting
                     cmd = ["flake8", str(path)]

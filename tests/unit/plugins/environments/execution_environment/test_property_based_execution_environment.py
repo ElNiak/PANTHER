@@ -1,5 +1,4 @@
-"""
-Property-based tests for execution environment robustness using Hypothesis.
+"""Property-based tests for execution environment robustness using Hypothesis.
 
 These tests generate random inputs to find edge cases and ensure robust behavior
 across all execution environment implementations including:

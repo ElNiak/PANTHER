@@ -1,3 +1,5 @@
+"""Background container health monitor for localhost single-container deployments."""
+
 from typing import Any, Dict
 
 from ..base_environment_monitor import BaseEnvironmentMonitor, ServiceHealthState
@@ -6,14 +8,14 @@ from ..base_environment_monitor import BaseEnvironmentMonitor, ServiceHealthStat
 
 
 class SingleContainerMonitor(BaseEnvironmentMonitor):
-    """
-    Background container health monitor for non-blocking localhost deployments.
+    """Background container health monitor for non-blocking localhost deployments.
 
     Monitors the single container health and triggers early experiment termination
     when the container fails or exits unexpectedly.
     """
 
     def __init__(self, localhost_env, container_name, config):
+        """Initialize the single container health monitor."""
         # Initialize base monitor
         super().__init__(localhost_env, config, localhost_env.logger)
 
@@ -39,7 +41,7 @@ class SingleContainerMonitor(BaseEnvironmentMonitor):
                 self._handle_container_failure()
 
     def _is_container_healthy(self):
-        """Check if container is running and healthy"""
+        """Check if container is running and healthy."""
         # Check if container is running
         result = self.localhost_env.execute_docker_command(
             docker_args=["ps", "-q", "-f", f"name=^{self.container_name}$"],

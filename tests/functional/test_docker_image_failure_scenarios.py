@@ -1,5 +1,4 @@
-"""
-Functional tests for Docker image failure scenarios.
+"""Functional tests for Docker image failure scenarios.
 
 This module tests specific failure patterns that occur in PANTHER when Docker images
 don't exist, including the exact error "unknown (ceacda77-b5b4-56d6-a95f-ec764bb37357)".

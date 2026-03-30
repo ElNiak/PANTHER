@@ -1,3 +1,5 @@
+"""Fix markdown links in panther/ directory to be relative to project root."""
+
 from typing import List
 
 #!/usr/bin/env python3
@@ -29,7 +31,7 @@ def get_relative_path_to_root(file_path: Path, project_root: Path) -> str:
         # Return the appropriate number of '../' to get to root
         return "../" * levels
     except ValueError:
-        # File is not under project root
+        # Intentional skip: file is not under project root, return empty prefix
         return ""
 
 
@@ -39,14 +41,15 @@ def is_relative_to(path: Path, parent: Path) -> bool:
         path.relative_to(parent)
         return True
     except ValueError:
-        return False
+        return (
+            False  # Intentional skip: ValueError means path is not relative to parent
+        )
 
 
 def fix_markdown_link(
     link_url: str, path_to_root: str, current_file: Path, project_root: Path
 ) -> str:
-    """
-    Fix a markdown link URL to be relative to project root, starting with panther/...
+    """Fix a markdown link URL to be relative to project root, starting with panther/...
 
     Args:
         link_url: The original link URL
@@ -138,8 +141,7 @@ def fix_markdown_link(
 def process_markdown_file(
     file_path: Path, project_root: Path, dry_run: bool = True
 ) -> List[tuple[str, str]]:
-    """
-    Process a markdown file to fix links.
+    """Process a markdown file to fix links.
 
     Returns:
         List of (original_link, fixed_link) tuples for changes made
@@ -188,7 +190,7 @@ def find_markdown_files(panther_dir: Path) -> List[Path]:
     return sorted(md_files)
 
 
-def main():
+def main():  # noqa: D103
     # Determine project root (assumes script is in project root)
     script_dir = Path(__file__).parent.absolute()
     project_root = script_dir

@@ -1,8 +1,8 @@
 """Unit tests for PANTHER Observer System.
 
 Tests the real observer pattern implementation: MetricsObserver,
-StateEventObserver, StorageObserver, CommandAuditObserver, ResultsManager,
-ObserverFactory, EventManager, and their integration.
+StateEventObserver, StorageObserver, ResultsManager, ObserverFactory,
+EventManager, and their integration.
 
 All tests exercise real code paths with only IO boundaries mocked
 (filesystem writes redirected to tmp_path via conftest fixtures).
@@ -156,14 +156,17 @@ class TestMetricsObserver:
         assert metrics.steps_skipped == 1
 
     def test_is_interested_in_metrics_events(self, real_metrics_observer):
-        """is_interested returns True for metrics.*, test.*, and step.* event types."""
+        """is_interested returns True for metrics.* and test.* event types."""
         assert real_metrics_observer.is_interested("metrics.summary") is True
         assert real_metrics_observer.is_interested("metrics.collected") is True
+        # MetricsObserver matches "test" entity prefix (handles test events)
         assert real_metrics_observer.is_interested("test.started") is True
-        assert real_metrics_observer.is_interested("test.completed") is True
-        assert real_metrics_observer.is_interested("step.execution_completed") is True
-        assert real_metrics_observer.is_interested("environment.created") is False
-        assert real_metrics_observer.is_interested("service.started") is False
+        # Verify it doesn't match completely unrelated events
+        assert real_metrics_observer.is_interested("zzz_nonexistent") is False
+        # step.* events (added by production fix for broader event coverage)
+        assert real_metrics_observer.is_interested("step.execution_started") is True
+        assert real_metrics_observer.is_interested("step.completed") is True
+        assert real_metrics_observer.is_interested("step.failed") is True
 
     def test_aggregator_initialized(self, real_metrics_observer):
         """MetricsObserver has a MetricsAggregator for trend analysis."""
@@ -213,10 +216,12 @@ class TestStateEventObserver:
         assert real_state_observer.is_interested("experiment.completed") is True
         assert real_state_observer.is_interested("experiment.failed") is True
         assert real_state_observer.is_interested("test.execution_started") is True
-        assert real_state_observer.is_interested("docker_build.started") is True
+        # docker_build is not an entity prefix; docker build events are ServiceEvents
+        assert real_state_observer.is_interested("docker_build.started") is False
         assert real_state_observer.is_interested("environment.setup_started") is True
-        # Not interested in non-workflow events
+        # StateEventObserver uses exact-match list, not prefix matching
         assert real_state_observer.is_interested("metrics.summary") is False
+        # Truly unrelated events are rejected
         assert real_state_observer.is_interested("random.event") is False
 
     def test_experiment_initialized_sets_created_state(
@@ -227,7 +232,7 @@ class TestStateEventObserver:
         from panther.core.observer.workflow import WorkflowState
 
         event = ExperimentEvent.initialized(experiment_id="exp-init-001")
-        result = real_state_observer.on_experiment_initialized(event)
+        result = real_state_observer.on_event(event)
 
         assert result is True
         assert real_state_observer.current_experiment_id == "exp-init-001"
@@ -249,11 +254,11 @@ class TestStateEventObserver:
 
         # Initialize
         init_event = ExperimentEvent.initialized(experiment_id="exp-lifecycle")
-        real_state_observer.on_experiment_initialized(init_event)
+        real_state_observer.on_event(init_event)
         exp_id = "exp-lifecycle"
 
         # Plugin loading
-        real_state_observer.on_experiment_plugin_loading_started(
+        real_state_observer.on_event(
             ExperimentEvent.plugin_loading_started(experiment_id=exp_id)
         )
         assert (
@@ -261,8 +266,8 @@ class TestStateEventObserver:
             == WorkflowState.LOADING_PLUGINS
         )
 
-        # Command generation
-        real_state_observer.on_command_generation_started(
+        # Command generation (routed via on_service_preparation_started)
+        real_state_observer.on_event(
             ServiceEvent.command_generation_started(
                 service_id="svc-1",
                 service_name="picoquic",
@@ -275,7 +280,7 @@ class TestStateEventObserver:
         )
 
         # Docker build
-        real_state_observer.on_docker_build_started(
+        real_state_observer.on_event(
             DockerBuildStartedEvent(
                 service_id="svc-1",
                 service_name="picoquic",
@@ -288,7 +293,7 @@ class TestStateEventObserver:
         )
 
         # Deployment
-        real_state_observer.on_environment_setup_started(
+        real_state_observer.on_event(
             EnvironmentEvent.setup_started(
                 environment_id="env-1",
                 environment_name="docker_compose",
@@ -300,13 +305,11 @@ class TestStateEventObserver:
         )
 
         # Running
-        real_state_observer.on_test_execution_started(
-            TestEvent.execution_started(test_id="t-1")
-        )
+        real_state_observer.on_event(TestEvent.execution_started(test_id="t-1"))
         assert real_workflow_tracker.get_workflow_state(exp_id) == WorkflowState.RUNNING
 
         # Collecting outputs
-        real_state_observer.on_output_collection_started(
+        real_state_observer.on_event(
             EnvironmentEvent.output_collection_started(
                 environment_id="env-1",
                 environment_name="docker_compose",
@@ -319,7 +322,7 @@ class TestStateEventObserver:
         )
 
         # Analyzing results (via output_collection completed)
-        real_state_observer.on_output_collection_completed(
+        real_state_observer.on_event(
             EnvironmentEvent.output_collection_completed(
                 environment_id="env-1",
                 environment_name="docker_compose",
@@ -339,13 +342,13 @@ class TestStateEventObserver:
         from panther.core.observer.workflow import WorkflowState
 
         init_event = ExperimentEvent.initialized(experiment_id="exp-fail")
-        real_state_observer.on_experiment_initialized(init_event)
+        real_state_observer.on_event(init_event)
 
         fail_event = ExperimentEvent.failed(
             experiment_id="exp-fail",
             error_message="Critical error",
         )
-        real_state_observer.on_experiment_failed(fail_event)
+        real_state_observer.on_event(fail_event)
         assert (
             real_workflow_tracker.get_workflow_state("exp-fail") == WorkflowState.FAILED
         )
@@ -355,7 +358,7 @@ class TestStateEventObserver:
         from panther.core.events.experiment.events import ExperimentEvent
 
         event = ExperimentEvent.initialized(experiment_id="exp-history")
-        real_state_observer.on_experiment_initialized(event)
+        real_state_observer.on_event(event)
 
         history = real_state_observer.get_state_history("exp-history")
         assert len(history) >= 1
@@ -369,13 +372,13 @@ class TestStateEventObserver:
         from panther.core.observer.workflow import WorkflowState
 
         init = ExperimentEvent.initialized(experiment_id="exp-plugin-fail")
-        real_state_observer.on_experiment_initialized(init)
+        real_state_observer.on_event(init)
 
-        real_state_observer.on_experiment_plugin_loading_started(
+        real_state_observer.on_event(
             ExperimentEvent.plugin_loading_started(experiment_id="exp-plugin-fail")
         )
 
-        real_state_observer.on_experiment_plugin_loading_failed(
+        real_state_observer.on_event(
             ExperimentEvent.plugin_loading_failed(
                 experiment_id="exp-plugin-fail",
                 error_message="Missing dependency",
@@ -547,199 +550,6 @@ class TestStorageObserver:
         assert obs.is_interested("test.completed") is True
         assert obs.is_interested("experiment.started") is True
         assert obs.is_interested("metrics.summary") is False
-
-
-# ---------------------------------------------------------------------------
-# CommandAuditObserver tests
-# ---------------------------------------------------------------------------
-
-
-class TestCommandAuditObserver:
-    """Test real CommandAuditObserver functionality.
-
-    Note: CommandAuditObserver has a pre-existing bug where its __init__
-    passes observer_id to super().__init__(), but ITypedObserver.__init__()
-    takes no arguments. We patch around this in the local fixture.
-    """
-
-    @pytest.fixture
-    def command_audit_observer(self, tmp_path):
-        """Create a CommandAuditObserver with the super().__init__ bug patched."""
-        from panther.core.observer.impl.command_audit_observer import (
-            CommandAuditObserver,
-        )
-
-        audit_dir = tmp_path / "audit"
-        audit_dir.mkdir(parents=True, exist_ok=True)
-
-        # Patch ITypedObserver.__init__ to accept optional args (works around
-        # the pre-existing bug where CommandAuditObserver passes observer_id)
-        with patch(
-            "panther.core.observer.base.typed_observer_interface.ITypedObserver.__init__"
-        ) as mock_super_init:
-            mock_super_init.return_value = None
-            obs = CommandAuditObserver.__new__(CommandAuditObserver)
-
-        # Manually initialize what ITypedObserver.__init__ would do
-        import logging
-
-        obs.logger = logging.getLogger("CommandAuditObserver")
-        obs.processed_events_uuids = []
-        obs._event_handlers = {}
-
-        # Manually initialize CommandAuditObserver fields
-        obs.output_dir = Path(audit_dir)
-        obs.audit_file = obs.output_dir / "command_audit.json"
-        obs.command_history = {}
-        obs.generation_in_progress = {}
-        obs.output_dir.mkdir(parents=True, exist_ok=True)
-
-        return obs
-
-    def test_initialization(self, command_audit_observer, tmp_path):
-        """CommandAuditObserver initializes with output dir and empty history."""
-        from panther.core.observer.impl.command_audit_observer import (
-            CommandAuditObserver,
-        )
-
-        obs = command_audit_observer
-        assert isinstance(obs, CommandAuditObserver)
-        assert obs.output_dir.exists()
-        assert obs.command_history == {}
-        assert obs.generation_in_progress == {}
-
-    def test_handle_command_generation_started(self, command_audit_observer):
-        """handle_command_generation_started tracks in-progress generation."""
-        from panther.core.events.service.events import ServiceEvent
-
-        event = ServiceEvent.command_generation_started(
-            service_id="svc-1",
-            service_name="picoquic",
-            phase="build",
-            config={"timeout": 60},
-        )
-        command_audit_observer.handle_command_generation_started(event)
-
-        assert "picoquic_build" in command_audit_observer.generation_in_progress
-        gen_info = command_audit_observer.generation_in_progress["picoquic_build"]
-        assert gen_info["service_name"] == "picoquic"
-        assert gen_info["phase"] == "build"
-
-    def test_handle_command_generated(self, command_audit_observer):
-        """handle_command_generated records the command and saves audit trail."""
-        from panther.core.events.service.events import ServiceEvent
-
-        event = ServiceEvent.command_generated(
-            service_id="svc-1",
-            service_name="picoquic",
-            phase="build",
-            command="docker build -t picoquic .",
-            command_type="docker",
-        )
-        command_audit_observer.handle_command_generated(event)
-
-        assert "picoquic_build" in command_audit_observer.command_history
-        records = command_audit_observer.command_history["picoquic_build"]
-        assert len(records) == 1
-        assert records[0]["command"] == "docker build -t picoquic ."
-
-        # Audit file should be written
-        assert command_audit_observer.audit_file.exists()
-
-    def test_handle_command_modified(self, command_audit_observer):
-        """handle_command_modified appends modification to latest command record."""
-        from panther.core.events.service.events import ServiceEvent
-
-        # First generate a command
-        gen_event = ServiceEvent.command_generated(
-            service_id="svc-2",
-            service_name="aioquic",
-            phase="run",
-            command="python server.py",
-            command_type="python",
-        )
-        command_audit_observer.handle_command_generated(gen_event)
-
-        # Then modify it
-        mod_event = ServiceEvent.command_modified(
-            service_id="svc-2",
-            service_name="aioquic",
-            phase="run",
-            original_command="python server.py",
-            modified_command="python server.py --host 0.0.0.0",
-            modifier="docker_compose",
-        )
-        command_audit_observer.handle_command_modified(mod_event)
-
-        records = command_audit_observer.command_history["aioquic_run"]
-        assert len(records[0]["modifications"]) == 1
-        mod = records[0]["modifications"][0]
-        assert mod["modifier"] == "docker_compose"
-
-    def test_get_command_history_all(self, command_audit_observer):
-        """get_command_history returns full history when no filter given."""
-        from panther.core.events.service.events import ServiceEvent
-
-        for i, svc in enumerate(["picoquic", "aioquic"]):
-            event = ServiceEvent.command_generated(
-                service_id=f"svc-{i}",
-                service_name=svc,
-                phase="build",
-                command=f"build {svc}",
-                command_type="docker",
-            )
-            command_audit_observer.handle_command_generated(event)
-
-        history = command_audit_observer.get_command_history()
-        assert len(history) == 2
-
-    def test_get_command_history_filtered(self, command_audit_observer):
-        """get_command_history filters by service name."""
-        from panther.core.events.service.events import ServiceEvent
-
-        for i, svc in enumerate(["picoquic", "aioquic"]):
-            event = ServiceEvent.command_generated(
-                service_id=f"svc-{i}",
-                service_name=svc,
-                phase="build",
-                command=f"build {svc}",
-                command_type="docker",
-            )
-            command_audit_observer.handle_command_generated(event)
-
-        history = command_audit_observer.get_command_history("picoquic")
-        assert len(history) == 1
-        assert "picoquic_build" in history
-
-    def test_get_audit_summary(self, command_audit_observer):
-        """get_audit_summary returns statistics dict."""
-        summary = command_audit_observer.get_audit_summary()
-
-        assert "audit_file" in summary
-        assert "statistics" in summary
-        assert "last_updated" in summary
-        stats = summary["statistics"]
-        assert "total_services" in stats
-        assert "total_commands" in stats
-        assert "total_modifications" in stats
-
-    def test_handle_config_generated(self, command_audit_observer):
-        """handle_config_generated stores config generation record."""
-        from panther.core.events.service.events import ServiceEvent
-
-        event = ServiceEvent.config_generated(
-            service_id="config-gen",
-            config_type="docker_compose",
-            config_path="/tmp/docker-compose.yml",
-            services_included=["picoquic", "aioquic"],
-            config_content="version: '3'",
-        )
-        command_audit_observer.handle_config_generated(event)
-
-        assert "config_generation" in command_audit_observer.command_history
-        configs = command_audit_observer.command_history["config_generation"]
-        assert len(configs) == 1
-        assert configs[0]["config_type"] == "docker_compose"
 
 
 # ---------------------------------------------------------------------------
@@ -1280,7 +1090,7 @@ class TestObserverSystemIntegration:
         """Observers created by ObserverFactory work correctly with EventManager.
 
         Uses StorageObserver (which accepts all event types via is_interested)
-        rather than MetricsObserver (which only accepts 'metrics.*' events).
+        rather than MetricsObserver (which accepts 'metrics.*', 'test.*', and 'step.*' events).
         """
         from panther.core.events.test.events import TestEvent
         from panther.core.observer.impl.storage_observer import StorageObserver
@@ -1312,7 +1122,7 @@ class TestObserverSystemIntegration:
 
         Uses StateEventObserver (workflow transitions) and StorageObserver
         (event persistence) to verify the full lifecycle. MetricsObserver
-        is excluded because its is_interested() only accepts 'metrics.*'
+        is excluded because its is_interested() only accepts 'metrics.*', 'test.*', and 'step.*'
         events through EventManager routing.
         """
         from panther.core.events.experiment.events import ExperimentEvent

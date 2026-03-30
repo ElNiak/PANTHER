@@ -1,5 +1,4 @@
-"""
-Test package for environment architecture refactoring validation.
+"""Test package for environment architecture refactoring validation.
 
 This package contains tests to validate that the refactoring process:
 1. Maintains existing functionality

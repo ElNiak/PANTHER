@@ -344,7 +344,11 @@ class MetricsObserver(ITypedObserver):
         self.resource_collection_interval = resource_collection_interval
         self.metric_collection_interval = metric_collection_interval
 
-        self.log_level = log_level
+        self.log_level = (
+            getattr(logging, log_level.upper(), logging.INFO)
+            if isinstance(log_level, str)
+            else log_level
+        )
 
         # Initialize metrics collector with default values or use provided one
         # Will be properly configured when connected to a test case if not provided
@@ -358,9 +362,7 @@ class MetricsObserver(ITypedObserver):
         self.logger = self._setup_logging(
             logger_name="MetricsObserver",
             log_level=self.log_level,
-            enable_colors=True,
             output_file=self.output_dir / "metrics_observer.log",
-            structured_output=False,
         )
 
         # Initialize specialized collectors
@@ -756,6 +758,8 @@ class MetricsObserver(ITypedObserver):
             if self.monitoring_thread.is_alive():
                 self.monitoring_thread.join(timeout=self.publish_interval + 1)
             self.logger.debug("Monitoring thread stopped")
+
+        self.logger.info("Completed real-time resource monitoring")
 
     def _collect_current_metrics(self):
         """Collect metrics from all registered collectors and aggregate them."""

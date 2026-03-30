@@ -1,22 +1,14 @@
-from typing import Any, List
-
-"""
-Enhanced Jinja2 filters for secure command generation.
-
-This module provides robust quoting and escaping filters for Jinja2 templates
-to ensure all dynamic values are properly escaped in shell commands and YAML files.
-"""
+"""Enhanced Jinja2 filters for secure command generation."""
 
 import json
 import shlex
+from typing import Any, List
 
 import yaml
 
 
 def quote_shell(value: Any) -> str:
-    """
-
-    Safely quote a value for use in shell commands.
+    """Safely quote a value for use in shell commands.
 
     Args:
         value: The value to quote (will be converted to string)
@@ -30,8 +22,7 @@ def quote_shell(value: Any) -> str:
 
 
 def quote_yaml(value: Any) -> str:
-    """
-    Safely quote a value for use in YAML.
+    """Safely quote a value for use in YAML.
 
     Args:
         value: The value to quote
@@ -54,8 +45,7 @@ def quote_yaml(value: Any) -> str:
 
 
 def quote_json(value: Any) -> str:
-    """
-    Safely quote a value for use in JSON.
+    """Safely quote a value for use in JSON.
 
     Args:
         value: The value to quote
@@ -67,8 +57,7 @@ def quote_json(value: Any) -> str:
 
 
 def escape_docker_compose(value: Any) -> str:
-    """
-    Escape a value for use in Docker Compose YAML.
+    """Escape a value for use in Docker Compose YAML.
 
     Args:
         value: The value to escape
@@ -90,8 +79,7 @@ def escape_docker_compose(value: Any) -> str:
 
 
 def join_command_args(args: list) -> str:
-    """
-    Join command arguments with proper shell quoting.
+    """Join command arguments with proper shell quoting.
 
     Args:
         args: List of command arguments
@@ -106,8 +94,7 @@ def join_command_args(args: list) -> str:
 
 
 def create_env_export(env_vars: dict) -> str:
-    """
-    Create export statements for environment variables.
+    """Create export statements for environment variables.
 
     Args:
         env_vars: Dictionary of environment variables

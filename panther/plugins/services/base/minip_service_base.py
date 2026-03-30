@@ -9,8 +9,7 @@ from panther.plugins.services.services_interface import IServiceManager
 
 
 class BaseMinipServiceManager(IServiceManager, StringRepresentationMixin, ABC):
-    """
-    Base class for MINIP protocol implementations.
+    """Base class for MINIP protocol implementations.
 
     This class provides common functionality for MINIP service implementations,
     reducing code duplication across different MINIP service managers.

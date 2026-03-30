@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Test script to verify the fix to PantherIvy's generate_compile_commands method.
+"""Test script to verify the fix to PantherIvy's generate_compile_commands method.
 
 Uses unittest.mock to patch the deep initialization chain and test only
 the command generation logic.

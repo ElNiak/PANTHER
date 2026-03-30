@@ -1,5 +1,4 @@
-"""
-Localhost network resolver for network-aware command resolution.
+"""Localhost network resolver for network-aware command resolution.
 
 This module provides localhost-specific implementation of network
 placeholder resolution using calculated IP/port assignments for single container environment.
@@ -38,8 +37,7 @@ class LocalhostNetworkResolver(BaseNetworkResolver):
     def _get_service_index(
         self, service_name: str, context: NetworkResolutionContext
     ) -> int:
-        """
-        Get or assign service index for consistent port calculation.
+        """Get or assign service index for consistent port calculation.
 
         Args:
             service_name: Name of the service
@@ -58,8 +56,7 @@ class LocalhostNetworkResolver(BaseNetworkResolver):
         return self.service_registry[service_name]
 
     def _calculate_port(self, service_index: int) -> int:
-        """
-        Calculate port for service based on index.
+        """Calculate port for service based on index.
 
         Args:
             service_index: Index of the service
@@ -72,8 +69,7 @@ class LocalhostNetworkResolver(BaseNetworkResolver):
     def _generate_resolved_value(
         self, placeholder: PlaceholderInfo, service_info: NetworkServiceInfo
     ) -> str:
-        """
-        Generate resolved value for localhost environment.
+        """Generate resolved value for localhost environment.
 
         Localhost strategy:
         - IP: Always 127.0.0.1 (in requested format)
@@ -117,8 +113,7 @@ class LocalhostNetworkResolver(BaseNetworkResolver):
             )
 
     def _format_ip_address(self, format_type: NetworkFormat) -> str:
-        """
-        Format localhost IP address in requested format.
+        """Format localhost IP address in requested format.
 
         Args:
             format_type: Requested format (dotted, decimal, string, etc.)
@@ -148,8 +143,7 @@ class LocalhostNetworkResolver(BaseNetworkResolver):
     def get_service_ip(
         self, service_name: str, context: NetworkResolutionContext
     ) -> str:
-        """
-        Get IP address for a service in localhost environment.
+        """Get IP address for a service in localhost environment.
 
         Args:
             service_name: Name of the service
@@ -163,8 +157,7 @@ class LocalhostNetworkResolver(BaseNetworkResolver):
     def get_service_info(
         self, service_name: str, context: NetworkResolutionContext
     ) -> NetworkServiceInfo:
-        """
-        Get service information for localhost service.
+        """Get service information for localhost service.
 
         Args:
             service_name: Name of the service
@@ -195,8 +188,7 @@ class LocalhostNetworkResolver(BaseNetworkResolver):
         return service_info
 
     def populate_service_network_info(self, context: NetworkResolutionContext) -> None:
-        """
-        Populate network information for localhost services.
+        """Populate network information for localhost services.
 
         For localhost, this method ensures all services have calculated
         IP and port assignments with consistent indexing.
@@ -232,15 +224,14 @@ class LocalhostNetworkResolver(BaseNetworkResolver):
 
         except Exception as e:
             raise NetworkDiscoveryException(
-                f"Failed to populate service network info: {str(e)}",
+                f"Failed to populate service network info: {e}",
                 "localhost_service_discovery",
                 "localhost_single_container",
                 str(e),
             )
 
     def register_services(self, service_names: List[str]) -> None:
-        """
-        Register services for consistent index assignment.
+        """Register services for consistent index assignment.
 
         Args:
             service_names: List of service names to register
@@ -272,8 +263,7 @@ class LocalhostNetworkResolver(BaseNetworkResolver):
     def _create_default_service_info(
         self, placeholder: PlaceholderInfo
     ) -> NetworkServiceInfo:
-        """
-        Create environment-specific default service info.
+        """Create environment-specific default service info.
 
         For localhost, creates service info with localhost IP and calculated ports.
 
@@ -320,8 +310,7 @@ class LocalhostNetworkResolver(BaseNetworkResolver):
     def create_resolution_context(
         self, environment_type: str, service_managers: Dict[str, "IServiceManager"]
     ) -> NetworkResolutionContext:
-        """
-        Create network resolution context for localhost environment.
+        """Create network resolution context for localhost environment.
 
         Args:
             environment_type: Type of environment (should be "localhost_single_container")

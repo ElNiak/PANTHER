@@ -1,3 +1,5 @@
+"""Enumeration of plugin types supported by the PANTHER framework."""
+
 from enum import Enum
 
 

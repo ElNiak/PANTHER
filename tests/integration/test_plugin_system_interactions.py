@@ -1,5 +1,4 @@
-"""
-Integration tests for PANTHER plugin system interactions.
+"""Integration tests for PANTHER plugin system interactions.
 
 These tests verify that the plugin system components work together correctly:
 - PluginManager + PluginDiscovery + ServiceFactory + EnvironmentFactory

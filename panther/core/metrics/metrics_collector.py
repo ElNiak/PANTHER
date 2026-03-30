@@ -13,15 +13,19 @@ Usage::
     collector.start_collection_thread(interval=1.0)
 """
 
+import json
 import logging
 import os
 import threading
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from panther.core.metrics.enums import MetricType, Phase
 from panther.core.metrics.metric_types import Metric, TimingContext
+from panther.core.utils.jsonl_writer import JsonlWriter
+from panther.core.utils.log_context import get_log_context
 from panther.core.utils.logging_mixin import LoggerMixin
 
 try:
@@ -43,14 +47,21 @@ class MetricsCollector(LoggerMixin):
     """
 
     def __init__(
-        self, experiment_name: str, output_dir: Path, collection_interval: float = 5.0
+        self,
+        experiment_name: str,
+        output_dir: Path,
+        collection_interval: float = 5.0,
+        jsonl_writer: Optional[JsonlWriter] = None,
     ):
         """Initialize the metrics collector.
 
         Args:
-            experiment_name: Name of the experiment
-            output_dir: Directory where metrics will be stored
-            collection_interval: Background collection interval in seconds
+            experiment_name: Name of the experiment.
+            output_dir: Directory where metrics will be stored.
+            collection_interval: Background collection interval in seconds.
+            jsonl_writer: Shared :class:`JsonlWriter` for structured JSONL output.
+                When set, each recorded metric is also written as a JSONL line
+                through the centralized writer.
         """
         super().__init__()
         self.experiment_name = experiment_name
@@ -69,9 +80,8 @@ class MetricsCollector(LoggerMixin):
         self.experiment_start_time = time.time()
         self._finalized = False
 
-        # Create metrics output directory
-        self.metrics_dir = output_dir / "metrics"
-        self.metrics_dir.mkdir(parents=True, exist_ok=True)
+        # Centralized JSONL writer (shared with logging/event handlers)
+        self._jsonl_writer = jsonl_writer
 
         # Record experiment start
         self.record_metric(
@@ -130,7 +140,11 @@ class MetricsCollector(LoggerMixin):
             try:
                 self._collect_basic_metrics()
             except Exception as e:  # pylint: disable=broad-exception-caught
-                self.logger.error("Error in metrics collection loop: %s", e)
+                self.logger.error(
+                    "Error in metrics collection loop (interval=%.1fs): %s",
+                    self.collection_interval,
+                    e,
+                )
 
             elapsed = time.time() - start_time
             sleep_duration = max(0, self.collection_interval - elapsed)
@@ -167,7 +181,11 @@ class MetricsCollector(LoggerMixin):
             )
 
         except Exception as e:  # pylint: disable=broad-exception-caught
-            self.logger.debug("Error collecting basic metrics: %s", e)
+            if not getattr(self, "_basic_metrics_warned", False):
+                self._basic_metrics_warned = True
+                self.logger.warning(
+                    "Error collecting basic metrics (further errors suppressed): %s", e
+                )
 
     # ── Core recording methods ───────────────────────────────────────
 
@@ -209,7 +227,45 @@ class MetricsCollector(LoggerMixin):
         with self.metrics_lock:
             self.metrics.append(metric)
 
+        self._write_metric_jsonl(metric)
         self.logger.debug("Recorded metric: %s=%s (%s)", name, value, metric_type.value)
+
+    def _write_metric_jsonl(self, metric: Metric) -> None:
+        """Append a metric as a JSONL line to the structured log.
+
+        Args:
+            metric: The metric to write.
+        """
+        if self._jsonl_writer is None:
+            return
+        ctx = get_log_context()
+        record: Dict[str, Any] = {
+            "ts": datetime.fromtimestamp(metric.timestamp, tz=timezone.utc).isoformat(
+                timespec="microseconds"
+            ),
+            "level": "METRIC",
+            "level_num": 15,
+            "source": "metrics",
+            "metric_name": metric.name,
+            "metric_type": metric.metric_type.value,
+            "metric_value": metric.value,
+            "phase": metric.phase.value if metric.phase else ctx.phase,
+            "experiment_id": ctx.experiment_id,
+            "test_id": metric.test_case or ctx.test_id,
+            "service_id": ctx.service_id,
+            "component": metric.component,
+        }
+        record = {k: v for k, v in record.items() if v is not None}
+        try:
+            line = json.dumps(record, default=str)
+            self._jsonl_writer.write_line(line)
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            if not getattr(self, "_jsonl_write_warned", False):
+                self._jsonl_write_warned = True
+                self.logger.warning(
+                    "Failed to write metric to structured log: %s",
+                    exc,
+                )
 
     def start_timer(
         self,
@@ -415,13 +471,13 @@ class MetricsCollector(LoggerMixin):
                 try:
                     final_message = str(error_message)
                 except Exception:
-                    pass
+                    self.logger.warning("Error building error metadata", exc_info=True)
 
             if final_message is None and message is not None:
                 try:
                     final_message = str(message)
                 except Exception:
-                    pass
+                    self.logger.warning("Error building error metadata", exc_info=True)
 
             if final_message is None:
                 final_message = f"Error of type {safe_error_type}"
@@ -432,6 +488,7 @@ class MetricsCollector(LoggerMixin):
                     "error_message": final_message,
                 }
             except Exception:
+                self.logger.debug("Error building error metadata", exc_info=True)
                 meta_dict = {"error_occurred": "true"}
 
             if exception is not None:
@@ -458,7 +515,7 @@ class MetricsCollector(LoggerMixin):
                         except Exception:
                             continue
                 except Exception:
-                    pass
+                    self.logger.warning("Error building error metadata", exc_info=True)
 
             if metadata is not None:
                 try:
@@ -474,7 +531,7 @@ class MetricsCollector(LoggerMixin):
                         except Exception:
                             continue
                 except Exception:
-                    pass
+                    self.logger.warning("Error building error metadata", exc_info=True)
 
             try:
                 self.record_metric(
@@ -496,7 +553,8 @@ class MetricsCollector(LoggerMixin):
             try:
                 self.logger.error("Exception in record_error: %s", e)
             except Exception:  # pylint: disable=broad-exception-caught
-                pass
+                # Last resort: use module-level logging (self.logger may be broken)
+                logging.error("Exception in record_error (logger unavailable): %s", e)
 
     def record_artifact_info(
         self,

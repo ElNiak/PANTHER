@@ -27,12 +27,11 @@ import contextlib
 import logging
 import re
 import subprocess
-import sys
+import time
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
-import click
 import yaml
 from omegaconf import OmegaConf
 
@@ -68,12 +67,161 @@ from panther.core.observer.workflow import (  # pylint: disable=import-outside-t
 from panther.core.outputs.output_index import OutputIndexBuilder
 from panther.core.test_cases.test_case_impl import TestCase
 from panther.core.test_cases.test_interface_impl import ITestCase
+from panther.core.utils.console_formatter import ConsoleFormatter
 from panther.core.utils.log_context import log_context
 from panther.core.utils.logger_factory import LoggerFactory
 from panther.plugins.plugin_manager import PluginManager
 
+# ---------------------------------------------------------------------------
+# Test execution display helpers
+# ---------------------------------------------------------------------------
 
-# TODO implement errors management strategy (e.g., retry, fail, etc.)
+_HEADER_WIDTH = 50
+
+
+def format_test_header(index: int, total: int, test_name: str) -> str:
+    """Build a structured header line for a test case.
+
+    Produces output like::
+
+        -- Test 1/3: QUIC Handshake Test --------------------
+
+    Args:
+        index: Zero-based index of the current test.
+        total: Total number of tests in the run.
+        test_name: Human-readable name of the test case.
+
+    Returns:
+        Formatted header string.
+    """
+    prefix = f"\n\u2500\u2500 Test {index + 1}/{total}: {test_name} "
+    # Pad with box-drawing dashes to a fixed width
+    padding = max(2, _HEADER_WIDTH - len(prefix) + 1)  # +1 for leading \n
+    return prefix + "\u2500" * padding
+
+
+def format_test_result(
+    *,
+    passed: bool,
+    elapsed: float,
+    use_emojis: bool = True,
+    error_message: Optional[str] = None,
+) -> str:
+    """Build a structured result line for a completed test.
+
+    Produces output like::
+
+        PASSED (26.4s)
+        FAILED (3.1s): Docker build failed for picoquic:rfc9000
+
+    Args:
+        passed: Whether the test passed.
+        elapsed: Wall-clock duration in seconds.
+        use_emojis: Whether to prefix the line with an emoji indicator.
+        error_message: Error description shown on failure. Ignored when
+            *passed* is ``True``.
+
+    Returns:
+        Formatted result string (indented with two spaces).
+    """
+    duration = f"({elapsed:.1f}s)"
+    if passed:
+        icon = "\u2705 " if use_emojis else ""
+        return f"  {icon}PASSED {duration}"
+    else:
+        icon = "\u274c " if use_emojis else ""
+        msg = f": {error_message}" if error_message else ""
+        hint = "\n    Check logs for details." if error_message else ""
+        return f"  {icon}FAILED {duration}{msg}{hint}"
+
+
+def format_experiment_summary(
+    *,
+    successful_tests: int,
+    failed_tests: int,
+    total_tests: int,
+    elapsed_seconds: float,
+    output_dir: str,
+    failed_test_names: List[Tuple[str, str]],
+    use_emojis: bool = True,
+) -> str:
+    """Build a structured experiment summary banner.
+
+    Produces output like::
+
+        ==================================================
+         Experiment Complete
+        --------------------------------------------------
+         Tests:  3 passed, 1 failed (75.0%)
+         Time:   5m 12s
+         Output: outputs/2026-03-16_14-30/quic_test
+
+         Failed tests:
+           X QUIC Stream Test -- Docker build failed
+           X TLS Resumption -- Timeout after 60s
+
+         Next steps:
+           panther report diagnose <output_dir>
+           panther logs errors <output_dir>
+        ==================================================
+
+    Args:
+        successful_tests: Number of tests that passed.
+        failed_tests: Number of tests that failed.
+        total_tests: Total number of tests executed.
+        elapsed_seconds: Wall-clock duration of the entire run in seconds.
+        output_dir: Path to the experiment output directory.
+        failed_test_names: List of ``(test_name, error_message)`` tuples for
+            each failed test.  The error_message may be empty.
+        use_emojis: Whether to use emoji indicators in the output.
+
+    Returns:
+        Formatted multi-line summary string (without leading/trailing newlines
+        from the banner helper -- those are handled by ``ConsoleFormatter.banner``).
+    """
+    width = _HEADER_WIDTH
+    double_line = "\u2550" * width  # BOX DRAWINGS DOUBLE HORIZONTAL
+    single_line = "\u2500" * width  # BOX DRAWINGS LIGHT HORIZONTAL
+
+    # Duration formatting
+    if elapsed_seconds >= 60:
+        minutes = int(elapsed_seconds) // 60
+        seconds = int(elapsed_seconds) % 60
+        duration = f"{minutes}m {seconds}s"
+    else:
+        duration = f"{elapsed_seconds:.0f}s"
+
+    # Success percentage
+    percentage = (successful_tests / total_tests * 100) if total_tests > 0 else 0.0
+
+    lines: List[str] = []
+    lines.append("")
+    lines.append(double_line)
+    lines.append(" Experiment Complete")
+    lines.append(single_line)
+    lines.append(
+        f" Tests:  {successful_tests} passed, {failed_tests} failed ({percentage:.1f}%)"
+    )
+    lines.append(f" Time:   {duration}")
+    lines.append(f" Output: {output_dir}")
+
+    if failed_test_names:
+        lines.append("")
+        lines.append(" Failed tests:")
+        fail_icon = "\u274c " if use_emojis else "X "
+        for name, reason in failed_test_names:
+            reason_part = f" \u2014 {reason}" if reason else ""
+            lines.append(f"   {fail_icon}{name}{reason_part}")
+
+    lines.append("")
+    lines.append(" Next steps:")
+    lines.append(f"   panther report diagnose {output_dir}")
+    lines.append(f"   panther logs errors {output_dir}")
+    lines.append(double_line)
+
+    return "\n".join(lines)
+
+
 class ExperimentManager(
     ErrorHandlerMixin,
     ExperimentObserverMixin,
@@ -96,6 +244,10 @@ class ExperimentManager(
         metrics_collector: Optional metrics collection system.
         fast_fail_enabled: Whether to terminate on critical errors.
         dry_run: Execute in validation mode without running actual tests.
+        console_level: Optional numeric log level for console handlers.
+            When provided, ``LoggerFactory.set_console_level()`` is called
+            after logging initialization so that CLI flags (``--verbose``,
+            ``--debug``) take final precedence over YAML configuration.
 
     Attributes:
         global_config (GlobalConfig): Global configuration for the experiment.
@@ -146,6 +298,7 @@ class ExperimentManager(
         metrics_collector: Optional[MetricsCollector] = None,
         fast_fail_enabled: bool = True,
         dry_run: bool = False,
+        console_level: Optional[int] = None,
     ):
         """Initialize ExperimentManager."""
         # Initialize parent class
@@ -178,34 +331,28 @@ class ExperimentManager(
         self.log_level = getattr(logging, level_name, logging.INFO)
         self.log_format = self.global_config.logging.format
 
-        logging_config = {
-            "level": (
-                self.global_config.logging.level.name
-                if hasattr(self.global_config.logging.level, "name")
-                else str(self.global_config.logging.level)
-            ),
-            "format": self.global_config.logging.format,
-            "enable_colors": getattr(self.global_config.logging, "enable_colors", True),
-            "feature_levels": getattr(
-                self.global_config.logging, "feature_levels", None
-            ),
-        }
-        LoggerFactory.initialize(logging_config)
-
-        # Update any existing loggers with the new feature levels
-        # This handles loggers created during config loading before LoggerFactory was initialized
-        self.configure_logging_features()
-
         # Initialize log statistics if enabled
         self.log_statistics_display = None
         self._setup_log_statistics()
 
         self.logs_dir = self.experiment_dir
-        self.plugin_dir = plugin_dir
         # Don't assign to self.logger directly as it's a property from LoggerMixin
         if logger:
             self._logger = logger
+
+        # Single LoggerFactory initialization point with the full config
+        # (including output_file for the structured JSONL file handler).
         self._load_logging()
+
+        # Update any existing loggers with the new feature levels
+        # This handles loggers created during config loading before LoggerFactory was initialized
+        self.configure_logging_features()
+
+        # Apply CLI console-level override (--verbose / --debug) if provided.
+        # This runs after feature-level configuration so that the CLI flag
+        # takes final precedence for console handlers.
+        if console_level is not None:
+            LoggerFactory.set_console_level(console_level)
 
         # Configure fast fail handler based on global config
         fast_fail_config = global_config.fast_fail
@@ -268,9 +415,13 @@ class ExperimentManager(
         feature_levels_dict = {}
         # Convert feature_levels dataclass to dictionary
         if hasattr(self.global_config.logging.feature_levels, "__dict__"):
-            self.logger.debug(
-                f"Feature_levels in global_config: {list(list(self.global_config.logging.feature_levels.__dict__.items())[:3])}"
-            )
+            if self.logger.isEnabledFor(logging.DEBUG):
+                self.logger.debug(
+                    "Feature_levels in global_config: %s",
+                    list(self.global_config.logging.feature_levels.__dict__.items())[
+                        :3
+                    ],
+                )
             for (
                 attr_name,
                 attr_value,
@@ -345,6 +496,15 @@ class ExperimentManager(
         # Create a directory for logs if it doesn't exist
         self.logs_dir.mkdir(parents=True, exist_ok=True)
 
+        # Store the centralized JSONL writer for EventStreamRecorder (wired in
+        # register_event_stream_recorder via ExperimentObserverMixin).
+        self._jsonl_writer = LoggerFactory.get_jsonl_writer()
+
+        # Wire the centralized writer into the metrics collector so that
+        # metric records share the same lock and file handle.
+        if self.metrics_collector is not None and self._jsonl_writer is not None:
+            self.metrics_collector._jsonl_writer = self._jsonl_writer
+
         # The logger is already configured through LoggerFactory, just log initialization
         self.logger.info(
             "ExperimentManager initialized for experiment: %s", self.experiment_name
@@ -385,6 +545,7 @@ class ExperimentManager(
             TestCaseInitializationError: When test cases cannot be initialized
         """
         try:
+            ConsoleFormatter.banner("Phase 1: Initialization")
             with log_context(
                 experiment_id=self.experiment_name, phase="initialization"
             ):
@@ -406,10 +567,14 @@ class ExperimentManager(
                     }
                 )
 
+                self.logger.info("Phase complete: Initialization")
+
+                ConsoleFormatter.banner("Phase 2: Plugin Loading")
                 with log_context(phase="plugin_loading"):
                     self.experiment_emitter.emit_plugin_loading_started()
                     self._validate_plugins()
                     self.experiment_emitter.emit_plugin_loading_completed()
+                self.logger.info("Phase complete: Plugin loading")
 
                 with log_context(phase="test_case_initialization"):
                     self._initialize_test_cases()
@@ -420,7 +585,11 @@ class ExperimentManager(
                 )
 
         except PluginValidationError as e:
-            self.logger.error("Plugin validation failed: %s", e)
+            self.logger.error(
+                "Plugin validation failed for experiment '%s': %s",
+                self.experiment_name,
+                e,
+            )
             self.experiment_emitter.emit_finished_early(
                 reason="Plugin Validation Failed",
                 details={
@@ -443,7 +612,7 @@ class ExperimentManager(
             self.logger.error(
                 "Initialization failed due to import error: %s", e, exc_info=True
             )
-            raise ExperimentInitializationError(f"Import error: {str(e)}") from e
+            raise ExperimentInitializationError(f"Import error: {e}") from e
 
         except Exception as e:  # pylint: disable=broad-except
             self.experiment_emitter.emit_finished_early(
@@ -454,9 +623,11 @@ class ExperimentManager(
                     "error_message": str(e),
                 },
             )
-            self.logger.error("Initialization failed: %s", e, exc_info=True)
+            self.logger.error(
+                "Initialization failed during setup phase: %s", e, exc_info=True
+            )
             raise ExperimentInitializationError(
-                f"Failed to initialize experiment: {str(e)}"
+                f"Failed to initialize experiment: {e}"
             ) from e
 
     def _validate_plugins(self):
@@ -543,13 +714,15 @@ class ExperimentManager(
                     complete_config, config_file, default_flow_style=False, indent=2
                 )
 
-            self.logger.info(f"Saved test configuration to: {config_file_path}")
+            self.logger.info("Saved test configuration to: %s", config_file_path)
 
         except Exception as e:
             self.logger.warning(
-                "Failed to save test configuration to %s: %s", test_dir, e
+                "Failed to save test configuration to %s: %s",
+                test_dir,
+                e,
+                exc_info=True,
             )
-            self.logger.debug("Traceback:", exc_info=True)
 
     def _initialize_test_cases(self):
         """Initialize test cases from the experiment configuration."""
@@ -586,8 +759,7 @@ class ExperimentManager(
                 self.logger.info("Initialized test case '%s'", test_case)
                 self.test_cases.append(test_case)
 
-            self.logger.debug("Initialized %d test cases: %s", test_count, test_names)
-            self.logger.info("Initialized %s test cases.", len(self.test_cases))
+            self.logger.info("Initialized %d test cases: %s", test_count, test_names)
 
         except Exception as e:  # pylint: disable=broad-except
             self.experiment_emitter.emit_finished_early(
@@ -598,9 +770,14 @@ class ExperimentManager(
                     "error_message": str(e),
                 },
             )
-            self.logger.error("Failed to initialize test cases: %s", e, exc_info=True)
+            self.logger.error(
+                "Failed to initialize test cases (%d configured): %s",
+                test_count,
+                e,
+                exc_info=True,
+            )
             raise TestCaseInitializationError(
-                f"Failed to initialize test cases: {str(e)}"
+                f"Failed to initialize test cases: {e}"
             ) from e
 
     def run_tests(self) -> bool:
@@ -612,7 +789,14 @@ class ExperimentManager(
         Raises:
             TestExecutionError: When execution infrastructure fails
         """
+        # Initialize before try so the except handler can reference them
+        successful_tests = 0
+        failed_tests = 0
+        total_tests = len(self.test_cases)
         try:
+            ConsoleFormatter.banner(
+                f"Phase 3: Test Execution ({len(self.test_cases)} tests)"
+            )
             with log_context(
                 experiment_id=self.experiment_name, phase="test_execution"
             ):
@@ -638,236 +822,219 @@ class ExperimentManager(
                         self.experiment_name,
                     )
 
-                successful_tests = 0
-                failed_tests = 0
+                use_emojis = self.global_config.progress.use_emojis
+                show_status = self.global_config.progress.show_test_status
+                experiment_start = time.monotonic()
+                failed_test_info: List[Tuple[str, str]] = []
 
-                if self.global_config.progress.enable_progress_bar:
-                    self.logger.debug("Using Click progress bar for test execution")
-                    progress_context = click.progressbar(
-                        self.test_cases,
-                        length=len(self.test_cases),
-                        label="Running test cases",
-                        show_eta=True,
-                        show_percent=True,
-                        show_pos=True,
-                        file=sys.stdout,
-                        color=True,
-                    )
-                else:
-                    self.logger.debug("Progress bar disabled, using simple iterator")
+                for i, test_case in enumerate(self.test_cases):
+                    with log_context(test_id=test_case.test_name):
+                        test_name = test_case.test_config.name
 
-                    class SimpleProgressIterator:
-                        def __init__(self, iterable):
-                            self.iterable = iterable
-                            self.current_test = None
-
-                        def __iter__(self):
-                            return iter(self.iterable)
-
-                        def __enter__(self):
-                            return self
-
-                        def __exit__(self, *args):
-                            pass
-
-                        def update_label(self, label):
-                            pass
-
-                    progress_context = SimpleProgressIterator(self.test_cases)
-
-                with progress_context as progress_bar:
-                    for i, test_case in enumerate(self.test_cases):
-                        with log_context(test_id=test_case.test_name):
-                            if self.global_config.progress.enable_progress_bar:
-                                progress_bar.label = f"Test {i+1}/{len(self.test_cases)} - {test_case.test_config.name}"
-
-                            if self.global_config.progress.show_test_status:
-                                emoji = (
-                                    "🧪 "
-                                    if self.global_config.progress.use_emojis
-                                    else ""
-                                )
-                                self.logger.info(
-                                    f"{emoji}Starting: {test_case.test_config.name}"
-                                )
+                        if show_status:
                             self.logger.info(
-                                "Running test case: %s", test_case.test_config.name
+                                format_test_header(i, total_tests, test_name)
                             )
 
-                            test_specific_emitter = (
-                                self.emitter_registry.get_test_emitter(
-                                    test_case.test_config.name
+                        self.logger.info("Running test case: %s", test_name)
+
+                        test_specific_emitter = self.emitter_registry.get_test_emitter(
+                            test_name
+                        )
+
+                        test_specific_emitter.emit_execution_started(
+                            steps=["setup", "execute", "assertions", "teardown"]
+                        )
+                        test_start = time.monotonic()
+                        try:
+                            self._save_test_configuration(
+                                test_case.test_config,
+                                test_case.test_experiment_dir,
+                            )
+
+                            self.logger.info(
+                                "Executing test case: %s",
+                                test_name,
+                            )
+                            test_result = test_case.run()
+                            elapsed = time.monotonic() - test_start
+
+                            if test_result is False:
+                                failed_tests += 1
+                                failed_test_info.append(
+                                    (test_name, "Test analysis failed")
                                 )
-                            )
-
-                            test_specific_emitter.emit_execution_started(
-                                steps=["setup", "execute", "assertions", "teardown"]
-                            )
-                            try:
-                                self._save_test_configuration(
-                                    test_case.test_config, test_case.test_experiment_dir
+                                self._record_test_metric("failed")
+                                if show_status:
+                                    self.logger.info(
+                                        format_test_result(
+                                            passed=False,
+                                            elapsed=elapsed,
+                                            use_emojis=use_emojis,
+                                            error_message="Test analysis failed",
+                                        )
+                                    )
+                                test_specific_emitter.emit_failed(
+                                    error_message="Test analysis failed",
+                                    error_type="TestAnalysisFailure",
+                                    phase="analysis",
+                                    summary={
+                                        "test_name": test_name,
+                                        "reason": "Tester analysis determined test failure",
+                                    },
                                 )
+                                continue
 
+                            successful_tests += 1
+                            self._record_test_metric("successful")
+                            if show_status:
                                 self.logger.info(
-                                    "Executing test case: %s",
-                                    test_case.test_config.name,
+                                    format_test_result(
+                                        passed=True,
+                                        elapsed=elapsed,
+                                        use_emojis=use_emojis,
+                                    )
                                 )
-                                test_result = test_case.run()
 
-                                if test_result is False:
-                                    failed_tests += 1
-                                    self._record_test_metric("failed")
-                                    if self.global_config.progress.show_test_status:
-                                        emoji = (
-                                            "❌ "
-                                            if self.global_config.progress.use_emojis
-                                            else ""
-                                        )
-                                        self.logger.info(
-                                            f"{emoji}Failed: {test_case.test_config.name} - Test analysis failed"
-                                        )
-                                    test_specific_emitter.emit_failed(
-                                        error_message="Test analysis failed",
-                                        error_type="TestAnalysisFailure",
-                                        phase="analysis",
-                                        summary={
-                                            "test_name": test_case.test_config.name,
-                                            "reason": "Tester analysis determined test failure",
+                            test_specific_emitter.emit_completed(
+                                summary={
+                                    "status": "success",
+                                    "test_name": test_name,
+                                }
+                            )
+
+                        except (KeyboardInterrupt, SystemExit):
+                            self.logger.warning(
+                                "Test interrupted: %s",
+                                test_name,
+                                exc_info=True,
+                            )
+                            test_specific_emitter.emit_failed(
+                                error_message="Test interrupted",
+                                error_type="KeyboardInterrupt",
+                                phase="execution",
+                            )
+                            raise
+
+                        except (
+                            TestCaseInitializationError,
+                            TestExecutionError,
+                            ValueError,
+                            TypeError,
+                            AttributeError,
+                            RuntimeError,
+                            OSError,
+                            PantherExperimentError,
+                            subprocess.CalledProcessError,
+                            DockerComposeException,
+                            PortConflictException,
+                            IvyCompilationException,
+                            ResourceExhaustionException,
+                            CertificateException,
+                            ConfigurationException,
+                            TimeoutCascadeException,
+                        ) as test_error:
+                            elapsed = time.monotonic() - test_start
+                            failed_tests += 1
+                            failed_test_info.append((test_name, str(test_error)[:80]))
+                            self._record_test_metric("failed")
+
+                            if show_status:
+                                self.logger.info(
+                                    format_test_result(
+                                        passed=False,
+                                        elapsed=elapsed,
+                                        use_emojis=use_emojis,
+                                        error_message=str(test_error),
+                                    )
+                                )
+
+                            self.record_failed_test(test_case, test_error)
+
+                            if isinstance(
+                                test_error,
+                                (
+                                    DockerComposeException,
+                                    PortConflictException,
+                                    IvyCompilationException,
+                                    ResourceExhaustionException,
+                                    CertificateException,
+                                ),
+                            ):
+                                should_continue = self.fast_fail_handler.handle_error(
+                                    test_error, raise_on_critical=False
+                                )
+                                if not should_continue:
+                                    self.logger.critical(
+                                        "Critical %s error in test %s, terminating experiment",
+                                        test_error.category.value,
+                                        test_name,
+                                    )
+                                    self.experiment_emitter.emit_finished_early(
+                                        reason=f"Critical {test_error.category.value} Failure",
+                                        details={
+                                            "test_name": test_name,
+                                            "error_type": type(test_error).__name__,
+                                            "error_category": test_error.category.value,
+                                            "error_context": test_error.context,
                                         },
                                     )
-                                    continue
+                                    raise test_error
 
-                                successful_tests += 1
-                                self._record_test_metric("successful")
-                                if self.global_config.progress.show_test_status:
-                                    emoji = (
-                                        "✅ "
-                                        if self.global_config.progress.use_emojis
-                                        else ""
+                            if isinstance(
+                                test_error, AttributeError
+                            ) and "emit_service_setup_completed" in str(test_error):
+                                self.logger.error(
+                                    "Test case %s failed due to missing event emitter method: %s",
+                                    test_name,
+                                    str(test_error),
+                                )
+                                with contextlib.suppress(Exception):
+                                    test_specific_emitter.emit_failed(
+                                        error_message=str(test_error),
+                                        error_type="AttributeError",
+                                        phase="setup",
                                     )
-                                    self.logger.info(
-                                        f"{emoji}Completed: {test_case.test_config.name}"
-                                    )
+                            else:
+                                self._handle_test_error(test_case, test_error)
 
-                                test_specific_emitter.emit_completed(
-                                    summary={
-                                        "status": "success",
-                                        "test_name": test_case.test_config.name,
-                                    }
+                        except Exception as test_error:  # pylint: disable=broad-except
+                            elapsed = time.monotonic() - test_start
+                            failed_tests += 1
+                            self._record_test_metric("failed")
+                            failed_test_info.append((test_name, str(test_error)[:80]))
+
+                            if show_status:
+                                self.logger.info(
+                                    format_test_result(
+                                        passed=False,
+                                        elapsed=elapsed,
+                                        use_emojis=use_emojis,
+                                        error_message=str(test_error),
+                                    )
                                 )
 
-                            except (KeyboardInterrupt, SystemExit):
-                                self.logger.warning(
-                                    "Test interrupted: %s",
-                                    test_case.test_config.name,
-                                    exc_info=True,
+                            self._handle_test_error(test_case, test_error)
+                            self.logger.warning(
+                                "Unexpected error type %s caught. Consider adding specific handling.",
+                                type(test_error).__name__,
+                            )
+
+                        finally:
+                            try:
+                                self.event_manager.cleanup_scoped_observers("test")
+                                self.logger.debug(
+                                    "Cleaned up test-scoped observers for test: %s",
+                                    test_name,
                                 )
-                                test_specific_emitter.emit_failed(
-                                    error_message="Test interrupted",
-                                    error_type="KeyboardInterrupt",
-                                    phase="execution",
-                                )
-                                raise
-
-                            except (
-                                TestCaseInitializationError,
-                                TestExecutionError,
-                                ValueError,
-                                TypeError,
-                                AttributeError,
-                                RuntimeError,
-                                OSError,
-                                PantherExperimentError,
-                                subprocess.CalledProcessError,
-                                DockerComposeException,
-                                PortConflictException,
-                                IvyCompilationException,
-                                ResourceExhaustionException,
-                                CertificateException,
-                                ConfigurationException,
-                                TimeoutCascadeException,
-                            ) as test_error:
-                                failed_tests += 1
-                                self._record_test_metric("failed")
-
-                                self.record_failed_test(test_case, test_error)
-
-                                if isinstance(
-                                    test_error,
-                                    (
-                                        DockerComposeException,
-                                        PortConflictException,
-                                        IvyCompilationException,
-                                        ResourceExhaustionException,
-                                        CertificateException,
-                                    ),
-                                ):
-                                    should_continue = (
-                                        self.fast_fail_handler.handle_error(
-                                            test_error, raise_on_critical=False
-                                        )
-                                    )
-                                    if not should_continue:
-                                        self.logger.critical(
-                                            "Critical %s error in test %s, terminating experiment",
-                                            test_error.category.value,
-                                            test_case.test_config.name,
-                                        )
-                                        self.experiment_emitter.emit_finished_early(
-                                            reason=f"Critical {test_error.category.value} Failure",
-                                            details={
-                                                "test_name": test_case.test_config.name,
-                                                "error_type": type(test_error).__name__,
-                                                "error_category": test_error.category.value,
-                                                "error_context": test_error.context,
-                                            },
-                                        )
-                                        raise test_error
-
-                                if isinstance(
-                                    test_error, AttributeError
-                                ) and "emit_service_setup_completed" in str(test_error):
-                                    self.logger.error(
-                                        "Test case %s failed due to missing event emitter method: %s",
-                                        test_case.test_config.name,
-                                        str(test_error),
-                                    )
-                                    with contextlib.suppress(Exception):
-                                        test_specific_emitter.emit_failed(
-                                            error_message=str(test_error),
-                                            error_type="AttributeError",
-                                            phase="setup",
-                                        )
-                                else:
-                                    self._handle_test_error(test_case, test_error)
-
                             except (
                                 Exception
-                            ) as test_error:  # pylint: disable=broad-except
-                                failed_tests += 1
-                                self._handle_test_error(test_case, test_error)
+                            ) as cleanup_error:  # pylint: disable=broad-except
                                 self.logger.warning(
-                                    "Unexpected error type %s caught. Consider adding specific handling.",
-                                    type(test_error).__name__,
+                                    "Failed to cleanup test observers for %s: %s",
+                                    test_name,
+                                    cleanup_error,
                                 )
-
-                            finally:
-                                try:
-                                    self.event_manager.cleanup_scoped_observers("test")
-                                    self.logger.debug(
-                                        "Cleaned up test-scoped observers for test: %s",
-                                        test_case.test_config.name,
-                                    )
-                                except (
-                                    Exception
-                                ) as cleanup_error:  # pylint: disable=broad-except
-                                    self.logger.warning(
-                                        "Failed to cleanup test observers for %s: %s",
-                                        test_case.test_config.name,
-                                        cleanup_error,
-                                    )
-
-                self.logger.info("")
 
                 try:
                     if self.metrics_collector:
@@ -894,10 +1061,17 @@ class ExperimentManager(
                     failed_tests,
                 )
 
+                experiment_elapsed = time.monotonic() - experiment_start
                 self.logger.info(
-                    "All experiment tests completed. Success: %s, Failed: %s",
-                    successful_tests,
-                    failed_tests,
+                    format_experiment_summary(
+                        successful_tests=successful_tests,
+                        failed_tests=failed_tests,
+                        total_tests=total_tests,
+                        elapsed_seconds=experiment_elapsed,
+                        output_dir=str(self.experiment_dir),
+                        failed_test_names=failed_test_info,
+                        use_emojis=use_emojis,
+                    )
                 )
 
                 return successful_tests > 0
@@ -919,16 +1093,22 @@ class ExperimentManager(
                     "experiment_name": self.experiment_name,
                 },
             )
-            self.logger.error("Failed during test execution: %s", e, exc_info=True)
-            raise TestExecutionError(f"Failed during test execution: {str(e)}") from e
+            self.logger.error(
+                "Failed during test execution (%d/%d tests completed): %s",
+                successful_tests + failed_tests,
+                total_tests,
+                e,
+                exc_info=True,
+            )
+            raise TestExecutionError(f"Failed during test execution: {e}") from e
 
     def _perform_dry_run(self) -> bool:
         """Perform a dry-run analysis of the experiment without executing commands."""
-        self.logger.info("🔍 DRY-RUN: Analyzing experiment configuration...")
+        self.logger.info("DRY-RUN: Analyzing experiment configuration...")
 
         for i, test_case in enumerate(self.test_cases, 1):
             self.logger.info(
-                "🔍 DRY-RUN: Test %d/%d - %s",
+                "DRY-RUN: Test %d/%d - %s",
                 i,
                 len(self.test_cases),
                 test_case.test_config.name,
@@ -940,14 +1120,14 @@ class ExperimentManager(
 
             try:
                 if test_case.perform_dry_run():
-                    self.logger.info("  ✅ DRY-RUN: Configuration valid")
+                    self.logger.info("  DRY-RUN: Configuration valid")
                 else:
-                    self.logger.info("  ❌ DRY-RUN: Configuration issues detected")
+                    self.logger.info("  DRY-RUN: Configuration issues detected")
             except AttributeError:
-                self.logger.info("  📋 DRY-RUN: Basic configuration analysis")
+                self.logger.info("  DRY-RUN: Basic configuration analysis")
                 self._analyze_test_case_config(test_case)
 
-        self.logger.info("🔍 DRY-RUN: Analysis complete - no commands executed")
+        self.logger.info("DRY-RUN: Analysis complete - no commands executed")
         return True
 
     # -- Experiment cleanup (formerly ExperimentCleanupMixin) ---------------
@@ -958,141 +1138,154 @@ class ExperimentManager(
         Each cleanup step has its own error handling so that a failure in one
         step does not prevent subsequent steps (e.g., metrics export) from running.
         """
-        # Push cleanup phase context (no with-block to avoid re-indenting entire method)
-        _cleanup_ctx = log_context(experiment_id=self.experiment_name, phase="cleanup")
-        _cleanup_ctx.__enter__()
-        self.logger.info("Starting experiment cleanup")
+        ConsoleFormatter.banner("Phase 4: Cleanup")
+        with log_context(experiment_id=self.experiment_name, phase="cleanup"):
+            self.logger.info("Starting experiment cleanup")
 
-        # Generate final log statistics report if enabled
-        try:
-            self._generate_final_log_report()
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            self.logger.warning("Failed to generate final log report: %s", e)
-
-        # Stop log statistics display if running
-        try:
-            if self.log_statistics_display and self.log_statistics_display.running:
-                self.log_statistics_display.stop_display()
-                self.logger.info("Stopped log statistics display")
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            self.logger.warning("Failed to stop log statistics display: %s", e)
-
-        # Clean up state observer
-        try:
-            if hasattr(self, "state_observer"):
-                self.event_manager.unregister_observer(self.state_observer)
-                self.logger.debug("Unregistered StateEventObserver")
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            self.logger.warning("Failed to unregister state observer: %s", e)
-
-        # Clean up other observers through factory
-        try:
-            factory = get_observer_factory()
-            observer_names = [
-                "experiment_logger",
-                "experiment_metrics",
-                "experiment_observer",
-            ]
-            for observer_name in observer_names:
-                if factory.unregister_observer(observer_name):
-                    self.logger.debug("Unregistered %s", observer_name)
-                else:
-                    self.logger.debug(
-                        "%s was not registered or already removed", observer_name
-                    )
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            self.logger.warning("Failed to unregister observers: %s", e)
-
-        # Clear workflow tracker states for this experiment
-        try:
-            if hasattr(self, "workflow_tracker"):
-                self.workflow_tracker.clear_workflow_state(self.experiment_name)
-                self.logger.debug("Cleared workflow state for experiment")
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            self.logger.warning("Failed to clear workflow state: %s", e)
-
-        # Generate experiment report
-        try:
-            self._generate_experiment_report()
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            self.logger.warning("Failed to generate report: %s", e)
-
-        # Export metrics to disk if collector is present
-        if self.metrics_collector is not None:
+            # Generate final log statistics report if enabled
             try:
-                from panther.core.metrics import MetricsExporter
-
-                self.metrics_collector.finalize()
-                exporter = MetricsExporter(self.metrics_collector)
-                metrics_dir = self.experiment_dir / "metrics"
-                metrics_dir.mkdir(parents=True, exist_ok=True)
-                exporter.export_to_json(metrics_dir / "metrics.json")
-                exporter.export_to_csv(metrics_dir)
-                self.logger.info("Metrics exported to: %s", metrics_dir)
+                self._generate_final_log_report()
             except Exception as e:  # pylint: disable=broad-exception-caught
-                self.logger.warning("Failed to export metrics: %s", e)
-
-        # Clean up empty directories from the experiment output tree
-        try:
-            from panther.core.outputs.output_cleanup import remove_empty_directories
-
-            removed = remove_empty_directories(self.experiment_dir)
-            if removed:
-                self.logger.info(
-                    "Cleaned %d empty directories from experiment output", removed
+                self.logger.warning(
+                    "Failed to generate final log report (skipping, experiment results still available): %s",
+                    e,
                 )
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            self.logger.warning("Empty directory cleanup failed: %s", e, exc_info=True)
 
-        # Register generated reports and metrics in the output index, then flush
-        try:
-            report_files = {
-                "EXPERIMENT_REPORT.md": ("report", "markdown", "Experiment report"),
-                "experiment_summary.json": ("report", "json", "Experiment summary"),
-                "experiment_summary.txt": (
-                    "report",
-                    "text",
-                    "Experiment summary (text)",
-                ),
-            }
-            for filename, (ftype, ffmt, desc) in report_files.items():
-                if (self.experiment_dir / filename).exists():
+            # Stop log statistics display if running
+            try:
+                if self.log_statistics_display and self.log_statistics_display.running:
+                    self.log_statistics_display.stop_display()
+                    self.logger.info("Stopped log statistics display")
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                self.logger.warning(
+                    "Failed to stop log statistics display (ignoring, process will exit): %s",
+                    e,
+                )
+
+            # Clean up state observer
+            try:
+                if hasattr(self, "state_observer"):
+                    self.event_manager.unregister_observer(self.state_observer)
+                    self.logger.debug("Unregistered StateEventObserver")
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                self.logger.warning(
+                    "Failed to unregister state observer (ignoring during cleanup): %s",
+                    e,
+                )
+
+            # Close the centralized JSONL writer (shared by logging, events,
+            # and metrics) so that all buffered data is flushed to disk.
+            try:
+                if hasattr(self, "_jsonl_writer") and self._jsonl_writer is not None:
+                    self._jsonl_writer.close()
+                    self.logger.debug("Closed centralized JsonlWriter")
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                self.logger.warning(
+                    "Failed to close JsonlWriter (data may be unflushed): %s", e
+                )
+
+            # Clean up other observers through factory
+            try:
+                factory = get_observer_factory()
+                observer_names = [
+                    "experiment_logger",
+                    "experiment_metrics",
+                    "experiment_observer",
+                ]
+                for observer_name in observer_names:
+                    if factory.unregister_observer(observer_name):
+                        self.logger.debug("Unregistered %s", observer_name)
+                    else:
+                        self.logger.debug(
+                            "%s was not registered or already removed", observer_name
+                        )
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                self.logger.warning(
+                    "Failed to unregister observers (ignoring, cleanup continuing): %s",
+                    e,
+                )
+
+            # Clear workflow tracker states for this experiment
+            try:
+                if hasattr(self, "workflow_tracker"):
+                    self.workflow_tracker.clear_workflow_state(self.experiment_name)
+                    self.logger.debug("Cleared workflow state for experiment")
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                self.logger.warning(
+                    "Failed to clear workflow state (stale state may remain): %s", e
+                )
+
+            # Generate experiment report
+            try:
+                self._generate_experiment_report()
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                self.logger.warning(
+                    "Failed to generate report (results still in output directory): %s",
+                    e,
+                )
+
+            # Finalize metrics collector (metrics already written to structured.jsonl)
+            if self.metrics_collector is not None:
+                try:
+                    self.metrics_collector.finalize()
+                except Exception as e:  # pylint: disable=broad-exception-caught
+                    self.logger.warning("Failed to finalize metrics: %s", e)
+
+            # Clean up empty directories from the experiment output tree
+            try:
+                from panther.core.outputs.output_cleanup import remove_empty_directories
+
+                removed = remove_empty_directories(self.experiment_dir)
+                if removed:
+                    self.logger.info(
+                        "Cleaned %d empty directories from experiment output", removed
+                    )
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                self.logger.warning(
+                    "Empty directory cleanup failed: %s", e, exc_info=True
+                )
+
+            # Register generated reports and metrics in the output index, then flush
+            try:
+                report_files = {
+                    "EXPERIMENT_REPORT.md": ("report", "markdown", "Experiment report"),
+                    "experiment_summary.json": ("report", "json", "Experiment summary"),
+                    "experiment_summary.txt": (
+                        "report",
+                        "text",
+                        "Experiment summary (text)",
+                    ),
+                }
+                for filename, (ftype, ffmt, desc) in report_files.items():
+                    if (self.experiment_dir / filename).exists():
+                        self.output_index_builder.register(
+                            filename,
+                            file_type=ftype,
+                            file_format=ffmt,
+                            description=desc,
+                        )
+
+                # Register structured log if present
+                structured_log = self.experiment_dir / "structured.jsonl"
+                if structured_log.exists():
                     self.output_index_builder.register(
-                        filename,
-                        file_type=ftype,
-                        file_format=ffmt,
-                        description=desc,
+                        "structured.jsonl",
+                        file_type="log",
+                        file_format="jsonl",
+                        description="Structured event log",
                     )
 
-            # Register metrics files if they were exported
-            metrics_dir = self.experiment_dir / "metrics"
-            if metrics_dir.exists():
-                for mf in metrics_dir.iterdir():
-                    if mf.is_file():
-                        self.output_index_builder.register(str(mf))
+                self.output_index_builder.flush()
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                self.logger.warning("Failed to write output index: %s", e)
 
-            # Register structured log if present
-            structured_log = self.experiment_dir / "structured.jsonl"
-            if structured_log.exists():
-                self.output_index_builder.register(
-                    "structured.jsonl",
-                    file_type="log",
-                    file_format="jsonl",
-                    description="Structured event log",
-                )
+            # Clean up stale Docker resources (dangling images, exited containers, orphan volumes)
+            try:
+                self._cleanup_docker_resources()
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                self.logger.warning("Docker resource cleanup failed: %s", e)
 
-            self.output_index_builder.flush()
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            self.logger.warning("Failed to write output index: %s", e)
-
-        # Clean up stale Docker resources (dangling images, exited containers, orphan volumes)
-        try:
-            self._cleanup_docker_resources()
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            self.logger.warning("Docker resource cleanup failed: %s", e)
-
-        # Pop cleanup phase context
-        _cleanup_ctx.__exit__(None, None, None)
+            self.logger.info("Phase complete: Cleanup")
 
     def _cleanup_docker_resources(self):
         """Remove stale Docker resources left over from the experiment.

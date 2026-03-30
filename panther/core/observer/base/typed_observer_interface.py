@@ -15,8 +15,10 @@ Dispatch strategy:
        requiring base class stubs.
 
 Handler naming convention:
-    ``on_{entity_prefix}_{event_name}`` where dots in event names are replaced
-    with underscores and the entity prefix comes from the ``_ENTITY_PREFIX`` map.
+    ``on_{entity_prefix}_{safe_name}`` where the entity prefix comes from
+    the ``_ENTITY_PREFIX`` map and ``safe_name`` replaces dots with
+    underscores (e.g. ``network.setup.started`` becomes
+    ``on_environment_network_setup_started``).
 
 Example:
     Create a typed observer that only handles test lifecycle events::
@@ -38,7 +40,7 @@ See Also:
 
 import logging
 from collections.abc import Callable
-from typing import Dict, Tuple
+from typing import Dict
 
 from panther.core.events.base.event_base import BaseEvent, EventType
 
@@ -80,65 +82,16 @@ _ENTITY_PREFIX: Dict[EventType, str] = {
     EventType.PLUGIN: "plugin",
 }
 
-# Maps (entity_type, event_name) → handler method name for cases where
-# the convention ``on_{prefix}_{name}`` does not hold.
-_HANDLER_OVERRIDES: Dict[Tuple[EventType, str], str] = {
-    # Assertion handlers use mixed singular/plural naming
-    (EventType.ASSERTION, "validation_started"): "on_assertions_validation_started",
-    (EventType.ASSERTION, "validation_completed"): "on_assertions_validation_completed",
-    (EventType.ASSERTION, "progress"): "on_assertion_progress",
-    (EventType.ASSERTION, "result"): "on_assertion_result",
-    (EventType.ASSERTION, "error"): "on_assertion_error",
-    (EventType.ASSERTION, "unknown"): "on_assertion_unknown",
-    # Environment network events use dot-separated names
-    (EventType.ENVIRONMENT, "network.setup.started"): "on_network_setup_started",
-    (EventType.ENVIRONMENT, "network.setup.completed"): "on_network_setup_completed",
-    (EventType.ENVIRONMENT, "network.setup.failed"): "on_network_setup_failed",
-    (EventType.ENVIRONMENT, "network.teardown.started"): "on_network_teardown_started",
-    (
-        EventType.ENVIRONMENT,
-        "network.teardown.completed",
-    ): "on_network_teardown_completed",
-    # Environment execution events
-    (
-        EventType.ENVIRONMENT,
-        "execution.setup.started",
-    ): "on_execution_environment_setup_started",
-    (
-        EventType.ENVIRONMENT,
-        "execution.setup.completed",
-    ): "on_execution_environment_setup_completed",
-    (
-        EventType.ENVIRONMENT,
-        "execution.monitoring",
-    ): "on_execution_environment_resource_monitoring",
-    (
-        EventType.ENVIRONMENT,
-        "execution.limit.exceeded",
-    ): "on_execution_environment_limit_exceeded",
-    # Output collection events
-    (
-        EventType.ENVIRONMENT,
-        "output_collection_started",
-    ): "on_output_collection_started",
-    (
-        EventType.ENVIRONMENT,
-        "output_collection_completed",
-    ): "on_output_collection_completed",
-}
-
 
 def _handler_name_for(entity_type: EventType, event_name: str) -> str:
     """Derive handler method name from entity type and event name.
 
-    Checks ``_HANDLER_OVERRIDES`` first, then falls back to the convention
-    ``on_{prefix}_{event_name}``.
+    Uses the convention ``on_{prefix}_{safe_name}`` where *prefix* comes
+    from ``_ENTITY_PREFIX`` and *safe_name* replaces dots with underscores.
     """
-    override = _HANDLER_OVERRIDES.get((entity_type, event_name))
-    if override:
-        return override
     prefix = _ENTITY_PREFIX.get(entity_type, entity_type.value)
-    return f"on_{prefix}_{event_name}"
+    safe_name = event_name.replace(".", "_")
+    return f"on_{prefix}_{safe_name}"
 
 
 class ITypedObserver(IObserver):
@@ -146,7 +99,7 @@ class ITypedObserver(IObserver):
 
     Extends ``IObserver`` to provide automatic routing of events to named
     ``on_*`` handler methods. Subclasses override only the handlers they need;
-    unhandled events silently return ``True``.
+    unhandled events are logged at DEBUG level and return ``True``.
 
     Dispatch order:
         1. Exact ``type(event)`` lookup in ``_type_handlers`` (kept subclasses,
@@ -158,8 +111,8 @@ class ITypedObserver(IObserver):
     Error handling:
         - Exceptions in individual handlers are caught and logged without
           propagating to other observers.
-        - ``RecursionError`` is caught specially and printed to stderr.
-        - Error/failure event handlers print to stderr to avoid cascading events.
+        - ``RecursionError`` is caught specially and logged at ERROR level.
+        - Error/failure event handlers are logged at ERROR level to avoid cascading events.
     """
 
     def __init__(self):
@@ -189,6 +142,18 @@ class ITypedObserver(IObserver):
             MetricsSummaryEvent: self.on_metrics_summary,
         }
 
+    def _is_duplicate(self, event: BaseEvent) -> bool:
+        """Check if event was already processed, tracking it if new.
+
+        Subclasses that override ``on_event`` should call this instead of
+        reimplementing the UUID check.
+        """
+        if hasattr(event, "id") and event.id:
+            if event.id in self.processed_events_uuids:
+                return True
+            self.processed_events_uuids[event.id] = None
+        return False
+
     def on_event(self, event: BaseEvent):
         """Route an event to its specific typed handler method.
 
@@ -202,9 +167,8 @@ class ITypedObserver(IObserver):
         Returns:
             The return value from the matched handler, or False on error.
         """
-        # Track processed event
-        if hasattr(event, "event_id"):
-            self.processed_events_uuids.append(event.event_id)
+        if self._is_duplicate(event):
+            return True
 
         # 1. Try exact type match (kept subclasses, metrics)
         handler = self._type_handlers.get(type(event))
@@ -220,18 +184,15 @@ class ITypedObserver(IObserver):
         try:
             return handler(event)
         except RecursionError:
-            import sys
-
-            print(f"RecursionError in handler for {event.name}", file=sys.stderr)
+            logging.getLogger("ITypedObserver").error(
+                "RecursionError in handler for %s", event.name
+            )
             return False
         except Exception as e:
             # Avoid cascading events from error handlers
             if event.name in ("failed", "error"):
-                import sys
-
-                print(
-                    f"Error handling {event.name}: {str(e)}",
-                    file=sys.stderr,
+                logging.getLogger("ITypedObserver").error(
+                    "Error handling %s: %s", event.name, e
                 )
             else:
                 self.logger.error(
@@ -327,16 +288,24 @@ class ITypedObserver(IObserver):
         Returns:
             True if a matching handler likely exists.
         """
+        if not event_type or len(event_type) < 2:
+            return False
+
         event_type_lower = event_type.lower()
 
-        # Check type-based handlers
+        # Check type-based handlers (bidirectional prefix matching)
         for event_class in self._type_handlers:
-            if event_type_lower in event_class.__name__.lower():
+            class_lower = event_class.__name__.lower()
+            if class_lower.startswith(event_type_lower) or event_type_lower.startswith(
+                class_lower
+            ):
                 return True
 
-        # Check if any entity prefix matches
+        # Check if any entity prefix matches (bidirectional prefix matching)
         for prefix in _ENTITY_PREFIX.values():
-            if event_type_lower in prefix:
+            if prefix.startswith(event_type_lower) or event_type_lower.startswith(
+                prefix
+            ):
                 return True
 
         return False

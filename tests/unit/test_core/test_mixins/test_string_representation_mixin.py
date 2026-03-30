@@ -1,6 +1,4 @@
-"""
-Unit tests for StringRepresentationMixin.
-"""
+"""Unit tests for StringRepresentationMixin."""
 
 import pytest
 

@@ -9,7 +9,7 @@ from jinja2 import Environment, FileSystemLoader
 
 # Helper function to get the template directory path for panther_ivy
 def get_template_path():
-    """Get the path to the PantherIvy templates directory"""
+    """Get the path to the PantherIvy templates directory."""
     plugin_dir = Path(
         os.path.dirname(
             os.path.dirname(
@@ -32,7 +32,7 @@ def get_template_path():
 
 @pytest.fixture
 def env():
-    """Create a Jinja2 environment with the necessary filters"""
+    """Create a Jinja2 environment with the necessary filters."""
     template_dir = get_template_path()
     if not os.path.isdir(template_dir) or not os.listdir(template_dir):
         pytest.skip("panther_ivy templates directory not available")
@@ -91,7 +91,7 @@ def env():
     ],
 )
 def test_structured_templates(env, template_name, cmd_args, env_vars, expected_snippet):
-    """Test that the structured templates correctly render commands with proper escaping"""
+    """Test that the structured templates correctly render commands with proper escaping."""
     try:
         template = env.get_template(template_name)
         rendered = template.render(command_args=cmd_args, env_vars=env_vars)
@@ -148,7 +148,7 @@ def test_structured_templates(env, template_name, cmd_args, env_vars, expected_s
     ],
 )
 def test_structured_templates_error_handling(env, template_name, cmd_args, env_vars):
-    """Test that the structured templates gracefully handle malformed inputs"""
+    """Test that the structured templates gracefully handle malformed inputs."""
     try:
         template = env.get_template(template_name)
         rendered = template.render(command_args=cmd_args, env_vars=env_vars)

@@ -1,14 +1,7 @@
 """Logging mixin with feature-aware capabilities for PANTHER components."""
 
-from typing import Any, Dict, Optional, Union
-
-"""
-Logging Mixin
-
-This module provides a reusable logging mixin for classes across PANTHER.
-"""
-
 import logging
+from typing import Any, Dict, Optional, Union
 
 from .config_summarizer import ConfigSummarizer
 from .logger_factory import LoggerFactory
@@ -142,48 +135,33 @@ class LoggerMixin:
             *args: Additional positional arguments
             **kwargs: Additional keyword arguments
         """
-        if not hasattr(self, "logger"):
-            self.__init_logger__()
-
         log_method = getattr(self.logger, level.lower(), None)
         if log_method:
             log_method(message, *args, **kwargs)
 
     def trace(self, message: str, *args, **kwargs):
         """Log a TRACE level message."""
-        if not hasattr(self, "logger"):
-            self.__init_logger__()
         if hasattr(self.logger, "trace"):
             self.logger.trace(message, *args, **kwargs)
 
     def debug(self, message: str, *args, **kwargs):
         """Log a DEBUG level message."""
-        if not hasattr(self, "logger"):
-            self.__init_logger__()
         self.logger.debug(message, *args, **kwargs)
 
     def info(self, message: str, *args, **kwargs):
         """Log an INFO level message."""
-        if not hasattr(self, "logger"):
-            self.__init_logger__()
         self.logger.info(message, *args, **kwargs)
 
     def warning(self, message: str, *args, **kwargs):
         """Log a WARNING level message."""
-        if not hasattr(self, "logger"):
-            self.__init_logger__()
         self.logger.warning(message, *args, **kwargs)
 
     def error(self, message: str, *args, **kwargs):
         """Log an ERROR level message."""
-        if not hasattr(self, "logger"):
-            self.__init_logger__()
         self.logger.error(message, *args, **kwargs)
 
     def critical(self, message: str, *args, **kwargs):
         """Log a CRITICAL level message."""
-        if not hasattr(self, "logger"):
-            self.__init_logger__()
         self.logger.critical(message, *args, **kwargs)
 
     def get_effective_feature(self) -> Optional[str]:
@@ -225,11 +203,15 @@ class LoggerMixin:
         """
         entity_part = f" for '{entity_name}'" if entity_name else ""
 
-        # Use ConfigSummarizer for smart logging
-        summary = ConfigSummarizer.summarize(config)
-        self.logger.debug(
-            f"Loaded {self.__class__.__name__} configuration{entity_part}: {summary}"
-        )
+        # Use ConfigSummarizer for smart logging — gate to avoid work at INFO+
+        if self.logger.isEnabledFor(logging.DEBUG):
+            summary = ConfigSummarizer.summarize(config)
+            self.logger.debug(
+                "Loaded %s configuration%s: %s",
+                self.__class__.__name__,
+                entity_part,
+                summary,
+            )
 
         # Log full config at TRACE level
         if self.logger.isEnabledFor(TRACE):
@@ -310,12 +292,14 @@ class LoggerMixin:
                 for k, v in kwargs.items()
                 if k in ["name", "type", "count", "target"]
             }
-            context = f" with {filtered_kwargs}" if filtered_kwargs else ""
-            self.logger.info(f"Starting {operation}{context}")
+            if filtered_kwargs:
+                self.logger.info("Starting %s with %s", operation, filtered_kwargs)
+            else:
+                self.logger.info("Starting %s", operation)
 
         # Log full context at DEBUG level
         if kwargs and self.logger.isEnabledFor(logging.DEBUG):
-            self.logger.debug(f"Full context for {operation}: {kwargs}")
+            self.logger.debug("Full context for %s: %s", operation, kwargs)
 
     def log_operation_complete(self, operation: str, **kwargs) -> None:
         """Log the completion of an operation.
@@ -331,12 +315,14 @@ class LoggerMixin:
                 for k, v in kwargs.items()
                 if k in ["name", "duration", "result", "count"]
             }
-            context = f" with {filtered_kwargs}" if filtered_kwargs else ""
-            self.logger.info(f"Completed {operation}{context}")
+            if filtered_kwargs:
+                self.logger.info("Completed %s with %s", operation, filtered_kwargs)
+            else:
+                self.logger.info("Completed %s", operation)
 
         # Log full context at DEBUG level
         if kwargs and self.logger.isEnabledFor(logging.DEBUG):
-            self.logger.debug(f"Full context for completed {operation}: {kwargs}")
+            self.logger.debug("Full context for completed %s: %s", operation, kwargs)
 
     def log_operation_failed(self, operation: str, error: Exception, **kwargs) -> None:
         """Log the failure of an operation.

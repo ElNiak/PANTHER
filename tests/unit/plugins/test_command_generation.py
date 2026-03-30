@@ -58,7 +58,7 @@ def test_quote_shell():
 
 
 def test_quote_yaml():
-    """Test that the quote_yaml function correctly formats strings for YAML.
+    r"""Test that the quote_yaml function correctly formats strings for YAML.
 
     Note: quote_yaml currently uses yaml.safe_dump().strip(), which for plain
     scalars appends a YAML document-end marker ('\\n...'). The assertions

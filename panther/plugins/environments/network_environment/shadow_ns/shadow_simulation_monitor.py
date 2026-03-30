@@ -1,3 +1,5 @@
+"""Background Shadow NS simulation monitor for non-blocking deployments."""
+
 import os
 import time
 from enum import Enum
@@ -7,7 +9,7 @@ from ..base_environment_monitor import BaseEnvironmentMonitor, ServiceHealthStat
 
 
 class ShadowSimulationState(Enum):
-    """State management for Shadow NS simulation phases"""
+    """State management for Shadow NS simulation phases."""
 
     INITIALIZING = "initializing"
     STARTING_SIMULATION = "starting_simulation"
@@ -18,14 +20,14 @@ class ShadowSimulationState(Enum):
 
 
 class ShadowSimulationMonitor(BaseEnvironmentMonitor):
-    """
-    Background Shadow simulation monitor for non-blocking deployments.
+    """Background Shadow simulation monitor for non-blocking deployments.
 
     Monitors the Shadow simulation process and network health, triggering
     early experiment termination when simulation fails or critical events occur.
     """
 
     def __init__(self, shadow_env, config):
+        """Initialize the Shadow simulation monitor."""
         # Initialize base monitor
         super().__init__(shadow_env, config, shadow_env.logger)
 
@@ -79,7 +81,7 @@ class ShadowSimulationMonitor(BaseEnvironmentMonitor):
                         self._handle_failure("Simulation timeout exceeded")
 
     def _check_simulation_progress(self):
-        """Check Shadow simulation progress from output logs"""
+        """Check Shadow simulation progress from output logs."""
         try:
             # Read last few lines of output to check for errors
             with open(self.shadow_output_file, "r") as f:
@@ -121,7 +123,7 @@ class ShadowSimulationMonitor(BaseEnvironmentMonitor):
             self._handle_failure(f"Shadow process exited with code {exit_code}")
 
     def _parse_duration(self, duration_str):
-        """Parse duration string (e.g., '300s') to seconds"""
+        """Parse duration string (e.g., '300s') to seconds."""
         if isinstance(duration_str, (int, float)):
             return float(duration_str)
 

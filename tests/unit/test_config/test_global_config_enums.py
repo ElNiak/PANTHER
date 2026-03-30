@@ -41,12 +41,12 @@ class TestExportFormatEnum:
 
 class TestFeatureLogLevelsUsesLoggingLevel:
     def test_accepts_valid_level(self):
-        flc = FeatureLogLevelsConfig(docker_build="DEBUG")
-        assert flc.docker_build == LoggingLevel.DEBUG
+        flc = FeatureLogLevelsConfig(docker_operations="DEBUG")
+        assert flc.docker_operations == LoggingLevel.DEBUG
 
     def test_rejects_invalid_level(self):
         with pytest.raises(Exception):
-            FeatureLogLevelsConfig(docker_build="INVALID")
+            FeatureLogLevelsConfig(docker_operations="INVALID")
 
 
 class TestGlobalConfigConstraints:

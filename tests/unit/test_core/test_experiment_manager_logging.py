@@ -1,5 +1,4 @@
-"""
-Unit tests for ExperimentManager logging behavior.
+"""Unit tests for ExperimentManager logging behavior.
 
 This module tests that ExperimentManager properly uses LoggerMixin
 and doesn't try to assign to the logger property.

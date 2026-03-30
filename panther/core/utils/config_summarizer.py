@@ -1,3 +1,5 @@
+"""Utilities for summarizing configurations to reduce log verbosity."""
+
 # panther/core/utils/config_summarizer.py
 import json
 import re

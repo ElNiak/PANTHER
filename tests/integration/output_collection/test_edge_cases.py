@@ -228,7 +228,6 @@ class TestOutputCollectionEdgeCases:
     @pytest.mark.output_collection
     def test_empty_files_handling(self, temp_output_dir):
         """Test handling of empty output files."""
-
         log_dir = temp_output_dir / "logs" / "test_service"
         log_dir.mkdir(parents=True, exist_ok=True)
 
@@ -262,7 +261,6 @@ class TestOutputCollectionEdgeCases:
     @pytest.mark.output_collection
     def test_permission_handling(self, temp_output_dir):
         """Test handling of files with permission issues."""
-
         log_dir = temp_output_dir / "logs" / "test_service"
         log_dir.mkdir(parents=True, exist_ok=True)
 
@@ -307,7 +305,6 @@ class TestOutputCollectionPerformance:
     @pytest.mark.output_collection
     def test_output_collection_timing(self, temp_output_dir):
         """Test that output collection doesn't significantly slow teardown."""
-
         # Create mock environment with many services
         num_services = 10
         log_dirs = []
@@ -352,7 +349,6 @@ class TestOutputCollectionPerformance:
     @pytest.mark.output_collection
     def test_large_file_handling(self, temp_output_dir):
         """Test output collection with large files."""
-
         log_dir = temp_output_dir / "logs" / "test_service"
         log_dir.mkdir(parents=True, exist_ok=True)
 
@@ -395,7 +391,6 @@ class TestOutputCollectionPerformance:
     @pytest.mark.output_collection
     def test_concurrent_service_collection(self, temp_output_dir):
         """Test output collection when multiple services finish simultaneously."""
-
         import concurrent.futures
         import threading
 

@@ -1,12 +1,11 @@
-"""
-Execution Environment Mixins
+"""Execution Environment Mixins.
 
 This module provides standardized mixins for execution environment plugins
 to ensure consistent behavior across all environments.
 """
 
-
 import contextlib
+import logging
 import os
 import time
 from abc import ABC
@@ -18,8 +17,7 @@ from panther.core.outputs.phase_collection_standard import PhaseCollectionStanda
 
 
 class StandardOutputCollectorMixin(IOutputCollector, ABC):
-    """
-    Standardized output collection for execution environments.
+    """Standardized output collection for execution environments.
 
     This mixin provides a consistent way to register, collect, and manage
     outputs from execution environments. It handles container path mapping
@@ -27,11 +25,13 @@ class StandardOutputCollectorMixin(IOutputCollector, ABC):
     """
 
     def __init__(self, *args, **kwargs):
+        """Initialize output collector with empty output files registry."""
         super().__init__(*args, **kwargs)
         self.output_files = {}
         if hasattr(self, "logger"):
             self.logger.debug(
-                f"StandardOutputCollectorMixin initialized for {self.__class__.__name__}, output_files created"
+                "StandardOutputCollectorMixin initialized for %s, output_files created",
+                self.__class__.__name__,
             )
 
     def register_service_outputs(self, services_managers, get_log_directory_func):
@@ -41,9 +41,10 @@ class StandardOutputCollectorMixin(IOutputCollector, ABC):
         self.get_log_directory_func = get_log_directory_func
 
         self.logger.debug(
-            f"Starting register_service_outputs for {len(services_managers)} services"
+            "Starting register_service_outputs for %d services",
+            len(services_managers),
         )
-        self.logger.debug(f"Current output_files count: {len(self.output_files)}")
+        self.logger.debug("Current output_files count: %d", len(self.output_files))
 
         for service_manager in services_managers:
             service_name = getattr(service_manager, "service_name", "unknown")
@@ -60,7 +61,9 @@ class StandardOutputCollectorMixin(IOutputCollector, ABC):
             if hasattr(service_manager, "get_output_patterns"):
                 output_patterns = service_manager.get_output_patterns()
                 self.logger.debug(
-                    f"Using service-specific patterns for {service_name}: {output_patterns}"
+                    "Using service-specific patterns for %s: %s",
+                    service_name,
+                    output_patterns,
                 )
             else:
                 # Fall back to default patterns with protocol awareness (Option 4)
@@ -68,7 +71,9 @@ class StandardOutputCollectorMixin(IOutputCollector, ABC):
                     service_manager
                 )
                 self.logger.debug(
-                    f"Using default patterns for {service_name}: {output_patterns}"
+                    "Using default patterns for %s: %s",
+                    service_name,
+                    output_patterns,
                 )
 
             # Register outputs based on patterns
@@ -82,7 +87,7 @@ class StandardOutputCollectorMixin(IOutputCollector, ABC):
                         self.register_output_file(
                             output_type, str(file_path), service_name
                         )
-                        self.logger.debug(f"Registered {output_type}: {file_path}")
+                        self.logger.debug("Registered %s: %s", output_type, file_path)
                 elif "*" in filename_pattern:
                     # It's a glob pattern
                     self._register_pattern_outputs(
@@ -95,7 +100,7 @@ class StandardOutputCollectorMixin(IOutputCollector, ABC):
                         self.register_output_file(
                             output_type, str(file_path), service_name
                         )
-                        self.logger.debug(f"Registered {output_type}: {file_path}")
+                        self.logger.debug("Registered %s: %s", output_type, file_path)
 
             # Additional discovery if service provides custom patterns
             if hasattr(service_manager, "get_additional_output_discovery_patterns"):
@@ -115,8 +120,7 @@ class StandardOutputCollectorMixin(IOutputCollector, ABC):
     def _get_default_patterns_for_service(
         self, service_manager
     ) -> List[Tuple[str, str]]:
-        """
-        Get default output patterns for a service when it doesn't provide its own.
+        """Get default output patterns for a service when it doesn't provide its own.
 
         This method now uses PhaseCollectionStandard for consistent pattern generation
         while maintaining backward compatibility.
@@ -175,7 +179,7 @@ class StandardOutputCollectorMixin(IOutputCollector, ABC):
                         output_type, str(matching_file), service_name
                     )
                     self.logger.debug(
-                        f"Registered {output_type} from pattern: {matching_file}"
+                        "Registered %s from pattern: %s", output_type, matching_file
                     )
         except Exception as e:
             self.logger.error(f"Error registering pattern outputs for {pattern}: {e}")
@@ -183,8 +187,7 @@ class StandardOutputCollectorMixin(IOutputCollector, ABC):
     def register_output_file(
         self, output_type: str, file_path: str, service_name: str = None
     ) -> None:
-        """
-        Register an output file for collection.
+        """Register an output file for collection.
 
         Args:
             output_type: Type of output (e.g., 'trace', 'profile', 'memcheck')
@@ -200,29 +203,30 @@ class StandardOutputCollectorMixin(IOutputCollector, ABC):
         }
 
         if hasattr(self, "logger"):
-            self.logger.debug(f"Registered output file: {key} -> {file_path}")
-            self.logger.debug(f"Total output files now: {len(self.output_files)}")
+            self.logger.debug("Registered output file: %s -> %s", key, file_path)
+            self.logger.debug("Total output files now: %d", len(self.output_files))
 
     def collect_outputs(self) -> Dict[str, str]:
-        """
-        Collect all registered outputs with environment-aware path resolution and deferred discovery.
+        """Collect all registered outputs with environment-aware path resolution and deferred discovery.
 
         Returns:
             Dictionary mapping output type to file path
         """
         outputs = {}
 
-        self.logger.info(f"collect_outputs called for {self.__class__.__name__}")
-        self.logger.debug(f"Instance ID: {id(self)}")
+        self.logger.debug("collect_outputs called for %s", self.__class__.__name__)
+        self.logger.debug("Instance ID: %s", id(self))
         self.logger.debug(
-            f"Environment type: {getattr(self, 'env_sub_type', 'unknown')}"
+            "Environment type: %s", getattr(self, "env_sub_type", "unknown")
         )
 
         self.logger.debug(
             "Output directory: %s", getattr(self, "output_dir", "not set")
         )
         self.logger.debug("Registered output files: %s", self.output_files)
-        self.logger.info(f"Number of registered output files: {len(self.output_files)}")
+        self.logger.debug(
+            "Number of registered output files: %d", len(self.output_files)
+        )
 
         # First, try to collect from registered files
         registered_outputs = self._collect_registered_outputs()
@@ -235,7 +239,7 @@ class StandardOutputCollectorMixin(IOutputCollector, ABC):
         for key, path in discovered_outputs.items():
             if key not in outputs:
                 outputs[key] = path
-                self.logger.info(f"Added discovered output: {key} -> {path}")
+                self.logger.debug("Added discovered output: %s -> %s", key, path)
 
         self.logger.info(
             f"Total collected outputs: {len(outputs)} ({len(registered_outputs)} registered + {len(discovered_outputs) - len(set(discovered_outputs.keys()) & set(registered_outputs.keys()))} discovered)"
@@ -257,11 +261,11 @@ class StandardOutputCollectorMixin(IOutputCollector, ABC):
             # Use environment-aware path resolution
             host_path = self._resolve_container_path_to_host(file_path, service_name)
 
-            self.logger.debug(f"Checking registered output: {key}")
-            self.logger.debug(f"  Container path: {file_path}")
-            self.logger.debug(f"  Service name: {service_name}")
-            self.logger.debug(f"  Resolved host path: {host_path}")
-            self.logger.debug(f"  File exists: {os.path.exists(host_path)}")
+            self.logger.debug("Checking registered output: %s", key)
+            self.logger.debug("  Container path: %s", file_path)
+            self.logger.debug("  Service name: %s", service_name)
+            self.logger.debug("  Resolved host path: %s", host_path)
+            self.logger.debug("  File exists: %s", os.path.exists(host_path))
 
             if os.path.exists(host_path):
                 outputs[key] = host_path
@@ -279,8 +283,7 @@ class StandardOutputCollectorMixin(IOutputCollector, ABC):
     def _resolve_container_path_to_host(
         self, container_path: str, service_name: str
     ) -> str:
-        """
-        Resolve container path to host path using environment-aware mapping.
+        """Resolve container path to host path using environment-aware mapping.
 
         Args:
             container_path: Path inside container (e.g., "/app/logs/stdout.log")
@@ -300,7 +303,7 @@ class StandardOutputCollectorMixin(IOutputCollector, ABC):
         # Get environment-specific path mapping
         env_type = getattr(self, "env_sub_type", "unknown")
 
-        self.logger.debug(f"Environment type detected: {env_type}")
+        self.logger.debug("Environment type detected: %s", env_type)
 
         if env_type == "docker_compose":
             # Docker Compose: each service has its own mounted directory
@@ -326,7 +329,7 @@ class StandardOutputCollectorMixin(IOutputCollector, ABC):
                     candidate_path = os.path.join(service_dir, subdir, filename)
                     if os.path.exists(candidate_path):
                         self.logger.debug(
-                            f"Found file in subdirectory: {candidate_path}"
+                            "Found file in subdirectory: %s", candidate_path
                         )
                         return candidate_path
 
@@ -335,7 +338,7 @@ class StandardOutputCollectorMixin(IOutputCollector, ABC):
                     if filename in files:
                         found_path = os.path.join(root, filename)
                         self.logger.debug(
-                            f"Found file via recursive search: {found_path}"
+                            "Found file via recursive search: %s", found_path
                         )
                         return found_path
 
@@ -388,13 +391,16 @@ class StandardOutputCollectorMixin(IOutputCollector, ABC):
             host_path = container_path.replace("/app/logs/", f"{self.output_dir}/logs/")
 
         self.logger.debug(
-            f"Path resolution: {container_path} -> {host_path} (env: {env_type}, service: {service_name})"
+            "Path resolution: %s -> %s (env: %s, service: %s)",
+            container_path,
+            host_path,
+            env_type,
+            service_name,
         )
         return host_path
 
     def _perform_deferred_discovery(self) -> Dict[str, str]:
-        """
-        Perform deferred discovery to find output files that weren't registered.
+        """Perform deferred discovery to find output files that weren't registered.
 
         This scans actual directories for files matching expected patterns.
         """
@@ -425,12 +431,12 @@ class StandardOutputCollectorMixin(IOutputCollector, ABC):
 
             if not os.path.exists(service_log_dir):
                 self.logger.debug(
-                    f"Service log directory does not exist: {service_log_dir}"
+                    "Service log directory does not exist: %s", service_log_dir
                 )
                 continue
 
             self.logger.debug(
-                f"Scanning directory for {service_name}: {service_log_dir}"
+                "Scanning directory for %s: %s", service_name, service_log_dir
             )
 
             # Get output patterns for this service
@@ -451,7 +457,9 @@ class StandardOutputCollectorMixin(IOutputCollector, ABC):
                     )
                     if key not in discovered:  # Don't overwrite existing
                         discovered[key] = file_path
-                        self.logger.debug(f"Discovered {output_type} file: {file_path}")
+                        self.logger.debug(
+                            "Discovered %s file: %s", output_type, file_path
+                        )
 
         self.logger.info(
             f"Deferred discovery found {len(discovered)} additional output files"
@@ -555,8 +563,7 @@ class StandardOutputCollectorMixin(IOutputCollector, ABC):
                     )
 
     def get_output_metadata(self) -> Dict[str, Any]:
-        """
-        Get metadata about collected outputs.
+        """Get metadata about collected outputs.
 
         Returns:
             Dictionary with metadata for each output file
@@ -608,8 +615,7 @@ class StandardOutputCollectorMixin(IOutputCollector, ABC):
         return metadata
 
     def _get_output_format(self, output_type: str) -> str:
-        """
-        Get the format for a given output type.
+        """Get the format for a given output type.
 
         Args:
             output_type: Type of output

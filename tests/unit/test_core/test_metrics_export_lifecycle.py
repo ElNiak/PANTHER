@@ -144,10 +144,10 @@ class TestMetricsExportLifecycle:
 
 
 class TestExperimentManagerCleanupMetricsExport:
-    """Test that ExperimentManager.cleanup() exports metrics to disk."""
+    """Test that ExperimentManager.cleanup() finalizes the metrics collector."""
 
-    def test_cleanup_exports_metrics_json(self, tmp_path):
-        """cleanup() with a real MetricsCollector writes metrics/metrics.json to experiment_dir."""
+    def test_cleanup_finalizes_metrics_collector(self, tmp_path):
+        """cleanup() calls finalize() on the metrics collector."""
         from unittest.mock import MagicMock, patch
 
         # Create a real MetricsCollector with some recorded data
@@ -196,20 +196,10 @@ class TestExperimentManagerCleanupMetricsExport:
             ),
             patch.object(ExperimentManager, "_setup_observers", return_value=None),
         ):
-            # Call the real cleanup code by invoking the unbound method on
-            # our mock, binding it manually.
             ExperimentManager.cleanup(manager)
 
-        # Assert that metrics.json was written to experiment_dir/metrics/
-        metrics_json = manager.experiment_dir / "metrics" / "metrics.json"
-        assert (
-            metrics_json.exists()
-        ), f"Expected {metrics_json} to exist after cleanup()"
-
-        # Verify the file contains valid JSON with expected structure
-        data = json.load(open(metrics_json, "r", encoding="utf-8"))
-        assert "timing_metrics" in data
-        assert "error_metrics" in data
+        # cleanup() calls finalize() on the collector — verify it was finalized
+        assert collector._finalized is True
 
 
 class TestPhaseMetricsFix:

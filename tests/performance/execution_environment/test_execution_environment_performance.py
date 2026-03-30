@@ -1,5 +1,4 @@
-"""
-Performance benchmarks and stress tests for execution environment plugins.
+"""Performance benchmarks and stress tests for execution environment plugins.
 
 Tests setup performance, memory usage, scalability, and behavior under extreme loads.
 Provides metrics for:
@@ -89,11 +88,13 @@ class PerformanceTimer:
         self.duration = None
 
     def __enter__(self):
+        """Start the performance timer."""
         gc.collect()  # Clean up before timing
         self.start_time = time.perf_counter()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        """Stop the performance timer and compute duration."""
         self.end_time = time.perf_counter()
         self.duration = self.end_time - self.start_time
 

@@ -1,5 +1,4 @@
-"""
-Quick verification test for the logging system.
+"""Quick verification test for the logging system.
 
 This test verifies that the logging system works correctly
 with the recent changes.

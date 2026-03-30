@@ -1,5 +1,4 @@
-"""
-StringRepresentationMixin - Provides concise string representations for PANTHER classes.
+"""StringRepresentationMixin - Provides concise string representations for PANTHER classes.
 
 This mixin standardizes string output across services and environments to reduce verbose
 configuration printing while maintaining useful identifying information.
@@ -9,8 +8,7 @@ from typing import Any, Dict, Optional
 
 
 class StringRepresentationMixin:
-    """
-    Mixin providing concise string representations for services and environments.
+    """Mixin providing concise string representations for services and environments.
 
     This mixin replaces verbose full-config printing with key identifying attributes,
     significantly reducing log noise and improving readability.
@@ -20,8 +18,7 @@ class StringRepresentationMixin:
     """
 
     def _get_key_attributes(self) -> Dict[str, Any]:
-        """
-        Get key attributes for string representation.
+        """Get key attributes for string representation.
 
         Override this method in subclasses to specify which attributes
         should be included in the string representation.
@@ -64,8 +61,7 @@ class StringRepresentationMixin:
         return attrs
 
     def __str__(self) -> str:
-        """
-        Concise string representation showing only key identifying information.
+        """Concise string representation showing only key identifying information.
 
         Returns:
             String in format: ClassName(key1=value1, key2=value2, ...)
@@ -78,8 +74,7 @@ class StringRepresentationMixin:
             return f"{self.__class__.__name__}()"
 
     def __repr__(self) -> str:
-        """
-        Representation for debugging, same as __str__ for consistency.
+        """Representation for debugging, same as __str__ for consistency.
 
         For more detailed output, use get_verbose_string() method.
 
@@ -89,8 +84,7 @@ class StringRepresentationMixin:
         return self.__str__()
 
     def get_verbose_string(self) -> str:
-        """
-        Get verbose string representation with full configuration details.
+        """Get verbose string representation with full configuration details.
 
         Use this method when you need complete configuration information
         for debugging purposes.

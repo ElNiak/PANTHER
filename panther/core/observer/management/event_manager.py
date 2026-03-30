@@ -20,10 +20,10 @@ Event distribution flow::
       +--> Error isolation (observer failures logged, not propagated)
 
 Performance characteristics:
-    - O(log n) observer lookup via priority sorting
+    - O(n) observer notification per event type (pre-sorted by priority at registration)
     - O(1) content-based duplicate detection with bounded cache (10k entries)
     - Bounded event history (default 1000 events) with automatic cleanup
-    - Thread safety via RLock (~1-5us per event in typical usage)
+    - Thread safety via RLock
 
 Module-level convenience function:
     ``get_event_manager()`` -- returns the EventManager singleton.

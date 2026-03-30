@@ -170,6 +170,10 @@ class RootCauseAnalyzer:
         error_records = list(self._engine.query(error_filter))
 
         # Also collect event-source records with error-related types
+        seen_keys: set = set()
+        for rec in error_records:
+            seen_keys.add((rec.get("ts", ""), rec.get("message", "")))
+
         event_filter = LogFilter(sources={"event"})
         for record in self._engine.query(event_filter):
             message = record.get("message", "")
@@ -180,7 +184,9 @@ class RootCauseAnalyzer:
                 for kw in ("error", "fail", "crash", "timeout", "killed")
             ):
                 # Avoid duplicates
-                if record not in error_records:
+                dedup_key = (record.get("ts", ""), record.get("message", ""))
+                if dedup_key not in seen_keys:
+                    seen_keys.add(dedup_key)
                     error_records.append(record)
 
         # Sort chronologically
@@ -231,7 +237,16 @@ class RootCauseAnalyzer:
             best_confidence = 0.0
 
             for pattern in self._patterns:
-                confidence = pattern.matches(primary)
+                try:
+                    confidence = pattern.matches(primary)
+                except Exception as exc:
+                    logger.warning(
+                        "Pattern '%s' raised %s during matching: %s",
+                        pattern.name,
+                        type(exc).__name__,
+                        exc,
+                    )
+                    continue
                 if confidence > best_confidence:
                     best_confidence = confidence
                     best_pattern = pattern
@@ -240,7 +255,16 @@ class RootCauseAnalyzer:
             if best_confidence < 0.4 and len(records) > 1:
                 for record in records[1:]:
                     for pattern in self._patterns:
-                        confidence = pattern.matches(record)
+                        try:
+                            confidence = pattern.matches(record)
+                        except Exception as exc:
+                            logger.warning(
+                                "Pattern '%s' raised %s during matching: %s",
+                                pattern.name,
+                                type(exc).__name__,
+                                exc,
+                            )
+                            continue
                         if confidence > best_confidence:
                             best_confidence = confidence
                             best_pattern = pattern

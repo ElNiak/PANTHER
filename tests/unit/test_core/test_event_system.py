@@ -1,5 +1,4 @@
-"""
-Unit tests for PANTHER Event System components.
+"""Unit tests for PANTHER Event System components.
 
 This module tests the core event-driven architecture including event emitters,
 observers, and the event management system.

@@ -99,12 +99,6 @@ class ExperimentReporter:
     - **Fast-Fail Analysis**: Failure categorization and termination reasoning
     - **Historical Context**: Experiment metadata and version information
 
-    **Performance Characteristics**:
-    - **Report Generation**: ~100-500ms depending on experiment size and template complexity
-    - **Memory Usage**: O(n) where n is number of test cases and log entries
-    - **Template Rendering**: ~10-50ms for Jinja2, ~5-10ms for basic formatting
-    - **Error Resilience**: Multiple format attempts ensure report availability
-
     **Usage Patterns**:
     ```python
     # Basic usage
@@ -212,7 +206,7 @@ class ExperimentReporter:
             return True
 
         except Exception as e:
-            self.logger.error(f"Failed to generate JSON report: {e}")
+            self.logger.error(f"Failed to generate JSON report: {e}", exc_info=True)
             return False
 
     def _generate_markdown_report(self, summary: ExperimentSummary) -> bool:
@@ -224,7 +218,7 @@ class ExperimentReporter:
                 return self._generate_basic_markdown_report(summary)
 
         except Exception as e:
-            self.logger.error(f"Failed to generate Markdown report: {e}")
+            self.logger.error(f"Failed to generate Markdown report: {e}", exc_info=True)
             return False
 
     def _generate_jinja_markdown_report(self, summary: ExperimentSummary) -> bool:
@@ -253,7 +247,9 @@ class ExperimentReporter:
             return True
 
         except Exception as e:
-            self.logger.error(f"Failed to generate Jinja2 Markdown report: {e}")
+            self.logger.error(
+                f"Failed to generate Jinja2 Markdown report: {e}", exc_info=True
+            )
             return False
 
     def _generate_basic_markdown_report(self, summary: ExperimentSummary) -> bool:
@@ -314,38 +310,52 @@ class ExperimentReporter:
                             lines.append("  - ⚡ Fast-fail triggered")
                     lines.append("")
 
-            # Service health summary (if available)
+            # Service health summary (if available), grouped by test
             if summary.services:
                 lines.extend(["## Service Health Summary", ""])
-                iut_svcs = [s for s in summary.services if s.service_type == "iut"]
-                tester_svcs = [
-                    s for s in summary.services if s.service_type == "tester"
-                ]
 
-                for label, svcs in [
-                    ("IUT Services", iut_svcs),
-                    ("Tester Services", tester_svcs),
-                ]:
-                    if svcs:
-                        lines.append(f"### {label} ({len(svcs)})")
-                        lines.append(
-                            "| Service | Status | Compilation | Exit Code | Errors |"
-                        )
-                        lines.append(
-                            "|---------|--------|-------------|-----------|--------|"
-                        )
-                        for svc in svcs:
-                            comp = "OK" if svc.compilation_succeeded else "FAIL"
-                            ec = (
-                                str(svc.exit_code)
-                                if svc.exit_code is not None
-                                else "N/A"
-                            )
-                            err = svc.error_summary or "None"
+                # Group services by test_name
+                from itertools import groupby as _groupby
+
+                sorted_services = sorted(
+                    summary.services, key=lambda s: s.test_name or ""
+                )
+                for test_name, test_services_iter in _groupby(
+                    sorted_services, key=lambda s: s.test_name or "Unknown"
+                ):
+                    test_services = list(test_services_iter)
+                    lines.append(f"### Test: {test_name}")
+                    lines.append("")
+
+                    iut_svcs = [s for s in test_services if s.service_type == "iut"]
+                    tester_svcs = [
+                        s for s in test_services if s.service_type == "tester"
+                    ]
+
+                    for label, svcs in [
+                        ("IUT Services", iut_svcs),
+                        ("Tester Services", tester_svcs),
+                    ]:
+                        if svcs:
+                            lines.append(f"#### {label} ({len(svcs)})")
                             lines.append(
-                                f"| {svc.service_name} | {svc.status} | {comp} | {ec} | {err} |"
+                                "| Service | Status | Compilation | Exit Code | Errors |"
                             )
-                        lines.append("")
+                            lines.append(
+                                "|---------|--------|-------------|-----------|--------|"
+                            )
+                            for svc in svcs:
+                                comp = "OK" if svc.compilation_succeeded else "FAIL"
+                                ec = (
+                                    str(svc.exit_code)
+                                    if svc.exit_code is not None
+                                    else "N/A"
+                                )
+                                err = svc.error_summary or "None"
+                                lines.append(
+                                    f"| {svc.service_name} | {svc.status} | {comp} | {ec} | {err} |"
+                                )
+                            lines.append("")
 
             # Fast-fail analysis
             lines.extend(
@@ -448,7 +458,9 @@ class ExperimentReporter:
             return True
 
         except Exception as e:
-            self.logger.error(f"Failed to generate basic Markdown report: {e}")
+            self.logger.error(
+                f"Failed to generate basic Markdown report: {e}", exc_info=True
+            )
             return False
 
     def _generate_simple_text_report(self, summary: ExperimentSummary) -> bool:
@@ -479,7 +491,7 @@ class ExperimentReporter:
             return True
 
         except Exception as e:
-            self.logger.error(f"Failed to generate text report: {e}")
+            self.logger.error(f"Failed to generate text report: {e}", exc_info=True)
             return False
 
     def _get_status_emoji(self, status: ExperimentStatus) -> str:
@@ -561,7 +573,12 @@ class ExperimentReporter:
             causes = analyzer.analyze_as_dicts()
             return causes if causes else None
         except Exception as exc:
-            self.logger.debug("RCA skipped: %s", exc)
+            self.logger.warning(
+                "RCA failed (%s: %s), diagnosis section omitted",
+                type(exc).__name__,
+                exc,
+                exc_info=True,
+            )
             return None
 
     def _get_artifact_summary(self) -> Optional[List[Dict[str, Any]]]:
@@ -577,7 +594,12 @@ class ExperimentReporter:
             artifacts = browser.list_artifacts()
             return artifacts if artifacts else None
         except Exception as exc:
-            self.logger.debug("Artifact browsing skipped: %s", exc)
+            self.logger.warning(
+                "Artifact browsing failed (%s: %s), artifacts section omitted",
+                type(exc).__name__,
+                exc,
+                exc_info=True,
+            )
             return None
 
     def _format_rca_markdown(self) -> List[str]:
@@ -668,5 +690,5 @@ class ExperimentReporter:
             )
 
         except Exception as e:
-            self.logger.error(f"Failed to generate quick summary: {e}")
+            self.logger.error(f"Failed to generate quick summary: {e}", exc_info=True)
             return None

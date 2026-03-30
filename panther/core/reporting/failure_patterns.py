@@ -43,10 +43,6 @@ class FailurePattern:
     suggestion: str
     severity: str
 
-    # Compiled regexes are cached on first access via _compiled_patterns.
-    # We use a class-level dict keyed by id(self) to avoid mutable state
-    # on a frozen dataclass.
-
     def matches_message(self, message: str) -> bool:
         """Check whether *message* matches any of the declared patterns.
 

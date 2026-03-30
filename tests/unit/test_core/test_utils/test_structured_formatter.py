@@ -5,6 +5,8 @@ import logging
 
 import pytest
 
+pytestmark = pytest.mark.unit
+
 from panther.core.utils.log_context import log_context
 from panther.core.utils.structured_formatter import StructuredJsonFormatter
 

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-PANTHER Protocol Plugin Template
+"""PANTHER Protocol Plugin Template.
 
 This is a basic template for creating a protocol plugin in the PANTHER framework.
 """
@@ -9,8 +8,7 @@ from panther.plugins.plugin_interface import IPlugin
 
 
 class TemplateProtocolPlugin(IPlugin):
-    """
-    Template implementation of a protocol plugin for PANTHER.
+    """Template implementation of a protocol plugin for PANTHER.
 
     A protocol plugin provides functionality for testing protocol implementations
     under various conditions.
@@ -23,8 +21,7 @@ class TemplateProtocolPlugin(IPlugin):
         self.description = "Template protocol plugin for PANTHER"
 
     def handle_event(self, event):
-        """
-        Handle an event sent to this plugin.
+        """Handle an event sent to this plugin.
 
         Args:
             event: The event to handle
@@ -32,8 +29,7 @@ class TemplateProtocolPlugin(IPlugin):
         pass
 
     def start(self, config=None):
-        """
-        Initialize the protocol.
+        """Initialize the protocol.
 
         Args:
             config: Configuration parameters for the protocol

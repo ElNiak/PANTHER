@@ -91,7 +91,7 @@ class PantherConfigValidationReport:
                                     if 1000 <= port_num <= 65535:
                                         ports.append((port_num, f"{path}.{key}[{i}]"))
                                 except ValueError:
-                                    pass
+                                    pass  # Expected: non-integer port values are skipped
                         elif (
                             isinstance(port_mapping, int)
                             and 1000 <= port_mapping <= 65535
@@ -114,7 +114,7 @@ class PantherConfigValidationReport:
                             if 1000 <= port_num <= 65535:
                                 ports.append((port_num, f"{path}.{key}"))
                         except ValueError:
-                            pass
+                            pass  # Expected: non-integer port values are skipped
 
                 # Network configurations and services sections
                 elif key.lower() in ["networks", "services", "containers", "tests"]:
@@ -157,7 +157,7 @@ class PantherConfigValidationReport:
                 config_data = yaml.safe_load(f)
                 result["yaml_valid"] = True
         except Exception as e:
-            result["errors"].append(f"YAML Parse Error: {str(e)}")
+            result["errors"].append(f"YAML Parse Error: {e}")
             result["status"] = "MAJOR"
             self.error_categories["yaml_errors"] += 1
             return result
@@ -222,7 +222,7 @@ class PantherConfigValidationReport:
                         self.error_categories["port_warnings"] += 1
 
             except Exception as e:
-                result["errors"].append(f"Port analysis error: {str(e)}")
+                result["errors"].append(f"Port analysis error: {e}")
                 self.error_categories["analysis_errors"] += 1
 
         # Count unique port conflicts

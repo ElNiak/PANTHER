@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Unit tests for Docker platform-specific caching implementation.
+"""Unit tests for Docker platform-specific caching implementation.
 
 Tests validate that platform-specific caching has been properly
 applied across all Dockerfiles in the PANTHER project.

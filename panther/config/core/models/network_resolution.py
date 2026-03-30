@@ -1,5 +1,4 @@
-"""
-Data models for network-aware command resolution.
+"""Data models for network-aware command resolution.
 
 This module provides Pydantic models for handling network parameter
 resolution in the placeholder system.

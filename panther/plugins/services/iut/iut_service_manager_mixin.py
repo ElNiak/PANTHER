@@ -1,3 +1,5 @@
+"""Mixin providing IUT-specific service manager functionality."""
+
 from typing import Any, Optional
 
 from panther.plugins.services.iut.implementation_interface import IImplementationManager
@@ -8,8 +10,7 @@ from panther.plugins.services.service_manager_mixin import ServiceManagerMixin
 class IUTServiceManagerMixin(
     PluginDirectoryMixin, ServiceManagerMixin, IImplementationManager
 ):
-    """
-    Specialized mixin for IUT (Implementation Under Test) service managers.
+    """Specialized mixin for IUT (Implementation Under Test) service managers.
 
     Provides IUT-specific patterns and utilities including role management
     (client/server semantics), protocol version tracking, and a permissive
@@ -22,6 +23,7 @@ class IUTServiceManagerMixin(
     """
 
     def __init__(self, *args, global_config=None, **kwargs):
+        """Initialize the IUT service manager mixin."""
         super().__init__(*args, **kwargs)
 
         # Store global configuration
@@ -32,8 +34,7 @@ class IUTServiceManagerMixin(
     def setup_iut_specific_attributes(
         self, protocol: Any, service_config_to_test: Any
     ) -> None:
-        """
-        Set up IUT-specific attributes.
+        """Set up IUT-specific attributes.
 
         Args:
             protocol: Protocol configuration
@@ -95,8 +96,7 @@ class IUTServiceManagerMixin(
         event_manager: Any = None,
         plugin_dir: Any = None,
     ) -> None:
-        """
-        Template method for standard IUT service initialization.
+        """Template method for standard IUT service initialization.
 
         This method encapsulates the common 6-line initialization pattern used by all IUT services:
         1. Call standardized_initialization from ServiceManagerMixin
@@ -147,8 +147,7 @@ class IUTServiceManagerMixin(
         self._setup_docker_attributes()
 
     def _setup_template_renderer(self) -> None:
-        """
-        Hook method: Set up the template renderer.
+        """Hook method: Set up the template renderer.
 
         Override this method to customize template renderer setup.
         Default implementation creates a ServiceTemplateRenderer with plugin directory.

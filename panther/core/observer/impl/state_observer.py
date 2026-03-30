@@ -6,11 +6,35 @@ by the event-based state managers in EmitterRegistry.
 """
 
 import logging
+from typing import Dict, Optional, Tuple
 
 from panther.core.events.base.event_base import BaseEvent
 from panther.core.events.service.events import DockerBuildStartedEvent
 from panther.core.observer.base.typed_observer_interface import ITypedObserver
 from panther.core.observer.workflow import WorkflowState, WorkflowStateTracker
+
+# Maps (entity_prefix, event_name) -> (WorkflowState, use_entity_id)
+# use_entity_id=True means use event.entity_id; False means use self.current_experiment_id
+_EVENT_STATE_MAP: Dict[Tuple[str, str], Tuple[WorkflowState, bool]] = {
+    ("experiment", "execution_started"): (WorkflowState.RUNNING, False),
+    ("experiment", "completed"): (WorkflowState.COMPLETED, True),
+    ("experiment", "failed"): (WorkflowState.FAILED, True),
+    ("experiment", "plugin_loading_started"): (WorkflowState.LOADING_PLUGINS, False),
+    ("service", "preparation_started"): (WorkflowState.GENERATING_COMMANDS, False),
+    ("environment", "setup_started"): (WorkflowState.DEPLOYING, False),
+    ("test", "execution_started"): (WorkflowState.RUNNING, False),
+    ("test", "setup_started"): (WorkflowState.RUNNING, False),
+    ("test", "teardown_started"): (WorkflowState.RUNNING, False),
+    ("environment", "output_collection_started"): (
+        WorkflowState.COLLECTING_OUTPUTS,
+        False,
+    ),
+    ("environment", "output_collection_completed"): (
+        WorkflowState.ANALYZING_RESULTS,
+        False,
+    ),
+    ("service", "test_results"): (WorkflowState.ANALYZING_RESULTS, False),
+}
 
 
 class StateEventObserver(ITypedObserver):
@@ -19,7 +43,6 @@ class StateEventObserver(ITypedObserver):
     This observer:
     - Tracks experiment-level workflow states for coordination
     - Records state history for debugging and analysis
-    - Maintains compatibility with legacy StateManager
     - Lets event-based state managers handle entity-specific transitions
     """
 
@@ -34,9 +57,7 @@ class StateEventObserver(ITypedObserver):
         self.workflow_tracker = workflow_tracker
         self.priority = priority
         self.logger = logging.getLogger(self.__class__.__name__)
-
-        # Track current experiment for workflow coordination
-        self.current_experiment_id = None
+        self.current_experiment_id: Optional[str] = None
 
     def get_priority(self) -> int:
         """Get the priority for this observer."""
@@ -44,7 +65,6 @@ class StateEventObserver(ITypedObserver):
 
     def is_interested(self, event_type: str) -> bool:
         """Check if this observer is interested in workflow coordination events."""
-        # Focus only on workflow-level events for coordination
         workflow_event_types = [
             "experiment.initialized",
             "experiment.plugin_loading_started",
@@ -52,186 +72,64 @@ class StateEventObserver(ITypedObserver):
             "experiment.execution_started",
             "experiment.completed",
             "experiment.failed",
-            "command_generation.started",
-            "docker_build.started",
+            "service.preparation_started",
+            "service.docker_build_started",
             "environment.setup_started",
             "test.execution_started",
             "test.setup_started",
             "test.teardown_started",
-            "output_collection.started",
-            "output_collection.completed",
-            "tester_analysis.started",
+            "environment.output_collection_started",
+            "environment.output_collection_completed",
+            "service.test_results",
         ]
-
         return event_type in workflow_event_types
 
-    # Workflow coordination event handlers (simplified)
+    def on_event(self, event: BaseEvent) -> bool:
+        """Route events to workflow state transitions via lookup table."""
+        if self._is_duplicate(event):
+            return True
 
-    def on_experiment_initialized(self, event: BaseEvent) -> bool:
-        """Handle experiment initialized - set workflow tracking."""
-        try:
-            self.current_experiment_id = event.entity_id
-            self.workflow_tracker.set_workflow_state(
-                event.entity_id, WorkflowState.CREATED
+        # Special case: experiment initialized (also sets current_experiment_id)
+        if event.entity_type.value == "experiment" and event.name == "initialized":
+            return self._handle_experiment_initialized(event)
+
+        # Special case: plugin loading failed (uses force_fail_workflow)
+        if (
+            event.entity_type.value == "experiment"
+            and event.name == "plugin_loading_failed"
+        ):
+            return self._handle_plugin_loading_failed(event)
+
+        # Special case: docker_build_started (typed event)
+        if isinstance(event, DockerBuildStartedEvent):
+            return self._set_state(
+                self.current_experiment_id, WorkflowState.BUILDING_DOCKER
             )
+
+        # Generic dispatch via mapping
+        key = (event.entity_type.value, event.name)
+        mapping = _EVENT_STATE_MAP.get(key)
+        if mapping is None:
             self.logger.debug(
-                f"Workflow coordination: experiment {event.entity_id} initialized"
+                "No state mapping for (%s, %s)", event.entity_type.value, event.name
             )
-        except Exception as e:
-            self.logger.error(
-                f"Error setting experiment initialized state for {event.entity_id}: {e}"
-            )
-        return True
+            return self.on_unknown_event(event)
 
-    def on_experiment_plugin_loading_started(self, event: BaseEvent) -> bool:
-        """Handle plugin loading phase."""
-        try:
-            if self.current_experiment_id:
-                self.workflow_tracker.set_workflow_state(
-                    self.current_experiment_id, WorkflowState.LOADING_PLUGINS
-                )
-        except Exception as e:
-            self.logger.error(
-                f"Error setting plugin loading state for experiment {self.current_experiment_id}: {e}"
-            )
-        return True
+        state, use_entity_id = mapping
+        experiment_id = event.entity_id if use_entity_id else self.current_experiment_id
+        return self._set_state(experiment_id, state)
 
-    def on_command_generation_started(self, event: BaseEvent) -> bool:
-        """Handle command generation phase."""
-        try:
-            if self.current_experiment_id:
-                self.workflow_tracker.set_workflow_state(
-                    self.current_experiment_id, WorkflowState.GENERATING_COMMANDS
-                )
-        except Exception as e:
-            self.logger.error(
-                f"Error setting command generation state for experiment {self.current_experiment_id}: {e}"
-            )
-        return True
+    def _handle_experiment_initialized(self, event: BaseEvent) -> bool:
+        """Handle experiment initialized — also sets current_experiment_id."""
+        self.current_experiment_id = event.entity_id
+        result = self._set_state(event.entity_id, WorkflowState.CREATED)
+        self.logger.debug(
+            "Workflow coordination: experiment %s initialized", event.entity_id
+        )
+        return result
 
-    def on_docker_build_started(self, event: DockerBuildStartedEvent) -> bool:
-        """Handle Docker build phase."""
-        try:
-            if self.current_experiment_id:
-                self.workflow_tracker.set_workflow_state(
-                    self.current_experiment_id, WorkflowState.BUILDING_DOCKER
-                )
-        except Exception as e:
-            self.logger.error(
-                f"Error setting docker build state for experiment {self.current_experiment_id}: {e}"
-            )
-        return True
-
-    def on_environment_setup_started(self, event: BaseEvent) -> bool:
-        """Handle deployment phase."""
-        try:
-            if self.current_experiment_id:
-                self.workflow_tracker.set_workflow_state(
-                    self.current_experiment_id, WorkflowState.DEPLOYING
-                )
-        except Exception as e:
-            self.logger.error(
-                f"Error setting deployment state for experiment {self.current_experiment_id}: {e}"
-            )
-        return True
-
-    def on_test_execution_started(self, event: BaseEvent) -> bool:
-        """Handle test execution phase."""
-        try:
-            if self.current_experiment_id:
-                self.workflow_tracker.set_workflow_state(
-                    self.current_experiment_id, WorkflowState.RUNNING
-                )
-        except Exception as e:
-            self.logger.error(
-                f"Error setting test execution state for experiment {self.current_experiment_id}: {e}"
-            )
-        return True
-
-    def on_output_collection_started(self, event: BaseEvent) -> bool:
-        """Handle output collection phase."""
-        try:
-            if self.current_experiment_id:
-                self.workflow_tracker.set_workflow_state(
-                    self.current_experiment_id, WorkflowState.COLLECTING_OUTPUTS
-                )
-        except Exception as e:
-            self.logger.error(
-                f"Error setting output collection state for experiment {self.current_experiment_id}: {e}"
-            )
-        return True
-
-    def on_output_collection_completed(self, event: BaseEvent) -> bool:
-        """Handle transition to analysis phase."""
-        try:
-            if self.current_experiment_id:
-                self.workflow_tracker.set_workflow_state(
-                    self.current_experiment_id, WorkflowState.ANALYZING_RESULTS
-                )
-        except Exception as e:
-            self.logger.error(
-                f"Error setting analysis state after output collection for experiment {self.current_experiment_id}: {e}"
-            )
-        return True
-
-    def on_tester_analysis_started(self, event: BaseEvent) -> bool:
-        """Handle analysis phase."""
-        try:
-            if self.current_experiment_id:
-                self.workflow_tracker.set_workflow_state(
-                    self.current_experiment_id, WorkflowState.ANALYZING_RESULTS
-                )
-        except Exception as e:
-            self.logger.error(
-                f"Error setting tester analysis state for experiment {self.current_experiment_id}: {e}"
-            )
-        return True
-
-    def on_experiment_execution_started(self, event: BaseEvent) -> bool:
-        """Handle experiment execution started."""
-        try:
-            if self.current_experiment_id:
-                self.workflow_tracker.set_workflow_state(
-                    self.current_experiment_id, WorkflowState.RUNNING
-                )
-        except Exception as e:
-            self.logger.error(
-                f"Error setting execution started state for experiment {self.current_experiment_id}: {e}"
-            )
-        return True
-
-    def on_experiment_completed(self, event: BaseEvent) -> bool:
-        """Handle experiment completion."""
-        try:
-            self.workflow_tracker.set_workflow_state(
-                event.entity_id, WorkflowState.COMPLETED
-            )
-            self.logger.debug(
-                f"Workflow coordination: experiment {event.entity_id} completed"
-            )
-        except Exception as e:
-            self.logger.error(
-                f"Error setting completed state for experiment {event.entity_id}: {e}"
-            )
-        return True
-
-    def on_experiment_failed(self, event: BaseEvent) -> bool:
-        """Handle experiment failure."""
-        try:
-            self.workflow_tracker.set_workflow_state(
-                event.entity_id, WorkflowState.FAILED
-            )
-            self.logger.debug(
-                f"Workflow coordination: experiment {event.entity_id} failed"
-            )
-        except Exception as e:
-            self.logger.error(
-                f"Error setting failed state for experiment {event.entity_id}: {e}"
-            )
-        return True
-
-    def on_experiment_plugin_loading_failed(self, event: BaseEvent) -> bool:
-        """Handle plugin loading failure."""
+    def _handle_plugin_loading_failed(self, event: BaseEvent) -> bool:
+        """Handle plugin loading failure — uses force_fail_workflow."""
         try:
             if self.current_experiment_id:
                 self.workflow_tracker.force_fail_workflow(
@@ -239,8 +137,25 @@ class StateEventObserver(ITypedObserver):
                 )
         except Exception as e:
             self.logger.error(
-                f"Error setting plugin loading failure state for experiment {self.current_experiment_id}: {e}"
+                "Error setting plugin loading failure state for experiment %s: %s",
+                self.current_experiment_id,
+                e,
             )
+        return True
+
+    def _set_state(self, experiment_id: Optional[str], state: WorkflowState) -> bool:
+        """Set workflow state for an experiment, with error handling."""
+        try:
+            if experiment_id:
+                self.workflow_tracker.set_workflow_state(experiment_id, state)
+        except Exception as e:
+            self.logger.error(
+                "Error setting %s state for experiment %s: %s",
+                state.value,
+                experiment_id,
+                e,
+            )
+            return False
         return True
 
     def get_state_history(self, experiment_id: str = None):

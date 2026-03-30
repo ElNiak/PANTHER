@@ -1,5 +1,4 @@
-"""
-Unit tests for LoggerMixin - reusable logging functionality for classes.
+"""Unit tests for LoggerMixin - reusable logging functionality for classes.
 
 This module tests the LoggerMixin integration with LoggerFactory and its
 convenience methods for consistent logging patterns.
@@ -142,13 +141,18 @@ class TestLoggerMixin:
         config = {"key": "value", "nested": {"item": 123}}
 
         instance._logger = MagicMock()
-        # log_config_loaded uses ConfigSummarizer.summarize(), not raw %s
+        instance._logger.isEnabledFor.return_value = True
+        # log_config_loaded uses ConfigSummarizer.summarize() with %s lazy formatting
         instance.log_config_loaded(config, "MyEntity")
 
-        # Should have called debug with summarized config
+        # Should have called debug with %s format and args
         instance._logger.debug.assert_called_once()
-        call_args = instance._logger.debug.call_args[0][0]
-        assert "Loaded TestClass configuration for 'MyEntity'" in call_args
+        call_args = instance._logger.debug.call_args[0]
+        fmt = call_args[0]
+        assert "%s" in fmt
+        assert "Loaded" in fmt
+        assert call_args[1] == "TestClass"  # class name
+        assert call_args[2] == " for 'MyEntity'"  # entity_part
 
     def test_log_config_loaded_without_entity(self):
         """Test log_config_loaded without entity name."""
@@ -156,11 +160,14 @@ class TestLoggerMixin:
         config = {"key": "value"}
 
         instance._logger = MagicMock()
+        instance._logger.isEnabledFor.return_value = True
         instance.log_config_loaded(config)
 
         instance._logger.debug.assert_called_once()
-        call_args = instance._logger.debug.call_args[0][0]
-        assert "Loaded TestClass configuration:" in call_args
+        call_args = instance._logger.debug.call_args[0]
+        fmt = call_args[0]
+        assert "%s" in fmt
+        assert "Loaded" in fmt
 
     def test_log_operation_start(self):
         """Test log_operation_start convenience method."""
@@ -172,10 +179,11 @@ class TestLoggerMixin:
         instance.log_operation_start("data_processing", name="test", count=1000)
 
         instance._logger.info.assert_called_once()
-        call_args = instance._logger.info.call_args[0][0]
-        assert "Starting data_processing" in call_args
-        assert "name" in call_args
-        assert "count" in call_args
+        call_args = instance._logger.info.call_args[0]
+        assert call_args[0] == "Starting %s with %s"
+        assert call_args[1] == "data_processing"
+        assert "name" in str(call_args[2])
+        assert "count" in str(call_args[2])
 
     def test_log_operation_start_no_kwargs(self):
         """Test log_operation_start without additional context."""
@@ -185,7 +193,7 @@ class TestLoggerMixin:
         instance._logger.isEnabledFor.return_value = True
         instance.log_operation_start("simple_operation")
 
-        instance._logger.info.assert_called_once_with("Starting simple_operation")
+        instance._logger.info.assert_called_once_with("Starting %s", "simple_operation")
 
     def test_log_operation_complete(self):
         """Test log_operation_complete convenience method."""
@@ -197,8 +205,9 @@ class TestLoggerMixin:
         instance.log_operation_complete("data_processing", name="test", count=500)
 
         instance._logger.info.assert_called_once()
-        call_args = instance._logger.info.call_args[0][0]
-        assert "Completed data_processing" in call_args
+        call_args = instance._logger.info.call_args[0]
+        assert call_args[0] == "Completed %s with %s"
+        assert call_args[1] == "data_processing"
 
     def test_log_operation_complete_no_kwargs(self):
         """Test log_operation_complete without additional context."""
@@ -208,7 +217,9 @@ class TestLoggerMixin:
         instance._logger.isEnabledFor.return_value = True
         instance.log_operation_complete("simple_operation")
 
-        instance._logger.info.assert_called_once_with("Completed simple_operation")
+        instance._logger.info.assert_called_once_with(
+            "Completed %s", "simple_operation"
+        )
 
     def test_log_operation_failed(self):
         """Test log_operation_failed convenience method."""

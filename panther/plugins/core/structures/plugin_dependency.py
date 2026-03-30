@@ -1,3 +1,5 @@
+"""Data structures for plugin dependency declarations."""
+
 from dataclasses import dataclass
 from typing import Optional
 

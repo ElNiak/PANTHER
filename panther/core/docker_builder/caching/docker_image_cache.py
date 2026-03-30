@@ -1,5 +1,4 @@
-"""
-Docker Image Cache - Resilient Image Management
+"""Docker Image Cache - Resilient Image Management.
 
 This module provides a caching layer for Docker image operations to prevent
 frequent Docker daemon connections and handle connection failures gracefully.
@@ -49,8 +48,7 @@ class CachedImage:
 
 
 class DockerImageCache(LoggerMixin):
-    """
-    Thread-safe Docker image cache with TTL and fallback mechanisms.
+    """Thread-safe Docker image cache with TTL and fallback mechanisms.
 
     Provides resilient Docker image operations that can handle:
     - Docker daemon connection failures
@@ -67,8 +65,7 @@ class DockerImageCache(LoggerMixin):
         retry_delay: float = 1.0,
         target_platform: Optional[str] = None,
     ):
-        """
-        Initialize Docker image cache with platform-aware caching.
+        """Initialize Docker image cache with platform-aware caching.
 
         Args:
             cache_ttl: Time-to-live for cached images in seconds
@@ -109,8 +106,7 @@ class DockerImageCache(LoggerMixin):
         )
 
     def _detect_host_platform(self) -> str:
-        """
-        Detect the host platform for platform-aware caching.
+        """Detect the host platform for platform-aware caching.
 
         Returns:
             str: Platform string in Docker format (e.g., 'linux/amd64')
@@ -133,8 +129,7 @@ class DockerImageCache(LoggerMixin):
         return f"{system}/{docker_arch}"
 
     def _get_platform_cache_file(self, cache_file: Optional[Path]) -> Path:
-        """
-        Generate platform-specific cache file path.
+        """Generate platform-specific cache file path.
 
         Args:
             cache_file: Optional cache file path override
@@ -157,8 +152,7 @@ class DockerImageCache(LoggerMixin):
             )
 
     def set_target_platform(self, platform: str) -> None:
-        """
-        Update target platform and reinitialize cache file if needed.
+        """Update target platform and reinitialize cache file if needed.
 
         Args:
             platform: New target platform (e.g., 'linux/arm64')
@@ -190,8 +184,7 @@ class DockerImageCache(LoggerMixin):
             )
 
     def _initialize_secure_cache_file(self) -> None:
-        """
-        Initialize cache file and directory with secure permissions.
+        """Initialize cache file and directory with secure permissions.
 
         Creates cache directory with 700 permissions (owner read/write/execute only)
         and ensures cache file has 600 permissions (owner read/write only).
@@ -207,11 +200,12 @@ class DockerImageCache(LoggerMixin):
             if self.cache_file.exists():
                 self.cache_file.chmod(0o600)  # Owner read/write only
                 self.logger.debug(
-                    f"Secured existing cache file permissions: {self.cache_file}"
+                    "Secured existing cache file permissions: %s", self.cache_file
                 )
 
             self.logger.debug(
-                f"Cache directory initialized with secure permissions: {self.cache_file.parent}"
+                "Cache directory initialized with secure permissions: %s",
+                self.cache_file.parent,
             )
 
         except (OSError, PermissionError) as e:
@@ -220,8 +214,7 @@ class DockerImageCache(LoggerMixin):
             self.logger.warning("Cache will operate with default permissions")
 
     def _validate_cache_file_security(self) -> bool:
-        """
-        Validate cache file and directory have secure permissions.
+        """Validate cache file and directory have secure permissions.
 
         Returns:
             bool: True if permissions are secure, False otherwise
@@ -308,8 +301,7 @@ class DockerImageCache(LoggerMixin):
                 self._last_refresh = 0.0
 
     def _save_cache(self) -> None:
-        """
-        Save cache to persistent storage using atomic writes.
+        """Save cache to persistent storage using atomic writes.
 
         Uses atomic write pattern (write to temp file, then rename) to prevent
         cache corruption from concurrent access or interrupted writes.
@@ -339,7 +331,7 @@ class DockerImageCache(LoggerMixin):
             temp_file.replace(self.cache_file)
 
             self.logger.debug(
-                f"Atomically saved {len(self._cache)} images to cache file"
+                "Atomically saved %d images to cache file", len(self._cache)
             )
 
         except (OSError, json.JSONEncodeError, PermissionError) as e:
@@ -377,15 +369,14 @@ class DockerImageCache(LoggerMixin):
                 del self._cache[key]
 
         if expired_keys:
-            self.logger.debug(f"Cleaned {len(expired_keys)} expired cache entries")
+            self.logger.debug("Cleaned %d expired cache entries", len(expired_keys))
 
     def _is_cache_fresh(self) -> bool:
         """Check if cache is still within TTL."""
         return (time.time() - self._last_refresh) < self.cache_ttl
 
     def _refresh_cache_from_docker(self) -> bool:
-        """
-        Refresh cache by fetching current images from Docker daemon.
+        """Refresh cache by fetching current images from Docker daemon.
 
         Returns:
             bool: True if refresh successful, False otherwise
@@ -397,7 +388,9 @@ class DockerImageCache(LoggerMixin):
         for attempt in range(1, self.retry_count + 1):
             try:
                 self.logger.debug(
-                    f"Refreshing image cache (attempt {attempt}/{self.retry_count})"
+                    "Refreshing image cache (attempt %d/%d)",
+                    attempt,
+                    self.retry_count,
                 )
 
                 # Use low-level API to avoid per-image inspect_image() calls that hang.
@@ -462,8 +455,7 @@ class DockerImageCache(LoggerMixin):
         return False
 
     def get_cached_images(self, force_refresh: bool = False) -> List[CachedImage]:
-        """
-        Get list of cached Docker images.
+        """Get list of cached Docker images.
 
         Args:
             force_refresh: Force refresh from Docker daemon even if cache is fresh
@@ -482,8 +474,8 @@ class DockerImageCache(LoggerMixin):
             return list(self._cache.values())
 
     def image_exists_in_cache(self, image_tag: str) -> Optional[bool]:
-        """
-        Check if an image exists in the current in-memory cache.
+        """Check if an image exists in the current in-memory cache.
+
         Does NOT trigger a cache refresh — returns None when cache is stale.
 
         Args:
@@ -496,23 +488,23 @@ class DockerImageCache(LoggerMixin):
         with self._cache_lock:
             for image in self._cache.values():
                 if image_tag in image.tags:
-                    self.logger.debug(f"Image '{image_tag}' found in cache")
+                    self.logger.debug("Image '%s' found in cache", image_tag)
                     return True
 
         # If cache is fresh and image not found, it definitively doesn't exist
         if self._is_cache_fresh():
-            self.logger.debug(f"Image '{image_tag}' not found in fresh cache")
+            self.logger.debug("Image '%s' not found in fresh cache", image_tag)
             return False
 
         # Cache stale — can't determine from cache alone
         self.logger.debug(
-            f"Cache stale, cannot determine if image '{image_tag}' exists from cache"
+            "Cache stale, cannot determine if image '%s' exists from cache",
+            image_tag,
         )
         return None
 
     def get_image_by_tag(self, image_tag: str) -> Optional[CachedImage]:
-        """
-        Get cached image by tag.
+        """Get cached image by tag.
 
         Args:
             image_tag: Docker image tag
@@ -527,8 +519,7 @@ class DockerImageCache(LoggerMixin):
         return None
 
     def get_images_by_filter(self, **filters) -> List[CachedImage]:
-        """
-        Get cached images matching filters.
+        """Get cached images matching filters.
 
         Supported filters:
         - dangling: bool (images with no tags)
@@ -581,8 +572,7 @@ class DockerImageCache(LoggerMixin):
         return removed
 
     def get_cache_stats(self) -> Dict[str, Union[int, float, str, bool]]:
-        """
-        Get cache statistics including security status.
+        """Get cache statistics including security status.
 
         Returns:
             Dictionary with cache statistics and security information
@@ -609,8 +599,8 @@ class DockerImageCache(LoggerMixin):
             }
 
     def image_exists(self, image_tag: str, docker_client=None) -> bool:
-        """
-        Checks if a Docker image with the given tag exists locally.
+        """Check if a Docker image with the given tag exists locally.
+
         Uses cache when fresh, falls back to fast targeted Docker API check.
 
         :param image_tag: Tag of the Docker image.
@@ -621,7 +611,9 @@ class DockerImageCache(LoggerMixin):
         cached_result = self.image_exists_in_cache(image_tag)
         if cached_result is not None:
             self.logger.debug(
-                f"Image '{image_tag}' cache lookup: {'found' if cached_result else 'not found'}"
+                "Image '%s' cache lookup: %s",
+                image_tag,
+                "found" if cached_result else "not found",
             )
             return cached_result
 
@@ -634,7 +626,7 @@ class DockerImageCache(LoggerMixin):
             return False
 
         self.logger.debug(
-            f"Cache miss for image '{image_tag}', checking with Docker API"
+            "Cache miss for image '%s', checking with Docker API", image_tag
         )
 
         try:
@@ -649,8 +641,8 @@ class DockerImageCache(LoggerMixin):
             return False
 
     def cleanup_unused_images(self, keep_tags: List[str], docker_client=None):
-        """
-        Removes Docker images that are not in the keep_tags list.
+        """Remove Docker images that are not in the keep_tags list.
+
         Uses cached image list with fallback to direct Docker API.
 
         :param keep_tags: List of image tags to retain.
@@ -712,8 +704,8 @@ class DockerImageCache(LoggerMixin):
             self.logger.error("Unexpected error during Docker image cleanup: %s", e)
 
     def remove_dangling_images(self, docker_client=None):
-        """
-        Removes dangling Docker images (images with <none>:<none> tag).
+        """Remove dangling Docker images (images with <none>:<none> tag).
+
         Uses cached image list with fallback to direct Docker API.
 
         These images are typically created when building a new image with the same tag

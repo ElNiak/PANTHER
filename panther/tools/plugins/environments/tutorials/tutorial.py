@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Interactive Environment Plugin Tutorial for PANTHER
+"""Interactive Environment Plugin Tutorial for PANTHER.
 
 This tutorial guides you through creating environment plugins for PANTHER,
 including both network and execution environment types.
@@ -18,7 +17,7 @@ from typing import Any, Dict, List, Optional, Union
 class EnvironmentPluginTutorial:
     """Interactive tutorial for creating PANTHER environment plugins."""
 
-    def __init__(self):
+    def __init__(self):  # noqa: D107
         self.tutorial_dir = Path(__file__).parent
         self.plugins_dir = self.tutorial_dir.parent.parent
 
@@ -231,7 +230,7 @@ class {name.title().replace("_", "")}NetworkEnvironment(INetworkEnvironment):
             self.logger.info("Network environment setup completed successfully")
 
         except Exception as e:
-            self.logger.error(f"Failed to setup network environment: {{e}}")
+            self.logger.error("Failed to setup network environment: %s", e, exc_info=True)
             raise
 
     def teardown(self) -> None:
@@ -252,7 +251,7 @@ class {name.title().replace("_", "")}NetworkEnvironment(INetworkEnvironment):
             self.logger.info("Network environment teardown completed")
 
         except Exception as e:
-            self.logger.error(f"Failed to teardown network environment: {{e}}")
+            self.logger.error("Failed to teardown network environment: %s", e, exc_info=True)
 
     def deploy_service(self, service_name: str, service_config: Dict[str, Any]) -> Dict[str, Any]:
         """Deploy a service in the network environment."""
@@ -650,7 +649,7 @@ class {name.title().replace("_", "")}ExecutionEnvironment(IExecutionEnvironment)
             self.logger.info("Execution environment setup completed")
 
         except Exception as e:
-            self.logger.error(f"Failed to setup execution environment: {{e}}")
+            self.logger.error("Failed to setup execution environment: %s", e, exc_info=True)
             raise
 
     def execute_with_environment(self, command: List[str], **kwargs) -> subprocess.CompletedProcess:
@@ -682,7 +681,7 @@ class {name.title().replace("_", "")}ExecutionEnvironment(IExecutionEnvironment)
             return result
 
         except Exception as e:
-            self.logger.error(f"Command execution failed: {{e}}")
+            self.logger.error("Command execution failed: %s", e, exc_info=True)
             raise
 
     def teardown(self) -> None:
@@ -700,7 +699,7 @@ class {name.title().replace("_", "")}ExecutionEnvironment(IExecutionEnvironment)
             self.logger.info("Execution environment teardown completed")
 
         except Exception as e:
-            self.logger.error(f"Failed to teardown execution environment: {{e}}")
+            self.logger.error("Failed to teardown execution environment: %s", e, exc_info=True)
 
     def get_results(self) -> Dict[str, Any]:
         """Get execution results and metrics."""
@@ -954,7 +953,6 @@ pyyaml>=6.0
         features: Dict[str, Any],
     ):
         """Create a comprehensive README for the environment plugin."""
-
         readme_content = f"""# {name.title().replace("_", " ")} Environment Plugin
 
 {description}
@@ -1835,8 +1833,7 @@ def demonstrate_plugin_communication():
         print("   • Document configuration options")
 
     def create_new_plugin(self, plugin_name):
-        """
-        Creates a new environment plugin with the specified name
+        """Create a new environment plugin with the specified name.
 
         Args:
             plugin_name: The name of the plugin to create

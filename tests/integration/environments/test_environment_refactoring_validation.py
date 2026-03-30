@@ -1,5 +1,4 @@
-"""
-Integration tests to validate environment refactoring maintains functionality.
+"""Integration tests to validate environment refactoring maintains functionality.
 
 This test suite ensures that the refactoring of environment architectures:
 1. Maintains all existing functionality

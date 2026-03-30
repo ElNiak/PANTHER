@@ -1,5 +1,4 @@
-"""
-Test Output Recorder - Comprehensive test output capture and logging
+"""Test Output Recorder - Comprehensive test output capture and logging.
 
 This module provides utilities for recording test outputs, results, and metrics
 to files for analysis and documentation purposes.
@@ -264,9 +263,7 @@ class TestOutputRecorder:
                     status_emoji = (
                         "✅"
                         if result["result"] == "PASS"
-                        else "❌"
-                        if result["result"] == "FAIL"
-                        else "⏭️"
+                        else "❌" if result["result"] == "FAIL" else "⏭️"
                     )
                     f.write(f"### {status_emoji} {test_case}\n\n")
                     f.write(f"**Result:** {result['result']}\n\n")

@@ -3,6 +3,7 @@
 Configuration management and validation with enhanced user experience.
 """
 
+import logging
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -18,6 +19,8 @@ from panther.cli.core.base import (
     success_message,
 )
 from panther.config import ConfigurationManager
+
+logger = logging.getLogger(__name__)
 
 
 def _explain_validation_error(error: Exception) -> str:
@@ -226,6 +229,7 @@ def validate(ctx, config, strict, show_schema, explain, format):
                 click.echo("  ✅ YAML syntax is valid")
                 bar.update(1)
             except yaml.YAMLError as e:
+                logger.debug("CLI error in validate: %s", e, exc_info=True)
                 click.echo(f"  ❌ YAML syntax error: {e}")
                 if explain:
                     click.echo(f"\n{_explain_validation_error(e)}")
@@ -275,6 +279,7 @@ def validate(ctx, config, strict, show_schema, explain, format):
                 bar.update(1)
 
             except Exception as e:
+                logger.debug("CLI error in validate: %s", e, exc_info=True)
                 click.echo(f"  ❌ Configuration validation failed: {e}")
 
                 if explain:
@@ -433,6 +438,7 @@ def schema(format, section, examples):
                 pyyaml.dump(example_config, default_flow_style=False, sort_keys=False)
             )
         except Exception as e:
+            logger.debug("CLI error in schema: %s", e, exc_info=True)
             click.echo(f"  (Could not generate example: {e})")
 
 

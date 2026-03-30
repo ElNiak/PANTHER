@@ -1,6 +1,4 @@
-"""
-Shared fixtures and utilities for execution environment tests.
-"""
+"""Shared fixtures and utilities for execution environment tests."""
 
 import os
 import shutil
@@ -109,7 +107,7 @@ def strace_config():
                 "trace_children": True,
                 "follow_forks": True,
                 "syscalls": ["network", "file", "process"],
-                "output_format": "json",
+                "output_format": "verbose",
             },
             "filtering": {
                 "exclude_syscalls": ["clock_gettime", "gettimeofday"],

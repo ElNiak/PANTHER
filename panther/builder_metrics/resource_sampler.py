@@ -1,17 +1,17 @@
 """Resource monitoring for CPU and memory usage."""
 
+import logging
 import threading
 import time
 from typing import Dict, List, Optional
 
 import psutil
 
+logger = logging.getLogger(__name__)
+
 
 class ResourceSampler:
-    """
-
-    from typing import Dict, List, Optional, OptionalSamples system resources (CPU, memory) during operation.
-    """
+    """from typing import Dict, List, Optional, OptionalSamples system resources (CPU, memory) during operation."""
 
     def __init__(self, interval: float = 1.0):
         """Initialize the resource sampler.
@@ -91,9 +91,13 @@ class ResourceSampler:
                     self._process = psutil.Process()
                 except psutil.NoSuchProcess:
                     break
-            except Exception:
-                # Ignore sampling errors and continue
-                pass
+            except Exception as exc:
+                if not getattr(self, "_sampling_error_warned", False):
+                    self._sampling_error_warned = True
+                    logger.warning(
+                        "Resource sampling error (further errors suppressed): %s",
+                        exc,
+                    )
 
     def get_current_stats(self) -> Dict[str, float]:
         """Get current resource usage without stopping sampling.

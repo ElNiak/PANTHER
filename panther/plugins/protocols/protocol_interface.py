@@ -1,3 +1,5 @@
+"""Interface for protocol configuration managers."""
+
 from pathlib import Path
 
 import yaml

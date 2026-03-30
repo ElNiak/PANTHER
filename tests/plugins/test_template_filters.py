@@ -1,5 +1,4 @@
-"""
-Unit tests for enhanced template filters and command generation.
+"""Unit tests for enhanced template filters and command generation.
 
 This module tests the new Jinja2 filters for secure command generation,
 ensuring proper escaping and quoting of shell commands and YAML values.

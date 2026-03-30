@@ -1,5 +1,4 @@
-"""
-Environment Plugin Utilities
+"""Environment Plugin Utilities.
 
 This module provides common utilities and mixins for environment plugins.
 """
@@ -18,8 +17,7 @@ class EnvironmentUtilities:
     def standardize_environment_initialization(
         logger: logging.Logger, env_type: str, env_sub_type: str
     ) -> None:
-        """
-        Standardize initialization logging for environment plugins.
+        """Standardize initialization logging for environment plugins.
 
         Args:
             logger: Logger instance
@@ -32,8 +30,7 @@ class EnvironmentUtilities:
     def setup_output_directories(
         output_dir: str, env_sub_type: str, test_name: Optional[str] = None
     ) -> Dict[str, Path]:
-        """
-        Set up standard output directories for environment plugins.
+        """Set up standard output directories for environment plugins.
 
         Args:
             output_dir: Base output directory

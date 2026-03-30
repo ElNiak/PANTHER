@@ -369,7 +369,7 @@ def _parse_time(value: str) -> datetime:
     "output_json",
     is_flag=True,
     default=False,
-    help="Output as JSON (default)",
+    help="Output as JSON array (default when neither --json nor --human specified)",
 )
 @click.option(
     "--human",
@@ -493,7 +493,7 @@ def _format_artifacts_human(artifacts: List[dict]) -> str:
     "output_json",
     is_flag=True,
     default=False,
-    help="Output as JSON (default)",
+    help="Output as JSON array (default when neither --json nor --human specified)",
 )
 @click.option(
     "--human",
