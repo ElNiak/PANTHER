@@ -12,7 +12,7 @@ Covers:
 
 import logging
 from pathlib import Path
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -24,21 +24,15 @@ pytestmark = pytest.mark.unit
 # ---------------------------------------------------------------------------
 
 
-class _StubHost:
+from panther.core.experiment_observer import ExperimentObserverMixin
+
+
+class _StubHost(ExperimentObserverMixin):
     """Minimal stub that satisfies all ExperimentObserverMixin attribute requirements."""
 
     def __init__(
         self, tmp_path: Path, log_level: int = logging.INFO, **config_overrides
     ):
-        from panther.core.experiment_observer import ExperimentObserverMixin
-
-        # Mix in the mixin by inserting it into the class hierarchy at runtime
-        self.__class__ = type(
-            "_StubHostWithMixin",
-            (ExperimentObserverMixin, _StubHost),
-            {},
-        )
-
         self.experiment_name = "test_experiment"
         self.logs_dir = tmp_path / "logs"
         self.logs_dir.mkdir(parents=True, exist_ok=True)
@@ -160,8 +154,7 @@ class TestSetupObservers:
         stub.experiment_emitter.emit_finished_early.assert_called_once()
         call_kwargs = stub.experiment_emitter.emit_finished_early.call_args
         # reason should mention 'Observer Setup Error'
-        reason_arg = call_kwargs[1].get("reason") or call_kwargs[0][0]
-        assert "Observer Setup Error" in reason_arg
+        assert "Observer Setup Error" in call_kwargs.kwargs["reason"]
 
         stub.logger.error.assert_called_once()
 
@@ -194,7 +187,7 @@ class TestSetupObserverRegistrations:
 
         # register_observer_once should have been called for state observer
         calls = stub.event_manager.register_observer_once.call_args_list
-        observer_ids = [c[1].get("observer_id") or c[0][1] for c in calls]
+        observer_ids = [c.kwargs.get("observer_id") for c in calls]
         assert "experiment_state_observer" in observer_ids
 
     def test_registers_experiment_observer_via_factory(self, tmp_path):
@@ -350,8 +343,8 @@ class TestSetupObserverExceptionIsolation:
                         stub.setup_observer()
 
         mock_exp.assert_called_once()
-        # Two warnings: one from logger, one from metrics
-        assert stub.logger.warning.call_count >= 1
+        # Two warnings: one from logger failure, one from metrics failure
+        assert stub.logger.warning.call_count >= 2
 
 
 # ---------------------------------------------------------------------------
