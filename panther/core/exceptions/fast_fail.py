@@ -126,8 +126,8 @@ class DockerComposeException(PantherException):
         context = {
             "command": command,
             "returncode": returncode,
-            "stdout": stdout[:500] if stdout else "",  # Truncate for logging
-            "stderr": stderr[:500] if stderr else "",
+            "stdout": stdout[:2000] if stdout else "",
+            "stderr": stderr[:2000] if stderr else "",
         }
         super().__init__(
             message, ErrorSeverity.CRITICAL, ErrorCategory.DOCKER_RUNTIME, context
