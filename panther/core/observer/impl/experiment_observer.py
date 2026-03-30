@@ -53,9 +53,7 @@ class ExperimentObserver(ITypedObserver):
         self.logger = self._setup_logging(
             logger_name="ExperimentObserver",
             log_level=self.log_level,
-            enable_colors=self.enable_colors,
             output_file=(f"{output_dir}/experiment_events.log" if output_dir else None),
-            structured_output=True,
         )
 
         self._step_progress_bars = {}

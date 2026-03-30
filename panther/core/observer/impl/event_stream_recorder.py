@@ -108,8 +108,13 @@ class EventStreamRecorder(ITypedObserver):
         """Ensure the file handle is closed on garbage collection."""
         try:
             self.close()
-        except Exception:
-            pass
+        except Exception as exc:
+            try:
+                self.logger.debug(
+                    "Error closing EventStreamRecorder in __del__: %s", exc
+                )
+            except Exception:
+                pass  # Logger may be finalized during interpreter shutdown
 
     def _event_to_jsonl_record(self, event: BaseEvent) -> Dict[str, Any]:
         """Convert a BaseEvent into the structured JSONL schema.

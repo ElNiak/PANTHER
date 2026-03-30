@@ -221,8 +221,6 @@ class MetricsExporter:
                 "Error generating resource metrics summary: %s", e, exc_info=True
             )
             return {
-                "cpu_usage": {"average": 0, "peak": 0, "min": 0},
-                "memory_usage": {"average": 0, "peak": 0, "min": 0},
                 "samples_count": 0,
                 "error": str(e),
             }

@@ -82,6 +82,11 @@ class TestHandlerNameFor:
         result = _handler_name_for(EventType.SYSTEM, "heartbeat")
         assert result == "on_system_heartbeat"
 
+    def test_dot_separated_name_converted_to_underscores(self):
+        """Dot-separated event names should convert dots to underscores."""
+        result = _handler_name_for(EventType.ENVIRONMENT, "network.setup.started")
+        assert result == "on_environment_network_setup_started"
+
 
 @pytest.mark.unit
 class TestOnEventDispatch:

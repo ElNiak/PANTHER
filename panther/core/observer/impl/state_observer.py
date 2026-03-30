@@ -156,6 +156,7 @@ class StateEventObserver(ITypedObserver):
                 experiment_id,
                 e,
             )
+            return False
         return True
 
     def get_state_history(self, experiment_id: str = None):

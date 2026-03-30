@@ -2,10 +2,12 @@
 
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
 from panther.core.metrics.enums import MetricType, Phase
+from panther.core.metrics.metric_types import Metric
 from panther.core.metrics.metrics_collector import MetricsCollector
 from panther.core.reporting.log_query_engine import LogFilter, LogQueryEngine
 from panther.core.utils.log_context import log_context
@@ -84,6 +86,35 @@ class TestMetricsToStructuredJsonl:
         ]
         metric_lines = [l for l in lines if l.get("metric_name") == "setup_time"]
         assert metric_lines[0]["phase"] == "test_execution"
+
+    def test_jsonl_write_error_warns_once(self, tmp_path):
+        """Circuit-breaker: first JSONL write failure logs warning, second is silent."""
+        import time
+
+        collector = MetricsCollector("test-exp", str(tmp_path))
+        # Point to an unwritable path (parent dir doesn't exist)
+        collector._structured_log_path = (
+            tmp_path / "nonexistent_dir" / "structured.jsonl"
+        )
+
+        metric1 = Metric(
+            name="test", metric_type=MetricType.COUNTER, value=1, timestamp=time.time()
+        )
+        metric2 = Metric(
+            name="test2", metric_type=MetricType.COUNTER, value=2, timestamp=time.time()
+        )
+
+        with patch.object(collector.logger, "warning") as mock_warn:
+            collector._write_metric_jsonl(metric1)
+            first_count = mock_warn.call_count
+            assert first_count >= 1, "First failure should log a warning"
+
+            collector._write_metric_jsonl(metric2)
+            assert (
+                mock_warn.call_count == first_count
+            ), "Second failure should be suppressed"
+
+        assert collector._jsonl_write_warned is True
 
 
 class TestMetricQueryFilters:

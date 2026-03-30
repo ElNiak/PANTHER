@@ -128,9 +128,7 @@ class StorageObserver(ITypedObserver):
         self.logger = self._setup_logging(
             logger_name=unique_logger_name,
             log_level=self.log_level,
-            enable_colors=True,
             output_file=self.storage_path / "storage_observer.log",
-            structured_output=False,
         )
 
         # Initialize ResultsManager for core storage functionality
@@ -736,12 +734,20 @@ class StorageObserver(ITypedObserver):
             category_file = self.storage_path / f"{category}.jsonl"
             if category_file.exists():
                 category_events = []
+                skipped_lines = 0
                 with open(category_file) as f:
                     for line in f:
                         try:
                             category_events.append(json.loads(line.strip()))
                         except json.JSONDecodeError:
+                            skipped_lines += 1
                             continue
+                if skipped_lines:
+                    self.logger.warning(
+                        "Skipped %d malformed JSONL lines in %s",
+                        skipped_lines,
+                        category_file,
+                    )
                 export_data["events"][category] = category_events
 
         with open(export_path, "w") as f:
@@ -764,6 +770,7 @@ class StorageObserver(ITypedObserver):
             for category in categories:
                 category_file = self.storage_path / f"{category}.jsonl"
                 if category_file.exists():
+                    skipped_lines = 0
                     with open(category_file) as f:
                         for line in f:
                             try:
@@ -778,7 +785,14 @@ class StorageObserver(ITypedObserver):
                                     ]
                                 )
                             except json.JSONDecodeError:
+                                skipped_lines += 1
                                 continue
+                    if skipped_lines:
+                        self.logger.warning(
+                            "Skipped %d malformed JSONL lines in %s",
+                            skipped_lines,
+                            category_file,
+                        )
 
         return True
 
@@ -807,6 +821,7 @@ class StorageObserver(ITypedObserver):
                 category_file = self.storage_path / f"{category}.jsonl"
 
                 if category_file.exists():
+                    skipped_lines = 0
                     with open(category_file) as f:
                         for line in f:
                             try:
@@ -821,7 +836,14 @@ class StorageObserver(ITypedObserver):
                                         data_elem.text = json.dumps(value)
 
                             except json.JSONDecodeError:
+                                skipped_lines += 1
                                 continue
+                    if skipped_lines:
+                        self.logger.warning(
+                            "Skipped %d malformed JSONL lines in %s",
+                            skipped_lines,
+                            category_file,
+                        )
 
             tree = ET.ElementTree(root)
             tree.write(export_path, encoding="utf-8", xml_declaration=True)

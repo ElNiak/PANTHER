@@ -7,6 +7,7 @@ Tests the interaction between:
 - Service lifecycle with fast-fail
 """
 
+import threading
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, PropertyMock, patch
 
@@ -505,6 +506,55 @@ class TestServiceLifecycleFastFail:
 
         assert len(failed_services) == 1  # Stopped after first HIGH severity error
         assert handler.error_count == 1
+
+
+class TestFastFailThreadSafety:
+    """Verify FastFailHandler thread safety."""
+
+    def test_concurrent_handle_error_produces_correct_count(self):
+        """Multiple threads calling handle_error() must produce accurate error_count."""
+        handler = FastFailHandler(enabled=False)
+        num_threads = 10
+        errors_per_thread = 100
+        barrier = threading.Barrier(num_threads)
+
+        def worker():
+            barrier.wait()
+            for _ in range(errors_per_thread):
+                handler.handle_error(
+                    Exception("concurrent error"), raise_on_critical=False
+                )
+
+        threads = [threading.Thread(target=worker) for _ in range(num_threads)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=30)
+
+        assert handler.error_count == num_threads * errors_per_thread
+
+    def test_concurrent_clear_history_does_not_raise(self):
+        """clear_history() during concurrent handle_error() must not crash."""
+        handler = FastFailHandler(enabled=False)
+        stop = threading.Event()
+
+        def error_worker():
+            while not stop.is_set():
+                try:
+                    handler.handle_error(Exception("bg error"), raise_on_critical=False)
+                except Exception:
+                    pass
+
+        threads = [threading.Thread(target=error_worker) for _ in range(5)]
+        for t in threads:
+            t.start()
+
+        for _ in range(50):
+            handler.clear_history()
+
+        stop.set()
+        for t in threads:
+            t.join(timeout=10)
 
 
 if __name__ == "__main__":

@@ -69,7 +69,7 @@ Example:
             def on_event(self, event: BaseEvent):
                 if event.id in self.processed_events_uuids:
                     return
-                print(f"Event: {event.event_type}")
+                print(f"Event: {event.get_type()}")
                 self.processed_events_uuids.add(event.id)
 
         event_manager = EventManager.get_instance()

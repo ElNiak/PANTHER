@@ -119,6 +119,9 @@ class FeatureLogLevelsConfig(BaseConfig):
 
     # Development and Testing
     test_execution: Optional[LoggingLevel] = Field(None, description="Test execution")
+    experiment_workflow: Optional[LoggingLevel] = Field(
+        None, description="Experiment workflow and lifecycle"
+    )
     validation_checks: Optional[LoggingLevel] = Field(
         None, description="Validation checks"
     )

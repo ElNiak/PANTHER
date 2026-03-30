@@ -165,7 +165,11 @@ class SubprocessExecutorMixin:
         for attempt in range(max_retries + 1):
             try:
                 return self.execute_command(command, **kwargs)
-            except Exception as e:
+            except (
+                subprocess.CalledProcessError,
+                subprocess.TimeoutExpired,
+                OSError,
+            ) as e:
                 last_exception = e
                 if attempt < max_retries:
                     self.logger.warning(

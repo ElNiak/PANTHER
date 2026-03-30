@@ -332,19 +332,18 @@ class ExperimentManager(
         self.log_level = getattr(logging, level_name, logging.INFO)
         self.log_format = self.global_config.logging.format
 
-        logging_config = {
-            "level": (
-                self.global_config.logging.level.name
-                if hasattr(self.global_config.logging.level, "name")
-                else str(self.global_config.logging.level)
-            ),
-            "format": self.global_config.logging.format,
-            "enable_colors": getattr(self.global_config.logging, "enable_colors", True),
-            "feature_levels": getattr(
-                self.global_config.logging, "feature_levels", None
-            ),
-        }
-        LoggerFactory.initialize(logging_config)
+        # Initialize log statistics if enabled
+        self.log_statistics_display = None
+        self._setup_log_statistics()
+
+        self.logs_dir = self.experiment_dir
+        # Don't assign to self.logger directly as it's a property from LoggerMixin
+        if logger:
+            self._logger = logger
+
+        # Single LoggerFactory initialization point with the full config
+        # (including output_file for the structured JSONL file handler).
+        self._load_logging()
 
         # Update any existing loggers with the new feature levels
         # This handles loggers created during config loading before LoggerFactory was initialized
@@ -355,16 +354,6 @@ class ExperimentManager(
         # takes final precedence for console handlers.
         if console_level is not None:
             LoggerFactory.set_console_level(console_level)
-
-        # Initialize log statistics if enabled
-        self.log_statistics_display = None
-        self._setup_log_statistics()
-
-        self.logs_dir = self.experiment_dir
-        # Don't assign to self.logger directly as it's a property from LoggerMixin
-        if logger:
-            self._logger = logger
-        self._load_logging()
 
         # Configure fast fail handler based on global config
         fast_fail_config = global_config.fast_fail
@@ -798,6 +787,10 @@ class ExperimentManager(
         Raises:
             TestExecutionError: When execution infrastructure fails
         """
+        # Initialize before try so the except handler can reference them
+        successful_tests = 0
+        failed_tests = 0
+        total_tests = len(self.test_cases)
         try:
             ConsoleFormatter.banner(
                 f"Phase 3: Test Execution ({len(self.test_cases)} tests)"
@@ -827,9 +820,6 @@ class ExperimentManager(
                         self.experiment_name,
                     )
 
-                successful_tests = 0
-                failed_tests = 0
-                total_tests = len(self.test_cases)
                 use_emojis = self.global_config.progress.use_emojis
                 show_status = self.global_config.progress.show_test_status
                 experiment_start = time.monotonic()
@@ -1182,6 +1172,16 @@ class ExperimentManager(
                 self.logger.warning(
                     "Failed to unregister state observer (ignoring during cleanup): %s",
                     e,
+                )
+
+            # Close EventStreamRecorder file handle before unregistering observers
+            try:
+                if hasattr(self, "event_stream_recorder"):
+                    self.event_stream_recorder.close()
+                    self.logger.debug("Closed EventStreamRecorder")
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                self.logger.warning(
+                    "Failed to close EventStreamRecorder (data may be unflushed): %s", e
                 )
 
             # Clean up other observers through factory

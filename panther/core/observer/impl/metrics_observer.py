@@ -362,9 +362,7 @@ class MetricsObserver(ITypedObserver):
         self.logger = self._setup_logging(
             logger_name="MetricsObserver",
             log_level=self.log_level,
-            enable_colors=True,
             output_file=self.output_dir / "metrics_observer.log",
-            structured_output=False,
         )
 
         # Initialize specialized collectors

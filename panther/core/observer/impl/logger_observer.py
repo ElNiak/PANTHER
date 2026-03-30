@@ -103,11 +103,9 @@ class LoggerObserver(ITypedObserver):
             self.log_level = logging.DEBUG
 
         self.logger = self._setup_logging(
-            logger_name="DebugObserver",
+            logger_name="LoggerObserver",
             log_level=self.log_level,
-            enable_colors=self.enable_colors,
             output_file=output_file,
-            structured_output=self.structured_output,
         )
 
         # Event correlation tracking (bounded to prevent unbounded memory growth)
@@ -141,7 +139,13 @@ class LoggerObserver(ITypedObserver):
         """Handle an event with enhanced logging capabilities."""
         # Recursion protection
         if self._recursion_depth >= self._max_recursion_depth:
-            # Silently drop the event to prevent infinite recursion
+            if not getattr(self, "_recursion_warned", False):
+                self._recursion_warned = True
+                logging.getLogger("LoggerObserver").warning(
+                    "LoggerObserver recursion depth exceeded (%d)"
+                    " - events being dropped",
+                    self._max_recursion_depth,
+                )
             return False
 
         self._recursion_depth += 1
@@ -474,7 +478,7 @@ class LoggerObserver(ITypedObserver):
     ) -> List[dict]:
         """Get history of events, optionally filtered by type.
 
-        This method provides the same functionality as DebugObserver.
+        Returns recorded event history for analysis.
 
         Args:
             event_type: Optional event type to filter by
@@ -495,7 +499,7 @@ class LoggerObserver(ITypedObserver):
     def analyze_event_flow(self) -> List[dict]:
         """Analyze event flow for anomalies or bottlenecks.
 
-        This method provides the same functionality as DebugObserver.
+        Returns recorded event history for analysis.
 
         Returns:
             List of analysis results

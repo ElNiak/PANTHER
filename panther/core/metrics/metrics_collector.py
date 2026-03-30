@@ -472,13 +472,13 @@ class MetricsCollector(LoggerMixin):
                 try:
                     final_message = str(error_message)
                 except Exception:
-                    self.logger.debug("Error building error metadata", exc_info=True)
+                    self.logger.warning("Error building error metadata", exc_info=True)
 
             if final_message is None and message is not None:
                 try:
                     final_message = str(message)
                 except Exception:
-                    self.logger.debug("Error building error metadata", exc_info=True)
+                    self.logger.warning("Error building error metadata", exc_info=True)
 
             if final_message is None:
                 final_message = f"Error of type {safe_error_type}"
@@ -516,7 +516,7 @@ class MetricsCollector(LoggerMixin):
                         except Exception:
                             continue
                 except Exception:
-                    self.logger.debug("Error building error metadata", exc_info=True)
+                    self.logger.warning("Error building error metadata", exc_info=True)
 
             if metadata is not None:
                 try:
@@ -532,7 +532,7 @@ class MetricsCollector(LoggerMixin):
                         except Exception:
                             continue
                 except Exception:
-                    self.logger.debug("Error building error metadata", exc_info=True)
+                    self.logger.warning("Error building error metadata", exc_info=True)
 
             try:
                 self.record_metric(
@@ -554,7 +554,8 @@ class MetricsCollector(LoggerMixin):
             try:
                 self.logger.error("Exception in record_error: %s", e)
             except Exception:  # pylint: disable=broad-exception-caught
-                self.logger.debug("Error building error metadata", exc_info=True)
+                # Last resort: use module-level logging (self.logger may be broken)
+                logging.error("Exception in record_error (logger unavailable): %s", e)
 
     def record_artifact_info(
         self,

@@ -115,18 +115,14 @@ class IObserver(ABC):
         self,
         logger_name: str,
         log_level: int,
-        enable_colors: bool = True,
         output_file: Optional[str] = None,
-        structured_output: bool = False,
     ):
         """Set up logging for an observer.
 
         Args:
             logger_name: Name for the logger
             log_level: Logging level (e.g., logging.DEBUG)
-            enable_colors: Whether to use colored output
             output_file: Path to optional log file
-            structured_output: Whether to output in structured format
 
         Returns:
             logging.Logger: Configured logger instance
