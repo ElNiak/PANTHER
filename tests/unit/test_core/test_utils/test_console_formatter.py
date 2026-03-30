@@ -4,6 +4,8 @@ import logging
 
 import pytest
 
+pytestmark = pytest.mark.unit
+
 from panther.core.utils.console_formatter import (
     ConsoleFormatter,
     _build_context_tag,

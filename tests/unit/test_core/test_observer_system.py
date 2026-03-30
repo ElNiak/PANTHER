@@ -1,8 +1,8 @@
 """Unit tests for PANTHER Observer System.
 
 Tests the real observer pattern implementation: MetricsObserver,
-StateEventObserver, StorageObserver, CommandAuditObserver, ResultsManager,
-ObserverFactory, EventManager, and their integration.
+StateEventObserver, StorageObserver, ResultsManager, ObserverFactory,
+EventManager, and their integration.
 
 All tests exercise real code paths with only IO boundaries mocked
 (filesystem writes redirected to tmp_path via conftest fixtures).

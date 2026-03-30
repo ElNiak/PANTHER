@@ -43,7 +43,6 @@ class StateEventObserver(ITypedObserver):
     This observer:
     - Tracks experiment-level workflow states for coordination
     - Records state history for debugging and analysis
-    - Maintains compatibility with legacy StateManager
     - Lets event-based state managers handle entity-specific transitions
     """
 

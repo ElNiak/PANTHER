@@ -25,9 +25,8 @@ Example:
                 return event_type.startswith("test.")
 
             def on_event(self, event: BaseEvent):
-                if event.id in self.processed_events_uuids:
-                    return  # Skip duplicate
-                self.processed_events_uuids.add(event.id)
+                if self._is_duplicate(event):
+                    return
                 self.event_count += 1
 
 See Also:
@@ -36,6 +35,7 @@ See Also:
 
 import logging
 from abc import ABC, abstractmethod
+from collections import OrderedDict
 from typing import Optional
 
 from panther.core.events.base.event_base import BaseEvent
@@ -49,26 +49,29 @@ class IObserver(ABC):
     and may optionally override ``is_interested()`` and ``get_priority()``.
 
     Attributes:
-        processed_events_uuids: Set of UUIDs for events already processed
-            by this observer, used for O(1) deduplication lookup.
+        processed_events_uuids: OrderedDict of UUIDs for events already
+            processed by this observer, used for O(1) deduplication lookup.
+            Bounded to ``_MAX_DEDUP_SIZE`` entries; oldest 20% are evicted
+            when the limit is exceeded.
 
     Example:
         Minimal observer implementation::
 
             class MinimalObserver(IObserver):
                 def on_event(self, event: BaseEvent):
-                    if event.id in self.processed_events_uuids:
+                    if self._is_duplicate(event):
                         return
                     # process event ...
-                    self.processed_events_uuids.add(event.id)
 
     See Also:
         `ITypedObserver` for automatic event routing by type.
     """
 
+    _MAX_DEDUP_SIZE: int = 10_000
+
     def __init__(self):
         """Initialize IObserver."""
-        self.processed_events_uuids: set = set()  # O(1) dedup lookup
+        self.processed_events_uuids: OrderedDict = OrderedDict()  # O(1) dedup lookup
 
     @abstractmethod
     def on_event(self, event: BaseEvent):
@@ -100,6 +103,30 @@ class IObserver(ABC):
             return event.name
         else:
             return str(event.__class__.__name__)
+
+    def _is_duplicate(self, event: BaseEvent) -> bool:
+        """Check if an event has already been processed by this observer.
+
+        Records the event UUID if it is new. Evicts the oldest 20% of entries
+        when ``processed_events_uuids`` exceeds ``_MAX_DEDUP_SIZE`` to keep
+        memory bounded during long-running experiments.
+
+        Args:
+            event: The event to check.
+
+        Returns:
+            True if the event UUID was already seen, False otherwise.
+        """
+        uid = getattr(event, "id", None)
+        if uid is None:
+            return False
+        if uid in self.processed_events_uuids:
+            return True
+        self.processed_events_uuids[uid] = None
+        if len(self.processed_events_uuids) > self._MAX_DEDUP_SIZE:
+            for _ in range(self._MAX_DEDUP_SIZE // 5):
+                self.processed_events_uuids.popitem(last=False)
+        return False
 
     def get_priority(self) -> int:
         """Get the priority for this observer.

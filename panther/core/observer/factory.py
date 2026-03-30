@@ -415,6 +415,11 @@ def _create_typed_observer(
         config.update(extra_config)
     config |= kwargs
 
+    # Always ensure global_config is available to the observer being created,
+    # regardless of whether the caller included it in extra_config.
+    if global_config is not None:
+        config["global_config"] = global_config
+
     for key in ("priority", "auto_register", "enabled"):
         config.pop(key, None)
 

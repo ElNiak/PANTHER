@@ -16,15 +16,21 @@ Typical usage::
 """
 
 import json
+import logging
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Iterator, Optional, Set
 
+logger = logging.getLogger(__name__)
+
 
 def _normalize_dt(dt: datetime) -> datetime:
-    """Normalize datetime to naive UTC for safe comparison."""
+    """Normalize datetime to naive UTC for safe comparison.
+
+    Naive datetimes (without tzinfo) are assumed to be UTC.
+    """
     if dt.tzinfo is not None:
         from datetime import timezone
 
@@ -178,8 +184,10 @@ class LogQueryEngine:
                     try:
                         yield json.loads(line)
                     except json.JSONDecodeError:
+                        logger.debug("Skipping malformed JSONL line in %s", path)
                         continue
-        except OSError:
+        except OSError as exc:
+            logger.warning("Cannot read JSONL file %s: %s", path, exc)
             return
 
     @staticmethod

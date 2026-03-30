@@ -4,6 +4,8 @@ import threading
 
 import pytest
 
+pytestmark = pytest.mark.unit
+
 from panther.core.utils.log_context import LogContext, get_log_context, log_context
 
 

@@ -67,10 +67,9 @@ Example:
                 return event_type.startswith("test.")
 
             def on_event(self, event: BaseEvent):
-                if event.id in self.processed_events_uuids:
+                if self._is_duplicate(event):
                     return
                 print(f"Event: {event.get_type()}")
-                self.processed_events_uuids.add(event.id)
 
         event_manager = EventManager.get_instance()
         event_manager.register_observer(MyObserver(), priority=5)

@@ -4,7 +4,7 @@ Extends colorlog.ColoredFormatter (with graceful fallback to
 logging.Formatter) to produce short, context-rich console output:
 
     12:30:01 [INFO] (initialization) Loading plugins...
-    12:30:05 [INFO] (test_execution|picoquic) Starting service
+    12:30:05 [INFO] (test_execution | picoquic) Starting service
     12:30:10 [WARNING] Connection timeout
 
 The formatter reads the current LogContext (phase, service_id) from

@@ -15,9 +15,10 @@ Dispatch strategy:
        requiring base class stubs.
 
 Handler naming convention:
-    ``on_{entity_prefix}_{event_name}`` where the entity prefix comes from
-    the ``_ENTITY_PREFIX`` map.  Dot-separated event names (e.g.
-    ``network.setup.started``) are handled via ``_HANDLER_OVERRIDES``.
+    ``on_{entity_prefix}_{safe_name}`` where the entity prefix comes from
+    the ``_ENTITY_PREFIX`` map and ``safe_name`` replaces dots with
+    underscores (e.g. ``network.setup.started`` becomes
+    ``on_environment_network_setup_started``).
 
 Example:
     Create a typed observer that only handles test lifecycle events::
@@ -39,7 +40,7 @@ See Also:
 
 import logging
 from collections.abc import Callable
-from typing import Dict, Tuple
+from typing import Dict
 
 from panther.core.events.base.event_base import BaseEvent, EventType
 
@@ -81,28 +82,13 @@ _ENTITY_PREFIX: Dict[EventType, str] = {
     EventType.PLUGIN: "plugin",
 }
 
-# Maps (entity_type, event_name) → handler method name for cases where
-# the convention ``on_{prefix}_{name}`` does not hold.
-_HANDLER_OVERRIDES: Dict[Tuple[EventType, str], str] = {
-    # Assertion handlers use mixed singular/plural naming
-    (EventType.ASSERTION, "validation_started"): "on_assertions_validation_started",
-    (EventType.ASSERTION, "validation_completed"): "on_assertions_validation_completed",
-    (EventType.ASSERTION, "progress"): "on_assertion_progress",
-    (EventType.ASSERTION, "result"): "on_assertion_result",
-    (EventType.ASSERTION, "error"): "on_assertion_error",
-    (EventType.ASSERTION, "unknown"): "on_assertion_unknown",
-}
-
 
 def _handler_name_for(entity_type: EventType, event_name: str) -> str:
     """Derive handler method name from entity type and event name.
 
-    Checks ``_HANDLER_OVERRIDES`` first, then falls back to the convention
-    ``on_{prefix}_{event_name}``.
+    Uses the convention ``on_{prefix}_{safe_name}`` where *prefix* comes
+    from ``_ENTITY_PREFIX`` and *safe_name* replaces dots with underscores.
     """
-    override = _HANDLER_OVERRIDES.get((entity_type, event_name))
-    if override:
-        return override
     prefix = _ENTITY_PREFIX.get(entity_type, entity_type.value)
     safe_name = event_name.replace(".", "_")
     return f"on_{prefix}_{safe_name}"
@@ -165,7 +151,7 @@ class ITypedObserver(IObserver):
         if hasattr(event, "id") and event.id:
             if event.id in self.processed_events_uuids:
                 return True
-            self.processed_events_uuids.add(event.id)
+            self.processed_events_uuids[event.id] = None
         return False
 
     def on_event(self, event: BaseEvent):

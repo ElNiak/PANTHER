@@ -1,23 +1,21 @@
 """Tests for ITypedObserver dispatch routing.
 
 Covers:
-- _handler_name_for() override entries and convention fallback
+- _handler_name_for() convention-based naming
 - on_event() type-based dispatch, name-based dispatch, and fallback
 - on_event() deduplication via event.id
 - is_interested() correctness (no false positives for short strings)
 - Error handling in handlers
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
-from panther.core.events.base.event_base import BaseEvent, EventType
+from panther.core.events.base.event_base import EventType
 from panther.core.events.experiment.events import ExperimentEvent
 from panther.core.events.test.events import TestCompletedEvent, TestFailedEvent
 from panther.core.observer.base.typed_observer_interface import (
-    _ENTITY_PREFIX,
-    _HANDLER_OVERRIDES,
     ITypedObserver,
     _handler_name_for,
 )
@@ -47,14 +45,6 @@ class ConcreteObserver(ITypedObserver):
 class TestHandlerNameFor:
     """Tests for the _handler_name_for helper function."""
 
-    def test_override_entry_returns_mapped_name(self):
-        """Each override entry should return the mapped handler name."""
-        for (etype, ename), handler in _HANDLER_OVERRIDES.items():
-            result = _handler_name_for(etype, ename)
-            assert (
-                result == handler
-            ), f"Override ({etype}, {ename!r}) should map to {handler!r}, got {result!r}"
-
     def test_convention_fallback(self):
         """Non-overridden entries fall back to on_{prefix}_{name}."""
         result = _handler_name_for(EventType.TEST, "completed")
@@ -69,13 +59,6 @@ class TestHandlerNameFor:
         """Service entity type uses 'service' prefix."""
         result = _handler_name_for(EventType.SERVICE, "started")
         assert result == "on_service_started"
-
-    def test_all_overrides_are_valid_identifiers(self):
-        """All override handler names must be valid Python identifiers."""
-        for key, handler_name in _HANDLER_OVERRIDES.items():
-            assert (
-                handler_name.isidentifier()
-            ), f"Handler {handler_name!r} for {key} is not a valid identifier"
 
     def test_unknown_entity_type_uses_value(self):
         """Unknown entity type falls back to its .value string."""

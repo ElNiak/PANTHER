@@ -30,6 +30,16 @@ Sub-packages
 """
 
 try:
+    import nicegui  # noqa: F401  -- guard optional dependency
+except ImportError:
+    import logging as _logging
+
+    _logging.getLogger(__name__).info(
+        "Webapp components unavailable: nicegui not installed"
+    )
+    __all__: list[str] = []
+else:
+    # nicegui is available — internal ImportErrors should propagate normally
     from panther.webapp.components.display.event_viewer import event_viewer
     from panther.webapp.components.display.metrics_panel import metrics_panel
     from panther.webapp.components.display.plugin_card import plugin_card
@@ -73,10 +83,3 @@ try:
         "ExperimentProgress",
         "status_badge",
     ]
-except ImportError as exc:
-    import logging as _logging
-
-    _logging.getLogger(__name__).debug(
-        "Webapp components unavailable (optional dependency missing): %s", exc
-    )
-    __all__ = []

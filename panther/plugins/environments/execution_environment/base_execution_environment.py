@@ -134,7 +134,7 @@ class BaseExecutionEnvironment(
         event_name = getattr(event, "name", type(event).__name__)
         entity_type = getattr(event, "entity_type", None)
         self.logger.debug(f"{self.__class__.__name__} received event: %s", event_name)
-        if entity_type is not None and str(entity_type) != "service":
+        if entity_type is None or str(entity_type) != "service":
             self.logger.debug(
                 "Ignoring non-service event: %s.%s", entity_type, event_name
             )

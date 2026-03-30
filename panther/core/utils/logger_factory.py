@@ -5,9 +5,9 @@ color terminal support, and optional statistics collection.
 
 Design patterns:
     - **Factory Pattern**: Centralized logger creation with consistent configuration
-    - **Singleton Pattern**: Global configuration state with thread-safe initialization
+    - **Singleton Pattern**: Global configuration state; initialize before spawning threads
     - **Strategy Pattern**: Pluggable formatters and handlers based on capabilities
-    - **Handler Chain Pattern**: Statistics collection via logging handler interception
+    - **Observer Pattern**: Statistics collection via logging handler interception
 """
 
 import contextlib
@@ -152,7 +152,6 @@ class LoggerFactory:
             cls.initialize(
                 {
                     "level": "ERROR",  # Default to ERROR level for early loggers
-                    "format": "%(asctime)s [%(levelname)s] - %(module)s - %(message)s",
                     "enable_colors": True,
                 }
             )
@@ -164,7 +163,6 @@ class LoggerFactory:
         Args:
             config: Logging configuration dictionary containing:
                 - level: Logging level (DEBUG, INFO, etc.)
-                - format: Log message format string
                 - enable_colors: Whether to enable colored output
                 - output_file: Optional log file path
                 - feature_levels: Optional feature-specific logging levels

@@ -25,29 +25,11 @@ from panther.core.observer.impl.event_colors import (
     is_terminal_capable,
 )
 
-# Map event types to colorlog colors for consistent coloring
-EVENT_LOG_COLORS = {
-    "system": "cyan",
-    "test": "blue",
-    "network": "magenta",
-    "error": "bold_red",
-    "fail": "bold_red",
-    "warning": "bold_yellow",
-    "pass": "bold_green",
-    "success": "bold_green",
-    "data": "cyan",
-    "config": "blue",
-    "security": "yellow",
-    "performance": "yellow",
-    "default": "white",
-}
-
 
 class LoggerObserver(ITypedObserver):
     """Enhanced logger observer with event-aware capabilities.
 
     This observer provides:
-    - Color-coded output based on event types (colorlog)
     - Adaptive log formatting based on event context
     - Intelligent filtering and prioritization
     - Multiple output formats (console, file, structured)

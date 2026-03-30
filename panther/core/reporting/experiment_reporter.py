@@ -99,12 +99,6 @@ class ExperimentReporter:
     - **Fast-Fail Analysis**: Failure categorization and termination reasoning
     - **Historical Context**: Experiment metadata and version information
 
-    **Performance Characteristics**:
-    - **Report Generation**: ~100-500ms depending on experiment size and template complexity
-    - **Memory Usage**: O(n) where n is number of test cases and log entries
-    - **Template Rendering**: ~10-50ms for Jinja2, ~5-10ms for basic formatting
-    - **Error Resilience**: Multiple format attempts ensure report availability
-
     **Usage Patterns**:
     ```python
     # Basic usage

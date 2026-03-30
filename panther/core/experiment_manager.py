@@ -222,7 +222,6 @@ def format_experiment_summary(
     return "\n".join(lines)
 
 
-# TODO implement errors management strategy (e.g., retry, fail, etc.)
 class ExperimentManager(
     ErrorHandlerMixin,
     ExperimentObserverMixin,
@@ -1139,11 +1138,8 @@ class ExperimentManager(
         Each cleanup step has its own error handling so that a failure in one
         step does not prevent subsequent steps (e.g., metrics export) from running.
         """
-        # Push cleanup phase context (no with-block to avoid re-indenting entire method)
         ConsoleFormatter.banner("Phase 4: Cleanup")
-        _cleanup_ctx = log_context(experiment_id=self.experiment_name, phase="cleanup")
-        _cleanup_ctx.__enter__()
-        try:
+        with log_context(experiment_id=self.experiment_name, phase="cleanup"):
             self.logger.info("Starting experiment cleanup")
 
             # Generate final log statistics report if enabled
@@ -1290,10 +1286,6 @@ class ExperimentManager(
                 self.logger.warning("Docker resource cleanup failed: %s", e)
 
             self.logger.info("Phase complete: Cleanup")
-
-        finally:
-            # Pop cleanup phase context — guaranteed even if cleanup raises
-            _cleanup_ctx.__exit__(None, None, None)
 
     def _cleanup_docker_resources(self):
         """Remove stale Docker resources left over from the experiment.
