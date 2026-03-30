@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Test script to verify the fix for command duplication in generated entrypoint scripts.
+"""Test script to verify the fix for command duplication in generated entrypoint scripts.
 
 This script:
 1. Creates a mock service with ShellCommand objects
@@ -24,7 +23,7 @@ from panther.plugins.environments.network_environment.docker_compose.docker_comp
 
 
 class MockService:
-    """Mock service with ShellCommand objects"""
+    """Mock service with ShellCommand objects."""
 
     def __init__(self):
         self.service_name = "test_service"
@@ -92,7 +91,7 @@ class MockEventManager(EventManager):
 
 
 def test_command_duplication():
-    """Test that commands are not duplicated in generated entrypoint scripts"""
+    """Test that commands are not duplicated in generated entrypoint scripts."""
     print("Testing command duplication fix...")
 
     # Create temporary output directory

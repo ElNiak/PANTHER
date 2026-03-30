@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""
-Test script to debug how results from _combine_shell_constructs are processed in generate_entrypoint_with_structured_args.
-"""
+"""Test script to debug how results from _combine_shell_constructs are processed in generate_entrypoint_with_structured_args."""
 import logging
 import os
 

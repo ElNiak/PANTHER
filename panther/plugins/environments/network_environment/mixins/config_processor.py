@@ -1,17 +1,14 @@
-from typing import Any, Dict, List, Optional, Union
-
 """Mixin for common configuration parsing and validation."""
 
 import os
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
 
 from omegaconf import DictConfig, OmegaConf
 
 
 class ConfigurationProcessorMixin:
-    """
-
-    Mixin providing common configuration processing and validation functionality.
+    """Mixin providing common configuration processing and validation functionality.
 
     This mixin eliminates duplicated configuration handling patterns across network environments.
     """
@@ -21,8 +18,7 @@ class ConfigurationProcessorMixin:
         service_config: Dict[str, Any],
         required_fields: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
-        """
-        Process and validate service configuration.
+        """Process and validate service configuration.
 
         Args:
             service_config: Raw service configuration
@@ -110,8 +106,7 @@ class ConfigurationProcessorMixin:
     def _process_environment_variables(
         self, env_vars: Union[Dict[str, str], DictConfig]
     ) -> Dict[str, str]:
-        """
-        Process environment variables with variable substitution.
+        """Process environment variables with variable substitution.
 
         Args:
             env_vars: Environment variables dictionary
@@ -143,8 +138,7 @@ class ConfigurationProcessorMixin:
     def validate_network_config(
         self, config: Dict[str, Any], required_fields: Optional[List[str]] = None
     ) -> bool:
-        """
-        Validate network environment configuration.
+        """Validate network environment configuration.
 
         Args:
             config: Network configuration to validate
@@ -177,8 +171,7 @@ class ConfigurationProcessorMixin:
     def merge_configurations(
         self, *configs: Dict[str, Any], deep: bool = True
     ) -> Dict[str, Any]:
-        """
-        Merge multiple configuration dictionaries.
+        """Merge multiple configuration dictionaries.
 
         Args:
             *configs: Configuration dictionaries to merge
@@ -202,8 +195,7 @@ class ConfigurationProcessorMixin:
     def expand_paths(
         self, config: Dict[str, Any], base_path: Optional[Path] = None
     ) -> Dict[str, Any]:
-        """
-        Expand relative paths in configuration to absolute paths.
+        """Expand relative paths in configuration to absolute paths.
 
         Args:
             config: Configuration containing paths
@@ -242,8 +234,7 @@ class ConfigurationProcessorMixin:
         required: Optional[List[str]] = None,
         create_missing: bool = False,
     ) -> bool:
-        """
-        Validate that required paths exist.
+        """Validate that required paths exist.
 
         Args:
             paths: Dictionary of path names to paths
@@ -281,8 +272,7 @@ class ConfigurationProcessorMixin:
         service_config: Dict[str, Any],
         global_env: Optional[Dict[str, str]] = None,
     ) -> Dict[str, str]:
-        """
-        Generate environment variables for a service.
+        """Generate environment variables for a service.
 
         Args:
             service_name: Name of the service

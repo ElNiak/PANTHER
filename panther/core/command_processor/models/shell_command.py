@@ -128,8 +128,7 @@ class ShellCommand(LoggerMixin):
         validate: bool = True,
         **kwargs,
     ):
-        """
-        Initialize a ShellCommand.
+        """Initialize a ShellCommand.
 
         Args:
             command: The shell command string
@@ -293,8 +292,7 @@ class ShellCommand(LoggerMixin):
             self.metadata.has_nested_quotes = True
 
     def _is_variable_assignment(self, command_str: str, cmd_parts: List[str]) -> bool:
-        """
-        Enhanced variable assignment detection.
+        """Enhanced variable assignment detection.
 
         Detects:
         - Simple assignments: VAR=value
@@ -354,8 +352,7 @@ class ShellCommand(LoggerMixin):
         return self.get_shell_safe_command()
 
     def get_shell_safe_command(self, escape_variables: bool = True) -> str:
-        """
-        Get a shell-safe version of the command.
+        """Get a shell-safe version of the command.
 
         Args:
             escape_variables: Whether to escape shell variables ($).
@@ -412,8 +409,7 @@ class ShellCommand(LoggerMixin):
             return escape_shell_command(self.command)
 
     def get_executable_path(self) -> Optional[str]:
-        """
-        Get the path to the main executable.
+        """Get the path to the main executable.
 
         Returns:
             Path to executable or None if not applicable
@@ -421,8 +417,7 @@ class ShellCommand(LoggerMixin):
         return self.executable
 
     def get_arguments(self) -> List[str]:
-        """
-        Get command arguments.
+        """Get command arguments.
 
         Returns:
             List of command arguments
@@ -430,8 +425,7 @@ class ShellCommand(LoggerMixin):
         return self.arguments.copy()
 
     def get_redirections(self) -> List[Tuple[str, str]]:
-        """
-        Get command redirections.
+        """Get command redirections.
 
         Returns:
             List of (operator, target) tuples
@@ -451,8 +445,7 @@ class ShellCommand(LoggerMixin):
         return self.metadata.is_critical
 
     def with_timeout(self, timeout: int) -> "ShellCommand":
-        """
-        Create a new command with a timeout.
+        """Create a new command with a timeout.
 
         Args:
             timeout: Timeout in seconds
@@ -465,8 +458,7 @@ class ShellCommand(LoggerMixin):
         return ShellCommand(self.raw_command, new_metadata, validate=False)
 
     def with_environment(self, env: Dict[str, str]) -> "ShellCommand":
-        """
-        Create a new command with additional environment variables.
+        """Create a new command with additional environment variables.
 
         Args:
             env: Environment variables to add/override
@@ -482,9 +474,9 @@ class ShellCommand(LoggerMixin):
         return ShellCommand(self.raw_command, new_metadata, validate=False)
 
     def to_dict(self) -> Dict[str, Any]:
-        """
-        Convert command to dictionary representation.
-        # TODO: improve maintenance by using asdict from dataclasses
+        """Convert command to dictionary representation.
+
+        # TODO: improve maintenance by using asdict from dataclasses.
 
         Returns:
             Dictionary with command data
@@ -522,8 +514,7 @@ class ShellCommand(LoggerMixin):
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ShellCommand":
-        """
-        Create ShellCommand from dictionary.
+        """Create ShellCommand from dictionary.
 
         Args:
             data: Dictionary with command data
@@ -543,8 +534,8 @@ class ShellCommand(LoggerMixin):
     def from_string(
         cls, command_str: str, is_critical: bool = True, **kwargs
     ) -> "ShellCommand":
-        """
-        Create ShellCommand from a simple string.
+        """Create ShellCommand from a simple string.
+
         Automatically extracts working directory from commands starting with 'cd && '.
 
         Args:

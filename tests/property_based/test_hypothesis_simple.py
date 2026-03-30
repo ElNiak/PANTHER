@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Simplified Hypothesis-Based Property Testing for PANTHER Configuration Classes
+"""Simplified Hypothesis-Based Property Testing for PANTHER Configuration Classes.
 
 This module provides focused property-based testing using simplified strategies
 to ensure reliable execution while still testing core properties.
@@ -71,9 +70,7 @@ class TestSimpleHypothesisProperties:
     @given(st.dictionaries(ascii_text, simple_values, min_size=1, max_size=5))
     @settings(max_examples=20)
     def test_base_config_simple_serialization(self, data):
-        """
-        Property: Simple configurations should serialize/deserialize correctly
-        """
+        """Property: Simple configurations should serialize/deserialize correctly."""
         config = BaseConfig(**data)
 
         # Property 1: Dict serialization preserves data
@@ -97,9 +94,7 @@ class TestSimpleHypothesisProperties:
     )
     @settings(max_examples=15)
     def test_base_config_merge_properties(self, base_data, override_data):
-        """
-        Property: Merge operations should follow expected rules
-        """
+        """Property: Merge operations should follow expected rules."""
         base_config = BaseConfig(**base_data)
         merged = base_config.merge(override_data)
 
@@ -125,9 +120,7 @@ class TestSimpleHypothesisProperties:
     )
     @settings(max_examples=10)
     def test_base_config_file_operations(self, data):
-        """
-        Property: File operations should preserve ASCII data
-        """
+        """Property: File operations should preserve ASCII data."""
         original = BaseConfig(**data)
 
         # Test YAML file round-trip
@@ -152,9 +145,7 @@ class TestSimpleHypothesisProperties:
     )
     @settings(max_examples=10)
     def test_logging_config_validation(self, log_level):
-        """
-        Property: LoggingConfig should accept all valid log levels
-        """
+        """Property: LoggingConfig should accept all valid log levels."""
         config = LoggingConfig(level=log_level)
         assert config.level == log_level
 
@@ -174,9 +165,7 @@ class TestSimpleHypothesisProperties:
     def test_service_config_creation(
         self, impl_name, impl_type, proto_name, proto_role
     ):
-        """
-        Property: ServiceConfig should be creatable with valid combinations
-        """
+        """Property: ServiceConfig should be creatable with valid combinations."""
         implementation = ImplementationConfig(name=impl_name, type=impl_type)
 
         # Handle client target requirement
@@ -203,9 +192,7 @@ class TestSimpleHypothesisProperties:
     @given(st.integers(min_value=-100, max_value=0))
     @settings(max_examples=10)
     def test_negative_timeout_rejection(self, negative_timeout):
-        """
-        Property: Negative timeouts should be rejected
-        """
+        """Property: Negative timeouts should be rejected."""
         with pytest.raises(ValidationError):
             ServiceConfig(
                 implementation=ImplementationConfig(name="test", type="iut"),
@@ -216,9 +203,7 @@ class TestSimpleHypothesisProperties:
     @given(st.integers(min_value=65536, max_value=100000))
     @settings(max_examples=5)
     def test_invalid_port_rejection(self, invalid_port):
-        """
-        Property: Invalid port numbers should be rejected
-        """
+        """Property: Invalid port numbers should be rejected."""
         with pytest.raises(ValidationError):
             ServiceConfig(
                 implementation=ImplementationConfig(name="test", type="iut"),
@@ -229,9 +214,7 @@ class TestSimpleHypothesisProperties:
     @given(st.integers(min_value=1, max_value=10))
     @settings(max_examples=10, deadline=5000)
     def test_performance_with_multiple_services(self, num_services):
-        """
-        Property: Performance should scale reasonably with service count
-        """
+        """Property: Performance should scale reasonably with service count."""
         services = {}
         for i in range(num_services):
             services[f"service_{i}"] = ServiceConfig(

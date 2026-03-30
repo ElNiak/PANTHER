@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""
-Test script to investigate issues with empty lines and conditional commands in _combine_shell_constructs.
-"""
+"""Test script to investigate issues with empty lines and conditional commands in _combine_shell_constructs."""
 import logging
 import os
 

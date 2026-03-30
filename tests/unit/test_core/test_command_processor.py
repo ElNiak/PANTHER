@@ -1,5 +1,4 @@
-"""
-Unit tests for CommandProcessor - the core command generation component of PANTHER.
+"""Unit tests for CommandProcessor - the core command generation component of PANTHER.
 
 Tests cover command processing, shell command creation, property detection,
 and error handling using real PANTHER classes (no fake fallbacks).
@@ -352,7 +351,7 @@ class TestDetectCommandProperties:
         assert props["is_control_structure"] is True
 
     def test_for_loop_detection(self, real_command_processor):
-        """for loop is detected as control structure."""
+        """For loop is detected as control structure."""
         for_loop = "for i in 1 2 3; do\n  echo $i\ndone"
         props = real_command_processor.detect_command_properties(for_loop)
         assert props["is_control_structure"] is True

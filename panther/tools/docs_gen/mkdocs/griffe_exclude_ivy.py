@@ -13,6 +13,7 @@ class ExcludeIvyExtension(griffe.Extension):
     """
 
     def on_package_loaded(self, *, pkg: griffe.Module, **kwargs):
+        """Remove panther_ivy subtree when a package is loaded."""
         self._remove_panther_ivy(pkg)
 
     def _remove_panther_ivy(self, mod: griffe.Module):

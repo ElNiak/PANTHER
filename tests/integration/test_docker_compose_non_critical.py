@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 
-"""
-Integration tests specifically for non-critical command support in Docker Compose environment
-"""
+"""Integration tests specifically for non-critical command support in Docker Compose environment."""
 
 import os
 import shutil

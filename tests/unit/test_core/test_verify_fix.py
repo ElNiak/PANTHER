@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Test script to verify that the fix for shell construct combination works.
+"""Test script to verify that the fix for shell construct combination works.
 
 Uses unittest.mock to patch the deep initialization chain and test only
 the command generation logic in PantherIvyServiceManager.

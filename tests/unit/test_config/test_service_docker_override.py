@@ -1,5 +1,4 @@
-"""
-Unit tests for per-service Docker build configuration overrides.
+"""Unit tests for per-service Docker build configuration overrides.
 
 Tests cover:
 - ServiceDockerOverrideConfig model creation and defaults

@@ -1,5 +1,4 @@
-"""
-Template Renderer Utilities
+"""Template Renderer Utilities.
 
 This module provides utilities for template rendering operations,
 reducing duplication of Jinja2 template handling across service managers.
@@ -19,9 +18,7 @@ from panther.core.utils.logging_mixin import LoggerMixin
 
 
 class TemplateRenderer(LoggerMixin):
-    """
-
-    Utility class for rendering Jinja2 templates with common patterns.
+    """Utility class for rendering Jinja2 templates with common patterns.
 
     Reduces duplication of template rendering logic across service managers.
     """
@@ -32,8 +29,7 @@ class TemplateRenderer(LoggerMixin):
         enable_autoescape: bool = False,
         custom_filters: Optional[Dict[str, Callable]] = None,
     ):
-        """
-        Initialize the template renderer.
+        """Initialize the template renderer.
 
         Args:
             template_dir: Directory containing templates
@@ -74,8 +70,7 @@ class TemplateRenderer(LoggerMixin):
     def render_template(
         self, template_name: str, context: Dict[str, Any], strict: bool = False
     ) -> str:
-        """
-        Render a template with the given context.
+        """Render a template with the given context.
 
         Args:
             template_name: Name of the template file
@@ -126,8 +121,7 @@ class TemplateRenderer(LoggerMixin):
         output_path: Union[str, Path],
         create_dirs: bool = True,
     ) -> Path:
-        """
-        Render a template and write to a file.
+        """Render a template and write to a file.
 
         Args:
             template_name: Name of the template file
@@ -168,8 +162,7 @@ class TemplateRenderer(LoggerMixin):
         command_args: Optional[List[str]] = None,
         env_vars: Optional[Dict[str, str]] = None,
     ) -> "ShellCommand":
-        """
-        Render a command template to a ShellCommand.
+        """Render a command template to a ShellCommand.
 
         Args:
             template_name: Name of the command template
@@ -210,8 +203,7 @@ class TemplateRenderer(LoggerMixin):
     def get_template_for_role(
         self, role: str, template_suffix: str = "_command.jinja"
     ) -> str:
-        """
-        Get template name based on role.
+        """Get template name based on role.
 
         Args:
             role: Role name (e.g., "client", "server")
@@ -231,8 +223,7 @@ class TemplateRenderer(LoggerMixin):
             return False
 
     def list_templates(self, pattern: Optional[str] = None) -> List[str]:
-        """
-        List available templates.
+        """List available templates.
 
         Args:
             pattern: Optional glob pattern to filter templates
@@ -259,15 +250,13 @@ class TemplateRenderer(LoggerMixin):
 
 
 class EnvironmentTemplateRenderer(TemplateRenderer):
-    """
-    Specialized template renderer for environments.
+    """Specialized template renderer for environments.
 
     Provides additional functionality specific to environment command rendering.
     """
 
     def __init__(self, template_dir: Union[str, Path], **kwargs):
-        """
-        Initialize environment template renderer.
+        """Initialize environment template renderer.
 
         Args:
             template_dir: Directory containing environment templates
@@ -283,8 +272,7 @@ class EnvironmentTemplateRenderer(TemplateRenderer):
 
 
 class ServiceTemplateRenderer(TemplateRenderer):
-    """
-    Specialized template renderer for service managers.
+    """Specialized template renderer for service managers.
 
     Provides additional functionality specific to service command rendering.
     """
@@ -295,8 +283,7 @@ class ServiceTemplateRenderer(TemplateRenderer):
         protocol_dir: Optional[Union[str, Path]] = None,
         **kwargs,
     ):
-        """
-        Initialize service template renderer.
+        """Initialize service template renderer.
 
         Args:
             service_dir: Service directory containing templates/ subdirectory
@@ -322,8 +309,7 @@ class ServiceTemplateRenderer(TemplateRenderer):
         env_vars: Optional[Dict[str, str]] = None,
         use_structured: bool = True,
     ) -> "ShellCommand":
-        """
-        Render a structured command template with fallback.
+        """Render a structured command template with fallback.
 
         Args:
             role: Service role (client/server)
@@ -361,8 +347,7 @@ class ServiceTemplateRenderer(TemplateRenderer):
     def render_config_file(
         self, config_template: str, params: Dict[str, Any], output_filename: str
     ) -> Path:
-        """
-        Render a configuration file template.
+        """Render a configuration file template.
 
         Args:
             config_template: Name of config template

@@ -1,3 +1,5 @@
+"""Background service health monitor for Docker Compose deployments."""
+
 import threading
 import time
 from typing import Any, Dict
@@ -6,14 +8,14 @@ from ..base_environment_monitor import BaseEnvironmentMonitor, ServiceHealthStat
 
 
 class BackgroundServiceMonitor(BaseEnvironmentMonitor):
-    """
-    Background service health monitor for non-blocking Docker Compose deployments.
+    """Background service health monitor for non-blocking Docker Compose deployments.
 
     Continuously monitors service health in a background daemon thread and triggers
     early experiment termination when services fail beyond configured thresholds.
     """
 
     def __init__(self, docker_compose_env, services, config):
+        """Initialize the background service monitor for Docker Compose."""
         # Initialize base monitor
         super().__init__(docker_compose_env, config, docker_compose_env.logger)
 

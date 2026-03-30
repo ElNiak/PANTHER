@@ -1,5 +1,4 @@
-"""
-Comprehensive unit tests for command generation utilities.
+"""Comprehensive unit tests for command generation utilities.
 
 Tests all shared utilities used by execution environment plugins including:
 - Data classes and specifications

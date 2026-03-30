@@ -9,7 +9,7 @@ from jinja2 import Environment, FileSystemLoader
 
 # Helper function to get the template directory path
 def get_template_path():
-    """Get the path to the PantherIvy templates directory"""
+    """Get the path to the PantherIvy templates directory."""
     plugin_dir = Path(
         os.path.dirname(
             os.path.dirname(
@@ -32,7 +32,7 @@ def get_template_path():
 
 @pytest.fixture
 def env():
-    """Create a Jinja2 environment with the necessary filters"""
+    """Create a Jinja2 environment with the necessary filters."""
     template_dir = get_template_path()
     env = Environment(loader=FileSystemLoader(template_dir), autoescape=False)
     # Register the essential filters for proper escaping
@@ -99,7 +99,7 @@ def env():
 def test_command_template_rendering(
     env, cmd_args, env_vars, expected_snippet, should_contain
 ):
-    """Test that command templates render with proper escaping"""
+    """Test that command templates render with proper escaping."""
     # Since PantherIvy doesn't have command templates like other plugins,
     # we'll test the general quoting functionality
 

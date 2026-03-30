@@ -1,5 +1,4 @@
-"""
-Log Statistics Handler
+"""Log Statistics Handler.
 
 Custom logging handler that intercepts log messages and feeds them to the
 statistics collector for real-time analysis and reporting.
@@ -15,16 +14,14 @@ from .log_statistics_collector import LogStatisticsCollector
 
 
 class LogStatisticsHandler(logging.Handler):
-    """
-    Custom logging handler for collecting statistics from log messages.
+    """Custom logging handler for collecting statistics from log messages.
 
     This handler intercepts all log messages and forwards them to the
     statistics collector while maintaining minimal performance impact.
     """
 
     def __init__(self, collector: LogStatisticsCollector, level: int = logging.NOTSET):
-        """
-        Initialize the statistics handler.
+        """Initialize the statistics handler.
 
         Args:
             collector: The statistics collector to feed messages to
@@ -43,8 +40,7 @@ class LogStatisticsHandler(logging.Handler):
         self._max_processing_time = 0.0
 
     def emit(self, record: logging.LogRecord) -> None:
-        """
-        Process a log record and send it to the statistics collector.
+        """Process a log record and send it to the statistics collector.
 
         Args:
             record: The log record to process
@@ -81,8 +77,7 @@ class LogStatisticsHandler(logging.Handler):
             print(f"Error in LogStatisticsHandler.emit: {e}")
 
     def _enhance_record(self, record: logging.LogRecord) -> None:
-        """
-        Enhance the log record with additional metadata.
+        """Enhance the log record with additional metadata.
 
         Args:
             record: The log record to enhance
@@ -125,8 +120,7 @@ class LogStatisticsHandler(logging.Handler):
                 record.message_length = 0
 
     def _detect_feature(self, record: logging.LogRecord) -> Optional[str]:
-        """
-        Detect the feature associated with a log record.
+        """Detect the feature associated with a log record.
 
         Args:
             record: The log record to analyze
@@ -150,8 +144,7 @@ class LogStatisticsHandler(logging.Handler):
         return None
 
     def _track_performance(self, processing_time: float) -> None:
-        """
-        Track performance metrics for the handler.
+        """Track performance metrics for the handler.
 
         Args:
             processing_time: Time taken to process the last message
@@ -166,8 +159,7 @@ class LogStatisticsHandler(logging.Handler):
             self._max_processing_time = processing_time
 
     def flush(self) -> None:
-        """
-        Flush any buffered records.
+        """Flush any buffered records.
 
         This method is called periodically to ensure statistics are up-to-date.
         """
@@ -179,9 +171,7 @@ class LogStatisticsHandler(logging.Handler):
             print(f"Error in LogStatisticsHandler.flush: {e}")
 
     def close(self) -> None:
-        """
-        Close the handler and clean up resources.
-        """
+        """Close the handler and clean up resources."""
         try:
             self._enabled = False
             self.flush()
@@ -204,8 +194,7 @@ class LogStatisticsHandler(logging.Handler):
         return self._enabled
 
     def get_handler_stats(self) -> dict:
-        """
-        Get performance statistics for this handler.
+        """Get performance statistics for this handler.
 
         Returns:
             Dictionary containing handler performance metrics
@@ -243,8 +232,7 @@ class LogStatisticsHandler(logging.Handler):
 
 
 class BufferedLogStatisticsHandler(LogStatisticsHandler):
-    """
-    Buffered version of LogStatisticsHandler for high-volume logging.
+    """Buffered version of LogStatisticsHandler for high-volume logging.
 
     This handler buffers log records and processes them in batches
     to reduce overhead in high-throughput scenarios.
@@ -257,8 +245,7 @@ class BufferedLogStatisticsHandler(LogStatisticsHandler):
         flush_interval: float = 1.0,
         level: int = logging.NOTSET,
     ):
-        """
-        Initialize the buffered statistics handler.
+        """Initialize the buffered statistics handler.
 
         Args:
             collector: The statistics collector to feed messages to
@@ -278,8 +265,7 @@ class BufferedLogStatisticsHandler(LogStatisticsHandler):
         self._start_flush_thread()
 
     def emit(self, record: logging.LogRecord) -> None:
-        """
-        Buffer a log record for batch processing.
+        """Buffer a log record for batch processing.
 
         Args:
             record: The log record to buffer
@@ -355,8 +341,7 @@ class BufferedLogStatisticsHandler(LogStatisticsHandler):
         super().close()
 
     def get_buffer_stats(self) -> dict:
-        """
-        Get buffer-specific statistics.
+        """Get buffer-specific statistics.
 
         Returns:
             Dictionary containing buffer performance metrics
@@ -379,8 +364,7 @@ class BufferedLogStatisticsHandler(LogStatisticsHandler):
 def create_statistics_handler(
     collector: LogStatisticsCollector, handler_type: str = "standard", **kwargs
 ) -> LogStatisticsHandler:
-    """
-    Factory function to create appropriate statistics handler.
+    """Factory function to create appropriate statistics handler.
 
     Args:
         collector: The statistics collector instance

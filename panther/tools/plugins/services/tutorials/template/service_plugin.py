@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-PANTHER Service Plugin Template
+"""PANTHER Service Plugin Template.
 
 This is a basic template for creating a service plugin in the PANTHER framework.
 """
@@ -9,8 +8,7 @@ from panther.plugins.plugin_interface import IPlugin
 
 
 class TemplateServicePlugin(IPlugin):
-    """
-    Template implementation of a service plugin for PANTHER.
+    """Template implementation of a service plugin for PANTHER.
 
     A service plugin provides functionality for testing a service implementation
     under various conditions.
@@ -23,8 +21,7 @@ class TemplateServicePlugin(IPlugin):
         self.description = "Template service plugin for PANTHER"
 
     def handle_event(self, event):
-        """
-        Handle an event sent to this plugin.
+        """Handle an event sent to this plugin.
 
         Args:
             event: The event to handle
@@ -32,8 +29,7 @@ class TemplateServicePlugin(IPlugin):
         pass
 
     def start(self, config=None):
-        """
-        Start the service.
+        """Start the service.
 
         Args:
             config: Configuration parameters for the service

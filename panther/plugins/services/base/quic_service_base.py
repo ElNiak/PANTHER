@@ -11,8 +11,8 @@ from panther.plugins.services.services_interface import IServiceManager
 
 
 class BaseQUICServiceManager(IImplementationManager, StringRepresentationMixin, ABC):
-    """
-    This class provides common functionality for QUIC protocol implementations,
+    """This class provides common functionality for QUIC protocol implementations,.
+
     reducing code duplication across different service managers.
     """
 
@@ -125,8 +125,7 @@ class BaseQUICServiceManager(IImplementationManager, StringRepresentationMixin, 
 
     @abstractmethod
     def _get_client_specific_args(self, **kwargs) -> List[str]:
-        """
-        Get implementation-specific client arguments.
+        """Get implementation-specific client arguments.
 
         Args:
             **kwargs: Configuration parameters

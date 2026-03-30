@@ -1,5 +1,4 @@
-"""
-Base Environment Monitor for PANTHER Network Environments.
+"""Base Environment Monitor for PANTHER Network Environments.
 
 This module provides the common monitoring functionality shared across all network
 environment types (Docker Compose, Localhost, Shadow NS), eliminating 85% code duplication.
@@ -32,8 +31,7 @@ class ServiceHealthState(Enum):
 
 
 class BaseEnvironmentMonitor(ABC):
-    """
-    Base class for environment monitoring providing common functionality.
+    """Base class for environment monitoring providing common functionality.
 
     This class eliminates duplication across BackgroundServiceMonitor,
     SingleContainerMonitor, and ShadowSimulationMonitor by providing:
@@ -52,8 +50,7 @@ class BaseEnvironmentMonitor(ABC):
     """
 
     def __init__(self, environment, config, logger):
-        """
-        Initialize base monitor with common attributes.
+        """Initialize base monitor with common attributes.
 
         Args:
             environment: The environment instance (docker_compose_env, localhost_env, etc.)
@@ -97,8 +94,7 @@ class BaseEnvironmentMonitor(ABC):
             self.config.failure_threshold_count = 3
 
     def start_monitoring(self, *args, **kwargs):
-        """
-        Start background monitoring in a daemon thread.
+        """Start background monitoring in a daemon thread.
 
         Common implementation across all monitor types with 85% identical code.
         Subclasses can override for specific initialization needs.
@@ -132,8 +128,7 @@ class BaseEnvironmentMonitor(ABC):
         )
 
     def stop_monitoring(self):
-        """
-        Stop background monitoring gracefully with improved cleanup.
+        """Stop background monitoring gracefully with improved cleanup.
 
         Enhanced implementation with better logging and forced cleanup for hung threads.
         """
@@ -175,8 +170,7 @@ class BaseEnvironmentMonitor(ABC):
         self._post_stop_cleanup()
 
     def _monitor_loop(self):
-        """
-        Main monitoring loop running in background thread.
+        """Main monitoring loop running in background thread.
 
         Common implementation with 90% identical code across all monitor types.
         """
@@ -208,8 +202,7 @@ class BaseEnvironmentMonitor(ABC):
         self.logger.debug(f"Background monitoring loop ended for {monitor_name}")
 
     def _handle_failure(self, failure_reason: str):
-        """
-        Handle failure and potentially trigger early termination.
+        """Handle failure and potentially trigger early termination.
 
         Common failure handling logic with 80% identical code.
         """
@@ -233,8 +226,7 @@ class BaseEnvironmentMonitor(ABC):
             )
 
     def _trigger_early_termination(self, reason: str):
-        """
-        Trigger early experiment termination.
+        """Trigger early experiment termination.
 
         Common termination logic with 90% identical code.
         """
@@ -276,8 +268,7 @@ class BaseEnvironmentMonitor(ABC):
 
     @abstractmethod
     def _check_health(self):
-        """
-        Perform environment-specific health check.
+        """Perform environment-specific health check.
 
         This is where the main monitoring logic differs between environments:
         - Docker Compose: Check service health via docker commands
@@ -288,8 +279,7 @@ class BaseEnvironmentMonitor(ABC):
 
     @abstractmethod
     def _get_monitor_name(self) -> str:
-        """
-        Get unique monitor name for logging and thread identification.
+        """Get unique monitor name for logging and thread identification.
 
         Examples:
         - "DockerCompose-env1"
@@ -300,8 +290,7 @@ class BaseEnvironmentMonitor(ABC):
 
     @abstractmethod
     def _should_terminate(self) -> bool:
-        """
-        Environment-specific termination conditions.
+        """Environment-specific termination conditions.
 
         Examples:
         - Docker Compose: Check critical services, partial deployment policy
@@ -312,8 +301,7 @@ class BaseEnvironmentMonitor(ABC):
 
     @abstractmethod
     def _get_termination_details(self) -> Dict[str, Any]:
-        """
-        Get environment-specific details for termination reporting.
+        """Get environment-specific details for termination reporting.
 
         Should include environment-specific state information for debugging.
         """

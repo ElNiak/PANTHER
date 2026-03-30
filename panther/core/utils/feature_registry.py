@@ -1,5 +1,4 @@
-"""
-Feature Registry for dynamic feature logging registration.
+"""Feature Registry for dynamic feature logging registration.
 
 This module provides a centralized registry where plugins and modules
 can register themselves for feature-specific logging.
@@ -11,8 +10,7 @@ from typing import Dict, List, Optional, Set, Union
 
 
 class FeatureRegistry:
-    """
-    Centralized registry for feature-to-module mappings.
+    """Centralized registry for feature-to-module mappings.
 
     Allows plugins and modules to dynamically register themselves
     for specific feature categories, enabling automatic feature
@@ -23,6 +21,7 @@ class FeatureRegistry:
     _lock = Lock()
 
     def __new__(cls):
+        """Create or return the singleton FeatureRegistry instance."""
         if cls._instance is None:
             with cls._lock:
                 if cls._instance is None:
@@ -31,6 +30,7 @@ class FeatureRegistry:
         return cls._instance
 
     def __init__(self):
+        """Initialize the feature registry mappings."""
         if not self._initialized:
             self._feature_mappings: Dict[str, Set[str]] = {}
             self._module_features: Dict[str, str] = {}
@@ -44,8 +44,7 @@ class FeatureRegistry:
         module_patterns: Union[str, List[str]],
         module_name: Optional[str] = None,
     ) -> None:
-        """
-        Register module patterns for a specific feature.
+        """Register module patterns for a specific feature.
 
         Args:
             feature: Feature name (e.g., 'docker_operations', 'command_generation')
@@ -77,8 +76,7 @@ class FeatureRegistry:
             )
 
     def register_module(self, module_name: str, feature: str) -> None:
-        """
-        Register a specific module for a feature.
+        """Register a specific module for a feature.
 
         Args:
             module_name: Full module name (e.g., 'panther.plugins.services.picoquic')
@@ -96,8 +94,7 @@ class FeatureRegistry:
             )
 
     def detect_feature(self, module_name: str) -> Optional[str]:
-        """
-        Detect the feature for a given module name.
+        """Detect the feature for a given module name.
 
         Args:
             module_name: Module name to analyze
@@ -120,8 +117,7 @@ class FeatureRegistry:
         return None
 
     def get_modules_for_feature(self, feature: str) -> Set[str]:
-        """
-        Get all registered modules for a feature.
+        """Get all registered modules for a feature.
 
         Args:
             feature: Feature name
@@ -132,8 +128,7 @@ class FeatureRegistry:
         return self._feature_mappings.get(feature, set()).copy()
 
     def get_all_features(self) -> List[str]:
-        """
-        Get all registered features.
+        """Get all registered features.
 
         Returns:
             List of all feature names
@@ -141,8 +136,7 @@ class FeatureRegistry:
         return list(self._feature_mappings.keys())
 
     def get_feature_info(self) -> Dict[str, Dict[str, any]]:
-        """
-        Get complete feature registry information.
+        """Get complete feature registry information.
 
         Returns:
             Dictionary with feature information
@@ -155,8 +149,7 @@ class FeatureRegistry:
         }
 
     def clear_feature(self, feature: str) -> None:
-        """
-        Clear all registrations for a feature.
+        """Clear all registrations for a feature.
 
         Args:
             feature: Feature name to clear
@@ -189,8 +182,7 @@ def register_feature(
     module_patterns: Union[str, List[str]],
     module_name: Optional[str] = None,
 ) -> None:
-    """
-    Convenience function to register a feature.
+    """Convenience function to register a feature.
 
     Args:
         feature: Feature name
@@ -201,8 +193,7 @@ def register_feature(
 
 
 def register_module_feature(module_name: str, feature: str) -> None:
-    """
-    Convenience function to register a module for a feature.
+    """Convenience function to register a module for a feature.
 
     Args:
         module_name: Module name
@@ -212,8 +203,7 @@ def register_module_feature(module_name: str, feature: str) -> None:
 
 
 def detect_module_feature(module_name: str) -> Optional[str]:
-    """
-    Convenience function to detect feature for a module.
+    """Convenience function to detect feature for a module.
 
     Args:
         module_name: Module name
@@ -226,8 +216,7 @@ def detect_module_feature(module_name: str) -> Optional[str]:
 
 # Decorator for automatic registration
 def feature_logger(feature: str, patterns: Optional[Union[str, List[str]]] = None):
-    """
-    Decorator to automatically register a class/module for a feature.
+    """Decorator to automatically register a class/module for a feature.
 
     Args:
         feature: Feature name to register for
@@ -260,7 +249,6 @@ def feature_logger(feature: str, patterns: Optional[Union[str, List[str]]] = Non
 # Initialize with some core patterns
 def _initialize_core_patterns():
     """Initialize the registry with core PANTHER patterns."""
-
     # Core Components
     register_feature("command_generation", ["command", "cmd", "builder", "processor"])
     register_feature("template_rendering", ["template", "render", "jinja"])

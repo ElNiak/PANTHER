@@ -1,5 +1,4 @@
-"""
-Integration Test for Event-Driven Plugin Architecture
+"""Integration Test for Event-Driven Plugin Architecture.
 
 This script demonstrates and validates the event-driven plugin architecture
 by creating sample plugins, registering them with the event system, and
@@ -30,6 +29,7 @@ class Event:
         return self.name
 
     def __str__(self):
+        """Return string representation of the event."""
         return f"Event(name={self.name}, data={self.data})"
 
 
@@ -161,9 +161,7 @@ class PluginObserver:
 
 
 class EventMonitorPlugin(IPantherPlugin):
-    """
-    Sample plugin that monitors events and logs them.
-    """
+    """Sample plugin that monitors events and logs them."""
 
     METADATA = {
         "name": "EventMonitor",
@@ -198,9 +196,7 @@ class EventMonitorPlugin(IPantherPlugin):
 
 
 class ServiceInteractorPlugin(IPantherPlugin):
-    """
-    Sample plugin that reacts to service events by taking actions.
-    """
+    """Sample plugin that reacts to service events by taking actions."""
 
     METADATA = {
         "name": "ServiceInteractor",
@@ -255,8 +251,7 @@ class ServiceInteractorPlugin(IPantherPlugin):
 
 
 def test_event_architecture():
-    """
-    Test the event-driven plugin architecture.
+    """Test the event-driven plugin architecture.
 
     This function:
     1. Sets up the event management system

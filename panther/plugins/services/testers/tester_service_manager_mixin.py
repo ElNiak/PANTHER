@@ -1,3 +1,5 @@
+"""Mixin providing tester-specific service manager functionality."""
+
 from typing import Any, Dict, Optional
 
 from panther.plugins.services.plugin_directory_mixin import PluginDirectoryMixin
@@ -8,8 +10,7 @@ from panther.plugins.services.testers.tester_interface import ITesterManager
 class TesterServiceManagerMixin(
     PluginDirectoryMixin, ServiceManagerMixin, ITesterManager
 ):
-    """
-    Specialized mixin for tester service managers.
+    """Specialized mixin for tester service managers.
 
     Provides tester-specific patterns and utilities including test parameter
     management, formal verification support, and a strict template renderer
@@ -23,6 +24,7 @@ class TesterServiceManagerMixin(
     """
 
     def __init__(self, *args, global_config=None, **kwargs):
+        """Initialize the tester service manager mixin."""
         super().__init__(*args, **kwargs)
 
         # Store global configuration
@@ -34,10 +36,10 @@ class TesterServiceManagerMixin(
     def setup_tester_specific_attributes(
         self, protocol: Any, service_config_to_test: Any
     ) -> None:
-        """
-        Set up tester-specific attributes.
+        """Set up tester-specific attributes.
 
         Args:
+            protocol: Protocol configuration
             service_config_to_test: Service configuration
         """
         # Extract test parameters if available
@@ -94,8 +96,7 @@ class TesterServiceManagerMixin(
         include_protocol_in_template: bool = True,
         plugin_dir: Any = None,
     ) -> None:
-        """
-        Template method for standard tester service initialization.
+        """Template method for standard tester service initialization.
 
         This method encapsulates the common initialization pattern used by all tester services:
         1. Call standardized_initialization from ServiceManagerMixin
@@ -112,6 +113,7 @@ class TesterServiceManagerMixin(
             implementation_name: Implementation name (defaults to self.implementation_name)
             event_manager: Event manager (defaults to self.event_manager)
             include_protocol_in_template: Whether to include protocol in template renderer
+            plugin_dir: Plugin directory path (defaults to auto-detected directory)
         """
         # Use provided parameters or fall back to instance attributes
         service_config_to_test = service_config_to_test or getattr(
@@ -149,8 +151,7 @@ class TesterServiceManagerMixin(
     def _setup_template_renderer(
         self, include_protocol_in_template: bool = True, protocol: Any = None
     ) -> None:
-        """
-        Hook method: Set up the template renderer.
+        """Hook method: Set up the template renderer.
 
         Override this method to customize template renderer setup.
         Default implementation creates a ServiceTemplateRenderer with optional protocol support.

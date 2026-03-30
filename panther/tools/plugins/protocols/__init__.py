@@ -1,2 +1,1 @@
-"""PANTHER package.
-"""
+"""PANTHER package."""

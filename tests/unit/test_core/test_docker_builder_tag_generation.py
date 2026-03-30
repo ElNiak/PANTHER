@@ -1,5 +1,4 @@
-"""
-Comprehensive unit tests for Docker Builder tag generation with BUILD_MODE and RUNTIME_MODE support.
+"""Comprehensive unit tests for Docker Builder tag generation with BUILD_MODE and RUNTIME_MODE support.
 
 This module tests the enhanced Docker image tag generation functionality that includes
 build mode and runtime mode differentiation, ensuring proper cache isolation and

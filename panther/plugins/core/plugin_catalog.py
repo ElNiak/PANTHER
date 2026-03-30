@@ -1,27 +1,18 @@
-from typing import Any, Dict, List, Optional, Set, Tuple
-
-from panther.plugins.core.structures.plugin_dependency import PluginDependency
-from panther.plugins.core.structures.plugin_registration import PluginRegistration
-
-"""
-Plugin Catalog System
-
-This module provides plugin discovery, cataloging, and dependency resolution
-for the PANTHER plugin ecosystem.
-"""
+"""Plugin catalog for discovery, cataloging, and dependency resolution."""
 
 import json
 import logging
 from collections import defaultdict
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Set, Tuple
 
+from panther.plugins.core.structures.plugin_dependency import PluginDependency
 from panther.plugins.core.structures.plugin_manifest import PluginManifest
+from panther.plugins.core.structures.plugin_registration import PluginRegistration
 
 
 class PluginCatalog:
-    """
-
-    Central catalog for plugin discovery, validation, and dependency management.
+    """Central catalog for plugin discovery, validation, and dependency management.
 
     This class maintains a registry of all available plugins, handles discovery
     from various sources, and provides dependency resolution capabilities.
@@ -30,8 +21,7 @@ class PluginCatalog:
     CACHE_FILENAME = ".plugin_catalog_cache.json"
 
     def __init__(self, discovery_paths: Optional[List[str]] = None):
-        """
-        Initialize the plugin catalog.
+        """Initialize the plugin catalog.
 
         Args:
             discovery_paths: List of paths to search for plugins
@@ -49,8 +39,7 @@ class PluginCatalog:
             self.logger.debug("Added discovery path: %s", path)
 
     def scan_plugins(self, use_cache: bool = True) -> Dict[str, PluginManifest]:
-        """
-        Scan all discovery paths for plugins.
+        """Scan all discovery paths for plugins.
 
         Args:
             use_cache: Whether to use cached catalog if available
@@ -89,8 +78,7 @@ class PluginCatalog:
     def validate_plugin_config(
         self, plugin_id: str, config: Dict[str, Any]
     ) -> Tuple[bool, List[str]]:
-        """
-        Validate plugin configuration against its schema.
+        """Validate plugin configuration against its schema.
 
         Args:
             plugin_id: Plugin identifier
@@ -138,8 +126,7 @@ class PluginCatalog:
     def resolve_dependencies(
         self, plugin_ids: List[str]
     ) -> Tuple[List[str], List[str]]:
-        """
-        Resolve dependencies for a set of plugins.
+        """Resolve dependencies for a set of plugins.
 
         Args:
             plugin_ids: List of plugin IDs to resolve
@@ -309,8 +296,7 @@ class PluginCatalog:
             self.logger.warning("Failed to save cache: %s", e)
 
     def validate_experiment_plugins(self, experiment_config) -> Tuple[bool, List[str]]:
-        """
-        Validate that all plugins required by an experiment are available.
+        """Validate that all plugins required by an experiment are available.
 
         Args:
             experiment_config: Experiment configuration
@@ -373,8 +359,7 @@ class PluginCatalog:
         return len(errors) == 0, errors
 
     def validate_plugin_dependencies(self, plugin_name: str) -> Tuple[bool, List[str]]:
-        """
-        Validate plugin dependencies.
+        """Validate plugin dependencies.
 
         Args:
             plugin_name: Name of plugin to validate

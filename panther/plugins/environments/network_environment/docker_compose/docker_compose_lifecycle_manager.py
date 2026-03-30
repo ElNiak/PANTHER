@@ -119,6 +119,7 @@ class DockerComposeLifecycleManager:
     def collect_service_environment_variables(
         self, raw_env_vars, service, service_name
     ):
+        """Collect and resolve environment variables for a service."""
         # CRITICAL: Call adapt_environment_paths before collecting variables
         # This ensures template variables like IS_APT_PATH are properly set
         if hasattr(service, "adapt_environment_paths"):
@@ -188,8 +189,7 @@ class DockerComposeLifecycleManager:
         return raw_env_vars
 
     def _determine_architecture_mode(self, service) -> bool:
-        """
-        Determine whether to use system models (APT architecture) based on service configuration.
+        """Determine whether to use system models (APT architecture) based on service configuration.
 
         Args:
             service: Service manager instance
@@ -414,6 +414,7 @@ class DockerComposeLifecycleManager:
             raise
 
     def launch_docker_compose(self, compose_args, env_vars):
+        """Launch Docker Compose with the given arguments and environment variables."""
         # Debug log output_dir
         self.logger.debug(
             f"output_dir type: {type(self.output_dir)}, value: {self.output_dir}"
@@ -478,6 +479,7 @@ class DockerComposeLifecycleManager:
             raise
 
     def stop_docker_services(self):
+        """Stop and remove Docker Compose services."""
         if hasattr(self.docker_executor, "execute_docker_command"):
             # Force-kill containers first to avoid hanging on graceful shutdown
             try:
@@ -554,6 +556,7 @@ class DockerComposeLifecycleManager:
         self.logger.warning(f"Cleanup verification timed out after {timeout} seconds")
 
     def check_ports_status(self) -> bool:
+        """Check whether all allocated ports have been released."""
         all_cleaned: bool = True
         self.logger.debug("Checking if all ports are released")
         if self.port_manager and hasattr(self.port_manager, "verify_ports_released"):
@@ -567,6 +570,7 @@ class DockerComposeLifecycleManager:
         return all_cleaned
 
     def check_container_existence(self, service_name):
+        """Check if a container with the given service name exists."""
         docker_args = [
             "ps",
             "-a",

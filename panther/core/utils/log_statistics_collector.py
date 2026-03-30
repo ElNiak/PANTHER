@@ -1,5 +1,4 @@
-"""
-Log Statistics Collector
+"""Log Statistics Collector.
 
 This module provides comprehensive collection and analysis of logging statistics
 across PANTHER's granular feature logging system.
@@ -19,16 +18,14 @@ from .feature_registry import feature_registry
 
 
 class LogStatisticsCollector:
-    """
-    Collects and analyzes logging statistics in real-time.
+    """Collects and analyzes logging statistics in real-time.
 
     Tracks message counts, feature activity, performance metrics,
     and provides comprehensive reporting capabilities.
     """
 
     def __init__(self, buffer_size: int = 1000, track_performance: bool = True):
-        """
-        Initialize the statistics collector.
+        """Initialize the statistics collector.
 
         Args:
             buffer_size: Maximum number of recent messages to keep in memory
@@ -85,8 +82,7 @@ class LogStatisticsCollector:
             self._start_performance_monitoring()
 
     def record_log_message(self, record: logging.LogRecord) -> None:
-        """
-        Record a log message and update statistics.
+        """Record a log message and update statistics.
 
         Args:
             record: The logging record to process
@@ -185,8 +181,7 @@ class LogStatisticsCollector:
                 print(f"Error in log statistics collection: {e}")
 
     def _detect_feature_from_record(self, record: logging.LogRecord) -> Optional[str]:
-        """
-        Detect feature from logging record.
+        """Detect feature from logging record.
 
         Args:
             record: The logging record
@@ -253,8 +248,7 @@ class LogStatisticsCollector:
         monitor_thread.start()
 
     def get_real_time_stats(self) -> Dict[str, Any]:
-        """
-        Get current statistics snapshot.
+        """Get current statistics snapshot.
 
         Returns:
             Dictionary containing current statistics
@@ -314,8 +308,7 @@ class LogStatisticsCollector:
             }
 
     def generate_summary_report(self) -> Dict[str, Any]:
-        """
-        Generate comprehensive statistics report.
+        """Generate comprehensive statistics report.
 
         Returns:
             Detailed statistics report
@@ -520,8 +513,7 @@ class LogStatisticsCollector:
             }
 
     def export_statistics(self, format: str = "json") -> str:
-        """
-        Export statistics in specified format.
+        """Export statistics in specified format.
 
         Args:
             format: Export format ('json', 'csv', 'text')

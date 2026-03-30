@@ -1,5 +1,4 @@
-"""
-Simplified integration tests for PANTHER plugin system.
+"""Simplified integration tests for PANTHER plugin system.
 
 These tests verify basic plugin system integration without requiring
 complex plugin files or Docker infrastructure.

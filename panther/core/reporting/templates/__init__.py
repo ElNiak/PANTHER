@@ -1,3 +1,1 @@
-"""
-Report templates for PANTHER experiment reporting.
-"""
+"""Report templates for PANTHER experiment reporting."""

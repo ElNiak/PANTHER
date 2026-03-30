@@ -1,5 +1,4 @@
-"""
-Unit tests for enhanced result handling features.
+"""Unit tests for enhanced result handling features.
 
 This module contains tests for the enhanced result events, result aggregation,
 and compatibility between legacy and enhanced result systems.

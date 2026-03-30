@@ -1,5 +1,4 @@
-"""
-Service Manager Utilities
+"""Service Manager Utilities.
 
 This module provides common utilities and mixins for service managers,
 integrating with PANTHER's existing patterns and interfaces.
@@ -21,8 +20,7 @@ class ServiceManagerUtilities:
     def standardize_initialization_logging(
         logger: logging.Logger, implementation_name: str, service_config: Any
     ) -> None:
-        """
-        Standardize initialization logging across service managers.
+        """Standardize initialization logging across service managers.
 
         Args:
             logger: Logger instance
@@ -46,8 +44,7 @@ class ServiceManagerUtilities:
         protocol: Any,
         implementation_name: str,
     ) -> None:
-        """
-        Set up standard service manager attributes.
+        """Set up standard service manager attributes.
 
         Args:
             service_manager: Service manager instance

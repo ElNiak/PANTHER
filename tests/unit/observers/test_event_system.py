@@ -1,5 +1,4 @@
-"""
-Unit tests for the enhanced event system.
+"""Unit tests for the enhanced event system.
 
 This module contains tests for the EventManager and ResultsManager
 components of the enhanced event system.

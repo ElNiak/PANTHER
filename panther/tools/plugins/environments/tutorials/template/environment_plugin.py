@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-PANTHER Environment Plugin Template
+"""PANTHER Environment Plugin Template.
 
 This is a basic template for creating an environment plugin in the PANTHER framework.
 """
@@ -9,8 +8,7 @@ from panther.plugins.plugin_interface import IPlugin
 
 
 class TemplateEnvironmentPlugin(IPlugin):
-    """
-    Template implementation of an environment plugin for PANTHER.
+    """Template implementation of an environment plugin for PANTHER.
 
     An environment plugin provides functionality for setting up and configuring
     the environment in which tests will be executed.
@@ -23,8 +21,7 @@ class TemplateEnvironmentPlugin(IPlugin):
         self.description = "Template environment plugin for PANTHER"
 
     def handle_event(self, event):
-        """
-        Handle an event sent to this plugin.
+        """Handle an event sent to this plugin.
 
         Args:
             event: The event to handle
@@ -32,8 +29,7 @@ class TemplateEnvironmentPlugin(IPlugin):
         pass
 
     def setup(self, config=None):
-        """
-        Set up the environment.
+        """Set up the environment.
 
         Args:
             config: Configuration parameters for the environment

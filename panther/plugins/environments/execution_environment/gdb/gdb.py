@@ -465,20 +465,20 @@ class GdbEnvironment(BaseExecutionEnvironment):
             "set width 0",
         ]
 
-        # Enhanced strace-like system call monitoring
-        script_lines.extend(
-            [
-                "",
-                "# === STRACE-LIKE SYSTEM CALL MONITORING ===",
-                "# Catch all syscalls for comprehensive monitoring",
-                "catch syscall",
-                "",
-                "# Enhanced error detection - general syscall monitoring",
-                "# Note: Using general syscall catching to avoid compatibility issues",
-                "# The 'catch syscall' above already catches all syscalls including:",
-                "# openat, creat, read, write, socket, connect, bind, listen, accept, mmap, etc.",
-            ]
+        # Syscall monitoring (disabled by default — causes SIGSEGV with
+        # high-throughput network programs like QUIC implementations)
+        enable_syscall_catching = self._get_config_value(
+            "enable_syscall_catching", False
         )
+        if enable_syscall_catching:
+            script_lines.extend(
+                [
+                    "",
+                    "# === SYSTEM CALL MONITORING (ENABLED BY CONFIG) ===",
+                    "# WARNING: Intercepts every syscall — severe performance impact.",
+                    "catch syscall",
+                ]
+            )
 
         # Add signal handling with strace-like comprehensiveness
         break_signals = self._get_config_value(
@@ -533,17 +533,22 @@ class GdbEnvironment(BaseExecutionEnvironment):
             ]
         )
 
-        # Add network error monitoring with deferred breakpoints
-        script_lines.extend(
-            [
-                "",
-                "# === NETWORK ERROR MONITORING ===",
-                "# Monitor network operations - deferred until symbols load",
-                "break connect",  # Connection attempts
-                "break bind",  # Bind attempts
-                "break listen",  # Listen attempts
-            ]
+        # Network breakpoints (disabled by default — fires on every network
+        # call, causing severe slowdowns for network-intensive programs)
+        enable_network_breakpoints = self._get_config_value(
+            "enable_network_breakpoints", False
         )
+        if enable_network_breakpoints:
+            script_lines.extend(
+                [
+                    "",
+                    "# === NETWORK OPERATION BREAKPOINTS (ENABLED BY CONFIG) ===",
+                    "# WARNING: Fires on every network call.",
+                    "break connect",
+                    "break bind",
+                    "break listen",
+                ]
+            )
 
         # Add initialization commands
         init_commands = self._get_config_value("init_commands", [])
@@ -628,37 +633,38 @@ class GdbEnvironment(BaseExecutionEnvironment):
                 ]
             )
 
-            # Get architecture-specific register info
-            arch_name, arch_info = self._get_architecture_info()
+            if enable_syscall_catching:
+                # Get architecture-specific register info
+                arch_name, arch_info = self._get_architecture_info()
 
-            # Define architecture-aware syscall monitoring function
-            script_lines.extend(
-                [
-                    "# === ARCHITECTURE-AWARE SYSCALL MONITORING FUNCTION ===",
-                    f"# Target architecture: {arch_name}",
-                    "define monitor_syscall",
-                    "  set logging redirect on",
-                    "  # Architecture-specific register handling",
-                    f"  printf \"SYSCALL [{arch_name}]: %ld\\n\", (long){arch_info['syscall_reg']}",
-                    f'  printf "Args [{arch_name}]: "',
-                ]
-            )
+                # Define architecture-aware syscall monitoring function
+                script_lines.extend(
+                    [
+                        "# === ARCHITECTURE-AWARE SYSCALL MONITORING FUNCTION ===",
+                        f"# Target architecture: {arch_name}",
+                        "define monitor_syscall",
+                        "  set logging redirect on",
+                        "  # Architecture-specific register handling",
+                        f"  printf \"SYSCALL [{arch_name}]: %ld\\n\", (long){arch_info['syscall_reg']}",
+                        f'  printf "Args [{arch_name}]: "',
+                    ]
+                )
 
-            # Add argument register printing
-            for i, reg in enumerate(arch_info["arg_regs"][:4]):
-                if i > 0:
-                    script_lines.append('  printf ", "')
-                script_lines.append(f'  printf "arg{i}=%ld", (long){reg}')
+                # Add argument register printing
+                for i, reg in enumerate(arch_info["arg_regs"][:4]):
+                    if i > 0:
+                        script_lines.append('  printf ", "')
+                    script_lines.append(f'  printf "arg{i}=%ld", (long){reg}')
 
-            script_lines.extend(
-                [
-                    '  printf "\\n"',
-                    f"  printf \"Return [{arch_name}]: %ld\\n\", (long){arch_info['return_reg']}",
-                    "  set logging redirect off",
-                    "end",
-                    "",
-                ]
-            )
+                script_lines.extend(
+                    [
+                        '  printf "\\n"',
+                        f"  printf \"Return [{arch_name}]: %ld\\n\", (long){arch_info['return_reg']}",
+                        "  set logging redirect off",
+                        "end",
+                        "",
+                    ]
+                )
 
         # Add comprehensive monitoring commands
         script_lines.extend(
@@ -686,17 +692,18 @@ class GdbEnvironment(BaseExecutionEnvironment):
             ]
         )
 
-        # Add syscall-specific monitoring (similar to strace filtering)
-        script_lines.extend(
-            [
-                "# === SYSCALL-SPECIFIC MONITORING ===",
-                "commands 1",  # For syscall breakpoints
-                "  monitor_syscall",
-                "  continue",
-                "end",
-                "",
-            ]
-        )
+        # Add syscall-specific monitoring only when syscall catching is enabled
+        if enable_syscall_catching:
+            script_lines.extend(
+                [
+                    "# === SYSCALL-SPECIFIC MONITORING ===",
+                    "commands 1",  # For the 'catch syscall' catchpoint
+                    "  monitor_syscall",
+                    "  continue",
+                    "end",
+                    "",
+                ]
+            )
 
         # Add run command with enhanced monitoring
         run_command = self._get_config_value("run_command", "run")

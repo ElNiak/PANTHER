@@ -1,13 +1,5 @@
 #!/usr/bin/env python3
-from typing import Any, Dict, Optional, Protocol
-
-"""
-PANTHER Plugin Creation Utilities
-
-This module provides functionality to create new plugins in both development
-and production environments. It supports both top-level plugins and subplugins
-using Jinja2 templates for dynamic code generation.
-"""
+"""PANTHER plugin creation utilities."""
 
 import importlib
 import importlib.resources
@@ -17,6 +9,7 @@ import site
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any, Dict, Optional, Protocol
 
 # Try to import Jinja2 for template rendering
 try:
@@ -35,8 +28,8 @@ PLUGIN_HIERARCHY = {
 
 
 def is_development_mode() -> bool:
-    """
-    Determine if PANTHER is running in development mode (GitHub cloned)
+    """Determine if PANTHER is running in development mode (GitHub cloned).
+
     or production mode (installed package).
 
     Returns:
@@ -74,8 +67,7 @@ def is_development_mode() -> bool:
 def get_plugin_directory(
     plugin_type: str, in_development_mode: Optional[bool] = None
 ) -> Path:
-    """
-    Get the appropriate directory for plugin creation based on mode.
+    """Get the appropriate directory for plugin creation based on mode.
 
     Args:
         plugin_type: The type of plugin (service, environment, protocol)
@@ -113,8 +105,7 @@ def get_plugin_directory(
 
 
 def get_template_directory(plugin_type: str) -> Path:
-    """
-    Get the template directory for the specified plugin type.
+    """Get the template directory for the specified plugin type.
 
     Args:
         plugin_type: The type of plugin (service, environment, protocol)
@@ -177,8 +168,7 @@ def get_template_directory(plugin_type: str) -> Path:
 def render_jinja_template(
     template_path: Path, output_path: Path, context: Dict[str, Any]
 ) -> bool:
-    """
-    Render a Jinja2 template to the output path.
+    """Render a Jinja2 template to the output path.
 
     Args:
         template_path: Path to the template file (.j2 extension)
@@ -218,8 +208,7 @@ def create_subplugin(
     subplugin_type: str,
     in_development_mode: Optional[bool] = None,
 ) -> bool:
-    """
-    Create a new subplugin within an existing plugin.
+    """Create a new subplugin within an existing plugin.
 
     Args:
         plugin_type: The type of plugin (service, environment, protocol)
@@ -340,8 +329,7 @@ def create_plugin(
     in_development_mode: Optional[bool] = None,
     create_subplugins: bool = False,
 ) -> bool:
-    """
-    Create a new plugin with the specified name and type.
+    """Create a new plugin with the specified name and type.
 
     Args:
         plugin_type: The type of plugin (service, environment, protocol)
@@ -434,8 +422,7 @@ def create_plugin(
 
 
 def run_tutorial(plugin_type: str) -> int:
-    """
-    Run the interactive tutorial for the specified plugin type.
+    """Run the interactive tutorial for the specified plugin type.
 
     Args:
         plugin_type: The type of plugin (service, environment, protocol)
@@ -511,8 +498,8 @@ def run_tutorial(plugin_type: str) -> int:
 
 
 def launch_interactive_tutorials():
-    """
-    Launches the interactive menu for plugin tutorials.
+    """Launches the interactive menu for plugin tutorials.
+
     This allows users to select which type of plugin tutorial to run.
     """
     print("🌟 PANTHER Interactive Plugin Tutorials")

@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 
-"""
-Unit tests for non-critical command creation and processing in Docker Compose environment.
-"""
+"""Unit tests for non-critical command creation and processing in Docker Compose environment."""
 
 import unittest
 from unittest.mock import MagicMock

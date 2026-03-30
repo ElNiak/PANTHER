@@ -510,7 +510,7 @@ class ConfigLoadingMixin(LoggerMixin):
             "ivy_server": (4000, 4999),
             "ivy_client": (7000, 7999),
             "picoquic_server": (6000, 6999),
-            "picoquic_client": (5000, 5999),
+            "picoquic_client": (5001, 5999),
             "quic": (4400, 4500),
             "http": (8000, 8999),
             "https": (8400, 8500),

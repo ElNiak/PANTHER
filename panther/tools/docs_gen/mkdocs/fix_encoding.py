@@ -7,8 +7,7 @@ import chardet
 
 
 def fix_file_encoding(file_path):
-    """
-    Detect the encoding of a file and convert it to UTF-8 if needed.
+    """Detect the encoding of a file and convert it to UTF-8 if needed.
 
     Args:
         file_path (str): Path to the file to fix

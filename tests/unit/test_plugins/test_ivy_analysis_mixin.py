@@ -332,8 +332,10 @@ class TestAnalyzeOutputsIntegration:
                 os.unlink(f)
 
     def test_passed_requires_decisive_verdict(self, analyzer):
-        """ivy has NO_VIOLATION_FOUND, picoquic has UNKNOWN -> passed: true
-        (only when all compilations succeed)."""
+        """Ivy has NO_VIOLATION_FOUND, picoquic has UNKNOWN -> passed: true.
+
+        (only when all compilations succeed).
+        """
         file_contents = {
             "compilation_status_ivy_server": "Compilation succeeded\n",
             "runtime_stdout_ivy_server": (
@@ -358,7 +360,7 @@ class TestAnalyzeOutputsIntegration:
                 os.unlink(f)
 
     def test_non_compliant_overrides_iut_success(self, analyzer):
-        """ivy has NON_COMPLIANT, picoquic has execution_successful: true -> passed: false."""
+        """Ivy has NON_COMPLIANT, picoquic has execution_successful: true -> passed: false."""
         file_contents = {
             "compilation_status_ivy_server": "Compilation succeeded\n",
             "runtime_stdout_ivy_server": (

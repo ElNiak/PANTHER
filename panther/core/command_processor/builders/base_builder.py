@@ -42,6 +42,7 @@ class CommandBuilder(LoggerMixin):
     """
 
     def __init__(self):
+        """Initialize the command builder with empty args and env vars."""
         super().__init__()
         self._command_args: List[str] = []
         self._env_vars: Dict[str, str] = {}
