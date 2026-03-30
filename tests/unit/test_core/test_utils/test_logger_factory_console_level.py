@@ -2,13 +2,15 @@
 
 Verifies that the classmethod correctly updates StreamHandler levels
 on the root logger and all configured named loggers, while leaving
-FileHandler instances untouched at DEBUG.
+JsonlLogHandler instances untouched at DEBUG.
 """
 
 import logging
 import sys
 
 import pytest
+
+from panther.core.utils.jsonl_writer import JsonlLogHandler
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -122,32 +124,30 @@ class TestSetConsoleLevel:
 
         logger = LoggerFactory.get_logger("test.file.handler")
 
-        file_handlers = [
-            h for h in logger.handlers if isinstance(h, logging.FileHandler)
-        ]
-        assert len(file_handlers) >= 1
-        for fh in file_handlers:
-            assert fh.level == logging.DEBUG
+        jsonl_handlers = [h for h in logger.handlers if isinstance(h, JsonlLogHandler)]
+        assert len(jsonl_handlers) >= 1
+        for jh in jsonl_handlers:
+            assert jh.level == logging.DEBUG
 
         # Now change console level to ERROR
         LoggerFactory.set_console_level(logging.ERROR)
 
-        # File handlers should still be at DEBUG
-        for fh in file_handlers:
-            assert fh.level == logging.DEBUG
+        # JSONL handlers should still be at DEBUG
+        for jh in jsonl_handlers:
+            assert jh.level == logging.DEBUG
 
         # Console handlers should be at ERROR
         console_handlers = [
             h
             for h in logger.handlers
             if isinstance(h, logging.StreamHandler)
-            and not isinstance(h, logging.FileHandler)
+            and not isinstance(h, JsonlLogHandler)
         ]
         for ch in console_handlers:
             assert ch.level == logging.ERROR
 
     def test_root_file_handler_preserved(self, tmp_path):
-        """FileHandler on root logger must stay at DEBUG after set_console_level."""
+        """JsonlLogHandler on root logger must stay at DEBUG after set_console_level."""
         from panther.core.utils.logger_factory import LoggerFactory
 
         log_file = tmp_path / "root.jsonl"
@@ -160,13 +160,13 @@ class TestSetConsoleLevel:
         )
 
         root = logging.getLogger()
-        file_handlers = [h for h in root.handlers if isinstance(h, logging.FileHandler)]
-        assert len(file_handlers) >= 1
+        jsonl_handlers = [h for h in root.handlers if isinstance(h, JsonlLogHandler)]
+        assert len(jsonl_handlers) >= 1
 
         LoggerFactory.set_console_level(logging.CRITICAL)
 
-        for fh in file_handlers:
-            assert fh.level == logging.DEBUG
+        for jh in jsonl_handlers:
+            assert jh.level == logging.DEBUG
 
     def test_updates_multiple_named_loggers(self):
         """All named loggers should have their console handlers updated."""

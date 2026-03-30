@@ -24,6 +24,7 @@ from typing import Any, Dict, List, Optional
 
 from panther.core.metrics.enums import MetricType, Phase
 from panther.core.metrics.metric_types import Metric, TimingContext
+from panther.core.utils.jsonl_writer import JsonlWriter
 from panther.core.utils.log_context import get_log_context
 from panther.core.utils.logging_mixin import LoggerMixin
 
@@ -50,7 +51,7 @@ class MetricsCollector(LoggerMixin):
         experiment_name: str,
         output_dir: Path,
         collection_interval: float = 5.0,
-        structured_log_path: Optional[Path] = None,
+        jsonl_writer: Optional[JsonlWriter] = None,
     ):
         """Initialize the metrics collector.
 
@@ -58,8 +59,9 @@ class MetricsCollector(LoggerMixin):
             experiment_name: Name of the experiment.
             output_dir: Directory where metrics will be stored.
             collection_interval: Background collection interval in seconds.
-            structured_log_path: Path to structured.jsonl for inline metric writing.
-                When set, each recorded metric is also appended as a JSONL line.
+            jsonl_writer: Shared :class:`JsonlWriter` for structured JSONL output.
+                When set, each recorded metric is also written as a JSONL line
+                through the centralized writer.
         """
         super().__init__()
         self.experiment_name = experiment_name
@@ -68,7 +70,6 @@ class MetricsCollector(LoggerMixin):
         self.active_timers: Dict[str, TimingContext] = {}
         self.metrics_lock = threading.Lock()
         self.timers_lock = threading.Lock()
-        self._jsonl_lock = threading.Lock()
 
         # Thread management
         self.collection_thread = None
@@ -79,8 +80,8 @@ class MetricsCollector(LoggerMixin):
         self.experiment_start_time = time.time()
         self._finalized = False
 
-        # Structured JSONL output (shared with logging/event handlers)
-        self._structured_log_path = structured_log_path
+        # Centralized JSONL writer (shared with logging/event handlers)
+        self._jsonl_writer = jsonl_writer
 
         # Record experiment start
         self.record_metric(
@@ -235,7 +236,7 @@ class MetricsCollector(LoggerMixin):
         Args:
             metric: The metric to write.
         """
-        if self._structured_log_path is None:
+        if self._jsonl_writer is None:
             return
         ctx = get_log_context()
         record: Dict[str, Any] = {
@@ -257,14 +258,12 @@ class MetricsCollector(LoggerMixin):
         record = {k: v for k, v in record.items() if v is not None}
         try:
             line = json.dumps(record, default=str)
-            with self._jsonl_lock:
-                with open(self._structured_log_path, "a", encoding="utf-8") as fh:
-                    fh.write(line + "\n")
+            self._jsonl_writer.write_line(line)
         except Exception as exc:  # pylint: disable=broad-exception-caught
             if not getattr(self, "_jsonl_write_warned", False):
                 self._jsonl_write_warned = True
                 self.logger.warning(
-                    "Failed to write metric to structured JSONL (further errors suppressed): %s",
+                    "Failed to write metric to structured log: %s",
                     exc,
                 )
 

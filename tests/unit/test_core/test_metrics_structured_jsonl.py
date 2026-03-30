@@ -10,6 +10,7 @@ from panther.core.metrics.enums import MetricType, Phase
 from panther.core.metrics.metric_types import Metric
 from panther.core.metrics.metrics_collector import MetricsCollector
 from panther.core.reporting.log_query_engine import LogFilter, LogQueryEngine
+from panther.core.utils.jsonl_writer import JsonlWriter
 from panther.core.utils.log_context import log_context
 
 
@@ -26,9 +27,8 @@ class TestMetricsToStructuredJsonl:
     def test_metric_written_to_jsonl(self, tmp_experiment):
         """Recorded metrics appear as JSONL lines."""
         exp_dir, structured = tmp_experiment
-        collector = MetricsCollector(
-            "test_exp", exp_dir, structured_log_path=structured
-        )
+        writer = JsonlWriter(structured)
+        collector = MetricsCollector("test_exp", exp_dir, jsonl_writer=writer)
         collector.record_metric("test_duration", MetricType.TIMING, 1.23)
         collector.stop_collection_thread()
 
@@ -47,9 +47,8 @@ class TestMetricsToStructuredJsonl:
     def test_context_inherited(self, tmp_experiment):
         """Metrics pick up experiment_id/test_id from LogContext."""
         exp_dir, structured = tmp_experiment
-        collector = MetricsCollector(
-            "test_exp", exp_dir, structured_log_path=structured
-        )
+        writer = JsonlWriter(structured)
+        collector = MetricsCollector("test_exp", exp_dir, jsonl_writer=writer)
         with log_context(experiment_id="exp-1", test_id="test-1"):
             collector.record_metric("latency", MetricType.GAUGE, 42.0)
         collector.stop_collection_thread()
@@ -62,8 +61,8 @@ class TestMetricsToStructuredJsonl:
         assert metric_lines[0]["experiment_id"] == "exp-1"
         assert metric_lines[0]["test_id"] == "test-1"
 
-    def test_no_jsonl_without_path(self, tmp_experiment):
-        """No file written when structured_log_path is None."""
+    def test_no_jsonl_without_writer(self, tmp_experiment):
+        """No file written when jsonl_writer is None."""
         exp_dir, structured = tmp_experiment
         collector = MetricsCollector("test_exp", exp_dir)
         collector.record_metric("count", MetricType.COUNTER, 1)
@@ -73,9 +72,8 @@ class TestMetricsToStructuredJsonl:
     def test_phase_from_metric(self, tmp_experiment):
         """Phase field uses metric's phase when set."""
         exp_dir, structured = tmp_experiment
-        collector = MetricsCollector(
-            "test_exp", exp_dir, structured_log_path=structured
-        )
+        writer = JsonlWriter(structured)
+        collector = MetricsCollector("test_exp", exp_dir, jsonl_writer=writer)
         collector.record_metric(
             "setup_time", MetricType.TIMING, 2.0, phase=Phase.TEST_EXECUTION
         )
@@ -91,11 +89,14 @@ class TestMetricsToStructuredJsonl:
         """Circuit-breaker: first JSONL write failure logs warning, second is silent."""
         import time
 
+        # Create collector without writer first (so __init__ metric doesn't trigger)
         collector = MetricsCollector("test-exp", str(tmp_path))
-        # Point to an unwritable path (parent dir doesn't exist)
-        collector._structured_log_path = (
-            tmp_path / "nonexistent_dir" / "structured.jsonl"
-        )
+
+        # Now point to an unwritable path (path is a directory, not a file)
+        bad_path = tmp_path / "bad_structured.jsonl"
+        bad_path.mkdir(parents=True, exist_ok=True)
+        writer = JsonlWriter(bad_path)
+        collector._jsonl_writer = writer
 
         metric1 = Metric(
             name="test", metric_type=MetricType.COUNTER, value=1, timestamp=time.time()

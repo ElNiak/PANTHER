@@ -239,10 +239,15 @@ class ExperimentObserverMixin:
                 EventStreamRecorder,
             )
 
-            structured_path = self.logs_dir / "structured.jsonl"
-            self.event_stream_recorder = EventStreamRecorder(
-                output_path=structured_path
-            )
+            writer = getattr(self, "_jsonl_writer", None)
+            if writer is None:
+                self.logger.warning(
+                    "No centralized JsonlWriter available; "
+                    "EventStreamRecorder will not be registered."
+                )
+                return
+
+            self.event_stream_recorder = EventStreamRecorder(writer=writer)
             self.event_manager.register_observer_once(
                 observer=self.event_stream_recorder,
                 observer_id="event_stream_recorder",
@@ -250,7 +255,7 @@ class ExperimentObserverMixin:
                 event_types=None,
                 priority=10,  # Low priority: run after business observers
             )
-            self.logger.info("Registered EventStreamRecorder -> %s", structured_path)
+            self.logger.info("Registered EventStreamRecorder -> %s", writer.path)
         except Exception as recorder_error:  # pylint: disable=broad-exception-caught
             self.logger.warning(
                 "Failed to create EventStreamRecorder: %s. "

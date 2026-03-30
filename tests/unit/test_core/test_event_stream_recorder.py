@@ -10,6 +10,7 @@ import pytest
 
 from panther.core.events.base.event_base import BaseEvent, EventType
 from panther.core.observer.impl.event_stream_recorder import EventStreamRecorder
+from panther.core.utils.jsonl_writer import JsonlWriter
 from panther.core.utils.log_context import log_context
 
 # -- Concrete event subclass for tests (BaseEvent is abstract) ----------------
@@ -32,8 +33,11 @@ def tmp_jsonl(tmp_path):
 
 @pytest.fixture()
 def recorder(tmp_jsonl):
-    """Return an EventStreamRecorder wired to the tmp path."""
-    return EventStreamRecorder(output_path=tmp_jsonl)
+    """Return an EventStreamRecorder wired to the tmp path via JsonlWriter."""
+    writer = JsonlWriter(tmp_jsonl)
+    rec = EventStreamRecorder(writer=writer)
+    yield rec
+    writer.close()
 
 
 def _read_records(path: Path):
@@ -151,7 +155,8 @@ class TestEventStreamRecorderThreadSafety:
 
     def test_concurrent_writes(self, tmp_jsonl):
         """Multiple threads writing simultaneously produce valid JSONL."""
-        recorder = EventStreamRecorder(output_path=tmp_jsonl)
+        writer = JsonlWriter(tmp_jsonl)
+        recorder = EventStreamRecorder(writer=writer)
         barrier = threading.Barrier(4)
 
         def _write_events(thread_id):
@@ -194,10 +199,13 @@ class TestEventStreamRecorderPriority:
 class TestEventStreamRecorderErrorHandling:
     """Graceful handling of write failures."""
 
-    def test_write_failure_returns_false(self, recorder, tmp_jsonl):
+    def test_write_failure_returns_false(self, tmp_path):
         """If the file cannot be opened, on_event returns False."""
+        bad_path = tmp_path / "bad_structured.jsonl"
         # Make the output path a directory so open() fails
-        tmp_jsonl.mkdir(parents=True, exist_ok=True)
+        bad_path.mkdir(parents=True, exist_ok=True)
+        writer = JsonlWriter(bad_path)
+        recorder = EventStreamRecorder(writer=writer)
         event = _TestEvent("started", EventType.TEST, "t1")
         result = recorder.on_event(event)
         assert result is False

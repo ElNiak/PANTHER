@@ -497,11 +497,14 @@ class ExperimentManager(
         # Create a directory for logs if it doesn't exist
         self.logs_dir.mkdir(parents=True, exist_ok=True)
 
-        # Wire metrics collector to structured.jsonl if present
-        if self.metrics_collector is not None:
-            self.metrics_collector._structured_log_path = (
-                self.logs_dir / "structured.jsonl"
-            )
+        # Store the centralized JSONL writer for EventStreamRecorder (wired in
+        # register_event_stream_recorder via ExperimentObserverMixin).
+        self._jsonl_writer = LoggerFactory.get_jsonl_writer()
+
+        # Wire the centralized writer into the metrics collector so that
+        # metric records share the same lock and file handle.
+        if self.metrics_collector is not None and self._jsonl_writer is not None:
+            self.metrics_collector._jsonl_writer = self._jsonl_writer
 
         # The logger is already configured through LoggerFactory, just log initialization
         self.logger.info(
@@ -1174,14 +1177,15 @@ class ExperimentManager(
                     e,
                 )
 
-            # Close EventStreamRecorder file handle before unregistering observers
+            # Close the centralized JSONL writer (shared by logging, events,
+            # and metrics) so that all buffered data is flushed to disk.
             try:
-                if hasattr(self, "event_stream_recorder"):
-                    self.event_stream_recorder.close()
-                    self.logger.debug("Closed EventStreamRecorder")
+                if hasattr(self, "_jsonl_writer") and self._jsonl_writer is not None:
+                    self._jsonl_writer.close()
+                    self.logger.debug("Closed centralized JsonlWriter")
             except Exception as e:  # pylint: disable=broad-exception-caught
                 self.logger.warning(
-                    "Failed to close EventStreamRecorder (data may be unflushed): %s", e
+                    "Failed to close JsonlWriter (data may be unflushed): %s", e
                 )
 
             # Clean up other observers through factory

@@ -19,6 +19,7 @@ from typing import Any, Dict, Optional
 
 from .console_formatter import ConsoleFormatter
 from .feature_registry import feature_registry
+from .jsonl_writer import JsonlLogHandler, JsonlWriter
 from .structured_formatter import StructuredJsonFormatter
 
 
@@ -63,6 +64,7 @@ class LoggerFactory:
     _handler_cache: Dict[str, logging.Handler] = {}
     _feature_levels: Dict[str, Any] = {}
     _verbose: bool = False
+    _jsonl_writer: Optional[JsonlWriter] = None
 
     # Logger names that get extra debug output when _DEBUG_FACTORY is True
     _DEBUG_LOGGERS: frozenset = frozenset(
@@ -257,13 +259,14 @@ class LoggerFactory:
         # Structured JSONL file handler (replaces old text file handler)
         structured_path = cls._config.get("output_file")
         if structured_path:
+            cls._jsonl_writer = JsonlWriter(Path(structured_path))
             structured_formatter = StructuredJsonFormatter()
-            file_handler = cls._get_or_create_handler(
-                "file", logging.FileHandler(structured_path, mode="a")
+            jsonl_handler = cls._get_or_create_handler(
+                "file", JsonlLogHandler(cls._jsonl_writer)
             )
-            file_handler.setLevel(logging.DEBUG)
-            file_handler.setFormatter(structured_formatter)
-            root_logger.addHandler(file_handler)
+            jsonl_handler.setLevel(logging.DEBUG)
+            jsonl_handler.setFormatter(structured_formatter)
+            root_logger.addHandler(jsonl_handler)
 
         cls._root_logger_configured = True
 
@@ -320,6 +323,16 @@ class LoggerFactory:
         return cls._handler_cache[name]
 
     @classmethod
+    def get_jsonl_writer(cls) -> Optional[JsonlWriter]:
+        """Return the centralized :class:`JsonlWriter`, or ``None`` if not configured.
+
+        Other components (MetricsCollector, EventStreamRecorder) should
+        use this writer instead of opening the structured JSONL file
+        independently.
+        """
+        return cls._jsonl_writer
+
+    @classmethod
     def get_logger(cls, name: str, feature: Optional[str] = None) -> logging.Logger:
         """Get a logger with consistent configuration and feature-aware logging level.
 
@@ -371,16 +384,15 @@ class LoggerFactory:
         console_handler.setFormatter(formatter)
         logger.addHandler(console_handler)
 
-        # Add structured JSONL file handler if output_file is configured
-        structured_path = cls._config.get("output_file")
-        if structured_path:
+        # Add structured JSONL handler if the centralized writer is available
+        if cls._jsonl_writer is not None:
             structured_formatter = StructuredJsonFormatter()
-            file_handler = logging.FileHandler(structured_path, mode="a")
-            file_handler.setLevel(
+            jsonl_handler = JsonlLogHandler(cls._jsonl_writer)
+            jsonl_handler.setLevel(
                 logging.DEBUG
             )  # Always capture everything for post-mortem
-            file_handler.setFormatter(structured_formatter)
-            logger.addHandler(file_handler)
+            jsonl_handler.setFormatter(structured_formatter)
+            logger.addHandler(jsonl_handler)
 
         # Store detected feature on the logger and inject it into every record
         # via a filter so StructuredJsonFormatter can access it
