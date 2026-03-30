@@ -65,7 +65,9 @@ class DockerBuildCacheMixin(LoggerMixin):
             with open(dockerfile_path, "rb") as f:
                 return hashlib.sha256(f.read()).hexdigest()
         except Exception as e:
-            self.logger.warning(f"Failed to hash Dockerfile: {e}")
+            self.logger.warning(
+                f"Failed to hash Dockerfile (will rebuild without cache): {e}"
+            )
             return "unknown"
 
     def _calculate_context_hash(
@@ -107,7 +109,9 @@ class DockerBuildCacheMixin(LoggerMixin):
 
             return hasher.hexdigest()
         except Exception as e:
-            self.logger.warning(f"Failed to hash build context: {e}")
+            self.logger.warning(
+                f"Failed to hash build context (will rebuild without cache): {e}"
+            )
             return "unknown"
 
     def should_use_cached_build(
@@ -159,7 +163,9 @@ class DockerBuildCacheMixin(LoggerMixin):
                     )
                     cached_image_id = cached_entry.image_id
             except Exception as e:
-                self.logger.warning(f"Failed to verify cached image: {e}")
+                self.logger.warning(
+                    f"Failed to verify cached image (will rebuild): {e}"
+                )
 
         if not cached_image_id:
             self.logger.debug(

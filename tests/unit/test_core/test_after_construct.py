@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""
-Test script that specifically focuses on commands after constructs.
-"""
+"""Test script that specifically focuses on commands after constructs."""
 import logging
 import os
 

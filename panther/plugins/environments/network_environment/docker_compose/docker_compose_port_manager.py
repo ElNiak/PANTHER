@@ -1,5 +1,4 @@
-"""
-Docker Compose Port Manager for PANTHER Framework.
+"""Docker Compose Port Manager for PANTHER Framework.
 
 This module handles all port-related operations for Docker Compose environments,
 including port availability checking, conflict resolution, and dynamic port allocation.
@@ -20,8 +19,7 @@ from panther.plugins.environments.network_environment.mixins import (
 
 
 class DockerComposePortManager(SubprocessExecutorMixin):
-    """
-    Manages port allocation and conflict resolution for Docker Compose environments.
+    """Manages port allocation and conflict resolution for Docker Compose environments.
 
     This class handles:
     - Port availability checking with retry logic
@@ -32,8 +30,7 @@ class DockerComposePortManager(SubprocessExecutorMixin):
     """
 
     def __init__(self, logger: Optional[logging.Logger] = None):
-        """
-        Initialize the port manager.
+        """Initialize the port manager.
 
         Args:
             logger: Logger instance for port management operations
@@ -44,8 +41,7 @@ class DockerComposePortManager(SubprocessExecutorMixin):
         super().__init__()
 
     def check_port_availability(self, services_managers: List) -> None:
-        """
-        Check if required ports are available before starting containers.
+        """Check if required ports are available before starting containers.
 
         This is the main entry point for port validation. It performs:
         1. Stale container cleanup
@@ -78,8 +74,9 @@ class DockerComposePortManager(SubprocessExecutorMixin):
                         # Check if port is available using bind() for more accurate detection
                         if not self._is_port_available(host_port):
                             conflicts.append((host_port, service_name))
-                            self.logger.error(
-                                f"Port {host_port} is already in use (needed by {service_name})"
+                            self.logger.warning(
+                                f"Port {host_port} is already in use (needed by {service_name}), "
+                                "will attempt dynamic reallocation"
                             )
                         else:
                             self.logger.debug(
@@ -112,8 +109,7 @@ class DockerComposePortManager(SubprocessExecutorMixin):
                 self.logger.info("All port conflicts resolved successfully")
 
     def verify_ports_released(self, services_managers: List) -> bool:
-        """
-        Verify that all ports used by services are no longer in use.
+        """Verify that all ports used by services are no longer in use.
 
         Args:
             services_managers: List of service manager instances
@@ -150,8 +146,11 @@ class DockerComposePortManager(SubprocessExecutorMixin):
         return True
 
     def _is_port_available(self, port: int, max_retries: int = 3) -> bool:
-        """
-        Check if a port is available using bind() method with retry logic.
+        """Check if a port is available using bind() method with retry logic.
+
+        Checks both localhost and 0.0.0.0 because Docker binds to 0.0.0.0
+        by default. A port can appear available on localhost but be occupied
+        on 0.0.0.0 (e.g., macOS AirPlay Receiver on port 5000).
 
         Args:
             port: Port number to check
@@ -164,12 +163,13 @@ class DockerComposePortManager(SubprocessExecutorMixin):
 
         for attempt in range(max_retries):
             try:
-                # Use bind() which is more accurate than connect_ex()
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                sock.settimeout(1)
-                sock.bind(("localhost", port))
-                sock.close()
+                # Check both 0.0.0.0 and localhost — Docker uses 0.0.0.0
+                for host in ("0.0.0.0", "localhost"):
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                    sock.settimeout(1)
+                    sock.bind((host, port))
+                    sock.close()
                 return True
             except OSError as e:
                 if attempt < max_retries - 1:
@@ -259,8 +259,7 @@ class DockerComposePortManager(SubprocessExecutorMixin):
     def _attempt_port_conflict_resolution(
         self, conflicts: List[Tuple[int, str]]
     ) -> List[Tuple[int, str]]:
-        """
-        Attempt to resolve port conflicts through cleanup and waiting.
+        """Attempt to resolve port conflicts through cleanup and waiting.
 
         Args:
             conflicts: List of (port, service_name) tuples
@@ -344,8 +343,7 @@ class DockerComposePortManager(SubprocessExecutorMixin):
     def _attempt_dynamic_port_allocation(
         self, conflicts: List[Tuple[int, str]], services_managers: List
     ) -> bool:
-        """
-        Attempt to resolve port conflicts by dynamically allocating alternative ports.
+        """Attempt to resolve port conflicts by dynamically allocating alternative ports.
 
         Args:
             conflicts: List of (port, service_name) tuples with unresolved conflicts
@@ -384,8 +382,7 @@ class DockerComposePortManager(SubprocessExecutorMixin):
     def _find_available_port(
         self, original_port: int, port_range: int = 1000
     ) -> Optional[int]:
-        """
-        Find an available port starting from original_port + 1000.
+        """Find an available port starting from original_port + 1000.
 
         Args:
             original_port: The original conflicted port
@@ -415,8 +412,7 @@ class DockerComposePortManager(SubprocessExecutorMixin):
     def _apply_dynamic_port_mappings(
         self, port_mappings: Dict[str, Tuple[int, int]], services_managers: List
     ) -> bool:
-        """
-        Apply dynamic port mappings to service configurations.
+        """Apply dynamic port mappings to service configurations.
 
         Args:
             port_mappings: Dict mapping service_name to (original_port, new_port) tuples

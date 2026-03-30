@@ -14,13 +14,13 @@ from panther.cli.core.base import (
 )
 
 
-@featured_example("panther web --port 8080")
+@featured_example("panther web --port 8088")
 @click.command()
 @click.option(
     "--host", default="127.0.0.1", help="Host to bind to (default: 127.0.0.1)"
 )
 @click.option(
-    "--port", "-p", default=8080, type=int, help="Port to serve on (default: 8080)"
+    "--port", "-p", default=8088, type=int, help="Port to serve on (default: 8088)"
 )
 @click.option(
     "--config",
@@ -47,7 +47,7 @@ def web(ctx, host, port, config, output_dir, reload):
 
     \b
     Examples:
-      panther web                          # Start on localhost:8080
+      panther web                          # Start on localhost:8088
       panther web -p 3000                  # Custom port
       panther web -c experiment.yaml       # Preload config
       panther web --reload                 # Dev mode with hot reload

@@ -1,6 +1,4 @@
-"""
-Unit tests for Picoquic plugin template rendering with enhanced quoting.
-"""
+"""Unit tests for Picoquic plugin template rendering with enhanced quoting."""
 
 import shlex
 import tempfile

@@ -1,19 +1,9 @@
-from typing import List
-
-"""
-Script to install plugin templates during package installation.
-
-This script ensures that the plugin templates are correctly installed
-when the PANTHER package is installed, so they can be accessed in
-production mode.
-
-It supports both top-level plugin templates and subplugin templates,
-and can process Jinja2 templates for dynamic content generation.
-"""
+"""Script to install plugin templates during package installation."""
 
 import shutil
 import site
 from pathlib import Path
+from typing import List
 
 try:
     import jinja2
@@ -32,8 +22,8 @@ PLUGIN_HIERARCHY = {
 
 
 def install_templates():
-    """
-    Install plugin templates to the site-packages directory.
+    """Install plugin templates to the site-packages directory.
+
     Handles both top-level plugin templates and specialized subplugin templates.
     """
     # Plugin types
@@ -103,8 +93,7 @@ def install_templates():
 
 
 def process_jinja_templates(target_dir, plugin_types):
-    """
-    Process any .j2 template files found in the target directory.
+    """Process any .j2 template files found in the target directory.
 
     Args:
         target_dir: Path to the target directory where templates are installed

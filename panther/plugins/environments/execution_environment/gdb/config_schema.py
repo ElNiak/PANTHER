@@ -177,6 +177,26 @@ class GdbConfig(ExecutionEnvironmentConfig):
         ),
     )
 
+    enable_syscall_catching: bool = Field(
+        default=False,
+        description=(
+            "Enable 'catch syscall' in GDB to intercept all system calls. "
+            "WARNING: causes severe performance degradation and SIGSEGV "
+            "crashes for high-throughput network programs (e.g., QUIC). "
+            "Use the 'strace' execution environment for syscall tracing. "
+            "Default: False."
+        ),
+    )
+    enable_network_breakpoints: bool = Field(
+        default=False,
+        description=(
+            "Set breakpoints on connect(), bind(), and listen() libc calls. "
+            "WARNING: fires on every network operation, causing severe "
+            "slowdowns for network-intensive programs. "
+            "Default: False."
+        ),
+    )
+
     # -- Output configuration --
 
     output_format: str = Field(

@@ -9,7 +9,7 @@ from jinja2 import Environment, FileSystemLoader
 
 # Helper function to get the template directory path for picoquic
 def get_template_path():
-    """Get the path to the Picoquic templates directory"""
+    """Get the path to the Picoquic templates directory."""
     plugin_dir = Path(
         os.path.dirname(
             os.path.dirname(
@@ -33,7 +33,7 @@ def get_template_path():
 
 @pytest.fixture
 def env():
-    """Create a Jinja2 environment with the necessary filters"""
+    """Create a Jinja2 environment with the necessary filters."""
     template_dir = get_template_path()
     env = Environment(loader=FileSystemLoader(template_dir), autoescape=False)
     # Register the essential filters for proper escaping
@@ -149,7 +149,7 @@ def test_picoquic_structured_templates(
     ],
 )
 def test_picoquic_template_edge_cases(env, template_name, cmd_args, env_vars):
-    """Test that the Picoquic structured templates handle edge cases gracefully"""
+    """Test that the Picoquic structured templates handle edge cases gracefully."""
     try:
         template = env.get_template(template_name)
         rendered = template.render(command_args=cmd_args, env_vars=env_vars)

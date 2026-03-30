@@ -17,6 +17,8 @@ import sys
 from pathlib import Path
 from typing import Dict, Optional
 
+logger = logging.getLogger(__name__)
+
 
 def _setup_import_path():
     """Ensure the project root is on sys.path for imports."""
@@ -101,8 +103,8 @@ def _determine_dev_status(manifest, plugin_dir: Optional[Path]) -> str:
                 content = readme_path.read_text(encoding="utf-8")
                 if '!!! warning "Development Status"' in content:
                     return "not totally working"
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Failed to read README for plugin inventory: %s", e)
             return "ok"
 
     # No README and no tags — use docstring presence as proxy

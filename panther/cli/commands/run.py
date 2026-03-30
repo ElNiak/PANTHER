@@ -20,6 +20,7 @@ from panther.cli.core.base import (
     pass_context_and_setup_logging,
     success_message,
 )
+from panther.core.utils.logger_factory import TRACE
 
 
 @featured_example("panther run --config experiment.yaml")
@@ -44,7 +45,17 @@ from panther.cli.core.base import (
     is_flag=True,
     help="Show what commands would be executed without running them",
 )
-@click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
+@click.option(
+    "--verbose",
+    "-v",
+    is_flag=True,
+    help="Enable verbose output (DEBUG level on console)",
+)
+@click.option(
+    "--debug",
+    is_flag=True,
+    help="Enable TRACE-level console output (overrides --verbose)",
+)
 # Plugin directories group
 @click.option(
     "--exec-env-dir",
@@ -124,6 +135,7 @@ def run(
     experiment_name,
     dry_run,
     verbose,
+    debug,
     exec_env_dir,
     net_env_dir,
     iut_dir,
@@ -198,21 +210,29 @@ def run(
     • Protocol-specific measurements
     • Docker container statistics
     """
-    # Enhanced logging setup
+    # Enhanced logging setup -- merge top-level and per-command flags
+    debug = debug or ctx.obj.get("debug", False)
     verbose = verbose or ctx.obj.get("verbose", False)
 
-    if verbose:
+    # Determine console_level: --debug (TRACE=5) wins over --verbose (DEBUG)
+    console_level = None
+    if debug:
+        console_level = TRACE
+    elif verbose:
+        console_level = logging.DEBUG
+
+    if verbose or debug:
         info_message(f"Starting PANTHER experiment with config: {config}")
 
     # Validate output directory
     output_dir = Path(output_dir)
     if not output_dir.exists():
         output_dir.mkdir(parents=True, exist_ok=True)
-        if verbose:
+        if verbose or debug:
             info_message(f"Created output directory: {output_dir}")
 
     # Show configuration summary
-    if verbose:
+    if verbose or debug:
         click.echo(colored("📋 Experiment Configuration:", "blue", attrs=["bold"]))
         click.echo(f"   📄 Config file: {config}")
         click.echo(f"   📁 Output directory: {output_dir}")
@@ -285,7 +305,12 @@ def run(
 
                 cli_overrides = extract_cli_overrides(ctx)
 
-                manager = ConfigurationManager()
+                manager = ConfigurationManager(
+                    exec_env_dir=exec_env_dir or "",
+                    net_env_dir=net_env_dir or "",
+                    iut_dir=iut_dir or "",
+                    testers_dir=tester_dir or "",
+                )
                 global_config, experiment_config = manager.load_full_config(
                     config, cli_overrides=cli_overrides
                 )
@@ -315,6 +340,7 @@ def run(
                     experiment_name=experiment_name,
                     metrics_collector=metrics_collector,
                     dry_run=False,
+                    console_level=console_level,
                 ) as experiment_manager:
                     # Initialize experiments with experiment config
                     info_message("🔧 Initializing experiment...")

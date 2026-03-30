@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""
-Test module for the enhanced PantherIvy service implementation
-"""
+"""Test module for the enhanced PantherIvy service implementation."""
 import os
 import shutil
 import sys

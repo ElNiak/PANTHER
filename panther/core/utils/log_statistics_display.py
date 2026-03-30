@@ -1,5 +1,4 @@
-"""
-Log Statistics Display
+"""Log Statistics Display.
 
 Real-time display system for logging statistics with threading support
 and configurable display modes for live monitoring during experiments.
@@ -17,8 +16,7 @@ from .log_statistics_reporter import LogStatisticsReporter
 
 
 class LogStatisticsDisplay:
-    """
-    Real-time display system for logging statistics.
+    """Real-time display system for logging statistics.
 
     Provides live statistics updates in a separate thread during experiment
     execution with configurable display modes and update intervals.
@@ -31,8 +29,7 @@ class LogStatisticsDisplay:
         display_mode: str = "detailed",
         auto_clear: bool = True,
     ):
-        """
-        Initialize the real-time display system.
+        """Initialize the real-time display system.
 
         Args:
             collector: The statistics collector to display from
@@ -69,8 +66,7 @@ class LogStatisticsDisplay:
         self._setup_signal_handlers()
 
     def start_display(self) -> bool:
-        """
-        Start real-time statistics display in separate thread.
+        """Start real-time statistics display in separate thread.
 
         Returns:
             True if started successfully, False if already running
@@ -328,8 +324,7 @@ class LogStatisticsDisplay:
             pass
 
     def add_update_callback(self, callback: Callable[[Dict[str, Any]], None]) -> None:
-        """
-        Add a callback function to be called on each update.
+        """Add a callback function to be called on each update.
 
         Args:
             callback: Function that takes statistics dict as argument
@@ -339,8 +334,7 @@ class LogStatisticsDisplay:
     def remove_update_callback(
         self, callback: Callable[[Dict[str, Any]], None]
     ) -> None:
-        """
-        Remove a previously added callback.
+        """Remove a previously added callback.
 
         Args:
             callback: Function to remove from callbacks
@@ -349,8 +343,7 @@ class LogStatisticsDisplay:
             self.update_callbacks.remove(callback)
 
     def set_display_options(self, **options) -> None:
-        """
-        Update display options dynamically.
+        """Update display options dynamically.
 
         Args:
             **options: Display options to update (show_features, show_performance, etc.)
@@ -360,8 +353,7 @@ class LogStatisticsDisplay:
                 setattr(self, key, value)
 
     def get_display_status(self) -> Dict[str, Any]:
-        """
-        Get current status of the display system.
+        """Get current status of the display system.
 
         Returns:
             Dictionary containing display status information
@@ -381,8 +373,7 @@ class LogStatisticsDisplay:
         }
 
     def take_snapshot(self, filepath: str) -> bool:
-        """
-        Take a snapshot of current statistics and save to file.
+        """Take a snapshot of current statistics and save to file.
 
         Args:
             filepath: Path where to save the snapshot
@@ -400,19 +391,17 @@ class LogStatisticsDisplay:
 
 
 class StatisticsDisplayManager:
-    """
-    Manager class for handling multiple display instances and configurations.
-    """
+    """Manager class for handling multiple display instances and configurations."""
 
     def __init__(self):
+        """Initialize the statistics display manager."""
         self.displays: Dict[str, LogStatisticsDisplay] = {}
         self.default_display: Optional[LogStatisticsDisplay] = None
 
     def create_display(
         self, name: str, collector: LogStatisticsCollector, **kwargs
     ) -> LogStatisticsDisplay:
-        """
-        Create a new display instance.
+        """Create a new display instance.
 
         Args:
             name: Unique name for the display
@@ -431,8 +420,7 @@ class StatisticsDisplayManager:
         return display
 
     def start_display(self, name: str) -> bool:
-        """
-        Start a specific display by name.
+        """Start a specific display by name.
 
         Args:
             name: Name of display to start
@@ -445,8 +433,7 @@ class StatisticsDisplayManager:
         return False
 
     def stop_display(self, name: str) -> None:
-        """
-        Stop a specific display by name.
+        """Stop a specific display by name.
 
         Args:
             name: Name of display to stop
@@ -461,8 +448,7 @@ class StatisticsDisplayManager:
                 display.stop_display()
 
     def get_display(self, name: str) -> Optional[LogStatisticsDisplay]:
-        """
-        Get a display instance by name.
+        """Get a display instance by name.
 
         Args:
             name: Name of display to get
@@ -473,8 +459,7 @@ class StatisticsDisplayManager:
         return self.displays.get(name)
 
     def list_displays(self) -> Dict[str, Dict[str, Any]]:
-        """
-        List all displays and their status.
+        """List all displays and their status.
 
         Returns:
             Dictionary mapping display names to their status
@@ -495,8 +480,7 @@ def create_display(
     interval: int = 10,
     **kwargs,
 ) -> LogStatisticsDisplay:
-    """
-    Factory function to create a statistics display.
+    """Factory function to create a statistics display.
 
     Args:
         collector: Statistics collector instance

@@ -325,11 +325,19 @@ def content():
     # Live streaming callbacks
     def on_log(line: str):
         """Push a single log line into the log viewer."""
-        log_viewer.push(line)
+        try:
+            with client_ref:
+                log_viewer.push(line)
+        except RuntimeError:
+            pass  # client disconnected
 
     def on_status(s: str):
         """Update the status label text."""
-        status_label.text = f"Status: {s}"
+        try:
+            with client_ref:
+                status_label.text = f"Status: {s}"
+        except RuntimeError:
+            pass  # client disconnected
 
     experiment_svc.register_callbacks(on_log, on_status)
 
@@ -375,10 +383,14 @@ def content():
     # Poll for status sync (handles experiment finishing while page is open)
     def _sync_status():
         """Poll experiment status and toggle run/stop button visibility."""
-        status_label.text = f"Status: {experiment_svc.status}"
-        if not experiment_svc.is_running:
-            run_btn.set_visibility(True)
-            stop_btn.set_visibility(False)
+        try:
+            with client_ref:
+                status_label.text = f"Status: {experiment_svc.status}"
+                if not experiment_svc.is_running:
+                    run_btn.set_visibility(True)
+                    stop_btn.set_visibility(False)
+        except RuntimeError:
+            pass  # client disconnected
 
     ui.timer(2.0, _sync_status)
 
@@ -399,15 +411,27 @@ def content():
         try:
             await experiment_svc.run_experiment(config_path=path)
             logger.info("Experiment completed for config: %s", path)
-            ui.notify("Experiment completed", type="positive")
+            try:
+                with client_ref:
+                    ui.notify("Experiment completed", type="positive")
+            except RuntimeError:
+                logger.debug("Client disconnected before completion notification")
         except Exception as e:
             logger.error("Experiment failed for config %s: %s", path, e)
-            status_label.text = f"Status: Error - {e}"
-            log_viewer.push(f"ERROR: {e}")
-            ui.notify(f"Experiment failed: {e}", type="negative")
+            try:
+                with client_ref:
+                    status_label.text = f"Status: Error - {e}"
+                    log_viewer.push(f"ERROR: {e}")
+                    ui.notify(f"Experiment failed: {e}", type="negative")
+            except RuntimeError:
+                logger.debug("Client disconnected before error notification")
         finally:
-            run_btn.set_visibility(True)
-            stop_btn.set_visibility(False)
+            try:
+                with client_ref:
+                    run_btn.set_visibility(True)
+                    stop_btn.set_visibility(False)
+            except RuntimeError:
+                logger.debug("Client disconnected during button reset")
 
     def on_stop():
         logger.info("User requested experiment stop")

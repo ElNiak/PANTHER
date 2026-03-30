@@ -25,9 +25,8 @@ Example:
                 return event_type.startswith("test.")
 
             def on_event(self, event: BaseEvent):
-                if event.uuid in self.processed_events_uuids:
-                    return  # Skip duplicate
-                self.processed_events_uuids.append(event.uuid)
+                if self._is_duplicate(event):
+                    return
                 self.event_count += 1
 
 See Also:
@@ -36,15 +35,10 @@ See Also:
 
 import logging
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from collections import OrderedDict
+from typing import Optional
 
 from panther.core.events.base.event_base import BaseEvent
-
-# Try to import ColoredFormatter, fallback gracefully if not available
-try:
-    from colorlog import ColoredFormatter
-except ImportError:
-    ColoredFormatter = None
 
 
 class IObserver(ABC):
@@ -55,26 +49,29 @@ class IObserver(ABC):
     and may optionally override ``is_interested()`` and ``get_priority()``.
 
     Attributes:
-        processed_events_uuids: List of UUIDs for events already processed
-            by this observer, used for deduplication.
+        processed_events_uuids: OrderedDict of UUIDs for events already
+            processed by this observer, used for O(1) deduplication lookup.
+            Bounded to ``_MAX_DEDUP_SIZE`` entries; oldest 20% are evicted
+            when the limit is exceeded.
 
     Example:
         Minimal observer implementation::
 
             class MinimalObserver(IObserver):
                 def on_event(self, event: BaseEvent):
-                    if event.uuid in self.processed_events_uuids:
+                    if self._is_duplicate(event):
                         return
                     # process event ...
-                    self.processed_events_uuids.append(event.uuid)
 
     See Also:
         `ITypedObserver` for automatic event routing by type.
     """
 
+    _MAX_DEDUP_SIZE: int = 10_000
+
     def __init__(self):
         """Initialize IObserver."""
-        self.processed_events_uuids: List[str] = []
+        self.processed_events_uuids: OrderedDict = OrderedDict()  # O(1) dedup lookup
 
     @abstractmethod
     def on_event(self, event: BaseEvent):
@@ -98,6 +95,39 @@ class IObserver(ABC):
         """
         return True
 
+    def _get_event_type_safely(self, event: BaseEvent) -> str:
+        """Safely get the event type from an event object."""
+        if hasattr(event, "get_type") and callable(getattr(event, "get_type")):
+            return event.get_type()
+        elif hasattr(event, "name"):
+            return event.name
+        else:
+            return str(event.__class__.__name__)
+
+    def _is_duplicate(self, event: BaseEvent) -> bool:
+        """Check if an event has already been processed by this observer.
+
+        Records the event UUID if it is new. Evicts the oldest 20% of entries
+        when ``processed_events_uuids`` exceeds ``_MAX_DEDUP_SIZE`` to keep
+        memory bounded during long-running experiments.
+
+        Args:
+            event: The event to check.
+
+        Returns:
+            True if the event UUID was already seen, False otherwise.
+        """
+        uid = getattr(event, "id", None)
+        if uid is None:
+            return False
+        if uid in self.processed_events_uuids:
+            return True
+        self.processed_events_uuids[uid] = None
+        if len(self.processed_events_uuids) > self._MAX_DEDUP_SIZE:
+            for _ in range(self._MAX_DEDUP_SIZE // 5):
+                self.processed_events_uuids.popitem(last=False)
+        return False
+
     def get_priority(self) -> int:
         """Get the priority for this observer.
 
@@ -112,18 +142,14 @@ class IObserver(ABC):
         self,
         logger_name: str,
         log_level: int,
-        enable_colors: bool = True,
         output_file: Optional[str] = None,
-        structured_output: bool = False,
     ):
         """Set up logging for an observer.
 
         Args:
             logger_name: Name for the logger
             log_level: Logging level (e.g., logging.DEBUG)
-            enable_colors: Whether to use colored output
             output_file: Path to optional log file
-            structured_output: Whether to output in structured format
 
         Returns:
             logging.Logger: Configured logger instance

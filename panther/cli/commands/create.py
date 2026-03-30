@@ -1,6 +1,7 @@
 """Create Command - Plugin and component creation."""
 
 import json
+import logging
 import traceback
 from pathlib import Path
 from typing import Optional
@@ -17,6 +18,8 @@ from panther.cli.core.base import (
     success_message,
     warning_message,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @featured_example("panther create plugin service my_service")
@@ -75,20 +78,6 @@ def create():
     is_flag=True,
     help="Create plugin with subplugin support structure",
 )
-@click.option(
-    "--output-dir",
-    type=click.Path(exists=False),
-    help="Custom output directory for plugin creation",
-)
-@click.option(
-    "--template",
-    type=click.Choice(["minimal", "standard", "advanced"]),
-    default="standard",
-    help="Plugin template complexity level",
-)
-@click.option(
-    "--force", is_flag=True, help="Force creation even if plugin already exists"
-)
 @pass_context_and_setup_logging
 @handle_errors
 def plugin(
@@ -98,9 +87,6 @@ def plugin(
     dev_mode: bool,
     production_mode: bool,
     with_subplugins: bool,
-    output_dir: Optional[str],
-    template: str,
-    force: bool,
 ):
     r"""Create a new plugin.
 
@@ -122,21 +108,12 @@ def plugin(
     📦 --production-mode: Standard installation for stable plugins
     🤖 Auto-detect: Automatically choose based on environment
 
-    \b
-    Template Levels:
-    📋 minimal  - Basic structure and essential files
-    🏗️ standard - Complete plugin with common patterns
-    🚀 advanced - Full-featured with advanced integrations
-
     Examples:
       # Create a standard QUIC service plugin
       panther create plugin service my_quic_impl
 
       # Create in development mode with subplugin support
       panther create plugin service advanced_quic --dev-mode --with-subplugins
-
-      # Create advanced environment plugin
-      panther create plugin environment k8s_env --template advanced
     """
     info_message(
         f"🔧 Creating {plugin_type} plugin: {colored(plugin_name, 'cyan', attrs=['bold'])}"
@@ -162,11 +139,6 @@ def plugin(
     if with_subplugins:
         info_message("📦 Subplugin support: Enabled")
 
-    info_message(f"🎯 Template level: {colored(template, 'yellow')}")
-
-    if output_dir:
-        info_message(f"📁 Output directory: {colored(output_dir, 'blue')}")
-
     try:
         # Import plugin creator
         from panther.tools.plugins.plugin_creator import create_plugin
@@ -181,8 +153,6 @@ def plugin(
                 plugin_name,
                 in_development_mode=development_mode,
                 create_subplugins=with_subplugins,
-                force_overwrite=force,
-                # Additional parameters based on available API
             )
 
             bar.update(80)
@@ -212,10 +182,12 @@ def plugin(
                 return 1
 
     except ImportError as e:
+        logger.debug("CLI error in plugin: %s", e, exc_info=True)
         error_message(f"❌ Plugin creator not available: {e}")
         error_message("💡 Make sure PANTHER plugin tools are properly installed")
         return 1
     except Exception as e:
+        logger.debug("CLI error in plugin: %s", e, exc_info=True)
         error_message(f"❌ Error creating plugin: {e}")
         if ctx.obj.get("debug", False):
             error_message("\n🔍 Full traceback:")
@@ -233,15 +205,6 @@ def plugin(
 @click.option(
     "--production-mode", is_flag=True, help="Create subplugin in production mode"
 )
-@click.option(
-    "--template",
-    type=click.Choice(["minimal", "standard", "advanced"]),
-    default="standard",
-    help="Subplugin template complexity level",
-)
-@click.option(
-    "--force", is_flag=True, help="Force creation even if subplugin already exists"
-)
 @pass_context_and_setup_logging
 @handle_errors
 def subplugin(
@@ -251,8 +214,6 @@ def subplugin(
     subplugin_name: str,
     dev_mode: bool,
     production_mode: bool,
-    template: str,
-    force: bool,
 ):
     r"""Create a new subplugin.
 
@@ -274,9 +235,6 @@ def subplugin(
     Examples:
       # Create a subplugin for picoquic with custom features
       panther create subplugin service picoquic custom_crypto
-
-      # Create advanced Docker Compose variant
-      panther create subplugin environment docker_compose k8s_hybrid --template advanced
     """
     info_message(
         f"🔧 Creating subplugin '{colored(subplugin_name, 'cyan', attrs=['bold'])}' "
@@ -299,8 +257,6 @@ def subplugin(
     else:
         info_message("🤖 Auto-detecting development mode based on environment")
 
-    info_message(f"🎯 Template level: {colored(template, 'yellow')}")
-
     try:
         # Import subplugin creator
         from panther.tools.plugins.plugin_creator import create_subplugin
@@ -315,7 +271,6 @@ def subplugin(
                 plugin_name,
                 subplugin_name,
                 in_development_mode=development_mode,
-                force_overwrite=force,
             )
 
             bar.update(80)
@@ -344,9 +299,11 @@ def subplugin(
                 return 1
 
     except ImportError as e:
+        logger.debug("CLI error in subplugin: %s", e, exc_info=True)
         error_message(f"❌ Subplugin creator not available: {e}")
         return 1
     except Exception as e:
+        logger.debug("CLI error in subplugin: %s", e, exc_info=True)
         error_message(f"❌ Error creating subplugin: {e}")
         if ctx.obj.get("debug", False):
             error_message("\n🔍 Full traceback:")
@@ -455,6 +412,7 @@ def template(
         return 0
 
     except Exception as e:
+        logger.debug("CLI error in template: %s", e, exc_info=True)
         error_message(f"❌ Error creating template: {e}")
         if ctx.obj.get("debug", False):
             error_message("\n🔍 Full traceback:")

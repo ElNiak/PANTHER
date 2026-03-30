@@ -41,43 +41,96 @@ class ExportFormat(str, Enum):
 class FeatureLogLevelsConfig(BaseConfig):
     """Feature-specific log level configuration."""
 
-    docker_build: Optional[LoggingLevel] = Field(
-        None, description="Docker build operations"
-    )
-    service_start: Optional[LoggingLevel] = Field(
-        None, description="Service startup operations"
-    )
-    environment_setup: Optional[LoggingLevel] = Field(
-        None, description="Environment setup"
-    )
-    test_execution: Optional[LoggingLevel] = Field(None, description="Test execution")
-    metrics_collection: Optional[LoggingLevel] = Field(
-        None, description="Metrics collection"
-    )
-    event_processing: Optional[LoggingLevel] = Field(
-        None, description="Event processing"
-    )
-    plugin_loading: Optional[LoggingLevel] = Field(None, description="Plugin loading")
-    configuration: Optional[LoggingLevel] = Field(
-        None, description="Configuration operations"
-    )
-    validation: Optional[LoggingLevel] = Field(
-        None, description="Validation operations"
-    )
+    # Core Components — names match feature_registry canonical names
     command_generation: Optional[LoggingLevel] = Field(
         None, description="Command generation"
     )
-    output_collection: Optional[LoggingLevel] = Field(
-        None, description="Output collection"
+    template_rendering: Optional[LoggingLevel] = Field(
+        None, description="Template rendering"
+    )
+    docker_operations: Optional[LoggingLevel] = Field(
+        None, description="Docker build and container operations"
+    )
+    config_processing: Optional[LoggingLevel] = Field(
+        None, description="Configuration processing"
+    )
+    event_system: Optional[LoggingLevel] = Field(
+        None, description="Event system (events, emitters, observers)"
+    )
+    file_operations: Optional[LoggingLevel] = Field(
+        None, description="File and output operations"
+    )
+
+    # Service Management
+    service_managers: Optional[LoggingLevel] = Field(
+        None, description="Service manager operations"
+    )
+    ivy_operations: Optional[LoggingLevel] = Field(
+        None, description="Ivy theorem prover operations"
+    )
+    quic_services: Optional[LoggingLevel] = Field(
+        None, description="QUIC service implementations"
+    )
+    plugin_loading: Optional[LoggingLevel] = Field(None, description="Plugin loading")
+    service_coordination: Optional[LoggingLevel] = Field(
+        None, description="Service coordination"
+    )
+
+    # Environment Management
+    network_environments: Optional[LoggingLevel] = Field(
+        None, description="Network environment setup"
+    )
+    execution_environment: Optional[LoggingLevel] = Field(
+        None, description="Execution environment (strace, gdb, etc.)"
+    )
+    docker_compose: Optional[LoggingLevel] = Field(
+        None, description="Docker Compose operations"
+    )
+    shadow_ns: Optional[LoggingLevel] = Field(
+        None, description="Shadow network simulator"
+    )
+    localhost_container: Optional[LoggingLevel] = Field(
+        None, description="Localhost container operations"
+    )
+
+    # Protocol Operations
+    certificate_management: Optional[LoggingLevel] = Field(
+        None, description="Certificate and TLS management"
+    )
+    network_setup: Optional[LoggingLevel] = Field(
+        None, description="Network setup operations"
+    )
+    port_management: Optional[LoggingLevel] = Field(None, description="Port management")
+    protocol_communication: Optional[LoggingLevel] = Field(
+        None, description="Protocol communication"
+    )
+
+    # Data and Metrics
+    metrics_collection: Optional[LoggingLevel] = Field(
+        None, description="Metrics collection and monitoring"
+    )
+    data_storage: Optional[LoggingLevel] = Field(None, description="Data storage")
+    result_processing: Optional[LoggingLevel] = Field(
+        None, description="Result processing"
+    )
+    output_aggregation: Optional[LoggingLevel] = Field(
+        None, description="Output aggregation"
+    )
+
+    # Development and Testing
+    test_execution: Optional[LoggingLevel] = Field(None, description="Test execution")
+    experiment_workflow: Optional[LoggingLevel] = Field(
+        None, description="Experiment workflow and lifecycle"
+    )
+    validation_checks: Optional[LoggingLevel] = Field(
+        None, description="Validation checks"
     )
     error_handling: Optional[LoggingLevel] = Field(None, description="Error handling")
-    fast_fail: Optional[LoggingLevel] = Field(None, description="Fast-fail system")
-    observer: Optional[LoggingLevel] = Field(None, description="Observer system")
     state_management: Optional[LoggingLevel] = Field(
         None, description="State management"
     )
-    service_managers: Optional[LoggingLevel] = Field(
-        None, description="Service manager operations"
+    observer_operations: Optional[LoggingLevel] = Field(
+        None, description="Observer operations"
     )
 
     @field_validator("*", mode="before")
@@ -108,9 +161,9 @@ class LoggingConfig(BaseConfig):
         description="Log format string",
     )
     enable_colors: bool = Field(True, description="Enable colored output")
-    debug_file_logging: bool = Field(
-        True,
-        description="Enable debug-level logging to files while respecting configured level for console",
+    structured_log_file: Optional[str] = Field(
+        None,
+        description="Custom path for structured JSONL log file (auto-set by ExperimentManager if None)",
     )
     feature_levels: Optional[FeatureLogLevelsConfig] = Field(
         default_factory=FeatureLogLevelsConfig,

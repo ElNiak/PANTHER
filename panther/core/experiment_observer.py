@@ -55,6 +55,7 @@ class ExperimentObserverMixin:
     def setup_observer(self):
         """Main observer setup method that coordinates all observer creation."""
         self.register_state_event_observer()
+        self.register_event_stream_recorder()
 
         if self.global_config.observers.logger.enabled:
             if self.log_level <= logging.DEBUG:
@@ -229,6 +230,37 @@ class ExperimentObserverMixin:
             self.logger.warning(
                 "Failed to create debug observer: %s. Event debugging will be limited.",
                 debug_error,
+            )
+
+    def register_event_stream_recorder(self):
+        """Register EventStreamRecorder to write events to structured.jsonl."""
+        try:
+            from panther.core.observer.impl import (  # pylint: disable=import-outside-toplevel
+                EventStreamRecorder,
+            )
+
+            writer = getattr(self, "_jsonl_writer", None)
+            if writer is None:
+                self.logger.warning(
+                    "No centralized JsonlWriter available; "
+                    "EventStreamRecorder will not be registered."
+                )
+                return
+
+            self.event_stream_recorder = EventStreamRecorder(writer=writer)
+            self.event_manager.register_observer_once(
+                observer=self.event_stream_recorder,
+                observer_id="event_stream_recorder",
+                scope="experiment",
+                event_types=None,
+                priority=10,  # Low priority: run after business observers
+            )
+            self.logger.info("Registered EventStreamRecorder -> %s", writer.path)
+        except Exception as recorder_error:  # pylint: disable=broad-exception-caught
+            self.logger.warning(
+                "Failed to create EventStreamRecorder: %s. "
+                "Events will not be recorded to structured.jsonl.",
+                recorder_error,
             )
 
     def register_state_event_observer(self):

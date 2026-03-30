@@ -17,16 +17,14 @@ from typing import TYPE_CHECKING, Optional
 
 
 class CommandEventMixin:
-    """
-    Mixin class that provides methods for emitting command generation and Docker build events.
+    """Mixin class that provides methods for emitting command generation and Docker build events.
 
     This mixin should be used by service managers to emit events during command generation
     and Docker image building phases.
     """
 
     def emit_command_generation_started(self, phase: str) -> None:
-        """
-        Emit an event when command generation starts for a specific phase.
+        """Emit an event when command generation starts for a specific phase.
 
         Args:
             phase: The command generation phase (pre_compile, compile, post_compile, run, post_run)
@@ -49,8 +47,7 @@ class CommandEventMixin:
             )
 
     def emit_command_generated(self, phase: str, command: str) -> None:
-        """
-        Emit an event when a command has been generated.
+        """Emit an event when a command has been generated.
 
         Args:
             phase: The command generation phase
@@ -81,8 +78,7 @@ class CommandEventMixin:
     def emit_docker_build_started(
         self, dockerfile_path: str, image_name: str = None
     ) -> None:
-        """
-        Emit an event when Docker image build starts.
+        """Emit an event when Docker image build starts.
 
         Args:
             dockerfile_path: Path to the Dockerfile being built
@@ -108,8 +104,7 @@ class CommandEventMixin:
     def emit_docker_build_completed(
         self, image_name: str, success: bool, error_message: str = None
     ) -> None:
-        """
-        Emit an event when Docker image build completes.
+        """Emit an event when Docker image build completes.
 
         Args:
             image_name: Name of the Docker image that was built
@@ -154,8 +149,7 @@ class CommandEventMixin:
                 )
 
     def emit_command_execution_started(self, phase: str, command: str) -> None:
-        """
-        Emit an event when command execution starts.
+        """Emit an event when command execution starts.
 
         Args:
             phase: The execution phase
@@ -177,8 +171,7 @@ class CommandEventMixin:
     def emit_command_execution_completed(
         self, phase: str, success: bool, duration: float = None
     ) -> None:
-        """
-        Emit an event when command execution completes.
+        """Emit an event when command execution completes.
 
         Args:
             phase: The execution phase

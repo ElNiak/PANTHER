@@ -24,6 +24,7 @@ except ImportError:
     PSUTIL_AVAILABLE = False
     psutil = None
 
+from panther.core.events.base.event_base import BaseEvent
 from panther.core.events.metrics.events import (
     CounterMetricEvent,
     MetricCollectedEvent,
@@ -31,17 +32,7 @@ from panther.core.events.metrics.events import (
     ResourceMetricEvent,
     TimingMetricEvent,
 )
-from panther.core.events.step.events import (
-    StepExecutionCompletedEvent,
-    StepExecutionFailedEvent,
-    StepExecutionStartedEvent,
-    StepSkippedEvent,
-)
-from panther.core.events.test.events import (
-    TestCompletedEvent,
-    TestExecutionStartedEvent,
-    TestFailedEvent,
-)
+from panther.core.events.test.events import TestCompletedEvent, TestFailedEvent
 from panther.core.metrics.enums import MetricType, Phase
 from panther.core.observer.base.typed_observer_interface import ITypedObserver
 
@@ -353,7 +344,11 @@ class MetricsObserver(ITypedObserver):
         self.resource_collection_interval = resource_collection_interval
         self.metric_collection_interval = metric_collection_interval
 
-        self.log_level = log_level
+        self.log_level = (
+            getattr(logging, log_level.upper(), logging.INFO)
+            if isinstance(log_level, str)
+            else log_level
+        )
 
         # Initialize metrics collector with default values or use provided one
         # Will be properly configured when connected to a test case if not provided
@@ -367,9 +362,7 @@ class MetricsObserver(ITypedObserver):
         self.logger = self._setup_logging(
             logger_name="MetricsObserver",
             log_level=self.log_level,
-            enable_colors=True,
             output_file=self.output_dir / "metrics_observer.log",
-            structured_output=False,
         )
 
         # Initialize specialized collectors
@@ -422,7 +415,7 @@ class MetricsObserver(ITypedObserver):
 
     # Override typed event handlers
 
-    def on_test_execution_started(self, event: TestExecutionStartedEvent) -> bool:
+    def on_test_execution_started(self, event: BaseEvent) -> bool:
         """Handle test started event."""
         # Start tracking a new test
         test_name = getattr(
@@ -493,25 +486,25 @@ class MetricsObserver(ITypedObserver):
         # Finalize test metrics same as completed
         return self.on_test_completed(event)
 
-    def on_step_execution_started(self, event: StepExecutionStartedEvent) -> bool:
+    def on_step_execution_started(self, event: BaseEvent) -> bool:
         """Handle step started event."""
         if self.current_test_metrics:
             self.current_test_metrics.steps_executed += 1
         return True
 
-    def on_step_execution_completed(self, event: StepExecutionCompletedEvent) -> bool:
+    def on_step_execution_completed(self, event: BaseEvent) -> bool:
         """Handle step completed event."""
         if self.current_test_metrics:
             self.current_test_metrics.steps_passed += 1
         return True
 
-    def on_step_execution_failed(self, event: StepExecutionFailedEvent) -> bool:
+    def on_step_execution_failed(self, event: BaseEvent) -> bool:
         """Handle step failed event."""
         if self.current_test_metrics:
             self.current_test_metrics.steps_failed += 1
         return True
 
-    def on_step_skipped(self, event: StepSkippedEvent) -> bool:
+    def on_step_skipped(self, event: BaseEvent) -> bool:
         """Handle step skipped event."""
         if self.current_test_metrics:
             self.current_test_metrics.steps_skipped += 1
@@ -765,6 +758,8 @@ class MetricsObserver(ITypedObserver):
             if self.monitoring_thread.is_alive():
                 self.monitoring_thread.join(timeout=self.publish_interval + 1)
             self.logger.debug("Monitoring thread stopped")
+
+        self.logger.info("Completed real-time resource monitoring")
 
     def _collect_current_metrics(self):
         """Collect metrics from all registered collectors and aggregate them."""

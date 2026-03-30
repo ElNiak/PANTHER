@@ -1,5 +1,4 @@
-"""
-Unit tests for refactored base classes.
+"""Unit tests for refactored base classes.
 
 Tests for:
 1. BaseEnvironmentMonitor - Common monitoring functionality
@@ -18,8 +17,7 @@ import pytest
 
 
 class TestBaseEnvironmentMonitorRequirements:
-    """
-    Test requirements for BaseEnvironmentMonitor.
+    """Test requirements for BaseEnvironmentMonitor.
 
     This class tests the expected interface and behavior that
     BaseEnvironmentMonitor should provide.
@@ -85,8 +83,7 @@ class TestBaseEnvironmentMonitorRequirements:
 
 
 class TestBaseNetworkResolverRequirements:
-    """
-    Test requirements for BaseNetworkResolver.
+    """Test requirements for BaseNetworkResolver.
 
     This class tests the expected interface and behavior that
     BaseNetworkResolver should provide.
@@ -135,8 +132,7 @@ class TestBaseNetworkResolverRequirements:
 
 
 class TestRefactoringCompatibility:
-    """
-    Test compatibility requirements for refactoring.
+    """Test compatibility requirements for refactoring.
 
     Ensures that refactored code maintains backward compatibility.
     """
@@ -214,8 +210,7 @@ class TestRefactoringCompatibility:
 
 
 class TestPerformanceRequirements:
-    """
-    Test performance requirements for refactored code.
+    """Test performance requirements for refactored code.
 
     Ensures that refactoring doesn't introduce performance regressions.
     """
@@ -253,8 +248,7 @@ class TestPerformanceRequirements:
 
 
 class TestSecurityRequirements:
-    """
-    Test security requirements for refactored code.
+    """Test security requirements for refactored code.
 
     Ensures that refactoring maintains security standards.
     """

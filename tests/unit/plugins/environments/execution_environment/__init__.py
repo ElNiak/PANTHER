@@ -1,5 +1,4 @@
-"""
-Execution Environment Test Suite
+"""Execution Environment Test Suite.
 
 Comprehensive testing for PANTHER's execution environment plugins including:
 - gperf_cpu: CPU performance profiling

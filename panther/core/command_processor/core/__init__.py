@@ -2,7 +2,7 @@
 
 Contains the main ``CommandProcessor`` implementation, abstract interfaces
 (``ICommandProcessor``, ``IEnvironmentCommandAdapter``), and the
-``CommandValidator`` / ``ValidationResult`` security-checking pipeline.
+``CommandValidator`` / ``CommandValidationResult`` security-checking pipeline.
 
 Processing flow::
 
@@ -19,8 +19,8 @@ from panther.core.command_processor.core.interfaces import (
 )
 from panther.core.command_processor.core.processor import CommandProcessor
 from panther.core.command_processor.core.validator import (
+    CommandValidationResult,
     CommandValidator,
-    ValidationResult,
 )
 
 __all__ = [
@@ -28,5 +28,5 @@ __all__ = [
     "ICommandProcessor",
     "IEnvironmentCommandAdapter",
     "CommandValidator",
-    "ValidationResult",
+    "CommandValidationResult",
 ]

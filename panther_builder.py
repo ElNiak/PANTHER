@@ -1,22 +1,14 @@
 #!/usr/bin/env python3
 """PANTHER Build Script - Bootstrap wrapper.
 
-This script provides a bootstrap entry point for building PANTHER when the
-package is not yet installed. For full functionality, install PANTHER first
-with ``pip install -e .`` and use the CLI commands:
-
-    panther build dev          # Editable install with all deps
-    panther build package      # Build and install wheel
-    panther build test         # Build + run tests
-    panther build clean        # Clean build artifacts
-    panther docs build         # Build documentation
-    panther docs serve         # Build + serve locally
-    panther docs deploy        # Deploy to GitHub Pages
-    panther admin archive-outputs  # Archive outputs directory
-
 Bootstrap commands (available without installing PANTHER):
     python panther_builder.py package-dev    # Editable install with all deps
     python panther_builder.py clean          # Clean build artifacts
+
+For full functionality after install, use the PANTHER CLI:
+    panther build dev / package / test / clean
+    panther docs build / serve / deploy
+    panther admin archive-outputs
 """
 
 import argparse
@@ -67,27 +59,6 @@ def _clean(project_root):
     return 0
 
 
-def _try_forward_to_cli(command):
-    """Try to forward to installed CLI. Returns None if CLI not available."""
-    cli_map = {
-        "package": ["panther", "build", "package"],
-        "package-dev": ["panther", "build", "dev"],
-        "package-test": ["panther", "build", "test"],
-        "install-local": ["panther", "build", "install"],
-        "clean": ["panther", "build", "clean"],
-        "docs": ["panther", "docs", "build"],
-        "serve-docs": ["panther", "docs", "serve"],
-        "deploy-docs": ["panther", "docs", "deploy"],
-        "zip-outputs": ["panther", "admin", "archive-outputs"],
-    }
-    if command not in cli_map:
-        return None
-    try:
-        return subprocess.run(cli_map[command]).returncode
-    except FileNotFoundError:
-        return None
-
-
 def main():
     """Main entry point for the bootstrap build script."""
     project_root = Path(__file__).parent
@@ -95,25 +66,13 @@ def main():
     parser = argparse.ArgumentParser(
         description="PANTHER Build Script (bootstrap)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Note: Most commands are now available via the PANTHER CLI.
-Install with 'pip install -e .' then use 'panther build', 'panther docs', etc.
-
-Bootstrap commands:
-    python panther_builder.py package-dev    # Editable install
-    python panther_builder.py clean          # Clean artifacts
-        """,
+        epilog=__doc__,
     )
     parser.add_argument(
         "command",
         nargs="?",
         default="help",
-        choices=[
-            "package", "package-dev", "package-test",
-            "clean", "install-local",
-            "docs", "serve-docs", "deploy-docs",
-            "zip-outputs", "help",
-        ],
+        choices=["package-dev", "clean", "help"],
         help="Command to execute",
     )
     args = parser.parse_args()
@@ -122,18 +81,10 @@ Bootstrap commands:
         parser.print_help()
         return 0
 
-    # For clean, handle directly (no install needed)
     if args.command == "clean":
         return _clean(project_root)
 
-    # Try forwarding to installed CLI first
-    result = _try_forward_to_cli(args.command)
-    if result is not None:
-        return result
-
-    # CLI not available — handle bootstrap commands directly
     if args.command == "package-dev":
-        print("PANTHER CLI not installed. Running bootstrap install...")
         # Check Python version
         if sys.version_info < (3, 10):
             print(f"Error: Python 3.10+ required. Current: {sys.version.split()[0]}")
@@ -150,13 +101,13 @@ Bootstrap commands:
         result = _run([sys.executable, "-m", "pip", "install", "--upgrade", "pip"])
         if result != 0:
             return result
-        result = _run([sys.executable, "-m", "pip", "install", "."])
+        result = _run([sys.executable, "-m", "pip", "install", ".[dev]"])
         if result != 0:
             return result
         result = _run([sys.executable, "-m", "pip", "uninstall", "--yes", "panther-net"])
         if result != 0:
             return result
-        result = _run([sys.executable, "-m", "pip", "install", "--force-reinstall", "--editable", "."])
+        result = _run([sys.executable, "-m", "pip", "install", "--force-reinstall", "--editable", ".[dev]"])
         if result != 0:
             return result
 
@@ -177,10 +128,7 @@ Bootstrap commands:
         print("\nPANTHER installed. You can now use 'panther' CLI commands.")
         return 0
 
-    # For other commands, CLI is required
-    print(f"Error: '{args.command}' requires PANTHER to be installed.")
-    print("Run 'python panther_builder.py package-dev' first, then use 'panther' CLI.")
-    return 1
+    return 0
 
 
 if __name__ == "__main__":

@@ -103,7 +103,7 @@ class TestExecutor:
             if isinstance(step_details, (int, float)):
                 # Wait step
                 wait_time = step_details
-                self.logger.debug(f"Waiting for {wait_time} seconds")
+                self.logger.debug("Waiting for %s seconds", wait_time)
                 step_config = {"type": "wait", "duration": wait_time}
                 self._check_early_exit(step_config, step_emitter)
             elif isinstance(step_details, dict):

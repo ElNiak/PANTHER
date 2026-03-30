@@ -8,10 +8,7 @@ from typing import Any, Callable, Dict, Optional
 
 
 class ServiceStatus(Enum):
-    """
-
-    from typing import Any, Callable, Dict, Optional, OptionalService status enumeration.
-    """
+    """from typing import Any, Callable, Dict, Optional, OptionalService status enumeration."""
 
     UNKNOWN = "unknown"
     STARTING = "starting"
@@ -34,8 +31,7 @@ class ServiceHealthCheck:
 
 
 class StatusMonitorMixin:
-    """
-    Mixin providing consistent status monitoring and logging functionality.
+    """Mixin providing consistent status monitoring and logging functionality.
 
     This mixin eliminates duplicated monitoring patterns across network environments.
     """
@@ -47,8 +43,7 @@ class StatusMonitorMixin:
         timeout: int = 60,
         ready_check: Optional[Callable[[], bool]] = None,
     ) -> ServiceHealthCheck:
-        """
-        Monitor service status until ready or timeout.
+        """Monitor service status until ready or timeout.
 
         Args:
             service_name: Name of the service to monitor
@@ -104,8 +99,7 @@ class StatusMonitorMixin:
         service_name: str,
         custom_check: Optional[Callable[[], bool]] = None,
     ) -> ServiceHealthCheck:
-        """
-        Perform a health check on a service.
+        """Perform a health check on a service.
 
         Args:
             service_name: Name of the service
@@ -156,8 +150,7 @@ class StatusMonitorMixin:
     def wait_for_port(
         self, host: str, port: int, timeout: int = 60, check_interval: int = 1
     ) -> bool:
-        """
-        Wait for a network port to become available.
+        """Wait for a network port to become available.
 
         Args:
             host: Host to check
@@ -200,8 +193,7 @@ class StatusMonitorMixin:
     def log_deployment_progress(
         self, stage: str, details: Dict[str, Any], level: str = "info"
     ) -> None:
-        """
-        Log deployment progress with consistent formatting.
+        """Log deployment progress with consistent formatting.
 
         Args:
             stage: Current deployment stage
@@ -220,8 +212,7 @@ class StatusMonitorMixin:
     def monitor_resource_usage(
         self, service_name: str, container_name: Optional[str] = None
     ) -> Dict[str, Any]:
-        """
-        Monitor resource usage for a service.
+        """Monitor resource usage for a service.
 
         Args:
             service_name: Name of the service
@@ -264,8 +255,7 @@ class StatusMonitorMixin:
     def create_status_report(
         self, services: Dict[str, ServiceStatus], include_resources: bool = False
     ) -> str:
-        """
-        Create a formatted status report for all services.
+        """Create a formatted status report for all services.
 
         Args:
             services: Dictionary of service names to status
@@ -297,8 +287,7 @@ class StatusMonitorMixin:
         return "\n".join(lines)
 
     def track_deployment_metrics(self) -> Dict[str, Any]:
-        """
-        Track deployment metrics for analysis.
+        """Track deployment metrics for analysis.
 
         Returns:
             Dictionary of deployment metrics

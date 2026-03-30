@@ -1,3 +1,5 @@
+"""Data structures for runtime plugin registration information."""
+
 from dataclasses import dataclass
 from typing import Any, Optional
 

@@ -1,5 +1,4 @@
-"""
-Docker Integration Examples using pytest-docker.
+"""Docker Integration Examples using pytest-docker.
 
 This file demonstrates how to use pytest-docker for PANTHER testing.
 Includes examples of common Docker testing patterns.

@@ -5,62 +5,8 @@ from typing import Any, Callable, Dict, List, Optional, Union
 from panther.core.utils.logging_mixin import LoggerMixin
 
 from ..base import BaseConfig
-
-
-class ValidationError:
-    """Validation error details."""
-
-    def __init__(self, field: str, message: str, severity: str = "error"):
-        self.field = field
-        self.message = message
-        self.severity = severity
-
-    def __str__(self):
-        return f"{self.severity.upper()}: {self.field} - {self.message}"
-
-
-class ValidationResult:
-    """Validation result container."""
-
-    def __init__(self, is_valid: bool = True):
-        self.is_valid = is_valid
-        self.errors: List[ValidationError] = []
-        self.warnings: List[ValidationError] = []
-
-    def add_error(self, field: str, message: str):
-        """Add an error to the result."""
-        self.errors.append(ValidationError(field, message, "error"))
-        self.is_valid = False
-
-    def add_warning(self, field: str, message: str):
-        """Add a warning to the result."""
-        self.warnings.append(ValidationError(field, message, "warning"))
-
-    def merge(self, other: "ValidationResult"):
-        """Merge another validation result into this one."""
-        self.errors.extend(other.errors)
-        self.warnings.extend(other.warnings)
-        self.is_valid = self.is_valid and other.is_valid
-
-    def __str__(self):
-        lines = []
-        if self.errors:
-            lines.append("Errors:")
-            for error in self.errors:
-                lines.append(f"  - {error}")
-        if self.warnings:
-            lines.append("Warnings:")
-            for warning in self.warnings:
-                lines.append(f"  - {warning}")
-        return "\n".join(lines)
-
-
-class Validator:
-    """Base validator interface."""
-
-    def validate(self, config: Any) -> ValidationResult:
-        """Validate configuration."""
-        raise NotImplementedError
+from ..components.validators import BaseValidator as Validator
+from ..components.validators import ValidationError, ValidationResult
 
 
 class ValidationOperationsMixin(LoggerMixin):

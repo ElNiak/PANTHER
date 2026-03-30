@@ -1,7 +1,4 @@
-from typing import Any, Dict, List, Optional
-
-"""
-Storage Observer Module
+"""Storage Observer Module.
 
 This module provides a storage observer that leverages the ResultsManager
 for comprehensive data persistence and retrieval capabilities.
@@ -9,23 +6,18 @@ for comprehensive data persistence and retrieval capabilities.
 
 import json
 import shutil
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from panther.core.events.base.event_base import BaseEvent
-from panther.core.events.environment.events import EnvironmentErrorEvent
-from panther.core.events.experiment.events import (
-    ExperimentCompletedEvent,
-    ExperimentExecutionStartedEvent,
-    ExperimentFailedEvent,
-    ExperimentFinishedEarlyEvent,
-)
+from panther.core.events.experiment.events import ExperimentFinishedEarlyEvent
 from panther.core.events.metrics.events import MetricCollectedEvent, MetricsSummaryEvent
-from panther.core.events.service.events import ServiceErrorEvent
 from panther.core.events.test.events import (
+    EnhancedResultEvent,
     TestCompletedEvent,
-    TestExecutionStartedEvent,
     TestFailedEvent,
     TestResultEvent,
 )
@@ -35,8 +27,7 @@ from panther.core.observer.management.results_manager import ResultsManager
 
 
 class StorageObserver(ITypedObserver):
-    """
-    Storage observer that provides comprehensive data persistence using ResultsManager.
+    """Storage observer that provides comprehensive data persistence using ResultsManager.
 
     Implements singleton pattern per storage path to prevent duplicate event logging.
 
@@ -46,25 +37,26 @@ class StorageObserver(ITypedObserver):
     - Metrics persistence
     - Data export and import
     - Historical data management
+
+    Note:
+        As of Batch 2, all events are also written to ``structured.jsonl``
+        by :class:`EventStreamRecorder`. The separate per-category JSONL files
+        (events.jsonl, error_events.jsonl, performance_metrics.jsonl) written
+        by this observer are retained for backward-compatible query/export but
+        may be removed in a future refactoring once query methods are migrated
+        to read from ``structured.jsonl`` with filtering.
     """
 
     # Class-level registry to maintain one instance per storage path
     _instances = {}
-    _instance_lock = None
+    _instance_lock = threading.Lock()
 
     def __new__(cls, storage_path: Optional[str] = None, **kwargs):
-        """
-        Implement singleton pattern per storage path.
+        """Implement singleton pattern per storage path.
 
         Returns existing instance if one exists for the same storage path,
         otherwise creates new instance.
         """
-        # Initialize lock if not exists
-        if cls._instance_lock is None:
-            import threading
-
-            cls._instance_lock = threading.Lock()
-
         # Normalize storage path for consistent keys
         if storage_path is None:
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -100,8 +92,7 @@ class StorageObserver(ITypedObserver):
         batch_size: int = 100,
         log_level: str = "INFO",
     ):
-        """
-        Initialize the storage observer.
+        """Initialize the storage observer.
 
         Args:
             storage_path: Base path for storage (defaults to outputs/<timestamp>)
@@ -112,6 +103,7 @@ class StorageObserver(ITypedObserver):
             retention_days: Number of days to retain data
             event_type_filters: List of event types to store (None for all)
             batch_size: Number of events to batch before writing
+            log_level: Logging level for the observer
         """
         # Skip initialization if this instance is already initialized
         if hasattr(self, "_initialized") and self._initialized:
@@ -136,9 +128,7 @@ class StorageObserver(ITypedObserver):
         self.logger = self._setup_logging(
             logger_name=unique_logger_name,
             log_level=self.log_level,
-            enable_colors=True,
             output_file=self.storage_path / "storage_observer.log",
-            structured_output=False,
         )
 
         # Initialize ResultsManager for core storage functionality
@@ -184,8 +174,7 @@ class StorageObserver(ITypedObserver):
         self._initialized = True
 
     def on_event(self, event: BaseEvent) -> bool:
-        """
-        Handle generic events and route to typed handlers.
+        """Handle generic events and route to typed handlers.
 
         This method handles special cases like the experiment finished early check,
         then delegates to the parent class for typed event routing.
@@ -212,7 +201,7 @@ class StorageObserver(ITypedObserver):
 
     # Typed event handlers
 
-    def on_test_execution_started(self, event: TestExecutionStartedEvent) -> bool:
+    def on_test_execution_started(self, event: BaseEvent) -> bool:
         """Handle test started event."""
         self._store_test_event(event, "test.started")
         return True
@@ -266,33 +255,31 @@ class StorageObserver(ITypedObserver):
             self.logger.warning("Failed to flush events after test failed: %s", e)
         return True
 
-    def on_experiment_execution_started(
-        self, event: ExperimentExecutionStartedEvent
-    ) -> bool:
+    def on_experiment_execution_started(self, event: BaseEvent) -> bool:
         """Handle experiment started event."""
         self._store_system_event(event, "experiment.started")
         return True
 
-    def on_experiment_completed(self, event: ExperimentCompletedEvent) -> bool:
+    def on_experiment_completed(self, event: BaseEvent) -> bool:
         """Handle experiment completed event."""
         self._store_system_event(event, "experiment.completed")
         # Flush all pending data when experiment completes
         self.flush_all()
         return True
 
-    def on_experiment_failed(self, event: ExperimentFailedEvent) -> bool:
+    def on_experiment_failed(self, event: BaseEvent) -> bool:
         """Handle experiment failed event."""
         self._store_error_event(event, "experiment.failed")
         # Flush all pending data when experiment fails
         self.flush_all()
         return True
 
-    def on_service_error(self, event: ServiceErrorEvent) -> bool:
+    def on_service_error(self, event: BaseEvent) -> bool:
         """Handle service error event."""
         self._store_error_event(event, "service.error")
         return True
 
-    def on_environment_error(self, event: EnvironmentErrorEvent) -> bool:
+    def on_environment_error(self, event: BaseEvent) -> bool:
         """Handle environment error event."""
         self._store_error_event(event, "environment.error")
         return True
@@ -523,22 +510,26 @@ class StorageObserver(ITypedObserver):
         # Store events in main event log
         events_file = self.storage_path / "events.jsonl"
 
+        failed = []
         for event_data in self.pending_events:
-            self._append_to_file(events_file, event_data)
+            if not self._append_to_file(events_file, event_data):
+                failed.append(event_data)
 
-        # Clear pending events
-        self.pending_events.clear()
+        # Keep only events that failed to write
+        self.pending_events = failed
 
         # Update storage size
         self._update_storage_size()
 
-    def _append_to_file(self, file_path: Path, data: Dict[str, Any]):
-        """Append data to a JSONL file."""
+    def _append_to_file(self, file_path: Path, data: Dict[str, Any]) -> bool:
+        """Append data to a JSONL file. Returns True on success."""
         try:
             with open(file_path, "a") as f:
                 f.write(json.dumps(data, default=str) + "\n")
+            return True
         except Exception as e:
-            self.logger.error(f"Failed to write to {file_path}: {e}")
+            self.logger.error("Failed to write to %s: %s", file_path, e)
+            return False
 
     def _update_storage_size(self):
         """Update storage size statistics."""
@@ -548,16 +539,7 @@ class StorageObserver(ITypedObserver):
             )
             self.storage_stats["storage_size"] = total_size
         except Exception as e:
-            self.logger.error(f"Failed to calculate storage size: {e}")
-
-    def _get_event_type_safely(self, event: BaseEvent) -> str:
-        """Safely get the event type from an event object."""
-        if hasattr(event, "get_type") and callable(getattr(event, "get_type")):
-            return event.get_type()
-        elif hasattr(event, "name"):
-            return event.name
-        else:
-            return str(event.__class__.__name__)
+            self.logger.error("Failed to calculate storage size: %s", e)
 
     def is_interested(self, event_type: str) -> bool:
         """Check if the observer is interested in an event type."""
@@ -606,12 +588,12 @@ class StorageObserver(ITypedObserver):
             for file_path in self.storage_path.rglob("*"):
                 if file_path.is_file() and file_path.stat().st_mtime < cutoff_date:
                     file_path.unlink()
-                    self.logger.info(f"Deleted old file: {file_path}")
+                    self.logger.info("Deleted old file: %s", file_path)
 
             self.storage_stats["last_cleanup"] = datetime.now().isoformat()
 
         except Exception as e:
-            self.logger.error(f"Failed to cleanup old data: {e}")
+            self.logger.error("Failed to cleanup old data: %s", e)
 
     def backup_data(self, backup_path: Optional[str] = None) -> bool:
         """Create a backup of all stored data."""
@@ -630,12 +612,12 @@ class StorageObserver(ITypedObserver):
 
             if backup_success:
                 self.storage_stats["last_backup"] = datetime.now().isoformat()
-                self.logger.info(f"Data backup created at: {backup_path}")
+                self.logger.info("Data backup created at: %s", backup_path)
 
             return backup_success
 
         except Exception as e:
-            self.logger.error(f"Failed to create backup: {e}")
+            self.logger.error("Failed to create backup: %s", e)
             return False
 
     def query_events(
@@ -645,8 +627,7 @@ class StorageObserver(ITypedObserver):
         end_time: Optional[datetime] = None,
         limit: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
-        """
-        Query stored events with filters.
+        """Query stored events with filters.
 
         Args:
             event_type: Filter by event type (supports prefix matching)
@@ -691,13 +672,13 @@ class StorageObserver(ITypedObserver):
                             break
 
                     except (json.JSONDecodeError, ValueError) as e:
-                        self.logger.warning(f"Failed to parse event line: {e}")
+                        self.logger.warning("Failed to parse event line: %s", e)
                         continue
 
             return events
 
         except Exception as e:
-            self.logger.error(f"Failed to query events: {e}")
+            self.logger.error("Failed to query events: %s", e)
             return []
 
     def export_data(
@@ -706,8 +687,7 @@ class StorageObserver(ITypedObserver):
         export_format: str = "json",
         include_categories: Optional[List[str]] = None,
     ) -> bool:
-        """
-        Export stored data in various formats.
+        """Export stored data in various formats.
 
         Args:
             export_path: Path to export the data
@@ -731,7 +711,7 @@ class StorageObserver(ITypedObserver):
                 raise ValueError(f"Unsupported export format: {export_format}")
 
         except Exception as e:
-            self.logger.error(f"Failed to export data: {e}")
+            self.logger.error("Failed to export data: %s", e)
             return False
 
     def _export_json(
@@ -754,12 +734,20 @@ class StorageObserver(ITypedObserver):
             category_file = self.storage_path / f"{category}.jsonl"
             if category_file.exists():
                 category_events = []
+                skipped_lines = 0
                 with open(category_file) as f:
                     for line in f:
                         try:
                             category_events.append(json.loads(line.strip()))
                         except json.JSONDecodeError:
+                            skipped_lines += 1
                             continue
+                if skipped_lines:
+                    self.logger.warning(
+                        "Skipped %d malformed JSONL lines in %s",
+                        skipped_lines,
+                        category_file,
+                    )
                 export_data["events"][category] = category_events
 
         with open(export_path, "w") as f:
@@ -782,6 +770,7 @@ class StorageObserver(ITypedObserver):
             for category in categories:
                 category_file = self.storage_path / f"{category}.jsonl"
                 if category_file.exists():
+                    skipped_lines = 0
                     with open(category_file) as f:
                         for line in f:
                             try:
@@ -796,7 +785,14 @@ class StorageObserver(ITypedObserver):
                                     ]
                                 )
                             except json.JSONDecodeError:
+                                skipped_lines += 1
                                 continue
+                    if skipped_lines:
+                        self.logger.warning(
+                            "Skipped %d malformed JSONL lines in %s",
+                            skipped_lines,
+                            category_file,
+                        )
 
         return True
 
@@ -811,9 +807,9 @@ class StorageObserver(ITypedObserver):
 
             # Add metadata
             metadata = ET.SubElement(root, "metadata")
-            ET.SubElement(
-                metadata, "export_timestamp"
-            ).text = datetime.now().isoformat()
+            ET.SubElement(metadata, "export_timestamp").text = (
+                datetime.now().isoformat()
+            )
             ET.SubElement(metadata, "storage_path").text = str(self.storage_path)
 
             # Add events
@@ -825,6 +821,7 @@ class StorageObserver(ITypedObserver):
                 category_file = self.storage_path / f"{category}.jsonl"
 
                 if category_file.exists():
+                    skipped_lines = 0
                     with open(category_file) as f:
                         for line in f:
                             try:
@@ -839,7 +836,14 @@ class StorageObserver(ITypedObserver):
                                         data_elem.text = json.dumps(value)
 
                             except json.JSONDecodeError:
+                                skipped_lines += 1
                                 continue
+                    if skipped_lines:
+                        self.logger.warning(
+                            "Skipped %d malformed JSONL lines in %s",
+                            skipped_lines,
+                            category_file,
+                        )
 
             tree = ET.ElementTree(root)
             tree.write(export_path, encoding="utf-8", xml_declaration=True)
@@ -849,7 +853,7 @@ class StorageObserver(ITypedObserver):
             self.logger.error("XML export requires xml.etree.ElementTree")
             return False
         except Exception as e:
-            self.logger.error(f"XML export failed: {e}")
+            self.logger.error("XML export failed: %s", e)
             return False
 
     def _check_disk_space(self):
@@ -864,7 +868,7 @@ class StorageObserver(ITypedObserver):
         stat = shutil.disk_usage(str(self.storage_path))
         available_gb = stat.free / (1024**3)
 
-        self.logger.debug(f"Disk space check: {available_gb:.2f}GB available")
+        self.logger.debug("Disk space check: %.2fGB available", available_gb)
 
         if available_gb < self.disk_critical_threshold:
             raise ResourceExhaustionException(

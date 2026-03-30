@@ -1,3 +1,5 @@
+"""Service manager mixin providing common patterns for IUT and tester managers."""
+
 import logging
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -25,8 +27,7 @@ RUN_CMD_SCHEMA = {
 
 
 def validate_structure(data, schema, path="root"):
-    """
-    Recursively validates a dictionary or list structure against a schema.
+    """Recursively validates a dictionary or list structure against a schema.
 
     Args:
         data: The data to validate.
@@ -63,8 +64,7 @@ def validate_structure(data, schema, path="root"):
 
 
 def validate_cmd(func):
-    """
-    Decorator to validate command structure against the RUN_CMD_SCHEMA.
+    """Decorator to validate command structure against the RUN_CMD_SCHEMA.
 
     Args:
         func: The function to decorate
@@ -89,14 +89,14 @@ def validate_cmd(func):
 
 
 class ServiceManagerMixin(LoggerMixin):
-    """
-    Comprehensive mixin for service managers that provides common patterns
-    and integrates with PANTHER's existing architecture.
+    """Comprehensive mixin for service managers providing common patterns.
 
+    Integrates with PANTHER's existing architecture.
     MRO: Base mixin. Used by: IUTServiceManagerMixin, TesterServiceManagerMixin
     """
 
     def __init__(self, *args, global_config=None, **kwargs):
+        """Initialize ServiceManagerMixin with optional global config."""
         super().__init__(*args, **kwargs)
 
         # Store global configuration
@@ -112,8 +112,7 @@ class ServiceManagerMixin(LoggerMixin):
         implementation_name: str,
         event_manager=None,
     ) -> None:
-        """
-        Perform standardized service manager initialization.
+        """Perform standardized service manager initialization.
 
         This method sets up attributes and configuration but does NOT initialize commands.
         Commands should be initialized later in prepare() after Docker images are built.
@@ -140,10 +139,9 @@ class ServiceManagerMixin(LoggerMixin):
 
     @validate_cmd
     def initialize_commands(self) -> dict:
-        """
-        Initializes and generates a dictionary of commands to be executed at different stages
-        of the process (pre-compile, compile, post-compile, pre-run, run, post-run).
+        """Initialize and generate commands for each execution stage.
 
+        Covers pre-compile, compile, post-compile, pre-run, run, post-run.
         The dictionary keys are:
             - "pre_compile_cmds": Commands to be executed before compilation.
             - "compile_cmds": Commands to be executed during compilation.
@@ -155,7 +153,6 @@ class ServiceManagerMixin(LoggerMixin):
         Returns:
             dict: A dictionary containing the commands for each stage.
         """
-
         # Use CommandProcessor for intelligent command processing
         processor = CommandProcessor()
 
@@ -190,7 +187,7 @@ class ServiceManagerMixin(LoggerMixin):
         post_run = self.generate_post_run_commands()
 
         # Special handling for run_cmd which is a dict, not a list
-        self.logger.debug("Generating run command for service '%s'", self.service_name)
+        self.logger.info("Generating run command for service '%s'", self.service_name)
         run_cmd = self.generate_run_command()
 
         # Build the complete command structure
@@ -219,7 +216,7 @@ class ServiceManagerMixin(LoggerMixin):
         # Note: Network substitutions are now handled by placeholder resolution
         # in the environment's _resolve_network_placeholders_in_commands method
         self._commands_initialized = True
-        self.logger.debug("Commands initialized for service '%s'", self.service_name)
+        self.logger.info("Commands initialized for service '%s'", self.service_name)
         return self._run_cmd
 
     @property
@@ -306,8 +303,7 @@ class ServiceManagerMixin(LoggerMixin):
         environment: Optional[Dict[str, str]] = None,
         timeout: Optional[int] = None,
     ) -> ShellCommand:
-        """
-        Create a ShellCommand with service-specific defaults.
+        """Create a ShellCommand with service-specific defaults.
 
         Args:
             command: Command string
@@ -329,8 +325,7 @@ class ServiceManagerMixin(LoggerMixin):
         )
 
     def add_environment_variable(self, key: str, value: str) -> None:
-        """
-        Add an environment variable to the run command.
+        """Add an environment variable to the run command.
 
         Args:
             key: Environment variable name
@@ -355,8 +350,8 @@ class ServiceManagerMixin(LoggerMixin):
         self.run_cmd["run_cmd"]["environment"][key] = value
 
     def finalize_commands(self) -> Dict[str, Any]:
-        """
-        Finalize and structure all commands for the service.
+        """Finalize and structure all commands for the service.
+
         Preserves any modifications made by execution environments.
 
         Returns:
@@ -471,8 +466,8 @@ class ServiceManagerMixin(LoggerMixin):
     # ================================
 
     def get_default_output_patterns(self) -> List[Tuple[str, str]]:
-        """
-        Get comprehensive default patterns combining all standard patterns.
+        """Get comprehensive default patterns combining all standard patterns.
+
         Services should call this and extend as needed.
         """
         protocol = self._detect_protocol()

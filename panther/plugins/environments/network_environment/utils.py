@@ -11,10 +11,7 @@ import yaml
 
 
 class NetworkEnvironmentUtils:
-    """
-
-    from typing import Any, Dict, List, Optional, Union, UnionShared utilities for all network environments.
-    """
+    """from typing import Any, Dict, List, Optional, Union, UnionShared utilities for all network environments."""
 
     @staticmethod
     def generate_compose_file(
@@ -23,8 +20,7 @@ class NetworkEnvironmentUtils:
         output_path: str,
         additional_params: Optional[Dict[str, Any]] = None,
     ) -> str:
-        """
-        Generate a docker-compose or similar configuration file.
+        """Generate a docker-compose or similar configuration file.
 
         Args:
             services: Service configurations
@@ -75,8 +71,7 @@ class NetworkEnvironmentUtils:
         timeout: int = 60,
         check_interval: int = 1,
     ) -> bool:
-        """
-        Wait for a service to be ready by checking port availability.
+        """Wait for a service to be ready by checking port availability.
 
         Args:
             service_name: Name of service (for logging)
@@ -113,8 +108,7 @@ class NetworkEnvironmentUtils:
         output_dir: Union[str, Path],
         log_sources: Optional[List[str]] = None,
     ) -> Dict[str, str]:
-        """
-        Collect logs from various sources for a service.
+        """Collect logs from various sources for a service.
 
         Args:
             service_name: Name of the service
@@ -149,8 +143,7 @@ class NetworkEnvironmentUtils:
     def parse_service_output(
         output: str, format: str = "text"
     ) -> Union[str, Dict[str, Any], List[Any]]:
-        """
-        Parse service output based on expected format.
+        """Parse service output based on expected format.
 
         Args:
             output: Raw output string
@@ -178,8 +171,7 @@ class NetworkEnvironmentUtils:
     def create_network_namespace(
         namespace_name: str, ip_range: str = "10.0.0.0/24"
     ) -> bool:
-        """
-        Create a network namespace for isolation.
+        """Create a network namespace for isolation.
 
         Args:
             namespace_name: Name for the namespace
@@ -204,8 +196,7 @@ class NetworkEnvironmentUtils:
 
     @staticmethod
     def generate_unique_identifier(prefix: str, include_timestamp: bool = True) -> str:
-        """
-        Generate a unique identifier for resources.
+        """Generate a unique identifier for resources.
 
         Args:
             prefix: Prefix for the identifier
@@ -227,8 +218,7 @@ class NetworkEnvironmentUtils:
 
     @staticmethod
     def validate_docker_installation() -> bool:
-        """
-        Validate that Docker is installed and accessible.
+        """Validate that Docker is installed and accessible.
 
         Returns:
             True if Docker is available
@@ -253,8 +243,7 @@ class NetworkEnvironmentUtils:
         remove_volumes: bool = True,
         remove_networks: bool = True,
     ) -> Dict[str, int]:
-        """
-        Clean up Docker resources with a given prefix.
+        """Clean up Docker resources with a given prefix.
 
         Args:
             prefix: Prefix to match resources
@@ -354,8 +343,7 @@ class NetworkEnvironmentUtils:
     def merge_environment_variables(
         *env_dicts: Dict[str, str],
     ) -> Dict[str, str]:
-        """
-        Merge multiple environment variable dictionaries.
+        """Merge multiple environment variable dictionaries.
 
         Later dictionaries override earlier ones.
 

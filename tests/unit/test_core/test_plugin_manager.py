@@ -119,8 +119,7 @@ class TestPluginManagerInitialization:
         assert len(real_plugin_manager.plugins) > 0
 
     def test_event_system_components(self, real_plugin_manager):
-        """Plugin observer and event emitter are created when event_manager is provided."""
-        assert real_plugin_manager.plugin_observer is not None
+        """Plugin event emitter is created when event_manager is provided."""
         assert real_plugin_manager.plugin_event_emitter is not None
 
     def test_default_plugin_directories(self, real_plugin_manager):

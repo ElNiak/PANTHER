@@ -6,7 +6,7 @@ from typing import List, Tuple
 from panther.plugins.core.plugin_decorators import register_plugin
 from panther.plugins.core.structures.plugin_type import PluginType
 from panther.plugins.services.base.python_quic_base import PythonQUICServiceManager
-from panther.plugins.services.iut.iut_event_mixin import IUTManagerEventMixin
+from panther.plugins.services.service_event_mixin import ServiceManagerEventMixin
 
 
 @register_plugin(
@@ -19,7 +19,7 @@ from panther.plugins.services.iut.iut_event_mixin import IUTManagerEventMixin
     supported_protocols=["quic"],
     capabilities=["rfc9000", "0rtt", "migration", "asyncio"],
 )
-class AioquicServiceManager(IUTManagerEventMixin, PythonQUICServiceManager):
+class AioquicServiceManager(ServiceManagerEventMixin, PythonQUICServiceManager):
     """Refactored aioquic service manager with minimal code."""
 
     def __init__(self, service_config=None, global_config=None, **kwargs):

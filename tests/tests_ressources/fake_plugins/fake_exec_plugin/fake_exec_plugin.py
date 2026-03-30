@@ -95,8 +95,7 @@ class GperfCpuEnvironment(IExecutionEnvironment):
         timestamp: str,
         plugin_loader: PluginLoader,
     ):
-        """
-        Sets up the Docker Compose environment by generating the docker-compose.yml file with deployment commands.
+        """Sets up the Docker Compose environment by generating the docker-compose.yml file with deployment commands.
 
         :param services: Dictionary of services with their configurations.
         :param deployment_info: Dictionary containing commands and volumes for each service.
@@ -133,6 +132,7 @@ class GperfCpuEnvironment(IExecutionEnvironment):
         raise NotImplementedError
 
     def __repr__(self):
+        """Return detailed string representation of the environment."""
         return (
             f"GperfEnvironment("
             f"env_config_to_test={self.env_config_to_test}, "

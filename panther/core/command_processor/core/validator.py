@@ -1,7 +1,7 @@
 """Command validation functionality.
 
 Provides ``CommandValidator`` for security and correctness checks on raw
-shell command strings, and ``ValidationResult`` for structured error/warning
+shell command strings, and ``CommandValidationResult`` for structured error/warning
 accumulation.
 
 Checks performed:
@@ -20,7 +20,7 @@ from typing import List, Optional, Tuple
 
 
 @dataclass
-class ValidationResult:
+class CommandValidationResult:
     """Accumulator for command validation errors and warnings.
 
     Attributes:
@@ -114,17 +114,16 @@ class CommandValidator:
         "#",
     ]
 
-    def validate_command(self, command: str) -> ValidationResult:
-        """
-        Validate a shell command for security and correctness.
+    def validate_command(self, command: str) -> CommandValidationResult:
+        """Validate a shell command for security and correctness.
 
         Args:
             command: The command to validate
 
         Returns:
-            ValidationResult with validation status
+            CommandValidationResult with validation status
         """
-        result = ValidationResult(is_valid=True, errors=[], warnings=[])
+        result = CommandValidationResult(is_valid=True, errors=[], warnings=[])
 
         # Check for empty command
         if not command or not command.strip():
@@ -151,7 +150,9 @@ class CommandValidator:
 
         return result
 
-    def _check_dangerous_commands(self, command: str, result: ValidationResult) -> None:
+    def _check_dangerous_commands(
+        self, command: str, result: CommandValidationResult
+    ) -> None:
         """Check for dangerous command patterns."""
         for dangerous in self.DANGEROUS_COMMANDS:
             if dangerous == "format":
@@ -164,13 +165,17 @@ class CommandValidator:
             elif dangerous in command:
                 result.add_error(f"Dangerous command pattern detected: {dangerous}")
 
-    def _check_sensitive_commands(self, command: str, result: ValidationResult) -> None:
+    def _check_sensitive_commands(
+        self, command: str, result: CommandValidationResult
+    ) -> None:
         """Check for sensitive commands that need careful handling."""
         for sensitive in self.SENSITIVE_COMMANDS:
             if re.search(rf"\b{sensitive}\b", command):
                 result.add_warning(f"Sensitive command detected: {sensitive}")
 
-    def _check_quotes_balance(self, command: str, result: ValidationResult) -> None:
+    def _check_quotes_balance(
+        self, command: str, result: CommandValidationResult
+    ) -> None:
         """Check if quotes are properly balanced."""
         single_quotes = command.count("'")
         double_quotes = command.count('"')
@@ -181,7 +186,9 @@ class CommandValidator:
         if double_quotes % 2 != 0:
             result.add_error("Unbalanced double quotes")
 
-    def _check_injection_attempts(self, command: str, result: ValidationResult) -> None:
+    def _check_injection_attempts(
+        self, command: str, result: CommandValidationResult
+    ) -> None:
         """Check for potential command injection attempts."""
         # Check for multiple command separators
         separators = [";", "&&", "||", "|"]
@@ -202,7 +209,9 @@ class CommandValidator:
         if re.search(r"\beval\b", command):
             result.add_error("Use of 'eval' detected - this is a security risk")
 
-    def _check_redirections(self, command: str, result: ValidationResult) -> None:
+    def _check_redirections(
+        self, command: str, result: CommandValidationResult
+    ) -> None:
         """Check for malformed or dangerous redirections."""
         # Check for redirections to /dev/null without reason
         if "> /dev/null 2>&1" in command:
@@ -221,7 +230,7 @@ class CommandValidator:
                 result.add_error(f"Attempting to write to system file: {file}")
 
     def _check_environment_variables(
-        self, command: str, result: ValidationResult
+        self, command: str, result: CommandValidationResult
     ) -> None:
         """Check for environment variable usage."""
         # Check for unexpanded variables
@@ -240,8 +249,7 @@ class CommandValidator:
             result.add_warning("PATH environment variable is being modified")
 
     def sanitize_command(self, command: str) -> str:
-        """
-        Sanitize a command by escaping dangerous characters.
+        """Sanitize a command by escaping dangerous characters.
 
         Args:
             command: The command to sanitize
@@ -264,8 +272,7 @@ class CommandValidator:
         return sanitized.strip()
 
     def validate_command_structure(self, command: str) -> Tuple[bool, Optional[str]]:
-        """
-        Validate the syntactic structure of a command.
+        """Validate the syntactic structure of a command.
 
         Args:
             command: The command to validate

@@ -1,3 +1,5 @@
+"""Abstract interface for IUT (Implementation Under Test) service managers."""
+
 from abc import ABC
 from typing import Optional
 
@@ -7,8 +9,7 @@ from panther.plugins.services.services_interface import IServiceManager
 
 
 class IImplementationManager(IServiceManager, ABC):
-    """
-    IImplementationManager is an abstract base class that inherits from IServiceManager and ABC.
+    """IImplementationManager is an abstract base class that inherits from IServiceManager and ABC.
 
     Attributes:
         service_config_to_test (ServiceConfig): The configuration of the service to be tested.
@@ -36,6 +37,7 @@ class IImplementationManager(IServiceManager, ABC):
         test_case=None,  # Reference to parent test case for execution environment access
         **kwargs,
     ):
+        """Initialize the implementation manager with service configuration."""
         super().__init__(
             service_config_to_test,
             service_type,
@@ -47,4 +49,5 @@ class IImplementationManager(IServiceManager, ABC):
         )
 
     def is_tester(self):
+        """Return False indicating this is not a tester implementation."""
         return False

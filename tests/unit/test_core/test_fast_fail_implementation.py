@@ -1,5 +1,4 @@
-"""
-Comprehensive tests for the fast-fail implementation in PANTHER.
+"""Comprehensive tests for the fast-fail implementation in PANTHER.
 
 This module tests the actual fast-fail system implementation including:
 - FastFailHandler

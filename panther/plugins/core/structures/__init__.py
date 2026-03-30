@@ -1,3 +1,1 @@
-"""
-Core data structures for PANTHER plugins.
-"""
+"""Core data structures for PANTHER plugins."""

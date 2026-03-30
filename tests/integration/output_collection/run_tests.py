@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Output Collection Test Runner
+"""Output Collection Test Runner.
 
 This script provides an easy way to run the output collection tests
 with different configurations and options.
@@ -309,7 +308,9 @@ Examples:
         print("\n🎉 All tests passed! Output collection is working correctly.")
         return 0
     else:
-        print(f"\n💥 {tests_failed} test(s) failed. Check the output above for details.")
+        print(
+            f"\n💥 {tests_failed} test(s) failed. Check the output above for details."
+        )
         return 1
 
 

@@ -1,5 +1,4 @@
-"""
-Functional tests for Shadow NS placeholder resolution.
+"""Functional tests for Shadow NS placeholder resolution.
 
 Tests end-to-end placeholder resolution scenarios that demonstrate
 the solution to the original "empty parameters" problem for Shadow NS environment.

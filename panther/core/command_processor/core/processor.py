@@ -61,14 +61,14 @@ class CommandProcessor(ICommandProcessor, ErrorHandlerMixin):
     """
 
     def __init__(self):
+        """Initialize the command processor."""
         super().__init__()
         self.logger = get_feature_logger(__name__, "command_generation")
 
     def process_commands(
         self, commands: Dict[str, Any], target_format: str = "generic"
     ) -> Dict[str, Any]:
-        """
-        Process a command structure into a target format.
+        """Process a command structure into a target format.
 
         Args:
             commands: Dictionary containing command structure
@@ -128,8 +128,7 @@ class CommandProcessor(ICommandProcessor, ErrorHandlerMixin):
             raise
 
     def _log_processing_summary(self, commands: Dict[str, Any]) -> None:
-        """
-        Log a concise summary of command processing instead of verbose details.
+        """Log a concise summary of command processing instead of verbose details.
 
         Args:
             commands: Dictionary containing command structure
@@ -170,8 +169,7 @@ class CommandProcessor(ICommandProcessor, ErrorHandlerMixin):
         self.logger.info(summary)
 
     def _process_run_cmd(self, run_cmd: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Process the special run_cmd structure.
+        """Process the special run_cmd structure.
 
         Args:
             run_cmd: The run_cmd dictionary
@@ -225,8 +223,7 @@ class CommandProcessor(ICommandProcessor, ErrorHandlerMixin):
     def process_command_list(
         self, commands: List[Any], detect_properties: bool = True
     ) -> List[Dict[str, Any]]:
-        """
-        Process a list of commands into a structured format.
+        """Process a list of commands into a structured format.
 
         Args:
             commands: List of commands to process
@@ -297,8 +294,7 @@ class CommandProcessor(ICommandProcessor, ErrorHandlerMixin):
     def _validate_and_convert_commands(
         self, commands: List[Any]
     ) -> List[Union[ShellCommand, str]]:
-        """
-        Validate and convert commands to ShellCommand objects.
+        """Validate and convert commands to ShellCommand objects.
 
         Args:
             commands: List of commands to validate and convert
@@ -319,8 +315,7 @@ class CommandProcessor(ICommandProcessor, ErrorHandlerMixin):
         return valid_cmds
 
     def detect_command_properties(self, command: str) -> Dict[str, bool]:
-        """
-        Detect properties of a command string.
+        """Detect properties of a command string.
 
         Args:
             command: Command string to analyze
@@ -376,8 +371,7 @@ class CommandProcessor(ICommandProcessor, ErrorHandlerMixin):
         return properties
 
     def _validate_command_structure(self, commands: Dict[str, Any]) -> None:
-        """
-        Validate command structure before processing.
+        """Validate command structure before processing.
 
         Args:
             commands: Dictionary containing command structure

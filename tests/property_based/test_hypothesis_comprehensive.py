@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Comprehensive Hypothesis-Based Property Testing for PANTHER Configuration Classes
+"""Comprehensive Hypothesis-Based Property Testing for PANTHER Configuration Classes.
 
 This module provides exhaustive property-based testing using the Hypothesis framework
 to validate all PANTHER configuration classes with edge cases, random data generation,
@@ -471,8 +470,7 @@ class TestBaseConfigHypothesis:
     )
     @settings(max_examples=100, verbosity=Verbosity.verbose)
     def test_base_config_arbitrary_data_serialization(self, data):
-        """
-        Property: Any dictionary should be serializable through BaseConfig
+        """Property: Any dictionary should be serializable through BaseConfig.
 
         Tests:
         - BaseConfig can handle arbitrary valid dictionary data
@@ -525,8 +523,7 @@ class TestBaseConfigHypothesis:
     )
     @settings(max_examples=50)
     def test_base_config_merge_properties(self, base_data, override_data):
-        """
-        Property: Merging configurations should follow predictable rules
+        """Property: Merging configurations should follow predictable rules.
 
         Tests:
         - Override values always take precedence
@@ -556,8 +553,7 @@ class TestBaseConfigHypothesis:
     @given(st.dictionaries(safe_short_text, safe_text, min_size=1, max_size=10))
     @settings(max_examples=50)
     def test_base_config_file_operations_properties(self, data):
-        """
-        Property: File save/load operations should be lossless
+        """Property: File save/load operations should be lossless.
 
         Tests:
         - Save/load cycle preserves all data
@@ -602,8 +598,7 @@ class TestGlobalConfigHypothesis:
     @given(global_config_strategy())
     @settings(max_examples=50, verbosity=Verbosity.verbose)
     def test_global_config_structure_invariants(self, config):
-        """
-        Property: GlobalConfig should maintain structural invariants
+        """Property: GlobalConfig should maintain structural invariants.
 
         Tests:
         - All required sub-configurations are present and valid
@@ -658,8 +653,7 @@ class TestGlobalConfigHypothesis:
     )
     @settings(max_examples=30)
     def test_global_config_merge_behavior(self, base_config, override_dict):
-        """
-        Property: GlobalConfig merging should maintain configuration validity
+        """Property: GlobalConfig merging should maintain configuration validity.
 
         Tests:
         - Merged configuration remains valid GlobalConfig
@@ -693,8 +687,7 @@ class TestGlobalConfigHypothesis:
     @given(global_config_strategy())
     @settings(max_examples=30)
     def test_global_config_serialization_round_trips(self, config):
-        """
-        Property: All serialization formats should round-trip correctly
+        """Property: All serialization formats should round-trip correctly.
 
         Tests:
         - YAML serialization preserves all data and structure
@@ -743,8 +736,7 @@ class TestExperimentConfigHypothesis:
     @given(experiment_config_strategy())
     @settings(max_examples=30, verbosity=Verbosity.verbose)
     def test_experiment_config_validation_properties(self, config):
-        """
-        Property: ExperimentConfig should enforce structural constraints
+        """Property: ExperimentConfig should enforce structural constraints.
 
         Tests:
         - At least one test is always present
@@ -788,8 +780,7 @@ class TestExperimentConfigHypothesis:
     @given(experiment_config_strategy())
     @settings(max_examples=20)
     def test_experiment_config_service_graph_properties(self, config):
-        """
-        Property: Service dependencies should form valid directed graphs
+        """Property: Service dependencies should form valid directed graphs.
 
         Tests:
         - No circular dependencies within tests
@@ -819,8 +810,7 @@ class TestExperimentConfigHypothesis:
     @given(test_config_strategy())
     @settings(max_examples=30)
     def test_test_config_resource_constraints(self, config):
-        """
-        Property: TestConfig should enforce resource constraints
+        """Property: TestConfig should enforce resource constraints.
 
         Tests:
         - Port mappings are valid (1024-65535)
@@ -863,8 +853,7 @@ class TestExperimentConfigHypothesis:
     @given(experiment_config_strategy())
     @settings(max_examples=20)
     def test_experiment_config_serialization_completeness(self, config):
-        """
-        Property: Complex ExperimentConfig should serialize completely
+        """Property: Complex ExperimentConfig should serialize completely.
 
         Tests:
         - All nested structures are preserved in serialization
@@ -906,8 +895,7 @@ class TestExperimentConfigHypothesis:
 
 
 class ConfigurationStateMachine(RuleBasedStateMachine):
-    """
-    Stateful testing for configuration lifecycle and evolution.
+    """Stateful testing for configuration lifecycle and evolution.
 
     Tests complex scenarios involving:
     - Multiple configuration modifications over time
@@ -991,8 +979,7 @@ class TestConfigurationEdgeCases:
     @given(st.integers(min_value=-1000, max_value=0))
     @settings(max_examples=20)
     def test_negative_timeouts_rejected(self, negative_timeout):
-        """
-        Property: Negative timeouts should be rejected by validation
+        """Property: Negative timeouts should be rejected by validation.
 
         Tests:
         - ServiceConfig rejects negative timeouts
@@ -1009,8 +996,7 @@ class TestConfigurationEdgeCases:
     @given(st.integers(min_value=65536, max_value=100000))
     @settings(max_examples=10)
     def test_invalid_port_numbers_rejected(self, invalid_port):
-        """
-        Property: Invalid port numbers should be rejected
+        """Property: Invalid port numbers should be rejected.
 
         Tests:
         - Ports outside 1-65535 range are rejected
@@ -1026,8 +1012,7 @@ class TestConfigurationEdgeCases:
     @given(st.text(min_size=0, max_size=0))
     @settings(max_examples=10)
     def test_empty_required_fields_rejected(self, empty_string):
-        """
-        Property: Empty required string fields should be rejected
+        """Property: Empty required string fields should be rejected.
 
         Tests:
         - Empty implementation names are rejected
@@ -1067,8 +1052,7 @@ class TestConfigurationEdgeCases:
     )
     @settings(max_examples=10)
     def test_empty_test_list_rejected(self, empty_tests):
-        """
-        Property: ExperimentConfig with empty test list should be rejected
+        """Property: ExperimentConfig with empty test list should be rejected.
 
         Tests:
         - ExperimentConfig requires at least one test
@@ -1082,8 +1066,7 @@ class TestConfigurationEdgeCases:
     @given(st.lists(safe_text, min_size=2, max_size=5))
     @settings(max_examples=20)
     def test_duplicate_test_names_rejected(self, names):
-        """
-        Property: Duplicate test names should be rejected
+        """Property: Duplicate test names should be rejected.
 
         Tests:
         - ExperimentConfig enforces unique test names
@@ -1120,8 +1103,7 @@ class TestConfigurationPerformance:
     @given(st.integers(min_value=10, max_value=100))
     @settings(max_examples=5, deadline=10000)  # 10 second deadline
     def test_large_configuration_performance(self, num_services):
-        """
-        Property: Large configurations should be handled efficiently
+        """Property: Large configurations should be handled efficiently.
 
         Tests:
         - Creating configs with many services completes in reasonable time
@@ -1179,8 +1161,7 @@ class TestConfigurationPerformance:
     @given(st.integers(min_value=5, max_value=20))
     @settings(max_examples=3, deadline=15000)
     def test_deep_merge_performance(self, merge_depth):
-        """
-        Property: Deep merge operations should handle nested structures efficiently
+        """Property: Deep merge operations should handle nested structures efficiently.
 
         Tests:
         - Nested merge operations complete in reasonable time
@@ -1222,8 +1203,7 @@ class TestConfigurationPerformance:
 
 
 def generate_test_documentation():
-    """
-    Generate comprehensive test documentation covering all test scenarios.
+    """Generate comprehensive test documentation covering all test scenarios.
 
     Returns detailed report of:
     - Property-based test coverage

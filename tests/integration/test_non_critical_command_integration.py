@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
-"""
-Integration test for non-critical command handling in Docker Compose environment.
+"""Integration test for non-critical command handling in Docker Compose environment.
+
 This test creates a simple environment with an Ivy service and a client service
 that has a non-critical command to wait for Ivy to be ready.
 """

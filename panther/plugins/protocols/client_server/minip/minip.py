@@ -1,5 +1,5 @@
-"""
-MiniP Protocol Manager
+"""MiniP protocol manager.
+
 This class manages the MiniP protocol configurations and provides
 version-specific parameters for MiniP implementations.
 """
@@ -7,7 +7,9 @@ version-specific parameters for MiniP implementations.
 import logging
 
 from panther.plugins.core.plugin_decorators import register_protocol
-from panther.plugins.protocols.protocol_interface import IProtocolManager
+from panther.plugins.protocols.client_server.client_server import (
+    ClientServerProtocolBase,
+)
 
 
 @register_protocol(
@@ -19,15 +21,15 @@ from panther.plugins.protocols.protocol_interface import IProtocolManager
     tags=["transport", "secure", "multiplexed"],
     versions=["flaky", "fail", "functional", "random", "vulnerable"],
 )
-class MiniPProtocol(IProtocolManager):
-    """
-    MiniP Protocol Manager
+class MiniPProtocol(ClientServerProtocolBase):
+    """MiniP protocol manager.
 
     This class manages MiniP protocol configurations and provides
     version-specific parameters for MiniP implementations.
     """
 
     def __init__(self):
+        """Initialize MiniP protocol manager."""
         # Skip parent init since we don't need the old YAML loading
         self.logger = logging.getLogger("MiniPProtocol")
 
@@ -42,8 +44,7 @@ class MiniPProtocol(IProtocolManager):
         return self.get_protocol_metadata().get("default_config", {})
 
     def get_version_parameters(self, version: str) -> dict:
-        """
-        Get version-specific parameters.
+        """Get version-specific parameters.
 
         Args:
             version: Protocol version identifier

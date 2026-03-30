@@ -30,7 +30,7 @@ class TestWebObserverSubscription:
         received = []
         obs.subscribe(lambda e: received.append(e))
         event = _make_event()
-        obs.update_gui(event)
+        obs.on_event(event)
         assert received == [event]
 
     def test_multiple_subscribers(self):
@@ -39,7 +39,7 @@ class TestWebObserverSubscription:
         obs.subscribe(lambda e: a.append(e))
         obs.subscribe(lambda e: b.append(e))
         event = _make_event()
-        obs.update_gui(event)
+        obs.on_event(event)
         assert len(a) == 1
         assert len(b) == 1
 
@@ -49,7 +49,7 @@ class TestWebObserverSubscription:
         cb = lambda e: received.append(e)
         obs.subscribe(cb)
         obs.unsubscribe(cb)
-        obs.update_gui(_make_event())
+        obs.on_event(_make_event())
         assert received == []
 
     def test_unsubscribe_missing_no_error(self):
@@ -65,7 +65,7 @@ class TestWebObserverSubscription:
 
         obs.subscribe(bad_cb)
         obs.subscribe(lambda e: received.append(e))
-        obs.update_gui(_make_event())
+        obs.on_event(_make_event())
         assert len(received) == 1
 
 
@@ -115,12 +115,12 @@ class TestWebObserverConcurrency:
             obs.subscribe(lambda ev: late_received.append(ev))
 
         obs.subscribe(add_subscriber)
-        obs.update_gui(_make_event())
+        obs.on_event(_make_event())
         # The late subscriber was added during dispatch but should not
         # have received the current event (list was copied before iteration).
         assert late_received == []
         # But it should receive the next one.
-        obs.update_gui(_make_event(entity_id="e2"))
+        obs.on_event(_make_event(entity_id="e2"))
         assert len(late_received) == 1
 
     def test_concurrent_on_event_calls(self):
@@ -156,11 +156,11 @@ class TestWebObserverFiltering:
 
         # Should match: type is "experiment.started"
         exp_event = _make_event(name="started", etype=EventType.EXPERIMENT)
-        obs.update_gui(exp_event)
+        obs.on_event(exp_event)
 
         # Should NOT match: type is "test.test_event"
         test_event = _make_event(name="test_event", etype=EventType.TEST)
-        obs.update_gui(test_event)
+        obs.on_event(test_event)
 
         assert received == [exp_event]
 
@@ -172,11 +172,11 @@ class TestWebObserverFiltering:
 
         # "experiment.started" is HIGH → should pass
         high_event = _make_event(name="started", etype=EventType.EXPERIMENT)
-        obs.update_gui(high_event)
+        obs.on_event(high_event)
 
         # "step.progress" is LOW → should be filtered
         low_event = _make_event(name="progress", etype=EventType.STEP)
-        obs.update_gui(low_event)
+        obs.on_event(low_event)
 
         assert received == [high_event]
 
@@ -189,8 +189,8 @@ class TestWebObserverFiltering:
             predicate=lambda e: e.entity_id == "target",
         )
 
-        obs.update_gui(_make_event(entity_id="target"))
-        obs.update_gui(_make_event(entity_id="other"))
+        obs.on_event(_make_event(entity_id="target"))
+        obs.on_event(_make_event(entity_id="other"))
 
         assert len(received) == 1
         assert received[0].entity_id == "target"
@@ -208,17 +208,17 @@ class TestWebObserverFiltering:
 
         # Matches all three filters
         good = _make_event(name="started", etype=EventType.EXPERIMENT, entity_id="exp1")
-        obs.update_gui(good)
+        obs.on_event(good)
 
         # Wrong event type
         bad_type = _make_event(name="progress", etype=EventType.STEP, entity_id="exp1")
-        obs.update_gui(bad_type)
+        obs.on_event(bad_type)
 
         # Wrong entity (predicate fails)
         bad_pred = _make_event(
             name="started", etype=EventType.EXPERIMENT, entity_id="exp2"
         )
-        obs.update_gui(bad_pred)
+        obs.on_event(bad_pred)
 
         assert received == [good]
 
@@ -228,9 +228,9 @@ class TestWebObserverFiltering:
         received = []
         sub = obs.subscribe(lambda e: received.append(e))
 
-        obs.update_gui(_make_event(name="started", etype=EventType.EXPERIMENT))
-        obs.update_gui(_make_event(name="progress", etype=EventType.STEP))
-        obs.update_gui(_make_event(name="crashed", etype=EventType.SERVICE))
+        obs.on_event(_make_event(name="started", etype=EventType.EXPERIMENT))
+        obs.on_event(_make_event(name="progress", etype=EventType.STEP))
+        obs.on_event(_make_event(name="crashed", etype=EventType.SERVICE))
 
         assert len(received) == 3
         assert isinstance(sub, Subscription)
@@ -241,7 +241,7 @@ class TestWebObserverFiltering:
         received = []
         sub = obs.subscribe(lambda e: received.append(e))
         obs.unsubscribe(sub)
-        obs.update_gui(_make_event())
+        obs.on_event(_make_event())
         assert received == []
 
     def test_unsubscribe_by_callback_backward_compat(self):
@@ -251,7 +251,7 @@ class TestWebObserverFiltering:
         cb = lambda e: received.append(e)
         obs.subscribe(cb)
         obs.unsubscribe(cb)
-        obs.update_gui(_make_event())
+        obs.on_event(_make_event())
         assert received == []
 
 
@@ -267,10 +267,8 @@ class TestWebObserverBatching:
         obs.subscribe(lambda e: received.append(e))
         obs.enable_batching(500)
 
-        obs.update_gui(_make_event(name="progress", etype=EventType.STEP))
-        obs.update_gui(
-            _make_event(name="progress", etype=EventType.STEP, entity_id="e2")
-        )
+        obs.on_event(_make_event(name="progress", etype=EventType.STEP))
+        obs.on_event(_make_event(name="progress", etype=EventType.STEP, entity_id="e2"))
 
         # Not yet delivered
         assert len(received) == 0
@@ -284,8 +282,8 @@ class TestWebObserverBatching:
 
         e1 = _make_event(name="progress", etype=EventType.STEP)
         e2 = _make_event(name="progress", etype=EventType.STEP, entity_id="e2")
-        obs.update_gui(e1)
-        obs.update_gui(e2)
+        obs.on_event(e1)
+        obs.on_event(e2)
         obs._flush_batch()
 
         assert len(received) == 2
@@ -301,7 +299,7 @@ class TestWebObserverBatching:
 
         # "experiment.failed" is CRITICAL in EventSummarizer
         critical = _make_event(name="failed", etype=EventType.EXPERIMENT)
-        obs.update_gui(critical)
+        obs.on_event(critical)
 
         # Should be delivered immediately, not buffered
         assert len(received) == 1
@@ -317,7 +315,7 @@ class TestWebObserverBatching:
         obs.enable_batching(500)
 
         event = _make_event(name="progress", etype=EventType.STEP)
-        obs.update_gui(event)
+        obs.on_event(event)
 
         assert len(immediate) == 1
         assert len(batched) == 0  # still in buffer
@@ -332,7 +330,7 @@ class TestWebObserverBatching:
         obs.subscribe(lambda e: received.append(e))
         obs.enable_batching(500)
 
-        obs.update_gui(_make_event(name="progress", etype=EventType.STEP))
+        obs.on_event(_make_event(name="progress", etype=EventType.STEP))
         assert len(received) == 0
 
         obs.disable_batching()
@@ -348,7 +346,7 @@ class TestWebObserverBatching:
 
         def producer(eid):
             barrier.wait()
-            obs.update_gui(
+            obs.on_event(
                 _make_event(name="progress", etype=EventType.STEP, entity_id=eid)
             )
 

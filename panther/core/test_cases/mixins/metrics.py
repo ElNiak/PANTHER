@@ -18,8 +18,7 @@ class MetricsMixin:
     def timed_operation(
         self, operation_name: str, phase: str = "TEST_EXECUTION"
     ) -> Callable:
-        """
-        Decorator for timing operations and emitting metrics.
+        """Decorator for timing operations and emitting metrics.
 
         Args:
             operation_name: Name of the operation being timed
@@ -55,8 +54,7 @@ class MetricsMixin:
         self.logger.debug(f"Started timer for operation: {operation_name}")
 
     def stop_timer(self, operation_name: str, phase: str = "TEST_EXECUTION") -> float:
-        """
-        Stop timing an operation and emit metric.
+        """Stop timing an operation and emit metric.
 
         Args:
             operation_name: Name of the operation
@@ -81,8 +79,7 @@ class MetricsMixin:
         phase: str = "TEST_EXECUTION",
         error: bool = False,
     ) -> None:
-        """
-        Emit a timing metric event.
+        """Emit a timing metric event.
 
         Args:
             operation_name: Name of the operation
@@ -123,8 +120,7 @@ class MetricsMixin:
         increment: bool = True,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """
-        Emit a counter metric event.
+        """Emit a counter metric event.
 
         Args:
             counter_name: Name of the counter
@@ -155,8 +151,7 @@ class MetricsMixin:
         unit: str = "count",
         metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """
-        Emit a gauge metric event.
+        """Emit a gauge metric event.
 
         Args:
             gauge_name: Name of the gauge
@@ -181,8 +176,7 @@ class MetricsMixin:
             self.logger.error(f"Failed to emit gauge metric: {e}")
 
     def with_metrics(self, phase: str = "TEST_EXECUTION") -> Callable:
-        """
-        Context manager for timing code blocks.
+        """Context manager for timing code blocks.
 
         Usage:
             with self.with_metrics("setup_services"):

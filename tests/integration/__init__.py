@@ -1,5 +1,4 @@
-"""
-Integration tests for PANTHER framework.
+"""Integration tests for PANTHER framework.
 
 This module contains integration tests that verify the interaction between
 different components of the PANTHER system:

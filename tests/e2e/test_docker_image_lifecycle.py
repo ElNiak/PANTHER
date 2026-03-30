@@ -1,5 +1,4 @@
-"""
-End-to-end tests for complete Docker image lifecycle in PANTHER.
+"""End-to-end tests for complete Docker image lifecycle in PANTHER.
 
 This module tests the complete lifecycle from service configuration through
 image building, validation, and deployment to prevent issues like:

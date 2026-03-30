@@ -44,7 +44,7 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 try:
     from jinja2 import Environment, FileSystemLoader, Template
@@ -99,12 +99,6 @@ class ExperimentReporter:
     - **Fast-Fail Analysis**: Failure categorization and termination reasoning
     - **Historical Context**: Experiment metadata and version information
 
-    **Performance Characteristics**:
-    - **Report Generation**: ~100-500ms depending on experiment size and template complexity
-    - **Memory Usage**: O(n) where n is number of test cases and log entries
-    - **Template Rendering**: ~10-50ms for Jinja2, ~5-10ms for basic formatting
-    - **Error Resilience**: Multiple format attempts ensure report availability
-
     **Usage Patterns**:
     ```python
     # Basic usage
@@ -144,7 +138,7 @@ class ExperimentReporter:
                 loader=FileSystemLoader(templates_dir),
                 trim_blocks=True,
                 lstrip_blocks=True,
-                autoescape=False,
+                autoescape=True,
             )
         else:
             self.jinja_env = None
@@ -194,6 +188,16 @@ class ExperimentReporter:
                 "report_format_version": "1.0",
             }
 
+            # Add optional diagnosis section
+            diagnosis = self._get_diagnosis()
+            if diagnosis:
+                report_data["diagnosis"] = diagnosis
+
+            # Add optional artifacts section
+            artifacts = self._get_artifact_summary()
+            if artifacts:
+                report_data["artifacts"] = artifacts
+
             json_path = self.experiment_dir / "experiment_summary.json"
             with open(json_path, "w", encoding="utf-8") as f:
                 json.dump(report_data, f, indent=2, ensure_ascii=False)
@@ -202,7 +206,7 @@ class ExperimentReporter:
             return True
 
         except Exception as e:
-            self.logger.error(f"Failed to generate JSON report: {e}")
+            self.logger.error(f"Failed to generate JSON report: {e}", exc_info=True)
             return False
 
     def _generate_markdown_report(self, summary: ExperimentSummary) -> bool:
@@ -214,7 +218,7 @@ class ExperimentReporter:
                 return self._generate_basic_markdown_report(summary)
 
         except Exception as e:
-            self.logger.error(f"Failed to generate Markdown report: {e}")
+            self.logger.error(f"Failed to generate Markdown report: {e}", exc_info=True)
             return False
 
     def _generate_jinja_markdown_report(self, summary: ExperimentSummary) -> bool:
@@ -243,7 +247,9 @@ class ExperimentReporter:
             return True
 
         except Exception as e:
-            self.logger.error(f"Failed to generate Jinja2 Markdown report: {e}")
+            self.logger.error(
+                f"Failed to generate Jinja2 Markdown report: {e}", exc_info=True
+            )
             return False
 
     def _generate_basic_markdown_report(self, summary: ExperimentSummary) -> bool:
@@ -403,6 +409,18 @@ class ExperimentReporter:
             else:
                 lines.append("- No resource usage data available")
 
+            # Root Cause Analysis section (optional)
+            rca_lines = self._format_rca_markdown()
+            if rca_lines:
+                lines.extend(["", ""])
+                lines.extend(rca_lines)
+
+            # Artifact Inventory section (optional)
+            artifact_lines = self._format_artifact_markdown()
+            if artifact_lines:
+                lines.extend(["", ""])
+                lines.extend(artifact_lines)
+
             lines.extend(
                 [
                     "",
@@ -440,7 +458,9 @@ class ExperimentReporter:
             return True
 
         except Exception as e:
-            self.logger.error(f"Failed to generate basic Markdown report: {e}")
+            self.logger.error(
+                f"Failed to generate basic Markdown report: {e}", exc_info=True
+            )
             return False
 
     def _generate_simple_text_report(self, summary: ExperimentSummary) -> bool:
@@ -471,7 +491,7 @@ class ExperimentReporter:
             return True
 
         except Exception as e:
-            self.logger.error(f"Failed to generate text report: {e}")
+            self.logger.error(f"Failed to generate text report: {e}", exc_info=True)
             return False
 
     def _get_status_emoji(self, status: ExperimentStatus) -> str:
@@ -529,6 +549,128 @@ class ExperimentReporter:
 
         return "Development"
 
+    # -- RCA and artifact integration helpers ---------------------------------
+
+    def _has_structured_log(self) -> bool:
+        """Check whether a structured.jsonl file exists in the output dir."""
+        return (self.experiment_dir / "structured.jsonl").is_file() or any(
+            self.experiment_dir.rglob("structured.jsonl")
+        )
+
+    def _get_diagnosis(self) -> Optional[List[Dict[str, Any]]]:
+        """Run root-cause analysis if structured logs exist.
+
+        Returns:
+            List of serialized ``RootCause`` dicts, or None when
+            structured logs are unavailable.
+        """
+        if not self._has_structured_log():
+            return None
+        try:
+            from .root_cause_analyzer import RootCauseAnalyzer
+
+            analyzer = RootCauseAnalyzer(self.experiment_dir)
+            causes = analyzer.analyze_as_dicts()
+            return causes if causes else None
+        except Exception as exc:
+            self.logger.warning(
+                "RCA failed (%s: %s), diagnosis section omitted",
+                type(exc).__name__,
+                exc,
+                exc_info=True,
+            )
+            return None
+
+    def _get_artifact_summary(self) -> Optional[List[Dict[str, Any]]]:
+        """Collect artifact inventory via ArtifactBrowser.
+
+        Returns:
+            List of artifact metadata dicts, or None on failure.
+        """
+        try:
+            from .artifact_browser import ArtifactBrowser
+
+            browser = ArtifactBrowser(self.experiment_dir)
+            artifacts = browser.list_artifacts()
+            return artifacts if artifacts else None
+        except Exception as exc:
+            self.logger.warning(
+                "Artifact browsing failed (%s: %s), artifacts section omitted",
+                type(exc).__name__,
+                exc,
+                exc_info=True,
+            )
+            return None
+
+    def _format_rca_markdown(self) -> List[str]:
+        """Format root-cause analysis as Markdown lines.
+
+        Returns:
+            List of Markdown-formatted strings.  Empty when RCA is
+            unavailable or found no issues.
+        """
+        diagnosis = self._get_diagnosis()
+        if not diagnosis:
+            return []
+
+        lines = ["## Root Cause Analysis", ""]
+        for cause in diagnosis:
+            rank = cause.get("rank", "?")
+            pattern = cause.get("pattern_name", "unknown")
+            category = cause.get("category", "unknown")
+            confidence = cause.get("confidence", 0.0)
+            suggestion = cause.get("suggestion", "")
+            event = cause.get("event", {})
+            excerpt = cause.get("log_excerpt", [])
+
+            lines.append(f"### #{rank}: {pattern} (confidence: {confidence:.0%})")
+            lines.append(f"- **Category**: {category}")
+            if event.get("message"):
+                lines.append(f"- **Trigger**: {event['message']}")
+            if event.get("service_id"):
+                lines.append(f"- **Service**: {event['service_id']}")
+            if suggestion:
+                lines.append(f"- **Suggestion**: {suggestion}")
+            if excerpt:
+                lines.append("- **Log excerpt**:")
+                for line in excerpt[:5]:
+                    lines.append(f"  - `{line}`")
+            lines.append("")
+
+        return lines
+
+    def _format_artifact_markdown(self) -> List[str]:
+        """Format artifact inventory as Markdown lines.
+
+        Returns:
+            List of Markdown-formatted strings.  Empty when artifact
+            browsing is unavailable.
+        """
+        artifacts = self._get_artifact_summary()
+        if not artifacts:
+            return []
+
+        lines = ["## Artifact Inventory", ""]
+
+        # Group by type
+        by_type: Dict[str, list] = {}
+        for art in artifacts:
+            t = art.get("type", "other")
+            by_type.setdefault(t, []).append(art)
+
+        for art_type, items in sorted(by_type.items()):
+            lines.append(f"### {art_type.title()} ({len(items)})")
+            for item in items[:20]:  # cap display
+                path = item.get("path", "?")
+                size = item.get("size_bytes", 0)
+                size_str = f"{size / 1024:.1f} KB" if size else "0 KB"
+                lines.append(f"- `{path}` ({size_str})")
+            if len(items) > 20:
+                lines.append(f"- ... and {len(items) - 20} more")
+            lines.append("")
+
+        return lines
+
     def generate_quick_summary(self) -> Optional[str]:
         """Generate a quick one-line summary for logging.
 
@@ -548,5 +690,5 @@ class ExperimentReporter:
             )
 
         except Exception as e:
-            self.logger.error(f"Failed to generate quick summary: {e}")
+            self.logger.error(f"Failed to generate quick summary: {e}", exc_info=True)
             return None

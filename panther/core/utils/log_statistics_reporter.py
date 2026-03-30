@@ -1,5 +1,4 @@
-"""
-Log Statistics Reporter
+"""Log Statistics Reporter.
 
 This module provides reporting and display functionality for logging statistics,
 including real-time console output and comprehensive report generation.
@@ -16,16 +15,14 @@ from .log_statistics_collector import LogStatisticsCollector
 
 
 class LogStatisticsReporter:
-    """
-    Reporter for logging statistics with multiple output formats and display options.
+    """Reporter for logging statistics with multiple output formats and display options.
 
     Provides both real-time statistics display and comprehensive report generation
     capabilities for analyzing logging behavior and performance.
     """
 
     def __init__(self, collector: LogStatisticsCollector):
-        """
-        Initialize the statistics reporter.
+        """Initialize the statistics reporter.
 
         Args:
             collector: The statistics collector to report from
@@ -45,8 +42,7 @@ class LogStatisticsReporter:
         show_performance: bool = True,
         compact: bool = False,
     ) -> None:
-        """
-        Print live statistics to console.
+        """Print live statistics to console.
 
         Args:
             show_features: Whether to include feature breakdown
@@ -145,8 +141,7 @@ class LogStatisticsReporter:
         return f"[{bar}]"
 
     def generate_text_report(self, sections: Optional[List[str]] = None) -> str:
-        """
-        Generate human-readable text report.
+        """Generate human-readable text report.
 
         Args:
             sections: List of sections to include ('summary', 'features', 'performance', 'errors', 'recommendations')
@@ -359,8 +354,7 @@ class LogStatisticsReporter:
         return lines
 
     def generate_json_report(self, pretty: bool = True) -> str:
-        """
-        Generate JSON statistics report.
+        """Generate JSON statistics report.
 
         Args:
             pretty: Whether to format JSON with indentation
@@ -380,8 +374,7 @@ class LogStatisticsReporter:
             return json.dumps({"error": f"Failed to generate JSON report: {e}"})
 
     def generate_csv_report(self) -> str:
-        """
-        Generate CSV statistics report.
+        """Generate CSV statistics report.
 
         Returns:
             CSV formatted statistics report
@@ -434,8 +427,7 @@ class LogStatisticsReporter:
             return f"error,Failed to generate CSV report: {e},error"
 
     def export_to_file(self, filepath: Path, format: str = "json", **kwargs) -> bool:
-        """
-        Export statistics to file.
+        """Export statistics to file.
 
         Args:
             filepath: Path where to save the report
@@ -469,8 +461,7 @@ class LogStatisticsReporter:
             return False
 
     def save_real_time_snapshot(self, filepath: Path) -> bool:
-        """
-        Save current real-time statistics as a snapshot.
+        """Save current real-time statistics as a snapshot.
 
         Args:
             filepath: Path where to save the snapshot
@@ -494,8 +485,7 @@ class LogStatisticsReporter:
             return False
 
     def compare_with_baseline(self, baseline_path: Path) -> Dict[str, Any]:
-        """
-        Compare current statistics with a baseline report.
+        """Compare current statistics with a baseline report.
 
         Args:
             baseline_path: Path to baseline statistics file
@@ -550,8 +540,7 @@ class LogStatisticsReporter:
 
 
 def create_console_reporter(collector: LogStatisticsCollector) -> LogStatisticsReporter:
-    """
-    Factory function to create a console-optimized reporter.
+    """Factory function to create a console-optimized reporter.
 
     Args:
         collector: The statistics collector instance

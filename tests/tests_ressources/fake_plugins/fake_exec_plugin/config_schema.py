@@ -6,9 +6,7 @@ from panther.config.core.models.environment import ExecutionEnvironmentConfig
 
 
 class GperfCpuConfig(ExecutionEnvironmentConfig):
-    """
-    Configuration for gperf command generation.
-    """
+    """Configuration for gperf command generation."""
 
     input_file: Optional[str] = Field(default=None, description="Input file for gperf")
     output_file: Optional[str] = Field(

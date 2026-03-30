@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""
-Test script to see how empty commands are handled in the _combine_shell_constructs method.
-"""
+"""Test script to see how empty commands are handled in the _combine_shell_constructs method."""
 import logging
 import os
 

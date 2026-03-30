@@ -22,7 +22,6 @@ def docker_client():
 @pytest.fixture(scope="session")
 def test_service_images(docker_client):
     """Build test service Docker images."""
-
     images = {}
     test_dir = Path(__file__).parent
 
@@ -235,7 +234,6 @@ def file_monitor():
 @pytest.fixture
 def cleanup_helper():
     """Helper for cleaning up test resources."""
-
     cleanup_tasks = []
 
     class CleanupHelper:

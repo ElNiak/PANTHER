@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Quick E2E test to validate that our test service works with real PANTHER.
+"""Quick E2E test to validate that our test service works with real PANTHER.
 
 This is a minimal test that runs a real PANTHER experiment using our test service
 to verify the E2E setup is working correctly.

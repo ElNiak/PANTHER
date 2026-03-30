@@ -49,8 +49,7 @@ class TestExecutionMixin:
     def check_service_responsiveness(
         self, service_name: str, endpoint: str, expected_status: int = 200
     ) -> bool:
-        """
-        Check if a service's endpoint is responsive and returns the expected status code.
+        """Check if a service's endpoint is responsive and returns the expected status code.
 
         Args:
             service_name: Name of the service
@@ -84,8 +83,7 @@ class TestExecutionMixin:
             return False
 
     def execute_custom_step(self, step_name: str, step_config: Dict[str, Any]) -> None:
-        """
-        Execute a custom step type.
+        """Execute a custom step type.
 
         This method can be overridden in subclasses to support custom step types.
 
@@ -97,8 +95,7 @@ class TestExecutionMixin:
         # Subclasses can override this to handle custom steps
 
     def _collect_outputs(self) -> Dict[str, Any]:
-        """
-        Collect outputs from all execution environments for analysis.
+        """Collect outputs from all execution environments for analysis.
 
         Delegates to the OutputAnalyzer to handle collection and organization.
 
@@ -108,8 +105,7 @@ class TestExecutionMixin:
         return self.output_analyzer.collect_outputs()
 
     def _run_tester_analysis(self) -> bool:
-        """
-        Run analysis on collected outputs using tester service managers.
+        """Run analysis on collected outputs using tester service managers.
 
         Delegates to the OutputAnalyzer to handle the analysis workflow.
 

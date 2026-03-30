@@ -1,5 +1,4 @@
-"""
-Property-based tests for PANTHER service configuration validation using Hypothesis.
+"""Property-based tests for PANTHER service configuration validation using Hypothesis.
 
 This module focuses on testing service configuration patterns, image name generation,
 and environment setup validation to ensure robust configuration handling.

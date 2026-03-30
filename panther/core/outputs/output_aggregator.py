@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from panther.core.events.environment.emitter import EnvironmentEventEmitter
 from panther.core.outputs.output_collector import IOutputCollector
+from panther.core.outputs.output_index import OutputIndexBuilder
 
 
 class OutputAggregator:
@@ -52,16 +53,22 @@ class OutputAggregator:
     """
 
     def __init__(
-        self, experiment_dir: Path, environment_emitter: EnvironmentEventEmitter
+        self,
+        experiment_dir: Path,
+        environment_emitter: EnvironmentEventEmitter,
+        output_index_builder: Optional[OutputIndexBuilder] = None,
     ):
         """Initialize the OutputAggregator.
 
         Args:
-            experiment_dir: Directory where experiment outputs are stored
-            environment_emitter: Event emitter for environment events
+            experiment_dir: Directory where experiment outputs are stored.
+            environment_emitter: Event emitter for environment events.
+            output_index_builder: Optional index builder to register collected
+                files for the output manifest.
         """
         self.experiment_dir = Path(experiment_dir)
         self.environment_emitter = environment_emitter
+        self.output_index_builder = output_index_builder
         self.logger = logging.getLogger(__name__)
 
         self.outputs_dir = self.experiment_dir / "outputs"
@@ -87,8 +94,8 @@ class OutputAggregator:
                                      }
         """
         self.logger.info("Starting output collection from execution environments")
-        self.logger.info(f"Number of environments passed: {len(environments)}")
-        self.logger.info(
+        self.logger.debug(f"Number of environments passed: {len(environments)}")
+        self.logger.debug(
             f"Environment types: {[env.__class__.__name__ for env in environments]}"
         )
 
@@ -121,7 +128,7 @@ class OutputAggregator:
             # Check for collect_outputs method instead of interface
             # This allows mixins that provide the method without declaring the interface
             if hasattr(env, "collect_outputs") and hasattr(env, "get_output_metadata"):
-                self.logger.info(f"Collecting outputs from {env_type}")
+                self.logger.debug(f"Collecting outputs from {env_type}")
 
                 try:
                     # Collect outputs from this environment
@@ -132,6 +139,15 @@ class OutputAggregator:
                         collected_outputs[env_type] = outputs
                         total_outputs += len(outputs)
 
+                        # Register each collected file in the output index
+                        if self.output_index_builder is not None:
+                            for output_name, output_path in outputs.items():
+                                self.output_index_builder.register(
+                                    output_path,
+                                    service_id=env_type,
+                                    description=f"{output_name} from {env_type}",
+                                )
+
                         # Emit batch outputs collected event
                         self.environment_emitter.emit_outputs_collected(
                             environment_id=env_type,
@@ -141,11 +157,13 @@ class OutputAggregator:
                             metadata=metadata,
                         )
 
-                        self.logger.info(
+                        self.logger.debug(
                             f"Collected {len(outputs)} outputs from {env_type}: {list(outputs.keys())}"
                         )
                     else:
-                        self.logger.warning(f"No outputs collected from {env_type}")
+                        self.logger.warning(
+                            f"No outputs collected from {env_type} (skipping this environment)"
+                        )
 
                 except Exception as e:
                     self.logger.error(

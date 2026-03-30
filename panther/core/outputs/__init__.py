@@ -1,5 +1,4 @@
-"""
-Output Management System
+"""Output management system.
 
 This module provides a comprehensive framework for collecting, aggregating, and managing outputs
 from PANTHER execution environments during protocol testing.
@@ -9,13 +8,13 @@ from PANTHER execution environments during protocol testing.
 The output management system implements a multi-layered collection strategy:
 
 1. **Output Collection Interface (`IOutputCollector`)**: Defines the contract for execution
-   environments to expose their generated artifacts (logs, traces, profiles, etc.)
+   environments to expose their generated artifacts (internal, not exported)
 
 2. **Output Aggregation (`OutputAggregator`)**: Orchestrates collection from multiple execution
    environments and prepares data for tester analysis with event-driven progress tracking
 
 3. **Environment Mixins (`StandardOutputCollectorMixin`)**: Provides standardized output
-   collection behaviors with container-to-host path mapping and deferred discovery
+   collection behaviors with container-to-host path mapping (internal, not exported)
 
 4. **Phase Collection Standards (`PhaseCollectionStandard`)**: Centralized pattern definitions
    for protocol-specific, service-type-specific, and language-specific output files
@@ -54,5 +53,6 @@ while maintaining consistency and discoverability for analysis workflows.
 
 from .output_aggregator import OutputAggregator
 from .output_cleanup import remove_empty_directories
+from .output_index import OutputIndexBuilder
 
-__all__ = ["OutputAggregator", "remove_empty_directories"]
+__all__ = ["OutputAggregator", "OutputIndexBuilder", "remove_empty_directories"]

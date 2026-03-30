@@ -21,6 +21,7 @@ from panther.core.test_cases.mixins.observer_management import ObserverManagemen
 from panther.core.test_cases.mixins.service_management import ServiceManagementMixin
 from panther.core.test_cases.mixins.test_execution import TestExecutionMixin
 from panther.core.test_cases.test_interface_impl import ITestCase
+from panther.core.utils.log_context import log_context
 from panther.plugins.plugin_manager import PluginManager
 
 
@@ -192,6 +193,9 @@ class TestCase(
             EnvironmentSetupError: If environment deployment fails.
             ServiceSetupError: If service preparation fails.
         """
+        # Push log context for this test; will be popped in the finally block
+        _ctx_token = log_context(test_id=self.test_name)
+        _ctx_token.__enter__()
         try:
             self.state = "RUNNING"
             self.logger.info("Starting Test: %s", self.test_config.name)
@@ -436,6 +440,8 @@ class TestCase(
             self._perform_teardown()
             raise
         finally:
+            # Pop log context for this test
+            _ctx_token.__exit__(None, None, None)
             # Only observer cleanup in finally block - environment teardown moved to _perform_teardown
             self.teardown_observers()
             # Clean up test-specific event emitter to prevent memory leaks
@@ -490,7 +496,7 @@ class TestCase(
             bool: True if configuration is valid, False if issues detected
         """
         try:
-            self.logger.info("  📋 DRY-RUN: Analyzing test configuration...")
+            self.logger.info("  DRY-RUN: Analyzing test configuration...")
 
             # Analyze basic test configuration
             self._analyze_test_configuration()
@@ -510,14 +516,14 @@ class TestCase(
             overall_valid = config_valid and env_valid and steps_valid
 
             if overall_valid:
-                self.logger.info("  ✅ DRY-RUN: All configurations valid")
+                self.logger.info("  DRY-RUN: All configurations valid")
             else:
-                self.logger.info("  ❌ DRY-RUN: Configuration issues found")
+                self.logger.info("  DRY-RUN: Configuration issues found")
 
             return overall_valid
 
         except Exception as e:
-            self.logger.error("  ❌ DRY-RUN: Analysis failed: %s", e)
+            self.logger.error("  DRY-RUN: Analysis failed: %s", e)
             return False
 
     def _show_dry_run_execution_plan(self):

@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""
-Test script to verify how _combine_shell_constructs processes a specific input.
-"""
+"""Test script to verify how _combine_shell_constructs processes a specific input."""
 import logging
 import os
 

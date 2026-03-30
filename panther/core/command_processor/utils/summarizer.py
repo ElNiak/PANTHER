@@ -63,8 +63,7 @@ class CommandSummarizer:
 
     @staticmethod
     def summarize_command_list(commands: List[str], max_commands: int = 3) -> str:
-        """
-        Summarize a list of commands for logging.
+        """Summarize a list of commands for logging.
 
         Args:
             commands: List of command strings
@@ -102,8 +101,7 @@ class CommandSummarizer:
 
     @staticmethod
     def summarize_template_context(context: Dict[str, Any], max_keys: int = 5) -> str:
-        """
-        Summarize template rendering context.
+        """Summarize template rendering context.
 
         Args:
             context: Template context dictionary
@@ -152,8 +150,7 @@ class CommandSummarizer:
 
     @staticmethod
     def get_command_stats(commands: List[str]) -> Dict[str, Any]:
-        """
-        Get command statistics for logging.
+        """Get command statistics for logging.
 
         Args:
             commands: List of command strings
@@ -189,8 +186,7 @@ class CommandSummarizer:
 
     @staticmethod
     def summarize_single_command(command: str, max_length: int = 100) -> str:
-        """
-        Summarize a single command for logging.
+        """Summarize a single command for logging.
 
         Args:
             command: Command string

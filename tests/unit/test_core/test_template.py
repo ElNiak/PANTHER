@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""
-Script to test the updated entrypoint template with different command types.
-"""
+"""Script to test the updated entrypoint template with different command types."""
 
 import re
 from pathlib import Path

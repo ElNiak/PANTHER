@@ -55,7 +55,7 @@ class MockServiceManager(IServiceManager):
         pass
 
     def build_command_args(self, command_args):
-        """Implementation of build_command_args from IServiceManager"""
+        """Implementation of build_command_args from IServiceManager."""
         import shlex
 
         if isinstance(command_args, str):
@@ -70,7 +70,7 @@ class MockServiceManager(IServiceManager):
         return args
 
     def build_env_vars(self, env_dict):
-        """Implementation of build_env_vars from IServiceManager"""
+        """Implementation of build_env_vars from IServiceManager."""
         if not isinstance(env_dict, dict):
             return {}
         return {k: str(v) for k, v in env_dict.items()}
@@ -78,7 +78,7 @@ class MockServiceManager(IServiceManager):
 
 @pytest.fixture
 def docker_compose_env():
-    """Create a test Docker Compose environment"""
+    """Create a test Docker Compose environment."""
     env_config = MagicMock()
     output_dir = tempfile.mkdtemp()
     env_type = "network_environment"

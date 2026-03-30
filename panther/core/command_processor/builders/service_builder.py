@@ -25,7 +25,7 @@ Example:
 """
 
 import logging
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from panther.config.core.models import ProtocolRole
 from panther.core.command_processor.builders import CommandBuilder
@@ -48,6 +48,7 @@ class ServiceCommandBuilder(CommandBuilder):
     """
 
     def __init__(self, role: ProtocolRole):
+        """Initialize ServiceCommandBuilder with a protocol role."""
         super().__init__()
         self.role = role
         self._shell_commands: List[ShellCommand] = []
@@ -202,8 +203,7 @@ class ServiceCommandBuilder(CommandBuilder):
         base_command: str,
         working_dir: Optional[str] = None,
     ) -> ShellCommand:
-        """
-        Build a standard command with common parameter patterns.
+        """Build a standard command with common parameter patterns.
 
         This method handles the most common parameter patterns for
         QUIC implementations.
@@ -242,8 +242,7 @@ class ServiceCommandBuilder(CommandBuilder):
         timeout: Optional[int] = None,
         validate_syntax: bool = True,
     ) -> "ServiceCommandBuilder":
-        """
-        Add a shell command to the command list.
+        """Add a shell command to the command list.
 
         Args:
             command: The shell command string
@@ -253,6 +252,7 @@ class ServiceCommandBuilder(CommandBuilder):
             is_critical: Whether failure should halt execution
             is_variable_assignment: Whether this is a variable assignment
             is_function_call: Whether this is a function call
+            is_environment_variable_assignment: Whether this is an env var assignment
             working_dir: Working directory for command execution
             environment: Environment variables for the command
             timeout: Command timeout in seconds
@@ -285,8 +285,7 @@ class ServiceCommandBuilder(CommandBuilder):
     def add_shell_commands(
         self, commands: List[Union[str, ShellCommand]]
     ) -> "ServiceCommandBuilder":
-        """
-        Add multiple shell commands.
+        """Add multiple shell commands.
 
         Args:
             commands: List of command strings or ShellCommand objects
@@ -302,8 +301,7 @@ class ServiceCommandBuilder(CommandBuilder):
         return self
 
     def build_commands(self) -> List[ShellCommand]:
-        """
-        Build and return the shell commands.
+        """Build and return the shell commands.
 
         Returns:
             List of ShellCommand objects
@@ -322,8 +320,8 @@ class ServiceCommandBuilder(CommandBuilder):
         return self
 
     def process(self, target_format: str = "generic") -> "CommandProcessor":
-        """
-        Create a CommandProcessor instance with the built commands.
+        """Create a CommandProcessor instance with the built commands.
+
         This enables chaining: builder.add_command("...").process().process_commands(...)
 
         Args:
@@ -351,8 +349,8 @@ class ServiceCommandBuilder(CommandBuilder):
         return processor
 
     def process_commands(self, target_format: str = "generic") -> List[Dict[str, Any]]:
-        """
-        Process the built commands and return processed command list.
+        """Process the built commands and return processed command list.
+
         Convenience method for: builder.process().process_command_list(builder.build_commands())
 
         Args:
@@ -365,8 +363,7 @@ class ServiceCommandBuilder(CommandBuilder):
         return processor.process_command_list(self._shell_commands)
 
     def _validate_command_syntax(self, command: str) -> None:
-        """
-        Validate shell command syntax and log warnings for common issues.
+        """Validate shell command syntax and log warnings for common issues.
 
         This method performs non-breaking validation - it logs warnings but
         does not raise exceptions to maintain backward compatibility.
@@ -397,38 +394,32 @@ class ServiceCommandBuilder(CommandBuilder):
 
         # Log all validation issues as warnings (non-breaking)
         if validation_warnings:
-            # Use print for immediate visibility during testing
-            print(
-                f"⚠️  SHELL SYNTAX ERROR: {len(validation_warnings)} issue(s) in command:"
+            self._logger.warning(
+                "SHELL SYNTAX ERROR: %d issue(s) in command: %s",
+                len(validation_warnings),
+                command,
             )
-            print(f"   Command: {command}")
 
             for i, warning in enumerate(validation_warnings, 1):
-                print(f"   {i}. {warning}")
+                self._logger.warning("  %d. %s", i, warning)
 
             # Add specific fixes for common issues
             if any("redirection" in w.lower() for w in validation_warnings):
-                print(f"   💡 FIX: Change '>N/path' to 'N>/path' (e.g., '2>/dev/null')")
+                self._logger.warning(
+                    "  FIX: Change '>N/path' to 'N>/path' (e.g., '2>/dev/null')"
+                )
 
             if any("quote" in w.lower() for w in validation_warnings):
-                print(
-                    f"   💡 FIX: Check for unmatched quotes - ensure all strings are properly quoted"
+                self._logger.warning(
+                    "  FIX: Check for unmatched quotes - ensure all strings are properly quoted"
                 )
 
             if any("dangerous" in w.lower() for w in validation_warnings):
-                print(
-                    f"   💡 WARNING: This command contains potentially dangerous patterns"
+                self._logger.warning(
+                    "  WARNING: This command contains potentially dangerous patterns"
                 )
 
-            print(f"   📍 Location: ServiceCommandBuilder.add_command()")
-
-            # Also log through the logger system
-            self._logger.warning(
-                "Command syntax validation found issues in command: %s",
-                command,
-            )
-            for warning in validation_warnings:
-                self._logger.warning("  - %s", warning)
+            self._logger.warning("  Location: ServiceCommandBuilder.add_command()")
 
     def _check_template_generation_issues(
         self, command: str, validation_warnings: list

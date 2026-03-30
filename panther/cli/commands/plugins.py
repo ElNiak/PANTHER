@@ -338,11 +338,10 @@ def params(
             discovery = PluginDiscovery([str(base_plugin_dir)])
             plugins_dict = discovery.discover_plugins(force_refresh=True)
 
-            # Find plugin type by searching all plugin types
-            for p_type, plugin_names in plugins_dict.items():
-                if plugin_name in plugin_names:
-                    type = p_type
-                    break
+            # Find plugin type from metadata
+            plugin_metadata = plugins_dict.get(plugin_name)
+            if plugin_metadata:
+                type = plugin_metadata.type
 
         if not type:
             error_message(f"Plugin '{plugin_name}' not found and no type specified")
@@ -464,20 +463,19 @@ def scan(ctx, directory: Optional[Path], recursive: bool):
             bar.update(1)  # Parse metadata
             bar.update(1)  # Complete
 
-        total_plugins = sum(len(plugins) for plugins in plugins_dict.values())
+        total_plugins = len(plugins_dict)
         click.echo(f"✅ Scan complete. Found {total_plugins} plugin(s):")
 
-        for plugin_type, plugin_names in plugins_dict.items():
-            if plugin_names:
-                click.echo(f"\n📦 {plugin_type.upper()} Plugins ({len(plugin_names)}):")
-                for plugin_name in plugin_names:
-                    plugin_info: PluginMetadata = discovery.get_plugin(plugin_name)
-                    version = (
-                        plugin_info.get("version", "unknown")
-                        if plugin_info
-                        else "unknown"
-                    )
-                    click.echo(f"  - {plugin_name} (v{version})")
+        # Group plugins by type for display
+        plugins_by_type: dict[str, list[PluginMetadata]] = {}
+        for name, metadata in plugins_dict.items():
+            plugins_by_type.setdefault(metadata.type, []).append(metadata)
+
+        for plugin_type, plugins_list in plugins_by_type.items():
+            click.echo(f"\n📦 {plugin_type.upper()} Plugins ({len(plugins_list)}):")
+            for plugin_meta in plugins_list:
+                version = plugin_meta.version if plugin_meta.version else "unknown"
+                click.echo(f"  - {plugin_meta.name} (v{version})")
 
         success_message("Plugin scanning completed")
 
@@ -494,7 +492,7 @@ def scan(ctx, directory: Optional[Path], recursive: bool):
 @click.option("--check-imports", is_flag=True, help="Validate all import statements")
 @handle_errors
 @pass_context_and_setup_logging
-def validate(ctx, plugin_path: Path, strict: bool, check_imports: bool):
+def validate(ctx, plugin_path: str, strict: bool, check_imports: bool):
     r"""Validate plugin structure and configuration.
 
     Performs comprehensive validation of plugin files including
@@ -529,6 +527,7 @@ def validate(ctx, plugin_path: Path, strict: bool, check_imports: bool):
     🔗 Import Check: Verify all dependencies are available
     """
     verbose = ctx.obj.get("verbose", False)
+    plugin_path = Path(plugin_path)  # click.Path() returns str, convert to Path
 
     if verbose:
         info_message(f"Validating plugin: {plugin_path}")
@@ -659,7 +658,7 @@ def validate(ctx, plugin_path: Path, strict: bool, check_imports: bool):
 )
 @handle_errors
 @pass_context_and_setup_logging
-def check_deps(ctx, plugin_path: Path, fix: bool, requirements_file: Optional[Path]):
+def check_deps(ctx, plugin_path: str, fix: bool, requirements_file: Optional[str]):
     r"""Check plugin dependencies and availability.
 
     Analyzes plugin files to identify required dependencies and verifies

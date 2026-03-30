@@ -1,5 +1,4 @@
-"""
-Docker Compose specific command adapter for PANTHER framework.
+"""Docker Compose specific command adapter for PANTHER framework.
 
 This module provides an adapter that adapts commands for Docker Compose environments.
 """
@@ -12,13 +11,10 @@ from panther.core.command_processor import IEnvironmentCommandAdapter, ShellComm
 
 
 class DockerComposeCommandAdapter(IEnvironmentCommandAdapter):
-    """
-
-    from typing import Any, Dict, DictDocker Compose specific command adapter."""
+    """from typing import Any, Dict, DictDocker Compose specific command adapter."""
 
     def adapt_commands(self, commands: Dict[str, Any]) -> Dict[str, ShellCommand]:
-        """
-        Adapt commands for Docker Compose environment.
+        """Adapt commands for Docker Compose environment.
 
         This performs any Docker Compose specific transformations needed
         for the environment.
@@ -100,8 +96,7 @@ class DockerComposeCommandAdapter(IEnvironmentCommandAdapter):
         return cmd
 
     def _process_structured_command(self, cmd_dict: Dict[str, Any]) -> ShellCommand:
-        """
-        Process a structured command dictionary and convert to ShellCommand.
+        """Process a structured command dictionary and convert to ShellCommand.
 
         Structured commands have format:
         {
@@ -154,8 +149,7 @@ class DockerComposeCommandAdapter(IEnvironmentCommandAdapter):
         return shell_cmd
 
     def _is_variable_assignment(self, cmd_str: str) -> bool:
-        """
-        Check if a command is a variable assignment.
+        """Check if a command is a variable assignment.
 
         Variable assignments have the pattern: VAR=value or VAR=$(command)
         """

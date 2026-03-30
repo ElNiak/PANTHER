@@ -8,6 +8,7 @@ from panther.config.core.models.service import ImplementationType
 from panther.core.docker_builder.plugin_mixin.service_manager_docker_mixin import (
     ServiceManagerDockerMixin,
 )
+from panther.core.utils.log_context import log_context
 from panther.plugins.services.services_interface import IServiceManager
 
 
@@ -48,7 +49,7 @@ class ServiceManagementMixin:
             )
 
         except Exception as e:
-            self.logger.error(f"Failed to setup services: {e}")
+            self.logger.error(f"Failed to setup services (test will be skipped): {e}")
             # Service setup failed
             raise
 
@@ -114,23 +115,24 @@ class ServiceManagementMixin:
                 or impl_type == "TESTERS"
                 or impl_type == "testers"
             ):
-                self.logger.info(f"Setting up tester: {service_name}")
+                with log_context(service_id=service_name, phase="setup_testers"):
+                    self.logger.info(f"Setting up tester: {service_name}")
 
-                try:
-                    # Create service manager
-                    service_manager = self._create_service_manager(
-                        service_name, service_details
-                    )
-
-                    if service_manager:
-                        self.service_managers.append(service_manager)
-                        self.logger.info(
-                            f"Tester {service_name} set up successfully ({service_manager})"
+                    try:
+                        # Create service manager
+                        service_manager = self._create_service_manager(
+                            service_name, service_details
                         )
 
-                except Exception as e:
-                    self.logger.error(f"Failed to setup tester {service_name}: {e}")
-                    raise
+                        if service_manager:
+                            self.service_managers.append(service_manager)
+                            self.logger.info(
+                                f"Tester {service_name} set up successfully ({service_manager})"
+                            )
+
+                    except Exception as e:
+                        self.logger.error(f"Failed to setup tester {service_name}: {e}")
+                        raise
 
     def setup_implementations(self) -> None:
         """Set up implementation (IUT) services from test configuration."""
@@ -145,25 +147,28 @@ class ServiceManagementMixin:
                 or impl_type == "IUT"
                 or impl_type == "iut"
             ):
-                self.logger.info(f"Setting up implementation: {service_name}")
+                with log_context(
+                    service_id=service_name, phase="setup_implementations"
+                ):
+                    self.logger.info(f"Setting up implementation: {service_name}")
 
-                try:
-                    # Create service manager
-                    service_manager = self._create_service_manager(
-                        service_name, service_details
-                    )
-
-                    if service_manager:
-                        self.service_managers.append(service_manager)
-                        self.logger.info(
-                            f"Implementation {service_name} set up successfully ({service_manager})"
+                    try:
+                        # Create service manager
+                        service_manager = self._create_service_manager(
+                            service_name, service_details
                         )
 
-                except Exception as e:
-                    self.logger.error(
-                        f"Failed to setup implementation {service_name}: {e}"
-                    )
-                    raise
+                        if service_manager:
+                            self.service_managers.append(service_manager)
+                            self.logger.info(
+                                f"Implementation {service_name} set up successfully ({service_manager})"
+                            )
+
+                    except Exception as e:
+                        self.logger.error(
+                            f"Failed to setup implementation {service_name}: {e}"
+                        )
+                        raise
 
     def prepare_services(self) -> None:
         """Prepare services (e.g., build Docker images)."""
@@ -208,30 +213,31 @@ class ServiceManagementMixin:
                     else service_manager.get_implementation_name()
                 )
 
-                self.logger.debug("Preparing service manager: %s", service_name)
+                with log_context(service_id=service_name, phase="prepare_services"):
+                    self.logger.debug("Preparing service manager: %s", service_name)
 
-                # Call prepare method if it exists
-                if hasattr(service_manager, "prepare") and callable(
-                    getattr(service_manager, "prepare")
-                ):
-                    try:
-                        service_manager.prepare(self.plugin_manager)
+                    # Call prepare method if it exists
+                    if hasattr(service_manager, "prepare") and callable(
+                        getattr(service_manager, "prepare")
+                    ):
+                        try:
+                            service_manager.prepare(self.plugin_manager)
+                            self.logger.debug(
+                                "Successfully prepared service: %s", service_name
+                            )
+                        except Exception as e:
+                            self.logger.error(
+                                f"Failed to prepare service {service_name}: {e}"
+                            )
+                            raise
+                    else:
                         self.logger.debug(
-                            "Successfully prepared service: %s", service_name
+                            "Service manager %s has no prepare method, skipping",
+                            service_name,
                         )
-                    except Exception as e:
-                        self.logger.error(
-                            f"Failed to prepare service {service_name}: {e}"
-                        )
-                        raise
-                else:
-                    self.logger.debug(
-                        "Service manager %s has no prepare method, skipping",
-                        service_name,
-                    )
 
         except Exception as e:
-            self.logger.error(f"Service preparation failed: {e}")
+            self.logger.error(f"Service preparation failed for '{service_name}': {e}")
             # Service preparation failed
             raise
 
@@ -257,39 +263,40 @@ class ServiceManagementMixin:
             # Teardown each service
             for service_manager in self.service_managers:
                 service_name = getattr(service_manager, "service_name", "unknown")
-                try:
-                    self.logger.info(f"Stopping service: {service_name}")
-                    service_manager.stop()
+                with log_context(service_id=service_name, phase="teardown"):
+                    try:
+                        self.logger.info(f"Stopping service: {service_name}")
+                        service_manager.stop()
 
-                    # Emit service stopped and destroyed events
-                    if service_emitter:
-                        service_emitter.emit_service_stopped(
-                            service_id=f"{self.test_name}_{service_name}",
-                            service_name=service_name,
-                        )
-                        service_emitter.emit_service_destroyed(
-                            service_id=f"{self.test_name}_{service_name}",
-                            service_name=service_name,
-                            cleanup_details={"test_case": self.test_name},
-                        )
+                        # Emit service stopped and destroyed events
+                        if service_emitter:
+                            service_emitter.emit_service_stopped(
+                                service_id=f"{self.test_name}_{service_name}",
+                                service_name=service_name,
+                            )
+                            service_emitter.emit_service_destroyed(
+                                service_id=f"{self.test_name}_{service_name}",
+                                service_name=service_name,
+                                cleanup_details={"test_case": self.test_name},
+                            )
 
-                    # Clean up service state to prevent memory leaks
-                    if self.emitter_registry:
-                        self.emitter_registry.cleanup_service_state(
-                            f"{self.test_name}_{service_name}"
-                        )
+                        # Clean up service state to prevent memory leaks
+                        if self.emitter_registry:
+                            self.emitter_registry.cleanup_service_state(
+                                f"{self.test_name}_{service_name}"
+                            )
 
-                except Exception as e:
-                    self.logger.error(f"Failed to stop service {service_name}: {e}")
-                    # Emit service error event
-                    if service_emitter:
-                        service_emitter.emit_service_error(
-                            service_id=f"{self.test_name}_{service_name}",
-                            service_name=service_name,
-                            error_message=str(e),
-                            error_type=type(e).__name__,
-                        )
-                    # Continue with other services
+                    except Exception as e:
+                        self.logger.error(f"Failed to stop service {service_name}: {e}")
+                        # Emit service error event
+                        if service_emitter:
+                            service_emitter.emit_service_error(
+                                service_id=f"{self.test_name}_{service_name}",
+                                service_name=service_name,
+                                error_message=str(e),
+                                error_type=type(e).__name__,
+                            )
+                        # Continue with other services
 
             # Clear service managers
             self.service_managers.clear()

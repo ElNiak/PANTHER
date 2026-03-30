@@ -1,5 +1,5 @@
-"""
-Tester Plugin Event Mixin Module
+"""Tester Plugin Event Mixin Module.
+
 This module provides the tester-specific event emission facade.
 """
 

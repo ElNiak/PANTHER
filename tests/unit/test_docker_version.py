@@ -10,7 +10,6 @@ sys.path.insert(0, ".")
 
 def test_docker_version_check():
     """Test different Docker version scenarios."""
-
     print("=== Testing Docker Version Checking ===\n")
 
     # Test 1: Normal case (should work with real Docker)

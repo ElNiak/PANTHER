@@ -1,5 +1,4 @@
-"""
-Plugin Directory Mixin Module.
+"""Plugin Directory Mixin Module.
 
 Provides shared plugin directory, Docker image naming, and Docker attribute
 setup methods used by both IUT and Tester service managers.
@@ -12,8 +11,7 @@ from pathlib import Path
 
 
 class PluginDirectoryMixin:
-    """
-    Mixin providing plugin directory detection and Docker attribute setup.
+    """Mixin providing plugin directory detection and Docker attribute setup.
 
     Extracted from IUTServiceManagerMixin and TesterServiceManagerMixin
     where these methods were byte-identical. Both IUT and Tester service
@@ -27,8 +25,7 @@ class PluginDirectoryMixin:
     _plugin_dir: Path | None
 
     def _get_plugin_dir(self) -> Path:
-        """
-        Get the plugin directory via stack frame inspection.
+        """Get the plugin directory via stack frame inspection.
 
         Walks up the call stack to find the file of the actual service
         implementation class (skipping the standard_*_initialization
@@ -50,8 +47,7 @@ class PluginDirectoryMixin:
         return Path(__file__).parent
 
     def _get_docker_image_name(self, implementation_name: str | None = None) -> str:
-        """
-        Get the Docker image name.
+        """Get the Docker image name.
 
         Override this method to customize Docker image naming.
         Default implementation uses implementation_name:latest format.
@@ -68,8 +64,7 @@ class PluginDirectoryMixin:
         return f"{implementation_name}:latest"
 
     def _setup_docker_attributes(self) -> None:
-        """
-        Set up Docker-related attributes.
+        """Set up Docker-related attributes.
 
         Override this method to customize Docker configuration.
         Default implementation sets docker_image_name and docker_file_path.

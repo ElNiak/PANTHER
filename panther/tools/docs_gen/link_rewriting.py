@@ -53,7 +53,7 @@ def read_md_as_utf8(src):
     try:
         return raw.decode("utf-8")
     except UnicodeDecodeError:
-        return raw.decode("latin-1")
+        return raw.decode("latin-1")  # Fallback: latin-1 accepts all byte values
 
 
 def strip_non_doc_links(text):
@@ -174,7 +174,7 @@ def rewrite_links_flat(text, source_rel_path, build_dict, project_root):
             resolved = (source_dir / path_part).resolve()
             repo_rel = str(resolved.relative_to(project_root))
         except (ValueError, OSError):
-            return display
+            return display  # Fallback: return display text when path cannot be resolved
         if repo_rel in flat_lookup:
             return f"{prefix}({flat_lookup[repo_rel]}{fragment})"
         if repo_rel.startswith("panther/") and (project_root / repo_rel).exists():
