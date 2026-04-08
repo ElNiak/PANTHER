@@ -39,8 +39,8 @@ Existing diagnostics that currently use kebab-case (`missing-lang-header`, `unre
 | `ivy.type.duplicateTag` | Warning | 1 | Two variant types share the same numeric tag value within a file | High |
 | `ivy.require.commentedOut` | Hint | 1 | Commented-out `require` statement detected | Medium |
 | `ivy.require.deadGuard` | Information | 1 | `require false` used as unreachability sentinel | Medium |
-| `ivy.rfc.tagGap` | Information | 1 | Gap in sequential RFC bracket tag numbering within a file | Medium |
-| `ivy.rfc.tagDuplicate` | Warning | 1 | Same bracket tag number on multiple assertions in one block | Medium |
+| `ivy.rfc.tagGap` | Information | 2 | Gap in sequential RFC bracket tag numbering within a file | Medium |
+| `ivy.rfc.tagDuplicate` | Warning | 2 | Same bracket tag number on multiple assertions in one block | Medium |
 | `ivy.include.shadowDeclaration` | Hint | 2 | File re-declares a symbol already in its include closure | Medium |
 | `ivy.type.duplicateDeclaration` | Warning | 2 | Same top-level name declared in multiple files within include closure | High |
 | `ivy.param.defaultDivergence` | Warning | 2 | Same-named parameter has different default values across files | High |
@@ -49,8 +49,10 @@ Existing diagnostics that currently use kebab-case (`missing-lang-header`, `unre
 | `ivy.rfc.orphanedTag` | Warning | 2 | RFC bracket tag has no corresponding requirement (existing, needs code) | High |
 | `ivy.rfc.missingBracketTag` | Hint | 2 | Assertion lacks RFC bracket tag (existing, needs code) | High |
 
-**Tier 1** = implementable with regex/text matching plus the existing include resolver and basename cache. No semantic model needed.
-**Tier 2** = requires the include graph, requirement graph, or cross-file symbol resolution from the semantic model.
+**Tier 1** = implementable using per-file parsed output from `TieredExtractor` (symbols, includes, requirement nodes) plus the include resolver and basename cache. Does not require the cross-file semantic model or requirement graph.
+**Tier 2** = requires the cross-file semantic model (`SemanticModel`, `RequirementGraph`, `IncludeGraph`) for cross-file analysis, symbol collision detection, or graph-based state variable tracking.
+
+All diagnostics use parsed infrastructure (AST, lexer tokens, or symbol tables) rather than raw regex on source text. The sole exception is D4 (`ivy.require.commentedOut`), which inherently detects commented-out code invisible to any parser; it cross-references parsed `RequirementNode` positions against text-level comment lines to minimize false positives.
 
 ---
 
@@ -70,11 +72,11 @@ Existing diagnostics that currently use kebab-case (`missing-lang-header`, `unre
 **Recurrence reasoning:** The naming convention is deeply embedded. Every new shim variant, test file, or entity file uses 4-7 underscore-joined segments. With 200+ files in QUIC and 362 in APT, segment transposition is a recurring typo class. The single known occurrence caused silent compilation failure.
 
 **Implementation notes:**
-- When `unresolved-include` fires, run the unresolved name against the `BasenameCache` (already maintained at `infra/utils/basename_cache.py`).
+- The `TieredExtractor` already produces includes as `IvySymbol(kind=SymbolKind.File, detail="include")` with the module name in `symbol.name`. When resolution fails via the `IncludeResolver` strategy chain (`_resolve_same_dir` → `_resolve_via_layers` → `_resolve_via_flat_staging` → `_resolve_via_stdlib`), pass the unresolved name to `BasenameCache` (at `infra/utils/basename_cache.py`).
 - Compute Levenshtein distance and underscore-segment permutations against all cached basenames.
 - If a match scores within threshold (distance <= 2, or exact segment set with different ordering), emit `ivy.include.nearMiss` instead of `ivy.include.unresolvedInclude`.
 - Message format: `Cannot resolve include 'foo_bar_baz'. Did you mean 'foo_baz_bar'?`
-- Integration point: `structural_lint.py:96`, where `unresolved-include` is currently emitted.
+- Integration point: `check_unresolved_includes_raw()` in `structural_lint.py:75-111`, which already receives a `resolve_callback`. Add near-miss logic when `resolved is None` at line 100.
 - Requires: basename cache (available), string distance function (new, ~20 LOC).
 
 ---
@@ -123,12 +125,13 @@ Per RFC 9000, `original_destination_connection_id` should be transport parameter
 **Recurrence reasoning:** Protocol specifications routinely define enumerated type discriminators (QUIC transport parameter IDs, frame types, error codes). Every new variant type added to these enumerations carries a risk of tag collision, especially during copy-paste-modify workflows. The tag comment convention (`# tag = N`) is informal (not parsed by Ivy), making it invisible to the compiler.
 
 **Implementation notes:**
-- Regex scan: `#\s*tag\s*=\s*(\w+)` within each file.
-- Collect all (tag_value, line_number) pairs. Flag duplicate numeric values.
-- Also flag non-numeric tags (like `x`) with a distinct message: `Tag value 'x' is not numeric — placeholder?`
+- Use `TieredExtractor` output to identify variant declarations. In Tier 1, `_convert_object()` in `ast_to_symbols.py` produces `IvySymbol(kind=SymbolKind.Module)` for objects containing variants. In Tier 2, `fallback_scanner` recognizes OBJECT tokens and produces equivalent symbols with line numbers.
+- For each variant-bearing object symbol, read the source line at `symbol.range[0]` and its immediate comment context (the `# tag = N` comment appears on the same line or the line above the `variant` keyword). Extract the tag value from the comment adjacent to the parsed symbol.
+- This is a hybrid approach: the parser locates the variant declarations (avoiding false matches on `# tag` in unrelated comments), then a targeted read of the comment on that specific line extracts the tag value. This is not a file-wide regex scan; it is a parser-guided comment extraction scoped to variant declarations.
+- Collect all (tag_value, line_number) pairs. Flag duplicate numeric values. Also flag non-numeric tags (like `x`) with a distinct message: `Tag value 'x' is not numeric — placeholder?`
 - Message format: `Duplicate tag value 15 — also used at line 33.`
-- Integration point: `structural_lint.py`, as a new check alongside `missing-lang-header` and `unresolved-include`.
-- Requires: regex only (~30 LOC).
+- Integration point: new function in `structural_lint.py` that receives the parsed symbol list from `TieredExtractor.extract()`.
+- Requires: parsed symbols (available), comment line read (~40 LOC).
 
 ---
 
@@ -139,7 +142,7 @@ Per RFC 9000, `original_destination_connection_id` should be transport parameter
 
 **Pattern detected:** A line matching `#\s*require\s+` appears, indicating a commented-out require statement.
 
-**Evidence:** 683 commented-out require statements across QUIC files (26% of all requires). 183 in APT (with only 12 active requires, a 15:1 ratio). Key concentrations:
+**Evidence:** ~663 commented-out require statements across QUIC files (25% of all requires). 183 in APT (with only 12 active requires, a 15:1 ratio). Key concentrations:
 
 - `quic_fsm/quic_fsm_receiving.ivy` lines 86-158: entire state-machine guard blocks disabled.
 - `quic_fsm/quic_fsm_sending.ivy` lines 86-148: same pattern.
@@ -154,11 +157,14 @@ The last case is particularly concerning: commented-out requires in a security-o
 **Ambiguity:** A commented-out require could be intentional documentation ("this is what the RFC says, but we deliberately don't enforce it"). The Hint severity and phrasing accommodate this.
 
 **Implementation notes:**
-- Regex: `^\s*#\s*require\b`
+- This diagnostic inherently detects commented-out code, which is invisible to any parser. However, it should cross-reference against the parsed `RequirementNode` list to avoid false positives.
+- Step 1: Use `extract_requirements_light()` (or `extract_requirements_lexer()` if available) from `light_mode_extractor.py` to get all *active* requirement positions as `RequirementNode` objects with `(file, line)` tuples.
+- Step 2: Scan source lines for comment lines whose content after the `#` would parse as a requirement keyword (`require`, `ensure`, `assume`, `assert`). A line qualifies if stripping leading `#` and whitespace produces text starting with one of the requirement keywords from `_REQUIREMENT_TOKENS` in `lexer_requirement_extractor.py:25`.
+- Step 3: Exclude lines that are adjacent to (within 2 lines of) an active `RequirementNode` with matching formula text — these may be documentation variants of active guards rather than disabled guards.
 - Emit per-line, but aggregate into a file-level count in the message: `Commented-out require statement (12 total in this file). Consider removing or re-enabling.`
 - Heuristic for intentional vs accidental: if the line has an adjacent comment containing `TODO`, `FIXME`, `disabled`, `skip`, or `intentional`, suppress or downgrade to Information.
-- Integration point: `structural_lint.py`.
-- Requires: regex only (~20 LOC).
+- Integration point: new function in `structural_lint.py` that receives parsed requirements from the extractor.
+- Requires: light mode extractor (available), source text lines (~35 LOC).
 
 ---
 
@@ -176,18 +182,21 @@ The last case is particularly concerning: commented-out requires in a security-o
 **Recurrence reasoning:** Ivy's type system uses variant dispatch where a base type declares actions and variants override them. Any protocol spec that adds variant types (new frame types, new packet types, new attack types) may need dead guard sentinels for the base action.
 
 **Implementation notes:**
-- Regex: `require\s+false\s*[;]?\s*(#.*)?$`
+- The `RequirementNode` dataclass (at `requirement_graph.py:167`) stores `formula_text` — the extracted condition text from parsed requirements. Check if `req.formula_text.strip() == "false"` for each requirement node produced by `extract_requirements_light()` or `extract_requirements_lexer()`.
+- This uses the already-parsed requirement extraction rather than scanning raw source text. The extractor handles semicolons, trailing comments, and whitespace normalization.
 - Message: `Dead guard: 'require false' marks this action as unreachable. Called only through variant specializations.`
 - Information severity because this is always intentional — the diagnostic serves as documentation, not a warning.
-- Integration point: `structural_lint.py`.
-- Requires: regex only (~10 LOC).
+- Integration point: new check in `coverage_hints.py` alongside the existing requirement-graph-based hints, since it consumes `RequirementNode` objects.
+- Requires: requirement extraction (available), ~10 LOC.
 
 ---
+
+## Tier 2 Diagnostics
 
 ### D6: `ivy.rfc.tagGap`
 
 **Severity:** Information
-**Source:** `ivy-lint`
+**Source:** `ivy-lsp-semantic`
 
 **Pattern detected:** Sequential RFC bracket tags within a file skip a number (e.g., tags [1], [2], [4] with [3] missing).
 
@@ -196,19 +205,19 @@ The last case is particularly concerning: commented-out requires in a security-o
 **Recurrence reasoning:** The project uses two tagging conventions: local sequential invariant numbers (where gaps indicate missing coverage) and direct RFC section references (where gaps are expected). New protocol specs will use one or both conventions. When using sequential numbering, gaps often indicate a requirement that was deleted or moved without updating the surrounding tags.
 
 **Implementation notes:**
-- Regex scan: `\[(\d+)\]` in comment lines.
-- Collect all tag numbers per file. Compute the gap ratio: `(max - min + 1 - count) / (max - min + 1)`.
+- The semantic model already produces `RfcAnnotation` nodes (defined in `nodes.py`) with `tags: List[str]` for each annotated line. Each tag is a string like `"rfc9000:4.1"` or a bare number like `"4"`. The `RequirementNode.bracket_tags` field (at `requirement_graph.py:176`) also stores parsed bracket tags per requirement.
+- Collect all numeric bracket tags per file from the `RfcAnnotation` nodes in the semantic model. Compute the gap ratio: `(max - min + 1 - count) / (max - min + 1)`.
 - Only flag when the gap ratio is below 0.3 (mostly sequential, with a few gaps) AND the tag range is at least 5. This filters out sparse RFC section references.
 - Message: `RFC tag gap: [3] is missing between [2] and [4].`
-- Integration point: `structural_lint.py`.
-- Requires: regex + simple arithmetic (~40 LOC).
+- Integration point: `compute_semantic_diagnostics()` in `lsp/diagnostics/compute.py`, alongside the existing orphaned-tag and missing-bracket-tag checks which already iterate over `RfcAnnotation` nodes.
+- Requires: semantic model with `RfcAnnotation` nodes (available), ~30 LOC.
 
 ---
 
 ### D7: `ivy.rfc.tagDuplicate`
 
 **Severity:** Warning (within-block), Information (cross-block)
-**Source:** `ivy-lint`
+**Source:** `ivy-lsp-semantic`
 
 **Pattern detected:** The same bracket tag number appears on multiple assertions within a single code block (action, before, after, around).
 
@@ -221,17 +230,13 @@ The last case is particularly concerning: commented-out requires in a security-o
 **Ambiguity:** Cross-block duplication is the norm. Only within-block duplication is a likely error.
 
 **Implementation notes:**
-- Scan `\[(\d+)\]` on lines containing or following `require` statements.
-- Detect block boundaries via `before`, `after`, `around`, `action`, or `implement` keywords at lower indentation.
-- Within each block, flag duplicate tag numbers as Warning.
-- Cross-block duplicates: suppress entirely (or emit as Information behind a config toggle, off by default).
-- Message: `Duplicate RFC tag [4] within this block — also at line 87.`
-- Integration point: `structural_lint.py`.
-- Requires: regex + block boundary heuristic (~60 LOC).
-
----
-
-## Tier 2 Diagnostics
+- Use the parsed `RequirementNode` objects, which have both `bracket_tags: List[str]` and `monitor_action: str` fields. Group requirements by `monitor_action` (this naturally defines the "block" — all requirements monitoring the same action belong to the same logical block).
+- Within each `monitor_action` group, collect all bracket tags. Flag duplicate tags within the same group as Warning.
+- Cross-group duplicates (same tag on requirements monitoring different actions): suppress entirely, since the project's convention is to enforce the same invariant across multiple packet handlers.
+- The `MonitorNode` in the semantic model (at `nodes.py`) provides `action_name` and `mixin_kind`, which can enrich the diagnostic message with the enclosing monitor context.
+- Message: `Duplicate RFC tag [4] within monitor for 'packet_event' — also at line 87.`
+- Integration point: `compute_semantic_diagnostics()` in `lsp/diagnostics/compute.py`, alongside D6.
+- Requires: requirement graph with bracket tags (available), ~40 LOC.
 
 ### D8: `ivy.include.shadowDeclaration`
 
@@ -255,7 +260,7 @@ Commit `381c3bf` (ivy-lsp): the symbol extractor was processing foreign declarat
 - The `_nodes_by_name` index (commit `7ccdc23`) supports O(1) lookups.
 - Emit with `DiagnosticRelatedInformation` pointing to the shadowed declaration.
 - Message: `'zero_rtt_allowed' shadows a declaration in included file 'quic_shim.ivy' (line 42).`
-- Integration point: `compute_semantic_diagnostics()` in `diagnostics.py`, after the semantic model is available.
+- Integration point: `compute_semantic_diagnostics()` in `lsp/diagnostics/compute.py:260`, after the semantic model is available.
 - Requires: semantic model + include closure (~50 LOC).
 
 ---
@@ -279,7 +284,7 @@ Commit `381c3bf` (ivy-lsp): the symbol extractor was processing foreign declarat
 - Exclude the include-chain case (handled by `ivy.include.shadowDeclaration`).
 - Emit on both declaring lines with `DiagnosticRelatedInformation` cross-linking.
 - Message: `'time_api' is also declared in 'quic_time.ivy' (line 5). One declaration will shadow the other.`
-- Integration point: post-construction pass in `SemanticModel`, surfaced via `compute_semantic_diagnostics()`.
+- Integration point: post-construction pass in `SemanticModel`, surfaced via `compute_semantic_diagnostics()` in `lsp/diagnostics/compute.py:260`.
 - Requires: semantic model + cross-file name index (~70 LOC).
 
 ---
@@ -300,13 +305,13 @@ Commit `381c3bf` (ivy-lsp): the symbol extractor was processing foreign declarat
 **Recurrence reasoning:** The project configures protocol parameters via `parameter` declarations scattered across shim, behavior, and test files. When a parameter needs to change (e.g., a port conflict), only one file is updated. The 57 `parameter` declarations across QUIC files create a combinatorial space where divergence is easy to introduce and hard to detect manually.
 
 **Implementation notes:**
-- Scan all `.ivy` files for `parameter\s+(\w+)\s*:\s*\w+\s*=\s*(.+)` during indexing.
-- Build a name-to-list-of-(file, value, line) map.
-- Flag entries where the same name has different values (after normalizing whitespace and hex/decimal equivalents like `0xd` vs `13`).
+- The `TieredExtractor` already recognizes PARAMETER tokens. In Tier 1, `ast_to_symbols.py` converts parameter declarations to `IvySymbol(kind=SymbolKind.Variable)` with the parameter name. In Tier 2, `fallback_scanner` produces equivalent symbols at `PARAMETER` → `SymbolKind.Variable`. Both tiers provide `symbol.name` and `symbol.range` (line number).
+- To extract the default value: in Tier 1, the AST node's `args[0]` carries the initializer expression. In Tier 2, read the source line at the symbol's line number and parse the text after `=` (a targeted single-line read, not a file-wide regex scan). This handles dotted types like `ip.addr` and `ip.port` correctly because the parser already identified the declaration boundary.
+- During indexing, build a cross-file registry: `Dict[str, List[Tuple[filepath, line, default_value]]]` keyed by parameter name. After all files are indexed, flag entries where the same name has different values (after normalizing whitespace and hex/decimal equivalents like `0xd` vs `13`).
 - Emit on each divergent declaration with `DiagnosticRelatedInformation` linking to the others.
 - Message: `Parameter 'client_port_vn' has value 4987 here but 4986 in 'quic_server_test_version_negociation_ext.ivy' (line 18).`
-- Integration point: post-indexing phase, alongside the semantic model construction.
-- Requires: cross-file parameter registry (~60 LOC).
+- Integration point: post-indexing phase in the semantic model construction pipeline, using `SymbolTable.symbols_by_kind(SymbolKind.Variable)` filtered to parameter declarations.
+- Requires: symbol table (available), cross-file parameter registry (~60 LOC).
 
 ---
 
@@ -322,15 +327,15 @@ Commit `381c3bf` (ivy-lsp): the symbol extractor was processing foreign declarat
 The deeper investigation revealed that the requirement graph infrastructure is approximately 80% complete for this diagnostic:
 - `populate_state_vars()` creates `StateVarNode` entries for all known vars from the symbol table.
 - `wire_state_var_edges()` connects vars to their readers (READS edges) and writers (WRITES edges).
-- After wiring, any `StateVarNode` with no entries in `self._outgoing[var_id]` and no entries in `self._incoming[var_id]` is unused.
+- After wiring, any `StateVarNode` with no edges in the graph's adjacency indices is unused.
 
 **APT cross-validation:** Confirmed. APT lifecycle and entity files contain both active and commented-out variable declarations with unclear usage status.
 
 **Recurrence reasoning:** Protocol specs accumulate state variables during development. Variables are added for new features, then the feature is deferred or redesigned, leaving orphaned declarations. The iterative development cycle (add var, test, comment out, forget) is endemic to formal verification workflows.
 
 **Implementation notes:**
-- After `wire_state_var_edges()` completes in the requirement graph, iterate over `self.state_vars`.
-- For each `StateVarNode`, check `len(self._outgoing.get(var_id, [])) == 0 and len(self._incoming.get(var_id, [])) == 0`.
+- After `wire_state_var_edges()` completes in the `RequirementGraph` (at `requirement_graph.py:403`), iterate over `graph.state_vars`.
+- The `_outgoing` and `_incoming` adjacency dicts are on the `RequirementGraph` object (lines 263-264), not on individual `StateVarNode` instances. For each `StateVarNode`, check `len(graph._outgoing.get(var_id, [])) == 0 and len(graph._incoming.get(var_id, [])) == 0`. Alternatively, use `graph.get_outgoing_edges(var_id)` (line 585) for the public API.
 - Emit as Hint severity (the var might be used in a way the graph doesn't track, e.g., in C++ implementation blocks).
 - Message: `State variable 'issued_zero_length_cid' has no reads or writes in the requirement graph.`
 - Integration point: `coverage_hints.py`, alongside `ivy.unguarded-write`.
@@ -371,10 +376,10 @@ While no orphaned monitors were found in the current codebase (confirming the in
 
 **Pattern detected:** An RFC bracket tag `[N]` appears in a comment but no corresponding `require` statement references it.
 
-**Evidence:** Already implemented in `diagnostics.py:339` using the semantic model's `RfcAnnotation` and `RfcRequirement` nodes. Currently emitted without a `code` field, preventing LSP clients from filtering or grouping these diagnostics.
+**Evidence:** Already implemented in `lsp/diagnostics/compute.py:296-309` using the semantic model's `RfcAnnotation` and `RfcRequirement` nodes. Currently emitted without a `code` field, preventing LSP clients from filtering or grouping these diagnostics.
 
 **Implementation notes:**
-- Add `"code": "ivy.rfc.orphanedTag"` to the diagnostic dict at `diagnostics.py:339`.
+- Add `code="ivy.rfc.orphanedTag"` to the `lsp.Diagnostic(...)` constructor at `lsp/diagnostics/compute.py:296-309`.
 - One-line change.
 
 ---
@@ -386,10 +391,10 @@ While no orphaned monitors were found in the current codebase (confirming the in
 
 **Pattern detected:** A `require` statement inside a `before`/`after` monitor lacks an RFC bracket tag annotation, meaning the requirement is not traced to a specific RFC section.
 
-**Evidence:** Already implemented in `diagnostics.py:356`. Currently emitted without a `code` field.
+**Evidence:** Already implemented in `lsp/diagnostics/compute.py:316-326`. Currently emitted without a `code` field.
 
 **Implementation notes:**
-- Add `"code": "ivy.rfc.missingBracketTag"` to the diagnostic dict at `diagnostics.py:356`.
+- Add `code="ivy.rfc.missingBracketTag"` to the `lsp.Diagnostic(...)` constructor at `lsp/diagnostics/compute.py:316-326`.
 - One-line change.
 
 ---
