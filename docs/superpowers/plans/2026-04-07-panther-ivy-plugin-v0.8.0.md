@@ -4,7 +4,7 @@
 
 **Goal:** Ship v0.8.0 of the panther-ivy-plugin with all bugs fixed, dead references removed, documentation accurate, observability consolidated, shared utilities extracted, and official plugin platform features adopted.
 
-**Architecture:** Three-phase approach: (A) surgical cleanup of bugs and stale docs, (B) consolidate 14 observability scripts into one parametric module and extract shared hook utilities, (C) adopt plugin platform features (userConfig, settings.json, skill/agent frontmatter). Each phase produces a separate commit.
+**Architecture:** Three-phase approach: (A) surgical cleanup of bugs and stale docs, (B) consolidate 11 observability scripts into one parametric module and extract shared hook utilities, (C) adopt plugin platform features (userConfig, settings.json, skill/agent frontmatter). Each phase produces a separate commit.
 
 **Tech Stack:** Bash, Python 3.10+, JSON, Markdown (Claude Code plugin system)
 
@@ -29,13 +29,12 @@ Throughout this plan, all file paths are relative to the plugin root unless pref
 | `commands/nct-validate.md` | Validation command | 3 |
 | `agents/README.md` | Agent catalog | 3, 4 |
 | `CLAUDE.md` | Plugin operating guide | 4, 5 |
-| `hooks/hooks.json` | Hook registry | 6, 8 |
+| `hooks/hooks.json` | Hook registry | 8 |
 | `../../README.md` (repo root) | Top-level README | 5 |
 | `../../.claude-plugin/marketplace.json` (repo root) | Marketplace manifest | 5 |
 | `.claude-plugin/plugin.json` | Plugin manifest | 5, 10 |
 | `hooks/scripts/observability/log_event.py` | Event logger (keep) | 8 |
 | `hooks/scripts/check-workspace-scope.py` | Workspace scope hook | 9 |
-| `hooks/scripts/interaction-checkpoint.py` | Checkpoint hook | 9 |
 | `hooks/scripts/observability/obs_post_tool_use_failure.py` | Failure + circuit breaker | 8 |
 | All 20 `skills/*/SKILL.md` | Skill definitions | 11 |
 | All 5 `agents/*.md` | Agent definitions | 12 |
@@ -263,28 +262,33 @@ In `agents/README.md`, line 110, replace the tool list to remove `ivy_lint` and 
 - **ivy-tools MCP** -- consolidated tools including `ivy_verify`, `ivy_compile`, `ivy_model_info`, `ivy_diagnostics` (mode=structural/full), `ivy_coverage` (mode=matrix/stats/gaps), `ivy_visualize` (view=dependencies/state_machine/layers), `ivy_quality` (mode=suggestions/gate), `ivy_patterns` (mode=analyze/validate/compare/check), `ivy_extract_requirements`, `ivy_model_summary`, `ivy_include_graph`, `ivy_capabilities`, `ivy_workspace`, `ivy_pattern_scaffold` configured via `.mcp.json`
 ```
 
-- [ ] **Step 2: Fix `nct-validate.md` — replace `ivy_query` with LSP equivalents**
+- [ ] **Step 2: Fix `nct-validate.md` — replace all 15 `ivy_query` references with LSP equivalents**
 
-This file has 12+ references to `ivy_query`. Replace each `ivy_query(mode="info")` call with the LSP `hover` or `goToDefinition` equivalent. Replace `ivy_query(mode="impact")` with LSP `incomingCalls`/`outgoingCalls`. Replace `ivy_query(mode="xrefs")` with LSP `findReferences`.
+There are exactly **15** `ivy_query` references at these lines: 206, 215, 247, 258, 314, 321, 349, 505, 512, 516, 548, 560, 684, 685, 1035.
 
-For each occurrence, the pattern is:
+Replacement mapping:
+- `ivy_query(mode="info")` → LSP `hover` on the symbol in its definition file
+- `ivy_query(mode="impact")` → LSP `incomingCalls`/`outgoingCalls`
+- `ivy_query(mode="xrefs")` → LSP `findReferences`
+
+For each of the 15 occurrences:
 
 ```markdown
-# OLD:
+# OLD pattern:
 Call `mcp__plugin_panther-ivy-plugin_ivy-tools__ivy_query` with:
 - mode: "info"
 - symbol: "cid"
 
-# NEW:
+# NEW pattern:
 Use LSP `hover` on the `cid` symbol in its definition file to retrieve type info.
 If the file is not open, use `Grep` to locate the definition first.
 ```
 
-Apply this replacement for all 12+ `ivy_query` references. Also update the surface coverage table (lines ~679-685) to replace `ivy_query` rows with LSP operation equivalents and mark them "covered via LSP".
+Also update the surface coverage table (lines 684-685) to replace `ivy_query` rows with LSP operation equivalents and mark them "covered via LSP". Update the cross-validation note at line 1035.
 
-- [ ] **Step 3: Fix `nct-validate.md` — replace `ivy_lint` with `ivy_diagnostics`**
+- [ ] **Step 3: Fix `nct-validate.md` — replace all 6 `ivy_lint` references with `ivy_diagnostics`**
 
-Replace all `ivy_lint` MCP calls (lines ~371, 400, 418, 434) with `ivy_diagnostics(mode="structural")`:
+There are exactly **6** `ivy_lint` references at lines: 371, 400, 418, 434, 679, 1132. Replace each with `ivy_diagnostics(mode="structural")`:
 
 ```markdown
 # OLD:
@@ -430,48 +434,9 @@ git commit -m "docs: align versions to 0.8.0, rewrite README with accurate compo
 
 ---
 
-### Task 6: Add `async: true` to observability hooks
+### ~~Task 6~~ (merged into Task 8)
 
-**Files:**
-- Modify: `hooks/hooks.json`
-
-- [ ] **Step 1: Add `async: true` to all observability hook entries**
-
-In `hooks/hooks.json`, find every hook entry whose command path contains `/observability/` and add `"async": true` to the hook object. There are 14 such entries across these event types: PreToolUse (last entry), PostToolUse (last entry), PostToolUseFailure, SessionStart (3rd entry), SessionEnd (2nd entry), Stop (2nd entry), SubagentStart, SubagentStop, PreCompact, UserPromptSubmit, Notification, PermissionRequest.
-
-Example change for the PreToolUse observability hook (the last PreToolUse entry in hooks.json, around line 62):
-
-```json
-// OLD:
-          {
-            "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/observability/obs_pre_tool_use.py",
-            "timeout": 5
-          }
-
-// NEW:
-          {
-            "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/observability/obs_pre_tool_use.py",
-            "timeout": 5,
-            "async": true
-          }
-```
-
-Apply the same `"async": true` addition to all 14 observability hooks. Do NOT add `async` to behavioral hooks (block-direct-ivy, check-workspace-scope, check-mcp-health, check-indexing-ready, post-write-ivy-lint, interaction-checkpoint, detect-ivy-workspace, cleanup-ivy-lsp, cleanup-stale-pids, wait-for-indexing, stop-session-summary, check_lsp_log).
-
-- [ ] **Step 2: Run manifest tests**
-
-Run: `cd <plugin_root> && python -m pytest tests/test_manifests.py -v`
-
-Expected: All tests pass. The `async` field is an optional addition to hook entries.
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add hooks/hooks.json
-git commit -m "perf: make all observability hooks async to reduce tool call latency"
-```
+Adding `"async": true` to observability hooks is now done in Task 8, Step 5 alongside the command path rewrite to `observe.py`. This avoids a double-edit of the same hooks.json lines.
 
 ---
 
@@ -923,37 +888,64 @@ git commit -m "refactor: consolidate 11 observability scripts into parametric ob
 - Create: `hooks/scripts/hook_utils.py`
 - Create: `tests/test_hook_utils.py`
 - Modify: `hooks/scripts/check-workspace-scope.py`
-- Modify: `hooks/scripts/interaction-checkpoint.py`
-- Modify: `hooks/scripts/observability/obs_post_tool_use_failure.py`
 - Modify: `hooks/scripts/check-mcp-health.py`
+- Modify: `hooks/scripts/observability/obs_post_tool_use_failure.py`
 
 - [ ] **Step 1: Write the failing test**
 
 Create `tests/test_hook_utils.py`:
 
 ```python
-"""Tests for shared hook utilities."""
+"""Tests for shared hook utilities.
 
+Uses sys.path.insert to import from hooks/scripts/ since that directory
+has no __init__.py (it's a collection of standalone scripts, not a package).
+"""
+
+import importlib
 import json
+import sys
+from pathlib import Path
 
 import pytest
 
 pytestmark = pytest.mark.unit
+
+# Add hooks/scripts/ to import path (no __init__.py exists there)
+_HOOK_SCRIPTS_DIR = str(Path(__file__).resolve().parent.parent / "hooks" / "scripts")
+
+
+@pytest.fixture(autouse=True)
+def _patch_sys_path():
+    """Temporarily add hooks/scripts/ to sys.path for imports."""
+    sys.path.insert(0, _HOOK_SCRIPTS_DIR)
+    yield
+    sys.path.remove(_HOOK_SCRIPTS_DIR)
+    # Force reimport so monkeypatch env changes take effect
+    if "hook_utils" in sys.modules:
+        del sys.modules["hook_utils"]
+
+
+def _import_hook_utils():
+    """Import (or reimport) hook_utils from hooks/scripts/."""
+    if "hook_utils" in sys.modules:
+        return importlib.reload(sys.modules["hook_utils"])
+    return importlib.import_module("hook_utils")
 
 
 class TestResolveSessionId:
     def test_env_var_priority(self, monkeypatch):
         monkeypatch.setenv("IVY_SESSION_ID", "from-ivy")
         monkeypatch.setenv("CLAUDE_SESSION_ID", "from-claude")
-        from hooks.scripts.hook_utils import resolve_session_id
-        assert resolve_session_id() == "from-ivy"
+        mod = _import_hook_utils()
+        assert mod.resolve_session_id() == "from-ivy"
 
     def test_fallback_to_unknown(self, monkeypatch):
         monkeypatch.delenv("IVY_SESSION_ID", raising=False)
         monkeypatch.delenv("CLAUDE_SESSION_ID", raising=False)
         monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
-        from hooks.scripts.hook_utils import resolve_session_id
-        result = resolve_session_id()
+        mod = _import_hook_utils()
+        result = mod.resolve_session_id()
         assert isinstance(result, str)
         assert len(result) > 0
 
@@ -962,22 +954,22 @@ class TestGetStatePath:
     def test_returns_path_in_observability_dir(self, monkeypatch, tmp_path):
         monkeypatch.setenv("IVY_WORKSPACE_ROOT", str(tmp_path))
         monkeypatch.setenv("IVY_SESSION_ID", "test-sess")
-        from hooks.scripts.hook_utils import get_mcp_health_state_path
-        path = get_mcp_health_state_path()
+        mod = _import_hook_utils()
+        path = mod.get_mcp_health_state_path()
         assert "test-sess" in path
         assert "mcp-health-state.json" in path
 
 
 class TestEmitHookOutput:
     def test_emit_additional_context(self, capsys):
-        from hooks.scripts.hook_utils import emit_hook_output
-        emit_hook_output("PreToolUse", additional_context="test message")
+        mod = _import_hook_utils()
+        mod.emit_hook_output("PreToolUse", additional_context="test message")
         output = json.loads(capsys.readouterr().out)
         assert output["hookSpecificOutput"]["additionalContext"] == "test message"
 
     def test_emit_deny(self, capsys):
-        from hooks.scripts.hook_utils import emit_hook_output
-        emit_hook_output("PreToolUse", deny_reason="blocked")
+        mod = _import_hook_utils()
+        mod.emit_hook_output("PreToolUse", deny_reason="blocked")
         output = json.loads(capsys.readouterr().out)
         assert output["hookSpecificOutput"]["permissionDecision"] == "deny"
 ```
