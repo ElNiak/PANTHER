@@ -310,8 +310,8 @@ In `ivy_lsp/core/coverage_hints.py`, add after the dead guard loop (before `retu
         if var_node.file != filepath:
             continue
         has_edges = (
-            len(graph._outgoing.get(var_id, [])) > 0
-            or len(graph._incoming.get(var_id, [])) > 0
+            len(graph.get_outgoing_edges(var_id)) > 0
+            or len(graph.get_incoming_edges(var_id)) > 0
         )
         if not has_edges:
             hints.append({
@@ -543,19 +543,25 @@ Inside the `if resolved is None:` block, before the existing `diags.append(...)`
 
 ```python
         if resolved is None:
+            line_no = source[: match.start()].count("\n") + 1
             # Near-miss: check segment permutation
-            suggestion = _find_near_miss(name, basename_map) if basename_map else None
+            suggestion = _find_near_miss(inc_name, basename_map) if basename_map else None
             if suggestion:
                 diags.append({
-                    "line": line_no + 1,
+                    "line": line_no,
                     "severity": "warning",
-                    "message": f"Cannot resolve include '{name}'. Did you mean '{suggestion}'?",
+                    "message": f"Cannot resolve include '{inc_name}'. Did you mean '{suggestion}'?",
                     "source": "ivy-lint",
                     "code": "ivy.include.nearMiss",
                 })
             else:
                 diags.append({
-                    # existing unresolved-include diagnostic unchanged
+                    "line": line_no,
+                    "severity": "warning",
+                    "message": f"Unresolved include: {inc_name}",
+                    "source": "ivy-lint",
+                    "code": "unresolved-include",
+                })
 ```
 
 Add the helper function before `check_unresolved_includes_raw()`:
@@ -973,12 +979,12 @@ Expected: FAIL — no `ivy.rfc.tagGap` code emitted
 
 - [ ] **Step 3: Implement tag gap detection**
 
-In `ivy_lsp/lsp/diagnostics/compute.py`, add at the end of `compute_semantic_diagnostics()` (before `return diags`):
+In `ivy_lsp/lsp/diagnostics/compute.py`, add inside the existing `if rfc_reqs:` block (after the orphaned-tag loop at line 309, before the closing of the `if rfc_reqs:` block). This ensures `annotations` is already populated at line 283-285:
 
 ```python
-    # D6: RFC tag gap detection
-    file_tags: list[int] = []
-    for ann in annotations:
+        # D6: RFC tag gap detection
+        file_tags: list[int] = []
+        for ann in annotations:
         for tag in ann.tags:
             # Extract numeric part from tags like "4" or "rfc9000:4.1"
             parts = tag.split(":")
@@ -1126,32 +1132,28 @@ Expected: FAIL
 In `ivy_lsp/lsp/diagnostics/compute.py`, add in `compute_semantic_diagnostics()` before the tag gap section:
 
 ```python
+    from ivy_lsp.core.semantic.nodes import SymbolNode
+
     # D8: Shadow declaration detection
     if model is not None and hasattr(model, "_nodes_by_name"):
         for name, nodes in model._nodes_by_name.items():
-            # Find nodes declared in the current file
-            local_nodes = [n for n in nodes if getattr(n, "file", "") == filepath]
-            other_nodes = [n for n in nodes if getattr(n, "file", "") != filepath]
+            # Filter to SymbolNodes only (RfcAnnotation, TypeNode etc. lack 'kind')
+            sym_nodes = [n for n in nodes if isinstance(n, SymbolNode)]
+            local_nodes = [n for n in sym_nodes if n.file == abs_path]
+            other_nodes = [n for n in sym_nodes if n.file != abs_path]
             if local_nodes and other_nodes:
                 for local in local_nodes:
-                    if not hasattr(local, "kind"):
-                        continue
                     for other in other_nodes:
-                        if not hasattr(other, "kind"):
-                            continue
-                        if getattr(local, "kind", "") == getattr(other, "kind", ""):
-                            other_file = getattr(other, "file", "unknown")
-                            other_line = getattr(other, "line", 0)
-                            local_line = getattr(local, "line", 0)
+                        if local.kind == other.kind:
                             diags.append(
                                 lsp.Diagnostic(
                                     range=lsp.Range(
-                                        start=lsp.Position(local_line, 0),
-                                        end=lsp.Position(local_line, 0),
+                                        start=lsp.Position(local.line, 0),
+                                        end=lsp.Position(local.line, 0),
                                     ),
                                     message=(
                                         f"'{name}' shadows a declaration in "
-                                        f"'{other_file.rsplit('/', 1)[-1]}' (line {other_line + 1})."
+                                        f"'{other.file.rsplit('/', 1)[-1]}' (line {other.line + 1})."
                                     ),
                                     severity=lsp.DiagnosticSeverity.Hint,
                                     source="ivy-lsp-semantic",
@@ -1181,25 +1183,43 @@ git commit -m "feat(diagnostics): add ivy.include.shadowDeclaration (D8), test s
 **Files:**
 - Modify: `ivy_lsp/lsp/diagnostics/compute.py` (the main `compute_diagnostics()` function)
 
-The new structural lint functions (`check_duplicate_tags`, `check_commented_out_requires`) need to be called from the main diagnostic pipeline.
+The new structural lint functions (`check_duplicate_tags`, `check_commented_out_requires`) need to be called from the diagnostic pipeline. They are called inside `check_structural_issues()` in `lsp/diagnostics/compute.py` (the wrapper at lines 37-88 that calls `check_structural_issues_raw()` and `check_unresolved_includes_raw()`), not in the main `compute_diagnostics()` entry point.
 
-- [ ] **Step 1: Read the current compute_diagnostics() to find integration points**
+- [ ] **Step 1: Read the current check_structural_issues() wrapper**
 
-The main `compute_diagnostics()` function in `compute.py` calls `check_structural_issues_raw()` and `check_unresolved_includes_raw()`. The new functions follow the same pattern and return the same dict format.
+In `lsp/diagnostics/compute.py`, lines 37-88: `check_structural_issues()` calls `check_structural_issues_raw()` at line 48, then `check_unresolved_includes_raw()` at line 63. Results are collected in `raw` list, then converted to `lsp.Diagnostic` objects at lines 66-87.
 
 - [ ] **Step 2: Add calls to new structural lint functions**
 
-In the structural checks section of `compute_diagnostics()`, after the existing `check_structural_issues_raw()` and `check_unresolved_includes_raw()` calls, add:
+In `lsp/diagnostics/compute.py`, modify the import at line 43-46 and add calls after line 64 (after the `check_unresolved_includes_raw` extension):
 
 ```python
-from ivy_lsp.core.structural_lint import (
-    check_duplicate_tags,
-    check_commented_out_requires,
-)
+    from ivy_lsp.core.structural_lint import (
+        check_structural_issues_raw,
+        check_unresolved_includes_raw,
+        check_duplicate_tags,
+        check_commented_out_requires,
+    )
 
-# After existing structural checks:
-structural_diags.extend(check_duplicate_tags(source, filepath))
-structural_diags.extend(check_commented_out_requires(source, filepath))
+    raw = check_structural_issues_raw(source, filepath)
+    # ... existing resolve_cb logic and check_unresolved_includes_raw call ...
+
+    raw.extend(check_duplicate_tags(source, filepath))
+    raw.extend(check_commented_out_requires(source, filepath))
+```
+
+The severity mapping at lines 71-75 already handles `"info"` and `"hint"` via the existing ternary. It needs extension to map all severity strings:
+
+```python
+        severity_map = {
+            "error": lsp.DiagnosticSeverity.Error,
+            "warning": lsp.DiagnosticSeverity.Warning,
+            "info": lsp.DiagnosticSeverity.Information,
+            "hint": lsp.DiagnosticSeverity.Hint,
+        }
+        severity = severity_map.get(
+            entry["severity"], lsp.DiagnosticSeverity.Warning
+        )
 ```
 
 - [ ] **Step 3: Run the full test suite**
