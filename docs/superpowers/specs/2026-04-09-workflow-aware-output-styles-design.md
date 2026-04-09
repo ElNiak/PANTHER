@@ -478,7 +478,7 @@ gate: {passed, gate_level, failures}.
 
 ## Session Summary Templates
 
-Each summary template defines what the Stop hook reports when a session ends under that workflow.
+Each summary template defines what the Stop hook reports when a session ends under that workflow. Like tool renderers, these markdown files serve as **design documentation** — the `render-summary.py` hook implements the summary logic in Python, not by loading and parsing the templates at runtime. When adding or modifying a summary format, update the markdown file first (as the specification), then update the corresponding Python logic in the hook to match.
 
 ### summaries/verify.md
 
