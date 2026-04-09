@@ -38,11 +38,12 @@ panther/plugins/services/testers/panther_ivy/submodules/ivy-lsp/
 Add a test to `TestWalkDownForMarker` that creates a sub-workspace marker with `workspace_root_offset` pointing to an ancestor, and asserts the walk-down skips it.
 
 ```python
-def test_skips_sub_workspace_marker(self, tmp_workspace):
+def test_skips_sub_workspace_marker(self, tmp_path):
     """Walk-down skips markers whose resolved root differs from start_dir."""
-    # Create a marker inside a subdirectory that points back to tmp_workspace
-    # via workspace_root_offset — simulating protocol-testing/quic/.ivyworkspace
-    sub = tmp_workspace / "protocol-testing" / "quic"
+    # Create an isolated parent so we don't walk into sibling test dirs
+    parent = tmp_path / "walk_root"
+    project = parent / "project"
+    sub = project / "protocol-testing" / "quic"
     sub.mkdir(parents=True)
     marker = {
         "version": 3,
@@ -52,15 +53,10 @@ def test_skips_sub_workspace_marker(self, tmp_workspace):
         ],
     }
     (sub / ".ivyworkspace").write_text(json.dumps(marker))
-    # Walk-down from tmp_workspace should skip this marker because its
-    # resolved root (tmp_workspace) != marker_dir (tmp_workspace/protocol-testing/quic)
-    # but resolved root == start_dir, so this is actually a root marker.
-    # The guard checks: resolved_root != start_dir → skip.
-    # Here resolved_root == start_dir (both are tmp_workspace), so it should NOT skip.
-    # Let's test the actual skip case: walk-down from a PARENT of tmp_workspace.
-    parent = tmp_workspace.parent
+    # Walk-down from parent should skip this marker because its
+    # resolved root (project/) != start_dir (parent/)
+    parent.mkdir(parents=True, exist_ok=True)
     config = _walk_down_for_marker(str(parent))
-    # The marker resolves to tmp_workspace, but start_dir is parent → skip
     assert config is None
 ```
 
@@ -536,6 +532,28 @@ assert config.detected_by == "heuristic+marker"
 ```python
 # Empty markers (no workspace_layers) contribute no include_paths
 assert config.include_paths == []
+```
+
+**Line 337** (`TestWorktreeDetection.test_worktree_with_panther_heuristic`): change:
+```python
+(pt / "quic" / ".ivyworkspace").write_text('{"version": 3}')
+```
+to:
+```python
+(pt / "quic" / ".ivyworkspace").write_text(
+    json.dumps({"version": 3, "workspace_root_offset": "../.."})
+)
+```
+
+**Line 366** (`TestHintWithHeuristic.test_hint_with_panther_structure_and_markers`): change:
+```python
+(pt / "quic" / ".ivyworkspace").write_text('{"version": 3}')
+```
+to:
+```python
+(pt / "quic" / ".ivyworkspace").write_text(
+    json.dumps({"version": 3, "workspace_root_offset": "../.."})
+)
 ```
 
 - [ ] **Step 4: Run the full test_workspace_detection suite**
