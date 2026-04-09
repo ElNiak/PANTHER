@@ -280,6 +280,22 @@ after bgp_notification_message_event(src, dst, m) {
 
 ## Section 4: Stub Completion
 
+### `bgp_stack/bgp_route.ivy` (extend)
+
+The existing file defines `withdraw_route` but no general `bgp_route` type. Add:
+
+```ivy
+object bgp_route = {
+    type this = struct {
+        prefix: stream_data,
+        next_hop: stream_data,
+        path_attrs: stream_data
+    }
+}
+```
+
+This provides a minimal route representation for the RIB relations below.
+
 ### `bgp_stack/bgp_rib.ivy` (rewrite)
 
 ```ivy
@@ -382,6 +398,15 @@ Add `# [rfc4271:X.Y]` tags to ~10 existing and new `require` statements:
 | bgp_update_message.ivy | origin_present | `# [rfc4271:4.3]` |
 | bgp_time.ivy | KeepaliveTimer guard | `# [rfc4271:10]` |
 
+## Implementation Note: `after` Block Composition
+
+Sections 2 (FSM) and 3 (Timers) both add `after` blocks on the same events:
+`bgp_open_message_event`, `bgp_keepalive_message_event`, `bgp_update_message_event`,
+and `bgp_notification_message_event`. Ivy composes multiple `after` blocks — all
+run in include order. The FSM and timer `after` blocks are independent (neither
+reads the other's state within the same event), so execution order does not matter.
+Both files should be included from `bgp_shim.ivy`.
+
 ## File Change Summary
 
 | Section | Files Modified | Files Created |
@@ -389,7 +414,7 @@ Add `# [rfc4271:X.Y]` tags to ~10 existing and new `require` statements:
 | 1. Critical Fixes | bgp_shim.ivy, bgp_error_code.ivy, bgp_speaker_test_accept.ivy, bgp_speaker_test_join.ivy, bgp_prot_deser_ser.ivy | — |
 | 2. FSM | bgp_shim.ivy (include) | bgp_fsm.ivy |
 | 3. Timers | — | bgp_time.ivy (rewrite) |
-| 4. Stubs | — | bgp_rib.ivy, bgp_application.ivy, bgp_infer.ivy (rewrites) |
+| 4. Stubs | bgp_route.ivy (extend) | bgp_rib.ivy, bgp_application.ivy, bgp_infer.ivy (rewrites) |
 | 5. Tests | bgp_speaker_test_accept.ivy, bgp_speaker_test_join.ivy | — |
 | 6. Coverage | ~8 files (annotations) | rfc4271_requirements.yaml |
 | **Total** | ~15 files | 3 new + 1 manifest |
