@@ -332,11 +332,13 @@ class TestSetupIndexerSignaling:
         parser_entries = [e for e in call_log if e[0] == "create_parser"]
         indexer_entries = [e for e in call_log if e[0] == "create_indexer_start"]
 
-        if parser_entries and indexer_entries:
-            assert not parser_entries[0][1], \
-                "_parser_ready_event should not be set during _create_parser"
-            assert indexer_entries[0][1], \
-                "_parser_ready_event should be set before _create_indexer"
+        if not parser_entries:
+            pytest.skip("Z3 not available — cannot test parser signaling")
+        assert indexer_entries, "_create_indexer was never called"
+        assert not parser_entries[0][1], \
+            "_parser_ready_event should not be set during _create_parser"
+        assert indexer_entries[0][1], \
+            "_parser_ready_event should be set before _create_indexer"
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
