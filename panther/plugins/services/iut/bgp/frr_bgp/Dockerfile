@@ -1,6 +1,6 @@
+ARG BASE_IMAGE=panther_base_service:latest
 FROM frrouting/frr:10.2.1 AS frr
 
-ARG BASE_IMAGE=panther_base_service:latest
 FROM ${BASE_IMAGE}
 
 ARG VERSION=master
