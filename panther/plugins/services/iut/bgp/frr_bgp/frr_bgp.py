@@ -119,8 +119,12 @@ class FrrBgpServiceManager(
         ]
 
     def _build_template_context(self) -> dict:
-        vc = self.version_config or {}
-        server = vc.get("server", {})
+        server = {}
+        if hasattr(self, "service_config_to_test") and hasattr(
+            self.service_config_to_test, "version"
+        ):
+            version = self.service_config_to_test.version
+            server = getattr(version, "server", None) or {}
         return {
             "as_number": server.get("as_number", 2),
             "router_id": server.get("router_id", "10.0.0.3"),
