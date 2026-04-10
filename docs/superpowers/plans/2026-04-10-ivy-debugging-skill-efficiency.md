@@ -389,11 +389,11 @@ git commit -m "feat: add ivy-error-patterns skill with 12-entry error-to-fix loo
 ### Task 3: Update `ivy-model-editing` Skill — Add Syntax Traps + Callouts
 
 **Files:**
-- Modify: `panther/plugins/services/testers/panther_ivy/submodules/panther-ivy-plugin/skills/ivy-model-editing/SKILL.md:49-57` (Relations section) and `:322-367` (after Common Pitfalls)
+- Modify: `panther/plugins/services/testers/panther_ivy/submodules/panther-ivy-plugin/skills/ivy-model-editing/SKILL.md:36-38` (Relations section) and `:322-367` (after Common Pitfalls)
 
 - [ ] **Step 1: Add "Before You Write" callout to Relations section**
 
-Find this text at line 49:
+Find this text at line 36:
 
 ```markdown
 ### Relations
@@ -413,7 +413,7 @@ Relations declare state predicates over typed arguments.
 
 - [ ] **Step 2: Add "Before You Write" callout to Functions section**
 
-Find this text at line 62:
+Find this text at line 48:
 
 ```markdown
 ### Functions and Individuals
@@ -429,7 +429,7 @@ Replace with:
 
 - [ ] **Step 3: Add "Before You Write" callout to Actions section**
 
-Find this text at line 72:
+Find this text at line 58:
 
 ```markdown
 ### Actions
