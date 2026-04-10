@@ -260,9 +260,159 @@ Add to the "Common Anti-patterns" checklist:
 
 All paths relative to `panther/plugins/services/testers/panther_ivy/submodules/panther-ivy-plugin/`.
 
+## Artifact 5: Diagnostic Improvements
+
+Three layers of diagnostic improvement, from skill-level interpretation to tool-level detection.
+
+### 5a. Improve How Claude Interprets Diagnostic Output
+
+**Changes to `ivy-debugging-methodology` skill** — Add a "Diagnostic Interpretation Protocol" section between step 1 (Parse the error) and step 2 (Consult skills):
+
+- **Always read the full `diagnostics` array**, not just `error_summary`. Multiple diagnostics often reveal cascading failures where the first error causes the rest.
+- **Classify each diagnostic by source**: `"ivy"` (parser), `"ivy-lint"` (structural), `"ivy-lsp-reqs"` (requirement coverage), `"ivy-lsp-semantic"` (RFC tags), `"ivy-lsp-coverage"` (coverage hints), `"ivy_check"` (verification). Source tells you which layer of the stack found the problem.
+- **Prioritize by severity cascade**: Error > Warning > Info > Hint. Fix errors before investigating warnings.
+- **Cross-reference line numbers**: When the diagnostic points to a specific line, read the surrounding context (5 lines above/below) before forming a hypothesis.
+- **Check for known patterns**: Match the `message` field against `ivy-error-patterns` entries before attempting any fix.
+
+**Changes to `spec-verifier` agent** — Add to the output format template a "Diagnostic Breakdown" section:
+
+```
+### Diagnostic Breakdown
+| # | Severity | Source | Line | Message | Known Pattern? |
+|---|----------|--------|------|---------|----------------|
+```
+
+This forces Claude to tabulate all diagnostics before acting, preventing fixation on a single error.
+
+### 5b. Improve the Ivy LSP Diagnostics
+
+New diagnostic checks to add to the LSP (`ivy_lsp/features/diagnostics.py`), running in-process (no subprocess):
+
+#### 1. Parameter Name Collision Detection
+
+When parsing a `relation` or `function` declaration, check if any parameter name (the token before `:`) matches a known symbol in the current file or its includes.
+
+- **Diagnostic:** `"Parameter name '{name}' may collide with symbol '{name}' — use a single uppercase letter (e.g., S, D) to avoid ambiguity"`
+- **Severity:** Warning
+- **Source:** `"ivy-lsp"`
+- **Code:** `param-name-collision`
+- **Rationale:** Directly catches the `relation update_processed(src:bgp_id, dst:bgp_id)` trap from the motivating example.
+
+#### 2. Missing `after init` Detection
+
+Track all mutable relations and functions declared in the file. If any lack a corresponding `after init` assignment, emit a diagnostic.
+
+- **Diagnostic:** `"Relation '{name}' is never initialized — add an 'after init' block to avoid arbitrary initial values"`
+- **Severity:** Hint
+- **Source:** `"ivy-lsp"`
+- **Code:** `missing-init`
+
+#### 3. Unused Include Detection
+
+If an included module's symbols are never referenced in the including file, emit an info diagnostic.
+
+- **Diagnostic:** `"Include '{module}' appears unused — no symbols referenced"`
+- **Severity:** Information
+- **Source:** `"ivy-lsp"`
+- **Code:** `unused-include`
+
+#### 4. Cross-File Duplicate Symbol Detection (Mirror-Aware)
+
+When the include graph brings in the same symbol from multiple paths, detect and report with awareness of the mirror type pattern.
+
+- **Severity:** Warning (potential duplicates) or Error (unambiguous top-level collisions)
+- **Source:** `"ivy-lsp"`
+- **Code:** `duplicate-symbol`
+
+**Mirror type awareness rules:**
+
+The Ivy protocol models use a mirror pattern where client and server modules intentionally declare the same symbols. The detector must distinguish intentional mirrors from accidental duplicates.
+
+| Situation | Duplicate? | Rule |
+|---|---|---|
+| Same symbol in different `module` or `object` blocks | No | Scoped by module/object namespace |
+| Same symbol in different `instance` instantiations of the same module | No | Scoped by instance |
+| Same symbol in two files both included by a third file | Potential | Flag as warning unless both are inside different named scopes |
+| Same top-level symbol (not inside any `object`/`module`) in two co-included files | Yes | Flag as error — will cause `ivy_check` failure |
+| Same symbol in client-role and server-role files never co-included | No | Separate test contexts |
+
+**Examples of legitimate mirror patterns (not duplicates):**
+- `quic_endpoint.client_ep` and `quic_endpoint.server_ep` both declare `individual ep : ip.endpoint` — different module variants of the same object (`protocol-testing/quic/quic_entities_behavior/quic_endpoint.ivy`)
+- BGP `module speaker(...)` instantiated as `bgp_ivy_instance` and `bgp_impl_instance` — same module, different instances (`protocol-testing/bgp/bgp_entities/ivy_bgp_speaker.ivy`)
+- CoAP `client_ep` and `server_ep` with identical `individual` declarations — scoped by module (`protocol-testing/coap/coap_enntities_behavior/coap_endpoint.ivy`)
+
+**Implementation approach:** Requires lightweight scope tracking (brace-depth with `object`/`module`/`isolate` name extraction) plus include graph data from `ivy_include_graph`. Builds a scoped symbol table `{(scope_path, symbol_name) -> [file:line, ...]}` and only flags when the same `(scope_path, symbol_name)` pair appears in co-included files.
+
+### 5c. Improve the `ivy_lint` MCP Tool
+
+New checks to add to `ivy_lint` (`ivy_lsp/mcp_server.py` and `ivy_lsp/utils/structural_lint.py`), all regex/text-based running in the same O(n) pass:
+
+#### Single-File Checks
+
+1. **Parameter name style check** — Flag relation/function declarations where parameter names are lowercase multi-character identifiers (e.g., `src`, `dst`, `conn`). Suggest single uppercase letters.
+   - Code: `param-name-style`
+   - Severity: Warning
+
+2. **Missing `after init` heuristic** — Scan for `relation`/`function` declarations, check for corresponding `after init` assignments. Emit warning if missing.
+   - Code: `missing-init`
+   - Severity: Warning
+   - Note: Text-level heuristic, may have false positives on multi-file models.
+
+3. **Empty `after init` block detection** — Flag `after init { }` blocks with no assignments.
+   - Code: `empty-init`
+   - Severity: Warning
+
+4. **Duplicate declaration detection (single-file)** — Flag same symbol name in multiple top-level `relation`, `function`, or `type` declarations.
+   - Code: `duplicate-decl`
+   - Severity: Error
+
+5. **Action without `require` heuristic** — Flag action bodies containing `:=` but no `require` clause.
+   - Code: `unguarded-action`
+   - Severity: Hint
+
+#### Cross-File Mode (Optional)
+
+Activated via `ivy_lint(relative_path, cross_file=true)`. Uses `ivy_include_graph` to resolve the full include tree, then applies the mirror-aware duplicate detection rules from Section 5b.
+
+- Heavier than single-file mode but still avoids subprocess calls
+- Uses the include graph data the LSP already maintains
+- Same mirror-awareness rules as the LSP diagnostic (Section 5b)
+
+**Output format:** Same as current `ivy_lint` — diagnostics array with `{line, severity, message, source, code}`. New checks get distinct `code` values for programmatic filtering.
+
+## Updated File Inventory
+
+### New Files
+
+| File | Type | Est. Size |
+|---|---|---|
+| `skills/ivy-debugging-methodology/SKILL.md` | Skill | ~150 lines |
+| `skills/ivy-error-patterns/SKILL.md` | Skill | ~250 lines |
+
+### Modified Files (Plugin)
+
+| File | Change Scope |
+|---|---|
+| `skills/ivy-model-editing/SKILL.md` | +40 lines (syntax traps + callouts) |
+| `skills/ivy-verification/SKILL.md` | ~20 lines changed (workflow replacement) |
+| `agents/spec-verifier.md` | ~20 lines changed (mandatory skill loading + diagnostic breakdown) |
+| `agents/ivy-model-reviewer.md` | ~10 lines added (anti-pattern entries) |
+
+All plugin paths relative to `panther/plugins/services/testers/panther_ivy/submodules/panther-ivy-plugin/`.
+
+### Modified Files (ivy-lsp)
+
+| File | Change Scope |
+|---|---|
+| `ivy_lsp/features/diagnostics.py` | +80 lines (4 new diagnostic checks) |
+| `ivy_lsp/utils/structural_lint.py` | +60 lines (5 new lint checks) |
+| `ivy_lsp/mcp_server.py` | ~15 lines (cross_file param + new checks wiring) |
+
+All ivy-lsp paths relative to `panther/plugins/services/testers/panther_ivy/submodules/ivy-lsp/`.
+
 ### Out of Scope
 
-- No changes to MCP tools, hooks, commands, or LSP config
 - No changes to protocol models
-- No new agents or commands
+- No new agents, commands, or hooks
 - `ivy-tools-reference` and `ivy-tooling-guide` skills unchanged
+- No changes to MCP server startup or configuration
