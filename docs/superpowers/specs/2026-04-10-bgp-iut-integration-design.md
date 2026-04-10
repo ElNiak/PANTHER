@@ -25,7 +25,7 @@ Replace the guard at line 250. The corrected logic:
 - Else if `ctx.executor is not None` → proceed to Docker path
 - Else → return error ("ivyc not found and no Docker executor configured")
 
-**File: `ivy_lsp/mcp/core/environment.py` (new)**
+**File: `ivy_lsp/core/environment.py` (new)**
 
 Add `detect_z3_dir() -> Optional[str]` that checks in order:
 1. `Z3DIR` environment variable (respect user override)
@@ -35,7 +35,7 @@ Add `detect_z3_dir() -> Optional[str]` that checks in order:
 
 Cache result at process level (`functools.lru_cache`).
 
-**File: `ivy_lsp/mcp/core/verification.py`, `run_ivy_compile()`**
+**File: `ivy_lsp/core/verification.py`, `run_ivy_compile()`**
 
 Two changes:
 1. Before calling `run_ivy_subprocess()`, inject `Z3DIR` into the environment if `detect_z3_dir()` returns a value. Extend `run_ivy_subprocess()` to accept an optional `env` dict merged with `os.environ`.
@@ -50,9 +50,8 @@ Two changes:
 | File | Change |
 |------|--------|
 | `ivy_lsp/mcp/tools/verification.py` | Fix guard check (~line 250) |
-| `ivy_lsp/mcp/core/environment.py` | New file: `detect_z3_dir()` |
-| `ivy_lsp/mcp/core/verification.py` | Inject Z3DIR env, add staging logic |
-| `ivy_lsp/mcp/core/subprocess.py` | Accept optional `env` param in `run_ivy_subprocess()` |
+| `ivy_lsp/core/environment.py` | New file: `detect_z3_dir()` |
+| `ivy_lsp/core/verification.py` | Inject Z3DIR env, add staging logic (`run_ivy_subprocess` already accepts `env` param) |
 
 ### Validation
 
@@ -112,7 +111,7 @@ Default port 179. Methods: `validate_config()`, `load_config()`, `get_version_pa
 | `templates/server_command.jinja` | Renders bgpd startup command | ~5 |
 | `templates/bgpd.conf.jinja` | FRR config: router bgp, neighbor statements | ~20 |
 
-The plugin subclasses `IImplementationManager` directly (like `ping_pong`), since there's no `BaseBGPServiceManager`. Key behavior:
+The plugin uses the same 6-class mixin chain as `ping_pong`: `IUTServiceManagerMixin`, `ServiceManagerDockerMixin`, `IUTManagerEventMixin`, `ErrorHandlerMixin`, `IImplementationManager`, `StringRepresentationMixin`. Key behavior:
 - `generate_run_command()` starts `bgpd` with a generated `bgpd.conf`
 - `bgpd.conf` is templated from version_config parameters, with neighbor IP resolved from `@{ivy_tester:ip:decimal}` placeholder
 - Docker image uses `frrouting/frr:10.2.1` (pinned for reproducibility, official, multi-arch)
@@ -133,37 +132,44 @@ Add `"bgp"` to `supported_protocols` list (line ~59).
 
 **File: `panther/plugins/services/testers/panther_ivy/version_configs/bgp/rfc4271.yaml`**
 
-Maps Ivy test parameters to PANTHER network placeholders. The exact placeholder syntax (e.g., `@{server_service:ip:decimal}` vs `@{target:ip:hex}`) must be verified against `IvyNetworkResolutionMixin` during implementation — QUIC uses decimal IP format but BGP's Ivy model uses hex (`0x0a000001`), so we may need hex conversion or a new format specifier.
+Follows the same structure as `version_configs/quic/rfc9000.yaml`. The placeholder format is `@{role_service:ip:decimal}` (e.g., `@{server_service:ip:decimal}`), resolved by `IvyNetworkResolutionMixin` at runtime. BGP's Ivy model expects hex IP addresses (`0x0a000001`), but the resolution system only supports `decimal` format. A hex format specifier (`@{role_service:ip:hex}`) must be added to `IvyNetworkResolutionMixin`, or hex conversion must happen in the Jinja template.
 
 ```yaml
 version: "rfc4271"
+parameters:
+  speaker_addr:
+    value: "@{client_service:ip:hex}"
+    description: "Ivy speaker IP address (hex)"
+  speaker_id:
+    value: "@{client_service:ip:hex}"
+    description: "Ivy speaker BGP identifier (hex)"
+  speaker_as:
+    value: "1"
+    description: "Ivy speaker AS number"
+  speaker_impl_addr:
+    value: "@{server_service:ip:hex}"
+    description: "IUT speaker IP address (hex)"
+  speaker_impl_id:
+    value: "@{server_service:ip:hex}"
+    description: "IUT speaker BGP identifier (hex)"
+  speaker_impl_as:
+    value: "2"
+    description: "IUT speaker AS number"
 server:
   binary:
+    dir: "PANTHER_IVY_INSTALL_DIR/protocol-testing/"
     name: "bgp_speaker_test_accept"
-  params:
-    speaker_addr: "<placeholder:self_ip_hex>"
-    speaker_id: "<placeholder:self_ip_hex>"
-    speaker_as: "1"
-    speaker_impl_addr: "<placeholder:target_ip_hex>"
-    speaker_impl_id: "<placeholder:target_ip_hex>"
-    speaker_impl_as: "2"
 client:
   binary:
+    dir: "PANTHER_IVY_INSTALL_DIR/protocol-testing/"
     name: "bgp_speaker_test_join"
-  params:
-    speaker_addr: "<placeholder:self_ip_hex>"
-    speaker_id: "<placeholder:self_ip_hex>"
-    speaker_as: "1"
-    speaker_impl_addr: "<placeholder:target_ip_hex>"
-    speaker_impl_id: "<placeholder:target_ip_hex>"
-    speaker_impl_as: "2"
 ```
 
 **Files: `panther/plugins/services/testers/panther_ivy/templates/bgp/client_command.jinja` and `server_command.jinja`**
 
-Render the test binary invocation:
+Render the test binary parameter arguments (flat variables, no `params.` prefix — matching the QUIC template pattern):
 ```jinja
-speaker_addr={{ params.speaker_addr }} speaker_id={{ params.speaker_id }} speaker_as={{ params.speaker_as }} speaker_impl_addr={{ params.speaker_impl_addr }} speaker_impl_id={{ params.speaker_impl_id }} speaker_impl_as={{ params.speaker_impl_as }}
+speaker_addr={{ speaker_addr }} speaker_id={{ speaker_id }} speaker_as={{ speaker_as }} speaker_impl_addr={{ speaker_impl_addr }} speaker_impl_id={{ speaker_impl_id }} speaker_impl_as={{ speaker_impl_as }}
 ```
 
 #### A4. Experiment Config
@@ -173,6 +179,12 @@ speaker_addr={{ params.speaker_addr }} speaker_id={{ params.speaker_id }} speake
 ```yaml
 logging:
   level: INFO
+paths:
+  output_dir: "outputs"
+  plugin_dir: "panther/plugins"
+docker:
+  force_build_docker_image: false
+  use_buildx: true
 tests:
   - name: "BGP Session Establishment (Join)"
     network_environment:
@@ -253,25 +265,26 @@ ivy_iut_test(
 | # | File | Layer | New/Modified |
 |---|------|-------|-------------|
 | 1 | `ivy_lsp/mcp/tools/verification.py` | Piece 1 | Modified |
-| 2 | `ivy_lsp/mcp/core/environment.py` | Piece 1 | New |
-| 3 | `ivy_lsp/mcp/core/verification.py` | Piece 1 | Modified |
-| 4 | `ivy_lsp/mcp/core/subprocess.py` | Piece 1 | Modified |
-| 5 | `panther/plugins/protocols/client_server/bgp/__init__.py` | A1 | New |
-| 6 | `panther/plugins/protocols/client_server/bgp/bgp.py` | A1 | New |
-| 7 | `panther/plugins/services/iut/bgp/__init__.py` | A2 | New |
-| 8 | `panther/plugins/services/iut/bgp/frr_bgp/__init__.py` | A2 | New |
-| 9 | `panther/plugins/services/iut/bgp/frr_bgp/frr_bgp.py` | A2 | New |
-| 10 | `panther/plugins/services/iut/bgp/frr_bgp/config_schema.py` | A2 | New |
-| 11 | `panther/plugins/services/iut/bgp/frr_bgp/Dockerfile` | A2 | New |
-| 12 | `panther/plugins/services/iut/bgp/frr_bgp/version_configs/rfc4271.yaml` | A2 | New |
-| 13 | `panther/plugins/services/iut/bgp/frr_bgp/templates/server_command.jinja` | A2 | New |
-| 14 | `panther/plugins/services/iut/bgp/frr_bgp/templates/bgpd.conf.jinja` | A2 | New |
-| 15 | `panther/plugins/services/testers/panther_ivy/panther_ivy.py` | A3 | Modified |
+| 2 | `ivy_lsp/core/environment.py` | Piece 1 | New |
+| 3 | `ivy_lsp/core/verification.py` | Piece 1 | Modified |
+| 4 | `panther/plugins/protocols/client_server/bgp/__init__.py` | A1 | New |
+| 5 | `panther/plugins/protocols/client_server/bgp/bgp.py` | A1 | New |
+| 6 | `panther/plugins/services/iut/bgp/__init__.py` | A2 | New |
+| 7 | `panther/plugins/services/iut/bgp/frr_bgp/__init__.py` | A2 | New |
+| 8 | `panther/plugins/services/iut/bgp/frr_bgp/frr_bgp.py` | A2 | New |
+| 9 | `panther/plugins/services/iut/bgp/frr_bgp/config_schema.py` | A2 | New |
+| 10 | `panther/plugins/services/iut/bgp/frr_bgp/Dockerfile` | A2 | New |
+| 11 | `panther/plugins/services/iut/bgp/frr_bgp/version_configs/rfc4271.yaml` | A2 | New |
+| 12 | `panther/plugins/services/iut/bgp/frr_bgp/templates/server_command.jinja` | A2 | New |
+| 13 | `panther/plugins/services/iut/bgp/frr_bgp/templates/bgpd.conf.jinja` | A2 | New |
+| 14 | `panther/plugins/services/testers/panther_ivy/panther_ivy.py` | A3 | Modified |
+| 15 | `panther/plugins/services/testers/panther_ivy/ivy_network_resolution_mixin.py` | A3 | Modified (add hex format specifier) |
 | 16 | `panther/plugins/services/testers/panther_ivy/version_configs/bgp/rfc4271.yaml` | A3 | New |
 | 17 | `panther/plugins/services/testers/panther_ivy/templates/bgp/client_command.jinja` | A3 | New |
 | 18 | `panther/plugins/services/testers/panther_ivy/templates/bgp/server_command.jinja` | A3 | New |
 | 19 | `experiment-config/protocols/bgp/experiment_config_bgp.yaml` | A4 | New |
 | 20 | `ivy_lsp/mcp/tools/iut_testing.py` | B | New |
+| 21 | `ivy_lsp/mcp/tools/__init__.py` | B | Modified (add `register_iut_testing_tools` call) |
 
 ### Dependencies
 
