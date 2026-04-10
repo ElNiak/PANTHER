@@ -85,8 +85,9 @@ class FrrBgpServiceManager(
         return []
 
     def generate_deployment_commands(self) -> str:
-        """Generate deployment command args for bgpd."""
+        """Generate deployment command string for bgpd startup."""
         ctx = self._build_template_context()
+        self.working_dir = "/etc/frr"
         return (
             f"mkdir -p /tmp/frr && /usr/lib/frr/zebra -d -f /etc/frr/zebra.conf "
             f"--log file:/tmp/frr/zebra.log && sleep 1 && "
@@ -96,21 +97,15 @@ class FrrBgpServiceManager(
 
     def generate_run_command(self):
         """Build the run command dict for bgpd startup."""
-        ctx = self._build_template_context()
-        port = str(ctx["listen_port"])
-        return {
-            "working_dir": "/etc/frr",
+        cmd_args = self.generate_deployment_commands()
+        run_command = {
+            "working_dir": self.working_dir,
             "command_binary": "/bin/bash",
-            "command_args": [
-                "-c",
-                f"mkdir -p /tmp/frr && /usr/lib/frr/zebra -d -f /etc/frr/zebra.conf "
-                f"--log file:/tmp/frr/zebra.log && sleep 1 && "
-                f"/usr/lib/frr/bgpd -n -f /etc/frr/bgpd.conf "
-                f"--log file:/tmp/frr/bgpd.log -p {port}",
-            ],
+            "command_args": f"-c '{cmd_args}'",
             "timeout": getattr(self, "timeout", 60),
             "environment": {},
         }
+        return run_command
 
     def generate_post_run_commands(self) -> List[str]:
         """Copy FRR daemon logs to the shared log directory after the run."""
