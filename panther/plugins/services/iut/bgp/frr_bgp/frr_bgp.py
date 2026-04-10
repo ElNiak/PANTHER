@@ -84,6 +84,16 @@ class FrrBgpServiceManager(
         """Return empty list; runtime setup is handled by the entrypoint."""
         return []
 
+    def generate_deployment_commands(self) -> str:
+        """Generate deployment command args for bgpd."""
+        ctx = self._build_template_context()
+        return (
+            f"mkdir -p /tmp/frr && /usr/lib/frr/zebra -d -f /etc/frr/zebra.conf "
+            f"--log file:/tmp/frr/zebra.log && sleep 1 && "
+            f"/usr/lib/frr/bgpd -n -f /etc/frr/bgpd.conf "
+            f"--log file:/tmp/frr/bgpd.log -p {ctx['listen_port']}"
+        )
+
     def generate_run_command(self):
         """Build the run command dict for bgpd startup."""
         ctx = self._build_template_context()
