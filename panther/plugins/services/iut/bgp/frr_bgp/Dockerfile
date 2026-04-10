@@ -6,14 +6,13 @@ FROM ${BASE_IMAGE}
 ARG VERSION=master
 ARG DEPENDENCIES="[]"
 
-# Copy FRRouting binaries and config from the official image
+# Copy FRRouting binaries, libs, and config from the official image
 COPY --from=frr /usr/lib/frr/ /usr/lib/frr/
 COPY --from=frr /usr/bin/vtysh /usr/bin/vtysh
 COPY --from=frr /etc/frr/ /etc/frr/
-COPY --from=frr /usr/share/frr/ /usr/share/frr/
 COPY --from=frr /usr/lib/libfrr* /usr/lib/
-COPY --from=frr /usr/lib/*/libyang* /usr/lib/
-COPY --from=frr /usr/lib/*/libcrypt* /usr/lib/
+COPY --from=frr /usr/lib/libyang.so* /usr/lib/
+COPY --from=frr /usr/lib/libcrypto.so* /usr/lib/
 
 # Enable bgpd and zebra daemons
 RUN sed -i 's/bgpd=no/bgpd=yes/' /etc/frr/daemons && \
