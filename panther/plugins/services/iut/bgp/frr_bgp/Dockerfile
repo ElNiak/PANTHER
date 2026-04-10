@@ -1,5 +1,5 @@
 ARG BASE_IMAGE=panther_base_service:latest
-FROM frrouting/frr:10.2.1 AS frr
+FROM frrouting/frr:v8.4.1 AS frr
 
 FROM ${BASE_IMAGE}
 
