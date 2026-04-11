@@ -32,6 +32,8 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Install pyenv and Python 3.10.12
+# Use bash explicitly — pyenv init outputs bash-specific syntax that dash cannot parse
+SHELL ["/bin/bash", "-c"]
 RUN curl https://pyenv.run | bash && \
     echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc && \
     echo 'export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc && \
@@ -43,6 +45,7 @@ RUN curl https://pyenv.run | bash && \
     eval "$(pyenv virtualenv-init -)" && \
     pyenv install 3.10.12 && \
     pyenv global 3.10.12
+SHELL ["/bin/sh", "-c"]
 
 # Create symlinks for python commands
 RUN ln -sf "$HOME/.pyenv/shims/python3.10" /usr/local/bin/python3.10 && \
@@ -132,6 +135,8 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Install pyenv and Python 3.10.12
+# Use bash explicitly — pyenv init outputs bash-specific syntax that dash cannot parse
+SHELL ["/bin/bash", "-c"]
 RUN curl https://pyenv.run | bash && \
     echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc && \
     echo 'export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc && \
@@ -143,6 +148,7 @@ RUN curl https://pyenv.run | bash && \
     eval "$(pyenv virtualenv-init -)" && \
     pyenv install 3.10.12 && \
     pyenv global 3.10.12
+SHELL ["/bin/sh", "-c"]
 
 # Create symlinks for python commands
 RUN ln -sf "$HOME/.pyenv/shims/python3.10" /usr/local/bin/python3.10 && \
