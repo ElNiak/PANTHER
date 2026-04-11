@@ -4,6 +4,8 @@ Notes:
 
 ## Essential Commands
 
+**Prerequisites**: Python 3.10+, Docker
+
 ALWAYS activate the virtual environment before running any commands.
 
 Always activate Serena project environment when working on this repo.
