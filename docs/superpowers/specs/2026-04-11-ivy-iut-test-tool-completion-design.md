@@ -44,7 +44,7 @@ ivy_iut_test(
 
 When `config_path` is provided, the tool reads the YAML and overrides `test_name` and `timeout` in the first test entry. `protocol` and `iut_name` are still required for the return dict but are not validated against config contents.
 
-When `config_path` is omitted, the tool generates a config from scratch with a deterministic output directory (`outputs/ivy-iut-{run_id}/`). `extra_params` is merged into both IUT and tester service configs as `version_config_overrides`.
+When `config_path` is omitted, the tool generates a config from scratch with a deterministic output directory (`outputs/ivy-iut-{run_id}/`). `extra_params` is merged into both IUT and tester service configs under the existing `version_config` key (defined on `ImplementationConfig` at `panther/config/core/models/service.py:225`).
 
 ### Return Dict
 
@@ -100,7 +100,7 @@ tests:
         implementation:
           name: {iut_name}
           type: iut
-          version_config_overrides: {extra_params}  # only if extra_params provided
+          version_config: {extra_params}  # only if extra_params provided
         protocol:
           name: {protocol}
           version: {version}  # only if version provided
@@ -112,7 +112,7 @@ tests:
           name: panther_ivy
           type: testers
           test: {test_name}
-          version_config_overrides: {extra_params}  # only if extra_params provided
+          version_config: {extra_params}  # only if extra_params provided
         protocol:
           name: {protocol}
           version: {version}  # only if version provided
@@ -156,9 +156,9 @@ Walk subdirectories of `output_dir`, read `test.log` from each test subdirectory
 
 ## 6. Verify Workflow Integration
 
-### Phase 5b — IUT Testing (optional)
+### Phase 5 — IUT Testing (optional)
 
-Added to `skills/verify/SKILL.md` after Phase 4 (Execute via `ivy_verify`).
+Added to `skills/verify/SKILL.md` after Phase 4 (Execute via `ivy_verify`). Existing Phase 5 (Diagnose) becomes Phase 6, existing Phase 6 (Fix) becomes Phase 7.
 
 **Trigger:** After formal verification passes (Phase 4 verdict = PASS), the workflow offers:
 
@@ -175,7 +175,7 @@ If user accepts:
    - Fail: present `iut_logs` and `experiment_summary` for diagnosis. Show `output_dir` path for deeper inspection. Offer: "Want me to investigate the failure?"
    - Error/timeout: present error details, suggest checking Docker status and IUT plugin configuration
 
-**Skip condition:** When `invocation_depth > 0` (verify called as sub-workflow from build), Phase 5b is skipped. Build has its own quality gate.
+**Skip condition:** When `invocation_depth > 0` (verify called as sub-workflow from build), Phase 5 (IUT Testing) is skipped. Build has its own quality gate.
 
 **State update:** Update active-workflow phase to `"iut-testing"` on entry, `"iut-testing-done"` on completion.
 
@@ -218,12 +218,12 @@ Add to the plugin CLAUDE.md tool reference tables:
 |---|------|--------|------|
 | 1 | `ivy-lsp/ivy_lsp/mcp/tools/iut_testing.py` | Rewrite | Add config_path, extra_params passthrough, validation, output parsing, deterministic output dir |
 | 2 | `ivy-lsp/tests/test_iut_testing.py` | Create | 15 unit tests with mocked subprocess |
-| 3 | `panther-ivy-plugin/skills/verify/SKILL.md` | Modify | Add Phase 5b (IUT Testing) |
+| 3 | `panther-ivy-plugin/skills/verify/SKILL.md` | Modify | Add Phase 5 (IUT Testing), renumber Phase 5→6, Phase 6→7 |
 | 4 | `panther-ivy-plugin/commands/nct-iut-test.md` | Create | Shortcut command |
 | 5 | `panther-ivy-plugin/CLAUDE.md` | Modify | Add ivy_iut_test to tool tables, /nct-iut-test to shortcuts |
+| 6 | `ivy-lsp/ivy_lsp/mcp/tools/__init__.py` | Modify | Add `ivy_iut_test` to `_TOOL_TIMEOUTS` (120s) and `_TOOL_METADATA` (cost=high, category=testing, needs_model=False) |
 
 **Not changed:**
-- `ivy-lsp/ivy_lsp/mcp/tools/__init__.py` — registration exists, no changes needed
 - `ivy_network_resolution_mixin.py` — hex IP formatting works end-to-end (verified during audit)
 - `ivy-toolkit` knowledge skill — lower priority, follow-up
 
