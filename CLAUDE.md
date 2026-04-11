@@ -161,6 +161,7 @@ pytest tests/ -n auto --cov=panther --cov-fail-under=70  # Coverage required: 70
 - `@pytest.mark.integration` - Requires Docker
 - `@pytest.mark.requires_docker` - Docker dependency
 - `@pytest.mark.slow` - Takes >10 seconds
+- Always run the full test suite after refactoring or multi-file changes. Do not consider a task complete until tests pass.
 
 ## Code Style
 
@@ -173,6 +174,16 @@ pytest tests/ -n auto --cov=panther --cov-fail-under=70  # Coverage required: 70
 
 1. **ARM**: Z3 math errors, use `development-scp-refactor` branch for stability
 2. **Ivy tester**: First build ~30 minutes (slow compilation)
+
+## Debugging
+
+- When debugging MCP server issues, distinguish between MCP server crashes/drops and Claude-side errors. Never attribute MCP infrastructure failures to application logic without evidence.
+- Avoid going down triage/exploration rabbit holes when the user asks a direct debugging question. Start with the specific issue before broadening scope.
+
+## Skills & Tooling
+
+- When scoping new skills or tools, start broad -- include debug logs, plans, tasks, and multi-project support from the beginning. Ask the user about scope before narrowing.
+
 ## Key Files to Understand
 
 - `workflow.md` - Detailed execution architecture
