@@ -404,7 +404,7 @@ automatic workflow gates."
 
 - [ ] **Step 1: Add knowledge-capture to the Knowledge Skills table**
 
-In `skills/README.md`, add a row to the "Knowledge Skills" table after the last entry. Change the count from 7 to 8.
+In `skills/README.md`, the Knowledge Skills section currently lists 7 entries (line 19) but is missing `reflection-patterns` which was added separately. Update the count and add both missing entries.
 
 OLD (line 19):
 ```markdown
@@ -413,7 +413,7 @@ OLD (line 19):
 
 NEW:
 ```markdown
-## Knowledge Skills (8)
+## Knowledge Skills (9)
 ```
 
 OLD (after line 31, last row of the table):
@@ -424,6 +424,7 @@ OLD (after line 31, last row of the table):
 NEW:
 ```markdown
 | [methodology-reference](methodology-reference/) | Comprehensive reference for NCT, NACT, NSCT methodologies |
+| [reflection-patterns](reflection-patterns/) | Reusable reflection gate, multi-perspective exploration, and situation briefing patterns for workflows |
 | [knowledge-capture](knowledge-capture/) | Session knowledge extraction and persistence to plugin rules at workflow phase boundaries |
 ```
 
@@ -474,16 +475,16 @@ In `skills/verify/SKILL.md`, after the "On user stopping" section at the end of 
 
 - [ ] **Step 3: Update the Integration section**
 
-In `skills/verify/SKILL.md`, in the Integration section (line ~296), add `knowledge-capture` to the knowledge skills loaded list:
+In `skills/verify/SKILL.md`, in the Integration section (line 296), add `knowledge-capture` to the knowledge skills loaded list:
 
 OLD:
 ```markdown
-- **Knowledge skills loaded:** `counterexample-guide` (Phase 6), `ivy-writing-guide` (Phase 2 option 3, Phase 7), `specification-patterns` (Phase 2 option 3)
+- **Knowledge skills loaded:** `reflection-patterns` (SB Phase 2, RG Phase 4, MPE Phase 6, SB Phase 7), `counterexample-guide` (Phase 6), `ivy-writing-guide` (Phase 2 option 3, Phase 7), `specification-patterns` (Phase 2 option 3)
 ```
 
 NEW:
 ```markdown
-- **Knowledge skills loaded:** `counterexample-guide` (Phase 6), `ivy-writing-guide` (Phase 2 option 3, Phase 7), `specification-patterns` (Phase 2 option 3), `knowledge-capture` (Phase 4 post-execution, Phase 7 post-fix)
+- **Knowledge skills loaded:** `reflection-patterns` (SB Phase 2, RG Phase 4, MPE Phase 6, SB Phase 7), `counterexample-guide` (Phase 6), `ivy-writing-guide` (Phase 2 option 3, Phase 7), `specification-patterns` (Phase 2 option 3), `knowledge-capture` (KG Phase 4, KG Phase 7)
 ```
 
 - [ ] **Step 4: Verify the file is still under 500 lines**
@@ -543,10 +544,16 @@ In `skills/build/SKILL.md`, after the "Update state" step at the end of Phase 5 
 
 - [ ] **Step 3: Update the Integration section**
 
-In `skills/build/SKILL.md`, find the Integration section and add `knowledge-capture` to the knowledge skills loaded list. If no Integration section exists, add one at the end before the closing `---`:
+In `skills/build/SKILL.md`, in the Integration section (line 277), add `knowledge-capture`:
 
+OLD:
 ```markdown
-- **Knowledge skills loaded:** ..., `knowledge-capture` (Phase 3 post-write, Phase 5 post-quality-gate)
+- **Knowledge skills loaded:** `reflection-patterns` (MPE Phase 1, SB Phase 2, RG Phase 3, SB Phase 5), `methodology-reference` (Phase 1), `specification-patterns` (Phase 2), `ivy-writing-guide` (Phase 3), `counterexample-guide` (Phase 3 on error), `propagation-patterns` (Phase 3 on type change)
+```
+
+NEW:
+```markdown
+- **Knowledge skills loaded:** `reflection-patterns` (MPE Phase 1, SB Phase 2, RG Phase 3, SB Phase 5), `methodology-reference` (Phase 1), `specification-patterns` (Phase 2), `ivy-writing-guide` (Phase 3), `counterexample-guide` (Phase 3 on error), `propagation-patterns` (Phase 3 on type change), `knowledge-capture` (KG Phase 3, KG Phase 5)
 ```
 
 - [ ] **Step 4: Verify the file is still under 500 lines**
@@ -606,16 +613,16 @@ In `skills/review/SKILL.md`, after the user response handling at the end of Phas
 
 - [ ] **Step 3: Update the Integration section**
 
-In `skills/review/SKILL.md`, update the Integration section (line ~166):
+In `skills/review/SKILL.md`, update the Integration section (line 197):
 
 OLD:
 ```markdown
-- **Knowledge skills loaded:** `claim-discussion` (Phase 3 for contested findings)
+- **Knowledge skills loaded:** `reflection-patterns` (SB Phase 1, MPE Phase 2, RG Phase 3), `claim-discussion` (Phase 3 for contested findings)
 ```
 
 NEW:
 ```markdown
-- **Knowledge skills loaded:** `claim-discussion` (Phase 3 for contested findings), `knowledge-capture` (Phase 2 post-execution, Phase 3 post-findings)
+- **Knowledge skills loaded:** `reflection-patterns` (SB Phase 1, MPE Phase 2, RG Phase 3), `claim-discussion` (Phase 3 for contested findings), `knowledge-capture` (KG Phase 2, KG Phase 3)
 ```
 
 - [ ] **Step 4: Verify the file is still under 500 lines**
@@ -771,33 +778,36 @@ when sessions end mid-workflow."
 
 - [ ] **Step 1: Add knowledge-capture to the Internal Components section**
 
-In the plugin `CLAUDE.md`, find the "Internal Components" section under "Knowledge skills" and add:
+In the plugin `CLAUDE.md`, find the "Internal Components" section under "Knowledge skills" (line 102) and add:
 
 OLD:
 ```markdown
 **Knowledge skills** (loaded by workflows, not user-facing):
-`counterexample-guide`, `specification-patterns`, `propagation-patterns`, `ivy-writing-guide`, `ivy-toolkit`, `claim-discussion`, `methodology-reference`, `ivy-debugging-methodology`, `ivy-error-patterns`
+`counterexample-guide`, `specification-patterns`, `propagation-patterns`, `ivy-writing-guide`, `ivy-toolkit`, `claim-discussion`, `methodology-reference`, `ivy-debugging-methodology`, `ivy-error-patterns`, `reflection-patterns`
 ```
 
 NEW:
 ```markdown
 **Knowledge skills** (loaded by workflows, not user-facing):
-`counterexample-guide`, `specification-patterns`, `propagation-patterns`, `ivy-writing-guide`, `ivy-toolkit`, `claim-discussion`, `methodology-reference`, `ivy-debugging-methodology`, `ivy-error-patterns`, `knowledge-capture`
+`counterexample-guide`, `specification-patterns`, `propagation-patterns`, `ivy-writing-guide`, `ivy-toolkit`, `claim-discussion`, `methodology-reference`, `ivy-debugging-methodology`, `ivy-error-patterns`, `reflection-patterns`, `knowledge-capture`
 ```
 
-- [ ] **Step 2: Add knowledge-capture to the Quick Reference section**
+- [ ] **Step 2: Add nct-learn to Shortcuts and knowledge-capture to Quick Reference**
 
-In the plugin `CLAUDE.md`, find the "Quick Reference" section and update:
+In the plugin `CLAUDE.md`, find the "Quick Reference" section (line 144) and update:
 
 OLD:
 ```markdown
-**Internal knowledge**: counterexample-guide, specification-patterns, propagation-patterns, ivy-writing-guide, ivy-toolkit, claim-discussion, methodology-reference, ivy-debugging-methodology, ivy-error-patterns
+**Shortcuts**: /nct-check, /nct-compile, /nct-model-info, /nct-iut-test, /nct-health, /nct-observability
+**Internal agents**: spec-analyst, model-reviewer, traceability-agent
+**Internal knowledge**: counterexample-guide, specification-patterns, propagation-patterns, ivy-writing-guide, ivy-toolkit, claim-discussion, methodology-reference, ivy-debugging-methodology, ivy-error-patterns, reflection-patterns
 ```
 
 NEW:
 ```markdown
 **Shortcuts**: /nct-check, /nct-compile, /nct-model-info, /nct-iut-test, /nct-health, /nct-observability, /nct-learn
-**Internal knowledge**: counterexample-guide, specification-patterns, propagation-patterns, ivy-writing-guide, ivy-toolkit, claim-discussion, methodology-reference, ivy-debugging-methodology, ivy-error-patterns, knowledge-capture
+**Internal agents**: spec-analyst, model-reviewer, traceability-agent
+**Internal knowledge**: counterexample-guide, specification-patterns, propagation-patterns, ivy-writing-guide, ivy-toolkit, claim-discussion, methodology-reference, ivy-debugging-methodology, ivy-error-patterns, reflection-patterns, knowledge-capture
 ```
 
 - [ ] **Step 3: Commit**
@@ -841,7 +851,7 @@ Run:
 ```bash
 grep -r "knowledge-capture" skills/ commands/ CLAUDE.md .claude/rules/ hooks/
 ```
-Expected: references in all 5 workflow SKILLs, README.md, CLAUDE.md, nct-learn command, and render-summary.py
+Expected: references in all 5 workflow SKILLs (Integration sections), README.md, plugin CLAUDE.md (Internal Components + Quick Reference), nct-learn command, and render-summary.py
 
 - [ ] **Step 5: Verify .panther-ivy/session-logs/ is gitignored**
 
