@@ -80,30 +80,59 @@ class FrrBgpServiceManager(
         """Return empty list; FRR ships as a pre-built Docker image."""
         return []
 
-    def generate_runtime_commands(self) -> List[str]:
-        """Return empty list; runtime setup is handled by the entrypoint."""
-        return []
+    def generate_pre_run_commands(self) -> List[str]:
+        """Write configs with runtime IPs, start zebra before bgpd."""
+        ctx = self._build_template_context()
+        # Multiline command uses the heredoc path in the entrypoint template,
+        # which prevents premature shell variable expansion.
+        bgpd_conf_script = (
+            f'SELF_IP=$(cat /app/coordination/${{SERVICE_NAME}}_ip.txt 2>/dev/null || echo "$SERVICE_IP")\n'
+            f"NEIGHBOR_IP=$(cat /app/coordination/ivy_tester_ip.txt 2>/dev/null || hostname -i | head -n1)\n"
+            f'printf "frr defaults traditional\\n'
+            f"!\\n"
+            f"router bgp {ctx['as_number']}\\n"
+            f" bgp router-id %s\\n"
+            f" neighbor %s remote-as {ctx['neighbor_as']}\\n"
+            f" neighbor %s timers {ctx['hold_time']} {ctx['keepalive_time']}\\n"
+            f" !\\n"
+            f" address-family ipv4 unicast\\n"
+            f"  neighbor %s activate\\n"
+            f" exit-address-family\\n"
+            f'!\\n" "$SELF_IP" "$NEIGHBOR_IP" "$NEIGHBOR_IP" "$NEIGHBOR_IP" > /etc/frr/bgpd.conf\n'
+            f'echo "Generated bgpd.conf: router-id=$SELF_IP neighbor=$NEIGHBOR_IP"'
+        )
+        return [
+            "mkdir -p /tmp/frr",
+            'printf "!\\nhostname zebra\\n!\\n" > /etc/frr/zebra.conf',
+            bgpd_conf_script,
+            "/usr/lib/frr/zebra -d -f /etc/frr/zebra.conf --log file:/tmp/frr/zebra.log",
+            "sleep 1",
+        ]
 
     def generate_deployment_commands(self) -> str:
-        """Generate deployment command string for bgpd startup."""
+        """Generate the bgpd startup command string."""
         ctx = self._build_template_context()
         self.working_dir = "/etc/frr"
         return (
-            f"mkdir -p /tmp/frr && /usr/lib/frr/zebra -d -f /etc/frr/zebra.conf "
-            f"--log file:/tmp/frr/zebra.log && sleep 1 && "
             f"/usr/lib/frr/bgpd -n -f /etc/frr/bgpd.conf "
             f"--log file:/tmp/frr/bgpd.log -p {ctx['listen_port']}"
         )
 
     def generate_run_command(self):
         """Build the run command dict for bgpd startup."""
-        cmd_args = self.generate_deployment_commands()
+        ctx = self._build_template_context()
         run_command = {
-            "working_dir": self.working_dir,
-            "command_binary": "/bin/bash",
-            "command_args": f"-c '{cmd_args}'",
+            "working_dir": "/etc/frr",
+            "command_binary": "/usr/lib/frr/bgpd",
+            "command_args": (
+                f"-n -f /etc/frr/bgpd.conf "
+                f"--log file:/tmp/frr/bgpd.log -p {ctx['listen_port']}"
+            ),
             "timeout": getattr(self, "timeout", 60),
-            "environment": {},
+            "environment": {
+                "PORT": str(ctx["listen_port"]),
+                "ROLE": "server",
+            },
         }
         return run_command
 

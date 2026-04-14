@@ -1,23 +1,24 @@
 ARG BASE_IMAGE=panther_base_service:latest
-FROM frrouting/frr:v8.4.1 AS frr
-
 FROM ${BASE_IMAGE}
 
 ARG VERSION=master
 ARG DEPENDENCIES="[]"
 
-# Copy FRRouting binaries, libs, and config from the official image
-COPY --from=frr /usr/lib/frr/ /usr/lib/frr/
-COPY --from=frr /usr/bin/vtysh /usr/bin/vtysh
-COPY --from=frr /etc/frr/ /etc/frr/
-COPY --from=frr /usr/lib/libfrr* /usr/lib/
-COPY --from=frr /usr/lib/libyang.so* /usr/lib/
-COPY --from=frr /usr/lib/libcrypto.so* /usr/lib/
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install FRR from the official FRRouting APT repository (glibc, matches Ubuntu base)
+RUN apt-get update && \
+    apt-get install --no-install-recommends -y curl gnupg lsb-release && \
+    curl -s https://deb.frrouting.org/frr/keys.gpg | gpg --dearmor > /usr/share/keyrings/frr.gpg && \
+    echo "deb [signed-by=/usr/share/keyrings/frr.gpg] https://deb.frrouting.org/frr $(lsb_release -cs) frr-8" \
+        > /etc/apt/sources.list.d/frr.list && \
+    apt-get update && \
+    apt-get install --no-install-recommends -y frr frr-pythontools && \
+    rm -rf /var/lib/apt/lists/*
 
 # Enable bgpd and zebra daemons
 RUN sed -i 's/bgpd=no/bgpd=yes/' /etc/frr/daemons && \
-    sed -i 's/zebra=no/zebra=yes/' /etc/frr/daemons && \
-    ldconfig
+    sed -i 's/zebra=no/zebra=yes/' /etc/frr/daemons
 
 WORKDIR /etc/frr
 

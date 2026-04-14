@@ -172,7 +172,7 @@ pytest tests/ -n auto --cov=panther --cov-fail-under=70  # Coverage required: 70
 
 ## Known Issues
 
-1. **ARM**: Z3 math errors, use `development-scp-refactor` branch for stability
+1. **ARM**: Z3 4.7.1 (local build) hangs solver on ARM64; use `z3_source: pip` with z3-solver 4.13.0.0 and `target_platform: linux/arm64`
 2. **Ivy tester**: First build ~30 minutes (slow compilation)
 
 ## Debugging

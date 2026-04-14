@@ -1,5 +1,4 @@
-"""
-Data models for network-aware command resolution.
+"""Data models for network-aware command resolution.
 
 This module provides Pydantic models for handling network parameter
 resolution in the placeholder system.
@@ -26,6 +25,7 @@ class NetworkFormat(str, Enum):
 
     DECIMAL = "decimal"
     DOTTED = "dotted"
+    HEX = "hex"
     HOSTNAME = "hostname"
     STRING = "string"
     INTEGER = "integer"
