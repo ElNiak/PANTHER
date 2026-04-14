@@ -22,9 +22,10 @@ Enhance the graph-based `coverage_hints.py` to produce an **action-centric** dia
 **Location:** `ivy_lsp/core/coverage_hints.py`
 
 For each action in the RequirementGraph:
-1. Collect state variables the action WRITES (via `EdgeType.WRITES` edges)
-2. Filter to variables not in `guarded_vars` (not read by any requirement or property)
-3. If non-empty, emit diagnostic at the action's declaration line
+1. Build action line ranges per file: sort actions by line, each action's range is `[action.line, next_action.line)` (or EOF for the last action)
+2. Collect all WRITES edges for the file, parse the line number from the source ID (`filepath:line:write:var`), and bucket each write into the action whose line range contains it
+3. Filter each action's written vars to those not in `guarded_vars` (not read by any requirement or property)
+4. If non-empty, emit diagnostic at the action's declaration line
 
 **Message format:**
 ```
@@ -64,7 +65,7 @@ The existing variable-centric `ivy.unguarded-write` diagnostic (points to variab
 | `ivy_lsp/core/coverage_hints.py` | Add action-centric unguarded write diagnostic |
 | `ivy_lsp/core/diagnostics/codes.py` | Register `ivy.action.unguardedWrite` |
 | `ivy_lsp/lsp/diagnostics/compute.py` | Suppress structural `unguarded-action` when graph available |
-| `tests/test_coverage_hints.py` | Test new diagnostic with variable names |
+| `tests/test_coverage_hints.py` | **Create** test file for coverage hint diagnostics |
 | `tests/test_structural_lint.py` | Test deduplication behavior |
 
 ## Testing
