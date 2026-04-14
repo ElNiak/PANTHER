@@ -1,7 +1,7 @@
 # Knowledge Capture Skill for panther-ivy-plugin
 
 **Date**: 2026-04-14
-**Status**: Draft
+**Status**: Approved
 **Scope**: New internal skill + inline knowledge gates across all 5 workflow skills
 
 ## Problem
@@ -11,7 +11,7 @@ The panther-ivy-plugin's workflow skills generate valuable knowledge during sess
 ## Goals
 
 1. **Automatic knowledge detection**: Identify learnable moments during workflow execution without user prompting.
-2. **Persistent session history**: Save full conversation transcripts and structured digests for cross-session analysis.
+2. **Persistent session history**: Save observability event logs and structured digests for cross-session analysis.
 3. **Smart classification**: Route knowledge to the right persistence target (plugin rules, CLAUDE.md, user memory) based on recurrence and generality.
 4. **User-confirmed writes**: Never persist knowledge without explicit user approval.
 5. **Incremental improvement**: Plugin rules and documentation improve organically over time as sessions accumulate.
@@ -38,14 +38,20 @@ Additionally:
 
 ```
 .panther-ivy/session-logs/
-├── {timestamp}.json              # Full conversation transcript
+├── {timestamp}.json              # Consolidated observability event log
 ├── {timestamp}.digest.yaml       # Lightweight index/summary
 └── ...
 ```
 
-### Full Transcript Format
+### Full Session Log Format
 
-The full transcript (`.json`) is assembled from the observability JSONL events already collected by `observe.py`. At each knowledge gate, the skill reads the current session's `events.jsonl` and writes a consolidated JSON file containing all tool calls, tool outputs, errors, and user prompts captured so far. This reuses existing infrastructure — no new data collection needed.
+The session log (`.json`) is assembled from the observability JSONL events already collected by `observe.py`. At each knowledge gate, the skill reads the current session's `events.jsonl` and writes a consolidated JSON file.
+
+**What the observability JSONL captures**: Tool call names and summaries (not full content), user prompt previews (first 100 chars), MCP tool invocations, errors, session lifecycle events. It skips Read/Grep/Glob/LS calls and truncates Bash commands to 200 chars.
+
+**What it does NOT capture**: Claude's reasoning text, full user messages, tool output content, or the conversation flow between tool calls.
+
+**Implication for knowledge capture**: The session log is a tool-call trace, not a conversation transcript. The classification reviewer agent uses it to detect patterns (recurring tool sequences, error-then-fix patterns, repeated verification attempts) but relies on the structured digest for semantic content. The knowledge gate itself runs within the live conversation context where Claude has full visibility — the log serves as a durable record for cross-session analysis, not as the primary input for knowledge extraction.
 
 ### Digest Format
 
@@ -104,7 +110,7 @@ If nothing learnable is found, the gate exits silently with no user interruption
 ### Step 2b — Save Session Log
 
 Write both:
-1. Full conversation transcript to `.panther-ivy/session-logs/{timestamp}.json`
+1. Consolidated observability event log to `.panther-ivy/session-logs/{timestamp}.json`
 2. Structured digest to `.panther-ivy/session-logs/{timestamp}.digest.yaml`
 
 This runs unconditionally at every gate, regardless of whether learnable knowledge was found.
@@ -138,7 +144,7 @@ You are a Knowledge Classification Reviewer for the panther-ivy-plugin.
 
 Review these candidate knowledge entries against:
 1. Past session digests in .panther-ivy/session-logs/*.digest.yaml (check recurrence)
-2. Full transcripts in .panther-ivy/session-logs/*.json (drill into when digests insufficient)
+2. Full event logs in .panther-ivy/session-logs/*.json (drill into when digests insufficient)
 3. Existing plugin rules in .claude/rules/ (check for duplicates/updates)
 4. Ivy model files in protocol-testing/ (check generality across protocols)
 
@@ -229,11 +235,11 @@ Gate trigger rule: A Knowledge Gate (KG) fires at moments where Claude has just 
 | Workflow | Location | Trigger Signal |
 |----------|----------|----------------|
 | **verify** | After Phase 4 (execution results) | Verification passed or failed — either outcome may reveal patterns |
-| **verify** | After Phase 7 (fix applied + re-verified) | A bug was diagnosed and fixed — prime candidate for bug/pattern capture |
+| **verify** | End of Phase 7 — Fix (optional) | A bug was diagnosed and fixed within this phase — prime candidate for bug/pattern capture |
 | **build** | After Phase 3 (every 3 layers written) | Ivy patterns discovered while writing layers |
 | **build** | After Phase 5 (quality gate) | Architecture decisions solidified after quality review |
-| **review** | After Phase 2 (agent findings returned) | Cross-model patterns identified by model-reviewer and traceability-agent |
-| **review** | After Phase 3 (findings resolved) | Workflow refinements from the resolution process |
+| **review** | End of Phase 2 — Execute (agent runs complete) | Cross-model patterns identified by model-reviewer and traceability-agent |
+| **review** | End of Phase 3 — Findings (resolved) | Workflow refinements from the resolution process |
 | **triage** | After Phase 3 (fix applied) | Debugging patterns from infrastructure troubleshooting |
 | **navigate** | After Phase 1 (context scan, warm resume) | Check if last session's digest had deferred candidates to re-present |
 
@@ -243,14 +249,14 @@ Gate trigger rule: A Knowledge Gate (KG) fires at moments where Claude has just 
 
 ### Inline Gate Template (added to each SKILL.md)
 
-Each gate is 5-10 lines in the workflow SKILL.md:
+Each gate is 5-10 lines in the workflow SKILL.md. Unlike `claim-discussion` (which is loaded as context via `context: fork`), `knowledge-capture` is invoked as an active skill call because it requires multi-step actions (reading files, spawning agents, writing files):
 
 ```markdown
 ### Knowledge Gate: [location description]
 
-**KNOWLEDGE GATE (KG)**: Pause and invoke the `knowledge-capture` skill.
+**KNOWLEDGE GATE (KG)**: Pause and invoke: `Skill(skill="panther-ivy-plugin:knowledge-capture")`
 - Reflect on what was learned in the preceding phase(s)
-- Save session log (full transcript + digest)
+- Save session log (observability events + digest)
 - If candidates found, classify and present for user confirmation
 - If deferred candidates exist from prior gates, re-present them
 - Resume workflow after gate completes
@@ -263,6 +269,7 @@ Each gate is 5-10 lines in the workflow SKILL.md:
 | `skills/knowledge-capture/SKILL.md` | Create | Orchestrator skill (~150-200 lines) |
 | `skills/knowledge-capture/references/knowledge-taxonomy.md` | Create | 5-category taxonomy with heuristics, targets, formats (~200-300 lines) |
 | `.claude/rules/insights.md` | Create | Empty file for emergent insights category |
+| `.gitignore` | Edit | Add `.panther-ivy/session-logs/` to prevent committing session data |
 | `commands/nct-learn.md` | Create | Manual trigger command for knowledge capture |
 | `skills/verify/SKILL.md` | Edit | Add 2 knowledge gates (after Phase 4, after Phase 7) |
 | `skills/build/SKILL.md` | Edit | Add 2 knowledge gates (after Phase 3, after Phase 5) |
