@@ -61,6 +61,8 @@ Single authority for all requirement YAML operations. Holds in-memory state for 
 
 The semantic model subscribes to these events and incrementally updates `RfcRequirement` nodes and `COVERS` edges without a full rebuild.
 
+**Note:** No event/observer infrastructure exists in ivy-lsp today. The implementation must create a lightweight callback registry (e.g., `List[Callable]` per event type) in `events.py`. The closest existing pattern is the `done_callback`/`progress_callback` arguments on `WorkspaceIndexer`.
+
 #### Invariants Enforced on Every Write
 
 - ID uniqueness within the manifest
@@ -97,7 +99,7 @@ Unchanged. Reads from the semantic model, which stays current via manager events
 
 #### `ivy_quality(mode='gate')`
 
-Unchanged. More reliable because the manager guarantees well-formed manifests.
+Unchanged. More reliable because the manager guarantees well-formed manifests. Note: the `manifest_exists` check only runs at `gate_level="comprehensive"`, not `minimal` or `standard`.
 
 ### LSP Read-Only Feedback Layer
 
@@ -106,7 +108,7 @@ Unchanged. More reliable because the manager guarantees well-formed manifests.
 | Code | Severity | Trigger | Message |
 |------|----------|---------|---------|
 | `ivy.rfc.missingManifest` | Warning | `.ivy` files under `protocol-testing/{protocol}/` with no `*_requirements.yaml` | "No requirement manifest for protocol '{protocol}'. Use ivy_manifest(mode='create') to generate one." |
-| `ivy.rfc.unmatchedTag` | Warning | Bracket tag `[rfcNNNN:X.Y]` references ID not in any loaded manifest | "Tag '{tag}' has no matching requirement in manifest. Use ivy_manifest(mode='add') to register it." |
+| `ivy.rfc.orphanedTag` (enhanced) | Warning | Bracket tag `[rfcNNNN:X.Y]` references ID not in any loaded manifest | Existing diagnostic, message enhanced to: "Orphaned RFC tag: [{tag}] does not match any loaded requirement manifest. Use ivy_manifest(mode='add') to register it." |
 | `ivy.rfc.staleManifest` | Info | At startup, local content_hash doesn't match cached RFC hash | "Manifest for {rfc} may be stale (content hash mismatch). Use ivy_manifest(mode='staleness') to check." |
 | `ivy.rfc.uncoveredRequirement` | Hint | Manifest requirement has no bracket tag in any `.ivy` file | (Existing, now stays live via event-driven model updates) |
 
@@ -124,7 +126,7 @@ Unchanged in interface. Always reflect latest state because the semantic model s
 
 **Tier 1 — LSP startup (local, no network):**
 
-During `manager.load_all()`, calls `check_local_staleness()` on each manifest. Compares `metadata.content_hash` against the locally cached RFC source hash (existing LRU cache in `fetcher.py`). If stale, the manager marks the manifest and the LSP emits `ivy.rfc.staleManifest`. No network call, no false positive when cache is empty.
+During `manager.load_all()`, calls `check_local_staleness()` on each manifest. Compares `metadata.content_hash` against the locally cached RFC source hash (existing in-memory TTL cache in `fetcher.py`, 3600s expiry). If stale, the manager marks the manifest and the LSP emits `ivy.rfc.staleManifest`. No network call, no false positive when cache is empty.
 
 **Tier 2 — MCP on-demand (network, full check):**
 
@@ -136,6 +138,7 @@ During `manager.load_all()`, calls `check_local_staleness()` on each manifest. C
 |------|--------|
 | `ivy_lsp/core/semantic/rfc_annotations.py` | `load_requirement_manifest()` and `find_manifests()` become internal to the manager. 9 existing call sites redirect to `RequirementManager` methods. Functions stay as private helpers. |
 | `ivy_lsp/core/semantic/model_builder.py` | Instantiates `RequirementManager`, subscribes semantic model to events, calls `manager.load_all()`. |
+| `ivy_lsp/mcp/model_builder.py` | Same changes as the core model builder — uses `RequirementManager.load_all()` instead of directly calling `find_manifests()` + `load_requirement_manifest()`. Subscribes to manager events for MCP-side model updates. |
 | `ivy_lsp/mcp/tools/traceability_extraction.py` | `ivy_manifest` gains new modes. `ivy_extract_requirements(output='manifest')` delegates to manager. |
 | `ivy_lsp/mcp/tools/_helpers.py` | `load_requirements_from_manifests()` fallback delegates to manager. |
 | `ivy_lsp/lsp/diagnostics/compute.py` | Adds `missingManifest`, `staleManifest`, enhances `unmatchedTag` messages. |
