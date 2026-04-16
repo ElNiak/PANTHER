@@ -6,7 +6,7 @@
 
 **Architecture:** A new `RfcService` facade composes the existing `fetcher.py` and `parser.py` with three new modules (analyzer, cache, search). Three MCP tools (`ivy_rfc_get`, `ivy_rfc_search`, `ivy_rfc_section`) delegate to the service. Two-tier cache (memory + disk) with local RFC file support.
 
-**Tech Stack:** Python 3.10+, asyncio, aiohttp (for IETF Datatracker API), existing `mcp` FastMCP framework, pytest + pytest-asyncio.
+**Tech Stack:** Python 3.10+, asyncio, urllib.request + asyncio.to_thread (for IETF Datatracker API, matching existing fetcher pattern), existing `mcp` FastMCP framework, pytest + pytest-asyncio.
 
 **Spec:** `docs/superpowers/specs/2026-04-16-ivy-lsp-rfc-service-design.md`
 
@@ -838,7 +838,7 @@ git commit -m "feat(rfc): add two-tier cache with local RFC file support"
 """Tests for IETF Datatracker search client."""
 
 import json
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -872,18 +872,9 @@ class TestDataTrackerClient:
 
     @pytest.mark.asyncio
     async def test_search_parses_results(self):
-        mock_resp = AsyncMock()
-        mock_resp.status = 200
-        mock_resp.json = AsyncMock(return_value=MOCK_RESPONSE)
-        mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
-        mock_resp.__aexit__ = AsyncMock(return_value=False)
-
-        mock_session = AsyncMock()
-        mock_session.get = AsyncMock(return_value=mock_resp)
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=False)
-
-        with patch("ivy_lsp.core.rfc.search.aiohttp.ClientSession", return_value=mock_session):
+        with patch(
+            "ivy_lsp.core.rfc.search._fetch_json", return_value=MOCK_RESPONSE
+        ):
             results = await self.client.search("BGP", limit=5)
 
         assert len(results) == 2
@@ -894,42 +885,34 @@ class TestDataTrackerClient:
     @pytest.mark.asyncio
     async def test_search_empty_results(self):
         empty_response = {"meta": {"total_count": 0}, "objects": []}
-        mock_resp = AsyncMock()
-        mock_resp.status = 200
-        mock_resp.json = AsyncMock(return_value=empty_response)
-        mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
-        mock_resp.__aexit__ = AsyncMock(return_value=False)
-
-        mock_session = AsyncMock()
-        mock_session.get = AsyncMock(return_value=mock_resp)
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=False)
-
-        with patch("ivy_lsp.core.rfc.search.aiohttp.ClientSession", return_value=mock_session):
+        with patch(
+            "ivy_lsp.core.rfc.search._fetch_json", return_value=empty_response
+        ):
             results = await self.client.search("nonexistent_xyz")
 
         assert results == []
 
     @pytest.mark.asyncio
     async def test_search_caches_results(self):
-        mock_resp = AsyncMock()
-        mock_resp.status = 200
-        mock_resp.json = AsyncMock(return_value=MOCK_RESPONSE)
-        mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
-        mock_resp.__aexit__ = AsyncMock(return_value=False)
-
-        mock_session = AsyncMock()
-        mock_session.get = AsyncMock(return_value=mock_resp)
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=False)
-
-        with patch("ivy_lsp.core.rfc.search.aiohttp.ClientSession", return_value=mock_session):
+        with patch(
+            "ivy_lsp.core.rfc.search._fetch_json", return_value=MOCK_RESPONSE
+        ) as mock_fetch:
             results1 = await self.client.search("BGP", limit=5)
             results2 = await self.client.search("BGP", limit=5)
 
         # Second call should hit cache, so only one HTTP call
-        assert mock_session.get.call_count == 1
+        assert mock_fetch.call_count == 1
         assert len(results2) == 2
+
+    @pytest.mark.asyncio
+    async def test_search_http_error(self):
+        with patch(
+            "ivy_lsp.core.rfc.search._fetch_json",
+            side_effect=OSError("Connection refused"),
+        ):
+            results = await self.client.search("BGP")
+
+        assert results == []
 
     def test_extract_rfc_number(self):
         assert self.client._extract_rfc_number("rfc4271") == "rfc4271"
@@ -949,16 +932,22 @@ Expected: FAIL with `ModuleNotFoundError: No module named 'ivy_lsp.core.rfc.sear
 
 ```python
 # ivy_lsp/core/rfc/search.py
-"""Async client for the IETF Datatracker REST API."""
+"""Async client for the IETF Datatracker REST API.
+
+Uses urllib.request + asyncio.to_thread, matching the pattern in fetcher.py.
+No external HTTP dependencies required.
+"""
 
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
 import re
 import time
-from typing import List, Optional
-
-import aiohttp
+import urllib.request
+import urllib.parse
+from typing import List
 
 from ivy_lsp.core.rfc.types import RfcSearchResult
 
@@ -977,6 +966,13 @@ _STD_LEVEL_MAP = {
     "exp": "Experimental",
     "hist": "Historic",
 }
+
+
+def _fetch_json(url: str) -> dict:
+    """Blocking JSON fetch via urllib (run in thread pool)."""
+    req = urllib.request.Request(url, headers={"Accept": "application/json"})
+    with urllib.request.urlopen(req, timeout=_REQUEST_TIMEOUT) as resp:
+        return json.loads(resp.read().decode("utf-8"))
 
 
 class DataTrackerClient:
@@ -1003,29 +999,17 @@ class DataTrackerClient:
             if time.time() - ts < _CACHE_TTL:
                 return results
 
-        params = {
+        params = urllib.parse.urlencode({
             "format": "json",
             "name__contains": query.lower(),
             "type": "rfc",
             "limit": str(limit),
-        }
+        })
+        url = f"{_DATATRACKER_BASE}?{params}"
 
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    _DATATRACKER_BASE,
-                    params=params,
-                    timeout=aiohttp.ClientTimeout(total=_REQUEST_TIMEOUT),
-                ) as resp:
-                    if resp.status != 200:
-                        logger.warning(
-                            "Datatracker API returned %d for query '%s'",
-                            resp.status,
-                            query,
-                        )
-                        return []
-                    data = await resp.json()
-        except (aiohttp.ClientError, TimeoutError) as exc:
+            data = await asyncio.to_thread(_fetch_json, url)
+        except (OSError, json.JSONDecodeError, TimeoutError) as exc:
             logger.warning("Datatracker search failed: %s", exc)
             return []
 
@@ -1065,7 +1049,7 @@ class DataTrackerClient:
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `cd panther/plugins/services/testers/panther_ivy/submodules/ivy-lsp && python -m pytest tests/test_rfc_search.py -v`
-Expected: PASS (5 tests)
+Expected: PASS (6 tests)
 
 - [ ] **Step 5: Commit**
 
