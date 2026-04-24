@@ -1,3 +1,12 @@
+---
+paths:
+  - "**/.claude/skills/**/SKILL.md"
+  - "**/skills/**/SKILL.md"
+  - "**/.claude/skills/**/references/**/*.md"
+  - "**/.claude/agents/**/*.md"
+  - "**/.claude/commands/**/*.md"
+---
+
 ## Skill Conventions
 
 When writing or editing Claude Code skills, follow these rules. Source: [Official docs](https://code.claude.com/docs/en/skills), [Agent Skills spec](https://agentskills.io/specification).
