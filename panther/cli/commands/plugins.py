@@ -809,5 +809,5 @@ def check_deps(ctx, plugin_path: Path, fix: bool, requirements_file: Optional[Pa
         raise click.Abort()
 
 
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     plugins()

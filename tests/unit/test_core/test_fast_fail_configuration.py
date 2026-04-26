@@ -398,5 +398,5 @@ class TestConfigurationValidation:
         assert new_config.critical_only == config.critical_only
 
 
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     pytest.main([__file__, "-v"])

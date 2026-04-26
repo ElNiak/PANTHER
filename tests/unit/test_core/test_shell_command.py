@@ -56,7 +56,7 @@ def test_shell_command():
     print(f"5. Command with trailing pipe: {cmd5.command}")
 
 
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     print("Testing normalize_command_ending function:")
     test_normalize_command_ending()
     print("\nAll normalize_command_ending tests passed!")

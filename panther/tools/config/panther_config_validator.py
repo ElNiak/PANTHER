@@ -459,5 +459,5 @@ def main():
     print(f"   Files with issues: {report.minor_count + report.major_count}")
 
 
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     main()

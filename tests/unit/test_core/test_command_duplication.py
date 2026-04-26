@@ -164,5 +164,5 @@ def test_command_duplication():
             assert False, f"Generated file {test_output_path} not found"
 
 
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     test_command_duplication()

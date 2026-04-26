@@ -801,5 +801,5 @@ class TestIsTester:
         assert python_quic_manager.is_tester() is False
 
 
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     pytest.main([__file__, "-v"])

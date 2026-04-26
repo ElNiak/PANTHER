@@ -101,5 +101,5 @@ def test_logging_system_works():
             print(f"   {line}")
 
 
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     test_logging_system_works()

@@ -589,5 +589,5 @@ def backup(ctx, output, experiment_dir, output_dir):
         warning_message("No backup created - no metrics data available")
 
 
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     metrics()

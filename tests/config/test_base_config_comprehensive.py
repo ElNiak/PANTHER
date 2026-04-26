@@ -598,7 +598,7 @@ class TestBaseConfigErrorHandling:
                 os.unlink(f.name)
 
 
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     # Run some basic tests manually
     print("Running comprehensive BaseConfig tests...")
 

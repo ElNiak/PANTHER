@@ -153,5 +153,5 @@ def run_test():
         logger.info(f"Command type: {cmd_type}, Command count: {len(processed_list)}")
 
 
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     run_test()

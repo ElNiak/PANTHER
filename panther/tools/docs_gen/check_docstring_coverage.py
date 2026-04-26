@@ -77,5 +77,5 @@ def main():
         print(f"\nPASSED: Coverage {ratio:.1%} meets threshold {args.threshold:.0%}")
 
 
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     main()

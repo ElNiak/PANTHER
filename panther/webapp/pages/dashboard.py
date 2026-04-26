@@ -86,106 +86,44 @@ def content():
     )
     config_path = app.storage.general.get("config_path")
 
-    ui.label("Overview").classes("text-h5 q-mb-md")
+    with ui.card().classes('q-pa-lg shadow-4 full-width'):
+        # Header
+        with ui.row().classes('items-center q-mb-lg'):
+            ui.icon('dashboard', size='md').classes('q-mr-sm text-primary')
+            ui.label("PANTHER Dashboard").classes("text-h4 text-weight-bold text-primary")
 
-    with ui.row().classes("gap-4 q-mb-lg"):
-        stat_card("Plugins", str(plugin_count), icon="extension", color="primary")
-        stat_card(
-            "Past Experiments",
-            str(experiment_count),
-            icon="history",
-            color="secondary",
-        )
-        stat_card(
-            "Loaded Config",
-            Path(config_path).name if config_path else "None",
-            icon="description",
-            color="accent",
-        )
+        # Overview Section
+        with ui.card().classes('q-pa-md q-mb-lg shadow-2'):
+            ui.label("Overview").classes("text-h6 text-weight-medium q-mb-md")
+            with ui.row().classes("gap-4 justify-center"):
+                stat_card("Plugins", str(plugin_count), icon="extension", color="primary")
+                stat_card(
+                    "Past Experiments",
+                    str(experiment_count),
+                    icon="history",
+                    color="secondary",
+                )
+                stat_card(
+                    "Loaded Config",
+                    Path(config_path).name if config_path else "None",
+                    icon="description",
+                    color="accent",
+                )
 
-    # ── Live experiment stat cards (updated via WebObserver events) ────
-    ui.label("Live Experiment").classes("text-h6 q-mt-md q-mb-sm")
+        ui.separator().classes('q-mb-lg')
 
-    with ui.row().classes("gap-4 q-mb-lg") as live_row:
-        with ui.card().classes("q-pa-md"):
-            with ui.row().classes("items-center gap-3 no-wrap"):
-                ui.icon("science", size="md").classes("text-teal")
-                with ui.column().classes("gap-0"):
-                    ui.label("Tests Passed").classes("text-caption text-grey-7")
-                    tests_passed_label = ui.label("—").classes("text-h5 font-bold")
+        # Quick Actions Section
+        with ui.card().classes('q-pa-md shadow-2'):
+            ui.label("Quick Actions").classes("text-h6 text-weight-medium q-mb-md")
+            with ui.row().classes("gap-3 justify-center flex-wrap"):
+                ui.button("New Config", icon="add", color="positive", on_click=lambda: ui.navigate.to("/config")).classes('q-px-lg')
+                ui.button(
+                    "Browse Results", icon="folder", color="info", on_click=lambda: ui.navigate.to("/results")
+                ).classes('q-px-lg')
+                ui.button(
+                    "View Plugins",
+                    icon="extension",
+                    color="warning",
+                    on_click=lambda: ui.navigate.to("/plugins"),
+                ).classes('q-px-lg')
 
-        with ui.card().classes("q-pa-md"):
-            with ui.row().classes("items-center gap-3 no-wrap"):
-                ui.icon("sync", size="md").classes("text-deep-purple")
-                with ui.column().classes("gap-0"):
-                    ui.label("Current Phase").classes("text-caption text-grey-7")
-                    phase_label = ui.label("Idle").classes("text-h5 font-bold")
-
-        with ui.card().classes("q-pa-md"):
-            with ui.row().classes("items-center gap-3 no-wrap"):
-                ui.icon("timer", size="md").classes("text-amber")
-                with ui.column().classes("gap-0"):
-                    ui.label("Status").classes("text-caption text-grey-7")
-                    status_label = ui.label(experiment_svc.status).classes(
-                        "text-h5 font-bold"
-                    )
-
-    # Track test pass/fail counts locally
-    counters = {"passed": 0, "failed": 0, "total": 0}
-
-    # Capture client context for background-thread safety
-    client = ui.context.client
-
-    def _on_live_event(event: BaseEvent):
-        """Update live stat cards in response to a WebObserver event."""
-        try:
-            with client:
-                event_type = event.get_type()
-                if event_type == "test.completed":
-                    counters["total"] += 1
-                    if event.data.get("passed"):
-                        counters["passed"] += 1
-                    else:
-                        counters["failed"] += 1
-                    tests_passed_label.text = (
-                        f"{counters['passed']}/{counters['total']}"
-                    )
-                elif event_type.startswith("experiment.phase"):
-                    phase_label.text = event.data.get(
-                        "phase", event_type.split(".")[-1]
-                    )
-                elif event_type == "experiment.started":
-                    counters.update(passed=0, failed=0, total=0)
-                    tests_passed_label.text = "0/0"
-                    phase_label.text = "Running"
-                    status_label.text = "Running"
-                elif event_type == "experiment.completed":
-                    status_label.text = "Completed"
-                elif event_type == "experiment.failed":
-                    status_label.text = "Failed"
-        except RuntimeError:
-            logger.debug("Client disconnected during UI update")
-
-    sub = experiment_svc.web_observer.subscribe(
-        _on_live_event,
-        event_types={"experiment", "test"},
-        importance=EventImportance.HIGH,
-    )
-    logger.debug("Dashboard subscribed to live experiment events")
-
-    # Unsubscribe on page disconnect
-    client.on_disconnect(lambda: experiment_svc.web_observer.unsubscribe(sub))
-
-    ui.separator()
-
-    ui.label("Quick Actions").classes("text-h6 q-mt-md q-mb-sm")
-    with ui.row().classes("gap-3"):
-        ui.button("New Config", icon="add", on_click=lambda: ui.navigate.to("/config"))
-        ui.button(
-            "Browse Results", icon="folder", on_click=lambda: ui.navigate.to("/results")
-        )
-        ui.button(
-            "View Plugins",
-            icon="extension",
-            on_click=lambda: ui.navigate.to("/plugins"),
-        )

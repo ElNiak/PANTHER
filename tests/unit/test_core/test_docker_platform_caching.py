@@ -416,5 +416,5 @@ class TestDockerBuilderPlatformSupport:
             pytest.skip(f"DockerBuilder platform test failed: {e}")
 
 
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     pytest.main([__file__, "-v"])

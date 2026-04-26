@@ -332,7 +332,7 @@ comprehensive coverage of core configuration functionality.
 # MAIN EXECUTION
 # ============================================================================
 
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     print("🔬 Running Simplified Hypothesis-Based Configuration Tests...")
     print("=" * 80)
 

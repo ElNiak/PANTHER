@@ -119,5 +119,5 @@ def run_test():
                 logger.info(f"[{i}] SINGLE: {repr(cmd)}")
 
 
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     run_test()

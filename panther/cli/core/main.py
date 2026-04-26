@@ -14,6 +14,8 @@ from termcolor import colored
 from panther import __version__
 from panther.cli.core.base import PantherGroup, setup_logging
 
+from multiprocessing import current_process
+
 
 @click.group(cls=PantherGroup)
 @click.option(
@@ -229,5 +231,5 @@ def main():
 # Register commands when module is imported
 register_commands()
 
-if __name__ == "__main__":
+if __name__ == "__main__" or current_process().name != "MainProcess":
     sys.exit(main() or 0)

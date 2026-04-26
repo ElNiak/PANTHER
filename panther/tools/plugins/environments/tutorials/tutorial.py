@@ -1576,7 +1576,7 @@ def run_multi_environment_test():
         # Cleanup all environments
         experiment.teardown_environments()
 
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     results = run_multi_environment_test()
     print(f"Integration test completed: {results}")
 '''
@@ -1873,7 +1873,7 @@ def demonstrate_plugin_communication():
         return True
 
 
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     import argparse
 
     # Set up argument parsing

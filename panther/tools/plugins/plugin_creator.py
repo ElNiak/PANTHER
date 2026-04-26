@@ -577,7 +577,7 @@ def launch_interactive_tutorials():
         print("\n" + "-" * 50 + "\n")
 
 
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     # Allow direct execution of this script for tutorial access
     import argparse
 

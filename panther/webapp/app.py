@@ -36,8 +36,9 @@ from pathlib import Path
 from typing import Optional
 
 from nicegui import app, ui
+from panther.webapp.pages import my_page
 
-from panther.webapp.components.layout import create_layout
+from panther.webapp.components.layout import STATIC_DIR, create_layout
 from panther.webapp.pages import (
     config_builder,
     dashboard,
@@ -46,6 +47,10 @@ from panther.webapp.pages import (
     results,
     topology,
 )
+from nicegui import app as nicegui_app
+from panther.webapp.api.topology_api import router
+
+nicegui_app.include_router(router)
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +87,10 @@ def create_app(
     app.storage.general["config_path"] = config_path
     app.storage.general["output_dir"] = str(Path(output_dir).resolve())
 
+    # Serve UI static assets (images, scripts, etc.) from /static
+    # This is required for topology.js and other webapp resources.
+    app.add_static_files('/static', str(STATIC_DIR))
+
     @ui.page("/")
     def index():
         """Serve the dashboard home page with summary stats and live event feed."""
@@ -111,6 +120,11 @@ def create_app(
         """Serve the plugin browser with type filtering and detail panels."""
         create_layout("Plugins")
         plugins.content()
+    
+    @ui.page('/my-page')
+    def my_page_route():
+        create_layout("My Page")
+        my_page.content()
 
     @ui.page("/topology")
     def topology_page():

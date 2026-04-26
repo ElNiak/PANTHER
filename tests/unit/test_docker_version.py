@@ -60,5 +60,5 @@ def test_docker_version_check():
             print(f"❌ No Docker test failed: {e}\n")
 
 
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     test_docker_version_check()

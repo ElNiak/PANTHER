@@ -33,6 +33,7 @@ NAV_ITEMS = [
     ("/experiments", "Experiments", "science"),
     ("/results", "Results", "assessment"),
     ("/plugins", "Plugins", "extension"),
+    ("/my-page", "My Page", "description"),
 ]
 
 

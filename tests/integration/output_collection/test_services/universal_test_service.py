@@ -75,5 +75,5 @@ def main():
     print(f"Service {service_name} completed successfully")
 
 
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     main()
