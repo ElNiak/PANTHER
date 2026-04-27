@@ -15,7 +15,7 @@ When writing or editing Claude Code skills, follow these rules. Source: [Officia
 
 | Field | Constraints |
 |---|---|
-| `name` | Required. 1-64 chars. Lowercase, numbers, hyphens. No leading/trailing/consecutive hyphens. Must match directory name. A single forward slash `/` is permitted iff the SKILL.md sits at a 2-level nested path under `skills/` (e.g. `skills/<group>/<leaf>/SKILL.md` registers as `name: <group>/<leaf>`). Top-level skills retain the no-slash rule. Empirically validated by Zoom plugin (~25 nested skills). |
+| `name` | Required. 1-64 chars. Lowercase, numbers, hyphens. No leading/trailing/consecutive hyphens. Must match directory name. **Empirical note (2026-04-27)**: slashes in `name:` are NOT supported by the harness (Claude Code rejects `panther-ivy-plugin:workflow/verify` with "Unknown skill"); use the flat-with-prefix convention `skills/<category>-<leaf>/SKILL.md` with `name: <category>-<leaf>` to encode taxonomy via hyphens. (The Zoom plugin's nested layout did not register; misleading prior evidence.) |
 | `description` | Required. Front-load key use case in first 250 chars (truncation point). Format: what it does + "Use when..." triggers. Third person. No workflow summaries. |
 | `allowed-tools` | Hyphenated key name. Use restricted patterns (`Bash(git *)`) not bare `Bash`. |
 | `user-invocable` | Set to `false` for internal knowledge skills. Do not use "Do not invoke directly" in descriptions. |
