@@ -42,6 +42,331 @@ sed "${SED_INPLACE[@]}" 's/foo/bar/' file
 
 ---
 
+## Pre-execution adjustments per /grill-me 2026-04-28
+
+This section consolidates five decisions reached after the harness audit (`/Users/elniak/.claude/plans/docs-superpowers-plans-2026-04-28-panthe-concurrent-marble.md`) and a follow-up `/grill-me` session. They adjust the phase tasks below; integrate at the cross-referenced Task ID in each subsection. Each adjustment includes its concrete diff so the executor can splice without re-deriving.
+
+### Adjustment 1 — per-agent tool allowlists (Patches 1+2 of audit)
+
+**Why:** every existing agent in this plugin (`spec-analyst`, `model-reviewer`, `traceability-agent`, `plugin-conventions-reviewer`, `g-plan-critic`, `g-fidelity-critic`, `g-knowledge-critic`) ships with an explicit `tools:` allowlist; some carry fine-grained Bash sub-allowlists (`Bash(grep *), Bash(rg *)`). Without per-agent allowlists, the 8 new agents would be the only undocumented tool surfaces in the plugin and would silently lose the structural-scoping discipline.
+
+**Apply at Task A.3 (3 gate critic agents):** the existing frontmatter already has `tools: ["Read", "Grep", "Glob"]`. Augment each of the 3 gate-critic frontmatters with `forbidden_tools` and add an `<output_schema>` body section near the end:
+
+```yaml
+# Add to frontmatter of g-plan-critic.md, g-fidelity-critic.md, g-knowledge-critic.md:
+forbidden_tools: ["Bash", "Edit", "Write", "WebFetch", "Skill"]
+```
+
+```markdown
+# Append to the body of each gate-critic .md file (after "Verdict Format" section):
+
+## Output schema
+
+Return ≤ 200 words total. Format:
+
+VERDICT: SOUND | UNSOUND | ABSTAIN
+REASON: 1-2 sentence justification
+EVIDENCE: ≤ 3 file paths or quote IDs (no full quotes — paths only)
+
+Do not include reasoning narrative beyond the REASON line. The orchestrator aggregates 3 critics' verdicts; verbose returns multiply by 3 in the orchestrator's main-thread context.
+```
+
+**Apply at Task C.6 (5 workflow agents):** replace each agent's frontmatter `tools: [...]` line with the explicit per-agent allowlist below and add `forbidden_tools`. Add an `<output_schema>` body section to each agent file (same shape as gate critics but with verdict JSON and ≤ 800-word cap):
+
+```yaml
+# agents/ivy-triage-agent.md
+tools:
+  - Read
+  - Grep
+  - Glob
+  - Bash
+  - Skill
+  - mcp__plugin_panther-ivy-plugin_ivy-tools__ivy_status
+  - mcp__plugin_panther-ivy-plugin_ivy-tools__ivy_diagnostics
+  - mcp__plugin_panther-ivy-plugin_ivy-tools__ivy_workspace
+  - mcp__plugin_panther-ivy-plugin_ivy-tools__ivy_workflow_state
+forbidden_tools: ["Edit", "Write"]   # triage repairs infrastructure, not specs
+
+# agents/ivy-builder-agent.md
+tools:
+  - Read
+  - Grep
+  - Glob
+  - Edit
+  - Write
+  - Skill
+  - mcp__plugin_panther-ivy-plugin_ivy-tools__ivy_compile
+  - mcp__plugin_panther-ivy-plugin_ivy-tools__ivy_diagnostics
+  - mcp__plugin_panther-ivy-plugin_ivy-tools__ivy_propagation
+  - mcp__plugin_panther-ivy-plugin_ivy-tools__ivy_workspace
+  - mcp__plugin_panther-ivy-plugin_ivy-tools__ivy_workflow_state
+forbidden_tools: ["Bash"]   # builder uses ivy_compile MCP, never direct ivyc
+
+# agents/ivy-verifier-agent.md
+tools:
+  - Read
+  - Grep
+  - Glob
+  - Skill
+  - mcp__plugin_panther-ivy-plugin_ivy-tools__ivy_verify
+  - mcp__plugin_panther-ivy-plugin_ivy-tools__ivy_compile
+  - mcp__plugin_panther-ivy-plugin_ivy-tools__ivy_iut_test
+  - mcp__plugin_panther-ivy-plugin_ivy-tools__ivy_diagnostics
+  - mcp__plugin_panther-ivy-plugin_ivy-tools__ivy_workflow_state
+forbidden_tools: ["Edit", "Write"]   # verifier reads + runs; rewrites belong to builder
+
+# agents/ivy-reviewer-agent.md
+tools:
+  - Read
+  - Grep
+  - Glob
+  - Skill
+  - WebFetch
+  - mcp__plugin_panther-ivy-plugin_ivy-tools__ivy_coverage
+  - mcp__plugin_panther-ivy-plugin_ivy-tools__ivy_quality
+  - mcp__plugin_panther-ivy-plugin_ivy-tools__ivy_extract_requirements
+  - mcp__plugin_panther-ivy-plugin_ivy-tools__ivy_rfc
+  - mcp__plugin_panther-ivy-plugin_ivy-tools__ivy_workflow_state
+forbidden_tools: ["Edit", "Write", "Bash"]   # reviewer renders verdicts only
+
+# agents/ivy-meta-agent.md
+tools:
+  - Read
+  - Grep
+  - Glob
+  - Edit
+  - Write
+  - Bash
+  - Skill
+forbidden_tools: []   # plugin self-mod requires full access by design
+```
+
+```markdown
+# Append to the body of each workflow-agent .md file (after the role/responsibilities section):
+
+## Output schema
+
+Return ≤ 800 words total. JSON shape:
+
+{
+  "claim": "1-3 sentence verdict — what was attempted, outcome, gate state (≤ 60 words)",
+  "evidence_paths": ["protocol-testing/<file>:<line>", "..."],   // ≤ 6 entries
+  "gate_status": "SOUND | UNSOUND | ABSTAIN | NOT_APPLICABLE",
+  "next_dispatch_hint": "≤ 30 words; null if work is complete",
+  "tool_invocations": 0   // integer count, no transcript
+}
+
+Do not include the agent's full reasoning trace in the return. The orchestrator reads only the verdict; multi-turn reasoning stays inside the agent's forked context where it does not consume main-thread budget.
+```
+
+### Adjustment 2 — eval scaffolding (Patch 3 of audit, full)
+
+**Why:** the refactor adds 17 new top-level components (1 orchestrator + 5 ops-skills + 6 cross-cutting catalogs + 5 workflow agents). Existing `evals/g{1..5}_trigger_eval.json` cover only the gate critics. The Phase F smoke test exercises the path once, not 20-50 times — Q-D1 is explicit that 20-50 cases is the floor for early eval coverage.
+
+**New Task A.7b (insert after Task A.7, before Task A.8):**
+
+```markdown
+### Task A.7b: Author orchestrator trigger eval
+
+**Files:**
+- Create: `<PLUGIN>/evals/orchestrator_trigger_eval.json`
+
+- [ ] **Step 1: Author the file matching `evals/g1_trigger_eval.json` shape**
+
+20 entries: 10 should-trigger phrases drawn from prior session prompts ("verify the spec", "check this Ivy model", "I have a counterexample", "build a BGP layer", "what's the verifier saying", "the test is failing", "ivy_compile error", "the gate said UNSOUND", "set the workspace to bgp", "what should I do next") + 10 should-NOT-trigger phrases ("help me write a Python parser", "set up a Postgres database", "what's the weather", "review this React component", "fix this bash script", "Docker is failing", "explain QUIC handshake at the protocol level only", "format this YAML", "what does git rebase do", "explain Z3 satisfiability").
+
+`expected_phase` is null for negative cases; for positive cases, populate with the workflow the orchestrator should route into ("verify", "build", "review", "triage", "knowledge").
+
+- [ ] **Step 2: Validate JSON shape**
+
+```bash
+python3 -c "import json; print(len(json.load(open('$PLUGIN/evals/orchestrator_trigger_eval.json'))['should_trigger']))"
+# Expected: 10
+```
+
+- [ ] **Step 3: Run the manual procedure once on 5 random cases**
+
+Per `evals/README.md`: open a fresh session, send the prompt verbatim, observe activation. 5 sample runs are enough to catch grossly miscalibrated descriptions; full 20/20 run scheduled for Phase F smoke test.
+
+This task is folded into the Phase A commit (Task A.8) — no separate commit.
+```
+
+**New Task C.10b (insert after Task C.10, before Task C.11):**
+
+```markdown
+### Task C.10b: Author workflow_dispatch_eval and gate_critic_outcome_eval
+
+**Files:**
+- Create: `<PLUGIN>/evals/workflow_dispatch_eval.json` (15 cases, fixture-backed)
+- Create: `<PLUGIN>/evals/gate_critic_outcome_eval.json` (extends g{1..5} for post-refactor gate paths)
+- Create: `<PLUGIN>/tests/fixtures/bgp-clean-layer/` (minimal workspace for the workflow-dispatch eval)
+
+- [ ] **Step 1: workflow_dispatch_eval.json schema**
+
+Each case grades the orchestrator's *journal final entry shape*, not which agent name was spawned:
+
+```json
+{
+  "case": "verify a clean BGP layer",
+  "input": "verify protocol-testing/bgp/bgp_stack/bgp_connection.ivy",
+  "fixture": "tests/fixtures/bgp-clean-layer/",
+  "expected": {
+    "journal_final_entry": {
+      "event": "verify_complete",
+      "gate_status": "SOUND",
+      "evidence_paths_count_min": 1
+    }
+  }
+}
+```
+
+15 cases mixing build / verify / review / triage / meta intents.
+
+- [ ] **Step 2: gate_critic_outcome_eval.json schema**
+
+Extends each g{1..5} eval with post-refactor expected gate-firing paths (e.g., G2 should now reference `verification-failures` skill, not `ivy-error-patterns`).
+
+- [ ] **Step 3: Validate**
+
+```bash
+python3 -m json.tool $PLUGIN/evals/workflow_dispatch_eval.json > /dev/null
+python3 -m json.tool $PLUGIN/evals/gate_critic_outcome_eval.json > /dev/null
+ls $PLUGIN/tests/fixtures/bgp-clean-layer/
+# Expected: minimal workspace files for the verify case
+```
+
+This task is folded into the Phase C commit (Task C.11) — no separate commit.
+```
+
+### Adjustment 3 — collapse the Phase A→C activation race window
+
+**Why:** the plan as drafted disables triggering only on `workflow-navigate` and `meta-using-panther-ivy-plugin` in Phase A; `workflow-build`, `workflow-verify`, `workflow-review`, `workflow-triage` continue triggering until Phase C. During the Phase A→B→C window (could span days if execution is interrupted), Claude's intent matcher sees both the new orchestrator and the deprecated workflow skills as candidates for "verify the spec" / "build a layer" prompts. That is the structural-not-prompt scoping fragility Q-A1 calls out.
+
+**Apply at Task A.6 (currently disables only `workflow-navigate`):** rename the task to "Disable triggering on workflow-navigate AND the 4 workflow-* skills" and extend the file list. The 4 additional skills get the same frontmatter mutation as Task A.6:
+
+```yaml
+# In each of these 4 SKILL.md frontmatters:
+#   <PLUGIN>/skills/workflow-build/SKILL.md
+#   <PLUGIN>/skills/workflow-verify/SKILL.md
+#   <PLUGIN>/skills/workflow-review/SKILL.md
+#   <PLUGIN>/skills/workflow-triage/SKILL.md
+
+# Set:
+user-invocable: false
+description: "Deprecated under approach E orchestrator refactor (2026-04-28). Routing logic moved to skills/ivy/ orchestrator. Will be deleted in Phase F. Bodies remain on disk through Phase C while content migrates to ops-skills."
+```
+
+The bodies stay intact (Phase B/C still need to migrate their content into ops-skills). Only the activation surface closes.
+
+**Apply at Task A.7 Step 6:** flip the note. The current text "workflow-{build,verify,review,triage} still trigger at Phase A — this is expected, not a regression" becomes:
+
+```markdown
+- [ ] **Step 6: Verify all 6 deprecated skills are non-triggering**
+
+After Adjustment 3, all of `workflow-navigate`, `meta-using-panther-ivy-plugin`, `workflow-build`, `workflow-verify`, `workflow-review`, `workflow-triage` carry `user-invocable: false` and a deprecated description. Test prompts that historically activated each:
+
+```
+"navigate to bgp"          → orchestrator (NOT workflow-navigate)
+"use using-panther-ivy"    → orchestrator (NOT meta-using)
+"build a BGP layer"        → orchestrator (NOT workflow-build)
+"verify the spec"          → orchestrator (NOT workflow-verify)
+"audit RFC coverage"       → orchestrator (NOT workflow-review)
+"my MCP is broken"         → orchestrator (NOT workflow-triage)
+```
+
+The orchestrator owns intent matching from Phase A onward.
+```
+
+**Apply at Task A.8 staging list:** add the 4 additional SKILL.md paths and the new evals file to `git -C $PLUGIN add`:
+
+```bash
+git -C $PLUGIN add -A \
+    skills/ivy/ \
+    agents/g-plan-critic.md agents/g-fidelity-critic.md agents/g-knowledge-critic.md \
+    hooks/scripts/inject-using-plugin.sh \
+    skills/meta-using-panther-ivy-plugin/SKILL.md \
+    skills/workflow-navigate/SKILL.md \
+    skills/workflow-build/SKILL.md \
+    skills/workflow-verify/SKILL.md \
+    skills/workflow-review/SKILL.md \
+    skills/workflow-triage/SKILL.md \
+    evals/orchestrator_trigger_eval.json
+git -C $PLUGIN status
+# Expected: 13 files staged (was 8 before Adjustment 3 + Adjustment 2 Task A.7b).
+```
+
+### Adjustment 4 — per-phase parent submodule pointer bumps
+
+**Why:** the panther-ivy-plugin lives in a nested submodule. Each phase commits *inside* the submodule. Two prior handoff entries in user memory carry "parent pointer pending" notes — meaning past plugin-side commits landed without the parent submodule pointer bump, leaving anyone who pulled the parent worktree on stale state. This refactor must not repeat that pattern.
+
+**Apply after each phase commit task (A.8, B.6, C.11, D.12, E.9, F.1.6):** add a final step that bumps the parent submodule pointer:
+
+```markdown
+- [ ] **Step N: Parent-repo submodule pointer bump**
+
+```bash
+WORKTREE=/Users/elniak/Documents/Documents/Work/Project/Protocol-Testing-Security/PANTHER/master/.claude/worktrees/lsp-to-claude
+PLUGIN_PATH=panther/plugins/services/testers/panther_ivy/submodules/panther-ivy-plugin
+cd $WORKTREE
+git add $PLUGIN_PATH
+git status   # confirm only the submodule pointer is staged
+git commit -m "chore(submodule): bump panther-ivy-plugin pointer (Phase X)"
+```
+
+Where X is the phase letter (A, B, C, D, E, or F.1). Do not amend; create a fresh parent commit per phase. Mid-refactor pulls of the parent worktree will then always reflect the latest submodule state.
+```
+
+### Adjustment 5 — pre-dispatch MCP liveness probe in orchestrator
+
+**Why:** the Ivy MCP server can disconnect mid-session (observed empirically in the audit session). When that happens, dispatching `ivy-verifier-agent` / `ivy-builder-agent` / `ivy-reviewer-agent` into a forked context wastes a full agent dispatch on a known-broken backend. The triage agent owns MCP repair; route to it instead.
+
+**Apply at Task A.1 orchestrator SKILL.md body:** insert a new section between "## Workspace control" (line ~293) and "## Dispatch — workflow specialist agents" (line ~297):
+
+```markdown
+## Pre-dispatch MCP liveness check
+
+Before dispatching `ivy-verifier-agent`, `ivy-builder-agent`, or `ivy-reviewer-agent` (the three agents whose work depends on Ivy MCP tools), invoke a cheap MCP probe:
+
+```
+ivy_status()
+```
+
+Three branches:
+
+1. **Probe succeeds** — proceed with the planned dispatch.
+2. **Probe returns MCP unavailable / disconnect / connection error** — surface to the user: "MCP server unavailable. Dispatching ivy-triage-agent to diagnose and repair." Then dispatch `ivy-triage-agent` instead. Do not retry the originally-intended dispatch in the same turn; the user can re-issue the request after triage repairs the backend.
+3. **Probe returns indexing-not-ready** — wait for the SessionStart `wait-for-indexing.sh` hook to complete (or invoke `Skill(skill="panther-ivy-plugin:workflow-triage")` for repair guidance), then re-probe.
+
+The probe is **skipped** for `ivy-triage-agent` (whose job is exactly MCP/LSP repair — running it requires no working MCP) and `ivy-meta-agent` (plugin source modification does not need the Ivy MCP).
+
+This probe is the structural complement to Patch 5's per-dispatch failure handling: failure handling catches malformed verdicts; the probe prevents the malformed-verdict scenario from occurring on a known-broken backend in the first place.
+```
+
+**Apply at Task A.1 orchestrator SKILL.md body:** also append a new section at the end (before "## References"):
+
+```markdown
+## Agent failure handling
+
+If a dispatched agent returns a result that does not parse against the verdict schema, returns an error, or times out:
+
+1. Append a `dispatch_failed` event to the workflow journal via `ivy_workflow_state(action="set", workflow="<...>", phase="dispatch_failed", protocol="<...>")` with the raw return text and the failure mode.
+2. Surface a one-line user-visible message: "Agent <name> failed: <one-line reason>. Workflow journal entry written. Decide whether to re-dispatch or pause."
+3. Do not auto-retry. The user decides whether to re-dispatch with a corrected prompt or escalate.
+
+This propagates failure as a tool-call error rather than silently retrying or hanging — Q-A2 from the Managed Agents article.
+```
+
+### Adjustments not folded (audit Patches 4 + 6)
+
+The audit recommended two additional changes that were not explicitly grilled:
+
+- **Patch 4** — body length caps in `skill-conventions.md` (orchestrator ≤ 350 LOC, ops-skills ≤ 250 LOC, cross-cutting catalog SKILL.md ≤ 80 LOC). Defer to v0.11; not load-bearing for this refactor.
+- **Patch 6** — sunset-review memory note for `inject-using-plugin.sh`. Defer to v0.11 with a memory note added in Phase F.1 Task F.1.5 if the executor agrees.
+
+These remain documented in the audit report at `/Users/elniak/.claude/plans/docs-superpowers-plans-2026-04-28-panthe-concurrent-marble.md`.
+
+---
+
 ## File structure
 
 Plugin canonical tree at `panther/plugins/services/testers/panther_ivy/submodules/panther-ivy-plugin/plugins/panther-ivy-plugin/`. The implementation creates, modifies, deletes, or moves these files (paths relative to that root unless noted).
@@ -834,9 +1159,22 @@ Dispatch g-plan-critic 3 times in parallel on a simple test plan
 
 Expected: orchestrator dispatches `g-plan-critic` ×3 in a single message. Each critic returns SOUND/UNSOUND/ABSTAIN; orchestrator aggregates 2-of-3.
 
-- [ ] **Step 6: Note that workflow-{build,verify,review,triage} still trigger at Phase A**
+- [ ] **Step 6: Verify all 6 deprecated skills are non-triggering**
 
-Phase A's scope is workflow-navigate + meta-using only. The remaining 9 deprecated skills get disabled in Phase C. A prompt like "verify the spec" may still activate `workflow-verify` at this phase — this is expected, not a regression.
+> **Updated by Pre-execution Adjustment 3** (see "Pre-execution adjustments per /grill-me 2026-04-28" section above). Phase A now disables triggering on all 6 deprecated workflow-* + meta skills (`workflow-navigate`, `meta-using-panther-ivy-plugin`, `workflow-build`, `workflow-verify`, `workflow-review`, `workflow-triage`).
+
+Test prompts that historically activated each:
+
+```
+"navigate to bgp"          → orchestrator (NOT workflow-navigate)
+"use using-panther-ivy"    → orchestrator (NOT meta-using)
+"build a BGP layer"        → orchestrator (NOT workflow-build)
+"verify the spec"          → orchestrator (NOT workflow-verify)
+"audit RFC coverage"       → orchestrator (NOT workflow-review)
+"my MCP is broken"         → orchestrator (NOT workflow-triage)
+```
+
+The orchestrator owns intent matching from Phase A onward. The 9 *remaining* deprecated skills (the 4 cross-cutting + meta-plugin-self-mod, etc.) still get disabled in Phase C as originally planned — they are not direct competitors of the orchestrator's description, so the Phase A→C window for those skills carries no race risk.
 
 ### Task A.8: Phase A commit
 
@@ -1287,6 +1625,8 @@ Same pattern; content from `meta-plugin-self-mod`. Particular attention:
 - [ ] **Step 1-4:** as above.
 
 ### Task C.6: Create the 5 workflow specialist agents
+
+> **Updated by Pre-execution Adjustment 1** (see top of file). Each agent's `tools:` line is replaced with the explicit per-agent allowlist defined in Adjustment 1, plus `forbidden_tools` and an `<output_schema>` body section with a ≤ 800-word return cap. The frontmatter snippets shown in this task's steps below are the *partial* form; apply the Adjustment 1 expansion before saving each file.
 
 **Files:**
 - Create: `<PLUGIN>/agents/{ivy-triage,ivy-builder,ivy-verifier,ivy-reviewer,ivy-meta}-agent.md`

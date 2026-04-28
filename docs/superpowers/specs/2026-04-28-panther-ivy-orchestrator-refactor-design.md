@@ -1008,3 +1008,93 @@ If any verification gate fails, halt the phase, diagnose, and either revert or f
 - The `submodules/ivy-lsp` LSP-backed MCP server's internal implementation is not refactored — only the plugin's interface to it (workspace control via `ivy_workspace`).
 - The 14-layer protocol-modeling template content (specifications themselves under `protocol-testing/`) is not modified — only the plugin's reference to it via `specification-patterns/references/`.
 - Telemetry schema in `.panther-ivy/session-logs/*.jsonl` is not changed; the ICSE 2027 research stream remains compatible.
+
+---
+
+## Post-grill-me adjustments (2026-04-28)
+
+After the design above was finalised and the implementation plan drafted, the design + plan were graded by the harness-audit skill (report saved at `/Users/elniak/.claude/plans/docs-superpowers-plans-2026-04-28-panthe-concurrent-marble.md`). The audit produced 23 findings (2 Critical, 8 Warning, 8 Info, 5 Pass) graded against four pillars drawn from Anthropic's published engineering articles (Managed Agents, Effective Harnesses, Harness Design, Demystifying Evals, Context Engineering).
+
+A follow-up `/grill-me` session resolved 5 decision branches and folded the adjustments into the plan's "Pre-execution adjustments per /grill-me 2026-04-28" section near the top of the implementation plan. The adjustments below are the design-document-side companion: small clarifications and deferrals that refine the *design* (this file) without altering the architectural commitments (Approach E, Q1-Q9 decisions remain intact).
+
+### Adjustment α — Agent verdict size cap
+
+**Refines:** "Persistence model under agent-first" section (above), specifically the agent-return-value contract.
+
+The design states: "each agent returns a structured verdict (JSON-shaped) that the orchestrator reads on the main thread and appends to the journal. Verdicts include `claim`, `evidence_paths`, `gate_status`, `next_dispatch_hint`."
+
+This is now refined with an explicit return-size cap to satisfy Q-E9 ("Returns only a condensed, distilled summary of its work (often 1,000-2,000 tokens)"):
+
+- **Workflow agents** (`ivy-triage-agent`, `ivy-builder-agent`, `ivy-verifier-agent`, `ivy-reviewer-agent`, `ivy-meta-agent`): return ≤ 800 words total. JSON shape with `claim` ≤ 60 words, `evidence_paths` ≤ 6 entries, `gate_status` ∈ {SOUND, UNSOUND, ABSTAIN, NOT_APPLICABLE}, `next_dispatch_hint` ≤ 30 words (null if work complete), `tool_invocations` integer count (no transcript).
+- **Gate critics** (`g-plan-critic`, `g-fidelity-critic`, `g-knowledge-critic`): return ≤ 200 words total. Format: VERDICT line + REASON line + EVIDENCE line (≤ 3 file paths, no full quotes). Lower cap because critics fire ×3 and verbose returns multiply by 3 in the orchestrator's main-thread context.
+
+The cap is enforced via an `<output_schema>` body section in each agent file (concrete YAML in plan's Adjustment 1).
+
+### Adjustment β — Pre-dispatch MCP liveness probe
+
+**Refines:** "Concrete sketch — agent-first roster" → "Dispatch — workflow specialist agents" section (above).
+
+The design dispatches workflow agents from the orchestrator on user intent. Empirically, the Ivy MCP server can disconnect mid-session (observed during the audit session itself). Without protection, dispatching `ivy-verifier-agent` / `ivy-builder-agent` / `ivy-reviewer-agent` into a forked context against a disconnected MCP wastes a full agent dispatch on a known-broken backend.
+
+Refinement: before dispatching any of the three MCP-dependent workflow agents, the orchestrator runs `ivy_status()` as a cheap probe. On probe failure, the orchestrator surfaces "MCP server unavailable. Dispatching ivy-triage-agent." and routes to the triage agent (whose job is exactly MCP/LSP repair). Probe is **skipped** for `ivy-triage-agent` (the repair path itself) and `ivy-meta-agent` (plugin source modification does not need the Ivy MCP).
+
+This is the structural complement to per-dispatch failure handling: failure handling catches malformed verdicts (Q-A2); the probe prevents the malformed-verdict scenario from occurring on a known-broken backend in the first place.
+
+### Adjustment γ — Activation race window collapse
+
+**Refines:** Phase A scope under Q5 phasing decision.
+
+The original Phase A disabled triggering only on `workflow-navigate` and `meta-using-panther-ivy-plugin`; `workflow-build`, `workflow-verify`, `workflow-review`, `workflow-triage` continued triggering until Phase C. During the Phase A→B→C window, Claude's intent matcher would see both the new orchestrator and the four deprecated workflow skills as candidates for prompts like "verify the spec" or "build a layer". This is a structural-not-prompt scoping fragility (Q-A1).
+
+Refinement: Phase A now disables triggering (`user-invocable: false` + deprecated description) on **all 6** deprecated direct-competitor skills in the same commit that creates the orchestrator. Bodies stay intact through Phase B/C content migration; only the activation surface closes.
+
+The 9 *other* deprecated skills (`cross-cutting-*`, `meta-plugin-self-mod`) continue to disable in Phase C as originally planned — they are not direct competitors of the orchestrator's description, so the Phase A→C window for those carries no race risk.
+
+### Adjustment δ — Per-phase parent submodule pointer bumps
+
+**Refines:** Q5 phasing's commit cadence.
+
+The plugin lives at `panther/plugins/services/testers/panther_ivy/submodules/panther-ivy-plugin/` (a nested submodule). Each phase A-F commits *inside* that submodule. The original plan deferred the parent-repo submodule pointer bumps to Phase F.1, leaving anyone who pulled the parent worktree mid-refactor on stale state. Two prior handoff entries in user memory carry "parent pointer pending" notes from this exact pattern.
+
+Refinement: each of Phases A, B, C, D, E, F.1 ends with a per-phase parent-repo commit advancing the panther-ivy-plugin submodule pointer. Six trivial parent commits in exchange for parent ↔ submodule synchronization at every phase boundary.
+
+### Adjustment ε — Per-agent tool allowlists
+
+**Refines:** Q1's 8-agent roster decision; specifically, the agent capability contracts.
+
+The original spec specified `skills:[...]` preload chains for each new agent but was silent on `tools:` allowlists. The 7 existing agents in the plugin all carry explicit `tools:` allowlists, several with fine-grained Bash sub-allowlists (`Bash(grep *), Bash(rg *)`). The new agents would otherwise be the only undocumented tool surfaces in the plugin, weakening structural-scoping discipline (Q-A4 generalised).
+
+Refinement: each of the 8 new agents (5 workflow + 3 gate critics) carries an explicit `tools:` allowlist plus `forbidden_tools` in frontmatter. Concrete YAML for each agent appears in the plan's Adjustment 1.
+
+The verdict-shape implications:
+
+- Gate critics: `tools: [Read, Grep, Glob]`, `forbidden_tools: [Bash, Edit, Write, WebFetch, Skill]`. Tightest scope; critics render verdicts only.
+- Builder: `forbidden_tools: [Bash]`. Builder uses `ivy_compile` MCP, never direct `ivyc` (per memory rule `feedback_never_run_ivyc_directly`).
+- Verifier, Reviewer: `forbidden_tools: [Edit, Write]`. Read+run only; rewrites belong to the builder.
+- Triage: `forbidden_tools: [Edit, Write]`. Repairs infrastructure, not specs.
+- Meta: full access (`Read, Grep, Glob, Edit, Write, Bash, Skill`); plugin self-modification requires it.
+
+### Adjustment ζ — New eval files
+
+**Refines:** plan-side verification approach.
+
+The original plan relied on Phase F's manual smoke test on 2 workspaces as the sole behavioral verification. Q-D1 calls 20-50 cases the floor for early eval coverage. Three new eval files now ship with the refactor:
+
+- `evals/orchestrator_trigger_eval.json` (Phase A) — 20 cases (10 should-trigger + 10 should-NOT) for the orchestrator's description-driven activation.
+- `evals/workflow_dispatch_eval.json` (Phase C) — 15 cases grading the *journal final entry shape*, not which agent name was spawned. Fixture-backed under `tests/fixtures/`.
+- `evals/gate_critic_outcome_eval.json` (Phase C) — extends `g{1..5}_trigger_eval.json` for post-refactor gate-firing paths (verification-failures replaces ivy-error-patterns, etc.).
+
+These are manual-procedure evals matching the existing `evals/README.md` pattern; they complement (not replace) the Phase F smoke test.
+
+### Adjustments not folded
+
+The audit recommended two additional changes that were not explicitly grilled:
+
+- **Patch 4 (audit)** — body length caps in `skill-conventions.md` (orchestrator ≤ 350 LOC, ops-skills ≤ 250 LOC, cross-cutting catalog SKILL.md ≤ 80 LOC). Defer to v0.11.
+- **Patch 6 (audit)** — sunset-review memory note for `inject-using-plugin.sh` (the SessionStart re-injection hook may be dead weight on Opus 4.6+ per Q-A3 / Q-A7). Defer to v0.11; add as a memory note in Phase F.1 Task F.1.5 if the executor agrees.
+
+Both deferred items remain documented in the audit report at `/Users/elniak/.claude/plans/docs-superpowers-plans-2026-04-28-panthe-concurrent-marble.md`.
+
+### Companion canonical reference
+
+The implementation plan's **"Pre-execution adjustments per /grill-me 2026-04-28"** section (near the top of `2026-04-28-panther-ivy-orchestrator-refactor.md`) holds the concrete diffs, frontmatter snippets, and per-task "apply at" pointers. This spec section provides the design-side rationale; the plan section provides the executable changes.
