@@ -12,6 +12,36 @@
 
 ---
 
+## Plan conventions
+
+**Working directory.** All bash commands run from the worktree root: `/Users/elniak/Documents/Documents/Work/Project/Protocol-Testing-Security/PANTHER/master/.claude/worktrees/lsp-to-claude/`.
+
+**`$PLUGIN` shorthand.** Many tasks reference the canonical plugin path via `$PLUGIN`. Define it as the first command in any task that uses it (subagent-driven execution mode does not carry env vars across tasks):
+
+```bash
+PLUGIN=panther/plugins/services/testers/panther_ivy/submodules/panther-ivy-plugin/plugins/panther-ivy-plugin
+```
+
+In inline-execution mode, define it once at the start of the session.
+
+**`$MEMORY` shorthand** (Phase F.1 Task F.1.5 only):
+
+```bash
+MEMORY=/Users/elniak/.claude/projects/-Users-elniak-Documents-Documents-Work-Project-Protocol-Testing-Security-PANTHER-master/memory
+```
+
+**Sed portability.** The plan uses BSD `sed -i ''` syntax (macOS). On GNU/Linux, drop the empty argument: `sed -i 's/.../.../' file`. Use this OS-detection helper at the start of any task that uses `sed`:
+
+```bash
+SED_INPLACE=(-i '')
+[[ "$(uname)" == "Linux" ]] && SED_INPLACE=(-i)
+sed "${SED_INPLACE[@]}" 's/foo/bar/' file
+```
+
+**Pre-existing tasks.** Each task includes its own verify step before the commit; pre-commit hooks (configured in the repo) fire automatically on commit and may modify trailing whitespace. If a commit fails the hook, re-stage and re-commit with the same message.
+
+---
+
 ## File structure
 
 Plugin canonical tree at `panther/plugins/services/testers/panther_ivy/submodules/panther-ivy-plugin/plugins/panther-ivy-plugin/`. The implementation creates, modifies, deletes, or moves these files (paths relative to that root unless noted).
@@ -1058,6 +1088,100 @@ git commit -m "chore(submodule): bump panther-ivy-plugin for cross-cutting skill
 
 Creates 5 ops-skills (`triage-ops`, `build-ops`, `verify-ops`, `review-ops`, `meta-self-mod-ops`) by moving content from existing `workflow-*` skills, creates 5 workflow specialist agents that preload these via `skills:[...]` frontmatter, ships the `migrate-active-workflow.sh` schema migration utility, and disables triggering on the remaining 9 deprecated skills.
 
+### Phase C ops-skill template (mandatory section checklist for Tasks C.1–C.5)
+
+Every ops-skill SKILL.md created in Tasks C.1–C.5 MUST contain these sections in this order. Where the section is conditional, the condition is noted; if the source `workflow-*` skill had the section, carry it across; if not, infer from the workflow's responsibilities.
+
+```markdown
+---
+name: <ops-name>                                  # triage-ops, build-ops, verify-ops, review-ops, meta-self-mod-ops
+description: "Operating procedure preloaded into the <agent-name> at spawn. Use when the ivy orchestrator dispatches the <agent-name> for <one-line domain summary>. Not user-invocable directly."
+user-invocable: false                             # MANDATORY — these are agent-loaded, never user-invoked
+version: "1.0.0"
+---
+
+# <Title>
+
+**Type:** rigid — follow exactly, do not adapt away discipline.    # MANDATORY type declaration
+
+<one-paragraph summary of the agent's domain and the workflow's high-level shape>
+
+## Iron-law binding
+
+<which iron law(s) bind this workflow; cite by name from .claude/rules/iron-laws.md>
+
+## Phases
+
+### Phase 1: <name>
+<concrete actions; tool calls with parameter shapes; expected outcomes>
+
+<HARD-GATE>
+<pre-action precondition that MUST be cleared before proceeding>
+</HARD-GATE>
+
+### Phase 2: <name>
+...
+
+### Phase N: <name>
+
+## Process Flow
+
+```dot
+digraph <ops-name> {
+  start [shape=doublecircle];
+  phase_1 [shape=box, label="Phase 1: <name>"];
+  decision_1 [shape=diamond, label="<branching question>"];
+  phase_2 [shape=box, label="Phase 2: <name>"];
+  done [shape=doublecircle];
+
+  start -> phase_1 -> decision_1;
+  decision_1 -> phase_2 [label="<condition>"];
+  decision_1 -> done [label="<other condition>"];
+  phase_2 -> done;
+}
+```
+
+## Red Flags
+
+| Thought | Reality |
+|---|---|
+| "<plausible-but-wrong rationalisation>" | <reality> |
+| "<plausible-but-wrong>" | <reality> |
+| "<plausible-but-wrong>" | <reality> |
+| "<plausible-but-wrong>" | <reality> |
+| "<plausible-but-wrong>" | <reality> |
+
+(5+ rows mandatory; overflow rows go to `references/red-flags.md` with a 5-row "top hits" table left in SKILL.md per `.claude/rules/skill-conventions.md` §4.)
+
+## Step Tracking
+
+At the start of each phase, create tasks for each step using `TaskCreate`. Mark each `in_progress` before executing and `completed` after.
+
+```
+Phase 1 (<name>):
+TaskCreate(subject="<step 1>", activeForm="<doing step 1>")
+TaskCreate(subject="<step 2>", activeForm="<doing step 2>")
+
+Phase 2 (<name>):
+TaskCreate(...)
+```
+
+## Gate dispatches (if applicable)
+
+For build-ops (G2 modeling gate, G3 test-spec gate), verify-ops (G4 verification gate), review-ops (G5 trace-analysis gate, traceability extraction): document inline gate dispatch using the parallel-dispatch reference (load via `Skill(skill="panther-ivy-plugin:ivy")` references/parallel-dispatch.md) plus the verification-failures preloaded skill's pattern catalog.
+
+## Knowledge Gate (final phase)
+
+Before completing the workflow, surface session learnings worth persisting. The orchestrator dispatches `g-knowledge-critic` ×3 in parallel for the G6 vote.
+
+## References
+
+- `references/<topic>.md` — <one-line summary>
+- (move heavy content to references/ rather than keeping in SKILL.md body; target SKILL.md ≤500 LOC, aim for ≤300 for frequently-loaded)
+```
+
+Use this template as the deterministic target shape. Tasks C.1–C.5 each adapt content from a specific source `workflow-*/SKILL.md` while ensuring all sections above are present.
+
 ### Task C.1: Create `triage-ops` skill (move content from `workflow-triage`)
 
 **Files:**
@@ -1333,11 +1457,20 @@ rm -rf /tmp/migrate-test
 
 ### Task C.9: Run migration on real workspaces
 
-- [ ] **Step 1: Identify workspaces with active-workflow files**
+> **Critical safety note (C-C1 fix):** This task modifies `.panther-ivy/active-workflow` YAML files outside source control. If Phase F.2 smoke test fails and Phase F.1 is `git revert`ed, these mutated YAMLs are NOT automatically restored — they remain on the new schema while the reverted code expects the old schema. **Step 1 below creates `.pre-migration` backup files so revert is recoverable.**
+
+- [ ] **Step 1: Identify and back up active-workflow files**
 
 ```bash
+PLUGIN=panther/plugins/services/testers/panther_ivy/submodules/panther-ivy-plugin/plugins/panther-ivy-plugin
 cd /Users/elniak/Documents/Documents/Work/Project/Protocol-Testing-Security/PANTHER/master/.claude/worktrees/lsp-to-claude
+# Identify
 find panther/plugins/services/testers/panther_ivy/protocol-testing -name "active-workflow" 2>/dev/null
+# Back up each one — copy to a sibling .pre-migration file
+find panther/plugins/services/testers/panther_ivy/protocol-testing -name "active-workflow" -exec cp {} {}.pre-migration \;
+# Verify backups exist
+find panther/plugins/services/testers/panther_ivy/protocol-testing -name "active-workflow.pre-migration" | wc -l
+# Expected: same count as the active-workflow file count.
 ```
 
 - [ ] **Step 2: Run migration with --dry-run first**
@@ -1359,6 +1492,20 @@ $PLUGIN/scripts/migrate-active-workflow.sh panther/plugins/services/testers/pant
 ```bash
 $PLUGIN/scripts/migrate-active-workflow.sh panther/plugins/services/testers/panther_ivy/protocol-testing
 # Expected: 0 migrated, N skipped
+```
+
+- [ ] **Step 5: Restore procedure (only if Phase F.2 fails and F.1 is reverted)**
+
+If Phase F.2 surfaces a regression and Phase F.1 needs to be reverted, also restore the active-workflow YAMLs to their pre-migration state:
+
+```bash
+find panther/plugins/services/testers/panther_ivy/protocol-testing -name "active-workflow.pre-migration" -exec sh -c 'mv "$1" "${1%.pre-migration}"' _ {} \;
+```
+
+Otherwise (Phase F.2 passes), clean up the backups in Phase F.2:
+
+```bash
+find panther/plugins/services/testers/panther_ivy/protocol-testing -name "active-workflow.pre-migration" -delete
 ```
 
 ### Task C.10: Phase C verification
@@ -1777,27 +1924,355 @@ done
 **Files:**
 - Modify: `<PLUGIN>/hooks/hooks.json`
 
-- [ ] **Step 1: Read current**
+- [ ] **Step 1: Set `$PLUGIN` and read current**
 
 ```bash
+PLUGIN=panther/plugins/services/testers/panther_ivy/submodules/panther-ivy-plugin/plugins/panther-ivy-plugin
 cat $PLUGIN/hooks/hooks.json | python3 -m json.tool > /tmp/hooks-before.json
 ```
 
-- [ ] **Step 2: Apply target structure (per design doc Phase D)**
+- [ ] **Step 2: Replace `hooks.json` with the target post-D structure (literal JSON)**
 
-Edit the JSON to match the target structure:
-- SessionStart: 6 entries (cleanup-stale-pids, cleanup-stale-workflow, detect-ivy-workspace, inject-using-plugin, wait-for-indexing, observability/observe).
-- SessionEnd: 2.
-- PreToolUse: 4 matchers (Bash, mcp__.*ivy, Write|Edit, catch-all).
-- PostToolUse: matchers per the design doc table.
-- PostToolUseFailure: 2.
-- Stop: 3.
-- Notification, Subagent*, PreCompact, PermissionRequest: each just observe.
-- UserPromptSubmit: ONLY observe (drop compose-style and route-user-prompt entries).
+Use Write to create `<PLUGIN>/hooks/hooks.json` with this exact content:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/block-direct-ivy.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__.*ivy",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/check-mcp-health.py",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/check-indexing-ready.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/check-workspace-scope.py",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__|Bash|Write|Edit|Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/observability/observe.py --event PreToolUse",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-write-workflow-aware.py",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-write-ivy-lint.sh",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/assess-modeling.py",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/assess-testspec.py",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "ivy_iut_test",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/assess-trace.py",
+            "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "ivy_verify|ivy_compile|ivy_diagnostics|ivy_coverage|ivy_iut_test|ivy_quality",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/record-workflow-error.py",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/render-tool-result.py",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__|Bash|Write|Edit|Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/observability/observe.py --event PostToolUse",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "mcp__plugin_panther-ivy-plugin_ivy-tools__ivy_(status|diagnostics|model_info|coverage)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/retry-ivy-mcp.py",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/observability/observe.py --event PostToolUseFailure",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/cleanup-stale-pids.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/cleanup-stale-workflow.py",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/detect-ivy-workspace.sh",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/inject-using-plugin.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/wait-for-indexing.sh",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/observability/observe.py --event SessionStart",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/cleanup-ivy-lsp.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/observability/observe.py --event SessionEnd",
+            "timeout": 2
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/record-session-end.py",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/render-summary.py",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/observability/observe.py --event Stop",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/observability/observe.py --event SubagentStart",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/observability/observe.py --event SubagentStop",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/observability/observe.py --event PreCompact",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/observability/observe.py --event UserPromptSubmit",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/notify-mcp-disconnect.py",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/observability/observe.py --event Notification",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/observability/observe.py --event PermissionRequest",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+The literal JSON above is the deterministic target. Differences from the pre-Phase-D `hooks.json`:
+- PreToolUse drops the `ivy_verify` and `ivy_coverage` `tip-shown.py` entries; drops the `mcp__.*ivy` `observability/check_lsp_log.py` entry (folded into `check-mcp-health.py`).
+- PostToolUse drops `Skill` matcher entirely (which had `track-workflow-skill.py` and `auto-load-skill-references.py`); drops `interaction-checkpoint.py` from the `ivy_verify|...` matcher; widens `post-write-workflow-aware.py` matcher from `Write|Edit` to `Write|Edit|Agent`.
+- UserPromptSubmit drops `compose-style.py` and `route-user-prompt.py` entries; only `observability/observe.py` remains.
 
 - [ ] **Step 3: Verify JSON is valid**
 
 ```bash
+PLUGIN=panther/plugins/services/testers/panther_ivy/submodules/panther-ivy-plugin/plugins/panther-ivy-plugin
 python3 -c "import json; json.load(open('$PLUGIN/hooks/hooks.json'))"
 # Expected: no exceptions
 ```
@@ -1808,7 +2283,7 @@ python3 -c "import json; json.load(open('$PLUGIN/hooks/hooks.json'))"
 diff /tmp/hooks-before.json <(cat $PLUGIN/hooks/hooks.json | python3 -m json.tool)
 ```
 
-Confirm the diff matches the planned changes.
+Confirm the diff matches the planned changes (the bullet list under Step 2).
 
 ### Task D.11: Phase D verification
 
@@ -2208,6 +2683,19 @@ Use Edit on the worktree's ONBOARDING.md. Replace:
 
 ### Task F.1.5: Update memory files
 
+> **Critical safety note (F.1-C1 fix):** This task modifies files at `/Users/elniak/.claude/projects/-Users-elniak-Documents-Documents-Work-Project-Protocol-Testing-Security-PANTHER-master/memory/` which is OUTSIDE the worktree's git repo. If Phase F.2 smoke test fails and Phase F.1 is `git revert`ed, these memory edits are NOT automatically restored. **Step 0 below creates a full backup of the memory directory so revert is recoverable.**
+
+- [ ] **Step 0: Back up the memory directory**
+
+```bash
+MEMORY=/Users/elniak/.claude/projects/-Users-elniak-Documents-Documents-Work-Project-Protocol-Testing-Security-PANTHER-master/memory
+cp -r $MEMORY ${MEMORY}.pre-orchestrator-refactor-2026-04-28
+ls -d ${MEMORY}.pre-orchestrator-refactor-2026-04-28
+# Expected: backup directory exists.
+du -sh $MEMORY ${MEMORY}.pre-orchestrator-refactor-2026-04-28
+# Expected: same size (within rounding).
+```
+
 - [ ] **Step 1: Enumerate rename surface**
 
 ```bash
@@ -2371,18 +2859,45 @@ Repeat Task F.2.1 with `ivy_workspace(action="set", protocol="quic")` and a QUIC
 
 ### Task F.2.3: Final verification
 
-- [ ] **Step 1: If both smoke tests pass — Phase F complete**
+- [ ] **Step 1: If both smoke tests pass — Phase F complete; clean up out-of-git backups**
 
-No further commit. The deprecated artefacts live in `.backup/2026-04-28/` per the standing memory rule on backup retention. The refactor is done.
-
-- [ ] **Step 2: If either smoke test fails — revert and diagnose**
+No further commit. The deprecated artefacts live in `.backup/2026-04-28/` per the standing memory rule on backup retention. The refactor is done. Remove the out-of-git backups created in Phases C.9 and F.1.5:
 
 ```bash
-git -C $PLUGIN log --oneline -3
-# Identify the Phase F.1 commit hash.
-git -C $PLUGIN revert <phase-F.1-hash>
-# Diagnose; fix forward; rerun smoke tests.
+PLUGIN=panther/plugins/services/testers/panther_ivy/submodules/panther-ivy-plugin/plugins/panther-ivy-plugin
+MEMORY=/Users/elniak/.claude/projects/-Users-elniak-Documents-Documents-Work-Project-Protocol-Testing-Security-PANTHER-master/memory
+
+# Active-workflow YAML pre-migration backups
+find panther/plugins/services/testers/panther_ivy/protocol-testing -name "active-workflow.pre-migration" -delete
+
+# Memory directory pre-refactor snapshot (only if you no longer need a fallback)
+ls -d ${MEMORY}.pre-orchestrator-refactor-2026-04-28 && \
+  echo "Confirm before deleting: rm -rf ${MEMORY}.pre-orchestrator-refactor-2026-04-28"
+# Recommend keeping the memory backup for at least one session-cycle in case latent issues surface.
 ```
+
+- [ ] **Step 2: If either smoke test fails — revert plugin commits AND restore out-of-git state**
+
+```bash
+PLUGIN=panther/plugins/services/testers/panther_ivy/submodules/panther-ivy-plugin/plugins/panther-ivy-plugin
+MEMORY=/Users/elniak/.claude/projects/-Users-elniak-Documents-Documents-Work-Project-Protocol-Testing-Security-PANTHER-master/memory
+
+# 1. Revert the plugin commit (Phase F.1)
+git -C $PLUGIN log --oneline -3
+# Identify the Phase F.1 commit hash, then:
+git -C $PLUGIN revert <phase-F.1-hash>
+
+# 2. Restore active-workflow YAML files (Phase C.9 backup)
+find panther/plugins/services/testers/panther_ivy/protocol-testing -name "active-workflow.pre-migration" -exec sh -c 'mv "$1" "${1%.pre-migration}"' _ {} \;
+
+# 3. Restore memory directory (Phase F.1.5 backup)
+[[ -d ${MEMORY}.pre-orchestrator-refactor-2026-04-28 ]] && \
+  rm -rf $MEMORY && mv ${MEMORY}.pre-orchestrator-refactor-2026-04-28 $MEMORY
+
+# 4. Diagnose; fix forward; re-run Phase F.1 (which re-creates the backups) then smoke tests.
+```
+
+The 3 restore steps together return both the git tree AND the out-of-git state to the pre-Phase-F snapshot. Without steps 2 and 3, `git revert` alone leaves the system inconsistent (mutated active-workflow YAMLs and rewritten memory references against a code tree that expects the old schema and old skill names).
 
 - [ ] **Step 3: Final acceptance verdict**
 
