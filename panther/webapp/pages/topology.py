@@ -14,6 +14,7 @@ import logging
 
 from nicegui import ui
 from panther.webapp.services.config_service import ConfigService
+from panther.webapp.components.topology.topology_renderer import TopologyRenderer
 
 logger = logging.getLogger(__name__)
 
@@ -69,20 +70,25 @@ def content():
                 network_type_label = ui.label("-")
 
     # Topology diagram area
-    with ui.card().classes("w-full q-pa-lg"):
+    diagram_container = ui.card().classes("w-full q-pa-lg")
+    topology_renderer = TopologyRenderer()
+
+    with diagram_container:
         with ui.row().classes("items-center justify-between q-mb-md"):
             ui.label("Network Topology View").classes("text-h6 text-grey-7")
             
             with ui.row().classes("gap-2"):
-                ui.button("Refresh Diagram", icon="graphic_eq", on_click=lambda: ui.notify("Diagram rendering coming soon")).props("flat")
-                ui.button("Export SVG", icon="download", on_click=lambda: ui.notify("Export functionality coming soon")).props("flat")
+                ui.button("Refresh Diagram", icon="graphic_eq", on_click=lambda: refresh_diagram()).props("flat")
+                ui.button("Export SVG", icon="download", on_click=lambda: topology_renderer.export_svg()).props("flat")
         
         ui.separator().classes("q-my-md")
         
-        with ui.element('div').classes("w-full h-[500px] flex items-center justify-center bg-grey-1 rounded"):
+        diagram_area = ui.element('div').classes("w-full")
+        
+        with diagram_area:
             with ui.column().classes("items-center gap-2 text-grey-6"):
                 ui.icon("account_tree", size="64px", color="grey-5")
-                ui.label("Topology Diagram Placeholder").classes("text-h6 text-grey-6")
+                ui.label("Topology Diagram").classes("text-h6 text-grey-6")
                 ui.label("Select a configuration file above to load the topology graph").classes("text-body1 text-grey-5")
 
     def select_config(path: str):
@@ -113,6 +119,12 @@ def content():
                 network_type_label.set_text("-")
             
             info_card.set_visibility(True)
+            
+            # Render topology diagram
+            diagram_area.clear()
+            with diagram_area:
+                topology_renderer.render(config)
+            
             ui.notify(f"Loaded configuration: {path.split('/')[-1]}", type="positive")
             logger.info(f"Successfully loaded config for topology view: {path}")
         except Exception as e:
@@ -133,3 +145,13 @@ def content():
         config_select.options = dict(config_options)
         ui.notify("Config file list refreshed", type="info")
         logger.debug("Refreshed config list for topology page")
+
+    def refresh_diagram():
+        """Refresh currently displayed topology diagram."""
+        if loaded_config["value"]:
+            diagram_area.clear()
+            with diagram_area:
+                topology_renderer.render(loaded_config["value"])
+            ui.notify("Diagram refreshed", type="info")
+        else:
+            ui.notify("No configuration loaded", type="warning")
