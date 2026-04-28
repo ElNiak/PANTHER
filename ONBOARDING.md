@@ -15,7 +15,7 @@ Top Skills & Commands:
   /superpowers:requesting-code-review     ████████████░░░░░░░░  70x/month
   /panther-ivy-plugin:nct-health          ██████████░░░░░░░░░░  58x/month
   /simplify                               ███████░░░░░░░░░░░░░  38x/month
-  /panther-ivy-plugin:navigate            ██████░░░░░░░░░░░░░░  37x/month
+  /panther-ivy-plugin:ivy                 ██████░░░░░░░░░░░░░░  37x/month
   /review-plan                            ██████░░░░░░░░░░░░░░  32x/month
   /debug                                  ████░░░░░░░░░░░░░░░░  21x/month
 
@@ -42,7 +42,7 @@ Top MCP Servers:
 - [/superpowers:requesting-code-review] — Structured code review requests before merging.
 - [/panther-ivy-plugin:nct-health] — 9-step LSP + MCP diagnostic runbook. Run first when Ivy tools misbehave.
 - [/simplify] — Reviews recently changed code for reuse and quality, then fixes issues.
-- [/panther-ivy-plugin:navigate] — Context-aware routing hub for Ivy workflows. Use when resuming a session or unsure which Ivy skill to invoke.
+- [/panther-ivy-plugin:ivy] — Single orchestrator for Ivy workflows. Activates on Ivy-related prompts; routes to the matching specialist agent.
 - [/review-plan] — Validate an implementation plan against the codebase before executing.
 - [/debug] — Systematic debugging aid for bugs and test failures.
 - [/session-handoff] — Preserve session context to memory files before reload or discard.
