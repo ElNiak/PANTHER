@@ -193,13 +193,13 @@ Use the `ivy_workspace` MCP tool: ivy_workspace(action="get")
 
 Expected: returns the current workspace state (or "no workspace" if none active). The tool is reachable.
 
-- [ ] **Step 3: Invoke `ivy_workspace(action="set", protocol="bgp")`**
+- [ ] **Step 3: Invoke `ivy_workspace(action="set", target="bgp")`**
 
 ```
-ivy_workspace(action="set", protocol="bgp")
+ivy_workspace(action="set", target="bgp")
 ```
 
-Expected: Returns success and the workspace state shows `protocol: bgp`. If the tool returns "unknown action" or rejects the parameter, halt the refactor — Q7 / decision #12 / Phase D depend on this action.
+Expected: Returns success and the workspace state shows the bgp scope active. The kwarg is `target=` (workspace group name OR `.ivy` file path), NOT `protocol=`. If the tool returns "unknown action" or rejects the parameter, halt the refactor — Q7 / decision #12 / Phase D depend on this action.
 
 - [ ] **Step 4: Invoke `ivy_workspace(action="clear")`**
 
@@ -207,14 +207,24 @@ Expected: Returns success and the workspace state shows `protocol: bgp`. If the 
 ivy_workspace(action="clear")
 ```
 
-Expected: Returns success. The workspace state is cleared (no active protocol). If the tool returns "unknown action", halt.
+Expected: Returns success. The workspace state is cleared (no active scope). If the tool returns "unknown action", halt.
 
-- [ ] **Step 5: Record outcome**
+- [ ] **Step 5: Invoke `ivy_workflow_state` round-trip**
 
-If both `action="set"` and `action="clear"` work: proceed to Phase A.
+```
+ivy_workflow_state(action="get")
+ivy_workflow_state(action="set", workflow="verify", phase="init", protocol="bgp")
+ivy_workflow_state(action="get")
+```
 
-If either does not work, escalate scope:
-1. Either add the actions to the `ivy-tools` MCP server (extends Phase A by ~50–200 LOC of MCP-server work plus a coordinated submodule pointer bump);
+Expected: the second `get` reflects the workflow / phase / protocol set by the `set` call. This tool (separate from `ivy_workspace`) manages the `.panther-ivy/active-workflow` YAML and the workflow journal. The orchestrator dispatches through this tool per-dispatch.
+
+- [ ] **Step 6: Record outcome**
+
+If `ivy_workspace(action="set|clear", target=…)` AND `ivy_workflow_state(action="get|set", workflow=…, phase=…, protocol=…)` all work: proceed to Phase A.
+
+If either tool does not exist or rejects the parameter shape, escalate scope:
+1. Either add the missing actions/kwargs to the `ivy-tools` MCP server (extends Phase A by ~50–200 LOC of MCP-server work plus a coordinated submodule pointer bump);
 2. Or revert Q7 to keep `/set-workspace` and `/clear-workspace` slash commands. Update Phase E plan and `check-workspace-scope.py` deny-message accordingly.
 
 The decision returns to the user before continuing.
@@ -282,15 +292,17 @@ If methodology is unclear from the user prompt, ask via `AskUserQuestion`. Full 
 
 ## Workspace control
 
-Active workspace via `ivy_workspace(action="get")`. To set: `ivy_workspace(action="set", protocol="<name>")`. To clear: `ivy_workspace(action="clear")`. Available protocols: quic, apt, apt_quic, minip, bgp, coap, scaffolds.
+Active workspace via `ivy_workspace(action="get")`. To set: `ivy_workspace(action="set", target="<name>")`. To clear: `ivy_workspace(action="clear")`. Available targets: workspace group names (quic, apt, apt_quic, minip, bgp, coap, scaffolds) OR a specific `.ivy` test file path. The tool's kwarg is `target=`, not `protocol=`.
 
 ## Dispatch — workflow specialist agents
 
-For "do something" tasks, dispatch the matching workflow agent. Before every dispatch, write the active-workflow YAML so warm-resume works:
+For "do something" tasks, dispatch the matching workflow agent. Before every dispatch, write the active-workflow YAML via the `ivy_workflow_state` MCP tool so warm-resume works:
 
 ```
-ivy_workspace(action="set", workflow="<target>", phase="init", protocol="<protocol>")
+ivy_workflow_state(action="set", workflow="<target>", phase="init", protocol="<protocol>")
 ```
+
+(Note: `ivy_workflow_state` is a separate MCP tool from `ivy_workspace`. It manages `.panther-ivy/active-workflow` and the journal; `ivy_workspace` manages Ivy verification scope.)
 
 Then:
 
@@ -376,7 +388,7 @@ digraph orchestrator {
 | "G0 plan-gate already passed last turn, skip" | Re-check the journal; G0 verdict is per-plan, not per-session. |
 | "I can run `ivyc` directly via Bash" | Iron law: never run ivyc directly; use `ivy_compile` MCP tool. |
 | "ivy_verify SOUND, we're done" | G4 critic verdict required before "verification passed" claim. |
-| "Just need to set workspace, the user said `/set-workspace bgp`" | The slash command no longer exists. Use `ivy_workspace(action="set", protocol="bgp")`. |
+| "Just need to set workspace, the user said `/set-workspace bgp`" | The slash command no longer exists. Use `ivy_workspace(action="set", target="bgp")` (kwarg is `target=`, not `protocol=`). |
 
 ## References
 
@@ -724,7 +736,7 @@ Replace the entire script body with:
 set -euo pipefail
 
 cat <<'EOF'
-{"hookSpecificOutput":{"hookEventName":"SessionStart","systemMessage":"[panther-ivy] orchestrator preamble injected","additionalContext":"[panther-ivy-plugin priority overview]\n\n# Using panther-ivy-plugin\n\n## 1% rule\nIf a panther-ivy-plugin skill might apply (even at 1% probability), invoke it via the `Skill` tool. When ambiguous, default to `Skill(skill=\"panther-ivy-plugin:ivy\")` — the orchestrator routes to the right specialist or answers from its own references.\n\nUser instructions override skills; iron laws (`.claude/rules/iron-laws.md`) override both.\n\n## Methodology routing (handled by orchestrator)\n- **NCT** (compliance) — build → verify → review.\n- **NACT** (security) — build → verify, attack-pattern scope.\n- **NSCT** (simulation) — build emits experiment-config sidecar.\n\n## Iron laws (enforced by orchestrator + auto-loaded rule)\n- `NO_FIX_WITHOUT_VERIFY` (verify): no resolution claim without fresh `ivy_verify`/`ivy_compile` this turn.\n- `NO_LAYER_WITHOUT_SCAFFOLD` (build): `ivy_diagnostics(mode=structural)` SOUND on predecessor before new layer.\n- `NO_QUALITY_WITHOUT_COVERAGE` (review): every quality verdict cites `ivy_coverage`/`ivy_quality`.\n- `STALENESS_RULE` (all): re-run if include closure edited since prior result.\n\n## Workspace\nActive workspace via `ivy_workspace(action=\"get\")`. To set: `ivy_workspace(action=\"set\", protocol=\"<name>\")`. To clear: `ivy_workspace(action=\"clear\")`. Available: quic, apt, apt_quic, minip, bgp, coap, scaffolds.\n\nFor full detail invoke `Skill(skill=\"panther-ivy-plugin:ivy\")` — the orchestrator's body has the dispatch tables, methodology decision logic, and gate-critic invocation patterns."}}
+{"hookSpecificOutput":{"hookEventName":"SessionStart","systemMessage":"[panther-ivy] orchestrator preamble injected","additionalContext":"[panther-ivy-plugin priority overview]\n\n# Using panther-ivy-plugin\n\n## 1% rule\nIf a panther-ivy-plugin skill might apply (even at 1% probability), invoke it via the `Skill` tool. When ambiguous, default to `Skill(skill=\"panther-ivy-plugin:ivy\")` — the orchestrator routes to the right specialist or answers from its own references.\n\nUser instructions override skills; iron laws (`.claude/rules/iron-laws.md`) override both.\n\n## Methodology routing (handled by orchestrator)\n- **NCT** (compliance) — build → verify → review.\n- **NACT** (security) — build → verify, attack-pattern scope.\n- **NSCT** (simulation) — build emits experiment-config sidecar.\n\n## Iron laws (enforced by orchestrator + auto-loaded rule)\n- `NO_FIX_WITHOUT_VERIFY` (verify): no resolution claim without fresh `ivy_verify`/`ivy_compile` this turn.\n- `NO_LAYER_WITHOUT_SCAFFOLD` (build): `ivy_diagnostics(mode=structural)` SOUND on predecessor before new layer.\n- `NO_QUALITY_WITHOUT_COVERAGE` (review): every quality verdict cites `ivy_coverage`/`ivy_quality`.\n- `STALENESS_RULE` (all): re-run if include closure edited since prior result.\n\n## Workspace\nActive workspace via `ivy_workspace(action=\"get\")`. To set: `ivy_workspace(action=\"set\", target=\"<name>\")`. To clear: `ivy_workspace(action=\"clear\")`. Available targets: quic, apt, apt_quic, minip, bgp, coap, scaffolds (or a `.ivy` file path). Kwarg is `target=`, not `protocol=`.\n\n## Workflow tracking\nThe orchestrator records active workflow + phase via `ivy_workflow_state(action=\"set\", workflow=\"<name>\", phase=\"<phase>\", protocol=\"<name>\")` (a separate MCP tool from `ivy_workspace`).\n\nFor full detail invoke `Skill(skill=\"panther-ivy-plugin:ivy\")` — the orchestrator's body has the dispatch tables, methodology decision logic, and gate-critic invocation patterns."}}
 EOF
 ```
 
@@ -1845,7 +1857,7 @@ deny_reason=(
     f"(workspace group: {file_group or 'unknown'}).\n"
     f"Active workspace: '{active_group}' (set by: {set_by}).\n"
     f"To allow, invoke the ivy_workspace MCP tool: "
-    f"ivy_workspace(action='set', protocol='{file_group or file_layer}') "
+    f"ivy_workspace(action='set', target='{file_group or file_layer}') "
     f"or ivy_workspace(action='clear')."
 ),
 ```
@@ -2297,14 +2309,16 @@ Confirm no errors in SessionStart hook logs. Each kept SessionStart hook fires.
 
 Submit 5 prompts (knowledge Q&A, verify, build, plain question, refactor planning). Confirm no `[ROUTING]` / `[ROUTING:AVAILABLE]` / `[ROUTING:CONTINUE]` / `(style overlay)` markers appear in any of them.
 
-- [ ] **Step 4: `ivy_workspace` MCP actions still work**
+- [ ] **Step 4: `ivy_workspace` and `ivy_workflow_state` MCP actions still work**
 
 ```
-ivy_workspace(action="set", protocol="bgp")
+ivy_workspace(action="set", target="bgp")
 ivy_workspace(action="clear")
+ivy_workflow_state(action="set", workflow="verify", phase="init", protocol="bgp")
+ivy_workflow_state(action="get")
 ```
 
-Both succeed.
+All succeed; `ivy_workflow_state(action="get")` reflects the workflow/phase/protocol just set.
 
 - [ ] **Step 5: `check-workspace-scope.py` deny message**
 
@@ -2655,7 +2669,7 @@ Add a new entry at the top:
 
 ### Migration notes
 - Run `scripts/migrate-active-workflow.sh <protocol-testing-root>` once to rewrite `.panther-ivy/active-workflow` files from `workflow: workflow-verify` schema to `workflow: verify`.
-- Workspace control via `ivy_workspace(action='set'|'clear', protocol='<name>')` MCP tool, not slash commands.
+- Workspace scope via `ivy_workspace(action='set'|'clear', target='<name>')` MCP tool, not slash commands. Workflow tracking via `ivy_workflow_state(action='set', workflow='<name>', phase='<phase>', protocol='<name>')` MCP tool (separate from `ivy_workspace`).
 - Stale `panther-ivy-plugin 2/` duplicate tree left untouched per the standing memory rule on backup retention.
 ```
 
@@ -2821,7 +2835,7 @@ Run the end-to-end smoke test on at least 2 workspaces. If pass, Phase F is comp
 - [ ] **Step 2: Set workspace**
 
 ```
-ivy_workspace(action="set", protocol="bgp")
+ivy_workspace(action="set", target="bgp")
 ```
 
 - [ ] **Step 3: Invoke a verify task**
@@ -2833,7 +2847,7 @@ Verify protocol-testing/bgp/bgp_stack/bgp_connection.ivy
 Expected end-to-end behaviour:
 
 1. Orchestrator (`panther-ivy-plugin:ivy`) activates.
-2. Orchestrator writes active-workflow YAML via `ivy_workspace(action="set", workflow="verify", phase="init", protocol="bgp")`.
+2. Orchestrator writes active-workflow YAML via `ivy_workflow_state(action="set", workflow="verify", phase="init", protocol="bgp")` (note: `ivy_workflow_state`, not `ivy_workspace` — the workflow journal is a separate tool from workspace scope).
 3. Orchestrator dispatches `Agent(subagent_type="panther-ivy-plugin:ivy-verifier-agent", ...)`.
 4. Agent's preloaded skills (`verify-ops`, `verification-failures`, `ivy-syntax`, `ivy-toolkit`) are visible in its context.
 5. Agent runs `ivy_diagnostics` → `ivy_compile` → `ivy_verify`. PostToolUse hooks fire correctly: `assess-modeling.py` and `assess-testspec.py` filter on `ctx.workflow == "build"` (not "workflow-build" — the rename took effect).
@@ -2853,7 +2867,7 @@ Expected: no matches in canonical paths.
 
 ### Task F.2.2: Smoke test on QUIC
 
-Repeat Task F.2.1 with `ivy_workspace(action="set", protocol="quic")` and a QUIC verify target. QUIC is the oldest workspace with the most complex `.panther-ivy/` state — passing here gives high confidence the migration didn't introduce protocol-specific regressions.
+Repeat Task F.2.1 with `ivy_workspace(action="set", target="quic")` and a QUIC verify target. QUIC is the oldest workspace with the most complex `.panther-ivy/` state — passing here gives high confidence the migration didn't introduce protocol-specific regressions.
 
 - [ ] **Steps 1-4:** as in Task F.2.1, with `quic` everywhere.
 
