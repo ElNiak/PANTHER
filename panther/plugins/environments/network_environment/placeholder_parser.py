@@ -1,11 +1,12 @@
 """Placeholder parser for network-aware command resolution.
 
 This module provides functionality to parse and validate network placeholders
-in command templates using the format: @{service:attribute:format}
+in command templates using the format: @{service:attribute[secondary_name]:format}
+The bracketed [secondary_name] segment and the trailing :format are both optional.
 """
 
 import re
-from typing import Dict, List, Set
+from typing import Dict, List, Optional, Set
 
 from panther.config.core.models.network_resolution import (
     NetworkAttribute,
@@ -18,7 +19,8 @@ from panther.core.exceptions import PlaceholderParsingException
 class PlaceholderParser:
     """Parser for network placeholders in command templates."""
 
-    # Regex pattern for matching placeholders: @{service:attribute:format}
+    # Regex pattern for matching placeholders: @{service:attribute[secondary_name]:format}
+    # ([secondary_name] and :format are optional)
     PLACEHOLDER_PATTERN = re.compile(
         r"@\{([^:]+):([^:\[}]+)(?:\[([^\]]+)\])?(?::([^}]+))?\}"
     )
@@ -80,8 +82,8 @@ class PlaceholderParser:
         self,
         service: str,
         attribute: str,
-        secondary_name: str | None,
-        format_type: str | None,
+        secondary_name: Optional[str],
+        format_type: Optional[str],
         raw_placeholder: str,
         command_template: str,
     ) -> PlaceholderInfo:
