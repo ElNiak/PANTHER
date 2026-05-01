@@ -76,6 +76,13 @@ class NetworkServiceInfo(BaseModel):
             "environment's auxiliary network mechanism."
         ),
     )
+    impl_pool: Optional[List[str]] = Field(
+        default=None,
+        description=(
+            "Reserved for future multi-IUT cross-implementation testing. "
+            "Currently unconsumed; kept here to keep the schema forward-compatible."
+        ),
+    )
 
     @field_validator("ip_address")
     @classmethod
