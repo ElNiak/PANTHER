@@ -1,6 +1,11 @@
 import pytest
 
-from panther.config.core.models.network_resolution import NetworkServiceInfo
+from panther.config.core.models.network_resolution import (
+    NetworkAttribute,
+    NetworkFormat,
+    NetworkServiceInfo,
+    PlaceholderInfo,
+)
 
 
 @pytest.mark.unit
@@ -36,3 +41,27 @@ def test_network_service_info_impl_pool_round_trip():
     )
     rebuilt = NetworkServiceInfo.model_validate(info.model_dump())
     assert rebuilt.impl_pool == ["frr", "gobgp"]
+
+
+@pytest.mark.unit
+def test_placeholder_info_secondary_name_default_none():
+    info = PlaceholderInfo(
+        service="ivy_tester",
+        attribute=NetworkAttribute.IP,
+        format_type=NetworkFormat.HEX,
+        raw_placeholder="@{ivy_tester:ip:hex}",
+    )
+    assert info.secondary_name is None
+
+
+@pytest.mark.unit
+def test_placeholder_info_secondary_name_round_trip():
+    info = PlaceholderInfo(
+        service="ivy_tester",
+        attribute=NetworkAttribute.IP,
+        format_type=NetworkFormat.HEX,
+        secondary_name="bgp_c",
+        raw_placeholder="@{ivy_tester:ip[bgp_c]:hex}",
+    )
+    rebuilt = PlaceholderInfo.model_validate(info.model_dump())
+    assert rebuilt.secondary_name == "bgp_c"

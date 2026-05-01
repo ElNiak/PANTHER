@@ -39,6 +39,14 @@ class PlaceholderInfo(BaseModel):
     format_type: NetworkFormat = Field(
         default=NetworkFormat.STRING, description="Format for the resolved value"
     )
+    secondary_name: Optional[str] = Field(
+        default=None,
+        description=(
+            "Secondary endpoint name when the placeholder targets a "
+            "non-primary endpoint. Populated by placeholder_parser when the "
+            "grammar's [name] capture group is present."
+        ),
+    )
     raw_placeholder: str = Field(..., description="Original placeholder string")
 
     @field_validator("service")
