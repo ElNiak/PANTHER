@@ -55,10 +55,12 @@ def test_generate_resolved_value_secondary_endpoint_decimal():
 
 
 def test_generate_resolved_value_unknown_secondary_raises():
+    from panther.core.exceptions import ServiceResolutionException
+
     resolver = DockerComposeNetworkResolver()
     info = _service_info_with_secondary({"bgp_c": "10.0.0.2"})
     placeholder = _placeholder_with_secondary("bgp_d", NetworkFormat.HEX)
-    with pytest.raises(ValueError, match="bgp_d"):
+    with pytest.raises(ServiceResolutionException, match="bgp_d"):
         resolver._generate_resolved_value(placeholder, info)
 
 

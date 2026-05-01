@@ -4,6 +4,7 @@ This module provides Docker Compose-specific implementation of network
 placeholder resolution using Docker DNS and runtime hostname resolution.
 """
 
+import ipaddress
 from typing import Dict
 
 from panther.config.core.models.network_resolution import (
@@ -52,10 +53,12 @@ class DockerComposeNetworkResolver(BaseNetworkResolver):
         if placeholder.secondary_name is not None:
             ip = service_info.secondary_endpoints.get(placeholder.secondary_name)
             if ip is None:
-                raise ValueError(
-                    f"Service {service_info.service_name!r} has no secondary "
-                    f"endpoint named {placeholder.secondary_name!r}; available: "
-                    f"{sorted(service_info.secondary_endpoints.keys())}"
+                raise ServiceResolutionException(
+                    f"no secondary endpoint named {placeholder.secondary_name!r}",
+                    service_info.service_name,
+                    placeholder.attribute.value,
+                    placeholder.format_type.value,
+                    available_services=sorted(service_info.secondary_endpoints.keys()),
                 )
             return self._format_ip(ip, placeholder.format_type)
 
@@ -221,8 +224,6 @@ class DockerComposeNetworkResolver(BaseNetworkResolver):
         IvyNetworkResolutionMixin._format_ip_hex from the panther_ivy submodule
         to keep the outer-worktree resolver independent of submodule code.
         """
-        import ipaddress
-
         addr = ipaddress.IPv4Address(ip_str)
         if format_type == NetworkFormat.HEX:
             return f"0x{int(addr):08x}"
