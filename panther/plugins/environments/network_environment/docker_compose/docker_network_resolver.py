@@ -35,8 +35,11 @@ class DockerComposeNetworkResolver(BaseNetworkResolver):
         """Generate resolved value for Docker Compose environment.
 
         Docker Compose strategy:
-        - Use $(resolve_hostname service_name format) for runtime resolution
-        - This delegates to the entrypoint.sh script's resolve_hostname function
+        - Primary IPs: use $(resolve_hostname service_name format) for runtime
+          resolution by the entrypoint.sh script.
+        - Secondary endpoints (Path α): inline the statically-assigned IP
+          directly because docker-compose materializes them at compose-time
+          via ipv4_address on the auxiliary network.
 
         Args:
             placeholder: Placeholder information
@@ -45,6 +48,17 @@ class DockerComposeNetworkResolver(BaseNetworkResolver):
         Returns:
             Resolved value string
         """
+        # Path α short-circuit: secondary endpoints get statically-inlined IPs.
+        if placeholder.secondary_name is not None:
+            ip = service_info.secondary_endpoints.get(placeholder.secondary_name)
+            if ip is None:
+                raise ValueError(
+                    f"Service {service_info.service_name!r} has no secondary "
+                    f"endpoint named {placeholder.secondary_name!r}; available: "
+                    f"{sorted(service_info.secondary_endpoints.keys())}"
+                )
+            return self._format_ip(ip, placeholder.format_type)
+
         service_name = service_info.service_name
 
         if placeholder.attribute == NetworkAttribute.IP:
@@ -198,3 +212,21 @@ class DockerComposeNetworkResolver(BaseNetworkResolver):
                 "dns_resolution": "automatic",
             },
         )
+
+    @staticmethod
+    def _format_ip(ip_str: str, format_type: NetworkFormat) -> str:
+        """Format an IPv4 address per the requested NetworkFormat.
+
+        Local helper for Path α secondary-endpoint resolution. Does NOT import
+        IvyNetworkResolutionMixin._format_ip_hex from the panther_ivy submodule
+        to keep the outer-worktree resolver independent of submodule code.
+        """
+        import ipaddress
+
+        addr = ipaddress.IPv4Address(ip_str)
+        if format_type == NetworkFormat.HEX:
+            return f"0x{int(addr):08x}"
+        if format_type == NetworkFormat.DECIMAL:
+            return str(int(addr))
+        # Default / DOTTED / others
+        return str(addr)
