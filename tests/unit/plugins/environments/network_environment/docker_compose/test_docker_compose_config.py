@@ -68,6 +68,56 @@ def test_docker_compose_config_auxiliary_network_round_trip():
 
 
 # ============================================================================
+# Render-context helper tests (Path α single-IP guard + default-source-of-truth)
+# ============================================================================
+
+
+def test_auxiliary_network_render_context_uses_schema_defaults_when_unset():
+    """Render context picks defaults from AuxiliaryNetworkConfig(), not duplicated literals."""
+    from panther.plugins.environments.network_environment.docker_compose.config_schema import (
+        AuxiliaryNetworkConfig,
+    )
+    from panther.plugins.environments.network_environment.docker_compose.docker_compose import (
+        DockerComposeEnvironment,
+    )
+
+    env = DockerComposeEnvironment.__new__(DockerComposeEnvironment)
+    env.env_config_to_test = type("E", (), {"auxiliary_network": None})()
+    expected = AuxiliaryNetworkConfig()
+
+    ctx = env._auxiliary_network_render_context([])
+    assert ctx["aux_network_name"] == expected.name
+    assert ctx["aux_network_subnet"] == expected.subnet
+    assert ctx["any_service_has_secondary_endpoints"] is False
+
+
+def test_auxiliary_network_render_context_raises_on_multi_secondary():
+    """Multi-secondary-endpoint per service must fail loud, not silently drop entries."""
+    from panther.plugins.environments.network_environment.docker_compose.docker_compose import (
+        DockerComposeEnvironment,
+    )
+
+    env = DockerComposeEnvironment.__new__(DockerComposeEnvironment)
+    env.env_config_to_test = type("E", (), {"auxiliary_network": None})()
+
+    bad_service = type(
+        "S",
+        (),
+        {
+            "service_name": "ivy_tester",
+            "service_config_to_test": type(
+                "C",
+                (),
+                {"secondary_endpoints": {"bgp_c": "10.0.0.2", "bgp_d": "10.0.0.3"}},
+            )(),
+        },
+    )()
+
+    with pytest.raises(ValueError, match="secondary_endpoints"):
+        env._auxiliary_network_render_context([bad_service])
+
+
+# ============================================================================
 # Template Render Tests
 # ============================================================================
 

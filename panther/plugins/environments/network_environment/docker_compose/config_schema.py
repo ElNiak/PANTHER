@@ -14,6 +14,12 @@ class AuxiliaryNetworkConfig(BaseModel):
     secondary_endpoints, providing a second IP per such container so the
     Ivy tester can present multiple speakers (e.g., RFC 4271 Sec 6.8 BGP
     collision detection).
+
+    Path α design constraint: each service may declare at most ONE secondary
+    endpoint; only the first entry is materialized as ipv4_address on the
+    auxiliary bridge. Multi-endpoint support is pending. The docker_compose
+    plugin enforces this via a runtime guard in
+    `_auxiliary_network_render_context`.
     """
 
     name: str = Field(
