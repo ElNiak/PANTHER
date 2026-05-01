@@ -52,11 +52,17 @@ class PlaceholderParser:
             for match in matches:
                 service = match.group(1).strip()
                 attribute = match.group(2).strip()
-                format_type = match.group(3).strip() if match.group(3) else None
+                secondary_name = match.group(3).strip() if match.group(3) else None
+                format_type = match.group(4).strip() if match.group(4) else None
                 raw_placeholder = match.group(0)
 
                 placeholder_info = self._create_placeholder_info(
-                    service, attribute, format_type, raw_placeholder, command_template
+                    service,
+                    attribute,
+                    secondary_name,
+                    format_type,
+                    raw_placeholder,
+                    command_template,
                 )
                 placeholders.append(placeholder_info)
 
@@ -74,6 +80,7 @@ class PlaceholderParser:
         self,
         service: str,
         attribute: str,
+        secondary_name: str | None,
         format_type: str | None,
         raw_placeholder: str,
         command_template: str,
@@ -83,6 +90,7 @@ class PlaceholderParser:
         Args:
             service: Service name
             attribute: Network attribute
+            secondary_name: Optional secondary endpoint name (from grammar's [name] capture)
             format_type: Format type (optional)
             raw_placeholder: Original placeholder string
             command_template: Full command template
@@ -117,6 +125,7 @@ class PlaceholderParser:
                 format_type=(
                     NetworkFormat(format_type) if format_type else NetworkFormat.STRING
                 ),
+                secondary_name=secondary_name,
                 raw_placeholder=raw_placeholder,
             )
 
@@ -136,8 +145,10 @@ class PlaceholderParser:
         """
         matches = self.PLACEHOLDER_PATTERN.findall(command_template)
         return [
-            f"@{{{service}:{attribute}{':' + fmt if fmt else ''}}}"
-            for service, attribute, fmt in matches
+            f"@{{{service}:{attribute}"
+            f"{f'[{secondary}]' if secondary else ''}"
+            f"{':' + fmt if fmt else ''}}}"
+            for service, attribute, secondary, fmt in matches
         ]
 
     def validate_command_template(self, command_template: str) -> Dict[str, List[str]]:
