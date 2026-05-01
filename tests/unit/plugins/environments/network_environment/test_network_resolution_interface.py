@@ -6,8 +6,7 @@ pytestmark = [pytest.mark.unit]
 
 
 class _FakeManager:
-    """
-    Minimal stand-in for a service manager carrying just the attributes.
+    """Minimal stand-in for a service manager carrying just the attributes.
 
     `create_resolution_context` reads via `getattr`.
     """
@@ -18,7 +17,7 @@ class _FakeManager:
 
 
 def test_create_resolution_context_propagates_secondary_endpoints():
-    """create_resolution_context must copy secondary_endpoints from manager → NetworkServiceInfo."""
+    """create_resolution_context must copy secondary_endpoints from manager -> NetworkServiceInfo."""
     from panther.plugins.environments.network_environment.network_resolution_interface import (
         INetworkResolver,
     )
@@ -32,7 +31,9 @@ def test_create_resolution_context_propagates_secondary_endpoints():
             return ""
 
         def get_service_info(self, *_args, **_kwargs):
-            return None
+            raise NotImplementedError(
+                "Stub: tests do not exercise the resolver's own get_service_info"
+            )
 
         def populate_service_network_info(self, *_args, **_kwargs):
             pass
@@ -67,7 +68,9 @@ def test_create_resolution_context_default_secondary_endpoints_empty():
             return ""
 
         def get_service_info(self, *_args, **_kwargs):
-            return None
+            raise NotImplementedError(
+                "Stub: tests do not exercise the resolver's own get_service_info"
+            )
 
         def populate_service_network_info(self, *_args, **_kwargs):
             pass
