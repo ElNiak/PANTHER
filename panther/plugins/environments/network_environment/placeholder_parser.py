@@ -1,5 +1,4 @@
-"""
-Placeholder parser for network-aware command resolution.
+"""Placeholder parser for network-aware command resolution.
 
 This module provides functionality to parse and validate network placeholders
 in command templates using the format: @{service:attribute:format}
@@ -20,7 +19,13 @@ class PlaceholderParser:
     """Parser for network placeholders in command templates."""
 
     # Regex pattern for matching placeholders: @{service:attribute:format}
-    PLACEHOLDER_PATTERN = re.compile(r"@\{([^:]+):([^:}]+)(?::([^}]+))?\}")
+    PLACEHOLDER_PATTERN = re.compile(
+        r"@\{([^:]+):([^:\[}]+)(?:\[([^\]]+)\])?(?::([^}]+))?\}"
+    )
+    # Group 1: service token
+    # Group 2: attribute token (excluding [ and })
+    # Group 3: optional secondary endpoint name (between [] after attribute)
+    # Group 4: optional format suffix
 
     def __init__(self):
         """Initialize the placeholder parser."""
@@ -28,8 +33,7 @@ class PlaceholderParser:
         self._valid_formats = {fmt.value for fmt in NetworkFormat}
 
     def parse_placeholders(self, command_template: str) -> List[PlaceholderInfo]:
-        """
-        Parse all placeholders from a command template.
+        """Parse all placeholders from a command template.
 
         Args:
             command_template: Command template containing placeholders
@@ -74,8 +78,7 @@ class PlaceholderParser:
         raw_placeholder: str,
         command_template: str,
     ) -> PlaceholderInfo:
-        """
-        Create PlaceholderInfo from parsed components.
+        """Create PlaceholderInfo from parsed components.
 
         Args:
             service: Service name
@@ -123,8 +126,7 @@ class PlaceholderParser:
             )
 
     def find_placeholder_strings(self, command_template: str) -> List[str]:
-        """
-        Find all placeholder strings in a command template.
+        """Find all placeholder strings in a command template.
 
         Args:
             command_template: Command template to search
@@ -139,8 +141,7 @@ class PlaceholderParser:
         ]
 
     def validate_command_template(self, command_template: str) -> Dict[str, List[str]]:
-        """
-        Validate a command template and return validation results.
+        """Validate a command template and return validation results.
 
         Args:
             command_template: Command template to validate
@@ -159,8 +160,7 @@ class PlaceholderParser:
         return result
 
     def get_required_services(self, command_template: str) -> Set[str]:
-        """
-        Get set of service names required by placeholders in template.
+        """Get set of service names required by placeholders in template.
 
         Args:
             command_template: Command template to analyze
@@ -175,8 +175,7 @@ class PlaceholderParser:
             return set()
 
     def has_placeholders(self, command_template: str) -> bool:
-        """
-        Check if command template contains any placeholders.
+        """Check if command template contains any placeholders.
 
         Args:
             command_template: Command template to check
@@ -189,8 +188,7 @@ class PlaceholderParser:
     def replace_placeholders(
         self, command_template: str, substitutions: Dict[str, str]
     ) -> str:
-        """
-        Replace placeholders in template with provided substitutions.
+        """Replace placeholders in template with provided substitutions.
 
         Args:
             command_template: Command template with placeholders
