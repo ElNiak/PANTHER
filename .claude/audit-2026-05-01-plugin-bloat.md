@@ -66,6 +66,53 @@ These corrections override conflicting claims later in the report.
    instead of the rule body, eliminating the pointer-stub anti-pattern
    while preserving the intended path-based activation.
 
+7. **Section 7 row 3 ("Fold `review-ops` content") is REFUTED.** On
+   2026-05-01 a parallel Explore pass against the post-`f9606ad` plugin
+   tree found that `agents/ivy-reviewer-agent.md` is a real load-bearing
+   specialist agent (64 lines, model: opus, four preloaded skills,
+   `forbidden_tools: ["Edit", "Write", "Bash"]`). `_KNOWN_WORKFLOWS`
+   includes `"review"`. The orchestrator routing table at
+   `skills/ivy/SKILL.md:85` dispatches coverage/quality work to
+   `ivy-reviewer-agent`. `skills/refine-ops/SKILL.md:384` and
+   `skills/experiment-ops/SKILL.md:268` issue `pending_dispatch` to the
+   `review` workflow. `review-ops` does stand alone as a workflow.
+   Section 7 row 3's "fold into scaffold/refine/experiment" prescription
+   is wrong; the actual remaining work is normalizing five to ten
+   drifted `model-reviewer` citations (rename residue) to
+   `ivy-reviewer-agent`. Resolved by Phase 2 follow-up commit (drift
+   normalization), not by a fold.
+
+8. **Section 6c + Section 7 row 4 (styles work) are INCOMPLETE.** The
+   audit prescribed renaming five overlay files and five summary files
+   to mode names. Reality: `hooks/scripts/compose-style.py` is in
+   `.backup/2026-04-28/hooks/scripts/compose-style.py`, removed from
+   the live tree. No SessionStart or UserPromptSubmit hook injects
+   style content. `.claude-plugin/plugin.json` has no `outputStyles`
+   field. The mode-first replacements
+   (`styles/overlays/{navigate,scaffold,refine,experiment,review,triage,meta}.md`
+   and the parallel summaries) do not exist. The actual work is
+   (a) restore `compose-style.py`, (b) register the UserPromptSubmit
+   hook, (c) write seven mode-first overlay files and seven summary
+   files (covering all of `_KNOWN_WORKFLOWS`), (d) retire the five
+   orphan `workflow-*.md` overlays and five orphan `workflow-*.md`
+   summaries to `.backup/`. Resolved by Phase 2 follow-up commit
+   (styles revival).
+
+9. **Section 6f (tests) — sub-finding annotation.** As of 2026-05-01,
+   the test suite reports 37 failures. None of those failures test
+   dead code. They are TDD red tests for four hook scripts that do not
+   yet exist on disk: `interaction-checkpoint.py` (9 failures plus 2
+   in `test_workflow_aware_hooks.py`), `route-user-prompt.py` (12
+   failures), `compose-style.py` (5 failures, addressed by the styles
+   revival above), `track-workflow-skill.py` (5 failures); plus 2
+   output-format bugs in `assess-modeling.py` (missing
+   `additionalContext` key) and 2 in `assess-trace.py` (missing `[G1
+   modeling gate]` marker emission). Three of the four missing scripts
+   are Phase 4 mode-detection features per the squishy-fiddle plan.
+   The 6f KEEP verdict stands; the 26 routing/checkpoint/track-workflow
+   failures are out of scope for the bloat audit and stay red until
+   Phase 4 lands.
+
 **Phase 1 deliverables (PR 1, executed 2026-05-01):**
 - 3 pointer-stub rules moved to `.backup/rules-pointer-stubs-2026-05-01/`
 - 2 docs/ audit drafts moved to `.backup/docs-pre-refactor-2026-05-01/`
@@ -703,6 +750,13 @@ README claim of "3 agents" is stale (Section 0 finding).
 | `styles/summaries/workflow-{navigate,build,verify,review,triage}.md` (5 files, ~95 lines total) | 15–23 each | **CUT or RENAME** | (failed — same dead-name issue) | HIGH | Same as overlays. |
 | `styles/tool-renderers/ivy_{compile,quality,verify,verdict,diagnostics,coverage}.md` (6 files, ~190 lines total) | 23–68 each | **KEEP** | L1 (per-tool rendering rules for `render-tool-result.py`) | HIGH | No change. These are tool-result formatting templates and are independent of workflow-name drift. |
 
+**Status note (2026-05-01):** Beyond the rename, the styles pipeline
+itself is dormant: `hooks/scripts/compose-style.py` is in
+`.backup/2026-04-28/`, no hook invokes style composition, and the
+seven mode-first files do not exist. The "CUT or RENAME" verdict on
+the five overlay and five summary files stands; the additional revive
+work is documented in Review-side correction 8 and Section 7 row 4.
+
 ### Section 6d — `evals/`
 
 | Artifact | Lines | Verdict | Lens | Confidence | Action |
@@ -752,12 +806,22 @@ verdicts:
 2. **Split `verify-ops` → `refine-ops` + `experiment-ops`**, update all
    citations in rules and the orchestrator's routing table. The verify
    anti-patterns rule splits accordingly.
-3. **Fold `review-ops` content** into scaffold-ops Phase 1 (RFC),
-   refine-ops Phase 9 (coverage), experiment-ops Phase 10 (G5 trace).
-   `review-anti-patterns.md` content distributes; the rule file is
-   either cut or refactored as a cross-mode review checklist.
-4. **Rename `styles/overlays/` and `styles/summaries/`** files to mode
-   names (Section 6c).
+3. **REFUTED — see Review-side correction 7.** `review-ops` stands
+   alone as a workflow with a load-bearing `ivy-reviewer-agent`. The
+   remaining work is normalizing drifted `model-reviewer` citations
+   (rename residue) to `ivy-reviewer-agent`. `review-anti-patterns.md`
+   was already moved to
+   `.backup/rules-anti-patterns-fold-2026-05-01/` in an earlier
+   commit; no further action required on the rule file.
+4. **Revive the styles pipeline.** See Review-side correction 8. The
+   work is: (a) restore `hooks/scripts/compose-style.py` from
+   `.backup/2026-04-28/`, (b) register a UserPromptSubmit matcher in
+   `hooks/hooks.json` invoking it, (c) create seven mode-first overlay
+   files (`overlays/{navigate,scaffold,refine,experiment,review,triage,meta}.md`)
+   and seven mode-first summary files
+   (`summaries/{navigate,scaffold,refine,experiment,review,triage,meta}.md`),
+   (d) retire the five orphan `workflow-*.md` overlays and five orphan
+   `workflow-*.md` summaries to `.backup/`.
 5. **Add `experiment-mode` skill body** (currently this work lives
    distributed across verify-ops + review-ops + methodology refs).
 6. **Update `routing-rules.json`** if it survives Section 1c Axis 7 —
