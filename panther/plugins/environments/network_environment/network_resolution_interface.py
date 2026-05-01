@@ -117,6 +117,8 @@ class INetworkResolver(ABC):
                 service_info = NetworkServiceInfo(
                     service_name=service_name,
                     protocol_role=getattr(manager, "protocol_role", None),
+                    secondary_endpoints=getattr(manager, "secondary_endpoints", {})
+                    or {},
                 )
                 context.add_service(service_info)
 
