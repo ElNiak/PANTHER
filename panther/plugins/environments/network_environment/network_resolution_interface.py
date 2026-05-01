@@ -1,5 +1,4 @@
-"""
-Interface for network-aware command resolution.
+"""Interface for network-aware command resolution.
 
 This module defines the interface that network environments must implement
 to support network placeholder resolution.
@@ -23,8 +22,7 @@ class INetworkResolver(ABC):
     def resolve_network_placeholders(
         self, command_template: str, context: NetworkResolutionContext
     ) -> List[NetworkResolutionResult]:
-        """
-        Resolve network placeholders in a command template.
+        """Resolve network placeholders in a command template.
 
         Args:
             command_template: Command template with placeholders
@@ -42,8 +40,7 @@ class INetworkResolver(ABC):
     def get_service_ip(
         self, service_name: str, context: NetworkResolutionContext
     ) -> str:
-        """
-        Get IP address for a service.
+        """Get IP address for a service.
 
         Args:
             service_name: Name of the service
@@ -61,8 +58,7 @@ class INetworkResolver(ABC):
     def get_service_info(
         self, service_name: str, context: NetworkResolutionContext
     ) -> NetworkServiceInfo:
-        """
-        Get comprehensive network information for a service.
+        """Get comprehensive network information for a service.
 
         Args:
             service_name: Name of the service
@@ -78,8 +74,7 @@ class INetworkResolver(ABC):
 
     @abstractmethod
     def populate_service_network_info(self, context: NetworkResolutionContext) -> None:
-        """
-        Populate network information for all services in context.
+        """Populate network information for all services in context.
 
         This method should discover and populate network information
         for all services using environment-specific mechanisms.
@@ -95,8 +90,7 @@ class INetworkResolver(ABC):
     def create_resolution_context(
         self, environment_type: str, service_managers: Dict[str, any] = None
     ) -> NetworkResolutionContext:
-        """
-        Create a network resolution context for this environment.
+        """Create a network resolution context for this environment.
 
         Args:
             environment_type: Type of network environment
@@ -127,8 +121,7 @@ class INetworkResolver(ABC):
     def validate_resolution_support(
         self, placeholders: List[PlaceholderInfo]
     ) -> List[str]:
-        """
-        Validate that this resolver can handle the given placeholders.
+        """Validate that this resolver can handle the given placeholders.
 
         Args:
             placeholders: List of placeholders to validate
