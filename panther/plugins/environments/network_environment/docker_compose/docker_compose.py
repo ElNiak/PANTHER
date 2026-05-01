@@ -316,6 +316,22 @@ class DockerComposeEnvironment(
                     else None
                 ),
                 "computed_target_platform": computed_target_platform,
+                "aux_network_name": (
+                    self.env_config_to_test.auxiliary_network.name
+                    if getattr(self.env_config_to_test, "auxiliary_network", None)
+                    is not None
+                    else "panther_aux_network"
+                ),
+                "aux_network_subnet": (
+                    self.env_config_to_test.auxiliary_network.subnet
+                    if getattr(self.env_config_to_test, "auxiliary_network", None)
+                    is not None
+                    else "10.0.0.0/24"
+                ),
+                "any_service_has_secondary_endpoints": any(
+                    bool(getattr(s.service_config_to_test, "secondary_endpoints", None))
+                    for s in services_with_container_names
+                ),
             },
         )
 
