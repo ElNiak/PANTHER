@@ -68,6 +68,14 @@ class NetworkServiceInfo(BaseModel):
     additional_info: Dict[str, str] = Field(
         default_factory=dict, description="Additional service-specific information"
     )
+    secondary_endpoints: Dict[str, str] = Field(
+        default_factory=dict,
+        description=(
+            "Optional name → IPv4 address mapping for additional endpoints "
+            "assigned to this service. Materialized via the network "
+            "environment's auxiliary network mechanism."
+        ),
+    )
 
     @field_validator("ip_address")
     @classmethod
