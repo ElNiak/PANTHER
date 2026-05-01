@@ -4,6 +4,8 @@ import pytest
 
 from panther.config.core.models.service import RestartPolicy, ServiceConfig
 
+pytestmark = [pytest.mark.unit]
+
 
 class TestServiceConfigMergedFields:
     """ServiceConfig should have fields merged from ServicePluginConfig."""

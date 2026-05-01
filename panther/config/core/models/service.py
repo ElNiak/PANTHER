@@ -297,11 +297,16 @@ class ServiceConfig(BaseConfig):
     secondary_endpoints: Dict[str, str] = Field(
         default_factory=dict,
         description=(
-            "Optional name → IPv4 address mapping for additional endpoints "
+            "Optional name -> IPv4 address mapping for additional endpoints "
             "this service should expose, on top of its primary network IP. "
             "Materialized by the network environment plugin (e.g., docker_compose's "
             "auxiliary_network)."
         ),
+        json_schema_extra={
+            "widget_type": "key_value",
+            "category": "network",
+            "advanced": True,
+        },
     )
     timeout: int = Field(
         60,
