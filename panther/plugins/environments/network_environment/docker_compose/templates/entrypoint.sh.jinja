@@ -457,7 +457,15 @@ log "Phase directories created"
 
 # Service discovery: Write our IP to a shared file
 SERVICE_NAME="{{additional_param.service_name}}"
-SERVICE_IP=$(hostname -i | grep -v '^127' | head -n 1)
+SERVICE_IP=$(hostname -i | tr ' ' '\n' | grep -v '^127' | head -n 1)
+# If multi-homed via Path α auxiliary network, prefer the non-aux IP so
+# the coordination file holds the primary panther_network address that
+# downstream readers (FRR neighbor config, resolve_hostname) need.
+if [ -n "${AUX_NETWORK_SUBNET:-}" ]; then
+  AUX_PREFIX="${AUX_NETWORK_SUBNET%.*/*}."
+  PRIMARY_IP=$(hostname -i | tr ' ' '\n' | grep -v '^127' | grep -vF "${AUX_PREFIX}" | head -n 1)
+  [ -n "$PRIMARY_IP" ] && SERVICE_IP="$PRIMARY_IP"
+fi
 if [ -n "$SERVICE_IP" ]; then
   echo "$SERVICE_IP" > /app/coordination/${SERVICE_NAME}_ip.txt
   log "Registered service IP: $SERVICE_IP"

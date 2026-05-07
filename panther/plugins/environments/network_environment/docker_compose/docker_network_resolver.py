@@ -53,13 +53,18 @@ class DockerComposeNetworkResolver(BaseNetworkResolver):
         if placeholder.secondary_name is not None:
             ip = service_info.secondary_endpoints.get(placeholder.secondary_name)
             if ip is None:
-                raise ServiceResolutionException(
-                    f"no secondary endpoint named {placeholder.secondary_name!r}",
+                # Graceful degrade: tests that don't reference the secondary
+                # endpoint receive a sentinel 0.0.0.0; tests that DO reference
+                # it will fail loudly at runtime when binding/connecting.
+                self.logger.warning(
+                    "Secondary endpoint %r not configured for service %r; "
+                    "using sentinel 0.0.0.0. Benign for tests that don't "
+                    "reference the endpoint; tests that do will fail at "
+                    "bind/connect time.",
+                    placeholder.secondary_name,
                     service_info.service_name,
-                    placeholder.attribute.value,
-                    placeholder.format_type.value,
-                    available_services=sorted(service_info.secondary_endpoints.keys()),
                 )
+                return self._format_ip("0.0.0.0", placeholder.format_type)
             return self._format_ip(ip, placeholder.format_type)
 
         service_name = service_info.service_name

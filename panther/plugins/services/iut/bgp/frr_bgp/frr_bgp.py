@@ -86,8 +86,11 @@ class FrrBgpServiceManager(
         # Multiline command uses the heredoc path in the entrypoint template,
         # which prevents premature shell variable expansion.
         bgpd_conf_script = (
-            f'SELF_IP=$(cat /app/coordination/${{SERVICE_NAME}}_ip.txt 2>/dev/null || echo "$SERVICE_IP")\n'
-            f"NEIGHBOR_IP=$(cat /app/coordination/ivy_tester_ip.txt 2>/dev/null || hostname -i | head -n1)\n"
+            f"SELF_IP=$(awk 'NR==1{{print $1; exit}}' /app/coordination/${{SERVICE_NAME}}_ip.txt 2>/dev/null || echo \"${{SERVICE_IP%% *}}\")\n"
+            f"NEIGHBOR_IP=$(awk 'NR==1{{print $1; exit}}' /app/coordination/ivy_tester_ip.txt 2>/dev/null"
+            f" || hostname -i | tr ' ' '\\n' | grep -v '^127'"
+            f' | grep -v "^${{AUX_NETWORK_SUBNET%.*/*}}\\."'
+            f" | head -n1)\n"
             f'printf "frr defaults traditional\\n'
             f"!\\n"
             f"router bgp {ctx['as_number']}\\n"
