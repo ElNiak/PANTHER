@@ -27,6 +27,7 @@ def content():
     config_files = config_service.list_configs()
     
     loaded_config = {"value": None}
+    current_config_path = {"value": ""}
     ui.label("Visual Experiment Designer").classes("text-h5 q-mb-md")
 
     # Config file selector
@@ -104,6 +105,7 @@ def content():
         try:
             config = config_service.load_config(path)
             loaded_config["value"] = config
+            current_config_path["value"] = path
             
             # Update info labels
             test_count = len(config.get("tests", []))
@@ -147,11 +149,19 @@ def content():
         logger.debug("Refreshed config list for topology page")
 
     def refresh_diagram():
-        """Refresh currently displayed topology diagram."""
-        if loaded_config["value"]:
-            diagram_area.clear()
-            with diagram_area:
-                topology_renderer.render(loaded_config["value"])
-            ui.notify("Diagram refreshed", type="info")
+        """Refresh currently displayed topology diagram by re-reading from disk."""
+        path = current_config_path["value"]
+        if path:
+            try:
+                fresh_config = config_service.load_config(path)
+                loaded_config["value"] = fresh_config
+                diagram_area.clear()
+                with diagram_area:
+                    topology_renderer.render(fresh_config)
+                ui.notify("Diagram refreshed from disk", type="info")
+                logger.info(f"Refreshed topology from disk: {path}")
+            except Exception as e:
+                ui.notify(f"Refresh failed: {str(e)}", type="negative")
+                logger.error(f"Error refreshing config {path}: {e}")
         else:
             ui.notify("No configuration loaded", type="warning")

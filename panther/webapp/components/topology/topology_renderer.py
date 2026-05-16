@@ -38,9 +38,9 @@ class TopologyRenderer:
         # Statistics panel
         stats = self.graph_data["aggregated"]
         with ui.row().classes("items-center gap-4 q-mb-md"):
-            ui.chip(f"{stats['total_tests']} Tests", icon="checklist", color="grey-8").props("outline dense")
-            ui.chip(f"{stats['unique_services']} Services", icon="dns", color="grey-8").props("outline dense")
-            ui.chip(f"{stats['unique_connections']} Connections", icon="link", color="grey-8").props("outline dense")
+            ui.chip(f"{stats['total_tests']} Tests", icon="checklist", color="#8c8c8c").props("outline dense")
+            ui.chip(f"{stats['unique_services']} Services", icon="dns", color="#8c8c8c").props("outline dense")
+            ui.chip(f"{stats['unique_connections']} Connections", icon="link", color="#8c8c8c").props("outline dense")
 
         diagram_area = ui.element('div').classes("w-full")
 
@@ -77,9 +77,9 @@ class TopologyRenderer:
         with ui.row().classes("items-center gap-4 q-mb-sm"):
             if is_aggregated:
                 for network_type in test_data.get("network_types", []):
-                    ui.chip(network_type, icon="lan", color="grey-8").props("outline")
+                    ui.chip(network_type, icon="lan", color="#8c8c8c").props("outline")
             else:
-                ui.chip(test_data["network_type"], icon="lan", color="grey-8").props("outline")
+                ui.chip(test_data["network_type"], icon="lan", color="#8c8c8c").props("outline")
                 
                 if test_data["execution_environment"]:
                     for env in test_data["execution_environment"]:
@@ -134,7 +134,7 @@ class TopologyRenderer:
                         "position": "inside",
                         "formatter": "{b}",
                         "fontSize": scaling["label_font"],
-                        "color": "#fff",
+                        "color": "#030303",
                         "fontWeight": "bold"
                     },
                     "edgeLabel": {
