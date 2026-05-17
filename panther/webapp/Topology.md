@@ -4,7 +4,7 @@ Native NiceGUI implementation for visualizing experiment configuration topologie
 
 ---
 
-## 🏗️ Architecture Overview
+## Architecture Overview
 
 ```
 ┌───────────────────────────────────────────────────────────┐
@@ -38,7 +38,7 @@ Native NiceGUI implementation for visualizing experiment configuration topologie
 
 ---
 
-## 📦 Components
+## Components
 
 ### 1. `panther/webapp/pages/topology.py`
 **Main page entry point**
@@ -47,6 +47,7 @@ Native NiceGUI implementation for visualizing experiment configuration topologie
 - Diagram area container
 - Refresh button handlers
 - Config loading and validation
+- Passes selected config path into renderer for cross-page navigation
 
 ### 2. `panther/webapp/services/topology_service.py`
 **Data transformation service**
@@ -65,6 +66,7 @@ Native NiceGUI implementation for visualizing experiment configuration topologie
 - Legend rendering
 - ECharts force-directed graph configuration
 - Interaction handlers (click, hover, drag)
+- Topology node -> config builder navigation bridge
 
 ### 4. `panther/webapp/api/topology_api.py`
 **REST API endpoints**
@@ -88,6 +90,14 @@ Native NiceGUI implementation for visualizing experiment configuration topologie
 -Tabbed interface for switching between tests
 -Shows exact 2-service topology for each test
 -Displays execution environment badges
+
+### Node Click Navigation
+-Clicking a node navigates to `/config` with full context of:
+  - config file path
+  - selected service id and display name
+  - inferred test index
+-Navigation context is saved in `nicegui.app.storage.general["topology_nav"]`
+-Config Builder reads `topology_nav`, auto-loads the config file, opens the target test panel, then scrolls/highlights the target service
 
 ### Visual Features
 | Feature | Details |
@@ -130,7 +140,7 @@ Native NiceGUI implementation for visualizing experiment configuration topologie
 
 ---
 
-## 🔧 Usage
+## Usage
 
 1. Start the webapp:
    ```bash
@@ -150,6 +160,12 @@ Native NiceGUI implementation for visualizing experiment configuration topologie
    - Scroll mouse wheel to zoom
    - Click and drag background to pan
    - Hover over nodes for full details
+   - Click a node to jump to its location in Config Builder
+
+6. Topology -> Config Builder flow:
+   - In **Aggregated view**, click resolves to the first matching test containing that service
+   - In **Per Test view**, click preserves the currently selected test context
+   - Config Builder loads the same config path and positions the editor on the selected test/service
 
 ---
 
@@ -163,7 +179,7 @@ Native NiceGUI implementation for visualizing experiment configuration topologie
 
 ---
 
-## 📌 Data Model
+## Data Model
 
 ### Node Structure
 ```python
@@ -221,10 +237,10 @@ Native NiceGUI implementation for visualizing experiment configuration topologie
 
 | Method | Description |
 |---|---|
-| `render(config)` | Main render entry point. Builds complete UI with view mode toggle, statistics and diagram |
+| `render(config, config_path)` | Main render entry point. Builds complete UI with view mode toggle, statistics and diagram |
 | `_render_test_diagram(test_data, is_aggregated)` | Renders single diagram view. Handles both aggregated and per-test modes |
 | `_build_echarts_options(test_data, scaling)` | Constructs full ECharts configuration object |
-| `_on_node_click(event)` | Node click event handler with safe event parsing |
+| `_on_node_click(event, test_index_override, is_aggregated)` | Node click event handler. Resolves target test, writes `topology_nav`, and triggers client-side redirect to Config Builder |
 | `_on_test_change(event)` | Tab switch event handler |
 | `export_svg()` | SVG export placeholder |
 
@@ -239,6 +255,35 @@ Native NiceGUI implementation for visualizing experiment configuration topologie
 | `select_config(path)` | Config selection handler. Loads config, updates info panel and renders diagram |
 | `refresh_config_list()` | Reloads available config files list |
 | `refresh_diagram()` | Re-renders currently loaded diagram |
+
+---
+
+## Testing
+
+### New Topology Tests
+
+1. `tests/unit/test_webapp/test_topology_service.py`
+   - Verifies YAML -> graph transformation behavior:
+     - server-only node creation
+     - server+client node + directed edge extraction
+     - no edge when `target` does not exist
+     - aggregated deduplication (`test_count`, edge `count`, merged network and execution environments)
+     - per-test graph isolation and stable test indexes
+
+2. `tests/unit/test_webapp/test_topology_renderer_navigation.py`
+   - Verifies node-click navigation logic:
+     - aggregated click stores first matching test index
+     - per-test click uses explicit test index override
+     - unknown aggregated service defaults to test index `0`
+     - validates required `topology_nav` fields:
+       `config_path`, `test_index`, `service_id`, `service_name`, `source`
+
+### How To Run
+
+1. Fast topology unit checks:
+   ```bash
+   .venv/bin/pytest tests/unit/test_webapp/test_topology_service.py tests/unit/test_webapp/test_topology_renderer_navigation.py -q -c pyproject.toml -n0 --no-cov
+   ```
 
 ---
 

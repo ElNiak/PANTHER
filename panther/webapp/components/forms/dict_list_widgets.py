@@ -25,6 +25,7 @@ based on the ``ComplexFieldInfo.category`` classification.
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Callable
 from typing import Any
 
@@ -34,6 +35,12 @@ from pydantic import BaseModel
 from panther.webapp.components.forms.form_models import ComplexFieldInfo
 
 logger = logging.getLogger(__name__)
+
+
+def _dom_token(value: Any) -> str:
+    """Return a stable CSS-class-safe token for generated form anchors."""
+    token = re.sub(r"[^a-zA-Z0-9_-]+", "-", str(value or "").strip()).strip("-")
+    return token.lower() or "unnamed"
 
 
 class KeyValueEditor:
@@ -178,7 +185,11 @@ class KeyedModelEditor:
             for key in list(self._entries.keys()):
                 model = self._entries[key]
                 summary = self._summarize(model)
-                with ui.row().classes("w-full items-center gap-2 q-py-xs"):
+                with ui.row().classes(
+                    "w-full items-center gap-2 q-py-xs "
+                    f"panther-field-{_dom_token(self.field_name)}-entry "
+                    f"panther-field-{_dom_token(self.field_name)}-entry-{_dom_token(key)}"
+                ):
                     ui.label(key).classes("text-weight-medium").style(
                         "min-width: 100px"
                     )

@@ -65,10 +65,21 @@ def content():
             with ui.column():
                 ui.label("Services:").classes("text-body2 text-grey-7")
                 service_count_label = ui.label("-")
-            
-            with ui.column():
-                ui.label("Network Type:").classes("text-body2 text-grey-7")
-                network_type_label = ui.label("-")
+        
+        # Network Environment Breakdown
+        network_env_row = ui.row().classes("gap-4 q-mt-sm")
+        with network_env_row:
+            ui.label("Network Environments:").classes("text-body2 text-grey-7")
+            network_env_chips_container = ui.row().classes("gap-2")
+        
+        # Execution Environment Breakdown
+        exec_env_row = ui.row().classes("gap-4 q-mt-xs")
+        with exec_env_row:
+            ui.label("Execution Environments:").classes("text-body2 text-grey-7")
+            exec_env_chips_container = ui.row().classes("gap-2")
+        
+        # Per-test breakdown
+        test_env_details = ui.column().classes("gap-1 q-mt-xs")
 
     # Topology diagram area
     diagram_container = ui.card().classes("w-full q-pa-lg")
@@ -98,7 +109,9 @@ def content():
             loaded_config["value"] = None
             test_count_label.set_text("-")
             service_count_label.set_text("-")
-            network_type_label.set_text("-")
+            network_env_chips_container.clear()
+            exec_env_chips_container.clear()
+            test_env_details.clear()
             info_card.set_visibility(False)
             return
         
@@ -107,25 +120,74 @@ def content():
             loaded_config["value"] = config
             current_config_path["value"] = path
             
+            tests = config.get("tests", [])
+            
             # Update info labels
-            test_count = len(config.get("tests", []))
+            test_count = len(tests)
             test_count_label.set_text(str(test_count))
             
-            service_count = sum(len(test.get("services", {})) for test in config.get("tests", []))
+            service_count = sum(len(test.get("services", {})) for test in tests)
             service_count_label.set_text(str(service_count))
             
-            if config.get("tests"):
-                network_type = config["tests"][0].get("network_environment", {}).get("type", "-")
-                network_type_label.set_text(network_type)
-            else:
-                network_type_label.set_text("-")
+            # Aggregate unique network environments across all tests
+            network_envs = set()
+            exec_envs = set()
+            test_summaries = []
+            for test in tests:
+                net_type = test.get("network_environment", {}).get("type", "unknown")
+                network_envs.add(net_type)
+                for env in test.get("execution_environment", []):
+                    exec_envs.add(env.get("type", "unknown"))
+                test_name = test.get("name", "Unnamed")
+                iterations = test.get("iterations", 1)
+                test_summaries.append(f"{test_name}: {net_type}{' ×' + str(iterations) + ' iterations' if iterations > 1 else ''}")
+            
+            # Populate network environment chips
+            network_env_chips_container.clear()
+            with network_env_chips_container:
+                if network_envs:
+                    for net_type in sorted(network_envs):
+                        if net_type == "docker_compose":
+                            ui.chip("🐳 Docker Compose", icon="cloud").props("outline dense").classes("text-body2")
+                        elif net_type == "shadow_ns":
+                            ui.chip("🌐 Shadow NS", icon="ac_unit").props("outline dense").classes("text-body2")
+                        elif net_type == "localhost":
+                            ui.chip("🖥️ Localhost", icon="computer").props("outline dense").classes("text-body2")
+                        else:
+                            ui.chip(net_type, icon="lan").props("outline dense").classes("text-body2")
+                else:
+                    ui.label("None").classes("text-grey-5")
+            
+            # Populate execution environment chips
+            exec_env_chips_container.clear()
+            with exec_env_chips_container:
+                if exec_envs:
+                    for env_type in sorted(exec_envs):
+                        if env_type == "strace":
+                            ui.chip("🔍 strace", icon="search").props("outline dense").classes("text-body2")
+                        elif env_type == "gdb":
+                            ui.chip("🐛 GDB", icon="bug_report").props("outline dense").classes("text-body2")
+                        elif env_type == "gperf_cpu":
+                            ui.chip("⚡ gperftools CPU", icon="speed").props("outline dense").classes("text-body2")
+                        elif env_type == "gperf_heap":
+                            ui.chip("📊 gperftools Heap", icon="bar_chart").props("outline dense").classes("text-body2")
+                        else:
+                            ui.chip(env_type, icon="settings").props("outline dense").classes("text-body2")
+                else:
+                    ui.label("None").classes("text-grey-5")
+            
+            # Per-test breakdown
+            test_env_details.clear()
+            with test_env_details:
+                for summary in test_summaries:
+                    ui.label(summary).classes("text-body2 text-grey-6")
             
             info_card.set_visibility(True)
             
-            # Render topology diagram
+            # Render topology diagram with config path for navigation
             diagram_area.clear()
             with diagram_area:
-                topology_renderer.render(config)
+                topology_renderer.render(config, config_path=path)
             
             ui.notify(f"Loaded configuration: {path.split('/')[-1]}", type="positive")
             logger.info(f"Successfully loaded config for topology view: {path}")
@@ -135,7 +197,9 @@ def content():
             loaded_config["value"] = None
             test_count_label.set_text("-")
             service_count_label.set_text("-")
-            network_type_label.set_text("-")
+            network_env_chips_container.clear()
+            exec_env_chips_container.clear()
+            test_env_details.clear()
             info_card.set_visibility(False)
     
     def refresh_config_list():
@@ -157,7 +221,7 @@ def content():
                 loaded_config["value"] = fresh_config
                 diagram_area.clear()
                 with diagram_area:
-                    topology_renderer.render(fresh_config)
+                    topology_renderer.render(fresh_config, config_path=path)
                 ui.notify("Diagram refreshed from disk", type="info")
                 logger.info(f"Refreshed topology from disk: {path}")
             except Exception as e:

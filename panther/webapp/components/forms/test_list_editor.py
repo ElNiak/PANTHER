@@ -46,8 +46,9 @@ class TestListEditor:
         """Initialise an empty test list with an 'Add Test' button."""
         self._test_data: list[dict[str, Any]] = []
         self._forms: list[Any] = []  # PydanticForm instances
+        self._expansions: list[Any] = []
         with ui.column().classes("w-full"):
-            self._container = ui.column().classes("w-full gap-2")
+            self._container = ui.column().classes("w-full gap-2 panther-test-list")
             ui.button(
                 "Add Test",
                 icon="add",
@@ -73,6 +74,22 @@ class TestListEditor:
         self._forms = []
         self._rebuild()
 
+    def open_test(self, test_idx: int) -> bool:
+        """Open the expansion panel for a specific test index."""
+        if not 0 <= test_idx < len(self._expansions):
+            logger.debug(
+                "Cannot open test index %s; only %d panels",
+                test_idx,
+                len(self._expansions),
+            )
+            return False
+
+        expansion = self._expansions[test_idx]
+        if hasattr(expansion, "open"):
+            expansion.open()
+            return True
+        return False
+
     # ── Internal ────────────────────────────────────────────────
 
     def _snapshot(self) -> None:
@@ -87,6 +104,7 @@ class TestListEditor:
 
         self._container.clear()
         self._forms = []
+        self._expansions = []
 
         with self._container:
             if not self._test_data:
@@ -101,7 +119,8 @@ class TestListEditor:
                     text=label,
                     icon="science",
                     group="test-configs",
-                ).classes("w-full")
+                ).classes(f"w-full panther-test-panel panther-test-panel-{idx}")
+                self._expansions.append(exp)
 
                 # Header actions (duplicate / delete)
                 with exp.add_slot("header"):

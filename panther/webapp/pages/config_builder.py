@@ -52,6 +52,7 @@ NiceGUI patterns used:
 """
 
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -62,6 +63,12 @@ from panther.webapp.components.forms.yaml_editor import YamlEditor
 from panther.webapp.services.config_service import ConfigService
 
 logger = logging.getLogger(__name__)
+
+
+def _dom_token(value: Any) -> str:
+    """Return the CSS-class-safe token used by generated form anchors."""
+    token = re.sub(r"[^a-zA-Z0-9_-]+", "-", str(value or "").strip()).strip("-")
+    return token.lower() or "unnamed"
 
 
 def _populate_forms_from_dict(panels: dict[str, Any], config_dict: dict) -> None:
@@ -119,6 +126,38 @@ def content():
     logger.info("Loading config builder page")
     config_svc = ConfigService()
 
+    # ----------------------------------------------------------------
+    # Read navigation context — from app.storage.general (set by topology
+    # page via _on_node_click before navigating to /config?source=topology).
+    # This is more reliable than browser query_params, which may not be
+    # available at page load time depending on the NiceGUI version.
+    # ----------------------------------------------------------------
+    nav_data = {}
+    try:
+        from nicegui import app as nicegui_app
+
+        nav_data = nicegui_app.storage.general.pop("topology_nav", {})
+        logger.debug(f"Config builder nav_data from storage.general: {nav_data}")
+    except Exception as exc:
+        logger.debug(f"No topology_nav data in storage.general: {exc}")
+
+    config_path_from_query = nav_data.get("config_path", "")
+    test_index_from_query = nav_data.get("test_index", "")
+    service_id_from_query = nav_data.get("service_id", "")
+    service_name_from_query = nav_data.get("service_name", "")
+    source_from_query = nav_data.get("source", "")
+
+    # Log debug info about navigation source
+    if source_from_query == "topology":
+        logger.info(
+            "Navigated from topology: config_path=%s, test_index=%s, service_id=%s, service_name=%s",
+            config_path_from_query,
+            test_index_from_query,
+            service_id_from_query,
+            service_name_from_query,
+        )
+        logger.debug("Full nav_data: %s", nav_data)
+
     ui.label("Experiment Configuration Builder").classes("text-h5 q-mb-md")
 
     _yaml_editor_ref = {}  # Shared reference between tabs
@@ -173,6 +212,22 @@ def content():
             on_click=lambda: _save_config_dialog(
                 config_svc, _yaml_editor_ref.get("editor")
             ),
+        )
+
+    # If navigated from topology, auto-load the config and navigate to the service
+    # We use ui.timer to defer this after the UI has rendered
+    if source_from_query == "topology" and config_path_from_query:
+        ui.timer(
+            0.5,
+            lambda: _auto_navigate_from_topology(
+                config_svc=config_svc,
+                _yaml_editor_ref=_yaml_editor_ref,
+                config_path=config_path_from_query,
+                test_index_str=test_index_from_query,
+                service_id=service_id_from_query,
+                service_name=service_name_from_query,
+            ),
+            once=True,
         )
 
 
@@ -589,3 +644,215 @@ def _save_config_dialog(config_svc: ConfigService, yaml_editor):
             ui.button("Cancel", on_click=dialog.close).props("flat")
             ui.button("Save", icon="save", on_click=_do_save).props("color=primary")
     dialog.open()
+
+
+def _auto_navigate_from_topology(
+    config_svc: ConfigService,
+    _yaml_editor_ref: dict,
+    config_path: str,
+    test_index_str: str,
+    service_id: str,
+    service_name: str,
+) -> None:
+    """Auto-load config and navigate to the specified service after topology click.
+
+    Called by a deferred ``ui.timer`` when the user navigates from the topology
+    page by clicking on a node.  This function:
+
+    1. Loads the config file from *config_path*
+    2. Populates all form panels from the loaded config
+    3. Opens the correct test accordion panel
+    4. Scrolls to the service within the test
+    5. Shows a notification with navigation info
+
+    Args:
+        config_svc: The configuration service for loading config files.
+        _yaml_editor_ref: Shared mutable reference dict containing form panels.
+        config_path: Filesystem path of the config file to load.
+        test_index_str: String representation of the test index to navigate to.
+        service_id: The ID of the service node that was clicked.
+        service_name: The display name of the service node that was clicked.
+    """
+    import json as _json
+    import yaml as _yaml
+    from urllib.parse import unquote
+
+    logger.info(
+        "Auto-navigating from topology: config_path=%s, test_index=%s, service_id=%s, service_name=%s",
+        config_path,
+        test_index_str,
+        service_id,
+        service_name,
+    )
+
+    # Decode URL-encoded path
+    config_path = unquote(config_path)
+    service_id = unquote(service_id)
+    service_name = unquote(service_name)
+
+    try:
+        # Load the config file
+        data = config_svc.load_config(config_path)
+        logger.debug(f"Loaded config from {config_path} for auto-navigation")
+
+        # Update the YAML editor preview
+        editor = _yaml_editor_ref.get("editor")
+        if editor:
+            yaml_str = _yaml.dump(data, default_flow_style=False, sort_keys=False)
+            editor.value = yaml_str
+            _yaml_editor_ref["skip_sync"] = True
+
+        # Parse test index
+        test_index = 0
+        try:
+            test_index = int(test_index_str) if test_index_str else 0
+        except (ValueError, TypeError):
+            test_index = 0
+        test_count = (
+            len(data.get("tests", [])) if isinstance(data.get("tests"), list) else 0
+        )
+        if test_count:
+            test_index = max(0, min(test_index, test_count - 1))
+
+        # Populate forms from loaded data, then open the target test panel
+        panels = _yaml_editor_ref.get("panels")
+        if panels:
+            _populate_forms_from_dict(panels, data)
+            test_editor = panels.get("tests")
+            if test_editor and hasattr(test_editor, "open_test"):
+                test_editor.open_test(test_index)
+            _yaml_editor_ref["skip_sync"] = True
+
+        # Pre-compute values for safe injection into JavaScript template
+        js_config_path = _json.dumps(config_path)
+        js_service_id = _json.dumps(service_id)
+        js_service_name = _json.dumps(service_name)
+        js_service_id_lower = _json.dumps(service_id.lower() if service_id else "")
+        js_service_name_lower = _json.dumps(
+            service_name.lower() if service_name else ""
+        )
+        js_service_display = _json.dumps(service_name)
+        js_test_panel_selector = _json.dumps(f".panther-test-panel-{test_index}")
+        js_service_selector = _json.dumps(
+            f".panther-field-services-entry-{_dom_token(service_id)}"
+        )
+
+        # Scroll to the correct test and service using JavaScript
+        # This runs after a short delay to let the UI fully render
+        # Quasar expansion panels have an aria-expanded attribute and use .q-expansion__container
+        # For reliably opening, we use the value property or click the expansion header
+        js_code = f"""
+            console.log("=== PANTHER Config Builder Navigation ===");
+            console.log("Navigated from topology node click");
+            console.log("Config path:", {js_config_path});
+            console.log("Test index:", {test_index});
+            console.log("Service ID:", {js_service_id});
+            console.log("Service Name:", {js_service_name});
+
+            // Phase 1: the server has already opened the correct test panel.
+            // The browser only scrolls/highlights after Vue/Quasar updates.
+            setTimeout(function() {{
+                var targetExp = document.querySelector({js_test_panel_selector});
+                if (targetExp) {{
+                    var rect = targetExp.getBoundingClientRect();
+                    var scrollTarget = window.scrollY + rect.top - 100;
+                    window.scrollTo({{top: scrollTarget, behavior: 'smooth'}});
+                    console.log("Scrolled to test panel at y:", scrollTarget);
+
+                    // Open nested form sections inside the target test so service rows are reachable.
+                    var nestedHeaders = targetExp.querySelectorAll('.q-expansion__header');
+                    nestedHeaders.forEach(function(header, idx) {{
+                        if (idx === 0) return;  // skip the test panel header itself
+                        var expanded = header.getAttribute('aria-expanded');
+                        var item = header.closest('.q-expansion-item');
+                        var isExpanded = expanded === 'true' ||
+                            (item && item.classList.contains('q-expansion-item--expanded'));
+                        if (!isExpanded) {{
+                            header.click();
+                        }}
+                    }});
+
+                    // Phase 2: After expansion animation completes, find and highlight the service
+                    setTimeout(function() {{
+                        var target = document.querySelector({js_service_selector});
+                        if (!target && {js_service_id}) {{
+                            var allElements = targetExp.querySelectorAll('*:not(script):not(style)');
+                            for (var i = 0; i < allElements.length; i++) {{
+                                var el = allElements[i];
+                                var text = (el.textContent || el.value || '').toLowerCase();
+                                if (text.includes({js_service_id_lower}) || text.includes({js_service_name_lower})) {{
+                                    target = el.closest('.panther-field-services-entry') ||
+                                        el.closest('.q-field') ||
+                                        el.closest('.q-item') ||
+                                        el;
+                                    break;
+                                }}
+                            }}
+                        }}
+
+                        if (target) {{
+                            target.scrollIntoView({{behavior: 'smooth', block: 'center'}});
+                            target.style.backgroundColor = '#fff3cd';
+                            target.style.boxShadow = '0 0 0 2px #ffc107';
+                            target.style.borderRadius = '4px';
+                            target.style.transition = 'background-color 2s, box-shadow 2s';
+                            setTimeout(function() {{
+                                target.style.backgroundColor = '';
+                                target.style.boxShadow = '';
+                            }}, 4000);
+                            console.log("Highlighted service field:", {js_service_id});
+                        }} else {{
+                            // Keep the user at the correct test even if the service row is not rendered.
+                            var rect = targetExp.getBoundingClientRect();
+                            var scrollTarget = window.scrollY + rect.top - 100;
+                            window.scrollTo({{top: scrollTarget, behavior: 'smooth'}});
+                            console.log("Could not find service field for:", {js_service_id_lower});
+                        }}
+                    }}, 700);
+                }} else {{
+                    console.warn("Could not find test panel selector:", {js_test_panel_selector});
+                    var testsContainer = document.querySelector('.panther-test-list');
+                    if (testsContainer) {{
+                        var rect = testsContainer.getBoundingClientRect();
+                        var scrollTarget = window.scrollY + rect.top - 100;
+                        window.scrollTo({{top: scrollTarget, behavior: 'smooth'}});
+                    }}
+                }}
+            }}, 500);
+
+            // Show floating notification in the browser
+            setTimeout(function() {{
+                var navInfo = document.createElement('div');
+                navInfo.id = 'panther-nav-notification';
+                navInfo.style.cssText = 'position:fixed; top:20px; right:20px; z-index:9999; background:#4caf50; color:white; padding:15px 22px; border-radius:8px; box-shadow:0 4px 15px rgba(0,0,0,0.3); font-size:14px; max-width:420px; line-height:1.5;';
+                navInfo.innerHTML = '✓ <b>Navigated from Topology</b><br>Service: <b>{js_service_display}</b><br>Test: <b>#{test_index + 1}</b><br><small style="opacity:0.8">Scroll to the highlighted field above</small>';
+                document.body.appendChild(navInfo);
+                setTimeout(function() {{
+                    var el = document.getElementById('panther-nav-notification');
+                    if (el) el.remove();
+                }}, 8000);
+            }}, 2000);
+        """
+
+        # Use ui.run_javascript for nicegui 1.x/2.x compatibility
+        ui.run_javascript(js_code)
+
+        # Show notification
+        test_display_index = test_index + 1
+        msg = (
+            f"Loaded config from topology: {service_name} → Test #{test_display_index}"
+        )
+        if service_id:
+            msg = f"Loaded config from topology: {service_name} ({service_id}) → Test #{test_display_index}"
+        ui.notify(msg, type="positive", position="top")
+        logger.info("Auto-navigation complete: %s", msg)
+
+    except FileNotFoundError as e:
+        logger.error("Config file not found during auto-navigation: %s", e)
+        ui.notify(f"Config file not found: {config_path}", type="negative")
+    except ValueError as e:
+        logger.error("Error loading config during auto-navigation: %s", e)
+        ui.notify(f"Error loading config: {e}", type="negative")
+    except Exception as e:
+        logger.error("Auto-navigation error: %s", e, exc_info=True)
+        ui.notify(f"Navigation error: {e}", type="negative")
