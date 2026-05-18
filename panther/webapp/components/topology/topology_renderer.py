@@ -154,7 +154,9 @@ class TopologyRenderer:
         )
 
     def _build_echarts_options(
-        self, test_data: Dict[str, Any], scaling: Dict[str, float]
+        self,
+        test_data: Dict[str, Any],
+        scaling: Dict[str, float],
     ) -> Dict[str, Any]:
         """Build ECharts configuration options."""
         nodes = test_data["nodes"]
@@ -168,7 +170,10 @@ class TopologyRenderer:
             scaled_nodes.append(scaled_node)
 
         return {
-            "tooltip": {"trigger": "item", "formatter": "{c}"},
+            "tooltip": {
+                "trigger": "item",
+                ":formatter": "(params) => params.data && params.data.tooltip ? params.data.tooltip : (params.name || '')",
+            },
             "animation": True,
             "animationDuration": 500,
             "animationEasingUpdate": "quinticInOut",

@@ -1,4 +1,5 @@
 """Plugins page -- card-based browser for discovering and inspecting plugins.
+   Includes search result highlighting.
 
 Presents PANTHER (Protocol ANalysis and Testing Harness for Extensible
 Research) plugins in a filterable card grid.

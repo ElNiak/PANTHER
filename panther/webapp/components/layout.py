@@ -56,6 +56,21 @@ def create_layout(page_title: str = "PANTHER"):
     observer = experiment_svc.web_observer
 
     ui.colors(primary="#1a237e", secondary="#283593", accent="#536dfe")
+    ui.add_head_html(
+        """
+        <style>
+        .panther-highlight {
+            background-color: #fff3cd;
+            border-radius: 2px;
+            font-weight: 600;
+            padding: 0 2px;
+        }
+        .panther-inline-status {
+            min-height: 1.25rem;
+        }
+        </style>
+        """
+    )
 
     with ui.header().classes("items-center justify-between bg-primary"):
         with ui.row().classes("items-center gap-4"):
