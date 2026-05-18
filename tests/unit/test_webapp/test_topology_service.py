@@ -136,3 +136,148 @@ def test_per_test_isolation_keeps_indexes(topology_2_service, topology_3_service
 
     assert len(first["edges"]) == 1
     assert len(second["edges"]) == 2
+
+
+@pytest.mark.unit
+def test_empty_config_creates_empty_aggregated_graph():
+    service = TopologyService()
+
+    graph = service.parse_config_to_graph({"tests": []})
+
+    assert graph["tests"] == []
+    assert graph["aggregated"]["total_tests"] == 0
+    assert graph["aggregated"]["unique_services"] == 0
+    assert graph["aggregated"]["unique_connections"] == 0
+    assert graph["aggregated"]["nodes"] == []
+    assert graph["aggregated"]["edges"] == []
+    assert graph["aggregated"]["network_types"] == []
+
+
+@pytest.mark.unit
+def test_multiple_clients_targeting_one_server_create_multiple_edges(
+    topology_2_service,
+):
+    service = TopologyService()
+    test_config = {
+        **topology_2_service,
+        "services": {
+            **topology_2_service["services"],
+            "ivy_tester": {
+                "implementation": {"name": "ivy", "type": "testers"},
+                "protocol": {
+                    "name": "quic",
+                    "version": "rfc9000",
+                    "role": "client",
+                    "target": "picoquic_server",
+                },
+            },
+        },
+    }
+
+    graph = service.parse_config_to_graph(_experiment_from_tests(test_config))
+    edges = graph["tests"][0]["edges"]
+
+    assert {(edge["source"], edge["target"]) for edge in edges} == {
+        ("picoquic_client", "picoquic_server"),
+        ("ivy_tester", "picoquic_server"),
+    }
+
+
+@pytest.mark.unit
+def test_shadow_network_group_extracts_environment_metadata(topology_2_service):
+    service = TopologyService()
+    shadow_test = {
+        **topology_2_service,
+        "network_environment": {
+            "type": "shadow_ns",
+            "network": {
+                "latency": "20ms",
+                "jitter": "5ms",
+                "packet_loss": "0.1",
+            },
+            "general": {"stop_time": "30s"},
+        },
+    }
+
+    graph = service.parse_config_to_graph(_experiment_from_tests(shadow_test))
+    group = graph["tests"][0]["group"]
+
+    assert group == {
+        "type": "shadow_ns",
+        "properties": {
+            "latency": "20ms",
+            "jitter": "5ms",
+            "packet_loss": "0.1",
+            "stop_time": "30s",
+        },
+    }
+
+
+@pytest.mark.unit
+def test_node_size_scales_with_ports_and_caps_at_seventy(topology_2_service):
+    service = TopologyService()
+    base_service = topology_2_service["services"]["picoquic_server"]
+
+    assert service._calculate_node_size({**base_service, "ports": []}) == 40
+    assert service._calculate_node_size({**base_service, "ports": [1, 2, 3]}) == 49
+    assert (
+        service._calculate_node_size({**base_service, "ports": list(range(20))}) == 70
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("node_count", "expected"),
+    [
+        (4, {"node_scale": 1.2, "label_font": 14, "edge_width": 2.5}),
+        (8, {"node_scale": 1.0, "label_font": 12, "edge_width": 2.0}),
+        (12, {"node_scale": 0.85, "label_font": 11, "edge_width": 1.5}),
+        (13, {"node_scale": 0.7, "label_font": 10, "edge_width": 1.0}),
+    ],
+)
+def test_scaling_thresholds(node_count, expected):
+    service = TopologyService()
+
+    assert service.get_scaling_factors(node_count) == expected
+
+
+@pytest.mark.unit
+def test_missing_optional_fields_use_stable_defaults():
+    service = TopologyService()
+    graph = service.parse_config_to_graph(
+        _experiment_from_tests({"services": {"minimal": {}}})
+    )
+    test_graph = graph["tests"][0]
+    node = test_graph["nodes"][0]
+
+    assert test_graph["name"] == "Test 1"
+    assert test_graph["network_type"] == "unknown"
+    assert test_graph["iterations"] == 1
+    assert test_graph["execution_environment"] == []
+    assert node["id"] == "minimal"
+    assert node["name"] == "minimal"
+    assert node["category"] == "default"
+    assert node["role"] == "unknown"
+    assert node["symbol"] == "circle"
+    assert node["itemStyle"]["color"] == TopologyService.NODE_COLORS["default"]
+
+
+@pytest.mark.unit
+def test_lowercase_implementation_types_are_normalized_to_documented_categories(
+    topology_3_service,
+):
+    service = TopologyService()
+
+    graph = service.parse_config_to_graph(_experiment_from_tests(topology_3_service))
+    nodes_by_id = {node["id"]: node for node in graph["tests"][0]["nodes"]}
+
+    assert nodes_by_id["picoquic_server"]["category"] == "IUT"
+    assert (
+        nodes_by_id["picoquic_server"]["itemStyle"]["color"]
+        == TopologyService.NODE_COLORS["IUT"]
+    )
+    assert nodes_by_id["ivy_tester"]["category"] == "TESTERS"
+    assert (
+        nodes_by_id["ivy_tester"]["itemStyle"]["color"]
+        == TopologyService.NODE_COLORS["TESTERS"]
+    )

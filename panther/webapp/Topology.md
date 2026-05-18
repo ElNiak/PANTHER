@@ -260,30 +260,54 @@ Native NiceGUI implementation for visualizing experiment configuration topologie
 
 ## Testing
 
-### New Topology Tests
+### Topology Test Suite
 
 1. `tests/unit/test_webapp/test_topology_service.py`
-   - Verifies YAML -> graph transformation behavior:
+   - Verifies YAML -> graph transformation behavior and topology metadata:
      - server-only node creation
      - server+client node + directed edge extraction
+     - multiple clients targeting one server
      - no edge when `target` does not exist
+     - empty config behavior (`tests: []`)
      - aggregated deduplication (`test_count`, edge `count`, merged network and execution environments)
      - per-test graph isolation and stable test indexes
+     - shadow network metadata extraction (`latency`, `jitter`, `packet_loss`, `stop_time`)
+     - node sizing rules and hard cap
+     - scaling thresholds (4 / 8 / 12 / 13+ nodes)
+     - default fallbacks for missing optional fields
+     - category normalization (`iut`/`testers` -> `IUT`/`TESTERS`)
 
 2. `tests/unit/test_webapp/test_topology_renderer_navigation.py`
-   - Verifies node-click navigation logic:
+   - Verifies renderer behavior and node-click navigation logic:
      - aggregated click stores first matching test index
      - per-test click uses explicit test index override
      - unknown aggregated service defaults to test index `0`
+     - navigation query parameters are URL-encoded correctly
+     - aggregated display labels are sanitized before navigation state is stored
+     - dict-style event payload compatibility
+     - ECharts option generation and scaling behavior
+     - edge label suppression on dense graphs
      - validates required `topology_nav` fields:
        `config_path`, `test_index`, `service_id`, `service_name`, `source`
 
-### How To Run
+### Commands (Topology Only)
 
-1. Fast topology unit checks:
+1. Run the topology test suite:
    ```bash
    .venv/bin/pytest tests/unit/test_webapp/test_topology_service.py tests/unit/test_webapp/test_topology_renderer_navigation.py -q -c pyproject.toml -n0 --no-cov
    ```
+
+2. Show collected topology tests:
+   ```bash
+   .venv/bin/pytest tests/unit/test_webapp/test_topology_service.py tests/unit/test_webapp/test_topology_renderer_navigation.py --collect-only -q -c pyproject.toml -n0 --no-cov
+   ```
+
+### Avoiding Common Errors
+
+- Use `.venv/bin/pytest` so the same virtual environment is used as the project.
+- Keep topology validation scoped to the two files above to avoid unrelated webapp failures.
+- Use `--no-cov` for quick, stable local checks when you only need pass/fail status.
+- Browser/Selenium integration tests are intentionally excluded from the topology suite because they require additional host dependencies (Chrome/ChromeDriver/system libraries) and often fail in restricted environments.
 
 ---
 

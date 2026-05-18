@@ -71,7 +71,9 @@ def _dom_token(value: Any) -> str:
     return token.lower() or "unnamed"
 
 
-def _populate_forms_from_dict(panels: dict[str, Any], config_dict: dict) -> None:
+def _populate_forms_from_dict(
+    panels: dict[str, Any], config_dict: dict, open_test_index: int | None = None
+) -> None:
     """Populate all form panels from a parsed config dict.
 
     Walks the three panel groups (``global``, ``tests``, ``metadata``)
@@ -85,6 +87,8 @@ def _populate_forms_from_dict(panels: dict[str, Any], config_dict: dict) -> None
         config_dict: A parsed experiment configuration dictionary,
             typically the output of ``yaml.safe_load()`` or
             ``ConfigService.yaml_to_dict()``.
+        open_test_index: Optional test panel to open while rebuilding
+            the test editor.
     """
     # Global sections
     for field_name, panel in panels.get("global", {}).items():
@@ -96,7 +100,9 @@ def _populate_forms_from_dict(panels: dict[str, Any], config_dict: dict) -> None
     tests = config_dict.get("tests")
     test_editor = panels.get("tests")
     if tests and isinstance(tests, list) and test_editor:
-        test_editor.set_value([t for t in tests if isinstance(t, dict)])
+        test_editor.set_value(
+            [t for t in tests if isinstance(t, dict)], open_index=open_test_index
+        )
 
     # Metadata
     meta = config_dict.get("metadata")
@@ -717,7 +723,7 @@ def _auto_navigate_from_topology(
         # Populate forms from loaded data, then open the target test panel
         panels = _yaml_editor_ref.get("panels")
         if panels:
-            _populate_forms_from_dict(panels, data)
+            _populate_forms_from_dict(panels, data, open_test_index=test_index)
             test_editor = panels.get("tests")
             if test_editor and hasattr(test_editor, "open_test"):
                 test_editor.open_test(test_index)
@@ -772,43 +778,86 @@ def _auto_navigate_from_topology(
                         }}
                     }});
 
-                    // Phase 2: After expansion animation completes, find and highlight the service
-                    setTimeout(function() {{
-                        var target = document.querySelector({js_service_selector});
-                        if (!target && {js_service_id}) {{
-                            var allElements = targetExp.querySelectorAll('*:not(script):not(style)');
-                            for (var i = 0; i < allElements.length; i++) {{
-                                var el = allElements[i];
-                                var text = (el.textContent || el.value || '').toLowerCase();
-                                if (text.includes({js_service_id_lower}) || text.includes({js_service_name_lower})) {{
-                                    target = el.closest('.panther-field-services-entry') ||
-                                        el.closest('.q-field') ||
-                                        el.closest('.q-item') ||
-                                        el;
-                                    break;
-                                }}
+                    function expandNestedSections() {{
+                        targetExp.querySelectorAll('.q-expansion__header').forEach(function(header, idx) {{
+                            if (idx === 0) return;
+                            var expanded = header.getAttribute('aria-expanded');
+                            var item = header.closest('.q-expansion-item');
+                            var isExpanded = expanded === 'true' ||
+                                (item && item.classList.contains('q-expansion-item--expanded'));
+                            if (!isExpanded) {{
+                                header.click();
+                            }}
+                        }});
+                    }}
+
+                    function highlightTarget(target) {{
+                        target.scrollIntoView({{behavior: 'smooth', block: 'center'}});
+                        target.style.backgroundColor = '#fff3cd';
+                        target.style.boxShadow = '0 0 0 2px #ffc107';
+                        target.style.borderRadius = '4px';
+                        target.style.transition = 'background-color 2s, box-shadow 2s';
+                        setTimeout(function() {{
+                            target.style.backgroundColor = '';
+                            target.style.boxShadow = '';
+                        }}, 4000);
+                    }}
+
+                    function findFallbackTarget() {{
+                        if (!{js_service_id}) return null;
+                        var allElements = targetExp.querySelectorAll('*:not(script):not(style)');
+                        for (var i = 0; i < allElements.length; i++) {{
+                            var el = allElements[i];
+                            var text = (el.textContent || el.value || '').toLowerCase();
+                            if (text.includes({js_service_id_lower}) || text.includes({js_service_name_lower})) {{
+                                return el.closest('.panther-field-services-entry') ||
+                                    el.closest('.q-field') ||
+                                    el.closest('.q-item') ||
+                                    el;
                             }}
                         }}
+                        return null;
+                    }}
 
-                        if (target) {{
-                            target.scrollIntoView({{behavior: 'smooth', block: 'center'}});
-                            target.style.backgroundColor = '#fff3cd';
-                            target.style.boxShadow = '0 0 0 2px #ffc107';
-                            target.style.borderRadius = '4px';
-                            target.style.transition = 'background-color 2s, box-shadow 2s';
-                            setTimeout(function() {{
-                                target.style.backgroundColor = '';
-                                target.style.boxShadow = '';
-                            }}, 4000);
-                            console.log("Highlighted service field:", {js_service_id});
-                        }} else {{
-                            // Keep the user at the correct test even if the service row is not rendered.
-                            var rect = targetExp.getBoundingClientRect();
-                            var scrollTarget = window.scrollY + rect.top - 100;
-                            window.scrollTo({{top: scrollTarget, behavior: 'smooth'}});
-                            console.log("Could not find service field for:", {js_service_id_lower});
+                    // Phase 2: wait for nested sections and service rows to render, then exact-match the clicked service.
+                    var attempts = 0;
+                    var maxAttempts = 20;
+                    var servicePoll = setInterval(function() {{
+                        attempts += 1;
+                        expandNestedSections();
+
+                        var exactServiceRow = targetExp.querySelector({js_service_selector});
+                        if (exactServiceRow) {{
+                            clearInterval(servicePoll);
+                            highlightTarget(exactServiceRow);
+                            console.log("Highlighted exact service field:", {js_service_id});
+
+                            var editButton = exactServiceRow.querySelector('.panther-entry-edit-button');
+                            if (editButton) {{
+                                setTimeout(function() {{
+                                    editButton.click();
+                                    console.log("Opened edit dialog for exact service:", {js_service_id});
+                                }}, 150);
+                            }} else {{
+                                console.log("Exact service row found, but no edit button was available:", {js_service_id});
+                            }}
+                            return;
                         }}
-                    }}, 700);
+
+                        if (attempts >= maxAttempts) {{
+                            clearInterval(servicePoll);
+                            var fallbackTarget = findFallbackTarget();
+                            if (fallbackTarget) {{
+                                highlightTarget(fallbackTarget);
+                                console.log("Highlighted fallback service field:", {js_service_id});
+                            }} else {{
+                                var rect = targetExp.getBoundingClientRect();
+                                var scrollTarget = window.scrollY + rect.top - 100;
+                                window.scrollTo({{top: scrollTarget, behavior: 'smooth'}});
+                                console.log("Could not find service field for:", {js_service_id_lower});
+                            }}
+                        }}
+                    }}, 250);
                 }} else {{
                     console.warn("Could not find test panel selector:", {js_test_panel_selector});
                     var testsContainer = document.querySelector('.panther-test-list');

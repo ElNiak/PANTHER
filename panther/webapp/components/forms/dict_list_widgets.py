@@ -197,7 +197,9 @@ class KeyedModelEditor:
                     ui.button(
                         icon="edit",
                         on_click=lambda _, k=key: self._open_edit_dialog(k),
-                    ).props("flat dense round size=sm")
+                    ).props("flat dense round size=sm").classes(
+                        "panther-entry-edit-button"
+                    )
                     ui.button(
                         icon="close",
                         on_click=lambda _, k=key: self._remove_entry(k),

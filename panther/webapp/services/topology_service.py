@@ -2,8 +2,9 @@
 Topology Service - Transforms experiment config into graph data model
 for visual topology representation.
 """
+
 import logging
-from typing import Dict, List, Any, Tuple, Optional
+from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
 
@@ -13,21 +14,27 @@ class TopologyService:
 
     # Color coding for different service types
     NODE_COLORS = {
-        "IUT": "#22c55e",      # Green
+        "IUT": "#22c55e",  # Green
         "TESTERS": "#3b82f6",  # Blue
-        "default": "#6b7280"   # Grey
+        "default": "#6b7280",  # Grey
     }
 
     # Symbol codes for ECharts
-    NODE_SHAPES = {
-        "server": "circle",
-        "client": "roundRect"
+    NODE_SHAPES = {"server": "circle", "client": "roundRect"}
+
+    SERVICE_CATEGORIES = {
+        "iut": "IUT",
+        "IUT": "IUT",
+        "testers": "TESTERS",
+        "TESTERS": "TESTERS",
+        "tester": "TESTERS",
+        "TESTER": "TESTERS",
     }
 
     def parse_config_to_graph(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """
         Parse full experiment config into complete graph data structure.
-        
+
         Returns structure compatible with ECharts graph series:
         {
             "tests": [
@@ -58,7 +65,9 @@ class TopologyService:
 
         return result
 
-    def _create_aggregated_view(self, all_tests: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _create_aggregated_view(
+        self, all_tests: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """Create aggregated view combining all services across all tests."""
         unique_services = {}
         unique_connections = {}
@@ -67,7 +76,7 @@ class TopologyService:
         # Collect all unique services and connections
         for test in all_tests:
             network_environments.add(test["network_type"])
-            
+
             for node in test["nodes"]:
                 service_id = node["id"]
                 if service_id not in unique_services:
@@ -81,7 +90,9 @@ class TopologyService:
 
             for env in test["execution_environment"]:
                 for node in test["nodes"]:
-                    unique_services[node["id"]]["execution_envs"].add(env["type"])
+                    unique_services[node["id"]]["execution_envs"].add(
+                        env.get("type", "unknown")
+                    )
 
             for edge in test["edges"]:
                 conn_key = f"{edge['source']}->{edge['target']}"
@@ -94,8 +105,8 @@ class TopologyService:
         # Convert sets to lists for JSON serialization
         nodes = list(unique_services.values())
         for node in nodes:
-            node["networks"] = list(node["networks"])
-            node["execution_envs"] = list(node["execution_envs"])
+            node["networks"] = sorted(node["networks"])
+            node["execution_envs"] = sorted(node["execution_envs"])
             node["name"] = f"{node['name']}\n×{node['test_count']}"
 
         edges = list(unique_connections.values())
@@ -107,13 +118,15 @@ class TopologyService:
             "name": "Full Config Overview",
             "nodes": nodes,
             "edges": edges,
-            "network_types": list(network_environments),
+            "network_types": sorted(network_environments),
             "total_tests": len(all_tests),
             "unique_services": len(nodes),
-            "unique_connections": len(edges)
+            "unique_connections": len(edges),
         }
 
-    def _parse_single_test(self, test: Dict[str, Any], test_index: int) -> Dict[str, Any]:
+    def _parse_single_test(
+        self, test: Dict[str, Any], test_index: int
+    ) -> Dict[str, Any]:
         """Parse a single test case into nodes, edges and groups."""
         services = test.get("services", {})
         network_env = test.get("network_environment", {})
@@ -140,15 +153,19 @@ class TopologyService:
             "group": group,
             "network_type": network_env.get("type", "unknown"),
             "iterations": test.get("iterations", 1),
-            "execution_environment": test.get("execution_environment", [])
+            "execution_environment": test.get("execution_environment", []),
         }
 
-    def _create_node(self, service_id: str, service_data: Dict[str, Any]) -> Dict[str, Any]:
+    def _create_node(
+        self, service_id: str, service_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Create a graph node from service definition."""
         implementation = service_data.get("implementation", {})
         protocol = service_data.get("protocol", {})
 
-        impl_type = implementation.get("type", "default")
+        impl_type = self._normalize_service_category(
+            implementation.get("type", "default")
+        )
         role = protocol.get("role", "unknown")
         protocol_name = protocol.get("name", "")
         protocol_version = protocol.get("version", "")
@@ -164,19 +181,21 @@ class TopologyService:
             "ports": service_data.get("ports", []),
             "has_certificates": service_data.get("generate_new_certificates", False),
             "target": protocol.get("target", None),
-            
             # ECharts specific properties
             "symbolSize": self._calculate_node_size(service_data),
             "itemStyle": {
                 "color": self.NODE_COLORS.get(impl_type, self.NODE_COLORS["default"])
             },
             "symbol": self.NODE_SHAPES.get(role, "circle"),
-            
             # Tooltip content
-            "tooltip": self._build_node_tooltip(service_id, service_data)
+            "tooltip": self._build_node_tooltip(service_id, service_data),
         }
 
         return node
+
+    def _normalize_service_category(self, value: str) -> str:
+        """Return the documented topology category for a service type."""
+        return self.SERVICE_CATEGORIES.get(value, value)
 
     def _extract_connections(self, services: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Extract connection edges between services based on target references."""
@@ -195,12 +214,12 @@ class TopologyService:
                     "protocol_version": protocol.get("version", ""),
                     "lineStyle": {
                         "width": 2 + len(service_data.get("ports", [])),
-                        "curveness": 0.1
+                        "curveness": 0.1,
                     },
                     "label": {
                         "show": True,
-                        "formatter": protocol.get("name", "").upper()
-                    }
+                        "formatter": protocol.get("name", "").upper(),
+                    },
                 }
                 edges.append(edge)
 
@@ -209,11 +228,8 @@ class TopologyService:
     def _create_network_group(self, network_env: Dict[str, Any]) -> Dict[str, Any]:
         """Create network environment group metadata."""
         network_type = network_env.get("type", "unknown")
-        
-        group = {
-            "type": network_type,
-            "properties": {}
-        }
+
+        group = {"type": network_type, "properties": {}}
 
         if network_type == "shadow_ns":
             network = network_env.get("network", {})
@@ -221,7 +237,7 @@ class TopologyService:
                 "latency": network.get("latency"),
                 "jitter": network.get("jitter"),
                 "packet_loss": network.get("packet_loss"),
-                "stop_time": network_env.get("general", {}).get("stop_time")
+                "stop_time": network_env.get("general", {}).get("stop_time"),
             }
 
         return group
@@ -236,7 +252,7 @@ class TopologyService:
         """Build HTML tooltip content for node."""
         impl = data.get("implementation", {})
         proto = data.get("protocol", {})
-        
+
         lines = [
             f"<b>{data.get('name', service_id)}</b>",
             f"Type: {impl.get('type', 'N/A')}",
@@ -244,12 +260,12 @@ class TopologyService:
             f"Protocol: {proto.get('name', 'N/A')} {proto.get('version', '')}",
             f"Role: {proto.get('role', 'N/A')}",
             f"Timeout: {data.get('timeout', 'N/A')}s",
-            f"Ports: {len(data.get('ports', []))}"
+            f"Ports: {len(data.get('ports', []))}",
         ]
 
         if data.get("generate_new_certificates"):
             lines.append("🔒 Certificates enabled")
-            
+
         if proto.get("target"):
             lines.append(f"→ Target: {proto.get('target')}")
 

@@ -47,6 +47,7 @@ class TestListEditor:
         self._test_data: list[dict[str, Any]] = []
         self._forms: list[Any] = []  # PydanticForm instances
         self._expansions: list[Any] = []
+        self._preferred_open_index: int | None = None
         with ui.column().classes("w-full"):
             self._container = ui.column().classes("w-full gap-2 panther-test-list")
             ui.button(
@@ -68,11 +69,24 @@ class TestListEditor:
         if test_idx < len(self._forms):
             self._forms[test_idx].set_field_value(field_name, value)
 
-    def set_value(self, tests: list[dict[str, Any]]) -> None:
+    def set_value(
+        self, tests: list[dict[str, Any]], open_index: int | None = None
+    ) -> None:
         """Load a list of test dicts (e.g. from YAML import/load)."""
+        self.set_open_test_index(open_index)
         self._test_data = list(tests) if tests else []
         self._forms = []
         self._rebuild()
+
+    def set_open_test_index(self, test_idx: int | None) -> None:
+        """Set which test panel should open after the next rebuild."""
+        if test_idx is None:
+            self._preferred_open_index = None
+            return
+        try:
+            self._preferred_open_index = max(0, int(test_idx))
+        except (TypeError, ValueError):
+            self._preferred_open_index = None
 
     def open_test(self, test_idx: int) -> bool:
         """Open the expansion panel for a specific test index."""
@@ -87,6 +101,7 @@ class TestListEditor:
         expansion = self._expansions[test_idx]
         if hasattr(expansion, "open"):
             expansion.open()
+            self.set_open_test_index(test_idx)
             return True
         return False
 
@@ -112,6 +127,10 @@ class TestListEditor:
                     "text-caption text-grey-5 q-py-sm"
                 )
                 return
+
+            open_index = self._preferred_open_index
+            if open_index is None or not 0 <= open_index < len(self._test_data):
+                open_index = 0
 
             for idx, test_data in enumerate(self._test_data):
                 label = self._get_label(idx, test_data)
@@ -149,17 +168,16 @@ class TestListEditor:
                         form.set_value(test_data)
                     self._forms.append(form)
 
-                # Auto-open the first (or only) panel
-                if idx == 0:
+                # Auto-open the requested panel, falling back to the first test.
+                if idx == open_index:
                     exp.open()
 
     def _add_test(self) -> None:
         """Append an empty test and rebuild."""
         self._snapshot()
         self._test_data.append({})
+        self.set_open_test_index(len(self._test_data) - 1)
         self._rebuild()
-        # Open the newly added panel (last one)
-        self._open_last()
 
     def _duplicate_test(self, idx: int) -> None:
         """Deep-copy test at *idx*, append, and rebuild."""
@@ -171,24 +189,19 @@ class TestListEditor:
             if name:
                 cloned["name"] = f"{name} (copy)"
             self._test_data.append(cloned)
+            self.set_open_test_index(len(self._test_data) - 1)
             self._rebuild()
-            self._open_last()
 
     def _remove_test(self, idx: int) -> None:
         """Remove test at *idx* and rebuild."""
         self._snapshot()
         if idx < len(self._test_data):
             self._test_data.pop(idx)
+            if self._test_data:
+                self.set_open_test_index(min(idx, len(self._test_data) - 1))
+            else:
+                self.set_open_test_index(None)
             self._rebuild()
-
-    def _open_last(self) -> None:
-        """Open the last expansion panel (newly added test)."""
-        # The container's children are the expansion panels
-        children = list(self._container)
-        if children:
-            last = children[-1]
-            if hasattr(last, "open"):
-                last.open()
 
     @staticmethod
     def _get_label(idx: int, data: dict[str, Any]) -> str:
