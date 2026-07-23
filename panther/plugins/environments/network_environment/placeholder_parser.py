@@ -1,12 +1,12 @@
-"""
-Placeholder parser for network-aware command resolution.
+"""Placeholder parser for network-aware command resolution.
 
 This module provides functionality to parse and validate network placeholders
-in command templates using the format: @{service:attribute:format}
+in command templates using the format: @{service:attribute[secondary_name]:format}
+The bracketed [secondary_name] segment and the trailing :format are both optional.
 """
 
 import re
-from typing import Dict, List, Set
+from typing import Dict, List, Optional, Set
 
 from panther.config.core.models.network_resolution import (
     NetworkAttribute,
@@ -19,8 +19,15 @@ from panther.core.exceptions import PlaceholderParsingException
 class PlaceholderParser:
     """Parser for network placeholders in command templates."""
 
-    # Regex pattern for matching placeholders: @{service:attribute:format}
-    PLACEHOLDER_PATTERN = re.compile(r"@\{([^:]+):([^:}]+)(?::([^}]+))?\}")
+    # Regex pattern for matching placeholders: @{service:attribute[secondary_name]:format}
+    # ([secondary_name] and :format are optional)
+    PLACEHOLDER_PATTERN = re.compile(
+        r"@\{([^:]+):([^:\[}]+)(?:\[([^\]]+)\])?(?::([^}]+))?\}"
+    )
+    # Group 1: service token
+    # Group 2: attribute token (excluding [ and })
+    # Group 3: optional secondary endpoint name (between [] after attribute)
+    # Group 4: optional format suffix
 
     def __init__(self):
         """Initialize the placeholder parser."""
@@ -28,8 +35,7 @@ class PlaceholderParser:
         self._valid_formats = {fmt.value for fmt in NetworkFormat}
 
     def parse_placeholders(self, command_template: str) -> List[PlaceholderInfo]:
-        """
-        Parse all placeholders from a command template.
+        """Parse all placeholders from a command template.
 
         Args:
             command_template: Command template containing placeholders
@@ -48,11 +54,17 @@ class PlaceholderParser:
             for match in matches:
                 service = match.group(1).strip()
                 attribute = match.group(2).strip()
-                format_type = match.group(3).strip() if match.group(3) else None
+                secondary_name = match.group(3).strip() if match.group(3) else None
+                format_type = match.group(4).strip() if match.group(4) else None
                 raw_placeholder = match.group(0)
 
                 placeholder_info = self._create_placeholder_info(
-                    service, attribute, format_type, raw_placeholder, command_template
+                    service,
+                    attribute,
+                    secondary_name,
+                    format_type,
+                    raw_placeholder,
+                    command_template,
                 )
                 placeholders.append(placeholder_info)
 
@@ -70,16 +82,17 @@ class PlaceholderParser:
         self,
         service: str,
         attribute: str,
-        format_type: str | None,
+        secondary_name: Optional[str],
+        format_type: Optional[str],
         raw_placeholder: str,
         command_template: str,
     ) -> PlaceholderInfo:
-        """
-        Create PlaceholderInfo from parsed components.
+        """Create PlaceholderInfo from parsed components.
 
         Args:
             service: Service name
             attribute: Network attribute
+            secondary_name: Optional secondary endpoint name (from grammar's [name] capture)
             format_type: Format type (optional)
             raw_placeholder: Original placeholder string
             command_template: Full command template
@@ -114,6 +127,7 @@ class PlaceholderParser:
                 format_type=(
                     NetworkFormat(format_type) if format_type else NetworkFormat.STRING
                 ),
+                secondary_name=secondary_name,
                 raw_placeholder=raw_placeholder,
             )
 
@@ -123,8 +137,7 @@ class PlaceholderParser:
             )
 
     def find_placeholder_strings(self, command_template: str) -> List[str]:
-        """
-        Find all placeholder strings in a command template.
+        """Find all placeholder strings in a command template.
 
         Args:
             command_template: Command template to search
@@ -134,13 +147,14 @@ class PlaceholderParser:
         """
         matches = self.PLACEHOLDER_PATTERN.findall(command_template)
         return [
-            f"@{{{service}:{attribute}{':' + fmt if fmt else ''}}}"
-            for service, attribute, fmt in matches
+            f"@{{{service}:{attribute}"
+            f"{f'[{secondary}]' if secondary else ''}"
+            f"{':' + fmt if fmt else ''}}}"
+            for service, attribute, secondary, fmt in matches
         ]
 
     def validate_command_template(self, command_template: str) -> Dict[str, List[str]]:
-        """
-        Validate a command template and return validation results.
+        """Validate a command template and return validation results.
 
         Args:
             command_template: Command template to validate
@@ -159,8 +173,7 @@ class PlaceholderParser:
         return result
 
     def get_required_services(self, command_template: str) -> Set[str]:
-        """
-        Get set of service names required by placeholders in template.
+        """Get set of service names required by placeholders in template.
 
         Args:
             command_template: Command template to analyze
@@ -175,8 +188,7 @@ class PlaceholderParser:
             return set()
 
     def has_placeholders(self, command_template: str) -> bool:
-        """
-        Check if command template contains any placeholders.
+        """Check if command template contains any placeholders.
 
         Args:
             command_template: Command template to check
@@ -189,8 +201,7 @@ class PlaceholderParser:
     def replace_placeholders(
         self, command_template: str, substitutions: Dict[str, str]
     ) -> str:
-        """
-        Replace placeholders in template with provided substitutions.
+        """Replace placeholders in template with provided substitutions.
 
         Args:
             command_template: Command template with placeholders

@@ -22,13 +22,6 @@ from panther.plugins.services.iut.iut_event_mixin import IUTManagerEventMixin
 class QuicheServiceManager(IUTManagerEventMixin, RustQUICServiceManager):
     """Refactored Quiche service manager with minimal code."""
 
-    def __init__(self, *args, global_config=None, **kwargs):
-        """Initialize Quiche service manager with dual plugin config approach."""
-        super().__init__(*args, global_config=global_config, **kwargs)
-
-        # Store global configuration
-        self.global_config = global_config
-
     def _get_implementation_name(self) -> str:
         return "quiche"
 

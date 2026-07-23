@@ -11,9 +11,9 @@ from panther.plugins.services.services_interface import IServiceManager
 
 
 class BaseQUICServiceManager(IImplementationManager, StringRepresentationMixin, ABC):
-    """
-    This class provides common functionality for QUIC protocol implementations,
-    reducing code duplication across different service managers.
+    """Common functionality for QUIC protocol implementations.
+
+    Reduces code duplication across different service managers.
     """
 
     def __init__(
@@ -65,21 +65,17 @@ class BaseQUICServiceManager(IImplementationManager, StringRepresentationMixin, 
             protocol,
             implementation_name,
             event_manager,
-            test_case=test_case,  # Pass test case reference to parent classes
+            emitter_registry=emitter_registry,
+            global_config=global_config,
+            test_case=test_case,
             **kwargs,
         )
-
-        # Store global configuration
-        self.global_config = global_config
         self.protocol_name = "quic"
         self.implementation_name = self._get_implementation_name()
 
         # Handle logger property conflict by using a different attribute name
         # DON'T set self.logger - use _quic_logger instead to avoid conflicts
         self._quic_logger = logging.getLogger(f"{__name__}.{self.implementation_name}")
-
-        # Store emitter registry if provided
-        self.emitter_registry = emitter_registry
 
     @abstractmethod
     def _get_implementation_name(self) -> str:
@@ -125,8 +121,7 @@ class BaseQUICServiceManager(IImplementationManager, StringRepresentationMixin, 
 
     @abstractmethod
     def _get_client_specific_args(self, **kwargs) -> List[str]:
-        """
-        Get implementation-specific client arguments.
+        """Get implementation-specific client arguments.
 
         Args:
             **kwargs: Configuration parameters

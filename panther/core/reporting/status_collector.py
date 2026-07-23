@@ -117,6 +117,8 @@ class ServiceHealthSummary:
     phases_completed: Optional[Dict[str, bool]] = None
     error_summary: Optional[str] = None
     output_completeness: float = 0.0
+    # Retained for JSON serialization (included via asdict in to_dict)
+    # even though no template currently renders it.
     test_name: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:

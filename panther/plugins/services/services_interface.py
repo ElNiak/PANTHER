@@ -116,6 +116,8 @@ class IServiceManager(IPlugin, CommandEventMixin):
         protocol: ProtocolConfig,
         implementation_name: str,
         event_manager: Optional[EventManager] = None,
+        emitter_registry: Optional[Any] = None,
+        global_config: Optional[Any] = None,
         test_case: Optional[
             Any
         ] = None,  # Reference to parent test case for execution environment access
@@ -124,11 +126,10 @@ class IServiceManager(IPlugin, CommandEventMixin):
         CommandEventMixin.__init__(self)  # Initialize the CommandEventMixin
 
         self.available_types = ["TESTERS", "IUT", "testers", "iut"]
-        # Handle both string and enum types
-        if hasattr(service_type, "name"):
-            self.service_type = str(service_type.name)
-        else:
-            self.service_type = str(service_type)
+        # Normalize service_type to string
+        self.service_type = (
+            service_type if isinstance(service_type, str) else service_type.name
+        )
 
         self.service_type_normalized = self.service_type.upper()
 
@@ -140,11 +141,7 @@ class IServiceManager(IPlugin, CommandEventMixin):
         self._plugin_dir = Path(os.path.dirname(__file__))
 
         # Always use lowercase in paths for consistency with directory structure
-        service_type_path = (
-            service_type.lower()
-            if isinstance(service_type, str)
-            else service_type.name.lower()
-        )
+        service_type_path = self.service_type.lower()
 
         if self.service_type_normalized == "TESTERS":
             self.templates_dir = f"{os.path.dirname(__file__)}/{service_type_path}/{implementation_name}/templates/{protocol.name}/"
@@ -178,8 +175,10 @@ class IServiceManager(IPlugin, CommandEventMixin):
         self.jinja_env.trim_blocks = True
         self.jinja_env.lstrip_blocks = True
 
-        # Initialize event manager and emitter if provided
+        # Initialize event manager and emitter
         self.event_manager = event_manager
+        self.emitter_registry = emitter_registry
+        self.global_config = global_config
         if event_manager:
             self.event_emitter = ServiceEventEmitter(event_manager)
             self.service_emitter = self.event_emitter  # For CommandEventMixin
@@ -212,10 +211,7 @@ class IServiceManager(IPlugin, CommandEventMixin):
             "shared_logs:/app/sync_logs",
         ]
 
-        if hasattr(self, "volumes"):
-            self.volumes.extend(volumes)
-        else:
-            self.volumes = volumes
+        self.volumes.extend(volumes)
 
         # Default output patterns for this service
         self._output_patterns = self._get_default_output_patterns()
@@ -502,10 +498,10 @@ class IServiceManager(IPlugin, CommandEventMixin):
         if "run_cmd" in cmd_dict and isinstance(cmd_dict["run_cmd"], dict):
             if "command_args" in cmd_dict["run_cmd"]:
                 if isinstance(cmd_dict["run_cmd"]["command_args"], str):
-                    cmd_dict["run_cmd"][
-                        "command_args"
-                    ] = self._resolve_environment_variables(
-                        cmd_dict["run_cmd"]["command_args"]
+                    cmd_dict["run_cmd"]["command_args"] = (
+                        self._resolve_environment_variables(
+                            cmd_dict["run_cmd"]["command_args"]
+                        )
                     )
                 elif isinstance(cmd_dict["run_cmd"]["command_args"], list):
                     cmd_dict["run_cmd"]["command_args"] = [
@@ -521,9 +517,9 @@ class IServiceManager(IPlugin, CommandEventMixin):
             if "environment" in cmd_dict["run_cmd"]:
                 for key, value in cmd_dict["run_cmd"]["environment"].items():
                     if isinstance(value, str):
-                        cmd_dict["run_cmd"]["environment"][
-                            key
-                        ] = self._resolve_environment_variables(value)
+                        cmd_dict["run_cmd"]["environment"][key] = (
+                            self._resolve_environment_variables(value)
+                        )
 
         return cmd_dict
 

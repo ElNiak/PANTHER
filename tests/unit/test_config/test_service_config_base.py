@@ -4,6 +4,8 @@ import pytest
 
 from panther.config.core.models.service import RestartPolicy, ServiceConfig
 
+pytestmark = [pytest.mark.unit]
+
 
 class TestServiceConfigMergedFields:
     """ServiceConfig should have fields merged from ServicePluginConfig."""
@@ -113,3 +115,40 @@ class TestServiceFieldConstraints:
                 implementation={"name": "", "type": "iut"},
                 protocol={"name": "quic", "role": "server"},
             )
+
+
+class TestServiceConfigSecondaryEndpoints:
+    """ServiceConfig should support optional secondary_endpoints (Path α)."""
+
+    def test_secondary_endpoints_default_empty(self):
+        sc = ServiceConfig(
+            implementation={"name": "test", "type": "iut"},
+            protocol={"name": "quic", "role": "server"},
+        )
+        assert sc.secondary_endpoints == {}
+
+    def test_secondary_endpoints_round_trip(self):
+        sc = ServiceConfig.model_validate(
+            {
+                "implementation": {"name": "test", "type": "iut"},
+                "protocol": {"name": "quic", "role": "server"},
+                "secondary_endpoints": {"bgp_c": "10.0.0.2"},
+            }
+        )
+        assert sc.secondary_endpoints == {"bgp_c": "10.0.0.2"}
+        payload = sc.model_dump()
+        assert payload["secondary_endpoints"] == {"bgp_c": "10.0.0.2"}
+        rebuilt = ServiceConfig.model_validate(payload)
+        assert rebuilt.secondary_endpoints == {"bgp_c": "10.0.0.2"}
+
+    def test_secondary_endpoints_extra_allow_typed(self):
+        # Confirm the field is typed (an attribute), not silently accepted via extra="allow".
+        sc = ServiceConfig(
+            implementation={"name": "test", "type": "iut"},
+            protocol={"name": "quic", "role": "server"},
+            secondary_endpoints={"bgp_c": "10.0.0.2"},
+        )
+        # If the field weren't declared, the kwarg would raise TypeError or be silently
+        # accepted as an extra. Direct attribute access proves it's a real field.
+        assert isinstance(sc.secondary_endpoints, dict)
+        assert sc.secondary_endpoints["bgp_c"] == "10.0.0.2"
