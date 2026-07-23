@@ -130,7 +130,7 @@ results to `outputs/`.
 >  "Alternative Test Configuration"
 > You can also test with built-in examples:
 > ```bash
-> panther run --config experiment-config/experiment_config_example.yaml
+> panther run --config experiment-config/base/experiment_config_example.yaml
 > ```
 
 ---
@@ -176,10 +176,10 @@ outputs/
 | **Use Shadow NS**         | `network_environment.type: shadow_ns` + `topology`, `duration`. |
 | **Add formal testing**    | Add tester: `name: panther_ivy`, `test: quic_server_stream`.    |
 | **Single-container mode** | `network_environment.type: localhost_single_container`.         |
-| **Create a new plugin**   | See the [Plugin Development Guide](panther/plugins/__init__.py) or run `panther --create-plugin <type> <name>`. |
+| **Create a new plugin**   | See the [Plugin Development Guide](panther/plugins/__init__.py) or run `panther create plugin <type> <name>`. |
 | **Enable telemetry**     | Check the Metrics Guide for performance data. |
 
 
 Enjoy experimenting—whether with QUIC **or any protocol you plug in**!
 
-Check the existing tests configuration at `experiment-config/*.yml` !
+Check the existing tests configuration at `experiment-config/**/*.yaml` !

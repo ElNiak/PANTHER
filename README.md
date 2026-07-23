@@ -34,7 +34,7 @@ PANTHER is a **plugin‑based, research‑grade test harness** that lets you des
 ---
 
 > [!WARNING]
-> CLI and core being refactored, some deadcode and legacy or unimplemented code remains. Also lit of shit I need to removed due to bad decision in the past. OMW.
+> The CLI and core are being refactored; some dead code and legacy or unimplemented code remains and is being progressively removed.
 
 > [!WARNING]
 > ARM still need some works, Z3 generate maths errors and docker modules is being refactored in consequences (thus introducing potencial bugs)
@@ -91,12 +91,6 @@ For detailed workflow documentation, see [workflow.md](workflow.md).
 | Docker Compose | v2.x     | Bundled with Docker Desktop; may need separate install on Linux |
 
 `pyproject.toml` is the source of truth for all Python dependencies.
-
-> [!NOTE]
->  (TODO) We propose to install [`slim`](https://github.com/slimtoolkit/slim) in our builder, fasten container size.
-
-> [!WARNING]
-> I tried but it seems that it is not as straight forward as it seems, need more research before using that.
 
 ---
 

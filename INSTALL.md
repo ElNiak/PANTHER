@@ -83,7 +83,6 @@ For development work, we **highly recommend** using the included Python builder 
 # After cloning and setting up your environment:
 python panther_builder.py package-dev    # Install in development mode
 python panther_builder.py docs           # Build documentation
-python panther_builder.py check          # Run code quality checks
 python panther_builder.py clean          # Clean build artifacts
 ```
 
@@ -92,7 +91,7 @@ More details with:
 # (.venv)
 python panther_builder.py --help         # See all available commands
 usage: panther_builder.py [-h] [-v]
-                          [{package,package-dev,package-test,clean,install-local,docs,serve-docs,deploy-docs,check,zip-outputs,remove-images-all,remove-images-services,remove-system-all,remove-system-services,remove-volume,help}]
+                          [{package,package-dev,package-test,clean,install-local,docs,serve-docs,deploy-docs,zip-outputs,help}]
 ```
 
 With output similar to:
@@ -100,7 +99,7 @@ With output similar to:
 PANTHER Build Script - A portable Python-based build system
 
 positional arguments:
-  {package,package-dev,package-test,clean,install-local,docs,serve-docs,deploy-docs,check,zip-outputs,remove-images-all,remove-images-services,remove-system-all,remove-system-services,remove-volume,help}
+  {package,package-dev,package-test,clean,install-local,docs,serve-docs,deploy-docs,zip-outputs,help}
                         Command to execute
 
 options:
@@ -114,9 +113,7 @@ Examples:
     python panther_builder.py docs              # Build documentation
     python panther_builder.py serve-docs        # Serve documentation locally
     python panther_builder.py deploy-docs       # Deploy documentation to GitHub Pages
-    python panther_builder.py check             # Run code quality checks
     python panther_builder.py zip-outputs       # Archive outputs directory
-    python panther_builder.py remove-images-all # Remove all Docker images with 'panther'
 ```
 
 #### B.2.b - Manually
@@ -134,7 +131,7 @@ pip install --no-cache -e .
 # For installation with specific extras
 pip install --no-cache -e ".[tests]"  # Install with testing dependencies
 pip install --no-cache -e ".[lint]"   # Install with linting dependencies
-pip install --no-cache -e ".[doc]"    # Install with documentation dependencies (Python 3.8)
+pip install --no-cache -e ".[doc]"    # Install with documentation dependencies
 
 # Install with multiple extras (For Mac you might want --prefer-binary)
 pip install --no-cache -e ".[tests,lint,doc]"
@@ -201,7 +198,7 @@ panther --help
 
 ## License
 
-PANTHER is licensed under MIT. See the LICENSE file for more details.
+PANTHER is licensed under MIT. See the LICENSE.md file for more details.
 
 ## Next Steps
 
