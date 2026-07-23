@@ -1,3 +1,5 @@
+"""Interface for tester service managers."""
+
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
 
@@ -8,8 +10,7 @@ from panther.plugins.services.services_interface import IServiceManager
 
 
 class ITesterManager(IServiceManager, ABC):
-    """
-    Interface for tester service managers.
+    """Interface for tester service managers.
 
     Extends ServiceBase (which already includes TesterManagerEventMixin) with standardized
     test run reporting and monitoring capabilities.
@@ -25,7 +26,9 @@ class ITesterManager(IServiceManager, ABC):
         test_case: Optional[
             Any
         ] = None,  # Reference to parent test case for execution environment access
+        **kwargs,
     ):
+        """Initialize tester manager with service config and protocol."""
         super().__init__(
             service_config_to_test,
             service_type,
@@ -33,6 +36,7 @@ class ITesterManager(IServiceManager, ABC):
             implementation_name,
             event_manager,
             test_case=test_case,
+            **kwargs,
         )
         self._status = {
             "state": "created",
@@ -42,8 +46,7 @@ class ITesterManager(IServiceManager, ABC):
         self.collected_outputs = {}
 
     def is_tester(self) -> bool:
-        """
-        Check if this service manager is a tester.
+        """Check if this service manager is a tester.
 
         Returns:
             bool: True if this is a tester service manager, False otherwise.
@@ -51,8 +54,7 @@ class ITesterManager(IServiceManager, ABC):
         return True
 
     def run_tests(self):
-        """
-        Run tests with proper event notifications.
+        """Run tests with proper event notifications.
 
         Returns:
             Dict: Test results
@@ -94,8 +96,7 @@ class ITesterManager(IServiceManager, ABC):
 
     @abstractmethod
     def _do_run_tests(self):
-        """
-        Actual implementation of test running, to be overridden by subclasses.
+        """Actual implementation of test running, to be overridden by subclasses.
 
         Returns:
             Dict: Test results containing at minimum a 'success' key with boolean value
@@ -104,8 +105,7 @@ class ITesterManager(IServiceManager, ABC):
 
     @abstractmethod
     def set_collected_outputs(self, outputs: Dict[str, Dict[str, str]]) -> None:
-        """
-        Set the outputs collected from execution environments for analysis.
+        """Set the outputs collected from execution environments for analysis.
 
         Args:
             outputs: Dictionary organized by output type, then by environment
@@ -118,8 +118,7 @@ class ITesterManager(IServiceManager, ABC):
 
     @abstractmethod
     def analyze_outputs(self) -> Dict[str, Any]:
-        """
-        Analyze the collected outputs from execution environments.
+        """Analyze the collected outputs from execution environments.
 
         This method should examine the outputs provided via set_collected_outputs()
         and perform tester-specific analysis to determine test outcomes.
@@ -136,8 +135,7 @@ class ITesterManager(IServiceManager, ABC):
 
     @abstractmethod
     def get_test_results(self) -> Dict[str, Any]:
-        """
-        Get the final test results after analysis.
+        """Get the final test results after analysis.
 
         This method should return the results of both the test execution
         and the analysis of collected outputs.

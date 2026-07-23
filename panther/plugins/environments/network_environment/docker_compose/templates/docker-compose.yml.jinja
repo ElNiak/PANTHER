@@ -58,6 +58,7 @@ services:
       ZRTT_SSLKEYLOG_FILE: "/app/logs/zrtt_sslkeylogfile.txt"
       UID: "${UID}"
       GID: "${GID}"
+      AUX_NETWORK_SUBNET: "{{ additional_param.aux_network_subnet }}"
       {% for key, value in service.environments.items() %}
       {{ key }}: "{{ value }}"
       {% endfor %}
@@ -110,6 +111,13 @@ services:
       panther_network:
         aliases:
           - {{ service.service_name  }}
+      {# Path α single-IP design: only the first secondary_endpoint value is materialized. #}
+      {# Multi-endpoint support is pending; the docker_compose plugin enforces #}
+      {# `len(secondary_endpoints) <= 1` per service via a runtime guard. #}
+      {% if service.service_config_to_test.secondary_endpoints %}
+      {{ additional_param.aux_network_name }}:
+        ipv4_address: "{{ (service.service_config_to_test.secondary_endpoints.values() | list)[0] }}"
+      {% endif %}
     # Simple health check: container is running
     healthcheck:
       test: ["CMD", "true"]
@@ -122,6 +130,13 @@ services:
 networks:
   panther_network:
     driver: bridge
+  {% if additional_param.any_service_has_secondary_endpoints %}
+  {{ additional_param.aux_network_name }}:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: {{ additional_param.aux_network_subnet }}
+  {% endif %}
 
 
 volumes:

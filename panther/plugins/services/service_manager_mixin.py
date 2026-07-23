@@ -96,11 +96,9 @@ class ServiceManagerMixin(LoggerMixin):
     MRO: Base mixin. Used by: IUTServiceManagerMixin, TesterServiceManagerMixin
     """
 
-    def __init__(self, *args, global_config=None, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # Store global configuration
-        self.global_config = global_config
         self._commands_initialized = False
         self._run_cmd = None
 

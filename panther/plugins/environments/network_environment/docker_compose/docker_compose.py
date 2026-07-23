@@ -26,6 +26,9 @@ from panther.plugins.core.structures.plugin_type import PluginType
 from panther.plugins.environments.network_environment.base_network_environment import (
     BaseNetworkEnvironment,
 )
+from panther.plugins.environments.network_environment.docker_compose.config_schema import (
+    AuxiliaryNetworkConfig,
+)
 from panther.plugins.environments.network_environment.docker_compose.docker_compose_command_adapter import (
     DockerComposeCommandAdapter,
 )
@@ -316,12 +319,53 @@ class DockerComposeEnvironment(
                     else None
                 ),
                 "computed_target_platform": computed_target_platform,
+                **self._auxiliary_network_render_context(services_with_container_names),
             },
         )
 
         self.logger.info(
             f"Generated Docker Compose file: {self.rendered_services_network_config_file_path}"
         )
+
+    def _auxiliary_network_render_context(
+        self, services_with_container_names: List[Any]
+    ) -> Dict[str, Any]:
+        """Build the auxiliary-network slice of the Jinja render context.
+
+        Single source of truth for `aux_network_name` / `aux_network_subnet`:
+        falls back to `AuxiliaryNetworkConfig()` defaults so any change to
+        those defaults in `config_schema.py` propagates here automatically.
+
+        Also enforces the Path α single-secondary-IP-per-service constraint:
+        the Jinja template renders only the first secondary endpoint via
+        `(values | list)[0]`, so a service declaring more than one would
+        silently lose data. Multi-endpoint support is pending.
+        """
+        for svc in services_with_container_names:
+            secondary = (
+                getattr(svc.service_config_to_test, "secondary_endpoints", None) or {}
+            )
+            if len(secondary) > 1:
+                raise ValueError(
+                    f"Service {svc.service_name!r} declares "
+                    f"{len(secondary)} secondary_endpoints "
+                    f"({sorted(secondary.keys())}); the docker_compose plugin "
+                    f"currently materializes at most one. Path α single-IP "
+                    f"design choice; multi-endpoint support pending."
+                )
+
+        aux_cfg: AuxiliaryNetworkConfig = (
+            getattr(self.env_config_to_test, "auxiliary_network", None)
+            or AuxiliaryNetworkConfig()
+        )
+        return {
+            "aux_network_name": aux_cfg.name,
+            "aux_network_subnet": aux_cfg.subnet,
+            "any_service_has_secondary_endpoints": any(
+                bool(getattr(s.service_config_to_test, "secondary_endpoints", None))
+                for s in services_with_container_names
+            ),
+        }
 
     def setup_execution_plugins_for_service(
         self, service: IServiceManager, timestamp: str

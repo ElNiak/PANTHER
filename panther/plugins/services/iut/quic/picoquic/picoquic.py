@@ -68,13 +68,12 @@ class PicoquicServiceManager(
 
     def __init__(
         self,
-        service_config_to_test: ServiceConfig,  # Accept both ServiceConfig and PicoquicConfig
-        service_type: Any,  # Can be string or ImplementationType enum
+        service_config_to_test: ServiceConfig,
+        service_type: Any,
         protocol: ProtocolConfig,
         implementation_name: str,
         event_manager=None,
-        global_config=None,
-        test_case=None,  # Reference to parent test case for execution environment access
+        test_case=None,
         **kwargs,
     ):
         """Initialize the PicoQUIC service manager.
@@ -85,26 +84,18 @@ class PicoquicServiceManager(
             protocol: Protocol configuration
             implementation_name: Implementation name (picoquic)
             event_manager: Event manager for monitoring
-            global_config: Global configuration
             test_case: Reference to parent test case
             **kwargs: Additional keyword arguments
         """
-        # Extract emitter_registry from kwargs if present
-        emitter_registry = kwargs.pop("emitter_registry", None)
-
-        # Store original service config for compatibility
         self._original_service_config = service_config_to_test
 
-        # Initialize base class with proper parameters
         super().__init__(
             service_config_to_test=service_config_to_test,
             service_type=service_type,
             protocol=protocol,
             implementation_name=implementation_name,
             event_manager=event_manager,
-            emitter_registry=emitter_registry,
-            global_config=global_config,
-            test_case=test_case,  # Pass test case reference for execution environment access
+            test_case=test_case,
             **kwargs,
         )
 
