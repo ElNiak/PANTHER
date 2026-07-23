@@ -33,10 +33,6 @@ class QuantServiceManager(
 ):
     """Refactored Quant service manager with minimal code."""
 
-    def __init__(self, *args, global_config=None, **kwargs):
-        """Initialize Quant service manager with dual plugin config approach."""
-        super().__init__(*args, global_config=global_config, **kwargs)
-
     def _get_implementation_name(self) -> str:
         return "quant"
 

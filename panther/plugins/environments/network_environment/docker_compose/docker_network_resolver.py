@@ -1,10 +1,10 @@
-"""
-Docker Compose network resolver for network-aware command resolution.
+"""Docker Compose network resolver for network-aware command resolution.
 
 This module provides Docker Compose-specific implementation of network
 placeholder resolution using Docker DNS and runtime hostname resolution.
 """
 
+import ipaddress
 from typing import Dict
 
 from panther.config.core.models.network_resolution import (
@@ -33,12 +33,14 @@ class DockerComposeNetworkResolver(BaseNetworkResolver):
     def _generate_resolved_value(
         self, placeholder: PlaceholderInfo, service_info: NetworkServiceInfo
     ) -> str:
-        """
-        Generate resolved value for Docker Compose environment.
+        """Generate resolved value for Docker Compose environment.
 
         Docker Compose strategy:
-        - Use $(resolve_hostname service_name format) for runtime resolution
-        - This delegates to the entrypoint.sh script's resolve_hostname function
+        - Primary IPs: use $(resolve_hostname service_name format) for runtime
+          resolution by the entrypoint.sh script.
+        - Secondary endpoints (Path α): inline the statically-assigned IP
+          directly because docker-compose materializes them at compose-time
+          via ipv4_address on the auxiliary network.
 
         Args:
             placeholder: Placeholder information
@@ -47,6 +49,24 @@ class DockerComposeNetworkResolver(BaseNetworkResolver):
         Returns:
             Resolved value string
         """
+        # Path α short-circuit: secondary endpoints get statically-inlined IPs.
+        if placeholder.secondary_name is not None:
+            ip = service_info.secondary_endpoints.get(placeholder.secondary_name)
+            if ip is None:
+                # Graceful degrade: tests that don't reference the secondary
+                # endpoint receive a sentinel 0.0.0.0; tests that DO reference
+                # it will fail loudly at runtime when binding/connecting.
+                self.logger.warning(
+                    "Secondary endpoint %r not configured for service %r; "
+                    "using sentinel 0.0.0.0. Benign for tests that don't "
+                    "reference the endpoint; tests that do will fail at "
+                    "bind/connect time.",
+                    placeholder.secondary_name,
+                    service_info.service_name,
+                )
+                return self._format_ip("0.0.0.0", placeholder.format_type)
+            return self._format_ip(ip, placeholder.format_type)
+
         service_name = service_info.service_name
 
         if placeholder.attribute == NetworkAttribute.IP:
@@ -54,8 +74,9 @@ class DockerComposeNetworkResolver(BaseNetworkResolver):
                 return f"$(resolve_hostname {service_name} decimal)"
             elif placeholder.format_type == NetworkFormat.DOTTED:
                 return f"$(resolve_hostname {service_name} dotted)"
+            elif placeholder.format_type == NetworkFormat.HEX:
+                return f"$(resolve_hostname {service_name} hex)"
             else:
-                # Default to dotted notation for IP
                 return f"$(resolve_hostname {service_name} dotted)"
 
         elif placeholder.attribute == NetworkAttribute.HOSTNAME:
@@ -84,8 +105,7 @@ class DockerComposeNetworkResolver(BaseNetworkResolver):
     def get_service_ip(
         self, service_name: str, context: NetworkResolutionContext
     ) -> str:
-        """
-        Get IP address for a service in Docker Compose environment.
+        """Get IP address for a service in Docker Compose environment.
 
         Args:
             service_name: Name of the service
@@ -100,8 +120,7 @@ class DockerComposeNetworkResolver(BaseNetworkResolver):
     def get_service_info(
         self, service_name: str, context: NetworkResolutionContext
     ) -> NetworkServiceInfo:
-        """
-        Get service information for Docker Compose service.
+        """Get service information for Docker Compose service.
 
         Args:
             service_name: Name of the service
@@ -127,8 +146,7 @@ class DockerComposeNetworkResolver(BaseNetworkResolver):
         return service_info
 
     def populate_service_network_info(self, context: NetworkResolutionContext) -> None:
-        """
-        Populate network information for Docker Compose services.
+        """Populate network information for Docker Compose services.
 
         For Docker Compose, this method ensures all services have basic
         network information with runtime resolution capabilities.
@@ -177,6 +195,7 @@ class DockerComposeNetworkResolver(BaseNetworkResolver):
             "service_name_resolution": True,
             "decimal_ip_format": True,
             "dotted_ip_format": True,
+            "hex_ip_format": True,
         }
 
     # Abstract method implementations required by BaseNetworkResolver
@@ -201,3 +220,19 @@ class DockerComposeNetworkResolver(BaseNetworkResolver):
                 "dns_resolution": "automatic",
             },
         )
+
+    @staticmethod
+    def _format_ip(ip_str: str, format_type: NetworkFormat) -> str:
+        """Format an IPv4 address per the requested NetworkFormat.
+
+        Local helper for Path α secondary-endpoint resolution. Does NOT import
+        IvyNetworkResolutionMixin._format_ip_hex from the panther_ivy submodule
+        to keep the outer-worktree resolver independent of submodule code.
+        """
+        addr = ipaddress.IPv4Address(ip_str)
+        if format_type == NetworkFormat.HEX:
+            return f"0x{int(addr):08x}"
+        if format_type == NetworkFormat.DECIMAL:
+            return str(int(addr))
+        # Default / DOTTED / others
+        return str(addr)

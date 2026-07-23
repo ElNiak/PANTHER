@@ -4,6 +4,8 @@ Notes:
 
 ## Essential Commands
 
+**Prerequisites**: Python 3.10+, Docker
+
 ALWAYS activate the virtual environment before running any commands.
 
 Always activate Serena project environment when working on this repo.
@@ -66,13 +68,13 @@ panther admin archive-outputs            # Archive outputs directory
 
 Example minimal config: `experiment-config/base/experiment_config_example_minimal.yaml`
 
-Those are YAML files defining experiments, network environments, services, protocols, and test scenarios.
+Define experiments in YAML files specifying network environments, services, protocols, and test scenarios.
 
 The parser uses OmegaConf with Pydantic for validation.
 
-You can see the implementation of each config section in the corresponding plugin's `config_schema.py`.
+Find each config section's implementation in the corresponding plugin's `config_schema.py`.
 
-You can see the parser and validator in `panther/config/`.
+Find the parser and validator in `panther/config/`.
 
 ```yaml
 logging:
@@ -102,11 +104,7 @@ All the experiment execution logic is in `panther/core/experiment_manager.py`, w
 
 #### Checkout experiments output
 
-When running an experiment for the config `experiment-config/base/experiment_config_example_minimal.yaml`, outputs are stored in `outputs/<experiment_date>/<experiment_id>/` where `<experiment_date>` is the date and time when the experiment was run, and `<experiment_id>` are experiment identifier defined in the config file.
-
-At the end of an experiment run, outputs are stored in `outputs/<experiment_date>/<experiment_id>/`.
-
-The outputs are managed by the reporting module located in `panther/core/reporting/`, `panther/core/results/` and `panther/core/outputs/` and also in plugins that implement custom reporters.
+Outputs land in `outputs/<experiment_date>/<experiment_id>/`. The reporting module at `panther/core/reporting/`, `panther/core/results/`, and `panther/core/outputs/` manages outputs, along with plugins that implement custom reporters.
 
 ```bash
 cd outputs/<experiment_date>/<experiment_id>/
@@ -163,6 +161,7 @@ pytest tests/ -n auto --cov=panther --cov-fail-under=70  # Coverage required: 70
 - `@pytest.mark.integration` - Requires Docker
 - `@pytest.mark.requires_docker` - Docker dependency
 - `@pytest.mark.slow` - Takes >10 seconds
+- Always run the full test suite after refactoring or multi-file changes. Do not consider a task complete until tests pass.
 
 ## Code Style
 
@@ -173,9 +172,18 @@ pytest tests/ -n auto --cov=panther --cov-fail-under=70  # Coverage required: 70
 
 ## Known Issues
 
-1. **ARM**: Z3 math errors, use `development-scp-refactor` branch for stability
+1. **ARM**: Z3 4.7.1 (local build) hangs solver on ARM64; use `z3_source: pip` with z3-solver 4.13.0.0 and `target_platform: linux/arm64`
 2. **Ivy tester**: First build ~30 minutes (slow compilation)
-3.
+
+## Debugging
+
+- When debugging MCP server issues, distinguish between MCP server crashes/drops and Claude-side errors. Never attribute MCP infrastructure failures to application logic without evidence.
+- Avoid going down triage/exploration rabbit holes when the user asks a direct debugging question. Start with the specific issue before broadening scope.
+
+## Skills & Tooling
+
+- When scoping new skills or tools, start broad -- include debug logs, plans, tasks, and multi-project support from the beginning. Ask the user about scope before narrowing.
+
 ## Key Files to Understand
 
 - `workflow.md` - Detailed execution architecture

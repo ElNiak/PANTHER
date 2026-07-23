@@ -21,11 +21,9 @@ class IUTServiceManagerMixin(
     MRO: IUTServiceManagerMixin -> PluginDirectoryMixin -> ServiceManagerMixin -> LoggerMixin -> IImplementationManager
     """
 
-    def __init__(self, *args, global_config=None, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # Store global configuration
-        self.global_config = global_config
         self._role = None
         self._protocol_version = None
 

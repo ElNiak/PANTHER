@@ -1,5 +1,4 @@
-"""
-Data models for network-aware command resolution.
+"""Data models for network-aware command resolution.
 
 This module provides Pydantic models for handling network parameter
 resolution in the placeholder system.
@@ -26,6 +25,7 @@ class NetworkFormat(str, Enum):
 
     DECIMAL = "decimal"
     DOTTED = "dotted"
+    HEX = "hex"
     HOSTNAME = "hostname"
     STRING = "string"
     INTEGER = "integer"
@@ -38,6 +38,14 @@ class PlaceholderInfo(BaseModel):
     attribute: NetworkAttribute = Field(..., description="Network attribute to resolve")
     format_type: NetworkFormat = Field(
         default=NetworkFormat.STRING, description="Format for the resolved value"
+    )
+    secondary_name: Optional[str] = Field(
+        default=None,
+        description=(
+            "Secondary endpoint name when the placeholder targets a "
+            "non-primary endpoint. Populated by placeholder_parser when the "
+            "grammar's [name] capture group is present."
+        ),
     )
     raw_placeholder: str = Field(..., description="Original placeholder string")
 
@@ -67,6 +75,21 @@ class NetworkServiceInfo(BaseModel):
     )
     additional_info: Dict[str, str] = Field(
         default_factory=dict, description="Additional service-specific information"
+    )
+    secondary_endpoints: Dict[str, str] = Field(
+        default_factory=dict,
+        description=(
+            "Optional name → IPv4 address mapping for additional endpoints "
+            "assigned to this service. Materialized via the network "
+            "environment's auxiliary network mechanism."
+        ),
+    )
+    impl_pool: Optional[List[str]] = Field(
+        default=None,
+        description=(
+            "Reserved for future multi-IUT cross-implementation testing. "
+            "Currently unconsumed; kept here to keep the schema forward-compatible."
+        ),
     )
 
     @field_validator("ip_address")

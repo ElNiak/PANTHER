@@ -363,6 +363,11 @@ class ServiceManagementMixin:
                 service_manager.ports = (
                     service_details.ports if hasattr(service_details, "ports") else []
                 )
+                service_manager.secondary_endpoints = (
+                    service_details.secondary_endpoints
+                    if hasattr(service_details, "secondary_endpoints")
+                    else {}
+                )
 
                 # Set protocol details
                 service_manager.protocol_name = protocol_name
