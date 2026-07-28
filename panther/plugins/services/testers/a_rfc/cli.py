@@ -3,13 +3,23 @@
 from __future__ import annotations
 
 import argparse
-import logging
+import sys
 from pathlib import Path
 
 from .report import build, to_json, to_markdown, to_yaml
 from .schema import SchemaError, load
 
-logger = logging.getLogger(__name__)
+
+def _report(message: str) -> None:
+    """Write a diagnostic to stderr.
+
+    Deliberately not the ``logging`` module. Every ``panther.*`` logger is
+    configured with ``propagate=False`` and a handler admitting only ``ERROR``,
+    so a logged warning here is discarded before anyone sees it — and a gate
+    that exits non-zero without saying why is the exact failure this module
+    exists to prevent.
+    """
+    print(message, file=sys.stderr)
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -54,17 +64,14 @@ def main(argv: list[str] | None = None) -> int:
     """
     args = _parser().parse_args(argv)
 
-    if not logging.getLogger().handlers:
-        logging.basicConfig(format="%(levelname)s: %(message)s", level=logging.INFO)
-
     try:
         manifest = load(args.manifest)
     except (SchemaError, OSError) as error:
-        logger.error("could not read manifest %s: %s", args.manifest, error)
+        _report(f"error: could not read manifest {args.manifest}: {error}")
         return 1
 
     if args.repo is not None and not (args.repo / ".git").exists():
-        logger.error("%s is not a git repository", args.repo)
+        _report(f"error: {args.repo} is not a git repository")
         return 1
 
     report = build(manifest, repo=args.repo)
@@ -75,7 +82,7 @@ def main(argv: list[str] | None = None) -> int:
     (args.out / "report.md").write_text(to_markdown(report))
 
     for violation in report.violations:
-        logger.warning("%s: %s", violation.claim_id, violation.reason)
+        _report(f"violation: {violation.claim_id}: {violation.reason}")
 
     if report.violations and args.strict:
         return 2

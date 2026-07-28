@@ -1,4 +1,3 @@
-import logging
 from pathlib import Path
 
 import pytest
@@ -57,14 +56,26 @@ def test_violations_fail_under_strict(tmp_path: Path):
     assert (out / "report.md").exists()
 
 
-def test_violations_are_named_on_the_console(tmp_path: Path, caplog):
-    """A gate that exits non-zero must say why, not only write it to a file."""
+def test_violations_are_named_on_stderr(tmp_path: Path, capsys):
+    """A gate that exits non-zero must say why, not only write it to a file.
+
+    Asserts on stderr rather than on log capture deliberately: every
+    ``panther.*`` logger sets ``propagate=False`` with an ERROR-level handler,
+    so a logged warning here would be discarded before anyone saw it.
+    """
     manifest = tmp_path / "overstated.yaml"
     manifest.write_text(OVERSTATED)
-    with caplog.at_level(logging.WARNING):
-        main([str(manifest), "--out", str(tmp_path / "out"), "--strict"])
-    assert "spec:1.1" in caplog.text
-    assert "supports only inferred" in caplog.text
+    assert main([str(manifest), "--out", str(tmp_path / "out"), "--strict"]) == 2
+    stderr = capsys.readouterr().err
+    assert "spec:1.1" in stderr
+    assert "supports only inferred" in stderr
+
+
+def test_unreadable_manifest_says_why_on_stderr(tmp_path: Path, capsys):
+    bad = tmp_path / "bad.yaml"
+    bad.write_text("rfc: SPEC-1\n")
+    assert main([str(bad), "--out", str(tmp_path / "out")]) == 1
+    assert "error:" in capsys.readouterr().err
 
 
 def test_unreadable_repo_returns_one(extended_manifest: Path, tmp_path: Path):
