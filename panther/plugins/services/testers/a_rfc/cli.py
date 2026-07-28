@@ -47,7 +47,10 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--strict",
         action="store_true",
-        help="Exit 2 when any claim is recorded above what its evidence supports.",
+        help=(
+            "Exit 2 on any finding: a claim recorded above what its evidence "
+            "supports, or an anchor that does not resolve at its pinned commit."
+        ),
     )
     return parser
 
@@ -60,7 +63,10 @@ def main(argv: list[str] | None = None) -> int:
 
     Returns:
         0 on success, 1 if the manifest or repository could not be read, and 2
-        if promotion violations were found while ``--strict`` was given.
+        if any finding was reported while ``--strict`` was given. A finding is
+        either a promotion violation or an anchor that did not resolve at its
+        pinned commit; an anchor citing code absent from the commit it names is
+        weaker evidence than an overstated status, not stronger, so both gate.
     """
     args = _parser().parse_args(argv)
 
@@ -83,7 +89,9 @@ def main(argv: list[str] | None = None) -> int:
 
     for violation in report.violations:
         _report(f"violation: {violation.claim_id}: {violation.reason}")
+    for item in report.unverified:
+        _report(f"unverified: {item}")
 
-    if report.violations and args.strict:
+    if (report.violations or report.unverified) and args.strict:
         return 2
     return 0

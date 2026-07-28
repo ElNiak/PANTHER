@@ -71,6 +71,73 @@ def test_violations_are_named_on_stderr(tmp_path: Path, capsys):
     assert "supports only inferred" in stderr
 
 
+def test_broken_anchor_alone_gates_and_is_named(
+    fixture_repo: Path, tmp_path: Path, capsys
+):
+    """An anchor absent at its pinned commit fails --strict on its own.
+
+    Guards the case a manifest with both faults cannot: here there is no
+    promotion violation, so only the anchor can be driving the exit code.
+    """
+    manifest = tmp_path / "anchor_only.yaml"
+    manifest.write_text(
+        "rfc: SPEC-1\n"
+        "title: 'x'\n"
+        "requirements:\n"
+        "  'spec:1.1':\n"
+        "    text: 'Correctly inferred; its anchor is simply broken.'\n"
+        "    section: '1.1'\n"
+        "    level: MUST\n"
+        "    layer: timing\n"
+        "    status: inferred\n"
+        "    anchors:\n"
+        "      - evidence_class: code\n"
+        "        locator: does_not_exist.txt\n"
+        f"        commit: '{(fixture_repo / 'FIRST_SHA').read_text().strip()}'\n"
+    )
+    out = tmp_path / "out"
+    code = main(
+        [str(manifest), "--out", str(out), "--repo", str(fixture_repo), "--strict"]
+    )
+    assert code == 2
+    stderr = capsys.readouterr().err
+    assert "unverified" in stderr
+    assert "does_not_exist.txt" in stderr
+
+
+def test_broken_anchor_alone_is_tolerated_without_strict(
+    fixture_repo: Path, tmp_path: Path
+):
+    manifest = tmp_path / "anchor_only.yaml"
+    manifest.write_text(
+        "rfc: SPEC-1\n"
+        "title: 'x'\n"
+        "requirements:\n"
+        "  'spec:1.1':\n"
+        "    text: 'Correctly inferred; its anchor is simply broken.'\n"
+        "    section: '1.1'\n"
+        "    level: MUST\n"
+        "    layer: timing\n"
+        "    status: inferred\n"
+        "    anchors:\n"
+        "      - evidence_class: code\n"
+        "        locator: does_not_exist.txt\n"
+        f"        commit: '{(fixture_repo / 'FIRST_SHA').read_text().strip()}'\n"
+    )
+    assert (
+        main(
+            [
+                str(manifest),
+                "--out",
+                str(tmp_path / "out"),
+                "--repo",
+                str(fixture_repo),
+            ]
+        )
+        == 0
+    )
+
+
 def test_unreadable_manifest_says_why_on_stderr(tmp_path: Path, capsys):
     bad = tmp_path / "bad.yaml"
     bad.write_text("rfc: SPEC-1\n")
