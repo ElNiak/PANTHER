@@ -20,6 +20,13 @@ from .models import STATUS_RANK, EvidenceClass, Manifest, RequirementClaim, Stat
 #: decision records and paper prose describe intent, not behaviour.
 WEAK_EVIDENCE = frozenset({EvidenceClass.ADR, EvidenceClass.PAPER})
 
+#: Evidence produced by the system itself rather than by somebody's account of
+#: it. The two-class promotion route requires one of these present, so that two
+#: narrative sources cannot corroborate each other into ``confirmed``: a paper
+#: and an interview may well share an author, and a claim resting on both is
+#: one person's account counted twice.
+PRIMARY_EVIDENCE = frozenset({EvidenceClass.CODE, EvidenceClass.RUNTIME})
+
 
 @dataclass(frozen=True)
 class Violation:
@@ -35,10 +42,16 @@ def adjudicate(claim: RequirementClaim) -> Status:
     """Decide the strongest status a claim's evidence actually supports.
 
     A claim reaches ``confirmed`` only through developer sign-off, runtime
-    corroboration, or two distinct evidence classes at least one of which is
-    not weak. Claims resting only on decision records or paper prose are
-    capped at ``inferred``. A claim with no evidence at all is a ``gap``,
-    sign-off notwithstanding — signing off on nothing records nothing.
+    corroboration, or two distinct evidence classes **at least one of which is
+    primary** — code or runtime, not somebody's account of the system. Claims
+    resting only on decision records or paper prose are capped at ``inferred``.
+    A claim with no evidence at all is a ``gap``, sign-off notwithstanding —
+    signing off on nothing records nothing.
+
+    The primary-evidence requirement on the two-class route is deliberate: an
+    interview and a paper are two classes but may be one person speaking twice,
+    and promoting on that basis is the circularity the evidence-provenance
+    strata exist to detect rather than to launder.
 
     Args:
         claim: The claim to adjudicate.
@@ -60,7 +73,7 @@ def adjudicate(claim: RequirementClaim) -> Status:
     if EvidenceClass.RUNTIME in classes:
         return Status.CONFIRMED
 
-    if len(classes) >= 2:
+    if classes & PRIMARY_EVIDENCE and len(classes) >= 2:
         return Status.CONFIRMED
 
     return Status.INFERRED

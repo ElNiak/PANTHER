@@ -87,6 +87,39 @@ def test_two_distinct_evidence_classes_reach_confirmed():
     assert adjudicate(claim) is Status.CONFIRMED
 
 
+def test_two_narrative_classes_do_not_reach_confirmed():
+    """An interview and a paper may be one person's account counted twice."""
+    claim = _claim(
+        anchors=(
+            Anchor(EvidenceClass.INTERVIEW, "interview-03"),
+            Anchor(EvidenceClass.PAPER, "10.1000/xyz"),
+        )
+    )
+    assert adjudicate(claim) is Status.INFERRED
+
+
+def test_interview_plus_adr_does_not_reach_confirmed():
+    """Two classes, but neither is evidence the system itself produced."""
+    claim = _claim(
+        anchors=(
+            Anchor(EvidenceClass.INTERVIEW, "interview-03"),
+            Anchor(EvidenceClass.ADR, "adr/0007.md"),
+        )
+    )
+    assert adjudicate(claim) is Status.INFERRED
+
+
+def test_interview_plus_code_reaches_confirmed():
+    """A narrative source corroborated by a primary artefact does promote."""
+    claim = _claim(
+        anchors=(
+            Anchor(EvidenceClass.INTERVIEW, "interview-03"),
+            Anchor(EvidenceClass.CODE, "src/timer.py", commit=SHA),
+        )
+    )
+    assert adjudicate(claim) is Status.CONFIRMED
+
+
 def test_two_anchors_of_the_same_class_do_not_reach_confirmed():
     claim = _claim(
         anchors=(
