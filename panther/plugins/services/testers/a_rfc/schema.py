@@ -7,8 +7,9 @@ manifest that loads wrong is far worse than one that fails to load.
 
 from __future__ import annotations
 
+from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 import yaml
 
@@ -24,12 +25,14 @@ from .models import (
 
 _STRING_FIELDS = ("section", "id")
 
+_EnumT = TypeVar("_EnumT", bound=Enum)
+
 
 class SchemaError(ValueError):
     """Raised when a manifest cannot be interpreted as written."""
 
 
-def _enum(enum_cls: type, raw: Any, field: str, claim_id: str):
+def _enum(enum_cls: type[_EnumT], raw: Any, field: str, claim_id: str) -> _EnumT:
     """Resolve ``raw`` to a member of ``enum_cls`` or raise.
 
     Args:
