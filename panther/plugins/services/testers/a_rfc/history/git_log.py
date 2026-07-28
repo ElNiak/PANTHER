@@ -10,7 +10,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-from .models import Commit, FileChange
+from .models import Commit, ExtractionReport, FileChange
 
 #: Maximum file rows recorded for one commit. Of the 1276 commits this was
 #: measured against, 23 exceed it — all vendoring or submodule imports. Without
@@ -130,3 +130,145 @@ def read_commits(repo: Path) -> list[Commit]:
 
     commits.sort(key=lambda commit: (commit.authored_at, commit.sha))
     return commits
+
+
+def read_file_changes(
+    repo: Path, cap: int = DEFAULT_FILE_CAP
+) -> tuple[dict[str, list[FileChange]], dict[str, int]]:
+    """Read the paths each commit touched, recording at most ``cap`` per commit.
+
+    Merge commits produce no diff against their first parent and are excluded,
+    so they map to an empty list.
+
+    The token stream is NUL-separated and interleaves commit markers with file
+    entries. A status beginning ``R`` or ``C`` is followed by *two* paths — the
+    source then the destination — and every other status by one. Reading only
+    the first path would silently record the rename's source as the file that
+    changed; on the repository this was measured against, 8% of all rows are
+    rename rows.
+
+    Args:
+        repo: Path to an existing, complete clone.
+        cap: Maximum rows recorded per commit.
+
+    Returns:
+        A pair of (changes keyed by sha, true path count keyed by sha). The
+        count is what the commit actually touched and exceeds the number of
+        recorded rows exactly when the cap bit.
+
+    Raises:
+        ShallowRepositoryError: If the clone is shallow.
+        GitError: If a file entry is truncated or appears before any commit.
+    """
+    assert_complete(repo)
+    raw = _git(
+        repo,
+        "log",
+        "-z",
+        "--no-merges",
+        f"--format={_MARK}%H",
+        "--name-status",
+        "HEAD",
+    )
+
+    tokens = raw.split("\0")
+    changes: dict[str, list[FileChange]] = {}
+    totals: dict[str, int] = {}
+    sha: str | None = None
+    index = 0
+
+    while index < len(tokens):
+        token = tokens[index].lstrip("\n")
+        index += 1
+        if not token:
+            continue
+
+        if token.startswith(_MARK):
+            sha = token[1:]
+            changes.setdefault(sha, [])
+            totals.setdefault(sha, 0)
+            continue
+
+        if sha is None:
+            raise GitError(f"file entry before any commit marker: {token!r}")
+
+        wants_two = token.startswith(_RENAME_STATUSES)
+        needed = 2 if wants_two else 1
+        if index + needed > len(tokens):
+            raise GitError(f"truncated file entry for {sha}: status {token!r}")
+
+        if wants_two:
+            previous_path = tokens[index]
+            path = tokens[index + 1]
+        else:
+            previous_path = None
+            path = tokens[index]
+        index += needed
+
+        totals[sha] += 1
+        if len(changes[sha]) < cap:
+            changes[sha].append(
+                FileChange(
+                    sha=sha,
+                    path=path,
+                    status=token[0],
+                    previous_path=previous_path,
+                )
+            )
+
+    return changes, totals
+
+
+def extract(
+    repo: Path, cap: int = DEFAULT_FILE_CAP
+) -> tuple[list[Commit], list[FileChange], ExtractionReport]:
+    """Read a repository into commits, file rows, and a report of both.
+
+    Args:
+        repo: Path to an existing, complete clone.
+        cap: Maximum file rows recorded per commit.
+
+    Returns:
+        A triple of (commits sorted by ``(authored_at, sha)``, file rows sorted
+        by ``(sha, path)``, and a report naming every truncated commit).
+
+    Raises:
+        ShallowRepositoryError: If the clone is shallow.
+    """
+    commits = read_commits(repo)
+    changes, totals = read_file_changes(repo, cap=cap)
+
+    enriched: list[Commit] = []
+    truncated: list[str] = []
+    rows: list[FileChange] = []
+
+    for commit in commits:
+        recorded = changes.get(commit.sha, [])
+        total = totals.get(commit.sha, 0)
+        was_truncated = total > len(recorded)
+        if was_truncated:
+            truncated.append(commit.sha)
+        rows.extend(recorded)
+        enriched.append(
+            Commit(
+                sha=commit.sha,
+                parents=commit.parents,
+                author_name=commit.author_name,
+                author_email=commit.author_email,
+                authored_at=commit.authored_at,
+                committed_at=commit.committed_at,
+                subject=commit.subject,
+                body=commit.body,
+                file_count=total,
+                files_recorded=len(recorded),
+                files_truncated=was_truncated,
+            )
+        )
+
+    rows.sort(key=lambda row: (row.sha, row.path))
+    report = ExtractionReport(
+        commit_count=len(enriched),
+        file_row_count=len(rows),
+        truncated=tuple(sorted(truncated)),
+    )
+    return enriched, rows, report
