@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 import pytest
@@ -54,6 +55,16 @@ def test_violations_fail_under_strict(tmp_path: Path):
     out = tmp_path / "out"
     assert main([str(manifest), "--out", str(out), "--strict"]) == 2
     assert (out / "report.md").exists()
+
+
+def test_violations_are_named_on_the_console(tmp_path: Path, caplog):
+    """A gate that exits non-zero must say why, not only write it to a file."""
+    manifest = tmp_path / "overstated.yaml"
+    manifest.write_text(OVERSTATED)
+    with caplog.at_level(logging.WARNING):
+        main([str(manifest), "--out", str(tmp_path / "out"), "--strict"])
+    assert "spec:1.1" in caplog.text
+    assert "supports only inferred" in caplog.text
 
 
 def test_unreadable_repo_returns_one(extended_manifest: Path, tmp_path: Path):

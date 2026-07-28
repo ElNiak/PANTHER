@@ -54,6 +54,9 @@ def main(argv: list[str] | None = None) -> int:
     """
     args = _parser().parse_args(argv)
 
+    if not logging.getLogger().handlers:
+        logging.basicConfig(format="%(levelname)s: %(message)s", level=logging.INFO)
+
     try:
         manifest = load(args.manifest)
     except (SchemaError, OSError) as error:
