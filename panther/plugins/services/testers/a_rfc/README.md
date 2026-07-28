@@ -43,9 +43,15 @@ Exit codes:
 
 | Code | Meaning |
 |---|---|
-| 0 | Success — reports written; violations, if any, reported but tolerated |
+| 0 | Success — reports written; findings, if any, reported but tolerated |
 | 1 | The manifest could not be read, or `--repo` is not a git repository |
-| 2 | Promotion violations were found and `--strict` was given |
+| 2 | Findings were reported and `--strict` was given |
+
+A **finding** is either a promotion violation or an anchor that did not resolve
+at its pinned commit. Both gate under `--strict`, and both are named on stderr
+in either mode. An anchor citing code absent from the commit it names is weaker
+evidence than an overstated status, not stronger, so it is not treated as
+merely advisory.
 
 ## Schema
 
@@ -111,18 +117,29 @@ The single place a claim's evidential standing is decided is
 `promotion.adjudicate`. The rule:
 
 > A claim may be recorded as `confirmed` **only** through developer sign-off,
-> runtime corroboration, or two distinct evidence classes at least one of
-> which is not weak. Claims resting only on mined decision records (`adr`) or
-> paper prose (`paper`) are capped at
-> `inferred`. A claim with no anchors at all is a `gap` — sign-off
-> notwithstanding, because signing off on nothing records nothing.
-> Understatement is always permitted; a stored status *above* what the
-> evidence supports is a violation.
+> runtime corroboration, or two distinct evidence classes **at least one of
+> which is primary** — `code` or `runtime`. Claims resting only on mined
+> decision records (`adr`) or paper prose (`paper`) are capped at `inferred`.
+> A claim with no anchors at all is a `gap` — sign-off notwithstanding,
+> because signing off on nothing records nothing. Understatement is always
+> permitted; a stored status *above* what the evidence supports is a violation.
 
 Adjudication is a pure function of the claim's own evidence, and every
 unrecognised or absent input yields the most restrictive status. Statuses are
 stored in the manifest and re-validated on load; disagreement is reported as a
 violation rather than silently rewritten.
+
+### Why the two-class route demands a primary artefact
+
+`interview` and `paper` are two distinct classes, so a naive "any two classes"
+rule promotes a claim resting on both. But a paper and an interview may be one
+person speaking twice — and in the case this module was built for, the
+published papers share authors with the developers who validate the claims.
+Promoting on that basis launders the circularity that evidence-provenance
+stratification exists to detect. `code` and `runtime` are evidence the system
+itself produced rather than an account of it, so the two-class route requires
+one of them present. `{interview, paper}` and `{adr, interview}` therefore
+remain `inferred`; `{interview, code}` reaches `confirmed`.
 
 ## Four traps that fail silently rather than loudly
 
