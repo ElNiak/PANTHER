@@ -1,0 +1,141 @@
+import json
+from pathlib import Path
+
+import pytest
+
+from panther.plugins.services.testers.a_rfc.models import (
+    Anchor,
+    EvidenceClass,
+    Intent,
+    Manifest,
+    ReqClass,
+    RequirementClaim,
+    Status,
+)
+from panther.plugins.services.testers.a_rfc.report import (
+    build,
+    to_json,
+    to_markdown,
+    to_yaml,
+)
+
+pytestmark = pytest.mark.unit
+
+
+def _claim(**overrides):
+    base = dict(
+        id="spec:1.1",
+        text="The system responds within the configured interval.",
+        section="1.1",
+        level="MUST",
+        layer="timing",
+        req_class=ReqClass.PROTOCOL_BEHAVIORAL,
+        intent=Intent.INTENDED,
+    )
+    base.update(overrides)
+    return RequirementClaim(**base)
+
+
+@pytest.fixture
+def mixed_manifest():
+    return Manifest(
+        rfc="SPEC-1",
+        title="An Example Specification",
+        claims=(
+            _claim(
+                id="spec:1.1",
+                status=Status.CONFIRMED,
+                anchors=(Anchor(EvidenceClass.RUNTIME, "run/42"),),
+            ),
+            _claim(
+                id="spec:2.1",
+                text="The system tolerates a duplicate identifier.",
+                intent=Intent.ACCIDENTAL,
+                status=Status.INFERRED,
+                anchors=(Anchor(EvidenceClass.PAPER, "10.1000/xyz"),),
+            ),
+            _claim(
+                id="spec:3.1",
+                text="The system rejects an oversized frame.",
+                status=Status.CONFIRMED,
+                anchors=(Anchor(EvidenceClass.ADR, "adr/0007.md"),),
+            ),
+        ),
+    )
+
+
+def test_report_counts_by_status(mixed_manifest):
+    report = build(mixed_manifest)
+    assert report.manifest.count_by_status == {
+        "gap": 0,
+        "inferred": 1,
+        "confirmed": 2,
+    }
+
+
+def test_report_finds_the_overstated_claim(mixed_manifest):
+    report = build(mixed_manifest)
+    assert [violation.claim_id for violation in report.violations] == ["spec:3.1"]
+
+
+def test_json_carries_derived_metrics(mixed_manifest):
+    payload = json.loads(to_json(build(mixed_manifest)))
+    assert payload["count_by_status"]["confirmed"] == 2
+    assert "checked_fraction_by_req_class" in payload
+    assert payload["checked_fraction_by_req_class"]["protocol-behavioral"] == 0.5
+
+
+def test_json_is_byte_stable(mixed_manifest):
+    report = build(mixed_manifest)
+    assert to_json(report) == to_json(report)
+
+
+def test_markdown_excludes_accidental_claims_from_the_normative_section(
+    mixed_manifest,
+):
+    markdown = to_markdown(build(mixed_manifest))
+    normative, _, descriptive = markdown.partition("## Descriptive")
+    assert "spec:1.1" in normative
+    assert "spec:2.1" not in normative
+    assert "spec:2.1" in descriptive
+
+
+def test_markdown_names_every_violation(mixed_manifest):
+    markdown = to_markdown(build(mixed_manifest))
+    assert "spec:3.1" in markdown
+    assert "supports only inferred" in markdown
+
+
+def test_yaml_round_trips_as_a_mapping(mixed_manifest):
+    import yaml
+
+    payload = yaml.safe_load(to_yaml(build(mixed_manifest)))
+    assert payload["rfc"] == "SPEC-1"
+    assert payload["count_by_status"]["confirmed"] == 2
+
+
+def test_unverified_anchors_are_listed_when_a_repo_is_given(
+    mixed_manifest, fixture_repo: Path
+):
+    manifest = Manifest(
+        rfc="SPEC-1",
+        title="x",
+        claims=(
+            _claim(
+                id="spec:9.1",
+                anchors=(
+                    Anchor(
+                        EvidenceClass.CODE,
+                        "does_not_exist.txt",
+                        commit=(fixture_repo / "FIRST_SHA").read_text().strip(),
+                    ),
+                ),
+            ),
+        ),
+    )
+    report = build(manifest, repo=fixture_repo)
+    assert report.unverified == ("spec:9.1: does_not_exist.txt",)
+
+
+def test_no_repo_means_no_anchor_verification_attempted(mixed_manifest):
+    assert build(mixed_manifest).unverified == ()
