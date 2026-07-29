@@ -22,6 +22,16 @@ dependency set is unchanged (standard library plus PyYAML, already a
 dependency). Generation — the model-driven part of the pipeline — lives in
 agents outside the framework; this is the model-free substrate they emit into.
 
+## The `history/` subpackage
+
+`history/` extracts an implementation's repository into a deterministic,
+citable JSONL corpus of commit metadata and per-file change rows, plus a
+derived SQLite index — see `history/README.md`. The corpus feeds claim
+mining, whose output is a manifest validated by the modules documented here.
+**The handoff between the two subpackages is a file on disk, not an import.**
+They share no domain code; a reader seeing a nested package will reasonably
+assume otherwise, which is why it is stated here.
+
 ## CLI
 
 ```bash
@@ -187,13 +197,31 @@ emit this module's manifests into `protocol-testing/`.
 
 ## Known duplication to consolidate
 
-`anchors.py` carries a private `_git` wrapper that duplicates the one the
-companion provenance module will provide once it lands. It deliberately omits
-`subprocess.run(check=True)`: `CalledProcessError` raises without stderr
-attached, and this module must distinguish "no such path" (a verification
-result, `False`) from "no such commit" (`UnknownCommitError`). When the
-provenance module's `git()` wrapper is available, import it and delete the
-duplicate — preserving that distinction.
+**Four helpers are duplicated across this package**, two pairs, both
+deliberately:
+
+| Helper | Here | In `history/` |
+|---|---|---|
+| `_git` subprocess wrapper | `anchors.py` | `history/git_log.py` |
+| stderr `_report` | `cli.py` | `history/cli.py` |
+
+Both `_git` wrappers deliberately omit `subprocess.run(check=True)`:
+`CalledProcessError` raises without stderr attached, and both callers must
+distinguish "no such path" (a result) from "no such commit" (an error). Both
+`_report` helpers write to stderr rather than logging, for the reason in the
+next section.
+
+They are duplicated rather than hoisted to a shared module because `history/`
+and the manifest core share **no domain code** — the handoff between them is a
+file on disk — and hoisting five lines would mean editing the shipped, tested
+manifest core to create a coupling that buys nothing. The cost is accepted
+knowingly, and recorded here in one place so the debt is legible rather than
+discovered twice.
+
+`anchors.py`'s `_git` additionally duplicates one the companion provenance
+module will provide once it lands. When that arrives, consolidation should
+consider all three call sites together — preserving the `check=True`
+distinction in each.
 
 ## Framework gotcha: `panther.*` loggers swallow warnings
 
