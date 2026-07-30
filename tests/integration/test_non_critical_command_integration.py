@@ -184,7 +184,7 @@ def run_non_critical_test():
         raise
 
 
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
     )

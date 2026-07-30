@@ -41,5 +41,5 @@ def check_structure():
         print(f"{field_name}: {type(value).__name__} = {repr(value)}")
 
 
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     check_structure()

@@ -590,7 +590,7 @@ tests:
         return 0
 
 
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     # Set up argument parsing
     parser = argparse.ArgumentParser(description="PANTHER Service Plugin Tutorial")
     parser.add_argument(

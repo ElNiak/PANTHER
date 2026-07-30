@@ -216,6 +216,59 @@ class PydanticForm(ModelRenderersMixin):
             if sub is not None:
                 sub.set_value(data)
 
+    # ── Tooltip builder (contextual tooltips) ────────────────────────
+
+    def _build_tooltip(self, name: str, field_info) -> str:
+        """Build a rich contextual tooltip from field metadata.
+
+        Combines the field description, example values from
+        ``json_schema_extra``, and domain-specific hints into a single
+        tooltip string.  Returns an empty string if no information is
+        available, allowing callers to skip adding a tooltip.
+        """
+        parts: list[str] = []
+        extra = field_info.json_schema_extra or {}
+        if not isinstance(extra, dict):
+            extra = {}
+
+        # Description (the primary source of guidance)
+        desc = field_info.description
+        if desc:
+            parts.append(desc)
+
+        # Example from json_schema_extra
+        example = extra.get("example")
+        if example is not None:
+            parts.append(f"Example: {example}")
+
+        # Default value hint
+        default = field_info.default
+        if default is not None and default is not PydanticUndefined:
+            parts.append(f"Default: {default}")
+
+        # Allowed values hint (for constrained types)
+        metadata = field_info.metadata or []
+        if metadata:
+            constraints = []
+            for m in metadata:
+                if hasattr(m, "ge") and m.ge is not None:
+                    constraints.append(f"≥{m.ge}")
+                if hasattr(m, "gt") and m.gt is not None:
+                    constraints.append(f"＞{m.gt}")
+                if hasattr(m, "le") and m.le is not None:
+                    constraints.append(f"≤{m.le}")
+                if hasattr(m, "lt") and m.lt is not None:
+                    constraints.append(f"＜{m.lt}")
+            if constraints:
+                parts.append(f"Constraints: {', '.join(constraints)}")
+
+        # Domain-specific hints from json_schema_extra
+        hint = extra.get("hint")
+        if hint:
+            parts.append(f"💡 {hint}")
+
+        return "\n".join(parts)
+
     # ── Rendering ────────────────────────────────────────────────────
 
     def _render(self) -> None:
@@ -369,8 +422,9 @@ class PydanticForm(ModelRenderersMixin):
             inp = ui.input(label, value=val).classes(
                 f"flex-grow {self._prefix}-field-str"
             )
-            if field_info.description:
-                inp.tooltip(field_info.description)
+            tooltip_text = self._build_tooltip(name, field_info)
+            if tooltip_text:
+                inp.tooltip(tooltip_text)
         self._field_bindings[name] = FieldBinding(
             getter=lambda i=inp: i.value,
             setter=lambda v, i=inp: setattr(i, "value", v if v is not None else ""),
@@ -412,8 +466,9 @@ class PydanticForm(ModelRenderersMixin):
             )
             if isinstance(extra, dict) and "unit" in extra:
                 ui.label(extra["unit"]).classes("text-caption text-grey-6")
-            if field_info.description:
-                inp.tooltip(field_info.description)
+            tooltip_text = self._build_tooltip(name, field_info)
+            if tooltip_text:
+                inp.tooltip(tooltip_text)
 
         self._field_bindings[name] = FieldBinding(
             getter=lambda i=inp: i.value,
@@ -427,8 +482,9 @@ class PydanticForm(ModelRenderersMixin):
         val = bool(default) if default is not None else False
         with ui.row().classes(f"w-full items-center {self._prefix}-field"):
             sw = ui.switch(label, value=val).classes(f"{self._prefix}-field-bool")
-            if field_info.description:
-                sw.tooltip(field_info.description)
+            tooltip_text = self._build_tooltip(name, field_info)
+            if tooltip_text:
+                sw.tooltip(tooltip_text)
         self._field_bindings[name] = FieldBinding(
             getter=lambda s=sw: s.value,
             setter=lambda v, s=sw: setattr(s, "value", bool(v)),
@@ -448,8 +504,9 @@ class PydanticForm(ModelRenderersMixin):
             sel = ui.select(options, value=val, label=label).classes(
                 f"flex-grow {self._prefix}-field-enum"
             )
-            if field_info.description:
-                sel.tooltip(field_info.description)
+            tooltip_text = self._build_tooltip(name, field_info)
+            if tooltip_text:
+                sel.tooltip(tooltip_text)
         self._field_bindings[name] = FieldBinding(
             getter=lambda s=sel: s.value,
             setter=lambda v, s=sel: setattr(s, "value", v),
@@ -464,8 +521,9 @@ class PydanticForm(ModelRenderersMixin):
             sel = ui.select(choices, value=val, label=label).classes(
                 f"flex-grow {self._prefix}-field-enum"
             )
-            if field_info.description:
-                sel.tooltip(field_info.description)
+            tooltip_text = self._build_tooltip(name, field_info)
+            if tooltip_text:
+                sel.tooltip(tooltip_text)
         self._field_bindings[name] = FieldBinding(
             getter=lambda s=sel: s.value,
             setter=lambda v, s=sel: setattr(s, "value", v),
@@ -486,8 +544,9 @@ class PydanticForm(ModelRenderersMixin):
                 .classes(f"w-full {self._prefix}-field-list")
                 .props("rows=3")
             )
-            if field_info.description:
-                ta.tooltip(field_info.description)
+            tooltip_text = self._build_tooltip(name, field_info)
+            if tooltip_text:
+                ta.tooltip(tooltip_text)
         self._field_bindings[name] = FieldBinding(
             getter=lambda t=ta: [line for line in t.value.split("\n") if line.strip()],
             setter=lambda v, t=ta: setattr(
@@ -504,8 +563,9 @@ class PydanticForm(ModelRenderersMixin):
             inp = ui.number(label, value=val, min=0, max=65535, step=1).classes(
                 f"flex-grow {self._prefix}-field-number"
             )
-            if field_info.description:
-                inp.tooltip(field_info.description)
+            tooltip_text = self._build_tooltip(name, field_info)
+            if tooltip_text:
+                inp.tooltip(tooltip_text)
         self._field_bindings[name] = FieldBinding(
             getter=lambda i=inp: int(i.value) if i.value is not None else 0,
             setter=lambda v, i=inp: setattr(i, "value", v),

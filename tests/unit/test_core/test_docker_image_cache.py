@@ -793,5 +793,5 @@ class TestDockerCachePerformance:
         assert len(cache._cache) == 500
 
 
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     pytest.main([__file__, "-v"])

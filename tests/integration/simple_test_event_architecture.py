@@ -349,6 +349,6 @@ def test_event_architecture():
         return False
 
 
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     success = test_event_architecture()
     sys.exit(0 if success else 1)

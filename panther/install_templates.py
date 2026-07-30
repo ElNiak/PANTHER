@@ -158,5 +158,5 @@ def process_jinja_templates(target_dir, plugin_types):
                 print(f"  Error processing template {relative_path}: {e}")
 
 
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     install_templates()

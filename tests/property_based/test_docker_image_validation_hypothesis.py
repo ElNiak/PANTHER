@@ -724,6 +724,6 @@ class TestDockerImageValidationPerformanceProperties:
 TestDockerImageValidationStateMachine = TestDockerImageValidationStateMachine.TestCase
 
 
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     # Run specific property-based tests
     pytest.main([__file__, "-v", "--hypothesis-show-statistics"])

@@ -23,6 +23,10 @@ from nicegui import ui
 
 from panther.core.events.event_summarizer import EventImportance, EventSummarizer
 from panther.core.utils.format_utils import compute_duration
+from panther.webapp.components.display.highlight_label import (
+    highlight_html,
+    live_status,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -98,9 +102,12 @@ def _render_table_view(events: list[dict[str, Any]], event_types: list[str]):
             .classes("col-3")
         )
 
+    status_label = live_status()
+
     # Build table rows
     def _make_rows(filter_type: str = "all", search: str = "") -> list[dict[str, Any]]:
         rows = []
+        query = search.strip()
         for i, e in enumerate(events):
             et = e.get("event_type", "unknown")
             if filter_type != "all" and et != filter_type:
@@ -110,15 +117,19 @@ def _render_table_view(events: list[dict[str, Any]], event_types: list[str]):
             details = _summarize_event(et, data)
             source = e.get("_source", "")
             row_str = f"{ts} {et} {details} {source}".lower()
-            if search and search.lower() not in row_str:
+            if query and query.lower() not in row_str:
                 continue
             rows.append(
                 {
                     "id": i,
                     "timestamp": ts[:19] if ts else "",
+                    "timestamp_html": highlight_html(ts[:19] if ts else "", query),
                     "event_type": et,
+                    "event_type_html": highlight_html(et, query),
                     "details": details[:200],
+                    "details_html": highlight_html(details[:200], query),
                     "source": source,
+                    "source_html": highlight_html(source, query),
                 }
             )
         return rows
@@ -153,6 +164,9 @@ def _render_table_view(events: list[dict[str, Any]], event_types: list[str]):
     ]
 
     initial_rows = _make_rows()
+    status_label.text = (
+        f"Search status: showing {len(initial_rows)} of {len(events)} events"
+    )
     table = ui.table(
         columns=columns,
         rows=initial_rows,
@@ -173,16 +187,46 @@ def _render_table_view(events: list[dict[str, Any]], event_types: list[str]):
                           'environment.output_collection_completed': 'light-green',
                           'environment.outputs_collected': 'cyan',
                           'log': 'grey'}[props.value] || 'grey'"
-                :label="props.value"
                 outline
                 class="text-capitalize"
-            />
+            >
+                <span v-html="props.row.event_type_html"></span>
+            </q-badge>
+        </q-td>
+        """,
+    )
+    table.add_slot(
+        "body-cell-timestamp",
+        r"""
+        <q-td :props="props">
+            <span v-html="props.row.timestamp_html"></span>
+        </q-td>
+        """,
+    )
+    table.add_slot(
+        "body-cell-details",
+        r"""
+        <q-td :props="props">
+            <span v-html="props.row.details_html"></span>
+        </q-td>
+        """,
+    )
+    table.add_slot(
+        "body-cell-source",
+        r"""
+        <q-td :props="props">
+            <span v-html="props.row.source_html"></span>
         </q-td>
         """,
     )
 
     def _refresh():
-        table.rows = _make_rows(type_filter.value or "all", search_filter.value or "")
+        filtered = _make_rows(type_filter.value or "all", search_filter.value or "")
+        table.rows = filtered
+        table.update()
+        status_label.text = (
+            f"Search status: showing {len(filtered)} of {len(events)} events"
+        )
 
     type_filter.on_value_change(lambda _: _refresh())
     search_filter.on_value_change(lambda _: _refresh())

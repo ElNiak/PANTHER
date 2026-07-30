@@ -57,6 +57,10 @@ from nicegui import app, ui
 
 from panther.core.events.base.event_base import BaseEvent
 from panther.webapp.components.display.event_viewer import event_viewer
+from panther.webapp.components.display.highlight_label import (
+    highlight_html,
+    live_status,
+)
 from panther.webapp.components.display.log_viewer import LogViewer
 from panther.webapp.components.status.progress_bar import ExperimentProgress
 from panther.webapp.services.config_service import ConfigService
@@ -165,6 +169,21 @@ def content():
             for c in all_configs
         ]
 
+        def _make_config_rows(search: str = "", category: str = "all"):
+            query = search.strip()
+            filtered_rows = []
+            for row in rows:
+                if category != "all" and row["category"] != category:
+                    continue
+                haystack = f"{row['name']} {row['category']} {row['path']}".lower()
+                if query and query.lower() not in haystack:
+                    continue
+                display_row = row.copy()
+                display_row["name_html"] = highlight_html(row["name"], query)
+                display_row["category_html"] = highlight_html(row["category"], query)
+                filtered_rows.append(display_row)
+            return filtered_rows
+
         # Build a lookup for config summaries by path
         config_by_path = {c["path"]: c for c in all_configs}
 
@@ -206,12 +225,31 @@ def content():
 
         config_table = ui.table(
             columns=columns,
-            rows=rows,
+            rows=_make_config_rows(),
             row_key="path",
             selection="single",
             on_select=_on_select,
             pagination={"rowsPerPage": 10, "sortBy": "category"},
         ).classes("w-full")
+        config_table.add_slot(
+            "body-cell-name",
+            r"""
+            <q-td :props="props">
+                <span v-html="props.row.name_html"></span>
+            </q-td>
+            """,
+        )
+        config_table.add_slot(
+            "body-cell-category",
+            r"""
+            <q-td :props="props">
+                <span v-html="props.row.category_html"></span>
+            </q-td>
+            """,
+        )
+        config_status = live_status(
+            f"Search status: showing {len(rows)} of {len(rows)} configurations"
+        )
 
         # Preview panel (hidden until a row is selected)
         preview_card = ui.card().classes("w-full q-pa-md q-mt-sm")
@@ -233,25 +271,29 @@ def content():
                 icon="check_circle",
                 color="primary",
                 on_click=_use_config,
-            )
+            ).tooltip("Copy the selected configuration into the launch field")
 
-        # Filtering
-        def _apply_filters():
-            """Filter the config table rows by search text and category."""
-            search = (search_input.value or "").lower().strip()
-            cat = category_select.value
-            filtered = []
-            for r in rows:
-                if cat != "all" and r["category"] != cat:
-                    continue
-                if search and search not in r["name"].lower():
-                    continue
-                filtered.append(r)
-            config_table.rows = filtered
-            config_table.update()
+    def _apply_filters(search_override: str | None = None):
+        """Filter the config table rows by search text and category."""
+        search = (
+            search_override
+            if search_override is not None
+            else (search_input.value or "")
+        ).strip()
+        cat = category_select.value
+        filtered = _make_config_rows(search, cat)
+        config_table.rows = filtered
+        config_table.update()
+        config_status.text = (
+            f"Search status: showing {len(filtered)} of {len(rows)} configurations"
+        )
 
-        search_input.on("update:model-value", lambda _: _apply_filters())
-        category_select.on_value_change(lambda _: _apply_filters())
+    def _on_search_change(event):
+        value = event.args if isinstance(event.args, str) else search_input.value
+        _apply_filters(value or "")
+
+    search_input.on("update:model-value", _on_search_change)
+    category_select.on_value_change(lambda _: _apply_filters())
 
     # ── Launch experiment section ─────────────────────────────────────
     with ui.card().classes("w-full q-pa-md q-mb-md"):
@@ -268,8 +310,12 @@ def content():
         )
 
         with ui.row().classes("gap-3 q-mt-sm"):
-            run_btn = ui.button("Run Experiment", icon="play_arrow")
-            stop_btn = ui.button("Stop", icon="stop", color="negative")
+            run_btn = ui.button("Run Experiment", icon="play_arrow").tooltip(
+                "Start the selected experiment configuration"
+            )
+            stop_btn = ui.button("Stop", icon="stop", color="negative").tooltip(
+                "Request the running experiment to stop"
+            )
 
             if experiment_svc.is_running:
                 run_btn.set_visibility(False)

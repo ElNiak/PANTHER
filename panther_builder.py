@@ -183,5 +183,5 @@ Bootstrap commands:
     return 1
 
 
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     sys.exit(main())

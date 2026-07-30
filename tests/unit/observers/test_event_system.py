@@ -216,5 +216,5 @@ class ResultsManagerTests(unittest.TestCase):
         self.assertIn("test_case_3", callback_results)
 
 
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     unittest.main()

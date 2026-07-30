@@ -1,6 +1,12 @@
 """Display components — data visualization, event logs, plugin browsers."""
 
 from panther.webapp.components.display.event_viewer import event_viewer
+from panther.webapp.components.display.highlight_label import (
+    HighlightLabel,
+    highlight_html,
+    highlight_label,
+    live_status,
+)
 from panther.webapp.components.display.log_viewer import LogViewer
 from panther.webapp.components.display.metrics_panel import metrics_panel
 from panther.webapp.components.display.plugin_card import (

@@ -167,5 +167,5 @@ class TestMetricsIntegration(unittest.TestCase):
         self.assertEqual(counter_metric["component"], "api_client")
 
 
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     unittest.main()

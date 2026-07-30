@@ -511,5 +511,5 @@ class TestImageValidationPerformance:
         assert duration < 0.05  # Less than 50ms for 100 cached lookups
 
 
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     pytest.main([__file__, "-v"])

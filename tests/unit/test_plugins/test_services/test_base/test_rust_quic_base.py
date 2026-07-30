@@ -862,5 +862,5 @@ class TestStringRepresentation:
         assert repr(server_manager) == str(server_manager)
 
 
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     pytest.main([__file__, "-v"])

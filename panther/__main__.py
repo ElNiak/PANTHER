@@ -9,5 +9,5 @@ import sys
 # Import the main CLI function
 from panther.cli.core.main import main
 
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     sys.exit(main() or 0)

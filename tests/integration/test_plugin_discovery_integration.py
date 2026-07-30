@@ -147,5 +147,5 @@ class TestPluginDiscoveryIntegration(unittest.TestCase):
         self.assertEqual(count_after_first, count_after_second)
 
 
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     unittest.main()

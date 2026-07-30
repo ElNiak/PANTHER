@@ -471,5 +471,5 @@ class ResultsManagerTests(unittest.TestCase):
             self.assertEqual(enhanced_callbacks[0], "enhanced_test")
 
 
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     unittest.main()

@@ -308,6 +308,6 @@ class TestBackwardCompatibility:
         assert len(deployment_cmd) > 0
 
 
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     # Run tests when executed directly
     pytest.main([__file__, "-v"])
