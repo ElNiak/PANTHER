@@ -1,0 +1,1 @@
+"""CoAP protocol plugin package."""
