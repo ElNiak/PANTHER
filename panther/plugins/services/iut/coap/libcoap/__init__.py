@@ -1,1 +1,1 @@
-"""LibCoAP BGP IUT plugin."""
+"""LibCoAP CoAP IUT plugin."""

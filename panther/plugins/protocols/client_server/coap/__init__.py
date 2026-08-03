@@ -1,1 +1,1 @@
-"""BGP protocol plugin package."""
+"""CoAP protocol plugin package."""

@@ -1,7 +1,8 @@
 """CoAP Protocol Plugin.
 
-Registers CoAP-4 (RFC 7252) as a client-server protocol in PANTHER.
-CoAP uses UDP port 5683 for session establishment between autonomous systems.
+Registers CoAP (RFC 7252) as a client-server protocol in PANTHER.
+CoAP runs over UDP on the registered port 5683 (5684 for coaps) and targets
+constrained nodes and constrained networks.
 """
 
 from panther.plugins.core.plugin_decorators import register_protocol
@@ -13,38 +14,70 @@ from panther.plugins.protocols.protocol_interface import IProtocolManager
     type="client_server",
     versions=["rfc7252"],
     default_version="rfc7252",
-    description="CoAP  (RFC 7252) is a specialized web transfer protocol for use with constrained nodes and constrained networks in the Internet of Things (IoT).",
-    author="IETF IDR Working Group",
+    description="CoAP (RFC 7252) is a specialized web transfer protocol for use with constrained nodes and constrained networks in the Internet of Things (IoT).",
+    author="IETF CoRE Working Group",
     license="IETF",
     homepage="https://datatracker.ietf.org/doc/html/rfc7252",
     capabilities=[
-        "route-advertisement",
-        "as-path",
-        "communities",
-        "fsm",
-        "keepalive",
-        "notification",
+        "confirmable-messages",
+        "non-confirmable-messages",
+        "retransmission",
+        "message-deduplication",
+        "token-matching",
+        "content-negotiation",
+        "proxying",
+        "multicast",
     ],
-    tags=["udp", "tcp", "client-server", "coap"],
+    tags=["udp", "client-server", "coap", "constrained"],
     config_schema={
-        "hold_time": {
+        "coap_version": {
             "type": "integer",
-            "default": 180,
-            "description": "Hold timer in seconds (0 = no keepalives)",
+            "default": 1,
+            "description": "CoAP version field; RFC 7252 section 3 requires 1",
         },
-        "CoAP_version": {
+        "ack_timeout": {
+            "type": "number",
+            "default": 2.0,
+            "description": "ACK_TIMEOUT, seconds (RFC 7252 section 4.8)",
+        },
+        "ack_random_factor": {
+            "type": "number",
+            "default": 1.5,
+            "description": "ACK_RANDOM_FACTOR (RFC 7252 section 4.8)",
+        },
+        "max_retransmit": {
             "type": "integer",
             "default": 4,
-            "description": "CoAP protocol version",
+            "description": "MAX_RETRANSMIT (RFC 7252 section 4.8)",
+        },
+        "nstart": {
+            "type": "integer",
+            "default": 1,
+            "description": "NSTART, parallel interactions (RFC 7252 section 4.8)",
+        },
+        "default_leisure": {
+            "type": "number",
+            "default": 5.0,
+            "description": "DEFAULT_LEISURE, seconds (RFC 7252 section 4.8)",
+        },
+        "probing_rate": {
+            "type": "number",
+            "default": 1.0,
+            "description": "PROBING_RATE, bytes/second (RFC 7252 section 4.8)",
         },
     },
     default_config={
-        "hold_time": 180,
-        "CoAP_version": 4,
+        "coap_version": 1,
+        "ack_timeout": 2.0,
+        "ack_random_factor": 1.5,
+        "max_retransmit": 4,
+        "nstart": 1,
+        "default_leisure": 5.0,
+        "probing_rate": 1.0,
     },
 )
 class CoAPProtocol(IProtocolManager):
-    """CoAP-4 Protocol Manager."""
+    """CoAP Protocol Manager."""
 
     def __init__(self):
         """Initialize CoAP protocol manager."""
@@ -74,9 +107,13 @@ class CoAPProtocol(IProtocolManager):
         if version == "rfc7252":
             return {
                 "port": 5683,
-                "hold_time": 180,
-                "keepalive_interval": 60,
-                "CoAP_version": 4,
+                "coap_version": 1,
+                "ack_timeout": 2.0,
+                "ack_random_factor": 1.5,
+                "max_retransmit": 4,
+                "nstart": 1,
+                "default_leisure": 5.0,
+                "probing_rate": 1.0,
             }
         return {}
 
@@ -97,8 +134,3 @@ class CoAPProtocol(IProtocolManager):
             int: Ephemeral port (0), assigned by the OS.
         """
         return 0
-
-
-import logging  # noqa: E402
-
-logging.getLogger(__name__)

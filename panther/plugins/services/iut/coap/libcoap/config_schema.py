@@ -1,4 +1,4 @@
-"""LibCoAP BGP plugin configuration schema."""
+"""LibCoAP CoAP plugin configuration schema."""
 
 from typing import ClassVar, Optional
 
@@ -13,16 +13,17 @@ from panther.config.core.models.service import (
 
 
 class LibcoapVersion(VersionBase):
-    """Version information for LibCoAP BGP implementation."""
+    """Version information for the LibCoAP implementation."""
 
     server: Optional[dict] = Field(default_factory=dict)
     client: Optional[dict] = Field(default_factory=dict)
 
 
 class LibcoapConfig(ServiceConfig):
-    """LibCoAP BGP implementation configuration.
+    """LibCoAP implementation configuration.
 
-    Uses the official LibCoAP Docker image to run bgpd.
+    Builds the libcoap examples in the image and runs its client or server
+    binary as the CoAP implementation under test.
 
     Example YAML::
 

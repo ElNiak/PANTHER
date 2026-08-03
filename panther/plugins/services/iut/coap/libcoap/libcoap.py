@@ -228,23 +228,6 @@ class LibcoapServiceManager(
             ("test", "*.err.log"),
         ]
 
-    def _build_template_context(self) -> dict:
-        server = {}
-        if hasattr(self, "service_config_to_test") and hasattr(
-            self.service_config_to_test, "version"
-        ):
-            version = self.service_config_to_test.version
-            server = getattr(version, "server", None) or {}
-        return {
-            "as_number": server.get("as_number", 2),
-            "router_id": server.get("router_id", "10.0.0.3"),
-            "neighbor_ip": server.get("neighbor_ip", "10.0.0.1"),
-            "neighbor_as": server.get("neighbor_as", 1),
-            "hold_time": server.get("hold_time", 180),
-            "keepalive_time": server.get("keepalive_time", 60),
-            "listen_port": server.get("listen_port", 179),
-        }
-
     def _do_prepare(self, plugin_manager: "Optional[PluginManager]" = None) -> None:
         """Delegate to the Docker mixin for image building."""
         self.prepare_docker_image()
