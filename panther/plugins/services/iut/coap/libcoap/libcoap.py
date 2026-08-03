@@ -125,20 +125,20 @@ class LibcoapServiceManager(
 
         # Add seed parameter if available
         if "seed" in params:
-            builder.add_positional(f"seed={params['seed']}")
+            builder.add_argument(f"seed={params['seed']}")
 
         # Add server and client ports/addresses if available
         if "server_port" in params:
-            builder.add_positional(f"server_port={params['server_port']}")
+            builder.add_argument(f"server_port={params['server_port']}")
         if "server_addr" in params:
-            builder.add_positional(f"server_addr={params['server_addr']}")
+            builder.add_argument(f"server_addr={params['server_addr']}")
 
         # Add role-specific parameters
         if self.role == ProtocolRole.SERVER:
             if "client_port" in params:
-                builder.add_positional(f"client_port={params['client_port']}")
+                builder.add_argument(f"client_port={params['client_port']}")
             if "client_addr" in params:
-                builder.add_positional(f"client_addr={params['client_addr']}")
+                builder.add_argument(f"client_addr={params['client_addr']}")
 
         # Add logging parameters
         # if "logging" in params:
