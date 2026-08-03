@@ -1,0 +1,145 @@
+logging:
+  level: DEBUG
+  format: "%(asctime)s [%(levelname)s] - %(module)s - %(message)s"
+  enable_colors: true
+
+  # Feature-specific log levels - set all to DEBUG to match global level
+  feature_levels:
+    # Core Components
+    command_generation: DEBUG
+    template_rendering: DEBUG
+    docker_operations: DEBUG  # This was causing INFO logs to show
+    config_processing: DEBUG
+    event_system: DEBUG
+    file_operations: DEBUG
+
+    # Service Management
+    service_managers: DEBUG
+    ivy_operations: DEBUG
+    CoAP_services: DEBUG
+    plugin_loading: DEBUG
+    service_coordination: DEBUG
+
+    # Environment Management
+    network_environments: DEBUG
+    execution_environment: DEBUG
+    docker_compose: DEBUG
+    shadow_ns: DEBUG
+    localhost_container: DEBUG
+
+    # Event System
+    event_emission: DEBUG
+    event_processing: DEBUG
+    state_management: DEBUG
+    observer_operations: DEBUG
+
+    # Protocol Operations
+    certificate_management: DEBUG
+    network_setup: DEBUG
+    port_management: DEBUG
+    protocol_communication: DEBUG
+
+    # Data and Metrics
+    metrics_collection: DEBUG
+    data_storage: DEBUG
+    result_processing: DEBUG
+    output_aggregation: DEBUG
+
+    # Development and Debugging
+    test_execution: DEBUG
+    experiment_workflow: DEBUG
+    validation_checks: DEBUG
+    error_handling: DEBUG
+
+progress:
+  enable_progress_bar: true
+  show_test_status: true
+  show_docker_events: true
+  use_emojis: true
+  redirect_logging: true  # Set to false to preserve colored logging
+
+observers:
+  logger:
+    enabled: true
+    log_level: "DEBUG"
+    enable_colors: true
+    correlation_tracking: true
+
+  metrics:
+    enabled: true
+    collect_system_metrics: true
+    log_level: "DEBUG"
+    publish_interval: 30
+
+  storage:
+    enabled: true
+    storage_path: "outputs/storage"
+    enable_compression: true
+    log_level: "DEBUG"
+    retention_days: 30
+
+  experiment:
+    enabled: true
+    auto_register: true
+    priority: 115
+    log_level: "DEBUG"
+    track_timing: true
+    track_steps: true
+
+paths:
+  output_dir: "outputs"
+  log_dir: "outputs/logs"
+  config_dir: "panther/configs"
+  plugin_dir: "panther/plugins"
+
+docker:
+  force_build_docker_image: false
+  log_docker_image_build: true
+  use_buildx: true
+
+tests:
+  - name: "CoAP Client-Server Communication Test"
+    description: "Verify that the coap client can communicate with the Ivy server over docker-compose network."
+    network_environment:
+      type: "docker_compose"  # Environment plugin name
+    iterations: 1
+    # execution_environment:
+    #   - type: "strace"
+    debug_environment: [ ]
+    services:
+      coap_client:
+        timeout: 100
+        name: "coap_client"  # Added 'name' key
+        implementation:
+          name: "libcoap"
+          type: "iut"
+          # swag: swag # Invalid key
+        protocol:
+          name: "coap"
+          role: "client"
+          version: "rfc7252"
+          target: "ivy_server"  # Docker Compose service name
+          # target: "ivy_server"  # Duplicate key
+        ports:
+          - "5001:5000"  # Client external:internal port
+          - "8082:8081"  # Client health check port
+        generate_new_certificates: True
+
+      ivy_server:
+        name: "ivy_server"  # Added 'name' key
+        timeout: 100
+        implementation:
+          type: "testers"
+          name: "panther_ivy"
+          test: coap_client_test
+        protocol:
+          name: "coap"
+          version: "rfc7252" # TODO whithout this -> crash before launching the test -> should be fixed in the plugin -> detect ealier
+          role: "server"
+        ports:
+          - "4443:4443"
+          - "4987:4987"  #
+          - "8080:8080"  # Health check endpoint
+        generate_new_certificates: True
+    steps:
+      wait: 100  # seconds to wait during the test
