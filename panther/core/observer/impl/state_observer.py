@@ -7,25 +7,8 @@ by the event-based state managers in EmitterRegistry.
 
 import logging
 
-from panther.core.events.environment.events import (
-    EnvironmentSetupStartedEvent,
-    OutputCollectionCompletedEvent,
-    OutputCollectionStartedEvent,
-)
-from panther.core.events.experiment.events import (
-    ExperimentCompletedEvent,
-    ExperimentExecutionStartedEvent,
-    ExperimentFailedEvent,
-    ExperimentInitializedEvent,
-    ExperimentPluginLoadingFailedEvent,
-    ExperimentPluginLoadingStartedEvent,
-)
-from panther.core.events.service.events import (
-    CommandGenerationStartedEvent,
-    DockerBuildStartedEvent,
-    TesterAnalysisStartedEvent,
-)
-from panther.core.events.test.events import TestExecutionStartedEvent
+from panther.core.events.base.event_base import BaseEvent
+from panther.core.events.service.events import DockerBuildStartedEvent
 from panther.core.observer.base.typed_observer_interface import ITypedObserver
 from panther.core.observer.workflow import WorkflowState, WorkflowStateTracker
 
@@ -84,7 +67,7 @@ class StateEventObserver(ITypedObserver):
 
     # Workflow coordination event handlers (simplified)
 
-    def on_experiment_initialized(self, event: ExperimentInitializedEvent) -> bool:
+    def on_experiment_initialized(self, event: BaseEvent) -> bool:
         """Handle experiment initialized - set workflow tracking."""
         try:
             self.current_experiment_id = event.entity_id
@@ -100,9 +83,7 @@ class StateEventObserver(ITypedObserver):
             )
         return True
 
-    def on_experiment_plugin_loading_started(
-        self, event: ExperimentPluginLoadingStartedEvent
-    ) -> bool:
+    def on_experiment_plugin_loading_started(self, event: BaseEvent) -> bool:
         """Handle plugin loading phase."""
         try:
             if self.current_experiment_id:
@@ -115,9 +96,7 @@ class StateEventObserver(ITypedObserver):
             )
         return True
 
-    def on_command_generation_started(
-        self, event: CommandGenerationStartedEvent
-    ) -> bool:
+    def on_command_generation_started(self, event: BaseEvent) -> bool:
         """Handle command generation phase."""
         try:
             if self.current_experiment_id:
@@ -143,7 +122,7 @@ class StateEventObserver(ITypedObserver):
             )
         return True
 
-    def on_environment_setup_started(self, event: EnvironmentSetupStartedEvent) -> bool:
+    def on_environment_setup_started(self, event: BaseEvent) -> bool:
         """Handle deployment phase."""
         try:
             if self.current_experiment_id:
@@ -156,7 +135,7 @@ class StateEventObserver(ITypedObserver):
             )
         return True
 
-    def on_test_execution_started(self, event: TestExecutionStartedEvent) -> bool:
+    def on_test_execution_started(self, event: BaseEvent) -> bool:
         """Handle test execution phase."""
         try:
             if self.current_experiment_id:
@@ -169,7 +148,7 @@ class StateEventObserver(ITypedObserver):
             )
         return True
 
-    def on_output_collection_started(self, event: OutputCollectionStartedEvent) -> bool:
+    def on_output_collection_started(self, event: BaseEvent) -> bool:
         """Handle output collection phase."""
         try:
             if self.current_experiment_id:
@@ -182,9 +161,7 @@ class StateEventObserver(ITypedObserver):
             )
         return True
 
-    def on_output_collection_completed(
-        self, event: OutputCollectionCompletedEvent
-    ) -> bool:
+    def on_output_collection_completed(self, event: BaseEvent) -> bool:
         """Handle transition to analysis phase."""
         try:
             if self.current_experiment_id:
@@ -197,7 +174,7 @@ class StateEventObserver(ITypedObserver):
             )
         return True
 
-    def on_tester_analysis_started(self, event: TesterAnalysisStartedEvent) -> bool:
+    def on_tester_analysis_started(self, event: BaseEvent) -> bool:
         """Handle analysis phase."""
         try:
             if self.current_experiment_id:
@@ -210,9 +187,7 @@ class StateEventObserver(ITypedObserver):
             )
         return True
 
-    def on_experiment_execution_started(
-        self, event: ExperimentExecutionStartedEvent
-    ) -> bool:
+    def on_experiment_execution_started(self, event: BaseEvent) -> bool:
         """Handle experiment execution started."""
         try:
             if self.current_experiment_id:
@@ -225,7 +200,7 @@ class StateEventObserver(ITypedObserver):
             )
         return True
 
-    def on_experiment_completed(self, event: ExperimentCompletedEvent) -> bool:
+    def on_experiment_completed(self, event: BaseEvent) -> bool:
         """Handle experiment completion."""
         try:
             self.workflow_tracker.set_workflow_state(
@@ -240,7 +215,7 @@ class StateEventObserver(ITypedObserver):
             )
         return True
 
-    def on_experiment_failed(self, event: ExperimentFailedEvent) -> bool:
+    def on_experiment_failed(self, event: BaseEvent) -> bool:
         """Handle experiment failure."""
         try:
             self.workflow_tracker.set_workflow_state(
@@ -255,9 +230,7 @@ class StateEventObserver(ITypedObserver):
             )
         return True
 
-    def on_experiment_plugin_loading_failed(
-        self, event: ExperimentPluginLoadingFailedEvent
-    ) -> bool:
+    def on_experiment_plugin_loading_failed(self, event: BaseEvent) -> bool:
         """Handle plugin loading failure."""
         try:
             if self.current_experiment_id:

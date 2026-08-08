@@ -1,9 +1,10 @@
 """Environment Event Classes.
 
 This module defines event classes for environment lifecycle management.
+Uses factory classmethods on base classes instead of individual subclasses.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from panther.core.events.base.event_base import BaseEvent, EventType
 
@@ -28,67 +29,47 @@ class EnvironmentEvent(BaseEvent):
         """Get the full event name with environment prefix."""
         return f"environment.{self.name}"
 
+    # -- Factory classmethods --------------------------------------------------
 
-class EnvironmentCreatedEvent(EnvironmentEvent):
-    """Event emitted when an environment is created."""
-
-    def __init__(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        config: Optional[Dict[str, Any]] = None,
-    ):
-        """Initialize environment created event."""
-        super().__init__(
+    @classmethod
+    def created(cls, environment_id, environment_name, environment_type, config=None):
+        """Create created event."""
+        return cls(
             "created",
             environment_id,
             environment_name,
             environment_type,
-            {
-                "config": config or {},
-                "environment_type": environment_type,
-            },
+            {"config": config or {}, "environment_type": environment_type},
         )
-        self.config = config or {}
 
-
-class EnvironmentInitializationStartedEvent(EnvironmentEvent):
-    """Event emitted when environment initialization starts."""
-
-    def __init__(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        initialization_type: str = "default",
+    @classmethod
+    def initialization_started(
+        cls,
+        environment_id,
+        environment_name,
+        environment_type,
+        initialization_type="default",
     ):
-        """Initialize environment initialization started event."""
-        super().__init__(
+        """Create initialization started event."""
+        return cls(
             "initialization_started",
             environment_id,
             environment_name,
             environment_type,
-            {
-                "initialization_type": initialization_type,
-            },
+            {"initialization_type": initialization_type},
         )
-        self.initialization_type = initialization_type
 
-
-class EnvironmentInitializationCompletedEvent(EnvironmentEvent):
-    """Event emitted when environment initialization completes."""
-
-    def __init__(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        duration: float,
-        initialization_details: Optional[Dict[str, Any]] = None,
+    @classmethod
+    def initialization_completed(
+        cls,
+        environment_id,
+        environment_name,
+        environment_type,
+        duration,
+        initialization_details=None,
     ):
-        """Initialize environment initialization completed event."""
-        super().__init__(
+        """Create initialization completed event."""
+        return cls(
             "initialization_completed",
             environment_id,
             environment_name,
@@ -98,72 +79,49 @@ class EnvironmentInitializationCompletedEvent(EnvironmentEvent):
                 "initialization_details": initialization_details or {},
             },
         )
-        self.duration = duration
-        self.initialization_details = initialization_details or {}
 
-
-class EnvironmentInitializationFailedEvent(EnvironmentEvent):
-    """Event emitted when environment initialization fails."""
-
-    def __init__(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        error_message: str,
-        error_details: Optional[Dict[str, Any]] = None,
+    @classmethod
+    def initialization_failed(
+        cls,
+        environment_id,
+        environment_name,
+        environment_type,
+        error_message,
+        error_details=None,
     ):
-        """Initialize environment initialization failed event."""
-        super().__init__(
+        """Create initialization failed event."""
+        return cls(
             "initialization_failed",
             environment_id,
             environment_name,
             environment_type,
-            {
-                "error_message": error_message,
-                "error_details": error_details or {},
-            },
+            {"error_message": error_message, "error_details": error_details or {}},
         )
-        self.error_message = error_message
-        self.error_details = error_details or {}
 
-
-class EnvironmentSetupStartedEvent(EnvironmentEvent):
-    """Event emitted when environment setup starts."""
-
-    def __init__(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        setup_config: Optional[Dict[str, Any]] = None,
+    @classmethod
+    def setup_started(
+        cls, environment_id, environment_name, environment_type, setup_config=None
     ):
-        """Initialize environment setup started event."""
-        super().__init__(
+        """Create setup started event."""
+        return cls(
             "setup_started",
             environment_id,
             environment_name,
             environment_type,
-            {
-                "setup_config": setup_config or {},
-            },
+            {"setup_config": setup_config or {}},
         )
-        self.setup_config = setup_config or {}
 
-
-class EnvironmentSetupCompletedEvent(EnvironmentEvent):
-    """Event emitted when environment setup completes."""
-
-    def __init__(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        duration: float,
-        resources_allocated: Optional[Dict[str, Any]] = None,
+    @classmethod
+    def setup_completed(
+        cls,
+        environment_id,
+        environment_name,
+        environment_type,
+        duration,
+        resources_allocated=None,
     ):
-        """Initialize environment setup completed event."""
-        super().__init__(
+        """Create setup completed event."""
+        return cls(
             "setup_completed",
             environment_id,
             environment_name,
@@ -173,95 +131,70 @@ class EnvironmentSetupCompletedEvent(EnvironmentEvent):
                 "resources_allocated": resources_allocated or {},
             },
         )
-        self.duration = duration
-        self.resources_allocated = resources_allocated or {}
 
-
-class EnvironmentSetupFailedEvent(EnvironmentEvent):
-    """Event emitted when environment setup fails."""
-
-    def __init__(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        error_message: str,
-        error_details: Optional[Dict[str, Any]] = None,
+    @classmethod
+    def setup_failed(
+        cls,
+        environment_id,
+        environment_name,
+        environment_type,
+        error_message,
+        error_details=None,
     ):
-        """Initialize environment setup failed event."""
-        super().__init__(
+        """Create setup failed event."""
+        return cls(
             "setup_failed",
             environment_id,
             environment_name,
             environment_type,
-            {
-                "error_message": error_message,
-                "error_details": error_details or {},
-            },
+            {"error_message": error_message, "error_details": error_details or {}},
         )
-        self.error_message = error_message
-        self.error_details = error_details or {}
 
-
-class EnvironmentReadyEvent(EnvironmentEvent):
-    """Event emitted when environment is ready for use."""
-
-    def __init__(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        readiness_checks: Optional[Dict[str, Any]] = None,
+    @classmethod
+    def ready(
+        cls,
+        environment_id,
+        environment_name,
+        environment_type,
+        readiness_checks=None,
     ):
-        """Initialize environment ready event."""
-        super().__init__(
+        """Create ready event."""
+        return cls(
             "ready",
             environment_id,
             environment_name,
             environment_type,
-            {
-                "readiness_checks": readiness_checks or {},
-            },
+            {"readiness_checks": readiness_checks or {}},
         )
-        self.readiness_checks = readiness_checks or {}
 
-
-class EnvironmentTeardownStartedEvent(EnvironmentEvent):
-    """Event emitted when environment teardown starts."""
-
-    def __init__(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        teardown_reason: str = "test_completed",
+    @classmethod
+    def teardown_started(
+        cls,
+        environment_id,
+        environment_name,
+        environment_type,
+        teardown_reason="test_completed",
     ):
-        """Initialize environment teardown started event."""
-        super().__init__(
+        """Create teardown started event."""
+        return cls(
             "teardown_started",
             environment_id,
             environment_name,
             environment_type,
-            {
-                "teardown_reason": teardown_reason,
-            },
+            {"teardown_reason": teardown_reason},
         )
-        self.teardown_reason = teardown_reason
 
-
-class EnvironmentTeardownCompletedEvent(EnvironmentEvent):
-    """Event emitted when environment teardown completes."""
-
-    def __init__(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        duration: float,
-        resources_released: Optional[Dict[str, Any]] = None,
+    @classmethod
+    def teardown_completed(
+        cls,
+        environment_id,
+        environment_name,
+        environment_type,
+        duration,
+        resources_released=None,
     ):
-        """Initialize environment teardown completed event."""
-        super().__init__(
+        """Create teardown completed event."""
+        return cls(
             "teardown_completed",
             environment_id,
             environment_name,
@@ -271,77 +204,56 @@ class EnvironmentTeardownCompletedEvent(EnvironmentEvent):
                 "resources_released": resources_released or {},
             },
         )
-        self.duration = duration
-        self.resources_released = resources_released or {}
 
-
-class EnvironmentTeardownFailedEvent(EnvironmentEvent):
-    """Event emitted when environment teardown fails."""
-
-    def __init__(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        error_message: str,
-        error_details: Optional[Dict[str, Any]] = None,
+    @classmethod
+    def teardown_failed(
+        cls,
+        environment_id,
+        environment_name,
+        environment_type,
+        error_message,
+        error_details=None,
     ):
-        """Initialize environment teardown failed event."""
-        super().__init__(
+        """Create teardown failed event."""
+        return cls(
             "teardown_failed",
             environment_id,
             environment_name,
             environment_type,
-            {
-                "error_message": error_message,
-                "error_details": error_details or {},
-            },
+            {"error_message": error_message, "error_details": error_details or {}},
         )
-        self.error_message = error_message
-        self.error_details = error_details or {}
 
-
-class EnvironmentDeploymentStartedEvent(EnvironmentEvent):
-    """Event emitted when environment deployment starts."""
-
-    def __init__(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        services: List[str],
-        deployment_config: Optional[Dict[str, Any]] = None,
+    @classmethod
+    def deployment_started(
+        cls,
+        environment_id,
+        environment_name,
+        environment_type,
+        services,
+        deployment_config=None,
     ):
-        """Initialize environment deployment started event."""
-        super().__init__(
+        """Create deployment started event."""
+        return cls(
             "deployment_started",
             environment_id,
             environment_name,
             environment_type,
-            {
-                "services": services,
-                "deployment_config": deployment_config or {},
-            },
+            {"services": services, "deployment_config": deployment_config or {}},
         )
-        self.services = services
-        self.deployment_config = deployment_config or {}
 
-
-class EnvironmentDeploymentCompletedEvent(EnvironmentEvent):
-    """Event emitted when environment deployment completes."""
-
-    def __init__(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        success: bool,
-        deployed_services: Dict[str, str],
-        duration: float,
-        deployment_details: Optional[Dict[str, Any]] = None,
+    @classmethod
+    def deployment_completed(
+        cls,
+        environment_id,
+        environment_name,
+        environment_type,
+        success,
+        deployed_services,
+        duration,
+        deployment_details=None,
     ):
-        """Initialize environment deployment completed event."""
-        super().__init__(
+        """Create deployment completed event."""
+        return cls(
             "deployment_completed",
             environment_id,
             environment_name,
@@ -353,27 +265,20 @@ class EnvironmentDeploymentCompletedEvent(EnvironmentEvent):
                 "deployment_details": deployment_details or {},
             },
         )
-        self.success = success
-        self.deployed_services = deployed_services
-        self.duration = duration
-        self.deployment_details = deployment_details or {}
 
-
-class EnvironmentDeploymentFailedEvent(EnvironmentEvent):
-    """Event emitted when environment deployment fails."""
-
-    def __init__(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        error_message: str,
-        error_type: str = "deployment_error",
-        failed_services: Optional[List[str]] = None,
-        error_details: Optional[Dict[str, Any]] = None,
+    @classmethod
+    def deployment_failed(
+        cls,
+        environment_id,
+        environment_name,
+        environment_type,
+        error_message,
+        error_type="deployment_error",
+        failed_services=None,
+        error_details=None,
     ):
-        """Initialize environment deployment failed event."""
-        super().__init__(
+        """Create deployment failed event."""
+        return cls(
             "deployment_failed",
             environment_id,
             environment_name,
@@ -385,25 +290,18 @@ class EnvironmentDeploymentFailedEvent(EnvironmentEvent):
                 "error_details": error_details or {},
             },
         )
-        self.error_message = error_message
-        self.error_type = error_type
-        self.failed_services = failed_services or []
-        self.error_details = error_details or {}
 
-
-class EnvironmentDestroyedEvent(EnvironmentEvent):
-    """Event emitted when environment is destroyed."""
-
-    def __init__(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        cleanup_duration: float,
-        cleanup_details: Optional[Dict[str, Any]] = None,
+    @classmethod
+    def destroyed(
+        cls,
+        environment_id,
+        environment_name,
+        environment_type,
+        cleanup_duration,
+        cleanup_details=None,
     ):
-        """Initialize environment destroyed event."""
-        super().__init__(
+        """Create destroyed event."""
+        return cls(
             "destroyed",
             environment_id,
             environment_name,
@@ -413,25 +311,20 @@ class EnvironmentDestroyedEvent(EnvironmentEvent):
                 "cleanup_details": cleanup_details or {},
             },
         )
-        self.cleanup_duration = cleanup_duration
-        self.cleanup_details = cleanup_details or {}
 
-
-class EnvironmentErrorEvent(EnvironmentEvent):
-    """Event emitted when an environment error occurs."""
-
-    def __init__(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        error_message: str,
-        error_type: str = "unknown",
-        error_details: Optional[Dict[str, Any]] = None,
-        recovery_possible: bool = False,
+    @classmethod
+    def error(
+        cls,
+        environment_id,
+        environment_name,
+        environment_type,
+        error_message,
+        error_type="unknown",
+        error_details=None,
+        recovery_possible=False,
     ):
-        """Initialize environment error event."""
-        super().__init__(
+        """Create error event."""
+        return cls(
             "error",
             environment_id,
             environment_name,
@@ -443,26 +336,19 @@ class EnvironmentErrorEvent(EnvironmentEvent):
                 "recovery_possible": recovery_possible,
             },
         )
-        self.error_message = error_message
-        self.error_type = error_type
-        self.error_details = error_details or {}
-        self.recovery_possible = recovery_possible
 
-
-class EnvironmentResourceEvent(EnvironmentEvent):
-    """Event emitted for environment resource management."""
-
-    def __init__(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        resource_type: str,
-        resource_action: str,
-        resource_details: Optional[Dict[str, Any]] = None,
+    @classmethod
+    def resource(
+        cls,
+        environment_id,
+        environment_name,
+        environment_type,
+        resource_type,
+        resource_action,
+        resource_details=None,
     ):
-        """Initialize environment resource event."""
-        super().__init__(
+        """Create resource event."""
+        return cls(
             "resource",
             environment_id,
             environment_name,
@@ -473,25 +359,19 @@ class EnvironmentResourceEvent(EnvironmentEvent):
                 "resource_details": resource_details or {},
             },
         )
-        self.resource_type = resource_type
-        self.resource_action = resource_action
-        self.resource_details = resource_details or {}
 
-
-class EnvironmentConfigurationEvent(EnvironmentEvent):
-    """Event emitted for environment configuration changes."""
-
-    def __init__(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        config_change: str,
-        old_config: Optional[Dict[str, Any]] = None,
-        new_config: Optional[Dict[str, Any]] = None,
+    @classmethod
+    def configuration(
+        cls,
+        environment_id,
+        environment_name,
+        environment_type,
+        config_change,
+        old_config=None,
+        new_config=None,
     ):
-        """Initialize environment configuration event."""
-        super().__init__(
+        """Create configuration event."""
+        return cls(
             "configuration",
             environment_id,
             environment_name,
@@ -502,26 +382,20 @@ class EnvironmentConfigurationEvent(EnvironmentEvent):
                 "new_config": new_config or {},
             },
         )
-        self.config_change = config_change
-        self.old_config = old_config or {}
-        self.new_config = new_config or {}
 
-
-class EnvironmentMonitoringEvent(EnvironmentEvent):
-    """Event emitted for environment monitoring data."""
-
-    def __init__(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        metric_name: str,
-        metric_value: Any,
-        metric_unit: str = "",
-        additional_metrics: Optional[Dict[str, Any]] = None,
+    @classmethod
+    def monitoring(
+        cls,
+        environment_id,
+        environment_name,
+        environment_type,
+        metric_name,
+        metric_value,
+        metric_unit="",
+        additional_metrics=None,
     ):
-        """Initialize environment monitoring event."""
-        super().__init__(
+        """Create monitoring event."""
+        return cls(
             "monitoring",
             environment_id,
             environment_name,
@@ -533,28 +407,18 @@ class EnvironmentMonitoringEvent(EnvironmentEvent):
                 "additional_metrics": additional_metrics or {},
             },
         )
-        self.metric_name = metric_name
-        self.metric_value = metric_value
-        self.metric_unit = metric_unit
-        self.additional_metrics = additional_metrics or {}
 
-
-# Environment Modification Events
-
-
-class EnvironmentModificationStartedEvent(EnvironmentEvent):
-    """Event emitted when an environment modification starts."""
-
-    def __init__(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        target_service: str,
-        modification_type: str,
+    @classmethod
+    def modification_started(
+        cls,
+        environment_id,
+        environment_name,
+        environment_type,
+        target_service,
+        modification_type,
     ):
-        """Initialize environment modification started event."""
-        super().__init__(
+        """Create modification started event."""
+        return cls(
             "modification_started",
             environment_id,
             environment_name,
@@ -564,23 +428,18 @@ class EnvironmentModificationStartedEvent(EnvironmentEvent):
                 "modification_type": modification_type,
             },
         )
-        self.target_service = target_service
-        self.modification_type = modification_type
 
-
-class EnvironmentModificationCompletedEvent(EnvironmentEvent):
-    """Event emitted when an environment modification completes."""
-
-    def __init__(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        modifications: Optional[Dict[str, Any]] = None,
-        modification_summary: str = "",
+    @classmethod
+    def modification_completed(
+        cls,
+        environment_id,
+        environment_name,
+        environment_type,
+        modifications=None,
+        modification_summary="",
     ):
-        """Initialize environment modification completed event."""
-        super().__init__(
+        """Create modification completed event."""
+        return cls(
             "modification_completed",
             environment_id,
             environment_name,
@@ -590,11 +449,104 @@ class EnvironmentModificationCompletedEvent(EnvironmentEvent):
                 "modification_summary": modification_summary,
             },
         )
-        self.modifications = modifications or {}
-        self.modification_summary = modification_summary
 
+    @classmethod
+    def output_collection_started(
+        cls,
+        environment_id,
+        environment_name,
+        environment_type,
+        collection_targets=None,
+        collection_config=None,
+    ):
+        """Create output collection started event."""
+        return cls(
+            "output_collection_started",
+            environment_id,
+            environment_name,
+            environment_type,
+            {
+                "collection_targets": collection_targets or [],
+                "collection_config": collection_config or {},
+                "action": "output_collection_started",
+            },
+        )
 
-# Network Environment Events (specialized environment events)
+    @classmethod
+    def output_collected(
+        cls,
+        environment_id,
+        environment_name,
+        environment_type,
+        output_type,
+        output_path,
+        output_size=None,
+        metadata=None,
+    ):
+        """Create output collected event."""
+        return cls(
+            "output_collected",
+            environment_id,
+            environment_name,
+            environment_type,
+            {
+                "output_type": output_type,
+                "output_path": output_path,
+                "output_size": output_size,
+                "metadata": metadata or {},
+                "action": "output_collected",
+            },
+        )
+
+    @classmethod
+    def outputs_collected(
+        cls,
+        environment_id,
+        environment_name,
+        environment_type,
+        outputs,
+        total_count,
+        total_size=None,
+    ):
+        """Create outputs collected event."""
+        return cls(
+            "outputs_collected",
+            environment_id,
+            environment_name,
+            environment_type,
+            {
+                "outputs": outputs,
+                "total_count": total_count,
+                "total_size": total_size,
+                "action": "outputs_collected",
+            },
+        )
+
+    @classmethod
+    def output_collection_completed(
+        cls,
+        environment_id,
+        environment_name,
+        environment_type,
+        outputs,
+        total_outputs,
+        collection_duration=None,
+        collection_summary=None,
+    ):
+        """Create output collection completed event."""
+        return cls(
+            "output_collection_completed",
+            environment_id,
+            environment_name,
+            environment_type,
+            {
+                "outputs": outputs,
+                "total_outputs": total_outputs,
+                "collection_duration": collection_duration,
+                "collection_summary": collection_summary or {},
+                "action": "output_collection_completed",
+            },
+        )
 
 
 class NetworkEnvironmentEvent(EnvironmentEvent):
@@ -623,20 +575,19 @@ class NetworkEnvironmentEvent(EnvironmentEvent):
         """Return the network configuration."""
         return self.data.get("network_config", {})
 
+    # -- Factory classmethods --------------------------------------------------
 
-class NetworkSetupStartedEvent(NetworkEnvironmentEvent):
-    """Event emitted when network environment setup starts."""
-
-    def __init__(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        network_config: Optional[Dict[str, Any]] = None,
-        interfaces: Optional[list] = None,
+    @classmethod
+    def network_setup_started(
+        cls,
+        environment_id,
+        environment_name,
+        environment_type,
+        network_config=None,
+        interfaces=None,
     ):
-        """Initialize network setup started event."""
-        super().__init__(
+        """Create network setup started event."""
+        return cls(
             "network.setup.started",
             environment_id,
             environment_name,
@@ -645,26 +596,18 @@ class NetworkSetupStartedEvent(NetworkEnvironmentEvent):
             {"interfaces": interfaces or [], "action": "network_setup_started"},
         )
 
-    @property
-    def interfaces(self) -> list:
-        """Return the network interfaces."""
-        return self.data.get("interfaces", [])
-
-
-class NetworkSetupCompletedEvent(NetworkEnvironmentEvent):
-    """Event emitted when network environment setup completes."""
-
-    def __init__(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        network_config: Optional[Dict[str, Any]] = None,
-        allocated_resources: Optional[Dict[str, Any]] = None,
-        duration: Optional[float] = None,
+    @classmethod
+    def network_setup_completed(
+        cls,
+        environment_id,
+        environment_name,
+        environment_type,
+        network_config=None,
+        allocated_resources=None,
+        duration=None,
     ):
-        """Initialize network setup completed event."""
-        super().__init__(
+        """Create network setup completed event."""
+        return cls(
             "network.setup.completed",
             environment_id,
             environment_name,
@@ -677,31 +620,18 @@ class NetworkSetupCompletedEvent(NetworkEnvironmentEvent):
             },
         )
 
-    @property
-    def allocated_resources(self) -> Dict[str, Any]:
-        """Return the allocated resources."""
-        return self.data.get("allocated_resources", {})
-
-    @property
-    def duration(self) -> Optional[float]:
-        """Return the setup duration."""
-        return self.data.get("duration")
-
-
-class NetworkSetupFailedEvent(NetworkEnvironmentEvent):
-    """Event emitted when network environment setup fails."""
-
-    def __init__(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        network_config: Optional[Dict[str, Any]] = None,
-        error_message: str = "",
-        error_details: Optional[Dict[str, Any]] = None,
+    @classmethod
+    def network_setup_failed(
+        cls,
+        environment_id,
+        environment_name,
+        environment_type,
+        network_config=None,
+        error_message="",
+        error_details=None,
     ):
-        """Initialize network setup failed event."""
-        super().__init__(
+        """Create network setup failed event."""
+        return cls(
             "network.setup.failed",
             environment_id,
             environment_name,
@@ -714,58 +644,40 @@ class NetworkSetupFailedEvent(NetworkEnvironmentEvent):
             },
         )
 
-    @property
-    def error_message(self) -> str:
-        """Return the error message."""
-        return self.data.get("error_message", "")
-
-    @property
-    def error_details(self) -> Dict[str, Any]:
-        """Return the error details."""
-        return self.data.get("error_details", {})
-
-
-class NetworkTeardownStartedEvent(NetworkEnvironmentEvent):
-    """Event emitted when network environment teardown starts."""
-
-    def __init__(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        network_config: Optional[Dict[str, Any]] = None,
-        teardown_reason: str = "test_completed",
+    @classmethod
+    def network_teardown_started(
+        cls,
+        environment_id,
+        environment_name,
+        environment_type,
+        network_config=None,
+        teardown_reason="test_completed",
     ):
-        """Initialize network teardown started event."""
-        super().__init__(
+        """Create network teardown started event."""
+        return cls(
             "network.teardown.started",
             environment_id,
             environment_name,
             environment_type,
             network_config,
-            {"teardown_reason": teardown_reason, "action": "network_teardown_started"},
+            {
+                "teardown_reason": teardown_reason,
+                "action": "network_teardown_started",
+            },
         )
 
-    @property
-    def teardown_reason(self) -> str:
-        """Return the teardown reason."""
-        return self.data.get("teardown_reason", "")
-
-
-class NetworkTeardownCompletedEvent(NetworkEnvironmentEvent):
-    """Event emitted when network environment teardown completes."""
-
-    def __init__(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        network_config: Optional[Dict[str, Any]] = None,
-        released_resources: Optional[Dict[str, Any]] = None,
-        duration: Optional[float] = None,
+    @classmethod
+    def network_teardown_completed(
+        cls,
+        environment_id,
+        environment_name,
+        environment_type,
+        network_config=None,
+        released_resources=None,
+        duration=None,
     ):
-        """Initialize network teardown completed event."""
-        super().__init__(
+        """Create network teardown completed event."""
+        return cls(
             "network.teardown.completed",
             environment_id,
             environment_name,
@@ -777,19 +689,6 @@ class NetworkTeardownCompletedEvent(NetworkEnvironmentEvent):
                 "action": "network_teardown_completed",
             },
         )
-
-    @property
-    def released_resources(self) -> Dict[str, Any]:
-        """Return the released resources."""
-        return self.data.get("released_resources", {})
-
-    @property
-    def duration(self) -> Optional[float]:
-        """Return the teardown duration."""
-        return self.data.get("duration")
-
-
-# Execution Environment Events (specialized environment events)
 
 
 class ExecutionEnvironmentEvent(EnvironmentEvent):
@@ -821,20 +720,19 @@ class ExecutionEnvironmentEvent(EnvironmentEvent):
         """Return the execution configuration."""
         return self.data.get("execution_config", {})
 
+    # -- Factory classmethods --------------------------------------------------
 
-class ExecutionEnvironmentSetupStartedEvent(ExecutionEnvironmentEvent):
-    """Event emitted when execution environment setup starts."""
-
-    def __init__(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        execution_config: Optional[Dict[str, Any]] = None,
-        resource_limits: Optional[Dict[str, Any]] = None,
+    @classmethod
+    def execution_setup_started(
+        cls,
+        environment_id,
+        environment_name,
+        environment_type,
+        execution_config=None,
+        resource_limits=None,
     ):
-        """Initialize execution environment setup started event."""
-        super().__init__(
+        """Create execution setup started event."""
+        return cls(
             "execution.setup.started",
             environment_id,
             environment_name,
@@ -846,26 +744,18 @@ class ExecutionEnvironmentSetupStartedEvent(ExecutionEnvironmentEvent):
             },
         )
 
-    @property
-    def resource_limits(self) -> Dict[str, Any]:
-        """Return the resource limits."""
-        return self.data.get("resource_limits", {})
-
-
-class ExecutionEnvironmentSetupCompletedEvent(ExecutionEnvironmentEvent):
-    """Event emitted when execution environment setup completes."""
-
-    def __init__(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        execution_config: Optional[Dict[str, Any]] = None,
-        allocated_resources: Optional[Dict[str, Any]] = None,
-        duration: Optional[float] = None,
+    @classmethod
+    def execution_setup_completed(
+        cls,
+        environment_id,
+        environment_name,
+        environment_type,
+        execution_config=None,
+        allocated_resources=None,
+        duration=None,
     ):
-        """Initialize execution environment setup completed event."""
-        super().__init__(
+        """Create execution setup completed event."""
+        return cls(
             "execution.setup.completed",
             environment_id,
             environment_name,
@@ -878,32 +768,19 @@ class ExecutionEnvironmentSetupCompletedEvent(ExecutionEnvironmentEvent):
             },
         )
 
-    @property
-    def allocated_resources(self) -> Dict[str, Any]:
-        """Return the allocated resources."""
-        return self.data.get("allocated_resources", {})
-
-    @property
-    def duration(self) -> Optional[float]:
-        """Return the setup duration."""
-        return self.data.get("duration")
-
-
-class ExecutionEnvironmentResourceMonitoringEvent(ExecutionEnvironmentEvent):
-    """Event emitted for execution environment resource monitoring."""
-
-    def __init__(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        execution_config: Optional[Dict[str, Any]] = None,
-        cpu_usage: Optional[float] = None,
-        memory_usage: Optional[float] = None,
-        additional_metrics: Optional[Dict[str, Any]] = None,
+    @classmethod
+    def execution_resource_monitoring(
+        cls,
+        environment_id,
+        environment_name,
+        environment_type,
+        execution_config=None,
+        cpu_usage=None,
+        memory_usage=None,
+        additional_metrics=None,
     ):
-        """Initialize execution environment resource monitoring event."""
-        super().__init__(
+        """Create execution resource monitoring event."""
+        return cls(
             "execution.monitoring",
             environment_id,
             environment_name,
@@ -917,38 +794,20 @@ class ExecutionEnvironmentResourceMonitoringEvent(ExecutionEnvironmentEvent):
             },
         )
 
-    @property
-    def cpu_usage(self) -> Optional[float]:
-        """Return the CPU usage."""
-        return self.data.get("cpu_usage")
-
-    @property
-    def memory_usage(self) -> Optional[float]:
-        """Return the memory usage."""
-        return self.data.get("memory_usage")
-
-    @property
-    def additional_metrics(self) -> Dict[str, Any]:
-        """Return additional metrics."""
-        return self.data.get("additional_metrics", {})
-
-
-class ExecutionEnvironmentLimitExceededEvent(ExecutionEnvironmentEvent):
-    """Event emitted when execution environment limits are exceeded."""
-
-    def __init__(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        execution_config: Optional[Dict[str, Any]] = None,
-        limit_type: str = "unknown",
-        current_value: Optional[float] = None,
-        limit_value: Optional[float] = None,
-        action_taken: str = "none",
+    @classmethod
+    def execution_limit_exceeded(
+        cls,
+        environment_id,
+        environment_name,
+        environment_type,
+        execution_config=None,
+        limit_type="unknown",
+        current_value=None,
+        limit_value=None,
+        action_taken="none",
     ):
-        """Initialize execution environment limit exceeded event."""
-        super().__init__(
+        """Create execution limit exceeded event."""
+        return cls(
             "execution.limit.exceeded",
             environment_id,
             environment_name,
@@ -962,149 +821,3 @@ class ExecutionEnvironmentLimitExceededEvent(ExecutionEnvironmentEvent):
                 "action": "execution_limit_exceeded",
             },
         )
-
-    @property
-    def limit_type(self) -> str:
-        """Return the limit type."""
-        return self.data.get("limit_type", "unknown")
-
-    @property
-    def current_value(self) -> Optional[float]:
-        """Return the current value."""
-        return self.data.get("current_value")
-
-    @property
-    def limit_value(self) -> Optional[float]:
-        """Return the limit value."""
-        return self.data.get("limit_value")
-
-    @property
-    def action_taken(self) -> str:
-        """Return the action taken."""
-        return self.data.get("action_taken", "none")
-
-
-# Output Collection Events (for collecting outputs from execution environments)
-
-
-class OutputCollectionStartedEvent(EnvironmentEvent):
-    """Event emitted when output collection starts from execution environments."""
-
-    def __init__(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        collection_targets: Optional[List[str]] = None,
-        collection_config: Optional[Dict[str, Any]] = None,
-    ):
-        """Initialize output collection started event."""
-        super().__init__(
-            "output_collection_started",
-            environment_id,
-            environment_name,
-            environment_type,
-            {
-                "collection_targets": collection_targets or [],
-                "collection_config": collection_config or {},
-                "action": "output_collection_started",
-            },
-        )
-        self.collection_targets = collection_targets or []
-        self.collection_config = collection_config or {}
-
-
-class OutputCollectedEvent(EnvironmentEvent):
-    """Event emitted when an output is collected from an execution environment."""
-
-    def __init__(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        output_type: str,
-        output_path: str,
-        output_size: Optional[int] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-    ):
-        """Initialize output collected event."""
-        super().__init__(
-            "output_collected",
-            environment_id,
-            environment_name,
-            environment_type,
-            {
-                "output_type": output_type,
-                "output_path": output_path,
-                "output_size": output_size,
-                "metadata": metadata or {},
-                "action": "output_collected",
-            },
-        )
-        self.output_type = output_type
-        self.output_path = output_path
-        self.output_size = output_size
-        self.metadata = metadata or {}
-
-
-class OutputsCollectedEvent(EnvironmentEvent):
-    """Event emitted when multiple outputs are collected from an execution environment."""
-
-    def __init__(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        outputs: Dict[str, Dict[str, Any]],
-        total_count: int,
-        total_size: Optional[int] = None,
-    ):
-        """Initialize outputs collected event."""
-        super().__init__(
-            "outputs_collected",
-            environment_id,
-            environment_name,
-            environment_type,
-            {
-                "outputs": outputs,
-                "total_count": total_count,
-                "total_size": total_size,
-                "action": "outputs_collected",
-            },
-        )
-        self.outputs = outputs
-        self.total_count = total_count
-        self.total_size = total_size
-
-
-class OutputCollectionCompletedEvent(EnvironmentEvent):
-    """Event emitted when output collection completes from all execution environments."""
-
-    def __init__(
-        self,
-        environment_id: str,
-        environment_name: str,
-        environment_type: str,
-        outputs: Dict[str, str],
-        total_outputs: int,
-        collection_duration: Optional[float] = None,
-        collection_summary: Optional[Dict[str, Any]] = None,
-    ):
-        """Initialize output collection completed event."""
-        super().__init__(
-            "output_collection_completed",
-            environment_id,
-            environment_name,
-            environment_type,
-            {
-                "outputs": outputs,
-                "total_outputs": total_outputs,
-                "collection_duration": collection_duration,
-                "collection_summary": collection_summary or {},
-                "action": "output_collection_completed",
-            },
-        )
-        self.outputs = outputs
-        self.total_outputs = total_outputs
-        self.collection_duration = collection_duration
-        self.collection_summary = collection_summary or {}

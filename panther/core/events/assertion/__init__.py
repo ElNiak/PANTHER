@@ -1,31 +1,10 @@
-"""Assertion Module.
-
-This module provides assertion-related events and emitters.
-"""
+"""Assertion Module."""
 
 from .emitter import AssertionEventEmitter
-from .events import (
-    AssertionErrorEvent,
-    AssertionEvent,
-    AssertionEventType,
-    AssertionProgressEvent,
-    AssertionResultEvent,
-    AssertionsValidationCompletedEvent,
-    AssertionsValidationStartedEvent,
-    AssertionUnknownEvent,
-)
+from .events import AssertionEvent, AssertionEventType
 
 __all__ = [
-    # Event types and base classes
-    "AssertionEventType",
     "AssertionEvent",
-    # Specific event classes
-    "AssertionsValidationStartedEvent",
-    "AssertionsValidationCompletedEvent",
-    "AssertionProgressEvent",
-    "AssertionResultEvent",
-    "AssertionErrorEvent",
-    "AssertionUnknownEvent",
-    # Event emitter
+    "AssertionEventType",
     "AssertionEventEmitter",
 ]

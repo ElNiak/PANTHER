@@ -6,7 +6,7 @@ from typing import List, Tuple
 from panther.plugins.core.plugin_decorators import register_plugin
 from panther.plugins.core.structures.plugin_type import PluginType
 from panther.plugins.services.base.rust_quic_base import RustQUICServiceManager
-from panther.plugins.services.iut.iut_event_mixin import IUTManagerEventMixin
+from panther.plugins.services.service_event_mixin import ServiceManagerEventMixin
 
 
 @register_plugin(
@@ -19,7 +19,7 @@ from panther.plugins.services.iut.iut_event_mixin import IUTManagerEventMixin
     supported_protocols=["quic"],
     capabilities=["rfc9000", "0rtt", "migration", "async"],
 )
-class QuinnServiceManager(IUTManagerEventMixin, RustQUICServiceManager):
+class QuinnServiceManager(ServiceManagerEventMixin, RustQUICServiceManager):
     """Refactored Quinn service manager with minimal code."""
 
     def _get_implementation_name(self) -> str:

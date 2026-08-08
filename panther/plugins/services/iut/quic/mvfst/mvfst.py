@@ -9,10 +9,10 @@ from panther.core.docker_builder.plugin_mixin.service_manager_docker_mixin impor
 from panther.plugins.core.plugin_decorators import register_plugin
 from panther.plugins.core.structures.plugin_type import PluginType
 from panther.plugins.services.base.quic_service_base import BaseQUICServiceManager
-from panther.plugins.services.iut.iut_event_mixin import IUTManagerEventMixin
 from panther.plugins.services.iut.iut_service_manager_mixin import (
     IUTServiceManagerMixin,
 )
+from panther.plugins.services.service_event_mixin import ServiceManagerEventMixin
 
 
 @register_plugin(
@@ -28,7 +28,7 @@ from panther.plugins.services.iut.iut_service_manager_mixin import (
 class MvfstServiceManager(
     IUTServiceManagerMixin,
     ServiceManagerDockerMixin,
-    IUTManagerEventMixin,
+    ServiceManagerEventMixin,
     BaseQUICServiceManager,
 ):
     """Refactored MVFST service manager with minimal code."""

@@ -10,17 +10,8 @@ if TYPE_CHECKING:
 
 from panther.core.events.base.event_emitter_base import EntityEventEmitterBase
 from panther.core.events.experiment.events import (
-    ExperimentCompletedEvent,
-    ExperimentExecutionCompletedEvent,
-    ExperimentExecutionFailedEvent,
-    ExperimentExecutionStartedEvent,
-    ExperimentFailedEvent,
+    ExperimentEvent,
     ExperimentFinishedEarlyEvent,
-    ExperimentInitializedEvent,
-    ExperimentPluginLoadingCompletedEvent,
-    ExperimentPluginLoadingFailedEvent,
-    ExperimentPluginLoadingStartedEvent,
-    ExperimentTestCasesInitializedEvent,
 )
 
 
@@ -38,23 +29,26 @@ class ExperimentEventEmitter(EntityEventEmitterBase):
 
     def emit_initialized(self, config: Optional[Dict[str, Any]] = None) -> None:
         """Emit experiment initialized event."""
-        self._create_and_emit_entity_event(ExperimentInitializedEvent, config=config)
+        event = ExperimentEvent.initialized(self.entity_id, config=config)
+        self.event_manager.notify(event)
 
     def emit_plugin_loading_started(self, plugin_count: Optional[int] = None) -> None:
         """Emit plugin loading started event."""
-        self._create_and_emit_entity_event(
-            ExperimentPluginLoadingStartedEvent, plugin_count=plugin_count
+        event = ExperimentEvent.plugin_loading_started(
+            self.entity_id, plugin_count=plugin_count
         )
+        self.event_manager.notify(event)
 
     def emit_plugin_loading_completed(
         self, loaded_plugins: Optional[list] = None, plugin_count: Optional[int] = None
     ) -> None:
         """Emit plugin loading completed event."""
-        self._create_and_emit_entity_event(
-            ExperimentPluginLoadingCompletedEvent,
+        event = ExperimentEvent.plugin_loading_completed(
+            self.entity_id,
             loaded_plugins=loaded_plugins,
             plugin_count=plugin_count,
         )
+        self.event_manager.notify(event)
 
     def emit_plugin_loading_failed(
         self,
@@ -63,28 +57,29 @@ class ExperimentEventEmitter(EntityEventEmitterBase):
         failed_plugins: Optional[list] = None,
     ) -> None:
         """Emit plugin loading failed event."""
-        self._create_and_emit_entity_event(
-            ExperimentPluginLoadingFailedEvent,
-            error_message=error_message,
+        event = ExperimentEvent.plugin_loading_failed(
+            self.entity_id,
+            error_message,
             error_type=error_type,
             failed_plugins=failed_plugins,
         )
+        self.event_manager.notify(event)
 
     def emit_test_cases_initialized(
         self, test_count: int, test_names: Optional[list] = None
     ) -> None:
         """Emit test cases initialized event."""
-        self._create_and_emit_entity_event(
-            ExperimentTestCasesInitializedEvent,
-            test_count=test_count,
+        event = ExperimentEvent.test_cases_initialized(
+            self.entity_id,
+            test_count,
             test_names=test_names,
         )
+        self.event_manager.notify(event)
 
     def emit_execution_started(self, test_count: Optional[int] = None) -> None:
         """Emit execution started event."""
-        self._create_and_emit_entity_event(
-            ExperimentExecutionStartedEvent, test_count=test_count
-        )
+        event = ExperimentEvent.execution_started(self.entity_id, test_count=test_count)
+        self.event_manager.notify(event)
 
     def emit_execution_completed(
         self,
@@ -94,13 +89,14 @@ class ExperimentEventEmitter(EntityEventEmitterBase):
         duration_seconds: Optional[float] = None,
     ) -> None:
         """Emit execution completed event."""
-        self._create_and_emit_entity_event(
-            ExperimentExecutionCompletedEvent,
-            success_count=success_count,
-            failure_count=failure_count,
-            total_count=total_count,
+        event = ExperimentEvent.execution_completed(
+            self.entity_id,
+            success_count,
+            failure_count,
+            total_count,
             duration_seconds=duration_seconds,
         )
+        self.event_manager.notify(event)
 
     def emit_execution_failed(
         self,
@@ -109,12 +105,13 @@ class ExperimentEventEmitter(EntityEventEmitterBase):
         phase: Optional[str] = None,
     ) -> None:
         """Emit execution failed event."""
-        self._create_and_emit_entity_event(
-            ExperimentExecutionFailedEvent,
-            error_message=error_message,
+        event = ExperimentEvent.execution_failed(
+            self.entity_id,
+            error_message,
             error_type=error_type,
             phase=phase,
         )
+        self.event_manager.notify(event)
 
     def emit_finished_early(
         self, reason: str, details: Optional[Dict[str, Any]] = None
@@ -126,7 +123,8 @@ class ExperimentEventEmitter(EntityEventEmitterBase):
 
     def emit_completed(self, summary: Optional[Dict[str, Any]] = None) -> None:
         """Emit experiment completed event."""
-        self._create_and_emit_entity_event(ExperimentCompletedEvent, summary=summary)
+        event = ExperimentEvent.completed(self.entity_id, summary=summary)
+        self.event_manager.notify(event)
 
     def emit_failed(
         self,
@@ -135,9 +133,10 @@ class ExperimentEventEmitter(EntityEventEmitterBase):
         summary: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Emit experiment failed event."""
-        self._create_and_emit_entity_event(
-            ExperimentFailedEvent,
-            error_message=error_message,
+        event = ExperimentEvent.failed(
+            self.entity_id,
+            error_message,
             error_type=error_type,
             summary=summary,
         )
+        self.event_manager.notify(event)

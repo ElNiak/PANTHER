@@ -1,3 +1,5 @@
+"""Logging mixin with feature-aware capabilities for PANTHER components."""
+
 from typing import Any, Dict, Optional, Union
 
 """
@@ -9,7 +11,6 @@ This module provides a reusable logging mixin for classes across PANTHER.
 import logging
 
 from .config_summarizer import ConfigSummarizer
-from .feature_logger_mixin import FeatureLoggerMixin
 from .logger_factory import LoggerFactory
 
 # Add TRACE level
@@ -17,9 +18,8 @@ TRACE = 5
 logging.addLevelName(TRACE, "TRACE")
 
 
-class LoggerMixin(FeatureLoggerMixin):
-    """
-    Enhanced logging mixin that combines traditional logging with feature-aware capabilities.
+class LoggerMixin:
+    """Enhanced logging mixin that combines traditional logging with feature-aware capabilities.
 
     This mixin automatically creates a logger based on the class name
     and provides common logging patterns used throughout PANTHER, now with
@@ -27,25 +27,45 @@ class LoggerMixin(FeatureLoggerMixin):
     """
 
     def __init__(self, *args, **kwargs):
+        """Initialize mixin state."""
         super().__init__(*args, **kwargs)
         self._logger: Optional[logging.Logger] = None
         self._log_context = {}
         # Initialize feature-aware logging
         self.__init_logger__()
 
+    def __init_logger__(self, feature: Optional[str] = None):
+        """Initialize the logger for this component.
+
+        Args:
+            feature: Optional explicit feature name. If not provided,
+                    will be auto-detected from class name.
+        """
+        class_name = self.__class__.__name__
+        module_name = self.__class__.__module__
+
+        logger_name = f"{module_name}.{class_name}"
+
+        if not feature:
+            feature = self._auto_detect_feature()
+
+        self._logger = (
+            LoggerFactory.get_feature_logger(logger_name, feature)
+            if feature
+            else LoggerFactory.get_logger(logger_name)
+        )
+
+        self._feature = feature
+
     @property
     def logger(self) -> logging.Logger:
-        """
-        Get or create a logger for this class.
+        """Get or create a logger for this class.
 
         Returns:
             logging.Logger: Logger instance named after the class
         """
-        # Use the feature-aware logger from FeatureLoggerMixin
         if not hasattr(self, "_logger") or self._logger is None:
-            # Get feature-aware logger from parent mixin (this respects feature_levels)
-            feature_logger = super().logger
-            self._logger = feature_logger
+            self.__init_logger__()
 
             # Add trace method if not already present
             if not hasattr(self._logger, "trace"):
@@ -54,9 +74,138 @@ class LoggerMixin(FeatureLoggerMixin):
                 )
         return self._logger
 
-    def log_initialization(self, entity_name: str, additional_info: str = "") -> None:
+    def _auto_detect_feature(self) -> Optional[str]:
+        """Auto-detect the appropriate feature for this component.
+
+        Returns:
+            Detected feature name or None if no match found
         """
-        Log initialization of an entity with consistent format.
+        class_name = self.__class__.__name__.lower()
+        module_name = self.__class__.__module__.lower()
+
+        feature_patterns = {
+            "command_generation": ["command", "cmd"],
+            "template_rendering": ["template", "render"],
+            "docker_operations": ["docker", "container"],
+            "config_processing": ["config", "configuration"],
+            "event_system": ["event", "emitter", "state"],
+            "file_operations": ["file", "output", "storage"],
+            "service_managers": ["service", "manager"],
+            "ivy_operations": ["ivy"],
+            "quic_services": [
+                "quic",
+                "picoquic",
+                "aioquic",
+                "lsquic",
+                "mvfst",
+                "quiche",
+                "quinn",
+            ],
+            "plugin_loading": ["plugin", "loader"],
+            "network_environments": ["network", "environment"],
+            "execution_environment": [
+                "execution",
+                "strace",
+                "gperf",
+                "memcheck",
+                "helgrind",
+            ],
+            "docker_compose": ["compose"],
+            "shadow_ns": ["shadow"],
+            "localhost_container": ["localhost"],
+            "observer_operations": ["observer"],
+            "certificate_management": ["cert", "certificate", "tls"],
+            "network_setup": ["network"],
+            "port_management": ["port"],
+            "protocol_communication": ["protocol"],
+            "metrics_collection": ["metrics", "monitor"],
+            "data_storage": ["storage", "store"],
+            "result_processing": ["result"],
+            "test_execution": ["test", "experiment"],
+            "validation_checks": ["validation", "validator"],
+            "error_handling": ["error", "exception", "fail"],
+        }
+
+        for feature, patterns in feature_patterns.items():
+            for pattern in patterns:
+                if pattern in class_name or pattern in module_name:
+                    return feature
+
+        return None
+
+    def log_with_feature(self, level: str, message: str, *args, **kwargs):
+        """Log a message with explicit feature context.
+
+        Args:
+            level: Logging level (DEBUG, INFO, etc.)
+            message: Log message
+            *args: Additional positional arguments
+            **kwargs: Additional keyword arguments
+        """
+        if not hasattr(self, "logger"):
+            self.__init_logger__()
+
+        log_method = getattr(self.logger, level.lower(), None)
+        if log_method:
+            log_method(message, *args, **kwargs)
+
+    def trace(self, message: str, *args, **kwargs):
+        """Log a TRACE level message."""
+        if not hasattr(self, "logger"):
+            self.__init_logger__()
+        if hasattr(self.logger, "trace"):
+            self.logger.trace(message, *args, **kwargs)
+
+    def debug(self, message: str, *args, **kwargs):
+        """Log a DEBUG level message."""
+        if not hasattr(self, "logger"):
+            self.__init_logger__()
+        self.logger.debug(message, *args, **kwargs)
+
+    def info(self, message: str, *args, **kwargs):
+        """Log an INFO level message."""
+        if not hasattr(self, "logger"):
+            self.__init_logger__()
+        self.logger.info(message, *args, **kwargs)
+
+    def warning(self, message: str, *args, **kwargs):
+        """Log a WARNING level message."""
+        if not hasattr(self, "logger"):
+            self.__init_logger__()
+        self.logger.warning(message, *args, **kwargs)
+
+    def error(self, message: str, *args, **kwargs):
+        """Log an ERROR level message."""
+        if not hasattr(self, "logger"):
+            self.__init_logger__()
+        self.logger.error(message, *args, **kwargs)
+
+    def critical(self, message: str, *args, **kwargs):
+        """Log a CRITICAL level message."""
+        if not hasattr(self, "logger"):
+            self.__init_logger__()
+        self.logger.critical(message, *args, **kwargs)
+
+    def get_effective_feature(self) -> Optional[str]:
+        """Get the effective feature for this component.
+
+        Returns:
+            Feature name or None if no feature detected
+        """
+        return getattr(self, "_feature", None)
+
+    def update_feature_level(self, level: str):
+        """Update the logging level for this component's feature.
+
+        Args:
+            level: New logging level (DEBUG, INFO, etc.)
+        """
+        if hasattr(self, "_feature") and self._feature:
+            LoggerFactory.update_feature_level(self._feature, level)
+            self.__init_logger__(self._feature)
+
+    def log_initialization(self, entity_name: str, additional_info: str = "") -> None:
+        """Log initialization of an entity with consistent format.
 
         Args:
             entity_name: Name of the entity being initialized
@@ -68,8 +217,7 @@ class LoggerMixin(FeatureLoggerMixin):
         self.logger.debug(message)
 
     def log_config_loaded(self, config: dict, entity_name: str = "") -> None:
-        """
-        Log configuration loading with smart summarization.
+        """Log configuration loading with smart summarization.
 
         Args:
             config: Configuration dictionary that was loaded
@@ -89,8 +237,7 @@ class LoggerMixin(FeatureLoggerMixin):
             self.logger.trace(f"Full configuration{entity_part}:\n{full_config}")
 
     def log_config(self, config: Dict[str, Any], level: int = logging.DEBUG) -> None:
-        """
-        Smart config logging with summarization.
+        """Smart config logging with summarization.
 
         Args:
             config: Configuration dictionary to log
@@ -105,8 +252,7 @@ class LoggerMixin(FeatureLoggerMixin):
             self.logger.trace(f"Full configuration:\n{sanitized}")
 
     def log_with_context(self, level: int, msg: str, **context) -> None:
-        """
-        Log with additional context that can be filtered.
+        """Log with additional context that can be filtered.
 
         Args:
             level: Logging level
@@ -118,8 +264,7 @@ class LoggerMixin(FeatureLoggerMixin):
             self.logger.log(level, f"{msg} [{context_str}]")
 
     def _should_log_with_context(self, level: int, context: Dict[str, Any]) -> bool:
-        """
-        Determine if message should be logged based on context.
+        """Determine if message should be logged based on context.
 
         Args:
             level: Logging level
@@ -152,8 +297,7 @@ class LoggerMixin(FeatureLoggerMixin):
         return True
 
     def log_operation_start(self, operation: str, **kwargs) -> None:
-        """
-        Log the start of an operation.
+        """Log the start of an operation.
 
         Args:
             operation: Name of the operation starting
@@ -174,8 +318,7 @@ class LoggerMixin(FeatureLoggerMixin):
             self.logger.debug(f"Full context for {operation}: {kwargs}")
 
     def log_operation_complete(self, operation: str, **kwargs) -> None:
-        """
-        Log the completion of an operation.
+        """Log the completion of an operation.
 
         Args:
             operation: Name of the operation completed
@@ -196,8 +339,7 @@ class LoggerMixin(FeatureLoggerMixin):
             self.logger.debug(f"Full context for completed {operation}: {kwargs}")
 
     def log_operation_failed(self, operation: str, error: Exception, **kwargs) -> None:
-        """
-        Log the failure of an operation.
+        """Log the failure of an operation.
 
         Args:
             operation: Name of the operation that failed
