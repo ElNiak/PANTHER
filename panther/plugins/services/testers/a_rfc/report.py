@@ -13,9 +13,9 @@ from pathlib import Path
 
 import yaml
 
-from .anchors import AnchorError, verify
-from .models import COMMIT_REQUIRED_FOR, Intent, Manifest
-from .promotion import Violation, violations
+from .anchors import AnchorError, verify_detailed
+from .models import COMMIT_REQUIRED_FOR, STATUS_RANK, Intent, Manifest
+from .promotion import Violation, adjudicate, violations
 
 
 @dataclass(frozen=True)
@@ -46,10 +46,11 @@ def build(manifest: Manifest, repo: Path | None = None) -> Report:
                 if anchor.evidence_class not in COMMIT_REQUIRED_FOR:
                     continue
                 try:
-                    if not verify(anchor, repo):
-                        unverified.append(f"{claim.id}: {anchor.locator}")
+                    reason = verify_detailed(anchor, repo)
                 except AnchorError as error:
-                    unverified.append(f"{claim.id}: {anchor.locator} ({error})")
+                    reason = str(error)
+                if reason is not None:
+                    unverified.append(f"{claim.id}: {anchor.locator} ({reason})")
 
     return Report(
         manifest=manifest,
@@ -58,8 +59,25 @@ def build(manifest: Manifest, repo: Path | None = None) -> Report:
     )
 
 
+def _adjudicated(report: Report) -> list[dict]:
+    """Pair every claim's stored status with what its evidence supports."""
+    entries = []
+    for claim in report.manifest.claims:
+        supported = adjudicate(claim)
+        entries.append(
+            {
+                "id": claim.id,
+                "stored": claim.status.value,
+                "supported": supported.value,
+                "promotable": STATUS_RANK[supported] > STATUS_RANK[claim.status],
+            }
+        )
+    return entries
+
+
 def _payload(report: Report) -> dict:
     """Build the serialisable view, with derived metrics injected explicitly."""
+    claims = _adjudicated(report)
     return {
         "rfc": report.manifest.rfc,
         "title": report.manifest.title,
@@ -68,6 +86,8 @@ def _payload(report: Report) -> dict:
         "checked_fraction_by_req_class": (
             report.manifest.checked_fraction_by_req_class
         ),
+        "claims": claims,
+        "promotable_count": sum(1 for entry in claims if entry["promotable"]),
         "violations": [
             {
                 "claim_id": violation.claim_id,
@@ -110,6 +130,16 @@ def to_markdown(report: Report) -> str:
     ]
     for status, count in sorted(manifest.count_by_status.items()):
         lines.append(f"- {status}: {count}")
+
+    lines += ["", "## Promotable", ""]
+    promotable = [entry for entry in _adjudicated(report) if entry["promotable"]]
+    if not promotable:
+        lines.append("_None._")
+    for entry in promotable:
+        lines.append(
+            f"- **{entry['id']}** — stored {entry['stored']}, "
+            f"evidence supports {entry['supported']}"
+        )
 
     lines += ["", "## Normative", ""]
     normative = [c for c in manifest.claims if c.intent is not Intent.ACCIDENTAL]

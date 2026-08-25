@@ -134,8 +134,54 @@ def test_unverified_anchors_are_listed_when_a_repo_is_given(
         ),
     )
     report = build(manifest, repo=fixture_repo)
-    assert report.unverified == ("spec:9.1: does_not_exist.txt",)
+    assert len(report.unverified) == 1
+    assert report.unverified[0].startswith("spec:9.1: does_not_exist.txt (")
+    assert "does not exist at" in report.unverified[0]
 
 
 def test_no_repo_means_no_anchor_verification_attempted(mixed_manifest):
     assert build(mixed_manifest).unverified == ()
+
+
+def test_payload_reports_supported_status_beside_stored():
+    claim = _claim(
+        anchors=(
+            Anchor(EvidenceClass.CODE, "a.py", commit="0" * 40),
+            Anchor(EvidenceClass.PAPER, "10.1000/xyz"),
+        ),
+        status=Status.GAP,
+    )
+    payload = json.loads(to_json(build(Manifest(rfc="S", title="t", claims=(claim,)))))
+    assert payload["claims"] == [
+        {
+            "id": "spec:1.1",
+            "stored": "gap",
+            "supported": "confirmed",
+            "promotable": True,
+        }
+    ]
+    assert payload["promotable_count"] == 1
+
+
+def test_stored_at_supported_level_is_not_promotable(mixed_manifest):
+    payload = json.loads(to_json(build(mixed_manifest)))
+    by_id = {entry["id"]: entry for entry in payload["claims"]}
+    assert by_id["spec:1.1"]["promotable"] is False
+    assert by_id["spec:3.1"]["supported"] == "inferred"
+    assert by_id["spec:3.1"]["promotable"] is False
+    assert payload["promotable_count"] == 0
+
+
+def test_markdown_lists_promotable_claims():
+    claim = _claim(
+        anchors=(
+            Anchor(EvidenceClass.CODE, "a.py", commit="0" * 40),
+            Anchor(EvidenceClass.PAPER, "10.1000/xyz"),
+        ),
+        status=Status.GAP,
+    )
+    markdown = to_markdown(build(Manifest(rfc="S", title="t", claims=(claim,))))
+    assert "## Promotable" in markdown
+    promotable_section = markdown.split("## Promotable")[1].split("##")[0]
+    assert "spec:1.1" in promotable_section
+    assert "confirmed" in promotable_section
