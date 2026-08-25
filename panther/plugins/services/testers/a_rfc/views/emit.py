@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -186,3 +187,42 @@ def emit_views(
         )
         emitted.append(cluster["id"])
     return tuple(emitted)
+
+
+def verify_views(
+    timeline_dir: Path, corpus: Path, repo: Path, out: Path
+) -> tuple[str, ...]:
+    """Re-emit every view into scratch space and compare digests.
+
+    Cross-git-version patch stability is empirical, not contractual, so drift
+    is converted into a named failure instead of silent divergence.
+
+    Args:
+        timeline_dir: Directory written by the timeline stage.
+        corpus: The corpus the timeline was built from.
+        repo: The pinned clone.
+        out: The previously emitted views to check.
+
+    Returns:
+        The cluster ids whose stored artifacts no longer match a fresh
+        emission; empty when everything still matches.
+
+    Raises:
+        ViewsError: As :func:`emit_views`.
+        OSError: If an input cannot be read.
+    """
+    drifted: list[str] = []
+    with tempfile.TemporaryDirectory() as scratch:
+        fresh_root = Path(scratch)
+        for cluster_id in emit_views(timeline_dir, corpus, repo, fresh_root):
+            fresh_view = json.loads((fresh_root / cluster_id / VIEW_FILE).read_text())
+            expected = fresh_view["patches"][0]["sha256"]
+            stored_view = out / cluster_id / VIEW_FILE
+            stored_span = out / cluster_id / SPAN_FILE
+            if not stored_view.exists() or not stored_span.exists():
+                drifted.append(cluster_id)
+                continue
+            recorded = json.loads(stored_view.read_text())["patches"][0]["sha256"]
+            if recorded != expected or _digest(stored_span) != expected:
+                drifted.append(cluster_id)
+    return tuple(drifted)
