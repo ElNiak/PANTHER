@@ -32,21 +32,41 @@ mining, whose output is a manifest validated by the modules documented here.
 They share no domain code; a reader seeing a nested package will reasonably
 assume otherwise, which is why it is stated here.
 
-## The `timeline/`, `views/` and `draft/` subpackages
+## The `forge/`, `timeline/`, `views/` and `draft/` subpackages
 
-Three further stages carry the corpus toward a progressive, per-PR
+Four further stages carry the corpus toward a progressive, per-PR
 reconstruction (design spec:
 `docs/superpowers/specs/2026-08-25-arfc-progressive-rfc-design.md`):
+
+- `forge/` is the package's ONLY networked stage: it fetches a repository's
+  pull/merge requests, reviews and comments (GitHub and GitLab adapters,
+  stdlib urllib, `GITHUB_TOKEN`/`GITLAB_TOKEN` from the environment and
+  never stored) into an **immutable, sorted snapshot** — written once after
+  a complete fetch, refused if the directory exists, consumed only by
+  explicit path. Everything downstream stays offline and deterministic.
+  Discussions are fetched for merged pulls only.
 
 - `timeline/` clusters the corpus into a total-ordered first-parent
   timeline: every merge on the spine becomes a **PR cluster** (the merge
   plus its branch commits), every run of direct pushes an honest **epoch
   cluster**, and every commit appears exactly once — the partition is
-  asserted, not assumed. Order is topological, never chronological.
+  asserted, not assumed. Order is topological, never chronological. With
+  `--forge`, merged pulls enrich their merge clusters with a PR number and
+  a pull that landed as a single squash/rebase commit is **rescued** into
+  its own one-member PR cluster (`provenance: forge_squash`) — on
+  squash-heavy aioquic this turns 3 git-visible PRs into 238. A rebase
+  merge is approximated by its final commit; earlier rebased commits stay
+  epoch members. Pulls landing outside the corpus are counted and named,
+  never guessed, and a snapshot fetched at a different HEAD is refused. A
+  trailing ``(#N)`` in a subject NEVER clusters — GitHub renders issue
+  references identically, and misattribution would be silent.
 - `views/` emits one evidence folder per cluster — metadata, the member
   file set (a union over members, because merge commits carry no file rows
   of their own) and a byte-stable `span.diff` — digest-guarded against a
-  moved corpus or clone, and re-verifiable with `--verify`.
+  moved corpus or clone, and re-verifiable with `--verify`. With `--forge`,
+  each PR cluster's pull record, reviews and comments are copied into
+  `evidence/pr.json`; `--patches members` adds one first-parent patch per
+  member commit, all digest-recorded.
 - `draft/` freezes the manifest per cluster (`checkpoint`), keeps the
   question register for the author-feedback loop, and gates a prose
   Internet-Draft's revision map (`gate`): revision tags must exist, map to
@@ -61,8 +81,9 @@ timeline artifacts only as files on disk.
 
 | Command | Purpose |
 |---|---|
-| `python -m …a_rfc.timeline CORPUS --out DIR [--repo CLONE]` | Cluster the corpus; `--repo` refuses a clone whose HEAD left the corpus tip |
-| `python -m …a_rfc.views TIMELINE --corpus DIR --repo CLONE --out DIR [--only ID] [--verify]` | Emit evidence folders; `--verify` exits 2 on byte drift |
+| `python -m …a_rfc.forge URL --repo CLONE --out DIR [--host github\|gitlab]` | Fetch pull data into an immutable snapshot (the only networked command) |
+| `python -m …a_rfc.timeline CORPUS --out DIR [--repo CLONE] [--forge SNAPDIR]` | Cluster the corpus; `--repo` refuses a clone whose HEAD left the corpus tip; `--forge` enriches and rescues |
+| `python -m …a_rfc.views TIMELINE --corpus DIR --repo CLONE --out DIR [--only ID] [--forge SNAPDIR] [--patches span\|members] [--verify]` | Emit evidence folders; `--verify` exits 2 on byte drift |
 | `python -m …a_rfc.draft checkpoint MANIFEST --timeline DIR --cluster ID --out DIR` | Freeze the manifest against one cluster |
 | `python -m …a_rfc.draft gate DRAFTREPO --timeline DIR --checkpoints DIR --questions FILE --revisions FILE --out DIR [--strict]` | Citation gate; findings exit 2 under `--strict` |
 
@@ -351,6 +372,7 @@ coupling the file-on-disk boundary exists to prevent:
 | stderr `_report` | `cli.py` · `history/cli.py` · `timeline/cli.py` · `views/cli.py` · `draft/cli.py` |
 | SHA-256 `_digest` | `history/index.py` · `timeline/store.py` · `views/emit.py` · `draft/checkpoint.py` |
 | JSONL corpus readers | `history/store.py` · `timeline/corpus.py` · `views/emit.py` |
+| Forge snapshot readers | `forge/store.py` · `timeline/cli.py` · `views/emit.py` |
 
 The `_git` wrappers deliberately omit `subprocess.run(check=True)`:
 `CalledProcessError` raises without stderr attached, and every caller must
