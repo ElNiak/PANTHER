@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Sequence
+from typing import Any, Sequence
 
 from .corpus import CorpusCommit, TimelineError, find_tip
 
@@ -43,6 +43,7 @@ class Cluster:
     files_complete: bool
     spine_prev_sha: str | None
     subject_pr_hint: int | None
+    pr_number: int | None
     members: tuple[Member, ...]
 
 
@@ -86,12 +87,43 @@ def _branch_members(
     return sorted(found, key=lambda member: (by_sha[member].authored_at, member))
 
 
+def _match_pulls(
+    by_sha: dict[str, CorpusCommit],
+    forge_pulls: Sequence[dict[str, Any]],
+) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+    """Split merged pulls into squash-rescues and merge-commit enrichments.
+
+    A pull whose landing commit (``squash_commit_sha`` when the forge records
+    one, ``merge_commit_sha`` otherwise) is a corpus commit with several
+    parents enriches the PR cluster that merge already produced; one landing
+    on a single-parent commit forces that commit into its own PR cluster.
+    Pulls landing outside the corpus are simply not matched — the caller
+    counts and reports them, and nothing is guessed.
+    """
+    forced: dict[str, dict[str, Any]] = {}
+    enriched: dict[str, dict[str, Any]] = {}
+    for pull in forge_pulls:
+        if not pull.get("merged_at"):
+            continue
+        sha = pull.get("squash_commit_sha") or pull.get("merge_commit_sha")
+        commit = by_sha.get(sha or "")
+        if commit is None:
+            continue
+        if len(commit.parents) > 1:
+            enriched[commit.sha] = pull
+        else:
+            forced[commit.sha] = pull
+    return forced, enriched
+
+
 def _cluster(
     ordinal: int,
     kind: str,
     member_shas: list[str],
     by_sha: dict[str, CorpusCommit],
     spine_prev: str | None,
+    provenance: str | None = None,
+    pr_number: int | None = None,
 ) -> Cluster:
     anchor = member_shas[0] if kind == "epoch" else member_shas[-1]
     anchor_commit = by_sha[anchor]
@@ -100,7 +132,7 @@ def _cluster(
         id=f"c{ordinal:04d}-{kind}-{anchor[:12]}",
         ordinal=ordinal,
         kind=kind,
-        provenance="merge_commit" if kind == "pr" else "epoch",
+        provenance=provenance or ("merge_commit" if kind == "pr" else "epoch"),
         anchor_sha=anchor,
         title=anchor_commit.subject,
         member_count=len(member_shas),
@@ -110,6 +142,7 @@ def _cluster(
         files_complete=not any(by_sha[sha].files_truncated for sha in member_shas),
         spine_prev_sha=spine_prev,
         subject_pr_hint=int(hint.group(1)) if hint else None,
+        pr_number=pr_number,
         members=tuple(
             Member(
                 sha=sha,
@@ -125,11 +158,20 @@ def _cluster(
     )
 
 
-def build_timeline(commits: Sequence[CorpusCommit]) -> tuple[Cluster, ...]:
+def build_timeline(
+    commits: Sequence[CorpusCommit],
+    forge_pulls: Sequence[dict[str, Any]] | None = None,
+) -> tuple[Cluster, ...]:
     """Cluster a corpus into its total-ordered PR/epoch timeline.
 
     Args:
         commits: Every commit record in the corpus.
+        forge_pulls: Pull records from a forge snapshot. When given, merged
+            pulls enrich their merge-commit clusters with a PR number, and a
+            pull that landed as a single squash/rebase commit forces that
+            spine commit into its own one-member PR cluster
+            (``provenance: forge_squash``). A trailing ``(#N)`` in a subject
+            never clusters anything — only a forge sha-match restructures.
 
     Returns:
         Clusters in first-parent spine order, root to tip. Their members
@@ -140,6 +182,7 @@ def build_timeline(commits: Sequence[CorpusCommit]) -> tuple[Cluster, ...]:
             or the partition invariant breaks.
     """
     by_sha = {commit.sha: commit for commit in commits}
+    forced, enriched = _match_pulls(by_sha, forge_pulls or ())
     spine = _spine(commits)
     on_spine = frozenset(spine)
     assigned: set[str] = set()
@@ -155,11 +198,15 @@ def build_timeline(commits: Sequence[CorpusCommit]) -> tuple[Cluster, ...]:
             )
             epoch_run.clear()
 
+    def flush_before(index: int) -> None:
+        first_epoch_index = index - len(epoch_run)
+        flush(spine[first_epoch_index - 1] if first_epoch_index else None)
+
     for index, sha in enumerate(spine):
         if len(by_sha[sha].parents) > 1:
-            first_epoch_index = index - len(epoch_run)
-            flush(spine[first_epoch_index - 1] if first_epoch_index else None)
+            flush_before(index)
             branch = _branch_members(by_sha[sha], by_sha, on_spine, assigned)
+            pull = enriched.get(sha)
             clusters.append(
                 _cluster(
                     len(clusters) + 1,
@@ -167,9 +214,24 @@ def build_timeline(commits: Sequence[CorpusCommit]) -> tuple[Cluster, ...]:
                     branch + [sha],
                     by_sha,
                     spine[index - 1] if index else None,
+                    pr_number=pull["number"] if pull else None,
                 )
             )
             assigned.update(branch)
+            assigned.add(sha)
+        elif sha in forced:
+            flush_before(index)
+            clusters.append(
+                _cluster(
+                    len(clusters) + 1,
+                    "pr",
+                    [sha],
+                    by_sha,
+                    spine[index - 1] if index else None,
+                    provenance="forge_squash",
+                    pr_number=forced[sha]["number"],
+                )
+            )
             assigned.add(sha)
         else:
             epoch_run.append(sha)

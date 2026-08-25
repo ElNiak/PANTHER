@@ -30,7 +30,11 @@ def _digest(path: Path) -> str:
 
 
 def write_timeline(
-    clusters: Sequence[Cluster], tip_sha: str, corpus: Path, out: Path
+    clusters: Sequence[Cluster],
+    tip_sha: str,
+    corpus: Path,
+    out: Path,
+    forge_snapshot: dict[str, str] | None = None,
 ) -> None:
     """Write the timeline artifacts for ``clusters`` into ``out``.
 
@@ -40,6 +44,8 @@ def write_timeline(
         corpus: The corpus directory the timeline was built from; both JSONL
             files are digested into ``timeline.json``.
         out: Destination directory, created if absent.
+        forge_snapshot: ``{"dir_name", "meta_sha256"}`` of the snapshot that
+            informed clustering, or ``None`` for a git-only timeline.
     """
     out.mkdir(parents=True, exist_ok=True)
 
@@ -61,7 +67,7 @@ def write_timeline(
         "commits_sha256": _digest(corpus / COMMITS_FILE),
         "epoch_count": sum(1 for cluster in clusters if cluster.kind == "epoch"),
         "files_sha256": _digest(corpus / FILES_FILE),
-        "forge_snapshot": None,
+        "forge_snapshot": forge_snapshot,
         "member_count": sum(cluster.member_count for cluster in clusters),
         "pr_count": sum(1 for cluster in clusters if cluster.kind == "pr"),
         "tip_sha": tip_sha,

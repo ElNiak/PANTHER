@@ -126,6 +126,66 @@ def test_truncated_member_marks_cluster_incomplete():
     assert epoch.anchor_sha == "r"
 
 
+def _pull(number: int, merge_sha: str | None, squash_sha: str | None = None) -> dict:
+    return {
+        "number": number,
+        "title": f"pull {number}",
+        "state": "merged",
+        "merged_at": "2026-01-02T00:00:00Z",
+        "merge_commit_sha": merge_sha,
+        "squash_commit_sha": squash_sha,
+    }
+
+
+def test_forge_squash_rescue_splits_epochs():
+    commits = [_c("r", []), _c("s", ["r"]), _c("t", ["s"])]
+    clusters = build_timeline(commits, forge_pulls=[_pull(12, "s")])
+    shape = [
+        (cluster.kind, cluster.provenance, [m.sha for m in cluster.members])
+        for cluster in clusters
+    ]
+    assert shape == [
+        ("epoch", "epoch", ["r"]),
+        ("pr", "forge_squash", ["s"]),
+        ("epoch", "epoch", ["t"]),
+    ]
+    assert clusters[1].pr_number == 12
+    assert clusters[1].members[0].role == "anchor"
+    seen = [m.sha for cluster in clusters for m in cluster.members]
+    assert sorted(seen) == ["r", "s", "t"]
+
+
+def test_forge_enriches_existing_merge_cluster():
+    commits = [_c("r", []), _c("f", ["r"]), _c("m", ["r", "f"])]
+    clusters = build_timeline(commits, forge_pulls=[_pull(7, "m")])
+    pr = [cluster for cluster in clusters if cluster.kind == "pr"][0]
+    assert pr.pr_number == 7
+    assert pr.provenance == "merge_commit"
+
+
+def test_gitlab_squash_sha_takes_priority():
+    commits = [_c("r", []), _c("s", ["r"])]
+    clusters = build_timeline(commits, forge_pulls=[_pull(3, "0" * 40, squash_sha="s")])
+    pr = [cluster for cluster in clusters if cluster.kind == "pr"][0]
+    assert pr.provenance == "forge_squash"
+    assert pr.pr_number == 3
+
+
+def test_unmatched_and_unmerged_pulls_change_nothing():
+    commits = [_c("r", []), _c("d", ["r"])]
+    unmatched = _pull(1, "z" * 40)
+    unmerged = dict(_pull(2, "d"), state="open", merged_at=None)
+    clusters = build_timeline(commits, forge_pulls=[unmatched, unmerged])
+    assert [cluster.kind for cluster in clusters] == ["epoch"]
+    assert clusters[0].pr_number is None
+
+
+def test_subject_hint_never_clusters_even_with_forge_data():
+    commits = [_c("r", []), _c("s", ["r"], subject="feat: thing (#12)")]
+    clusters = build_timeline(commits, forge_pulls=[])
+    assert [cluster.kind for cluster in clusters] == ["epoch"]
+
+
 def test_epoch_between_two_merges_has_the_right_prev():
     commits = [
         _c("r", []),

@@ -55,6 +55,68 @@ def test_unclusterable_corpus_exits_one_with_reason(tmp_path: Path, capsys):
     assert "tip" in capsys.readouterr().err
 
 
+def _snapshot(tmp_path: Path, clone_head: str, pulls: list) -> Path:
+    from panther.plugins.services.testers.a_rfc.forge.store import write_snapshot
+
+    return write_snapshot(
+        tmp_path / "forge",
+        host="github.com",
+        owner="o",
+        repo="r",
+        kind="github",
+        clone_head=clone_head,
+        fetched_at="2026-08-25T10-00-00Z",
+        authenticated=False,
+        pulls=pulls,
+        reviews=[],
+        comments=[],
+    )
+
+
+def _merged_pull(number: int, sha: str) -> dict:
+    return {
+        "number": number,
+        "title": f"pull {number}",
+        "state": "merged",
+        "merged_at": "2026-01-02T00:00:00Z",
+        "merge_commit_sha": sha,
+        "squash_commit_sha": None,
+    }
+
+
+def test_forge_head_mismatch_exits_one(tmp_path: Path, capsys):
+    corpus = _corpus(tmp_path, [_record("aa", []), _record("bb", ["aa"])])
+    snapshot = _snapshot(tmp_path, "f" * 40, [])
+    code = cli.main(
+        [str(corpus), "--forge", str(snapshot), "--out", str(tmp_path / "out")]
+    )
+    assert code == 1
+    err = capsys.readouterr().err
+    assert "bb" in err
+    assert "f" * 40 in err
+
+
+def test_forge_rescue_recorded_and_reported(tmp_path: Path, capsys):
+    import json as json_module
+
+    corpus = _corpus(tmp_path, [_record("aa", []), _record("bb", ["aa"])])
+    snapshot = _snapshot(
+        tmp_path, "bb", [_merged_pull(12, "bb"), _merged_pull(13, "z" * 40)]
+    )
+    out = tmp_path / "out"
+    assert cli.main([str(corpus), "--forge", str(snapshot), "--out", str(out)]) == 0
+    timeline = json_module.loads((out / "timeline.json").read_text())
+    assert timeline["forge_snapshot"]["dir_name"].endswith(
+        "snapshot-2026-08-25T10-00-00Z"
+    )
+    assert len(timeline["forge_snapshot"]["meta_sha256"]) == 64
+    assert timeline["pr_count"] == 1
+    err = capsys.readouterr().err
+    assert "1 squash-rescued" in err
+    assert "1 of 2 merged pull(s) unmatched" in err
+    assert "13" in err
+
+
 def test_repo_head_mismatch_exits_one_naming_both(tmp_path: Path, capsys):
     corpus = _corpus(tmp_path, [_record("aa", []), _record("bb", ["aa"])])
     repo = tmp_path / "repo"
