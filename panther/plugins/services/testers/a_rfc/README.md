@@ -32,6 +32,40 @@ mining, whose output is a manifest validated by the modules documented here.
 They share no domain code; a reader seeing a nested package will reasonably
 assume otherwise, which is why it is stated here.
 
+## The `timeline/`, `views/` and `draft/` subpackages
+
+Three further stages carry the corpus toward a progressive, per-PR
+reconstruction (design spec:
+`docs/superpowers/specs/2026-08-25-arfc-progressive-rfc-design.md`):
+
+- `timeline/` clusters the corpus into a total-ordered first-parent
+  timeline: every merge on the spine becomes a **PR cluster** (the merge
+  plus its branch commits), every run of direct pushes an honest **epoch
+  cluster**, and every commit appears exactly once — the partition is
+  asserted, not assumed. Order is topological, never chronological.
+- `views/` emits one evidence folder per cluster — metadata, the member
+  file set (a union over members, because merge commits carry no file rows
+  of their own) and a byte-stable `span.diff` — digest-guarded against a
+  moved corpus or clone, and re-verifiable with `--verify`.
+- `draft/` freezes the manifest per cluster (`checkpoint`), keeps the
+  question register for the author-feedback loop, and gates a prose
+  Internet-Draft's revision map (`gate`): revision tags must exist, map to
+  clusters in increasing order, pin unedited checkpoints, and cite — as
+  backticked `` `a_rfc:<claim-id>` `` tokens — only claims their
+  checkpoint holds.
+
+`timeline/` and `views/` are corpus-side: like `history/`, they share no
+domain code with the manifest core and re-parse the JSONL themselves.
+`draft/` is manifest-side: it imports `schema` and `promotion`, and reads
+timeline artifacts only as files on disk.
+
+| Command | Purpose |
+|---|---|
+| `python -m …a_rfc.timeline CORPUS --out DIR [--repo CLONE]` | Cluster the corpus; `--repo` refuses a clone whose HEAD left the corpus tip |
+| `python -m …a_rfc.views TIMELINE --corpus DIR --repo CLONE --out DIR [--only ID] [--verify]` | Emit evidence folders; `--verify` exits 2 on byte drift |
+| `python -m …a_rfc.draft checkpoint MANIFEST --timeline DIR --cluster ID --out DIR` | Freeze the manifest against one cluster |
+| `python -m …a_rfc.draft gate DRAFTREPO --timeline DIR --checkpoints DIR --questions FILE --revisions FILE --out DIR [--strict]` | Citation gate; findings exit 2 under `--strict` |
+
 ## CLI
 
 ```bash
@@ -306,17 +340,21 @@ emit this module's manifests into `protocol-testing/`.
 
 ## Known duplication to consolidate
 
-**Four helpers are duplicated across this package**, two pairs, both
-deliberately:
+**Several small helpers are duplicated across this package**, all
+deliberately — the corpus-side subpackages share no code with the manifest
+core or with each other, and hoisting a few lines would create exactly the
+coupling the file-on-disk boundary exists to prevent:
 
-| Helper | Here | In `history/` |
-|---|---|---|
-| `_git` subprocess wrapper | `anchors.py` | `history/git_log.py` |
-| stderr `_report` | `cli.py` | `history/cli.py` |
+| Helper | Copies |
+|---|---|
+| `_git` subprocess wrapper | `anchors.py` · `history/git_log.py` · `draft/gate.py` |
+| stderr `_report` | `cli.py` · `history/cli.py` · `timeline/cli.py` · `views/cli.py` · `draft/cli.py` |
+| SHA-256 `_digest` | `history/index.py` · `timeline/store.py` · `views/emit.py` · `draft/checkpoint.py` |
+| JSONL corpus readers | `history/store.py` · `timeline/corpus.py` · `views/emit.py` |
 
-Both `_git` wrappers deliberately omit `subprocess.run(check=True)`:
-`CalledProcessError` raises without stderr attached, and both callers must
-distinguish "no such path" (a result) from "no such commit" (an error). Both
+The `_git` wrappers deliberately omit `subprocess.run(check=True)`:
+`CalledProcessError` raises without stderr attached, and every caller must
+distinguish "no such path" (a result) from "no such commit" (an error). The
 `_report` helpers write to stderr rather than logging, for the reason in the
 next section.
 
