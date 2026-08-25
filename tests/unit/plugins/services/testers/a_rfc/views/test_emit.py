@@ -77,6 +77,140 @@ def test_moved_clone_head_is_refused(pipeline, tmp_path: Path):
     assert "tip" in str(excinfo.value)
 
 
+def _forge_pipeline(pipeline: dict[str, Path], tmp_path: Path) -> Path:
+    import subprocess
+
+    from panther.plugins.services.testers.a_rfc.forge.store import write_snapshot
+    from panther.plugins.services.testers.a_rfc.timeline import cli as timeline_cli
+
+    head = subprocess.run(
+        ["git", "-C", str(pipeline["repo"]), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    snapshot = write_snapshot(
+        tmp_path / "forge",
+        host="github.com",
+        owner="o",
+        repo="r",
+        kind="github",
+        clone_head=head,
+        fetched_at="2026-08-25T10-00-00Z",
+        authenticated=False,
+        pulls=[
+            {
+                "number": 42,
+                "title": "the feature",
+                "body": "adds b.txt",
+                "state": "merged",
+                "author": "dev",
+                "created_at": "2026-01-01T00:00:00Z",
+                "merged_at": "2026-01-02T00:00:00Z",
+                "merge_commit_sha": head,
+                "squash_commit_sha": None,
+                "head_sha": "0" * 40,
+                "base_ref": "main",
+                "url": "https://example/pull/42",
+                "labels": [],
+            }
+        ],
+        reviews=[],
+        comments=[
+            {
+                "pr_number": 42,
+                "id": 1,
+                "kind": "issue_comment",
+                "author": "reviewer",
+                "created_at": "2026-01-01T12:00:00Z",
+                "body": "nice",
+                "path": None,
+                "line": None,
+            }
+        ],
+    )
+    assert (
+        timeline_cli.main(
+            [
+                str(pipeline["corpus"]),
+                "--forge",
+                str(snapshot),
+                "--out",
+                str(pipeline["timeline"]),
+            ]
+        )
+        == 0
+    )
+    return snapshot
+
+
+def test_member_patches_and_forge_evidence(pipeline, tmp_path: Path):
+    snapshot = _forge_pipeline(pipeline, tmp_path)
+    out = tmp_path / "clusters"
+    ids = emit_views(
+        pipeline["timeline"],
+        pipeline["corpus"],
+        pipeline["repo"],
+        out,
+        forge_snapshot=snapshot,
+        patches="members",
+    )
+    pr_id = [cluster_id for cluster_id in ids if "-pr-" in cluster_id][0]
+    view = json.loads((out / pr_id / "view.json").read_text())
+    assert view["pr_number"] == 42
+    member_patches = sorted((out / pr_id / "members").iterdir())
+    assert len(member_patches) == 2
+    names = {patch["name"] for patch in view["patches"]}
+    assert "span.diff" in names
+    assert any(name.startswith("members/") for name in names)
+    for patch in view["patches"]:
+        raw = (out / pr_id / patch["name"]).read_bytes()
+        assert patch["sha256"] == hashlib.sha256(raw).hexdigest()
+    evidence = json.loads((out / pr_id / "evidence" / "pr.json").read_text())
+    assert evidence["pull"]["number"] == 42
+    assert evidence["comments"][0]["body"] == "nice"
+    assert view["evidence"]["pr_number"] == 42
+    assert view["evidence"]["comment_count"] == 1
+
+
+def test_verify_covers_member_patches(pipeline, tmp_path: Path):
+    snapshot = _forge_pipeline(pipeline, tmp_path)
+    from panther.plugins.services.testers.a_rfc.views.emit import verify_views
+
+    out = tmp_path / "clusters"
+    ids = emit_views(
+        pipeline["timeline"],
+        pipeline["corpus"],
+        pipeline["repo"],
+        out,
+        forge_snapshot=snapshot,
+        patches="members",
+    )
+    assert (
+        verify_views(
+            pipeline["timeline"],
+            pipeline["corpus"],
+            pipeline["repo"],
+            out,
+            forge_snapshot=snapshot,
+            patches="members",
+        )
+        == ()
+    )
+    pr_id = [cluster_id for cluster_id in ids if "-pr-" in cluster_id][0]
+    victim = sorted((out / pr_id / "members").iterdir())[0]
+    victim.write_bytes(victim.read_bytes() + b"x")
+    drifted = verify_views(
+        pipeline["timeline"],
+        pipeline["corpus"],
+        pipeline["repo"],
+        out,
+        forge_snapshot=snapshot,
+        patches="members",
+    )
+    assert drifted == (pr_id,)
+
+
 def test_only_limits_emission(pipeline, tmp_path: Path):
     all_ids = _emit(pipeline, tmp_path / "all")
     ids = _emit(pipeline, tmp_path / "one", only=all_ids[0])

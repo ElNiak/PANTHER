@@ -111,12 +111,32 @@ def _file_set(
     ]
 
 
+def _read_forge_records(snapshot: Path) -> dict[str, Any]:
+    """Read a forge snapshot's records.
+
+    Deliberately re-parses the files instead of importing ``forge/`` — the
+    corpus-side subpackages hand data to each other on disk, never through
+    imports.
+    """
+
+    def rows(name: str) -> list[dict[str, Any]]:
+        return [json.loads(line) for line in (snapshot / name).read_text().splitlines()]
+
+    return {
+        "pulls": {pull["number"]: pull for pull in rows("pulls.jsonl")},
+        "reviews": rows("reviews.jsonl"),
+        "comments": rows("comments.jsonl"),
+    }
+
+
 def emit_views(
     timeline_dir: Path,
     corpus: Path,
     repo: Path,
     out: Path,
     only: str | None = None,
+    forge_snapshot: Path | None = None,
+    patches: str = "span",
 ) -> tuple[str, ...]:
     """Emit evidence folders for every cluster, or for one.
 
@@ -126,15 +146,23 @@ def emit_views(
         repo: The pinned clone; its HEAD must still be the corpus tip.
         out: Destination directory; one subdirectory per cluster id.
         only: Emit a single cluster id instead of all of them.
+        forge_snapshot: A forge snapshot; each PR cluster carrying a
+            ``pr_number`` gets its pull record, reviews and comments copied
+            into ``evidence/pr.json``.
+        patches: ``span`` (the default) emits only the cluster span diff;
+            ``members`` also emits one first-parent patch per member commit.
 
     Returns:
         The emitted cluster ids, in ordinal order.
 
     Raises:
         ViewsError: If any input digest no longer matches, the clone HEAD has
-            moved, ``only`` names an unknown cluster, or git refuses a diff.
+            moved, ``only`` names an unknown cluster, ``patches`` is not a
+            recognised mode, or git refuses a diff.
         OSError: If an input cannot be read.
     """
+    if patches not in ("span", "members"):
+        raise ViewsError(f"unknown patches mode {patches!r}; use span or members")
     timeline = json.loads((timeline_dir / "timeline.json").read_text())
     _guard_inputs(timeline, corpus, repo)
 
@@ -152,6 +180,13 @@ def emit_views(
     rows_by_sha: dict[str, list[tuple[str, str]]] = {}
     for row in _jsonl(corpus / "files.jsonl"):
         rows_by_sha.setdefault(row["sha"], []).append((row["path"], row["status"]))
+
+    parents_by_sha: dict[str, tuple[str, ...]] = {}
+    if patches == "members":
+        for row in _jsonl(corpus / "commits.jsonl"):
+            parents_by_sha[row["sha"]] = tuple(row["parents"])
+
+    forge = _read_forge_records(forge_snapshot) if forge_snapshot else None
 
     git_version = subprocess.run(
         ["git", "--version"], capture_output=True, text=True
@@ -173,13 +208,60 @@ def emit_views(
         # later commit of the epoch.
         span = _span_diff(repo, base, members_by_cluster[cluster["id"]][-1])
         (cluster_dir / SPAN_FILE).write_bytes(span)
+        patch_records = [
+            {"bytes": len(span), "name": SPAN_FILE, "sha256": _digest_bytes(span)}
+        ]
+
+        if patches == "members":
+            (cluster_dir / "members").mkdir(exist_ok=True)
+            for position, sha in enumerate(members_by_cluster[cluster["id"]]):
+                parents = parents_by_sha.get(sha, ())
+                member_base = parents[0] if parents else EMPTY_TREE
+                patch = _span_diff(repo, member_base, sha)
+                name = f"members/{position:02d}-{sha[:12]}.patch"
+                (cluster_dir / name).write_bytes(patch)
+                patch_records.append(
+                    {
+                        "bytes": len(patch),
+                        "name": name,
+                        "sha256": _digest_bytes(patch),
+                    }
+                )
+
+        evidence = None
+        if forge is not None and cluster.get("pr_number") is not None:
+            number = cluster["pr_number"]
+            pull = forge["pulls"].get(number)
+            if pull is not None:
+                bundle = {
+                    "pull": pull,
+                    "reviews": [
+                        review
+                        for review in forge["reviews"]
+                        if review["pr_number"] == number
+                    ],
+                    "comments": [
+                        comment
+                        for comment in forge["comments"]
+                        if comment["pr_number"] == number
+                    ],
+                }
+                raw = (json.dumps(bundle, sort_keys=True, indent=2) + "\n").encode()
+                (cluster_dir / "evidence").mkdir(exist_ok=True)
+                (cluster_dir / "evidence" / "pr.json").write_bytes(raw)
+                evidence = {
+                    "comment_count": len(bundle["comments"]),
+                    "pr_number": number,
+                    "review_count": len(bundle["reviews"]),
+                    "sha256": _digest_bytes(raw),
+                }
+
         view = {
             **cluster,
+            "evidence": evidence,
             "file_set": _file_set(members_by_cluster[cluster["id"]], rows_by_sha),
             "git_version": git_version,
-            "patches": [
-                {"bytes": len(span), "name": SPAN_FILE, "sha256": _digest_bytes(span)}
-            ],
+            "patches": patch_records,
             "source": source,
         }
         (cluster_dir / VIEW_FILE).write_text(
@@ -190,7 +272,12 @@ def emit_views(
 
 
 def verify_views(
-    timeline_dir: Path, corpus: Path, repo: Path, out: Path
+    timeline_dir: Path,
+    corpus: Path,
+    repo: Path,
+    out: Path,
+    forge_snapshot: Path | None = None,
+    patches: str = "span",
 ) -> tuple[str, ...]:
     """Re-emit every view into scratch space and compare digests.
 
@@ -202,6 +289,9 @@ def verify_views(
         corpus: The corpus the timeline was built from.
         repo: The pinned clone.
         out: The previously emitted views to check.
+        forge_snapshot: As :func:`emit_views`; pass what the original
+            emission used.
+        patches: As :func:`emit_views`; pass what the original emission used.
 
     Returns:
         The cluster ids whose stored artifacts no longer match a fresh
@@ -214,15 +304,30 @@ def verify_views(
     drifted: list[str] = []
     with tempfile.TemporaryDirectory() as scratch:
         fresh_root = Path(scratch)
-        for cluster_id in emit_views(timeline_dir, corpus, repo, fresh_root):
+        emitted = emit_views(
+            timeline_dir,
+            corpus,
+            repo,
+            fresh_root,
+            forge_snapshot=forge_snapshot,
+            patches=patches,
+        )
+        for cluster_id in emitted:
             fresh_view = json.loads((fresh_root / cluster_id / VIEW_FILE).read_text())
-            expected = fresh_view["patches"][0]["sha256"]
-            stored_view = out / cluster_id / VIEW_FILE
-            stored_span = out / cluster_id / SPAN_FILE
-            if not stored_view.exists() or not stored_span.exists():
+            stored_view_path = out / cluster_id / VIEW_FILE
+            if not stored_view_path.exists():
                 drifted.append(cluster_id)
                 continue
-            recorded = json.loads(stored_view.read_text())["patches"][0]["sha256"]
-            if recorded != expected or _digest(stored_span) != expected:
+            stored_view = json.loads(stored_view_path.read_text())
+            if stored_view.get("patches") != fresh_view["patches"]:
                 drifted.append(cluster_id)
+                continue
+            for record in fresh_view["patches"]:
+                stored_patch = out / cluster_id / record["name"]
+                if (
+                    not stored_patch.exists()
+                    or _digest(stored_patch) != record["sha256"]
+                ):
+                    drifted.append(cluster_id)
+                    break
     return tuple(drifted)

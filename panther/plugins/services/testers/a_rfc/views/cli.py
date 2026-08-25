@@ -47,6 +47,25 @@ def _parser() -> argparse.ArgumentParser:
         "--only", default=None, help="Emit a single cluster id instead of all."
     )
     parser.add_argument(
+        "--forge",
+        type=Path,
+        default=None,
+        help=(
+            "A forge snapshot directory; PR clusters carrying a pr_number "
+            "get their pull record, reviews and comments copied into "
+            "evidence/pr.json."
+        ),
+    )
+    parser.add_argument(
+        "--patches",
+        choices=("span", "members"),
+        default="span",
+        help=(
+            "span emits only the cluster span diff; members also emits one "
+            "first-parent patch per member commit."
+        ),
+    )
+    parser.add_argument(
         "--verify",
         action="store_true",
         help=(
@@ -71,7 +90,14 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         if args.verify:
-            drifted = verify_views(args.timeline, args.corpus, args.repo, args.out)
+            drifted = verify_views(
+                args.timeline,
+                args.corpus,
+                args.repo,
+                args.out,
+                forge_snapshot=args.forge,
+                patches=args.patches,
+            )
             if drifted:
                 for cluster_id in drifted:
                     _report(f"drift: {cluster_id} no longer reproduces")
@@ -79,7 +105,13 @@ def main(argv: list[str] | None = None) -> int:
             _report("note: every view reproduces byte-for-byte")
             return 0
         emitted = emit_views(
-            args.timeline, args.corpus, args.repo, args.out, only=args.only
+            args.timeline,
+            args.corpus,
+            args.repo,
+            args.out,
+            only=args.only,
+            forge_snapshot=args.forge,
+            patches=args.patches,
         )
     except (ViewsError, OSError) as error:
         _report(f"error: {error}")
