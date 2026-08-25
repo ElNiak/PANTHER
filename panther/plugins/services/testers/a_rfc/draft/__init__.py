@@ -6,6 +6,7 @@ disk — never through an import from the corpus-side subpackages.
 """
 
 from .checkpoint import CheckpointError, verify_checkpoint, write_checkpoint
+from .gate import CITATION, GateError, RevisionEntry, load_revisions, run_gate
 from .questions import (
     Question,
     QuestionError,
@@ -15,12 +16,17 @@ from .questions import (
 )
 
 __all__ = [
+    "CITATION",
     "CheckpointError",
+    "GateError",
     "Question",
     "QuestionError",
     "QuestionStatus",
+    "RevisionEntry",
     "dump_questions",
     "load_questions",
+    "load_revisions",
+    "run_gate",
     "verify_checkpoint",
     "write_checkpoint",
 ]
