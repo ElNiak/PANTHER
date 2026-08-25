@@ -63,6 +63,115 @@ in either mode. An anchor citing code absent from the commit it names is weaker
 evidence than an overstated status, not stronger, so it is not treated as
 merely advisory.
 
+## How to use
+
+The pipeline has four stages, and this module is only the last one:
+
+```
+repository  ->  history/ corpus  ->  [ mining ]  ->  manifest  ->  this gate
+                (this package)      (OUTSIDE the      (a file        (this package)
+                                     framework)        on disk)
+```
+
+Nothing here writes a manifest. There is no `init`, no scaffold and no
+generator; `dump()` exists for round-tripping an already-loaded manifest, not
+for producing one. The manifest arrives as YAML that a miner — an agent, or a
+person reading source — put on disk.
+
+### Starting a manifest
+
+Begin with the base schema and nothing else. The four required fields per
+requirement are `text`, `section`, `level` and `layer`:
+
+```yaml
+rfc: SPEC-1
+title: 'A reconstructed specification'
+requirements:
+  'spec:1.1':
+    text: 'The system responds within the configured interval.'
+    section: '1.1'
+    level: MUST
+    layer: timing
+```
+
+That loads and passes. Every extended field takes its most restrictive default,
+so the claim reads `gap` — which is the honest description of a claim nobody has
+yet found evidence for. An existing base-format requirement manifest can be
+dropped in unchanged for the same reason.
+
+### The authoring loop
+
+**Do not decide a claim's status.** Write the claim and its evidence, and let
+`adjudicate` tell you what that evidence supports. Concretely:
+
+1. **Build the corpus first.** Beyond being the citable record, its index is how
+   you decide what to read: querying `file_changes` for the highest-churn paths
+   is a far better reading order than walking the source tree.
+2. **Write claims with anchors and omit `status` entirely.** Omission is always
+   safe — it defaults to `gap`, the lowest rank, and a violation is only ever
+   raised when a *stored* status exceeds what the evidence supports.
+   Understatement is permitted everywhere.
+3. **Run without `--strict` first, and with `--repo`.** This is the linter mode:
+   anchors are resolved against their pinned commits and any that do not exist
+   are named on stderr, while the command still exits 0. Fix wrong paths and
+   wrong commits here, before anything is built on top of them.
+4. **Record the adjudicated status.** See the caveat below: the report tells you
+   what is *stored*, not what is *supported*, so today this means calling
+   `promotion.adjudicate` directly.
+5. **Re-run with `--strict`.** It is now a gate: any overstated claim or
+   unresolved anchor exits 2.
+
+```bash
+python -m panther.plugins.services.testers.a_rfc.history path/to/clone --out corpus/
+# ... mining happens here, outside this framework ...
+python -m panther.plugins.services.testers.a_rfc manifest.yaml --out out/ --repo path/to/clone
+python -m panther.plugins.services.testers.a_rfc manifest.yaml --out out/ --repo path/to/clone --strict
+```
+
+### Reading the report
+
+`report.md` is the human-facing specification: claims split into **Normative**
+and **Descriptive**, the latter holding everything marked `intent: accidental`
+so that recorded defects never become requirements.
+
+The number to judge a reconstruction by is not in the Markdown.
+`checked_fraction_by_req_class`, in `report.json` and `report.yaml`, is the
+fraction of *confirmed* claims that a non-model oracle — a developer signature
+or a run — actually saw. For a specification mined by a model from source and
+prose it is typically **0.0**, and that is the point: it measures how much of
+what you are calling confirmed rests on nothing but a reading. Read it beside
+`count_by_status`, because `0.0` also means "no confirmed claims in this class",
+and only the first reading says anything.
+
+## What is not implemented
+
+Separating what was left out on purpose from what is simply missing.
+
+**Deliberately out of scope.** Generation. No part of this package proposes,
+writes or edits a claim. Mining is model-driven and lives in agents outside the
+framework, and the boundary is what lets everything here stay deterministic,
+testable against fixtures and free of network access.
+
+**Genuine gaps, in the order they cost the most:**
+
+1. **An anchor's `line` is recorded but never verified.** `anchors.verify`
+   checks only that the *path* resolves at the pinned commit, so a manifest
+   citing `Evidence.java:9999` passes. Since the line number is what a reader
+   follows to check a claim, this is the weakest link in the citation chain.
+   Closing it means a range check at minimum, or recording a digest of the cited
+   line and re-verifying it.
+2. **The report never says what a claim *could* be promoted to.** Violations
+   fire only on overstatement, so an understated claim passes silently and its
+   author is never told. This makes step 4 of the authoring loop a manual call
+   into `promotion.adjudicate`, and it is the most common question during
+   initial authoring. A `supported` field beside `stored` in the report payload
+   would remove the step.
+3. **Nothing turns a test run into a `runtime` anchor.** `runtime` is the
+   strongest evidence class the rule recognises and the only one, short of a
+   developer signature, that moves `checked_fraction` off zero — yet producing
+   one is entirely manual. An adapter from a test report to anchors would make
+   the metric reachable rather than aspirational.
+
 ## Schema
 
 The base shape is the existing requirement-manifest pattern; a manifest

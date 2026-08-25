@@ -30,6 +30,78 @@ Exit codes:
 | 0 | Corpus written; any capped commits are reported on stderr |
 | 1 | The repository could not be read — including a shallow clone, whose truncated history would otherwise pass silently |
 
+## How to use
+
+### Clone at full depth
+
+```bash
+git clone https://host/org/project.git clone/      # NOT --depth 1
+python -m panther.plugins.services.testers.a_rfc.history clone/ --out corpus/
+```
+
+Extraction refuses a shallow clone rather than extracting a truncated history
+(trap 4), so `--depth 1` fails at the first step. Pin what you extracted:
+record `git rev-parse HEAD` alongside the corpus, because every anchor a miner
+writes later names a commit, and the corpus is what justifies the choice.
+
+Cost is dominated by the file-changes pass, so extraction is roughly linear in
+`(commits x files touched)` rather than in repository size. A 969-commit Java
+project with 3,611 file rows extracts in about half a second.
+
+### Query the index to decide what to read
+
+This is the corpus's main use during mining. Open it through `open_index`
+rather than with `sqlite3` directly — the digest check that refuses a stale
+index (trap 5) lives in that function, and bypassing it is how you get
+confident answers from superseded data.
+
+```python
+from pathlib import Path
+from panther.plugins.services.testers.a_rfc.history.index import open_index
+
+conn = open_index(Path("corpus"))            # raises StaleIndexError if the JSONL moved on
+rows = conn.execute("""
+    SELECT path, COUNT(*) AS churn
+    FROM file_changes
+    WHERE path LIKE '%.java'
+    GROUP BY path ORDER BY churn DESC LIMIT 20
+""").fetchall()
+conn.close()
+```
+
+Churn ranks files by how often they changed, which is a better reading order
+than the directory tree: the code that moved most is usually the code carrying
+the design decisions. Two cautions. A high-churn path may have been **deleted**,
+so intersect the result with `git cat-file -e <sha>:<path>` before anchoring to
+it. And a rename shows up as *two* paths with split histories — the corpus
+preserves the link in `previous_path`, but a naive churn query does not follow
+it.
+
+### Mine the history itself, not only the tree
+
+`commits.jsonl` carries subjects and bodies, and a commit message stating a
+design decision is a mined decision record — evidence class `adr` in the
+manifest schema. Searching subjects for a behaviour is often how an otherwise
+unexplainable piece of code becomes explicable, and dating a file's first
+appearance or deletion answers questions the working tree cannot.
+
+```sql
+SELECT sha, authored_at, subject FROM commits
+WHERE lower(subject) LIKE '%<term>%' ORDER BY authored_at DESC;
+```
+
+Remember that `adr` is weak evidence: on its own it caps a claim at `inferred`,
+because a commit message is an account of the system rather than the system.
+
+### Re-measure before trusting the constants
+
+The figures under *Measured design constants* and *The per-commit cap* were
+taken on one reference history and do not transfer. On a repository whose
+largest commit touches fewer files than the cap, the cap never fires and
+`truncated_count` is zero; on one with vendored imports it may drop most rows.
+`report.json` states what actually happened for the run you did, and that is the
+number to quote.
+
 ## Artifacts
 
 Four files land in `--out`. Two extractions of the same repository produce
