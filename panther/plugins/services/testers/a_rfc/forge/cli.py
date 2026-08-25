@@ -81,9 +81,7 @@ def main(argv: list[str] | None = None, transport: Transport | None = None) -> i
     token = os.environ.get(token_env) or None
 
     try:
-        pulls, reviews, comments = fetch_pull_data(
-            target, transport=transport, token=token
-        )
+        result = fetch_pull_data(target, transport=transport, token=token)
         snapshot = write_snapshot(
             args.out,
             host=target.host,
@@ -93,17 +91,24 @@ def main(argv: list[str] | None = None, transport: Transport | None = None) -> i
             clone_head=head.stdout.strip(),
             fetched_at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%SZ"),
             authenticated=token is not None,
-            pulls=pulls,
-            reviews=reviews,
-            comments=comments,
+            pulls=result.pulls,
+            reviews=result.reviews,
+            comments=result.comments,
+            denied_subfetches=result.denied_subfetches,
         )
     except (ForgeError, OSError) as error:
         _report(f"error: {error}")
         return 1
 
     _report(
-        f"note: {len(pulls)} pull(s), {len(reviews)} review(s), "
-        f"{len(comments)} comment(s) written to {snapshot} "
+        f"note: {len(result.pulls)} pull(s), {len(result.reviews)} review(s), "
+        f"{len(result.comments)} comment(s) written to {snapshot} "
         f"(authenticated: {token is not None})"
     )
+    if result.denied_subfetches:
+        _report(
+            f"note: {result.denied_subfetches} discussion endpoint(s) were "
+            f"refused by the forge (set {token_env} for full discussion "
+            f"data); the snapshot records the denial"
+        )
     return 0

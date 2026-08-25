@@ -52,6 +52,7 @@ def write_snapshot(
     pulls: Sequence[dict[str, Any]],
     reviews: Sequence[dict[str, Any]],
     comments: Sequence[dict[str, Any]],
+    denied_subfetches: int = 0,
 ) -> Path:
     """Write one immutable snapshot of a repository's pull-request data.
 
@@ -71,6 +72,9 @@ def write_snapshot(
         reviews: Review records.
         comments: Comment records; each ``kind`` must be one of
             ``COMMENT_KINDS``.
+        denied_subfetches: How many per-pull discussion endpoints the forge
+            refused; recorded so a snapshot with missing discussion says so
+            rather than looking complete.
 
     Returns:
         The snapshot directory.
@@ -115,7 +119,8 @@ def write_snapshot(
         "api_base": _api_base(host, kind),
         "authenticated": authenticated,
         "clone_head": clone_head,
-        "complete": True,
+        "complete": denied_subfetches == 0,
+        "denied_subfetches": denied_subfetches,
         "fetched_at": fetched_at,
         "host": host,
         "kind": kind,

@@ -23,6 +23,10 @@ Transport = Callable[[str, dict[str, str]], tuple[int, dict[str, str], bytes]]
 _NEXT_LINK = re.compile(r"<([^>]+)>;\s*rel=\"next\"")
 
 
+class ForgeAuthError(ForgeError):
+    """Raised when the forge refuses a request for lack of authorisation."""
+
+
 @dataclass(frozen=True)
 class ForgeTarget:
     """One repository on one forge."""
@@ -96,10 +100,12 @@ def _get_json(
         headers["Authorization"] = f"Bearer {token}"
     status, response_headers, body = transport(url, headers)
     if status in (403, 429):
-        raise ForgeError(
+        raise ForgeAuthError(
             f"{url} answered {status} (rate limited or forbidden); set "
             f"GITHUB_TOKEN or GITLAB_TOKEN and retry"
         )
+    if status == 401:
+        raise ForgeAuthError(f"{url} answered 401 (authentication required)")
     if status != 200:
         raise ForgeError(f"{url} answered {status}")
     lowered = {key.lower(): value for key, value in response_headers.items()}
@@ -137,13 +143,31 @@ def _login(record: dict[str, Any] | None, key: str) -> str:
     return str(((record or {}).get(key) or {}).get("login", "") or "")
 
 
+@dataclass(frozen=True)
+class FetchResult:
+    """Everything one fetch produced, plus what it was refused.
+
+    ``denied_subfetches`` counts per-pull discussion endpoints the forge
+    refused for lack of authorisation (some instances gate notes and
+    reviews even on public projects). The pull list itself is never
+    degraded — without it there is nothing to snapshot — but discussion is
+    enrichment, so a denial is counted and reported rather than fatal.
+    """
+
+    pulls: list[dict[str, Any]]
+    reviews: list[dict[str, Any]]
+    comments: list[dict[str, Any]]
+    denied_subfetches: int
+
+
 def _fetch_github(
     target: ForgeTarget, transport: Transport, token: str | None
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+) -> FetchResult:
     api = target.api_base
     pulls: list[dict[str, Any]] = []
     reviews: list[dict[str, Any]] = []
     comments: list[dict[str, Any]] = []
+    denied = 0
     for raw in _paginated_github(
         f"{api}/pulls?state=all&per_page=100", transport, token
     ):
@@ -168,58 +192,65 @@ def _fetch_github(
         )
         if not merged:
             continue
-        for review in _paginated_github(
-            f"{api}/pulls/{number}/reviews?per_page=100", transport, token
-        ):
-            reviews.append(
-                {
-                    "pr_number": number,
-                    "id": review["id"],
-                    "reviewer": _login(review, "user"),
-                    "state": review.get("state") or "",
-                    "submitted_at": review.get("submitted_at"),
-                    "body": review.get("body") or "",
-                }
-            )
-        for comment in _paginated_github(
-            f"{api}/pulls/{number}/comments?per_page=100", transport, token
-        ):
-            comments.append(
-                {
-                    "pr_number": number,
-                    "id": comment["id"],
-                    "kind": "review_comment",
-                    "author": _login(comment, "user"),
-                    "created_at": comment.get("created_at"),
-                    "body": comment.get("body") or "",
-                    "path": comment.get("path"),
-                    "line": comment.get("line"),
-                }
-            )
-        for comment in _paginated_github(
-            f"{api}/issues/{number}/comments?per_page=100", transport, token
-        ):
-            comments.append(
-                {
-                    "pr_number": number,
-                    "id": comment["id"],
-                    "kind": "issue_comment",
-                    "author": _login(comment, "user"),
-                    "created_at": comment.get("created_at"),
-                    "body": comment.get("body") or "",
-                    "path": None,
-                    "line": None,
-                }
-            )
-    return pulls, reviews, comments
+        try:
+            for review in _paginated_github(
+                f"{api}/pulls/{number}/reviews?per_page=100", transport, token
+            ):
+                reviews.append(
+                    {
+                        "pr_number": number,
+                        "id": review["id"],
+                        "reviewer": _login(review, "user"),
+                        "state": review.get("state") or "",
+                        "submitted_at": review.get("submitted_at"),
+                        "body": review.get("body") or "",
+                    }
+                )
+        except ForgeAuthError:
+            denied += 1
+        try:
+            for comment in _paginated_github(
+                f"{api}/pulls/{number}/comments?per_page=100", transport, token
+            ):
+                comments.append(
+                    {
+                        "pr_number": number,
+                        "id": comment["id"],
+                        "kind": "review_comment",
+                        "author": _login(comment, "user"),
+                        "created_at": comment.get("created_at"),
+                        "body": comment.get("body") or "",
+                        "path": comment.get("path"),
+                        "line": comment.get("line"),
+                    }
+                )
+            for comment in _paginated_github(
+                f"{api}/issues/{number}/comments?per_page=100", transport, token
+            ):
+                comments.append(
+                    {
+                        "pr_number": number,
+                        "id": comment["id"],
+                        "kind": "issue_comment",
+                        "author": _login(comment, "user"),
+                        "created_at": comment.get("created_at"),
+                        "body": comment.get("body") or "",
+                        "path": None,
+                        "line": None,
+                    }
+                )
+        except ForgeAuthError:
+            denied += 1
+    return FetchResult(pulls, reviews, comments, denied)
 
 
 def _fetch_gitlab(
     target: ForgeTarget, transport: Transport, token: str | None
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+) -> FetchResult:
     api = target.api_base
     pulls: list[dict[str, Any]] = []
     comments: list[dict[str, Any]] = []
+    denied = 0
     for raw in _paginated_gitlab(
         f"{api}/merge_requests?state=all&per_page=100", transport, token
     ):
@@ -243,29 +274,36 @@ def _fetch_gitlab(
         )
         if raw.get("state") != "merged":
             continue
-        for note in _paginated_gitlab(
-            f"{api}/merge_requests/{number}/notes?per_page=100", transport, token
-        ):
-            if note.get("system"):
-                continue
-            comments.append(
-                {
-                    "pr_number": number,
-                    "id": note["id"],
-                    "kind": "discussion_note",
-                    "author": str((note.get("author") or {}).get("username", "") or ""),
-                    "created_at": note.get("created_at"),
-                    "body": note.get("body") or "",
-                    "path": None,
-                    "line": None,
-                }
-            )
-    return pulls, [], comments
+        try:
+            for note in _paginated_gitlab(
+                f"{api}/merge_requests/{number}/notes?per_page=100",
+                transport,
+                token,
+            ):
+                if note.get("system"):
+                    continue
+                comments.append(
+                    {
+                        "pr_number": number,
+                        "id": note["id"],
+                        "kind": "discussion_note",
+                        "author": str(
+                            (note.get("author") or {}).get("username", "") or ""
+                        ),
+                        "created_at": note.get("created_at"),
+                        "body": note.get("body") or "",
+                        "path": None,
+                        "line": None,
+                    }
+                )
+        except ForgeAuthError:
+            denied += 1
+    return FetchResult(pulls, [], comments, denied)
 
 
 def fetch_pull_data(
     target: ForgeTarget, transport: Transport | None = None, token: str | None = None
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+) -> FetchResult:
     """Fetch every pull/merge request, with reviews and comments for merged ones.
 
     Args:
@@ -274,11 +312,13 @@ def fetch_pull_data(
         token: Bearer token, or ``None`` for anonymous access.
 
     Returns:
-        ``(pulls, reviews, comments)`` in snapshot record shape, unsorted —
-        the snapshot store owns ordering.
+        The fetch result, unsorted — the snapshot store owns ordering. A
+        forge that refuses per-pull discussion endpoints (401/403) degrades
+        to counted denials; a refused pull list raises.
 
     Raises:
-        ForgeError: On network failure, a rate limit, or a non-200 answer.
+        ForgeError: On network failure, a non-200 answer to the pull list,
+            or a rate limit on it.
     """
     chosen = transport or _default_transport
     if target.kind == "github":

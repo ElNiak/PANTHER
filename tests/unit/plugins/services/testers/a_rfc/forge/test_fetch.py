@@ -127,16 +127,17 @@ def test_github_paginates_and_fetches_merged_pr_discussions():
         f"{api}/issues/3/comments?per_page=100": (200, {}, []),
     }
     target = parse_url("https://github.com/aiortc/aioquic", None)
-    pulls, reviews, comments = fetch_pull_data(target, _transport(routes), token=None)
-    assert [pull["number"] for pull in pulls] == [1, 2, 3]
-    assert pulls[0]["state"] == "merged"
-    assert pulls[1]["state"] == "open"
-    assert pulls[0]["squash_commit_sha"] is None
-    assert pulls[0]["labels"] == ["bug"]
-    assert [review["pr_number"] for review in reviews] == [1]
-    kinds = sorted(comment["kind"] for comment in comments)
+    result = fetch_pull_data(target, _transport(routes), token=None)
+    assert [pull["number"] for pull in result.pulls] == [1, 2, 3]
+    assert result.pulls[0]["state"] == "merged"
+    assert result.pulls[1]["state"] == "open"
+    assert result.pulls[0]["squash_commit_sha"] is None
+    assert result.pulls[0]["labels"] == ["bug"]
+    assert [review["pr_number"] for review in result.reviews] == [1]
+    kinds = sorted(comment["kind"] for comment in result.comments)
     assert kinds == ["issue_comment", "review_comment"]
-    assert all(comment["pr_number"] == 1 for comment in comments)
+    assert all(comment["pr_number"] == 1 for comment in result.comments)
+    assert result.denied_subfetches == 0
 
 
 def test_github_token_sets_bearer_header():
@@ -203,10 +204,46 @@ def test_gitlab_maps_merge_requests_and_skips_system_notes():
         ),
     }
     target = parse_url("https://gitlab.cylab.be/cylab/mark", None)
-    pulls, reviews, comments = fetch_pull_data(target, _transport(routes), token=None)
-    assert pulls[0]["number"] == 5
-    assert pulls[0]["state"] == "merged"
-    assert reviews == []
-    assert len(comments) == 1
-    assert comments[0]["kind"] == "discussion_note"
-    assert comments[0]["body"] == "please rebase"
+    result = fetch_pull_data(target, _transport(routes), token=None)
+    assert result.pulls[0]["number"] == 5
+    assert result.pulls[0]["state"] == "merged"
+    assert result.reviews == []
+    assert len(result.comments) == 1
+    assert result.comments[0]["kind"] == "discussion_note"
+    assert result.comments[0]["body"] == "please rebase"
+    assert result.denied_subfetches == 0
+
+
+def test_denied_discussion_endpoints_degrade_with_a_count():
+    api = "https://gitlab.cylab.be/api/v4/projects/cylab%2Fmark"
+    routes = {
+        f"{api}/merge_requests?state=all&per_page=100&page=1": (
+            200,
+            {"x-next-page": ""},
+            [
+                {
+                    "iid": 5,
+                    "title": "mr five",
+                    "state": "merged",
+                    "author": {"username": "tdebatty"},
+                    "merged_at": "2026-01-02T00:00:00Z",
+                    "merge_commit_sha": "c" * 40,
+                },
+                {
+                    "iid": 6,
+                    "title": "mr six",
+                    "state": "merged",
+                    "author": {"username": "tdebatty"},
+                    "merged_at": "2026-01-03T00:00:00Z",
+                    "merge_commit_sha": "d" * 40,
+                },
+            ],
+        ),
+        f"{api}/merge_requests/5/notes?per_page=100&page=1": (401, {}, {}),
+        f"{api}/merge_requests/6/notes?per_page=100&page=1": (401, {}, {}),
+    }
+    target = parse_url("https://gitlab.cylab.be/cylab/mark", None)
+    result = fetch_pull_data(target, _transport(routes), token=None)
+    assert [pull["number"] for pull in result.pulls] == [5, 6]
+    assert result.comments == []
+    assert result.denied_subfetches == 2
