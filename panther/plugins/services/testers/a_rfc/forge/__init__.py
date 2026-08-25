@@ -5,6 +5,14 @@ immutable snapshot, and every downstream stage reads only the cache — same
 inputs, same bytes, network or no network.
 """
 
+from .fetch import ForgeTarget, fetch_pull_data, parse_url
 from .store import ForgeError, read_snapshot, write_snapshot
 
-__all__ = ["ForgeError", "read_snapshot", "write_snapshot"]
+__all__ = [
+    "ForgeError",
+    "ForgeTarget",
+    "fetch_pull_data",
+    "parse_url",
+    "read_snapshot",
+    "write_snapshot",
+]
