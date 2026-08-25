@@ -63,12 +63,16 @@ class Anchor:
         commit: The commit the locator was resolved against. Required for the
             classes in ``COMMIT_REQUIRED_FOR``; ``None`` for the others.
         line: Optional line number within a file locator.
+        line_sha256: Optional hex digest of the cited line's bytes (newline
+            stripped), so the citation survives verification even after the
+            surrounding file drifts. Meaningless without ``line``.
     """
 
     evidence_class: EvidenceClass
     locator: str
     commit: str | None = None
     line: int | None = None
+    line_sha256: str | None = None
 
 
 @dataclass(frozen=True)

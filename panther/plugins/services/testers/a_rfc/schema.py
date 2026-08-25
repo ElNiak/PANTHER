@@ -65,6 +65,12 @@ def _anchor(raw: Any, claim_id: str) -> Anchor:
     if "locator" not in raw:
         raise SchemaError(f"{claim_id}: anchor is missing locator")
     line = raw.get("line")
+    line_sha256 = raw.get("line_sha256")
+    if line_sha256 is not None and line is None:
+        raise SchemaError(
+            f"{claim_id}: anchor carries line_sha256 without line; "
+            f"a digest of no particular line verifies nothing"
+        )
     return Anchor(
         evidence_class=_enum(
             EvidenceClass, raw["evidence_class"], "evidence_class", claim_id
@@ -72,6 +78,7 @@ def _anchor(raw: Any, claim_id: str) -> Anchor:
         locator=str(raw["locator"]),
         commit=None if raw.get("commit") is None else str(raw["commit"]),
         line=None if line is None else int(line),
+        line_sha256=None if line_sha256 is None else str(line_sha256),
     )
 
 
@@ -159,6 +166,8 @@ def _anchor_to_dict(anchor: Anchor) -> dict[str, Any]:
         rendered["commit"] = anchor.commit
     if anchor.line is not None:
         rendered["line"] = anchor.line
+    if anchor.line_sha256 is not None:
+        rendered["line_sha256"] = anchor.line_sha256
     return rendered
 
 

@@ -113,3 +113,47 @@ def test_unknown_status_value_is_a_schema_error(tmp_path: Path):
     with pytest.raises(SchemaError) as excinfo:
         load(path)
     assert "probably" in str(excinfo.value)
+
+
+def test_anchor_line_sha256_round_trips(tmp_path: Path):
+    digest = "ab" * 32
+    manifest = reload_from_text(
+        "rfc: SPEC-1\n"
+        "title: 'x'\n"
+        "requirements:\n"
+        "  'spec:1.1':\n"
+        "    text: 'x'\n"
+        "    section: '1.1'\n"
+        "    level: MUST\n"
+        "    layer: timing\n"
+        "    anchors:\n"
+        "      - evidence_class: code\n"
+        "        locator: src/a.py\n"
+        f"        commit: '{'0' * 40}'\n"
+        "        line: 3\n"
+        f"        line_sha256: '{digest}'\n",
+        tmp_path,
+    )
+    anchor = manifest.claims[0].anchors[0]
+    assert anchor.line_sha256 == digest
+    assert f"line_sha256: {digest}" in dump(manifest)
+
+
+def test_anchor_line_sha256_without_line_is_rejected(tmp_path: Path):
+    with pytest.raises(SchemaError) as excinfo:
+        reload_from_text(
+            "rfc: SPEC-1\n"
+            "title: 'x'\n"
+            "requirements:\n"
+            "  'spec:1.1':\n"
+            "    text: 'x'\n"
+            "    section: '1.1'\n"
+            "    level: MUST\n"
+            "    layer: timing\n"
+            "    anchors:\n"
+            "      - evidence_class: code\n"
+            "        locator: src/a.py\n"
+            f"        line_sha256: '{'ab' * 32}'\n",
+            tmp_path,
+        )
+    assert "line_sha256" in str(excinfo.value)
