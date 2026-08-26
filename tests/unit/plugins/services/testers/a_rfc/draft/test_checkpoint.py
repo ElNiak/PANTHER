@@ -98,3 +98,26 @@ def test_two_checkpoints_of_same_manifest_are_byte_identical(
     second = write_checkpoint(manifest_path, timeline_dir, cluster_id, tmp_path / "two")
     for name in ("manifest.yaml", "checkpoint.json"):
         assert (first / name).read_bytes() == (second / name).read_bytes()
+
+
+def test_empty_manifest_checkpoints_with_zero_counts(
+    timeline_dir: Path, tmp_path: Path
+):
+    import yaml
+
+    manifest = tmp_path / "empty.yaml"
+    manifest.write_text("rfc: SPEC-0\ntitle: 'Nothing yet'\nrequirements: {}\n")
+    checkpoint_dir = write_checkpoint(
+        manifest, timeline_dir, _pr_cluster_id(timeline_dir), tmp_path / "c"
+    )
+    record = json.loads((checkpoint_dir / "checkpoint.json").read_text())
+    zero = {"gap": 0, "inferred": 0, "confirmed": 0}
+    assert record["adjudication"] == {
+        "count_by_stored": zero,
+        "count_by_supported": zero,
+        "promotable_count": 0,
+        "violation_count": 0,
+    }
+    stored = yaml.safe_load((checkpoint_dir / "manifest.yaml").read_text())
+    assert stored == {"rfc": "SPEC-0", "title": "Nothing yet", "requirements": {}}
+    assert verify_checkpoint(checkpoint_dir) is None
