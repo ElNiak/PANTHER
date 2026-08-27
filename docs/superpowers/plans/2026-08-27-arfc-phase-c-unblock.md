@@ -1,5 +1,16 @@
 # Phase C Unblock Implementation Plan
 
+> **STATUS 2026-08-27 — executed, and partly overtaken by what it found.**
+> Tasks 0–4 are **done**. Task 5 is **blocked and cannot pass as written**.
+>
+> - Spike S0 ran. `go` is **false**, for one reason that has nothing to do with authentication or the isolated profile: **`--allowedTools` does not constrain a built-in tool that `--tools` has enabled** on CLI 2.1.247, so arms B and C are capability-identical. **The `--bare` + `ANTHROPIC_API_KEY` fallback in Task 4's interpretation table is NOT indicated** — D20 is supported, not refuted.
+> - Decision taken with the user: enforce the arm boundary with a **`PreToolUse` hook**. That component does not exist and is not planned. It needs a spec amendment plus its own plan before Task 5's gate can pass.
+> - Two of the three spike failures were broken instruments, fixed in `0f5707c`; the `USER` environment defect that blocked the first run is fixed in `b7e592d` / `002113689`.
+> - Task 3 resolved as a deliberate no-op: the denial fixture encodes a Bash denial that cannot occur on 2.1.247, so it is left until the enforcement hook can produce a real one.
+> - Task 4 Step 4 is **incomplete**: the three targeted suites are green (207 / 38 / 46), but the full `-n auto` unit run deadlocked at ~99% after 1350 passed / 20 failed, and no full-suite baseline was captured at Task 0 to compare against. The 20 failures are the pre-existing set; nothing in `a_rfc`/`ai_rfc` fails.
+>
+> Full verdict and evidence: `ai_rfc/docs/spike-s0.md`. Read that before this document.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task (inline execution with checkpoints was chosen by the user). Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Cross the three gates that stand between the landed Phase C foundations and the harness plan's Task 0 — run spike S0 for the go/no-go verdict, build the real aioquic pristine workspace, bump the submodule — and correct the project memory that still claims none of the foundations were implemented.
