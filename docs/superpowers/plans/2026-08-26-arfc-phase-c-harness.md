@@ -822,6 +822,7 @@ def _launch(profile: Path, workspace: Path, panther_repo: Path, *argv: str):
         "ARFC_WORKSPACE": str(workspace),
         "PATH": f"{Path(sys.executable).parent}:/usr/bin:/bin",
         "HOME": os.environ.get("HOME", ""),
+        "USER": os.environ.get("USER", ""),
     }
     completed = subprocess.run(
         [str(FAKE_CLAUDE), "-p", "go", *argv],
@@ -986,7 +987,7 @@ def test_launch_streams_events_and_records_status(campaign, write_scenario):
     assert argv[:2] == [str(FAKE_CLAUDE), "-p"] and "--append-system-prompt-file" in argv
     env = json.loads((spec.run_dir / "env.json").read_text())
     assert env["PATH"].startswith(str(campaign.bin_dir)) and env["ARFC_WORKSPACE"] == str(spec.workspace)
-    assert set(env) == {"CLAUDE_CONFIG_DIR", "PANTHER_REPO", "ARFC_WORKSPACE", "PATH", "HOME", "LANG"}
+    assert set(env) == {"CLAUDE_CONFIG_DIR", "PANTHER_REPO", "ARFC_WORKSPACE", "PATH", "HOME", "USER", "LANG"}
     prompt = (spec.run_dir / "prompt.md").read_text()
     assert "arfc_cluster_next" in prompt and "ordinals 2 through 2" in prompt
     calls = json.loads((campaign.profile_dir / "fake-calls" / "A1.json").read_text())
@@ -1127,6 +1128,10 @@ def build_env(campaign: Campaign, spec: RunSpec) -> dict[str, str]:
         "ARFC_WORKSPACE": str(spec.workspace),
         "PATH": f"{campaign.bin_dir}:{venv_bin}:/usr/bin:/bin",
         "HOME": os.environ.get("HOME", ""),
+        # Measured on Claude Code 2.1.247 / macOS: drop USER and the CLI cannot
+        # reach its stored credentials, answering "Not logged in" however valid
+        # the profile. Spike S0 failed on exactly this before it was added.
+        "USER": os.environ.get("USER", ""),
         "LANG": os.environ.get("LANG", "C.UTF-8"),
     }
 
