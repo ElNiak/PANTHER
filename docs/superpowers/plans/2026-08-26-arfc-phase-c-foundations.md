@@ -3083,6 +3083,8 @@ git -C $R commit -m "feat: pristine workspaces with window pre-seeding and diges
 
 ### Task 10: The real aioquic pristine workspace, submodule bump, wrap-up
 
+> **First run of an untested branch.** Every test behind `prepare` uses a target with `forge_snapshot=None`, so the forge copy and the `--forge` argument to the views CLI have never executed. aioquic is the first target that exercises them. A failure in Step 1 around the snapshot copy or view emission is most likely the first run of that branch, not a regression in the workspace module.
+
 **Files:**
 - Create (outside both repos): `~/arfc-experiments/pristine/aioquic-w02-11/`
 - Modify (PANTHER): the `ai_rfc` submodule pointer
