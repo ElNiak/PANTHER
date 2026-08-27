@@ -2468,6 +2468,8 @@ git -C $R commit -m "feat: render the loop skill and the arm prompts from one te
 
 ### Task 9: `experiment/workspace.py` — pristine workspace, window pre-seeding, digest, per-run copy
 
+> **SUPERSEDED — done on 2026-08-27.** This task was re-cut into four reviewer-gated tasks and executed as `docs/superpowers/plans/2026-08-27-arfc-phase-c-workspace.md` (nested-repo commits `2e3a24c`, `17da2bc`, `24320a4`, `9e20d2d`). That plan also corrects two defects below: Step 2's drift assertion lists its entries in the wrong order (`verify_digest` returns them path-sorted, so `unexpected: extra.txt` precedes `modified: manifest.yaml`), and Step 6's `32 passed` was computed from a stale baseline — the suite now gates at 46. Read the 2026-08-27 plan, not this section.
+
 Spec §3 (D27). Tests drive the whole pipeline on the fixture workspace with a local git repo standing in for the auto-i-d-template; the real aioquic run is Task 10.
 
 **Files:**
@@ -3103,7 +3105,7 @@ Expected: the submodule status line shows the nested repo's new HEAD without a `
 - [ ] **Step 4: Full verification**
 
 Run: `cd $W && SSLKEYLOGFILE= $PY -m pytest tests/unit/plugins/services/testers/a_rfc -n auto -q 2>&1 | tail -1; cd $S && SSLKEYLOGFILE= $PY -m pytest -q 2>&1 | tail -1; cd $R && SSLKEYLOGFILE= $PY -m pytest experiment/tests -q 2>&1 | tail -1; cd $W && SSLKEYLOGFILE= $PY -m pytest tests/ -n auto -m unit -q 2>&1 | tail -1`
-Expected: `207 passed`; `38 passed`; `32 passed`; the full unit suite at the Task-0 baseline plus one (the 19 failures + 4 errors outside a_rfc are pre-existing: webapp observer, docker templates, panther_ivy collection — report them, do not touch them).
+Expected: `207 passed`; `38 passed`; `46 passed`; the full unit suite at the Task-0 baseline plus one (the 19 failures + 4 errors outside a_rfc are pre-existing: webapp observer, docker templates, panther_ivy collection — report them, do not touch them).
 
 - [ ] **Step 5: Report** — commits in both repos (SHAs), the spike verdict from `docs/spike-s0.md`, the pristine record (`pristine.json`), and anything deferred. Do not push.
 

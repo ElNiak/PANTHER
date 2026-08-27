@@ -15,7 +15,7 @@
 - Same paths and rules as the foundations plan: `W`, `R`, `S`, `PY`; never `panther_builder.py`; `SSLKEYLOGFILE=` prefix for pytest; nested-`.git` and `~/arfc-experiments` writes need the sandbox off; explicit-path staging; nested-repo commits `feat:`/`test:`/`docs:`; one PANTHER submodule bump at the end; never push without asking.
 - Foundations interfaces consumed here (do not redefine): `experiment.arms` (`profile`, `arm_flags`, `constant_flags`, `mcp_config`, `build_argv`), `experiment.render` (`arm_prompt`, `unified_diff`), `experiment.stream` (`parse_stream`, `init_event`, `result_event`, `tool_uses`, `tool_results`, `denials`, `assistant_text`, `usage_series`), `experiment.workspace` (`copy_workspace`, `verify_digest`, `HARNESS_MARKER`, `RECORD_FILE`, `TARGETS`), `experiment.paths`, `experiment.cli` (`_parser`, `_add_root`, `main`), `ai_rfc_server.testing.build_workspace`, `ai_rfc_server.core.{gates,claims,revisions,draft}`.
 - The campaign directory is the unit of reproducibility: `~/arfc-experiments/campaigns/<id>/` with `campaign.json`, `prompts/`, `bin/`, `runs/`, `audit/`, `analysis/`. Analysis never writes into `runs/<id>/workspace/`; gate re-runs happen on a scratch copy.
-- Per-task gate: `cd $R && SSLKEYLOGFILE= $PY -m pytest experiment/tests -q` (32 passed at the start of this plan) plus `$PY -m black` on touched files.
+- Per-task gate: `cd $R && SSLKEYLOGFILE= $PY -m pytest experiment/tests -q` (46 passed at the start of this plan) plus `$PY -m black` on touched files.
 - No real `claude` in tests: every launch in tests goes through `experiment/tests/fake_claude/claude`, and `campaign.json` records whichever binary a campaign used.
 
 ---
@@ -25,7 +25,7 @@
 - [ ] **Step 1: Foundations landed**
 
 Run: `cd $R && git log --oneline -1 && SSLKEYLOGFILE= $PY -m pytest experiment/tests -q 2>&1 | tail -1 && ls ~/arfc-experiments/pristine/aioquic-w02-11/pristine.sha256 && python3 -c "import json;r=json.load(open('$HOME/arfc-experiments/spike-report.json'));print('go' if r['go'] else 'NO-GO')"`
-Expected: the foundations commit (`feat: pristine workspaces …`), `32 passed`, the digest file listed, `go`. Anything else: STOP and report.
+Expected: the foundations commits through `feat: prepare pristine workspaces behind a workspace prepare command`, `46 passed`, the digest file listed, `go`. Anything else: STOP and report.
 
 ### Task 1: `experiment/config.py` — campaign freeze and seeded order
 
