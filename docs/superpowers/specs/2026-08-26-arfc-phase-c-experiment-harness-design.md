@@ -28,7 +28,7 @@ Six things the protocol assumes do not exist yet:
 | D25 | Harness = a **custom runner over `claude -p`** as an `experiment/` package in the `ai_rfc` repo; stdlib + PyYAML; tests drive a fake `claude` shim — no network, no model |
 | D26 | New core operations with MCP tool + CLI twin + parity row + parity test: `arfc_draft_commit(message)` / `arfc draft-commit`, `arfc_revision_tag(tag, message)` / `arfc revision-tag`; tag order = entry recorded → clean tree → strict manifest gate 0 → annotated tag → strict citation gate → **tag rolled back on findings** (exit 2) |
 | D27 | Window mechanics = **pre-seeded checkpoints** for every out-of-window ordinal (1 and 12–342) from the empty manifest, each with a sidecar `harness.json`; no substrate artifact is mutated. The loop skill is **rendered from one template** (byte-equality test against the plugin's `SKILL.md`) into arm variants A/B/C with published diffs |
-| D28 | Arm C gets `Bash(sqlite3 *)` as the raw affordance of the corpus index (disclosed in `parity.md`); runs root `~/arfc-experiments/` outside the PANTHER tree; `--disable-slash-commands`; arm prompt via `--append-system-prompt-file` |
+| D28 | Arm C gets `Bash(sqlite3 *)` as the raw affordance of the corpus index (disclosed in `parity.md`); runs root `~/arfc-experiments/` outside the PANTHER tree; `--disable-slash-commands`; arm prompt via `--append-system-prompt-file`. **Amended 2026-08-27:** the families are enforced by a `PreToolUse` guard, not by `--allowedTools`, which does not confine a built-in on 2.1.247 — without it arms B and C are capability-identical |
 
 Settled by architect (changeable before the relevant task freezes them): `--max-budget-usd 25` and a 120-minute wall-clock cap per run; auto-i-d-template pinned at `dcdd985a86afad97a50f7b5e1b613f57c194b774` (its HEAD on 2026-08-26); draft name `draft-elniak-aioquic-reconstructed`; `rfc: AIOQUIC-RECON`; harness git identity `arfc-harness <arfc-harness@localhost>` set locally in the draft repo; campaign id `pilot-aioquic-w02-11-<YYYYMMDD>`.
 
@@ -44,6 +44,7 @@ Settled by architect (changeable before the relevant task freezes them): `--max-
 | Substrate guards key on content digests and `git rev-parse HEAD`, never on absolute paths → per-run copies are safe | `a_rfc/views/emit.py:63-85`, `a_rfc/history/index.py:104-135` |
 | The loop skill's frontmatter grants `Bash(python -m …a_rfc*)`, `Bash(git *)`, `Bash(arfc *)` — a cross-arm permission leak if skills were loaded | `plugins/ai-rfc/skills/arfc-reconstruction-loop/SKILL.md:4` |
 | Claude Code 2.1.246: `--tools` restricts the built-in set; `--allowedTools` + `-p` auto-denies everything else; `--append-system-prompt-file`, `--setting-sources project`, `--strict-mcp-config`, `--disable-slash-commands`, `--max-budget-usd` exist; there is no `--max-turns`; `--safe-mode` disables plugins and MCP wholesale (unusable); `total_cost_usd` is computed from a bundled price table regardless of auth | `claude --help`; code.claude.com/docs/en/cli-reference |
+| **Corrected on 2.1.247 by spike S0 (2026-08-27):** `--allowedTools` auto-denies everything else **for MCP tools only**. It does *not* constrain a built-in that `--tools` has enabled, under any permission mode (`dontAsk` and `manual` both leak). Arm separation therefore rests on `--tools` (removal, proven for arm A) plus a `PreToolUse` guard for command families; deny rules enforce but are blacklists and cannot express an arm. A guard must exit **2** — the documented `permissionDecision: "deny"` JSON is ignored. `--setting-sources` takes `user,project,local`, so the arms' `project` excludes user settings and the guard is mounted with `--settings` | `ai_rfc/docs/spike-s0.md` |
 | Undocumented, resolved by spike S0: `CLAUDE_CONFIG_DIR` credential resolution on macOS, `${PANTHER_REPO}`-style expansion in a plugin `.mcp.json`, the shape of permission denials in stream-json, whether `--tools` without `Skill` removes skill loading | — |
 
 ## Architecture
@@ -94,13 +95,22 @@ claude -p <task prompt> --output-format stream-json --verbose
 
 plus a 120-minute wall-clock cap enforced by the runner. Session persistence stays on inside the isolated profile (a backup transcript beside `events.jsonl`).
 
-| Arm | `--tools` | `--allowedTools` | MCP |
-|---|---|---|---|
-| A | `Read,Edit,Write,Grep,Glob` (Bash absent) | `Read Edit Write Grep Glob mcp__arfc` | `--mcp-config <campaign>/arfc.json --strict-mcp-config` |
-| B | `Read,Edit,Write,Grep,Glob,Bash` | those five + `"Bash(arfc *)"` | `--strict-mcp-config`, no config |
-| C | `Read,Edit,Write,Grep,Glob,Bash` | those five + `"Bash(python -m panther.plugins.services.testers.a_rfc*)" "Bash(git *)" "Bash(sqlite3 *)"` | `--strict-mcp-config`, no config |
+| Arm | `--tools` | `--allowedTools` | Guard families (`--settings`) | MCP |
+|---|---|---|---|---|
+| A | `Read,Edit,Write,Grep,Glob` (Bash absent) | `Read Edit Write Grep Glob mcp__arfc` | — (no Bash to confine) | `--mcp-config <campaign>/arfc.json --strict-mcp-config` |
+| B | `Read,Edit,Write,Grep,Glob,Bash` | those five + `"Bash(arfc *)"` | `arfc ` | `--strict-mcp-config`, no config |
+| C | `Read,Edit,Write,Grep,Glob,Bash` | those five + `"Bash(python -m panther.plugins.services.testers.a_rfc*)" "Bash(git *)" "Bash(sqlite3 *)"` | `python -m panther…a_rfc`, `git `, `sqlite3 ` | `--strict-mcp-config`, no config |
 
-`arfc.json` is rendered per campaign with absolute paths (`<venv>/python`, the server `src` dir, `PANTHER_REPO`, and `ARFC_WORKSPACE` substituted per run). `arfc` reaches PATH through `<campaign>/bin/arfc` (a two-line shim over `<venv>/python -m ai_rfc_server.cli`); PANTHER imports through the master `.venv` editable install; both are recorded in `campaign.json`. Prose editing is `Edit`/`Write` in every arm; commit/tag is `arfc_*` tools in A, `arfc` verbs in B, `git` in C. Anything not allowlisted is auto-denied by `-p` mode and captured as bypass-attempt data. `sqlite3` in C is the raw affordance of `corpus/index.sqlite` (the index is derived and disposable; a write through it is detected by nothing and disclosed as such).
+**The `--allowedTools` column is normative for MCP tools only** (measured on 2.1.247;
+see the fact table). Bash confinement is the guard column: the families are *derived*
+from the `Bash(...)` entries beside them by `experiment.enforcement.bash_families`, so
+the two columns cannot drift. The guard (`experiment/guard.py`) is mounted per arm via
+`--settings` from the campaign directory — never from `ARFC_WORKSPACE`, which arms B
+and C can write — and exits 2 on anything outside its families. It fails closed on
+command substitution and checks every `&&`/`||`/`;`/`|`-separated segment, so
+`arfc status && echo x` is refused.
+
+`arfc.json` is rendered per campaign with absolute paths (`<venv>/python`, the server `src` dir, `PANTHER_REPO`, and `ARFC_WORKSPACE` substituted per run). `arfc` reaches PATH through `<campaign>/bin/arfc` (a two-line shim over `<venv>/python -m ai_rfc_server.cli`); PANTHER imports through the master `.venv` editable install; both are recorded in `campaign.json`. Prose editing is `Edit`/`Write` in every arm; commit/tag is `arfc_*` tools in A, `arfc` verbs in B, `git` in C. Anything outside an arm's guard families is refused and captured as bypass-attempt data, readable from the errored `tool_result`, the result event's `permission_denials`, or the `hook_started`/`hook_response` pair. `sqlite3` in C is the raw affordance of `corpus/index.sqlite` (the index is derived and disposable; a write through it is detected by nothing and disclosed as such).
 
 **Spike S0** (`python -m experiment spike --root ~/arfc-experiments`, writes `spike-report.json`; go/no-go before any product code):
 
@@ -109,9 +119,9 @@ plus a 120-minute wall-clock cap enforced by the runner. Session persistence sta
 3. A codeword `CLAUDE.md` placed above a temp cwd leaks into a run from that cwd (positive control) and does not leak from the runs root.
 4. The init event's `tools`, `mcp_servers`, `slash_commands` match each arm's spec exactly.
 5. `git commit` inside a scaffolded `draft/` succeeds in-session (no sandbox settings present).
-6. `--plugin-dir plugins/ai-rfc` with the two env vars exported yields `arfc` connected; unset, it fails — this decides the `.mcp.json` question.
+6. `--plugin-dir plugins/ai-rfc` with the two env vars exported yields `arfc` connected; unset, it fails — this decides the `.mcp.json` question. *(Answered: it connects **either way**, so the env block is not load-bearing. Note the server can still read `pending` at init, a startup race in `-p`; arm A mounts via `--mcp-config`, which is unaffected.)*
 7. The `result` event carries `total_cost_usd`, `usage`, `modelUsage`, `permission_denials`; their exact shapes become the test fixtures.
-8. `dontAsk` + `--allowedTools "Bash(arfc *)"` denies `arfc status && echo x` and the denial is visible in the stream.
+8. The arm's guard denies `arfc status && echo x` and the denial is visible in the stream. *(Answered: `--allowedTools` alone does **not** deny it — see the fact table. The `PreToolUse` guard does, and only via exit 2.)*
 9. `--append-system-prompt-file` is accepted and its content is visible to the model (canary echo).
 
 Fallback if 1–3 fail: `--bare` + `ANTHROPIC_API_KEY`, documented in the campaign and the paper.
@@ -171,7 +181,7 @@ Out of scope, tracked for later: the MARK pilot, the preregistered main run, the
 ## Risks
 
 1. OAuth may not resolve in an isolated profile → spike item 1; fallback `--bare` + API key.
-2. `--tools` may not remove Bash/Skill the way the help text implies → spike item 4 decides; allowlist-only enforcement is the degraded mode and is disclosed.
+2. ~~`--tools` may not remove Bash/Skill the way the help text implies → spike item 4 decides; allowlist-only enforcement is the degraded mode and is disclosed.~~ **Resolved 2026-08-27, inverted.** `--tools` does remove Bash (arm A verified). It is the *allowlist* that fails to confine a built-in, so "allowlist-only" was never an available degraded mode. Enforcement is `--tools` plus the `PreToolUse` guard; the residual risk is that arms B and C could edit the guard's settings file, detected by hashing it per run and by the absence of `hook_started` events.
 3. Stream-json field names (`permission_denials`, denial records) are undocumented → spike item 7/8 captures the truth as fixtures.
 4. Subscription rate limits and time-varying API conditions → interleaved order; retries as new run ids; API errors counted.
 5. The 508-commit cluster 1 is excluded → external-validity note in the report.
