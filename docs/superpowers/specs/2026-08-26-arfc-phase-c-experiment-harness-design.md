@@ -97,7 +97,7 @@ plus a 120-minute wall-clock cap enforced by the runner. Session persistence sta
 
 | Arm | `--tools` | `--allowedTools` | Guard families (`--settings`) | MCP |
 |---|---|---|---|---|
-| A | `Read,Edit,Write,Grep,Glob` (Bash absent) | `Read Edit Write Grep Glob mcp__arfc` | — (no Bash to confine) | `--mcp-config <campaign>/arfc.json --strict-mcp-config` |
+| A | `Read,Edit,Write,Grep,Glob` (Bash absent) | `Read Edit Write Grep Glob mcp__arfc` | none — a deny-all guard is still mounted, inert because Bash is absent | `--mcp-config <campaign>/arfc.json --strict-mcp-config` |
 | B | `Read,Edit,Write,Grep,Glob,Bash` | those five + `"Bash(arfc *)"` | `arfc ` | `--strict-mcp-config`, no config |
 | C | `Read,Edit,Write,Grep,Glob,Bash` | those five + `"Bash(python -m panther.plugins.services.testers.a_rfc*)" "Bash(git *)" "Bash(sqlite3 *)"` | `python -m panther…a_rfc`, `git `, `sqlite3 ` | `--strict-mcp-config`, no config |
 

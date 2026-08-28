@@ -19,8 +19,8 @@
 
 | After task | fixture | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
 |---|---|---|---|---|---|---|---|---|
-| Delta | +1 | +6 | +3 | +6 | +3 | +6 | +5 | +5 |
-| Expected total | 67 | 73 | 76 | 82 | 85 | 91 | 96 | **101** |
+| Delta | +1 | +6 | +3 | +6 | +3 | +6 | +6 | +6 |
+| Expected total | 67 | 73 | 76 | 82 | 85 | 91 | 97 | **103** |
 
 A total below the table means a test was lost somewhere, not that the table is wrong — find the missing test before continuing.
 - No real `claude` in tests: every launch in tests goes through `experiment/tests/fake_claude/claude`, and `campaign.json` records whichever binary a campaign used.
@@ -2281,7 +2281,7 @@ def analyze_campaign(campaign: Campaign) -> dict[str, Any]:
 - [ ] **Step 5: Run the tests**
 
 Run: `cd $R && SSLKEYLOGFILE= $PY -m pytest experiment/tests -q`
-Expected: 96 passed (91 + 5).
+Expected: 97 passed (91 + 6) — includes the pass^k-at-k=2 test.
 
 - [ ] **Step 6: Commit (nested repo)**
 
@@ -2651,7 +2651,7 @@ and the dispatch branches:
 - [ ] **Step 5: Run the tests**
 
 Run: `cd $R && SSLKEYLOGFILE= $PY -m pytest experiment/tests -q`
-Expected: 101 passed (96 + 5).
+Expected: 103 passed (97 + 6) — includes the undecided-cluster rendering test.
 
 - [ ] **Step 6: Commit (nested repo)**
 
@@ -2669,6 +2669,20 @@ Spec §7. Real model, real subscription time: every step below that spends is a 
 - Modify (nested repo): `$R/docs/experiment-protocol.md` (§3 amendment, §6 pilot-derived defaults), `$R/README.md` (one line pointing at the pilot report)
 - Modify (PANTHER): submodule pointer
 
+- [ ] **Step 0: Prove the guard survives the runner's own mount (added 2026-08-28)**
+
+Spike S0 proved a real CLI honours a guard mounted from `~/arfc-experiments/spike/`;
+nothing has yet proved it honours one mounted at `runs/<id>/guard.json` under
+`--setting-sources project`. That single assumption stands between the measured
+enforcement result and six paid runs, and one cheap live call settles it.
+
+Build an arm-C argv with `runner.build_run_argv` against a throwaway campaign, run
+it with the prompt `Run: echo bypass-probe. Then run: git --version.`, and read the
+transcript: the `echo` must be refused (an errored `tool_result` starting
+`PreToolUse:Bash hook error:` and a `permission_denials` entry) while `git --version`
+runs. If the `echo` executes, **STOP** — the arms are not separated and the pilot
+would measure nothing.
+
 - [ ] **Step 1: Freeze the campaign (runs the parity pre-run; no model calls yet)**
 
 Run: `cd $R && export DATE=$(date +%Y%m%d) && $PY -m experiment campaign init --root ~/arfc-experiments --id pilot-aioquic-w02-11-$DATE --pristine aioquic-w02-11 --repeats 2 --seed 20260826 --model claude-opus-5 --effort high --budget 25 --timeout 7200 --panther-repo $W`
@@ -2682,6 +2696,15 @@ Run: `C=~/arfc-experiments/campaigns/pilot-aioquic-w02-11-$DATE; nohup $PY -m ex
 If the harness process dies mid-run: nothing is deleted; `run` again resumes (complete runs are skipped); a `runs/<id>/` without `status.json` is moved aside first (`mv $C/runs/A1 $C/runs/A1.interrupted-1`) because it is evidence of what happened.
 
 - [ ] **Step 4: Audit and analyze**
+
+> **Two caveats for whoever reads the numbers (added 2026-08-28).** `pass^k` is
+> `null` — rendered `—`, not `✗` — for any arm that has not yet run every repeat,
+> so a mid-campaign `analyze` cannot be mistaken for a wave of failures; only run
+> the final analysis once all six runs carry a `status.json`. And `hand_edits` is
+> counted from each call's file path, not from the truncated display summary that
+> an earlier draft used; a run whose workspace path exceeds 120 characters used to
+> score zero hand edits silently.
+
 
 Run: `$PY -m experiment audit $C && $PY -m experiment analyze $C && sed -n '1,60p' $C/analysis/report.md`
 Expected: six audit lines with `integrity=True` (any `False` is a harness defect: read the `executed_out_of_arm` entries in `audit/<id>.json` before anything else); `aggregate.json` and `report.md` written. Sanity checks to record: for each run, `result.json.total_cost_usd` versus the sum of `usage` token classes; `gates` per run; bypass attempts by surface; first-failure indices; compaction events; wall time from `status.json`.
