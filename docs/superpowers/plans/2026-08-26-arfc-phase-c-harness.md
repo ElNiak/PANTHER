@@ -19,8 +19,8 @@
 
 | After task | fixture | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
 |---|---|---|---|---|---|---|---|---|
-| Delta | +1 | +6 | +3 | +5 | +3 | +6 | +5 | +5 |
-| Expected total | 67 | 73 | 76 | 81 | 84 | 90 | 95 | **100** |
+| Delta | +1 | +6 | +3 | +6 | +3 | +6 | +5 | +5 |
+| Expected total | 67 | 73 | 76 | 82 | 85 | 91 | 96 | **101** |
 
 A total below the table means a test was lost somewhere, not that the table is wrong — find the missing test before continuing.
 - No real `claude` in tests: every launch in tests goes through `experiment/tests/fake_claude/claude`, and `campaign.json` records whichever binary a campaign used.
@@ -1305,7 +1305,7 @@ def launch(campaign: Campaign, spec: RunSpec) -> RunStatus:
 - [ ] **Step 4: Run the tests**
 
 Run: `cd $R && SSLKEYLOGFILE= $PY -m pytest experiment/tests -q`
-Expected: 81 passed (76 + 5).
+Expected: 82 passed (76 + 6) — the plan's five plus the guard-mount test.
 
 - [ ] **Step 5: Commit (nested repo)**
 
@@ -1463,7 +1463,7 @@ def execute(
 - [ ] **Step 4: Run the tests**
 
 Run: `cd $R && SSLKEYLOGFILE= $PY -m pytest experiment/tests -q`
-Expected: 84 passed (81 + 3).
+Expected: 85 passed (82 + 3).
 
 - [ ] **Step 5: Commit (nested repo)**
 
@@ -1809,7 +1809,7 @@ def audit_campaign(campaign: Campaign) -> dict[str, dict[str, Any]]:
 - [ ] **Step 5: Run the tests**
 
 Run: `cd $R && SSLKEYLOGFILE= $PY -m pytest experiment/tests -q`
-Expected: 90 passed (84 + 6).
+Expected: 91 passed (85 + 6).
 
 - [ ] **Step 6: Commit (nested repo)**
 
@@ -2281,7 +2281,7 @@ def analyze_campaign(campaign: Campaign) -> dict[str, Any]:
 - [ ] **Step 5: Run the tests**
 
 Run: `cd $R && SSLKEYLOGFILE= $PY -m pytest experiment/tests -q`
-Expected: 95 passed (90 + 5).
+Expected: 96 passed (91 + 5).
 
 - [ ] **Step 6: Commit (nested repo)**
 
@@ -2651,7 +2651,7 @@ and the dispatch branches:
 - [ ] **Step 5: Run the tests**
 
 Run: `cd $R && SSLKEYLOGFILE= $PY -m pytest experiment/tests -q`
-Expected: 100 passed (95 + 5).
+Expected: 101 passed (96 + 5).
 
 - [ ] **Step 6: Commit (nested repo)**
 
