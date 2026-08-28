@@ -101,7 +101,7 @@ plus a 120-minute wall-clock cap enforced by the runner. Session persistence sta
 | B | `Read,Edit,Write,Grep,Glob,Bash` | those five + `"Bash(arfc *)"` | `arfc ` | `--strict-mcp-config`, no config |
 | C | `Read,Edit,Write,Grep,Glob,Bash` | those five + `"Bash(python -m panther.plugins.services.testers.a_rfc*)" "Bash(git *)" "Bash(sqlite3 *)"` | `python -m panther…a_rfc`, `git `, `sqlite3 ` | `--strict-mcp-config`, no config |
 
-**The `--allowedTools` column is normative for MCP tools only** (measured on 2.1.247;
+**The `--allowedTools` column is normative for MCP tools only** (measured on 2.1.247, re-verified on 2.1.250;
 see the fact table). Bash confinement is the guard column: the families are *derived*
 from the `Bash(...)` entries beside them by `experiment.enforcement.bash_families`, so
 the two columns cannot drift. The guard (`experiment/guard.py`) is mounted per arm via
