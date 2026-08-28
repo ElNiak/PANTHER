@@ -15,7 +15,14 @@
 - Same paths and rules as the foundations plan: `W`, `R`, `S`, `PY`; never `panther_builder.py`; `SSLKEYLOGFILE=` prefix for pytest; nested-`.git` and `~/arfc-experiments` writes need the sandbox off; explicit-path staging; nested-repo commits `feat:`/`test:`/`docs:`; one PANTHER submodule bump at the end; never push without asking.
 - Foundations interfaces consumed here (do not redefine): `experiment.arms` (`profile`, `arm_flags`, `constant_flags`, `mcp_config`, `build_argv`), `experiment.render` (`arm_prompt`, `unified_diff`), `experiment.stream` (`parse_stream`, `init_event`, `result_event`, `tool_uses`, `tool_results`, `denials`, `assistant_text`, `usage_series`), `experiment.workspace` (`copy_workspace`, `verify_digest`, `HARNESS_MARKER`, `RECORD_FILE`, `TARGETS`), `experiment.paths`, `experiment.cli` (`_parser`, `_add_root`, `main`), `ai_rfc_server.testing.build_workspace`, `ai_rfc_server.core.{gates,claims,revisions,draft}`.
 - The campaign directory is the unit of reproducibility: `~/arfc-experiments/campaigns/<id>/` with `campaign.json`, `prompts/`, `bin/`, `runs/`, `audit/`, `analysis/`. Analysis never writes into `runs/<id>/workspace/`; gate re-runs happen on a scratch copy.
-- Per-task gate: `cd $R && SSLKEYLOGFILE= $PY -m pytest experiment/tests -q` (46 passed at the start of this plan) plus `$PY -m black` on touched files.
+- Per-task gate: `cd $R && SSLKEYLOGFILE= $PY -m pytest experiment/tests -q` plus `$PY -m black` on touched files. **Re-baselined 2026-08-28:** the absolute counts written into each task below assumed a 32-test suite; the suite is now 66, and the denial-fixture refresh adds one more. The **deltas** are what hold, so the expected totals are:
+
+| After task | fixture | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
+|---|---|---|---|---|---|---|---|---|
+| Delta | +1 | +6 | +3 | +5 | +3 | +6 | +5 | +5 |
+| Expected total | 67 | 73 | 76 | 81 | 84 | 90 | 95 | **100** |
+
+A total below the table means a test was lost somewhere, not that the table is wrong — find the missing test before continuing.
 - No real `claude` in tests: every launch in tests goes through `experiment/tests/fake_claude/claude`, and `campaign.json` records whichever binary a campaign used.
 
 ---
@@ -435,7 +442,7 @@ def load_campaign(campaign_dir: Path) -> Campaign:
 - [ ] **Step 5: Run the tests**
 
 Run: `cd $R && SSLKEYLOGFILE= $PY -m pytest experiment/tests -q`
-Expected: 38 passed (32 + 6).
+Expected: 73 passed (67 + 6).
 
 - [ ] **Step 6: Commit (nested repo)**
 
@@ -535,12 +542,24 @@ class Session:
         )
 
     def call(
-        self, name: str, tool_input: dict, result: str, *, step: dict, is_error: bool = False
-    ) -> None:
+        self,
+        name: str,
+        tool_input: dict,
+        result: str,
+        *,
+        step: dict,
+        is_error: bool = False,
+        hooks: bool = False,
+    ) -> str:
         use_id = f"tu{self.turn + 1}"
         self._message(
             [{"type": "tool_use", "id": use_id, "name": name, "input": tool_input}], step
         )
+        if hooks:
+            # Measured on 2.1.247: a PreToolUse denial lands between the call
+            # and its result, not before the call.
+            _emit({"type": "system", "subtype": "hook_started", "hook_event": "PreToolUse"})
+            _emit({"type": "system", "subtype": "hook_response", "hook_event": "PreToolUse"})
         _emit(
             {
                 "type": "user",
@@ -557,6 +576,7 @@ class Session:
                 },
             }
         )
+        return use_id
 
     def surface(self, op: str, mcp_input: dict, arfc: str, raw: str | None, result: str, step: dict) -> None:
         if self.arm == "A":
@@ -658,12 +678,18 @@ class Session:
             self.surface("citation_gate", {"strict": True}, "arfc citation-gate --strict", f"{RAW}.draft gate {ws}/draft --timeline {ws}/timeline --checkpoints {ws}/checkpoints --questions {ws}/questions.yaml --revisions {ws}/revisions.yaml --out {ws}/out --strict", json.dumps(result), step)
         elif kind == "denied":
             command = step.get("command", "echo x")
-            self.call(step.get("tool", "Bash"), {"command": command}, "Permission denied: not in the allowed tools", step=step, is_error=True)
-            self.denials.append({"tool_name": step.get("tool", "Bash"), "tool_input": {"command": command}})
+            families = step.get("families", "'arfc '")
+            tool = step.get("tool", "Bash")
+            text = (
+                f"PreToolUse:{tool} hook error: [guard]: denied: this arm may run "
+                f"only {families}; refused: {command}\n"
+            )
+            use_id = self.call(tool, {"command": command}, text, step=step, is_error=True, hooks=True)
+            self.denials.append({"tool_name": tool, "tool_input": {"command": command}, "tool_use_id": use_id})
         elif kind == "mcp_denied":
             tool = f"mcp__arfc__{step.get('tool', 'arfc_status')}"
-            self.call(tool, {}, "Permission denied: tool is not available in this session", step=step, is_error=True)
-            self.denials.append({"tool_name": tool, "tool_input": {}})
+            use_id = self.call(tool, {}, "Permission denied: tool is not available in this session", step=step, is_error=True)
+            self.denials.append({"tool_name": tool, "tool_input": {}, "tool_use_id": use_id})
         elif kind == "tool_error":
             if self.arm == "A":
                 self.call("mcp__arfc__arfc_claim_upsert", {"claim_id": "x", "fields": {"status": "confirmed"}}, "GuardrailError: status is adjudicated from evidence, never asserted", step=step, is_error=True)
@@ -730,6 +756,24 @@ def main() -> int:
 if __name__ == "__main__":
     sys.exit(main())
 ```
+
+
+> **The `denied` step's shape is measured, not invented (amended 2026-08-28).**
+> On CLI 2.1.247 a Bash denial is produced by `experiment/guard.py` exiting 2, and
+> the stream carries it as: the `assistant` tool_use, then `system`/`hook_started`
+> and `system`/`hook_response` (both `hook_event: PreToolUse`), then an errored
+> `tool_result` whose text is `PreToolUse:Bash hook error: [<argv>]: denied: this
+> arm may run only <families>; refused: <command>`, and finally a
+> `permission_denials` entry carrying `tool_name`, `tool_input` **and
+> `tool_use_id`**. The real transcript is the committed fixture
+> `experiment/tests/fixtures/stream/denied-bash.jsonl`; compare against it rather
+> than against this plan if the two ever disagree. The older text
+> "Permission denied: … is not in the allowed tools" describes allowlist
+> enforcement, which spike S0 proved does not exist for built-in tools.
+>
+> The `mcp_denied` text is **not** measured — no MCP denial was recorded during
+> spike S0 — so it remains a plausible stand-in. Nothing downstream may depend on
+> its exact wording; Task 5 classifies denials by `tool_use_id`.
 
 Run: `chmod +x $R/experiment/tests/fake_claude/claude`.
 
@@ -811,7 +855,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from experiment.stream import denials, parse_stream, result_event, tool_uses
+from experiment.stream import denials, parse_stream, result_event, tool_results, tool_uses
 from experiment.workspace import copy_workspace
 
 from .conftest import FAKE_CLAUDE
@@ -879,7 +923,17 @@ def test_fake_records_denials_and_exit_codes(pristine, panther_repo, tmp_path, w
     write_scenario(profile, "A1", {"arm": "A", "exit_code": 0, "steps": [{"kind": "denied", "command": "arfc status"}, {"kind": "mcp_denied"}]})
     events = _launch(profile, workspace, panther_repo)
     assert len(denials(events)) == 4
-    assert result_event(events)["permission_denials"][0]["tool_input"] == {"command": "arfc status"}
+    first = result_event(events)["permission_denials"][0]
+    assert first["tool_input"] == {"command": "arfc status"}
+    # The shape the guard really produces: hook events bracket the refused call,
+    # and the denial names the call it refused.
+    hooks = [e for e in events if str(e.get("subtype", "")).startswith("hook_")]
+    assert [e["subtype"] for e in hooks] == ["hook_started", "hook_response"]
+    assert all(e["hook_event"] == "PreToolUse" for e in hooks)
+    bash_call = next(u for u in tool_uses(events) if u["name"] == "Bash")
+    assert first["tool_use_id"] == bash_call["id"]
+    text = tool_results(events)[bash_call["id"]]["text"]
+    assert text.startswith("PreToolUse:Bash hook error:") and "refused: arfc status" in text
 
 
 def test_fake_answers_version():
@@ -890,7 +944,7 @@ def test_fake_answers_version():
 - [ ] **Step 4: Run the tests**
 
 Run: `cd $R && SSLKEYLOGFILE= $PY -m pytest experiment/tests -q`
-Expected: 41 passed (38 + 3); `test_workspace.py` still green after the fixture move.
+Expected: 76 passed (73 + 3); `test_workspace.py` still green after the fixture move.
 
 - [ ] **Step 5: Commit (nested repo)**
 
@@ -1251,7 +1305,7 @@ def launch(campaign: Campaign, spec: RunSpec) -> RunStatus:
 - [ ] **Step 4: Run the tests**
 
 Run: `cd $R && SSLKEYLOGFILE= $PY -m pytest experiment/tests -q`
-Expected: 46 passed (41 + 5).
+Expected: 81 passed (76 + 5).
 
 - [ ] **Step 5: Commit (nested repo)**
 
@@ -1409,7 +1463,7 @@ def execute(
 - [ ] **Step 4: Run the tests**
 
 Run: `cd $R && SSLKEYLOGFILE= $PY -m pytest experiment/tests -q`
-Expected: 49 passed (46 + 3).
+Expected: 84 passed (81 + 3).
 
 - [ ] **Step 5: Commit (nested repo)**
 
@@ -1421,6 +1475,15 @@ git -C $R commit -m "feat: execute the frozen run matrix with per-run copies and
 ### Task 5: `experiment/audit.py` — surface classification, integrity, bypasses, error taxonomy
 
 Spec §5 "Audit". Every tool call is classified by the surface it reached for; executed out-of-arm calls are integrity violations, denied ones are bypass attempts, errors split into the class-1 (typed tool) and class-2 (shell) channels.
+
+> **Amended 2026-08-28.** A denial is identified by `tool_use_id` from the result
+> event's `permission_denials`, not by recognising prose — measured on 2.1.247,
+> that field links a denial to the exact call it refused. `is_denial` stays as the
+> fallback for a denial that never reaches the result event, which is also the
+> path the unmeasured `mcp_denied` shape would take. Real transcripts also carry a
+> top-level `rate_limit_event` and `system` events with subtypes `hook_started` /
+> `hook_response`: `parse_stream` tolerates them and the audit ignores them; they
+> are not malformed input.
 
 **Files:**
 - Create: `$R/experiment/audit.py`, `$R/experiment/tests/test_audit.py`
@@ -1472,6 +1535,29 @@ def test_audit_events_flags_an_executed_out_of_arm_call():
     assert audit["integrity"] is False
     assert audit["executed_out_of_arm"][0]["surface"] == "bash:arfc"
     assert audit_events(events, "B")["integrity"] is True
+
+
+def test_a_denial_is_recognised_from_its_id_alone():
+    """The CLI's own permission_denials entry is authoritative, whatever the text."""
+    events = parse_stream(
+        '{"type":"assistant","message":{"id":"m1","content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"echo probe"}}],"usage":{"input_tokens":1,"output_tokens":1}}}\n'
+        '{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","is_error":true,"content":"some wording nobody predicted"}]}}\n'
+        '{"type":"result","subtype":"success","total_cost_usd":0.1,"usage":{},'
+        '"permission_denials":[{"tool_name":"Bash","tool_input":{"command":"echo probe"},"tool_use_id":"t1"}]}\n'
+    )
+    audit = audit_events(events, "C")
+    assert audit["bypass_attempts"]["count"] == 1
+    assert audit["integrity"] is True and audit["errors"]["class2"] == 0
+
+
+def test_a_denial_that_never_reached_the_result_event_falls_back_to_its_text():
+    events = parse_stream(
+        '{"type":"assistant","message":{"id":"m1","content":[{"type":"tool_use","id":"t1","name":"mcp__arfc__arfc_status","input":{}}],"usage":{"input_tokens":1,"output_tokens":1}}}\n'
+        '{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","is_error":true,"content":"Permission denied: tool is not available in this session"}]}}\n'
+        '{"type":"result","subtype":"success","total_cost_usd":0.1,"usage":{},"permission_denials":[]}\n'
+    )
+    audit = audit_events(events, "B")
+    assert audit["bypass_attempts"]["count"] == 1 and audit["errors"]["class1"] == 0
 
 
 def test_audit_over_fake_runs_counts_bypasses_and_errors(campaign, write_scenario):
@@ -1612,15 +1698,34 @@ def _summary(use: dict[str, Any]) -> str:
     return json.dumps(tool_input, sort_keys=True)[:120]
 
 
+def _denied_ids(events: list[dict[str, Any]]) -> set[str]:
+    """The ids of calls the CLI itself reported as denied.
+
+    Measured on 2.1.247: ``permission_denials`` carries ``tool_use_id``, which
+    links a denial to the exact call it refused. That is authoritative and needs
+    no text matching; ``is_denial`` remains the fallback for a denial that never
+    reached the result event.
+    """
+    final = result_event(events) or {}
+    return {
+        str(denial["tool_use_id"])
+        for denial in final.get("permission_denials") or []
+        if isinstance(denial, dict) and denial.get("tool_use_id")
+    }
+
+
 def audit_events(events: list[dict[str, Any]], arm: str) -> dict[str, Any]:
     """Audit one transcript for the arm it was supposed to stay inside."""
     results = tool_results(events)
+    denied_ids = _denied_ids(events)
     calls: list[ToolCall] = []
     for use in tool_uses(events):
         surface, family, target = classify(use["name"], use["input"])
         result = results.get(str(use["id"]))
         errored = bool(result and result["is_error"])
-        denied = errored and is_denial(result["text"])
+        denied = str(use["id"]) in denied_ids or (
+            errored and is_denial(result["text"])
+        )
         calls.append(
             ToolCall(
                 index=use["index"],
@@ -1704,7 +1809,7 @@ def audit_campaign(campaign: Campaign) -> dict[str, dict[str, Any]]:
 - [ ] **Step 5: Run the tests**
 
 Run: `cd $R && SSLKEYLOGFILE= $PY -m pytest experiment/tests -q`
-Expected: 53 passed (49 + 4).
+Expected: 90 passed (84 + 6).
 
 - [ ] **Step 6: Commit (nested repo)**
 
@@ -2176,7 +2281,7 @@ def analyze_campaign(campaign: Campaign) -> dict[str, Any]:
 - [ ] **Step 5: Run the tests**
 
 Run: `cd $R && SSLKEYLOGFILE= $PY -m pytest experiment/tests -q`
-Expected: 58 passed (53 + 5).
+Expected: 95 passed (90 + 5).
 
 - [ ] **Step 6: Commit (nested repo)**
 
@@ -2546,7 +2651,7 @@ and the dispatch branches:
 - [ ] **Step 5: Run the tests**
 
 Run: `cd $R && SSLKEYLOGFILE= $PY -m pytest experiment/tests -q`
-Expected: 63 passed (58 + 5).
+Expected: 100 passed (95 + 5).
 
 - [ ] **Step 6: Commit (nested repo)**
 
