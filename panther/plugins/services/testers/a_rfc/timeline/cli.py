@@ -10,6 +10,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from panther import __version__
+
 from .build import build_timeline
 from .corpus import TimelineError, find_tip, read_commits
 from .store import write_timeline
@@ -48,6 +50,9 @@ def _parser() -> argparse.ArgumentParser:
             "Cluster a commit corpus into a total-ordered timeline of PR "
             "clusters and epoch clusters of direct pushes."
         ),
+    )
+    parser.add_argument(
+        "--version", action="version", version=f"a_rfc.timeline {__version__}"
     )
     parser.add_argument("corpus", type=Path, help="Directory holding the corpus.")
     parser.add_argument(

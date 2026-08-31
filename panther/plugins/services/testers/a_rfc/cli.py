@@ -6,6 +6,8 @@ import argparse
 import sys
 from pathlib import Path
 
+from panther import __version__
+
 from .report import build, to_json, to_markdown, to_yaml
 from .schema import SchemaError, load
 
@@ -31,6 +33,7 @@ def _parser() -> argparse.ArgumentParser:
             "verify repository anchors against their pinned commits."
         ),
     )
+    parser.add_argument("--version", action="version", version=f"a_rfc {__version__}")
     parser.add_argument("manifest", type=Path, help="Path to the YAML manifest.")
     parser.add_argument(
         "--out",

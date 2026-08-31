@@ -6,6 +6,8 @@ import argparse
 import sys
 from pathlib import Path
 
+from panther import __version__
+
 from .emit import ViewsError, emit_views, verify_views
 
 
@@ -26,6 +28,9 @@ def _parser() -> argparse.ArgumentParser:
             "Emit one evidence folder per timeline cluster: metadata, the "
             "member file set, and a deterministic span diff."
         ),
+    )
+    parser.add_argument(
+        "--version", action="version", version=f"a_rfc.views {__version__}"
     )
     parser.add_argument("timeline", type=Path, help="Timeline directory.")
     parser.add_argument(

@@ -7,6 +7,8 @@ import json
 import sys
 from pathlib import Path
 
+from panther import __version__
+
 from ..schema import SchemaError
 from .checkpoint import CheckpointError, write_checkpoint
 from .gate import GateError, run_gate
@@ -29,6 +31,9 @@ def _parser() -> argparse.ArgumentParser:
             "Freeze manifest checkpoints against timeline clusters, and gate "
             "a prose draft's revision map against them."
         ),
+    )
+    parser.add_argument(
+        "--version", action="version", version=f"a_rfc.draft {__version__}"
     )
     verbs = parser.add_subparsers(dest="verb", required=True)
 

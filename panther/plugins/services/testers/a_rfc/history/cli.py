@@ -6,6 +6,8 @@ import argparse
 import sys
 from pathlib import Path
 
+from panther import __version__
+
 from .git_log import DEFAULT_FILE_CAP, GitError, extract
 from .index import build_index
 from .store import write_corpus
@@ -28,6 +30,9 @@ def _parser() -> argparse.ArgumentParser:
             "Extract a repository's commit history into a deterministic JSONL "
             "corpus, with an optional SQLite index for querying."
         ),
+    )
+    parser.add_argument(
+        "--version", action="version", version=f"a_rfc.history {__version__}"
     )
     parser.add_argument("repo", type=Path, help="Path to an existing clone.")
     parser.add_argument(

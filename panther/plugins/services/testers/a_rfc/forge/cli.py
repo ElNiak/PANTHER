@@ -9,6 +9,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from panther import __version__
+
 from .fetch import Transport, fetch_pull_data, parse_url
 from .store import ForgeError, write_snapshot
 
@@ -30,6 +32,21 @@ def _parser() -> argparse.ArgumentParser:
             "Fetch a repository's pull/merge requests, reviews and comments "
             "from its forge into an immutable disk snapshot."
         ),
+        epilog=(
+            "environment:\n"
+            "  GITHUB_TOKEN, GITLAB_TOKEN\n"
+            "                        Read for the matching forge kind. Without\n"
+            "                        one the fetch is unauthenticated:\n"
+            "                        discussion endpoints are refused, the\n"
+            "                        snapshot records complete: false with a\n"
+            "                        denied_subfetches count, and the command\n"
+            "                        still exits 0. Read meta.json before\n"
+            "                        treating a snapshot as whole.\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--version", action="version", version=f"a_rfc.forge {__version__}"
     )
     parser.add_argument("url", help="Repository URL on its forge.")
     parser.add_argument(
@@ -39,12 +56,26 @@ def _parser() -> argparse.ArgumentParser:
         help="The pinned clone; its HEAD is recorded so downstream stages can "
         "refuse a snapshot fetched against a different state.",
     )
-    parser.add_argument("--out", type=Path, required=True, help="The forge cache root.")
+    parser.add_argument(
+        "--out",
+        type=Path,
+        required=True,
+        help=(
+            "The forge cache root. Snapshots land in a timestamped subdirectory "
+            "beneath it, so this is NOT the path downstream --forge arguments "
+            "want; they want the individual snapshot directory holding "
+            "meta.json."
+        ),
+    )
     parser.add_argument(
         "--host",
         choices=("github", "gitlab"),
         default=None,
-        help="Forge kind; inferred from the host name when omitted.",
+        help=(
+            "Forge kind. When omitted it is inferred from the host name, and "
+            "the inference recognises only github.com as GitHub — pass this "
+            "explicitly for a self-hosted instance of either kind."
+        ),
     )
     return parser
 
