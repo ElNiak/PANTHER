@@ -44,7 +44,12 @@ def _parser() -> argparse.ArgumentParser:
         "--out", type=Path, required=True, help="Directory for the views."
     )
     parser.add_argument(
-        "--only", default=None, help="Emit a single cluster id instead of all."
+        "--only",
+        default=None,
+        help=(
+            "Restrict to a single cluster id. Scopes --verify as well as "
+            "emission, so a clean verify then covers only that cluster."
+        ),
     )
     parser.add_argument(
         "--forge",
@@ -95,6 +100,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.corpus,
                 args.repo,
                 args.out,
+                only=args.only,
                 forge_snapshot=args.forge,
                 patches=args.patches,
             )
@@ -102,7 +108,8 @@ def main(argv: list[str] | None = None) -> int:
                 for cluster_id in drifted:
                     _report(f"drift: {cluster_id} no longer reproduces")
                 return 2
-            _report("note: every view reproduces byte-for-byte")
+            scope = args.only if args.only else "every"
+            _report(f"note: {scope} view reproduces byte-for-byte")
             return 0
         emitted = emit_views(
             args.timeline,

@@ -324,10 +324,11 @@ def verify_views(
     corpus: Path,
     repo: Path,
     out: Path,
+    only: str | None = None,
     forge_snapshot: Path | None = None,
     patches: str = "span",
 ) -> tuple[str, ...]:
-    """Re-emit every view into scratch space and compare digests.
+    """Re-emit views into scratch space and compare digests.
 
     Cross-git-version patch stability is empirical, not contractual, so drift
     is converted into a named failure instead of silent divergence.
@@ -337,13 +338,16 @@ def verify_views(
         corpus: The corpus the timeline was built from.
         repo: The pinned clone.
         out: The previously emitted views to check.
+        only: Check a single cluster id instead of all of them. Scoping the
+            check narrows what is inspected, so a clean result means only that
+            the named cluster reproduces.
         forge_snapshot: As :func:`emit_views`; pass what the original
             emission used.
         patches: As :func:`emit_views`; pass what the original emission used.
 
     Returns:
         The cluster ids whose stored artifacts no longer match a fresh
-        emission; empty when everything still matches.
+        emission; empty when everything checked still matches.
 
     Raises:
         ViewsError: As :func:`emit_views`.
@@ -356,6 +360,7 @@ def verify_views(
             corpus,
             repo,
             fresh_root,
+            only=only,
             forge_snapshot=forge_snapshot,
             patches=patches,
         )

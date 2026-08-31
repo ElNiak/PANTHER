@@ -43,6 +43,29 @@ def test_verify_names_drifted_cluster_and_exits_two(pipeline, tmp_path: Path, ca
     assert victim.name in capsys.readouterr().err
 
 
+def test_verify_honours_only_and_ignores_drift_elsewhere(pipeline, tmp_path: Path):
+    """--only must scope --verify, not be silently discarded by it.
+
+    Drift is injected into the cluster the caller did *not* name, so a run that
+    still exits 2 proves --only was ignored rather than proving drift detection
+    works.
+    """
+    out = tmp_path / "clusters"
+    assert cli.main(_argv(pipeline, out)) == 0
+    kept, drifted = sorted(out.iterdir())
+    span = drifted / "span.diff"
+    span.write_bytes(span.read_bytes() + b"x")
+    assert cli.main(_argv(pipeline, out, "--verify", "--only", kept.name)) == 0
+    assert cli.main(_argv(pipeline, out, "--verify", "--only", drifted.name)) == 2
+
+
+def test_verify_with_an_unknown_only_exits_one(pipeline, tmp_path: Path, capsys):
+    out = tmp_path / "clusters"
+    assert cli.main(_argv(pipeline, out)) == 0
+    assert cli.main(_argv(pipeline, out, "--verify", "--only", "c-nope")) == 1
+    assert "c-nope" in capsys.readouterr().err
+
+
 def test_missing_timeline_exits_one(pipeline, tmp_path: Path, capsys):
     argv = _argv(pipeline, tmp_path / "clusters")
     argv[0] = str(tmp_path / "nowhere")
