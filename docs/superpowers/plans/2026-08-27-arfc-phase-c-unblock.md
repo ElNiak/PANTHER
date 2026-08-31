@@ -1,5 +1,22 @@
 # Phase C Unblock Implementation Plan
 
+> **CORRECTION 2026-08-31 — the status banner below is stale; read this first.**
+> The banner is preserved as what this plan concluded on 2026-08-27. It no longer
+> describes the tree.
+>
+> - **`go` is now true.** The `PreToolUse` hook the banner calls "does not exist and
+>   is not planned" was built (`experiment/guard.py`, `experiment/enforcement.py`).
+>   `~/arfc-experiments/spike-report.json` records `go: true` on CLI **2.1.250**, with
+>   the required `denial` check passing; only the non-required `plugin_mcp` check fails.
+> - **Tasks 5–7 are done**, not blocked: `audit.py`, `metrics.py`, `report.py` and the
+>   campaign CLI all exist, and the harness suite is green.
+> - **The denial fixture was refreshed** from a real 2.1.247 guard denial (`2939c5e`),
+>   closing the "deliberate no-op" the banner records.
+> - **The pilot was launched on 2026-08-28 and aborted on its first run** (arm B,
+>   repeat 1) by a guard defect since fixed in `17ba3a1` and `HEAD`.
+> - Still open from the banner: no full-suite baseline was ever captured at Task 0, so
+>   its "20 failures are pre-existing" remains asserted rather than proven.
+
 > **STATUS 2026-08-27 — executed, and partly overtaken by what it found.**
 > Tasks 0–4 are **done**. Task 5 is **blocked and cannot pass as written**.
 >
