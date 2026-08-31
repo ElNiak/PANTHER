@@ -189,14 +189,24 @@ python -m panther.plugins.services.testers.a_rfc manifest.yaml --out out/ --repo
 and **Descriptive**, the latter holding everything marked `intent: accidental`
 so that recorded defects never become requirements.
 
-The number to judge a reconstruction by is not in the Markdown.
-`checked_fraction_by_req_class`, in `report.json` and `report.yaml`, is the
-fraction of *confirmed* claims that a non-model oracle — a developer signature
-or a run — actually saw. For a specification mined by a model from source and
-prose it is typically **0.0**, and that is the point: it measures how much of
-what you are calling confirmed rests on nothing but a reading. Read it beside
-`count_by_status`, because `0.0` also means "no confirmed claims in this class",
-and only the first reading says anything.
+The number to judge a reconstruction by is the **externally checked fraction**,
+and every emitter carries it: `checked_fraction_by_req_class` in `report.json`
+and `report.yaml`, and an "Externally checked fraction" section in `report.md`.
+It is the fraction of *confirmed* claims that a non-model oracle — a developer
+signature or a run — actually saw. For a specification mined by a model from
+source and prose it is typically **0.0**, and that is the point: it measures how
+much of what you are calling confirmed rests on nothing but a reading.
+
+A bare `0.0` has two readings — nothing confirmed here was externally checked,
+or nothing here is confirmed — so the denominator travels with it.
+`confirmed_count_by_req_class` carries it in the structured emitters, and the
+Markdown prints a class with no confirmed claims as `— (no confirmed claims)`
+rather than as a fraction, so the two cases cannot be mistaken for each other.
+
+The "Unverified anchors" section distinguishes the same way. Without `--repo`
+it reads *Not checked* and names how many anchors went unverified; with one it
+reads *None failed*. An empty finding list is only a clean bill of health in the
+second case.
 
 ## What is not implemented
 

@@ -185,3 +185,65 @@ def test_markdown_lists_promotable_claims():
     promotable_section = markdown.split("## Promotable")[1].split("##")[0]
     assert "spec:1.1" in promotable_section
     assert "confirmed" in promotable_section
+
+
+def test_markdown_carries_the_externally_checked_fraction(mixed_manifest):
+    markdown = to_markdown(build(mixed_manifest))
+    assert "## Externally checked fraction" in markdown
+    section = markdown.split("## Externally checked fraction")[1].split("##")[0]
+    assert "protocol-behavioral" in section
+    assert "0.50" in section
+
+
+def test_markdown_distinguishes_an_unchecked_class_from_an_empty_one(mixed_manifest):
+    """A 0.0 fraction and "no confirmed claims here" must not read alike.
+
+    ``checked_fraction_by_req_class`` reports 0.0 for both, which is the one
+    ambiguity that makes the metric misreadable on its own.
+    """
+    markdown = to_markdown(build(mixed_manifest))
+    section = markdown.split("## Externally checked fraction")[1].split("##")[0]
+    lines = {
+        line.lstrip("- ").split(":")[0].strip(): line
+        for line in section.splitlines()
+        if line.startswith("- ")
+    }
+    assert "2 confirmed" in lines["protocol-behavioral"]
+    assert "no confirmed claims" in lines["algorithmic"]
+    assert "0.0" not in lines["algorithmic"]
+
+
+def test_report_records_whether_anchors_were_checked(mixed_manifest, fixture_repo):
+    assert build(mixed_manifest).anchors_checked is False
+    assert build(mixed_manifest, repo=fixture_repo).anchors_checked is True
+
+
+def test_report_counts_the_anchors_a_repo_would_have_verified():
+    claim = _claim(
+        anchors=(
+            Anchor(EvidenceClass.CODE, "a.py", commit="0" * 40),
+            Anchor(EvidenceClass.PAPER, "10.1000/xyz"),
+        ),
+    )
+    report = build(Manifest(rfc="S", title="t", claims=(claim,)))
+    assert report.verifiable_anchor_count == 1
+
+
+def test_markdown_says_not_checked_rather_than_none_failed(mixed_manifest):
+    """Without a repo the section must not read as a clean bill of health."""
+    section = to_markdown(build(mixed_manifest)).split("## Unverified anchors")[1]
+    assert "Not checked" in section
+    assert "none failed" not in section
+
+
+def test_markdown_says_none_failed_when_a_repo_verified_every_anchor(fixture_repo):
+    manifest = Manifest(
+        rfc="SPEC-1",
+        title="x",
+        claims=(_claim(id="spec:9.1", anchors=(Anchor(EvidenceClass.ADR, "a.md"),)),),
+    )
+    section = to_markdown(build(manifest, repo=fixture_repo)).split(
+        "## Unverified anchors"
+    )[1]
+    assert "None failed" in section
+    assert "Not checked" not in section

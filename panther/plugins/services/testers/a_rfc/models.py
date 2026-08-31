@@ -150,3 +150,21 @@ class Manifest:
             checked = sum(1 for claim in confirmed if claim.is_externally_checked)
             fractions[req_class.value] = checked / len(confirmed)
         return fractions
+
+    @property
+    def confirmed_count_by_req_class(self) -> dict[str, int]:
+        """Confirmed claim counts per requirement class.
+
+        The denominator behind ``checked_fraction_by_req_class``. It is reported
+        separately because a fraction of ``0.0`` has two readings — nothing
+        confirmed here was externally checked, or nothing here is confirmed —
+        and only the count says which one applies.
+
+        Returns:
+            One entry per requirement class, including classes with no claims.
+        """
+        counts = {req_class.value: 0 for req_class in ReqClass}
+        for claim in self.claims:
+            if claim.status is Status.CONFIRMED:
+                counts[claim.req_class.value] += 1
+        return counts

@@ -145,6 +145,47 @@ def test_unreadable_manifest_says_why_on_stderr(tmp_path: Path, capsys):
     assert "error:" in capsys.readouterr().err
 
 
+ANCHORED = """\
+rfc: SPEC-1
+title: 'An Example Specification'
+requirements:
+  'spec:1.1':
+    text: 'A claim whose anchor needs a repository to verify.'
+    section: '1.1'
+    level: MUST
+    layer: timing
+    status: inferred
+    anchors:
+      - evidence_class: code
+        locator: a.py
+        commit: '0000000000000000000000000000000000000000'
+"""
+
+
+def test_omitting_repo_says_so_rather_than_verifying_nothing_in_silence(
+    tmp_path: Path, capsys
+):
+    """The skip must name itself and its own size.
+
+    An empty ``unverified`` list without a repository is an absence of findings,
+    not a clean bill of health, and ``--strict`` cannot fail on anchors at all.
+    """
+    manifest = tmp_path / "anchored.yaml"
+    manifest.write_text(ANCHORED)
+    assert main([str(manifest), "--out", str(tmp_path / "out")]) == 0
+    stderr = capsys.readouterr().err
+    assert "--repo" in stderr
+    assert "1 anchor" in stderr
+
+
+def test_no_repo_note_is_silent_when_nothing_needed_verifying(tmp_path: Path, capsys):
+    """No anchor requires a repository here, so the skip costs nothing."""
+    manifest = tmp_path / "overstated.yaml"
+    manifest.write_text(OVERSTATED)
+    assert main([str(manifest), "--out", str(tmp_path / "out")]) == 0
+    assert "--repo" not in capsys.readouterr().err
+
+
 def test_unreadable_repo_returns_one(extended_manifest: Path, tmp_path: Path):
     assert (
         main(

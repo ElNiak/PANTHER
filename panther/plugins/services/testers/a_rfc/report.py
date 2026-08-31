@@ -25,6 +25,14 @@ class Report:
     manifest: Manifest
     violations: tuple[Violation, ...]
     unverified: tuple[str, ...]
+    #: Whether anchor verification ran at all. An empty ``unverified`` means
+    #: nothing when this is false, so every consumer that reports on anchors
+    #: must branch on it rather than on ``unverified`` alone.
+    anchors_checked: bool = False
+    #: How many anchors verification would have covered — those whose evidence
+    #: class is in ``COMMIT_REQUIRED_FOR``. Reported so the skip can name its
+    #: own size instead of being silent.
+    verifiable_anchor_count: int = 0
 
 
 def build(manifest: Manifest, repo: Path | None = None) -> Report:
@@ -35,27 +43,33 @@ def build(manifest: Manifest, repo: Path | None = None) -> Report:
         repo: Optional clone against which repository anchors are verified. When
             omitted, no anchor verification is attempted and ``unverified`` is
             empty — an absence of findings, not a clean bill of health.
+            ``anchors_checked`` records which of the two it was.
 
     Returns:
         The assembled report.
     """
     unverified: list[str] = []
-    if repo is not None:
-        for claim in manifest.claims:
-            for anchor in claim.anchors:
-                if anchor.evidence_class not in COMMIT_REQUIRED_FOR:
-                    continue
-                try:
-                    reason = verify_detailed(anchor, repo)
-                except AnchorError as error:
-                    reason = str(error)
-                if reason is not None:
-                    unverified.append(f"{claim.id}: {anchor.locator} ({reason})")
+    verifiable = 0
+    for claim in manifest.claims:
+        for anchor in claim.anchors:
+            if anchor.evidence_class not in COMMIT_REQUIRED_FOR:
+                continue
+            verifiable += 1
+            if repo is None:
+                continue
+            try:
+                reason = verify_detailed(anchor, repo)
+            except AnchorError as error:
+                reason = str(error)
+            if reason is not None:
+                unverified.append(f"{claim.id}: {anchor.locator} ({reason})")
 
     return Report(
         manifest=manifest,
         violations=violations(manifest),
         unverified=tuple(unverified),
+        anchors_checked=repo is not None,
+        verifiable_anchor_count=verifiable,
     )
 
 
@@ -86,6 +100,9 @@ def _payload(report: Report) -> dict:
         "checked_fraction_by_req_class": (
             report.manifest.checked_fraction_by_req_class
         ),
+        "confirmed_count_by_req_class": (report.manifest.confirmed_count_by_req_class),
+        "anchors_checked": report.anchors_checked,
+        "verifiable_anchor_count": report.verifiable_anchor_count,
         "claims": claims,
         "promotable_count": sum(1 for entry in claims if entry["promotable"]),
         "violations": [
@@ -131,6 +148,25 @@ def to_markdown(report: Report) -> str:
     for status, count in sorted(manifest.count_by_status.items()):
         lines.append(f"- {status}: {count}")
 
+    lines += [
+        "",
+        "## Externally checked fraction",
+        "",
+        "Of the *confirmed* claims in each requirement class, the fraction a "
+        "non-model oracle — a developer signature or a run — actually saw.",
+        "",
+    ]
+    fractions = manifest.checked_fraction_by_req_class
+    confirmed_counts = manifest.confirmed_count_by_req_class
+    for req_class in sorted(fractions):
+        confirmed = confirmed_counts[req_class]
+        if not confirmed:
+            lines.append(f"- {req_class}: — (no confirmed claims)")
+            continue
+        lines.append(
+            f"- {req_class}: {fractions[req_class]:.2f} ({confirmed} confirmed)"
+        )
+
     lines += ["", "## Promotable", ""]
     promotable = [entry for entry in _adjudicated(report) if entry["promotable"]]
     if not promotable:
@@ -170,8 +206,17 @@ def to_markdown(report: Report) -> str:
         lines.append(f"- **{violation.claim_id}** — {violation.reason}")
 
     lines += ["", "## Unverified anchors", ""]
-    if not report.unverified:
-        lines.append("_None checked, or none failed._")
+    if not report.anchors_checked:
+        lines.append(
+            f"_Not checked. No repository was given, so none of the "
+            f"{report.verifiable_anchor_count} anchor(s) requiring one was "
+            f"verified._"
+        )
+    elif not report.unverified:
+        lines.append(
+            f"_None failed. All {report.verifiable_anchor_count} anchor(s) "
+            f"requiring a repository resolved at their pinned commits._"
+        )
     for item in report.unverified:
         lines.append(f"- {item}")
 

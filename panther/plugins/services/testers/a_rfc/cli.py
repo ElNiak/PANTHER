@@ -87,6 +87,12 @@ def main(argv: list[str] | None = None) -> int:
     (args.out / "report.yaml").write_text(to_yaml(report))
     (args.out / "report.md").write_text(to_markdown(report))
 
+    if not report.anchors_checked and report.verifiable_anchor_count:
+        _report(
+            f"note: --repo not given; {report.verifiable_anchor_count} anchor(s) "
+            f"requiring a repository went unverified — --strict cannot fail on "
+            f"anchors"
+        )
     for violation in report.violations:
         _report(f"violation: {violation.claim_id}: {violation.reason}")
     for item in report.unverified:
