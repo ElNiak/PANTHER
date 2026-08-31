@@ -51,7 +51,7 @@ def _parser() -> argparse.ArgumentParser:
         "--strict",
         action="store_true",
         help=(
-            "Exit 2 on any finding: a claim recorded above what its evidence "
+            "Exit 3 on any finding: a claim recorded above what its evidence "
             "supports, or an anchor that does not resolve at its pinned commit."
         ),
     )
@@ -65,11 +65,16 @@ def main(argv: list[str] | None = None) -> int:
         argv: Argument vector; ``None`` reads ``sys.argv``.
 
     Returns:
-        0 on success, 1 if the manifest or repository could not be read, and 2
+        0 on success, 1 if the manifest or repository could not be read, and 3
         if any finding was reported while ``--strict`` was given. A finding is
         either a promotion violation or an anchor that did not resolve at its
         pinned commit; an anchor citing code absent from the commit it names is
         weaker evidence than an overstated status, not stronger, so both gate.
+
+        2 is left to ``argparse``, which raises it for a malformed invocation.
+        Sharing one code between "you typed the command wrong" and "the
+        manifest overstates its evidence" left a caller unable to tell them
+        apart, and they call for opposite responses.
     """
     args = _parser().parse_args(argv)
 
@@ -102,5 +107,5 @@ def main(argv: list[str] | None = None) -> int:
         _report(f"unverified: {item}")
 
     if (report.violations or report.unverified) and args.strict:
-        return 2
+        return 3
     return 0

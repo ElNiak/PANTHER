@@ -52,7 +52,7 @@ def test_violations_fail_under_strict(tmp_path: Path):
     manifest = tmp_path / "overstated.yaml"
     manifest.write_text(OVERSTATED)
     out = tmp_path / "out"
-    assert main([str(manifest), "--out", str(out), "--strict"]) == 2
+    assert main([str(manifest), "--out", str(out), "--strict"]) == 3
     assert (out / "report.md").exists()
 
 
@@ -65,7 +65,7 @@ def test_violations_are_named_on_stderr(tmp_path: Path, capsys):
     """
     manifest = tmp_path / "overstated.yaml"
     manifest.write_text(OVERSTATED)
-    assert main([str(manifest), "--out", str(tmp_path / "out"), "--strict"]) == 2
+    assert main([str(manifest), "--out", str(tmp_path / "out"), "--strict"]) == 3
     stderr = capsys.readouterr().err
     assert "spec:1.1" in stderr
     assert "supports only inferred" in stderr
@@ -99,7 +99,7 @@ def test_broken_anchor_alone_gates_and_is_named(
     code = main(
         [str(manifest), "--out", str(out), "--repo", str(fixture_repo), "--strict"]
     )
-    assert code == 2
+    assert code == 3
     stderr = capsys.readouterr().err
     assert "unverified" in stderr
     assert "does_not_exist.txt" in stderr

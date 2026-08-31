@@ -83,7 +83,7 @@ def main(argv: list[str] | None = None) -> int:
         argv: Argument vector; ``None`` reads ``sys.argv``.
 
     Returns:
-        0 on success, 1 if an input could not be read or interpreted, and 2
+        0 on success, 1 if an input could not be read or interpreted, and 3
         when ``gate --strict`` reported findings.
     """
     args = _parser().parse_args(argv)
@@ -119,7 +119,7 @@ def main(argv: list[str] | None = None) -> int:
     for finding in findings:
         _report(f"finding: {finding}")
     if findings and args.strict:
-        return 2
+        return 3
     if not findings:
         _report("note: gate clean")
     return 0

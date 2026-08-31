@@ -85,9 +85,9 @@ def test_gate_verb_reports_findings_without_strict(
     assert "finding:" in capsys.readouterr().err
 
 
-def test_gate_verb_strict_exits_two_on_findings(draft_workspace, tmp_path: Path):
+def test_gate_verb_strict_exits_three_on_findings(draft_workspace, tmp_path: Path):
     git(draft_workspace["repo"], "tag", "-d", "draft-test-spec-01")
-    assert cli.main(_gate_argv(draft_workspace, tmp_path / "out", "--strict")) == 2
+    assert cli.main(_gate_argv(draft_workspace, tmp_path / "out", "--strict")) == 3
 
 
 def test_gate_verb_exits_one_on_missing_inputs(draft_workspace, tmp_path: Path, capsys):

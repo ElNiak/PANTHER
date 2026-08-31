@@ -36,3 +36,17 @@ def test_every_entry_point_reports_its_version(prog, module, capsys):
     stdout = capsys.readouterr().out
     assert prog in stdout
     assert __version__ in stdout
+
+
+@pytest.mark.parametrize("prog,module", ENTRY_POINTS, ids=[p for p, _ in ENTRY_POINTS])
+def test_a_malformed_invocation_exits_two_everywhere(prog, module):
+    """2 belongs to argparse alone; strict findings return 3.
+
+    This is the half of the split that is easy to regress. Moving findings to 3
+    is only useful if 2 keeps meaning "the command was wrong" — a caller that
+    branches on the pair needs both halves to hold, and only the findings half
+    has tests of its own.
+    """
+    with pytest.raises(SystemExit) as exit_info:
+        module.main(["--no-such-flag"])
+    assert exit_info.value.code == 2

@@ -80,7 +80,7 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "Re-emit every view into scratch space and compare digests with "
-            "what --out already holds; drift exits 2."
+            "what --out already holds; drift exits 3."
         ),
     )
     return parser
@@ -93,8 +93,9 @@ def main(argv: list[str] | None = None) -> int:
         argv: Argument vector; ``None`` reads ``sys.argv``.
 
     Returns:
-        0 on success, 1 if the inputs could not be read or are stale, and 2
-        when ``--verify`` found a view whose bytes no longer reproduce.
+        0 on success, 1 if the inputs could not be read or are stale, and 3
+        when ``--verify`` found a view whose bytes no longer reproduce. 2 is
+        left to ``argparse`` for a malformed invocation.
     """
     args = _parser().parse_args(argv)
 
@@ -112,7 +113,7 @@ def main(argv: list[str] | None = None) -> int:
             if drifted:
                 for cluster_id in drifted:
                     _report(f"drift: {cluster_id} no longer reproduces")
-                return 2
+                return 3
             scope = args.only if args.only else "every"
             _report(f"note: {scope} view reproduces byte-for-byte")
             return 0

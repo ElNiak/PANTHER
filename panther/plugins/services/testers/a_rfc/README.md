@@ -83,9 +83,9 @@ timeline artifacts only as files on disk.
 |---|---|
 | `python -m …a_rfc.forge URL --repo CLONE --out DIR [--host github\|gitlab]` | Fetch pull data into an immutable snapshot (the only networked command) |
 | `python -m …a_rfc.timeline CORPUS --out DIR [--repo CLONE] [--forge SNAPDIR]` | Cluster the corpus; `--repo` refuses a clone whose HEAD left the corpus tip; `--forge` enriches and rescues |
-| `python -m …a_rfc.views TIMELINE --corpus DIR --repo CLONE --out DIR [--only ID] [--forge SNAPDIR] [--patches span\|members] [--verify]` | Emit evidence folders; `--verify` exits 2 on byte drift, and `--only` scopes both emission and verification |
+| `python -m …a_rfc.views TIMELINE --corpus DIR --repo CLONE --out DIR [--only ID] [--forge SNAPDIR] [--patches span\|members] [--verify]` | Emit evidence folders; `--verify` exits 3 on byte drift, and `--only` scopes both emission and verification |
 | `python -m …a_rfc.draft checkpoint MANIFEST --timeline DIR --cluster ID --out DIR` | Freeze the manifest against one cluster |
-| `python -m …a_rfc.draft gate DRAFTREPO --timeline DIR --checkpoints DIR --questions FILE --revisions FILE --out DIR [--strict]` | Citation gate; findings exit 2 under `--strict` |
+| `python -m …a_rfc.draft gate DRAFTREPO --timeline DIR --checkpoints DIR --questions FILE --revisions FILE --out DIR [--strict]` | Citation gate; findings exit 3 under `--strict` |
 
 ## CLI
 
@@ -110,7 +110,14 @@ Exit codes:
 |---|---|
 | 0 | Success — reports written; findings, if any, reported but tolerated |
 | 1 | The manifest could not be read, or `--repo` is not a git repository |
-| 2 | Findings were reported and `--strict` was given |
+| 2 | Argument error, raised by `argparse` itself |
+| 3 | Findings were reported and `--strict` was given |
+
+Every command in the package holds to that table, so 2 always means the
+invocation was malformed and never that the evidence was. Sharing one code
+between the two left a scripted caller unable to tell a mistyped flag from a
+real finding, and the responses are opposite: fix the command, or fix the
+evidence.
 
 A **finding** is either a promotion violation or an anchor that did not resolve
 at its pinned commit. Both gate under `--strict`, and both are named on stderr
@@ -174,7 +181,7 @@ dropped in unchanged for the same reason.
    what is *stored*, not what is *supported*, so today this means calling
    `promotion.adjudicate` directly.
 5. **Re-run with `--strict`.** It is now a gate: any overstated claim or
-   unresolved anchor exits 2.
+   unresolved anchor exits 3.
 
 ```bash
 python -m panther.plugins.services.testers.a_rfc.history path/to/clone --out corpus/
