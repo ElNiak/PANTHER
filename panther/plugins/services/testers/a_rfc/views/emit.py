@@ -118,14 +118,85 @@ def _read_forge_records(snapshot: Path) -> dict[str, Any]:
     corpus-side subpackages hand data to each other on disk, never through
     imports.
     """
-
-    def rows(name: str) -> list[dict[str, Any]]:
-        return [json.loads(line) for line in (snapshot / name).read_text().splitlines()]
-
     return {
-        "pulls": {pull["number"]: pull for pull in rows("pulls.jsonl")},
-        "reviews": rows("reviews.jsonl"),
-        "comments": rows("comments.jsonl"),
+        "pulls": {pull["number"]: pull for pull in _jsonl(snapshot / "pulls.jsonl")},
+        "reviews": _jsonl(snapshot / "reviews.jsonl"),
+        "comments": _jsonl(snapshot / "comments.jsonl"),
+    }
+
+
+def _git_version() -> str:
+    """Return the local git version; patch bytes are only stable within one."""
+    return subprocess.run(
+        ["git", "--version"], capture_output=True, text=True
+    ).stdout.strip()
+
+
+def _write_patch(cluster_dir: Path, name: str, raw: bytes) -> dict[str, Any]:
+    """Write one patch file and return the record naming it in ``view.json``."""
+    (cluster_dir / name).write_bytes(raw)
+    return {"bytes": len(raw), "name": name, "sha256": _digest_bytes(raw)}
+
+
+def _write_span_patch(
+    cluster_dir: Path, repo: Path, base: str, member_shas: list[str]
+) -> dict[str, Any]:
+    """Write the cluster's span diff and return its patch record."""
+    # The span ends at the cluster's LAST member: a PR's anchor merge, or
+    # an epoch's final spine commit. The anchor_sha is an epoch's FIRST
+    # member (it names the cluster), so diffing to it would drop every
+    # later commit of the epoch.
+    span = _span_diff(repo, base, member_shas[-1])
+    return _write_patch(cluster_dir, SPAN_FILE, span)
+
+
+def _write_member_patches(
+    cluster_dir: Path,
+    repo: Path,
+    member_shas: list[str],
+    parents_by_sha: dict[str, tuple[str, ...]],
+) -> list[dict[str, Any]]:
+    """Write one first-parent patch per member commit, in member order."""
+    (cluster_dir / "members").mkdir(exist_ok=True)
+    records: list[dict[str, Any]] = []
+    for position, sha in enumerate(member_shas):
+        parents = parents_by_sha.get(sha, ())
+        member_base = parents[0] if parents else EMPTY_TREE
+        patch = _span_diff(repo, member_base, sha)
+        records.append(
+            _write_patch(cluster_dir, f"members/{position:02d}-{sha[:12]}.patch", patch)
+        )
+    return records
+
+
+def _write_evidence(
+    cluster_dir: Path, forge: dict[str, Any], number: int
+) -> dict[str, Any] | None:
+    """Write a pull request's forge bundle into ``evidence/pr.json``.
+
+    Returns the record for ``view.json``, or None when the snapshot holds no
+    pull with that number — in which case nothing is written.
+    """
+    pull = forge["pulls"].get(number)
+    if pull is None:
+        return None
+    bundle = {
+        "pull": pull,
+        "reviews": [
+            review for review in forge["reviews"] if review["pr_number"] == number
+        ],
+        "comments": [
+            comment for comment in forge["comments"] if comment["pr_number"] == number
+        ],
+    }
+    raw = (json.dumps(bundle, sort_keys=True, indent=2) + "\n").encode()
+    (cluster_dir / "evidence").mkdir(exist_ok=True)
+    (cluster_dir / "evidence" / "pr.json").write_bytes(raw)
+    return {
+        "comment_count": len(bundle["comments"]),
+        "pr_number": number,
+        "review_count": len(bundle["reviews"]),
+        "sha256": _digest_bytes(raw),
     }
 
 
@@ -188,9 +259,7 @@ def emit_views(
 
     forge = _read_forge_records(forge_snapshot) if forge_snapshot else None
 
-    git_version = subprocess.run(
-        ["git", "--version"], capture_output=True, text=True
-    ).stdout.strip()
+    git_version = _git_version()
     source = {
         "commits_sha256": timeline["commits_sha256"],
         "files_sha256": timeline["files_sha256"],
@@ -201,65 +270,23 @@ def emit_views(
     for cluster in clusters:
         cluster_dir = out / cluster["id"]
         cluster_dir.mkdir(parents=True, exist_ok=True)
+        member_shas = members_by_cluster[cluster["id"]]
         base = cluster["spine_prev_sha"] or EMPTY_TREE
-        # The span ends at the cluster's LAST member: a PR's anchor merge, or
-        # an epoch's final spine commit. The anchor_sha is an epoch's FIRST
-        # member (it names the cluster), so diffing to it would drop every
-        # later commit of the epoch.
-        span = _span_diff(repo, base, members_by_cluster[cluster["id"]][-1])
-        (cluster_dir / SPAN_FILE).write_bytes(span)
-        patch_records = [
-            {"bytes": len(span), "name": SPAN_FILE, "sha256": _digest_bytes(span)}
-        ]
 
+        patch_records = [_write_span_patch(cluster_dir, repo, base, member_shas)]
         if patches == "members":
-            (cluster_dir / "members").mkdir(exist_ok=True)
-            for position, sha in enumerate(members_by_cluster[cluster["id"]]):
-                parents = parents_by_sha.get(sha, ())
-                member_base = parents[0] if parents else EMPTY_TREE
-                patch = _span_diff(repo, member_base, sha)
-                name = f"members/{position:02d}-{sha[:12]}.patch"
-                (cluster_dir / name).write_bytes(patch)
-                patch_records.append(
-                    {
-                        "bytes": len(patch),
-                        "name": name,
-                        "sha256": _digest_bytes(patch),
-                    }
-                )
+            patch_records.extend(
+                _write_member_patches(cluster_dir, repo, member_shas, parents_by_sha)
+            )
 
         evidence = None
         if forge is not None and cluster.get("pr_number") is not None:
-            number = cluster["pr_number"]
-            pull = forge["pulls"].get(number)
-            if pull is not None:
-                bundle = {
-                    "pull": pull,
-                    "reviews": [
-                        review
-                        for review in forge["reviews"]
-                        if review["pr_number"] == number
-                    ],
-                    "comments": [
-                        comment
-                        for comment in forge["comments"]
-                        if comment["pr_number"] == number
-                    ],
-                }
-                raw = (json.dumps(bundle, sort_keys=True, indent=2) + "\n").encode()
-                (cluster_dir / "evidence").mkdir(exist_ok=True)
-                (cluster_dir / "evidence" / "pr.json").write_bytes(raw)
-                evidence = {
-                    "comment_count": len(bundle["comments"]),
-                    "pr_number": number,
-                    "review_count": len(bundle["reviews"]),
-                    "sha256": _digest_bytes(raw),
-                }
+            evidence = _write_evidence(cluster_dir, forge, cluster["pr_number"])
 
         view = {
             **cluster,
             "evidence": evidence,
-            "file_set": _file_set(members_by_cluster[cluster["id"]], rows_by_sha),
+            "file_set": _file_set(member_shas, rows_by_sha),
             "git_version": git_version,
             "patches": patch_records,
             "source": source,
@@ -269,6 +296,27 @@ def emit_views(
         )
         emitted.append(cluster["id"])
     return tuple(emitted)
+
+
+def _patches_drifted(stored_dir: Path, fresh_view: dict[str, Any]) -> bool:
+    """Report whether a stored cluster's patches match a fresh emission.
+
+    Only the ``patches`` records and the patch files they name are compared;
+    the rest of ``view.json`` is not. True when the stored view is missing,
+    its patch records differ, or a named patch file is absent or has a
+    different digest.
+    """
+    stored_view_path = stored_dir / VIEW_FILE
+    if not stored_view_path.exists():
+        return True
+    stored_view = json.loads(stored_view_path.read_text())
+    if stored_view.get("patches") != fresh_view["patches"]:
+        return True
+    for record in fresh_view["patches"]:
+        stored_patch = stored_dir / record["name"]
+        if not stored_patch.exists() or _digest(stored_patch) != record["sha256"]:
+            return True
+    return False
 
 
 def verify_views(
@@ -301,7 +349,6 @@ def verify_views(
         ViewsError: As :func:`emit_views`.
         OSError: If an input cannot be read.
     """
-    drifted: list[str] = []
     with tempfile.TemporaryDirectory() as scratch:
         fresh_root = Path(scratch)
         emitted = emit_views(
@@ -312,22 +359,12 @@ def verify_views(
             forge_snapshot=forge_snapshot,
             patches=patches,
         )
-        for cluster_id in emitted:
-            fresh_view = json.loads((fresh_root / cluster_id / VIEW_FILE).read_text())
-            stored_view_path = out / cluster_id / VIEW_FILE
-            if not stored_view_path.exists():
-                drifted.append(cluster_id)
-                continue
-            stored_view = json.loads(stored_view_path.read_text())
-            if stored_view.get("patches") != fresh_view["patches"]:
-                drifted.append(cluster_id)
-                continue
-            for record in fresh_view["patches"]:
-                stored_patch = out / cluster_id / record["name"]
-                if (
-                    not stored_patch.exists()
-                    or _digest(stored_patch) != record["sha256"]
-                ):
-                    drifted.append(cluster_id)
-                    break
+        drifted = [
+            cluster_id
+            for cluster_id in emitted
+            if _patches_drifted(
+                out / cluster_id,
+                json.loads((fresh_root / cluster_id / VIEW_FILE).read_text()),
+            )
+        ]
     return tuple(drifted)

@@ -139,8 +139,98 @@ def _paginated_gitlab(
         page = int(next_page)
 
 
-def _login(record: dict[str, Any] | None, key: str) -> str:
-    return str(((record or {}).get(key) or {}).get("login", "") or "")
+def _actor(record: dict[str, Any] | None, key: str, field: str = "login") -> str:
+    """Return a nested actor handle, or the empty string when absent."""
+    return str(((record or {}).get(key) or {}).get(field, "") or "")
+
+
+def _github_pull(raw: dict[str, Any]) -> dict[str, Any]:
+    """Map a GitHub pull payload onto a snapshot record."""
+    merged = bool(raw.get("merged_at"))
+    return {
+        "number": raw["number"],
+        "title": raw.get("title") or "",
+        "body": raw.get("body") or "",
+        "state": "merged" if merged else raw.get("state") or "",
+        "author": _actor(raw, "user"),
+        "created_at": raw.get("created_at"),
+        "merged_at": raw.get("merged_at"),
+        "merge_commit_sha": raw.get("merge_commit_sha"),
+        "squash_commit_sha": None,
+        "head_sha": (raw.get("head") or {}).get("sha"),
+        "base_ref": (raw.get("base") or {}).get("ref"),
+        "url": raw.get("html_url"),
+        "labels": [label.get("name", "") for label in raw.get("labels") or []],
+    }
+
+
+def _github_review(raw: dict[str, Any], pr_number: int) -> dict[str, Any]:
+    """Map a GitHub review payload onto a snapshot record."""
+    return {
+        "pr_number": pr_number,
+        "id": raw["id"],
+        "reviewer": _actor(raw, "user"),
+        "state": raw.get("state") or "",
+        "submitted_at": raw.get("submitted_at"),
+        "body": raw.get("body") or "",
+    }
+
+
+def _github_comment(
+    raw: dict[str, Any],
+    pr_number: int,
+    kind: str,
+    path: str | None = None,
+    line: int | None = None,
+) -> dict[str, Any]:
+    """Map a GitHub comment payload onto a snapshot record.
+
+    Issue comments anchor to no source location, so ``path`` and ``line``
+    default to None.
+    """
+    return {
+        "pr_number": pr_number,
+        "id": raw["id"],
+        "kind": kind,
+        "author": _actor(raw, "user"),
+        "created_at": raw.get("created_at"),
+        "body": raw.get("body") or "",
+        "path": path,
+        "line": line,
+    }
+
+
+def _gitlab_pull(raw: dict[str, Any]) -> dict[str, Any]:
+    """Map a GitLab merge-request payload onto a snapshot record."""
+    return {
+        "number": raw["iid"],
+        "title": raw.get("title") or "",
+        "body": raw.get("description") or "",
+        "state": raw.get("state") or "",
+        "author": _actor(raw, "author", "username"),
+        "created_at": raw.get("created_at"),
+        "merged_at": raw.get("merged_at"),
+        "merge_commit_sha": raw.get("merge_commit_sha"),
+        "squash_commit_sha": raw.get("squash_commit_sha"),
+        "head_sha": raw.get("sha"),
+        "base_ref": raw.get("target_branch"),
+        "url": raw.get("web_url"),
+        "labels": list(raw.get("labels") or []),
+    }
+
+
+def _gitlab_comment(raw: dict[str, Any], pr_number: int) -> dict[str, Any]:
+    """Map a GitLab discussion note onto a snapshot record."""
+    return {
+        "pr_number": pr_number,
+        "id": raw["id"],
+        "kind": "discussion_note",
+        "author": _actor(raw, "author", "username"),
+        "created_at": raw.get("created_at"),
+        "body": raw.get("body") or "",
+        "path": None,
+        "line": None,
+    }
 
 
 @dataclass(frozen=True)
@@ -172,40 +262,14 @@ def _fetch_github(
         f"{api}/pulls?state=all&per_page=100", transport, token
     ):
         number = raw["number"]
-        merged = bool(raw.get("merged_at"))
-        pulls.append(
-            {
-                "number": number,
-                "title": raw.get("title") or "",
-                "body": raw.get("body") or "",
-                "state": "merged" if merged else raw.get("state") or "",
-                "author": _login(raw, "user"),
-                "created_at": raw.get("created_at"),
-                "merged_at": raw.get("merged_at"),
-                "merge_commit_sha": raw.get("merge_commit_sha"),
-                "squash_commit_sha": None,
-                "head_sha": (raw.get("head") or {}).get("sha"),
-                "base_ref": (raw.get("base") or {}).get("ref"),
-                "url": raw.get("html_url"),
-                "labels": [label.get("name", "") for label in raw.get("labels") or []],
-            }
-        )
-        if not merged:
+        pulls.append(_github_pull(raw))
+        if not raw.get("merged_at"):
             continue
         try:
             for review in _paginated_github(
                 f"{api}/pulls/{number}/reviews?per_page=100", transport, token
             ):
-                reviews.append(
-                    {
-                        "pr_number": number,
-                        "id": review["id"],
-                        "reviewer": _login(review, "user"),
-                        "state": review.get("state") or "",
-                        "submitted_at": review.get("submitted_at"),
-                        "body": review.get("body") or "",
-                    }
-                )
+                reviews.append(_github_review(review, number))
         except ForgeAuthError:
             denied += 1
         try:
@@ -213,32 +277,18 @@ def _fetch_github(
                 f"{api}/pulls/{number}/comments?per_page=100", transport, token
             ):
                 comments.append(
-                    {
-                        "pr_number": number,
-                        "id": comment["id"],
-                        "kind": "review_comment",
-                        "author": _login(comment, "user"),
-                        "created_at": comment.get("created_at"),
-                        "body": comment.get("body") or "",
-                        "path": comment.get("path"),
-                        "line": comment.get("line"),
-                    }
+                    _github_comment(
+                        comment,
+                        number,
+                        "review_comment",
+                        path=comment.get("path"),
+                        line=comment.get("line"),
+                    )
                 )
             for comment in _paginated_github(
                 f"{api}/issues/{number}/comments?per_page=100", transport, token
             ):
-                comments.append(
-                    {
-                        "pr_number": number,
-                        "id": comment["id"],
-                        "kind": "issue_comment",
-                        "author": _login(comment, "user"),
-                        "created_at": comment.get("created_at"),
-                        "body": comment.get("body") or "",
-                        "path": None,
-                        "line": None,
-                    }
-                )
+                comments.append(_github_comment(comment, number, "issue_comment"))
         except ForgeAuthError:
             denied += 1
     return FetchResult(pulls, reviews, comments, denied)
@@ -255,23 +305,7 @@ def _fetch_gitlab(
         f"{api}/merge_requests?state=all&per_page=100", transport, token
     ):
         number = raw["iid"]
-        pulls.append(
-            {
-                "number": number,
-                "title": raw.get("title") or "",
-                "body": raw.get("description") or "",
-                "state": raw.get("state") or "",
-                "author": str((raw.get("author") or {}).get("username", "") or ""),
-                "created_at": raw.get("created_at"),
-                "merged_at": raw.get("merged_at"),
-                "merge_commit_sha": raw.get("merge_commit_sha"),
-                "squash_commit_sha": raw.get("squash_commit_sha"),
-                "head_sha": raw.get("sha"),
-                "base_ref": raw.get("target_branch"),
-                "url": raw.get("web_url"),
-                "labels": list(raw.get("labels") or []),
-            }
-        )
+        pulls.append(_gitlab_pull(raw))
         if raw.get("state") != "merged":
             continue
         try:
@@ -282,20 +316,7 @@ def _fetch_gitlab(
             ):
                 if note.get("system"):
                     continue
-                comments.append(
-                    {
-                        "pr_number": number,
-                        "id": note["id"],
-                        "kind": "discussion_note",
-                        "author": str(
-                            (note.get("author") or {}).get("username", "") or ""
-                        ),
-                        "created_at": note.get("created_at"),
-                        "body": note.get("body") or "",
-                        "path": None,
-                        "line": None,
-                    }
-                )
+                comments.append(_gitlab_comment(note, number))
         except ForgeAuthError:
             denied += 1
     return FetchResult(pulls, [], comments, denied)
