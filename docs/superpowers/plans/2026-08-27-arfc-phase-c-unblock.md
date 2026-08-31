@@ -15,7 +15,17 @@
 > - **The denial fixture was refreshed** from a real 2.1.247 guard denial (`2939c5e`),
 >   closing the "deliberate no-op" the banner records.
 > - **The pilot was launched on 2026-08-28 and aborted on its first run** (arm B,
->   repeat 1) by a guard defect since fixed in `17ba3a1` and `HEAD`.
+>   repeat 1) by a guard defect since fixed in `17ba3a1`. Three further fixes landed
+>   on 2026-08-31 before the relaunch: `695c51b` made the guard read shell operators
+>   outside quotes only, `d36a772` gave each run its own guard-integrity evidence, and
+>   `fa51cec` added an invariant holding the guard and the audit to one reading of a
+>   command. `695c51b`'s twin in the audit mattered most — without it the audit would
+>   have reported a **false `integrity: false`** on legitimate traffic once the fixed
+>   guard let it through.
+> - **The pilot was relaunched on 2026-08-31 ~11:20 and is running**, on CLI 2.1.251,
+>   campaign `~/arfc-experiments/campaigns/pilot-aioquic-w02-11-20260831/`. The aborted
+>   2026-08-28 campaign directory is kept as evidence rather than resumed, because a
+>   campaign never re-verifies its frozen `claude_version`.
 > - Still open from the banner: no full-suite baseline was ever captured at Task 0, so
 >   its "20 failures are pre-existing" remains asserted rather than proven.
 
