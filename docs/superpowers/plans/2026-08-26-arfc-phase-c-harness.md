@@ -36,6 +36,8 @@ A total below the table means a test was lost somewhere, not that the table is w
 Run: `cd $R && git log --oneline -1 && SSLKEYLOGFILE= $PY -m pytest experiment/tests -q 2>&1 | tail -1 && ls ~/arfc-experiments/pristine/aioquic-w02-11/pristine.sha256 && python3 -c "import json;r=json.load(open('$HOME/arfc-experiments/spike-report.json'));print('go' if r['go'] else 'NO-GO')"`
 Expected: the foundations commits through `docs: spike S0 passes; record the measured enforcement mechanism`, `66 passed`, the digest file listed, `go`. Anything else: STOP and report.
 
+> **Re-verified 2026-08-31 on CLI 2.1.251: `go: true`, 9/9 checks passing** — including the required `denial` control, and `plugin_mcp`, which had failed on 2.1.250. The enforcement mechanism is a measured property of the CLI rather than a contract, so this gate is re-run whenever the installed CLI moves before any spend.
+>
 > **Verified 2026-08-27: this gate passes.** Spike S0 returned `go: true` on CLI 2.1.247 and the aioquic pristine workspace is built. Before writing the runner, read `ai_rfc/docs/spike-s0.md` and the spec's amended §2: `--allowedTools` does not confine a built-in, so arms B and C are separated by `experiment/guard.py` mounted through `--settings`, and `constant_flags` already carries `--include-hook-events` so the audit can see guard denials. `arm_flags` and `build_argv` take a `guard_settings` path; the campaign must render one settings document per arm into the campaign directory, never into `ARFC_WORKSPACE`.
 
 ### Task 1: `experiment/config.py` — campaign freeze and seeded order
