@@ -60,7 +60,7 @@ Boundary rule: `timeline/` and `views/` are **corpus-side** — they import noth
 
 ### Determinism rules
 
-Patches via `git diff` (never `format-patch` — it embeds the git version): config/flags exactly `-c core.quotePath=true -c diff.algorithm=myers diff --no-color --no-ext-diff --no-textconv --no-renames --full-index --src-prefix=a/ --dst-prefix=b/ -U3 <base> <target> --`. `view.json` records `git_version` + per-patch SHA-256; `views --verify` re-emits and compares (drift = named failure, exit 2). Sort/tiebreaks: clusters by ordinal; members by (cluster ordinal, position); file_set by path; all JSON `sort_keys=True`. Forge snapshots (P4): dir `snapshot-<fetched_atZ>`, writer refuses existing dirs, consumers take explicit snapshot paths.
+Patches via `git diff` (never `format-patch` — it embeds the git version): config/flags exactly `-c core.quotePath=true -c diff.algorithm=myers diff --no-color --no-ext-diff --no-textconv --no-renames --full-index --src-prefix=a/ --dst-prefix=b/ -U3 <base> <target> --`. `view.json` records `git_version` + per-patch SHA-256; `views --verify` re-emits and compares (drift = named failure, exit 3). Sort/tiebreaks: clusters by ordinal; members by (cluster ordinal, position); file_set by path; all JSON `sort_keys=True`. Forge snapshots (P4): dir `snapshot-<fetched_atZ>`, writer refuses existing dirs, consumers take explicit snapshot paths.
 
 ### CLI surface (all: required `--out`, stderr `_report`, exit 0/1/2)
 
