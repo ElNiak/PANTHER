@@ -1,0 +1,281 @@
+"""Read a workspace's state off its own artifacts.
+
+Nothing records what has been run. The substrate already writes the digest of
+every stage's inputs into that stage's output — ``timeline.json`` carries the
+corpus digests, a ``view.json`` carries the timeline's, a ``checkpoint.json``
+carries the manifest's — so "is this still current?" is a question the
+artifacts already answer.
+
+A run ledger would answer it faster and would start lying the first time
+somebody ran a sub-CLI by hand, which the authoring loop actively tells them to
+do. The state here is derived on every call for that reason. ``status`` emits
+``pipeline-status.json`` for a driver to read, but nothing reads it back as
+authority.
+"""
+
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from enum import Enum
+from pathlib import Path
+
+from ..schema import SchemaError, load
+from .stages import STAGES, Kind, Stage
+from .workspace import Workspace, digest
+
+
+class State(Enum):
+    """What a stage's artifacts say about it."""
+
+    #: Produced, and consistent with the inputs currently on disk.
+    DONE = "done"
+    #: Produced, but an input has moved since. Re-run it.
+    STALE = "stale"
+    #: Not produced yet, and everything it needs is ready.
+    PENDING = "pending"
+    #: Not produced, and something upstream is not ready either.
+    BLOCKED = "blocked"
+    #: Pure, cheap and idempotent, so doneness is not tracked: the runner just
+    #: performs it. Its output carries no digest of its input, and adding one
+    #: would cost more than re-deriving the answer.
+    REDERIVABLE = "re-derivable"
+
+
+@dataclass(frozen=True)
+class StageState:
+    """One stage's state, and why."""
+
+    stage: Stage
+    state: State
+    reason: str = ""
+
+
+@dataclass(frozen=True)
+class NextAction:
+    """The first thing that needs doing, and who does it."""
+
+    stage: Stage
+    state: State
+    reason: str
+
+    @property
+    def is_agent(self) -> bool:
+        """Whether this stage needs a model rather than the runner."""
+        return self.stage.kind is Kind.AGENT
+
+
+def _read_json(path: Path) -> dict | None:
+    """Parse an artifact, or return ``None`` when it is unusable.
+
+    A malformed artifact is a stage that needs re-running, not an error to
+    raise at the caller: probing a half-written workspace is exactly when this
+    happens, and it is the situation the report exists to describe.
+
+    Args:
+        path: The artifact to read.
+
+    Returns:
+        The parsed object, or ``None`` if it is not readable JSON.
+    """
+    try:
+        parsed = json.loads(path.read_text())
+    except (ValueError, OSError):
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def _pin(ws: Workspace) -> tuple[State, str]:
+    """The clone's state.
+
+    An uncommitted change is reported but does not block. Nothing downstream
+    reads the working tree: history extracts from ``git log``, views reads git
+    objects, and anchors resolve through ``git show <commit>:<path>``. Blocking
+    on dirt would hide a corpus, timeline and views that are all perfectly
+    current — which is what it did before this was noticed against a real
+    workspace.
+    """
+    if not (ws.clone / ".git").exists():
+        return State.PENDING, f"{ws.clone} is not a git repository"
+    if ws.clone_is_dirty():
+        return State.DONE, (
+            "note: the clone has uncommitted changes. Nothing downstream reads "
+            "the working tree, but they are invisible to every anchor."
+        )
+    return State.DONE, ""
+
+
+def _history(ws: Workspace, pin: State) -> tuple[State, str]:
+    if pin is not State.DONE:
+        return State.BLOCKED, "the clone is not pinned"
+    if not (ws.commits.exists() and ws.files.exists()):
+        return State.PENDING, f"no corpus in {ws.corpus}"
+    return State.DONE, ""
+
+
+def _forge(ws: Workspace) -> tuple[State, str]:
+    snapshot = ws.latest_forge_snapshot()
+    if snapshot is None:
+        return State.PENDING, (
+            "no forge snapshot; the timeline will be built from git alone, "
+            "which on a squash-heavy repository sees far fewer pull requests"
+        )
+    meta = _read_json(snapshot / "meta.json")
+    if meta is None:
+        return State.STALE, f"{snapshot.name}/meta.json is unreadable"
+    if not meta.get("complete", False):
+        denied = meta.get("denied_subfetches", 0)
+        return State.STALE, (
+            f"{snapshot.name} is incomplete: {denied} sub-fetch(es) were "
+            f"denied. Set GITHUB_TOKEN or GITLAB_TOKEN and fetch again."
+        )
+    return State.DONE, ""
+
+
+def _timeline(ws: Workspace, history: State) -> tuple[State, str]:
+    if history is not State.DONE:
+        return State.BLOCKED, "there is no corpus to cluster"
+    if not ws.timeline_json.exists():
+        return State.PENDING, f"no timeline in {ws.timeline}"
+    recorded = _read_json(ws.timeline_json)
+    if recorded is None:
+        return State.STALE, f"{ws.timeline_json.name} is unreadable"
+    for key, path in (("commits_sha256", ws.commits), ("files_sha256", ws.files)):
+        if recorded.get(key) != digest(path):
+            return State.STALE, f"{path.name} changed since the timeline was built"
+    return State.DONE, ""
+
+
+def _cluster_ids(ws: Workspace) -> list[str]:
+    """Every cluster id the timeline names, in order.
+
+    Callers reach this only once the timeline itself has been found current, so
+    a row that will not parse is a corrupt artifact rather than a state to
+    report, and is left to surface as the error it is.
+    """
+    return [
+        json.loads(line)["id"] for line in ws.clusters_jsonl.read_text().splitlines()
+    ]
+
+
+def _views(ws: Workspace, timeline: State) -> tuple[State, str]:
+    if timeline is not State.DONE:
+        return State.BLOCKED, "the timeline is not current"
+    ids = _cluster_ids(ws)
+    missing = [cid for cid in ids if not (ws.clusters / cid / "view.json").exists()]
+    if len(missing) == len(ids):
+        return State.PENDING, f"no views in {ws.clusters}"
+    if missing:
+        return State.STALE, f"{len(missing)} of {len(ids)} cluster(s) have no view"
+    current = digest(ws.timeline_json)
+    for cid in ids:
+        view = _read_json(ws.clusters / cid / "view.json")
+        if view is None:
+            return State.STALE, f"{cid}/view.json is unreadable"
+        if view.get("source", {}).get("timeline_sha256") != current:
+            return State.STALE, f"{cid} was emitted from an older timeline"
+    return State.DONE, ""
+
+
+def _mining(ws: Workspace, views: State) -> tuple[State, str]:
+    if views is not State.DONE:
+        return State.BLOCKED, "there is no cluster evidence to mine"
+    if not ws.manifest.exists():
+        return State.PENDING, f"no manifest at {ws.manifest}"
+    try:
+        manifest = load(ws.manifest)
+    except (SchemaError, OSError) as error:
+        return State.STALE, f"the manifest does not load: {error}"
+    if not manifest.claims:
+        return State.PENDING, "the manifest holds no claims yet"
+    return State.DONE, ""
+
+
+def _checkpoint(ws: Workspace, mining: State) -> tuple[State, str]:
+    if mining is not State.DONE:
+        return State.BLOCKED, "there is no manifest to freeze"
+    total = len(_cluster_ids(ws))
+    frozen = (
+        sum(1 for entry in ws.checkpoints.iterdir() if entry.is_dir())
+        if ws.checkpoints.is_dir()
+        else 0
+    )
+    if not frozen:
+        return State.PENDING, f"no cluster checkpointed of {total}"
+    return State.DONE, f"{frozen} of {total} cluster(s) checkpointed"
+
+
+def _prose(ws: Workspace, mining: State) -> tuple[State, str]:
+    if mining is not State.DONE:
+        return State.BLOCKED, "there are no claims to cite"
+    if not (ws.draft / ".git").exists():
+        return State.PENDING, f"{ws.draft} is not a draft repository"
+    if not ws.revisions.exists():
+        return State.PENDING, "no revision has been recorded"
+    return State.DONE, ""
+
+
+def state(ws: Workspace) -> tuple[StageState, ...]:
+    """Read every stage's state off the workspace.
+
+    Args:
+        ws: The workspace to read.
+
+    Returns:
+        One :class:`StageState` per stage, in pipeline order.
+
+    Raises:
+        OSError: If an artifact exists but cannot be read.
+    """
+    pin = _pin(ws)
+    history = _history(ws, pin[0])
+    timeline = _timeline(ws, history[0])
+    views = _views(ws, timeline[0])
+    mining = _mining(ws, views[0])
+    rederivable = (
+        (State.REDERIVABLE, "")
+        if mining[0] is State.DONE
+        else (State.BLOCKED, "there is no manifest to check")
+    )
+    by_name: dict[str, tuple[State, str]] = {
+        "pin": pin,
+        "history": history,
+        "forge": _forge(ws),
+        "timeline": timeline,
+        "views": views,
+        "mining": mining,
+        "adjudicate": rederivable,
+        "prose": _prose(ws, mining[0]),
+        "checkpoint": _checkpoint(ws, mining[0]),
+        "gate": rederivable,
+    }
+    return tuple(StageState(stage, *by_name[stage.name]) for stage in STAGES)
+
+
+def next_action(ws: Workspace) -> NextAction | None:
+    """The first stage that still needs doing.
+
+    This is the function a driver outside the package calls: it says what to do
+    next and whether the runner or a model does it, without the caller needing
+    to know the stage table.
+
+    ``forge`` never blocks. Its enrichment is optional — a git-only timeline is
+    a narrower reconstruction, not a broken one — so a workspace with no
+    snapshot is reported by :func:`state` and stepped over here.
+
+    Args:
+        ws: The workspace to read.
+
+    Returns:
+        The next action, or ``None`` when nothing is outstanding.
+
+    Raises:
+        OSError: If an artifact exists but cannot be read.
+    """
+    for entry in state(ws):
+        if entry.stage.name == "forge":
+            continue
+        if entry.state in (State.DONE, State.REDERIVABLE):
+            continue
+        return NextAction(entry.stage, entry.state, entry.reason)
+    return None

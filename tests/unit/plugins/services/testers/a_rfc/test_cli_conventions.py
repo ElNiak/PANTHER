@@ -12,16 +12,22 @@ from panther.plugins.services.testers.a_rfc import cli as root_cli
 from panther.plugins.services.testers.a_rfc.draft import cli as draft_cli
 from panther.plugins.services.testers.a_rfc.forge import cli as forge_cli
 from panther.plugins.services.testers.a_rfc.history import cli as history_cli
+from panther.plugins.services.testers.a_rfc.pipeline import cli as pipeline_cli
 from panther.plugins.services.testers.a_rfc.timeline import cli as timeline_cli
 from panther.plugins.services.testers.a_rfc.views import cli as views_cli
 
 pytestmark = pytest.mark.unit
 
+#: Every ``python -m`` entry point the package exposes. A new sub-package that
+#: is not listed here is silently exempt from both invariants below, which is
+#: the whole failure this file exists to prevent — so adding one is part of
+#: adding the sub-package.
 ENTRY_POINTS = (
     ("a_rfc", root_cli),
     ("a_rfc.draft", draft_cli),
     ("a_rfc.forge", forge_cli),
     ("a_rfc.history", history_cli),
+    ("a_rfc.pipeline", pipeline_cli),
     ("a_rfc.timeline", timeline_cli),
     ("a_rfc.views", views_cli),
 )

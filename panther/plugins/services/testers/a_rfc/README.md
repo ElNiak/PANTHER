@@ -79,6 +79,21 @@ domain code with the manifest core and re-parse the JSONL themselves.
 `draft/` is manifest-side: it imports `schema` and `promotion`, and reads
 timeline artifacts only as files on disk.
 
+## The `pipeline/` subpackage
+
+`pipeline/` holds the sequence the six commands above do not: it runs the
+deterministic stages in order and **stops** at the two that produce content —
+mining claims and writing prose — because those need a model and nothing here
+calls one. Reaching such a boundary exits 0 and names whose turn it is.
+
+It records nothing. A workspace's state is derived on every call from the
+digests the substrate already writes into its own outputs, because a run ledger
+would start lying the first time somebody ran a sub-CLI by hand — which the
+authoring loop below actively tells them to do. See `pipeline/README.md`.
+
+It is a seventh caller of the same CLIs, not a seventh layer: it imports each
+sub-package's `cli.main` and nothing else, so data still hands over on disk.
+
 | Command | Purpose |
 |---|---|
 | `python -m …a_rfc.forge URL --repo CLONE --out DIR [--host github\|gitlab]` | Fetch pull data into an immutable snapshot (the only networked command) |
@@ -86,6 +101,8 @@ timeline artifacts only as files on disk.
 | `python -m …a_rfc.views TIMELINE --corpus DIR --repo CLONE --out DIR [--only ID] [--forge SNAPDIR] [--patches span\|members] [--verify]` | Emit evidence folders; `--verify` exits 3 on byte drift, and `--only` scopes both emission and verification |
 | `python -m …a_rfc.draft checkpoint MANIFEST --timeline DIR --cluster ID --out DIR` | Freeze the manifest against one cluster |
 | `python -m …a_rfc.draft gate DRAFTREPO --timeline DIR --checkpoints DIR --questions FILE --revisions FILE --out DIR [--strict]` | Citation gate; findings exit 3 under `--strict` |
+| `python -m …a_rfc.pipeline status WORKSPACE [--json]` | Report every stage's state and what to do next |
+| `python -m …a_rfc.pipeline run WORKSPACE [--from STAGE] [--until STAGE] [--forge-url URL] [--cluster ID] [--strict] [--json]` | Chain the deterministic stages; stop at the next agent stage |
 
 ## CLI
 
