@@ -23,6 +23,8 @@
 | Expected total | 67 | 73 | 76 | 82 | 85 | 91 | 97 | **103** |
 
 A total below the table means a test was lost somewhere, not that the table is wrong — find the missing test before continuing.
+
+**Re-baselined again 2026-08-31: the expected total is now 165.** Task 7's 103 is a floor, not a target. Three post-Task-7 commits added tests above it: the guard's in-family fix (`17ba3a1`), the quote-aware operator scan with run B1's Bash corpus frozen as a fixture (+53), and the per-run guard-integrity evidence (+6). Measured: `experiment/tests` 165, `plugins/ai-rfc/server` 38, parent `tests/unit/.../a_rfc/` 207.
 - No real `claude` in tests: every launch in tests goes through `experiment/tests/fake_claude/claude`, and `campaign.json` records whichever binary a campaign used.
 
 ---
