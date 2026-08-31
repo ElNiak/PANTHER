@@ -207,25 +207,19 @@ writes or edits a claim. Mining is model-driven and lives in agents outside the
 framework, and the boundary is what lets everything here stay deterministic,
 testable against fixtures and free of network access.
 
-**Genuine gaps, in the order they cost the most:**
+**One genuine gap remains:**
 
-1. **An anchor's `line` is recorded but never verified.** `anchors.verify`
-   checks only that the *path* resolves at the pinned commit, so a manifest
-   citing `Evidence.java:9999` passes. Since the line number is what a reader
-   follows to check a claim, this is the weakest link in the citation chain.
-   Closing it means a range check at minimum, or recording a digest of the cited
-   line and re-verifying it.
-2. **The report never says what a claim *could* be promoted to.** Violations
-   fire only on overstatement, so an understated claim passes silently and its
-   author is never told. This makes step 4 of the authoring loop a manual call
-   into `promotion.adjudicate`, and it is the most common question during
-   initial authoring. A `supported` field beside `stored` in the report payload
-   would remove the step.
-3. **Nothing turns a test run into a `runtime` anchor.** `runtime` is the
+1. **Nothing turns a test run into a `runtime` anchor.** `runtime` is the
    strongest evidence class the rule recognises and the only one, short of a
    developer signature, that moves `checked_fraction` off zero — yet producing
    one is entirely manual. An adapter from a test report to anchors would make
    the metric reachable rather than aspirational.
+
+Two gaps this section used to list are closed. An anchor's `line` is now
+range-checked and, when a `line_sha256` is present, digest-compared
+(`anchors.verify_detailed`); and the report now names what each claim's evidence
+*would* support, as a `supported` field beside `stored` plus a `promotable`
+flag and a `promotable_count` (`report.py`).
 
 ## Schema
 
@@ -272,8 +266,16 @@ Extended fields and their permitted values:
 
 Each anchor carries `evidence_class` (`code`, `paper`, `interview`, `adr`,
 `runtime`) and `locator` (a repository path, a DOI, an interview id), plus an
-optional `commit` and `line`. A `commit` is required before a `code` or
-`runtime` anchor can be *verified* — see trap 2.
+optional `commit`, `line` and `line_sha256`. A `commit` is required before a
+`code` or `runtime` anchor can be *verified* — see trap 2.
+
+Verification depth rises with what the anchor records. A bare `locator` is
+checked only for existence at the pinned commit. A `line` is additionally
+range-checked against the file as it stood at that commit, so a citation past
+the end of the file fails. A `line_sha256` is compared against the digest of
+that line's bytes, newline stripped, so a citation that still resolves but no
+longer says what it said fails too. `line_sha256` without `line` is rejected at
+load: a digest of no particular line verifies nothing.
 
 Identifiers (`section` and requirement keys) must be strings; an unquoted
 `section: 4.2` is rejected loudly rather than coerced back — see trap 3.
