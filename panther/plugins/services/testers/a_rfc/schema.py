@@ -23,7 +23,7 @@ from .models import (
     Status,
 )
 
-_STRING_FIELDS = ("section", "id")
+_STRING_FIELDS = ("section", "id", "signed_off_by", "question-id")
 
 _EnumT = TypeVar("_EnumT", bound=Enum)
 

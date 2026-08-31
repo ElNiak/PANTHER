@@ -66,6 +66,51 @@ def test_unquoted_section_is_rejected_loudly(unquoted_sections_manifest: Path):
     assert "quote" in message.lower()
 
 
+@pytest.mark.parametrize(
+    "field,written,coerced",
+    [
+        # YAML 1.1 reads these as bool and int. `signed_off_by` is the worse of
+        # the two: `adjudicate` returns CONFIRMED for any truthy value, so an
+        # unquoted `yes` promotes a claim to the strongest status with no signer
+        # behind it, and `is_externally_checked` then inflates checked_fraction.
+        ("signed_off_by", "yes", "bool"),
+        ("signed_off_by", "true", "bool"),
+        # A claim whose question-id is an int can never match the register,
+        # which holds strings, so the gate reports a question that does exist
+        # as missing.
+        ("question-id", "7", "int"),
+    ],
+)
+def test_unquoted_extended_identifiers_are_rejected_loudly(
+    tmp_path: Path, field: str, written: str, coerced: str
+):
+    """Every field the schema gates must be gated, not just some of them.
+
+    The README documents `signed_off_by` and `question-id` as strings, but they
+    were absent from the checked set, so YAML coerced them silently.
+    """
+    document = (
+        "rfc: test\n"
+        "title: t\n"
+        "requirements:\n"
+        '  "spec:1":\n'
+        "    text: t\n"
+        '    section: "1"\n'
+        "    level: MUST\n"
+        "    layer: app\n"
+        f"    {field}: {written}\n"
+    )
+    path = tmp_path / "manifest.yaml"
+    path.write_text(document)
+
+    with pytest.raises(SchemaError) as excinfo:
+        load(path)
+    message = str(excinfo.value)
+    assert field in message
+    assert coerced in message
+    assert "quote" in message.lower()
+
+
 def test_load_of_dump_is_a_fixed_point(extended_manifest: Path, tmp_path: Path):
     manifest = load(extended_manifest)
     assert reload_from_text(dump(manifest), tmp_path) == manifest
