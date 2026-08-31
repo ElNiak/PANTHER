@@ -103,6 +103,7 @@ sub-package's `cli.main` and nothing else, so data still hands over on disk.
 | `python -m …a_rfc.draft gate DRAFTREPO --timeline DIR --checkpoints DIR --questions FILE --revisions FILE --out DIR [--strict]` | Citation gate; findings exit 3 under `--strict` |
 | `python -m …a_rfc.pipeline status WORKSPACE [--json]` | Report every stage's state and what to do next |
 | `python -m …a_rfc.pipeline run WORKSPACE [--from STAGE] [--until STAGE] [--forge-url URL] [--cluster ID] [--strict] [--json]` | Chain the deterministic stages; stop at the next agent stage |
+| `python -m …a_rfc.runtime MANIFEST --coverage FILE --repo CLONE --commit SHA --out DIR` | Propose `runtime` anchors for cited lines a test run reached |
 
 ## CLI
 
@@ -241,19 +242,29 @@ writes or edits a claim. Mining is model-driven and lives in agents outside the
 framework, and the boundary is what lets everything here stay deterministic,
 testable against fixtures and free of network access.
 
-**One genuine gap remains:**
+**No gap in this list remains open.**
 
-1. **Nothing turns a test run into a `runtime` anchor.** `runtime` is the
-   strongest evidence class the rule recognises and the only one, short of a
-   developer signature, that moves `checked_fraction` off zero — yet producing
-   one is entirely manual. An adapter from a test report to anchors would make
-   the metric reachable rather than aspirational.
+The last one — nothing turned a test run into a `runtime` anchor, leaving the
+headline metric aspirational — is closed by `runtime/`, which reads a coverage
+report, binds it to a commit and proposes anchors for the cited lines a run
+reached. It proposes rather than merges, because a runtime anchor beside a code
+anchor takes a claim to `confirmed`.
 
-Two gaps this section used to list are closed. An anchor's `line` is now
-range-checked and, when a `line_sha256` is present, digest-compared
-(`anchors.verify_detailed`); and the report now names what each claim's evidence
-*would* support, as a `supported` field beside `stored` plus a `promotable`
-flag and a `promotable_count` (`report.py`).
+Closing it exposed a sharper constraint, which belongs here rather than in a
+footnote: **the adapter can only corroborate what a test suite actually
+executes.** Run against MARK's own coverage it proposed zero anchors from eight
+code anchors, because not one line MARK's claims cite is reached by MARK's
+tests. Making `checked_fraction` non-zero for such a target needs tests written
+first, which is a different undertaking from reconstructing a specification.
+The criterion is also weaker than it looks: `line-executed` says a line ran, not
+that anything asserted on what it did, and the promotion rule cannot tell those
+apart — so every proposal records the criterion alongside the evidence.
+
+Two earlier gaps are also closed. An anchor's `line` is now range-checked and,
+when a `line_sha256` is present, digest-compared (`anchors.verify_detailed`);
+and the report names what each claim's evidence *would* support, as a
+`supported` field beside `stored` plus a `promotable` flag and a
+`promotable_count` (`report.py`).
 
 ## Schema
 
