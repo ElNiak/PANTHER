@@ -35,6 +35,7 @@ def write_timeline(
     corpus: Path,
     out: Path,
     forge_snapshot: dict[str, str] | None = None,
+    tip_verified: bool = False,
 ) -> None:
     """Write the timeline artifacts for ``clusters`` into ``out``.
 
@@ -46,6 +47,9 @@ def write_timeline(
         out: Destination directory, created if absent.
         forge_snapshot: ``{"dir_name", "meta_sha256"}`` of the snapshot that
             informed clustering, or ``None`` for a git-only timeline.
+        tip_verified: Whether ``tip_sha`` was checked against a clone's HEAD.
+            Recorded because a tip nobody verified is weaker provenance than a
+            verified one, and the two are otherwise indistinguishable on disk.
     """
     out.mkdir(parents=True, exist_ok=True)
 
@@ -71,6 +75,7 @@ def write_timeline(
         "member_count": sum(cluster.member_count for cluster in clusters),
         "pr_count": sum(1 for cluster in clusters if cluster.kind == "pr"),
         "tip_sha": tip_sha,
+        "tip_verified": tip_verified,
     }
     (out / TIMELINE_FILE).write_text(
         json.dumps(payload, sort_keys=True, indent=2) + "\n"

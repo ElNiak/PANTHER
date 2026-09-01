@@ -146,8 +146,19 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     write_timeline(
-        clusters, tip, args.corpus, args.out, forge_snapshot=forge_descriptor
+        clusters,
+        tip,
+        args.corpus,
+        args.out,
+        forge_snapshot=forge_descriptor,
+        tip_verified=args.repo is not None,
     )
+
+    if args.repo is None:
+        _report(
+            "note: --repo not given; the corpus tip went unverified against a "
+            "clone — recorded as tip_verified false in timeline.json"
+        )
 
     pr_count = sum(1 for cluster in clusters if cluster.kind == "pr")
     _report(

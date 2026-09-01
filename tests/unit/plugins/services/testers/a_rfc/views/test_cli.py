@@ -27,6 +27,19 @@ def test_emits_views_and_reports_summary(pipeline, tmp_path: Path, capsys):
     assert "2 cluster" in capsys.readouterr().err
 
 
+def test_omitting_forge_is_noted(pipeline, tmp_path: Path, capsys):
+    """Without a note, "no forge data" reads exactly like "not a PR cluster".
+
+    evidence/pr.json is simply never written, and nothing per cluster marks
+    which of the two happened.
+    """
+    out = tmp_path / "clusters"
+
+    assert cli.main(_argv(pipeline, out)) == 0
+
+    assert "note: --forge not given" in capsys.readouterr().err
+
+
 def test_verify_passes_on_untouched_views(pipeline, tmp_path: Path):
     out = tmp_path / "clusters"
     assert cli.main(_argv(pipeline, out)) == 0

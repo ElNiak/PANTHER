@@ -46,6 +46,45 @@ def test_writes_timeline_and_reports_summary(tmp_path: Path, capsys):
     assert "1 cluster" in summary or "clusters" in summary
 
 
+def test_omitting_repo_is_noted_and_recorded(tmp_path: Path, capsys):
+    """An unverified tip must not be indistinguishable from a verified one.
+
+    Every other optional input says so when it is missing; this one skipped the
+    corpus-tip check silently, on stderr and on disk alike.
+    """
+    corpus = _corpus(tmp_path, [_record("aa", []), _record("bb", ["aa"])])
+    out = tmp_path / "timeline"
+
+    assert cli.main([str(corpus), "--out", str(out)]) == 0
+
+    assert "note: --repo not given" in capsys.readouterr().err
+    assert json.loads((out / "timeline.json").read_text())["tip_verified"] is False
+
+
+def test_passing_repo_records_the_tip_as_verified(tmp_path: Path, capsys):
+    repo = tmp_path / "clone"
+    repo.mkdir()
+    subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.email", "t@t"], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.name", "t"], check=True)
+    (repo / "f.txt").write_text("x")
+    subprocess.run(["git", "-C", str(repo), "add", "f.txt"], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-qm", "c"], check=True)
+    head = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    corpus = _corpus(tmp_path, [_record(head, [])])
+    out = tmp_path / "timeline-verified"
+
+    assert cli.main([str(corpus), "--out", str(out), "--repo", str(repo)]) == 0
+
+    assert "note: --repo not given" not in capsys.readouterr().err
+    assert json.loads((out / "timeline.json").read_text())["tip_verified"] is True
+
+
 def test_unclusterable_corpus_exits_one_with_reason(tmp_path: Path, capsys):
     corpus = _corpus(
         tmp_path,

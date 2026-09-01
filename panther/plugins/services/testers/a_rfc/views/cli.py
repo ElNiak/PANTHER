@@ -131,4 +131,9 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     _report(f"note: {len(emitted)} cluster view(s) written to {args.out}")
+    if args.forge is None:
+        _report(
+            "note: --forge not given; no evidence/pr.json was written for any "
+            "cluster — its absence means 'not fetched', not 'not a PR'"
+        )
     return 0
