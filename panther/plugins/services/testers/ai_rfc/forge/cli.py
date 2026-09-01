@@ -25,30 +25,12 @@ def _report(message: str) -> None:
     print(message, file=sys.stderr)
 
 
-def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="ai_rfc.forge",
-        description=(
-            "Fetch a repository's pull/merge requests, reviews and comments "
-            "from its forge into an immutable disk snapshot."
-        ),
-        epilog=(
-            "environment:\n"
-            "  GITHUB_TOKEN, GITLAB_TOKEN\n"
-            "                        Read for the matching forge kind. Without\n"
-            "                        one the fetch is unauthenticated:\n"
-            "                        discussion endpoints are refused, the\n"
-            "                        snapshot records complete: false with a\n"
-            "                        denied_subfetches count, and the command\n"
-            "                        still exits 0. Read meta.json before\n"
-            "                        treating a snapshot as whole.\n"
-        ),
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    parser.add_argument(
-        "--version", action="version", version=f"ai_rfc.forge {__version__}"
-    )
-    parser.add_argument("url", help="Repository URL on its forge.")
+def _add_target_arguments(parser: argparse.ArgumentParser) -> None:
+    """Add the arguments every verb needs to place a snapshot on disk.
+
+    Both verbs pin the same clone and write into the same cache root; only
+    where the records come from differs.
+    """
     parser.add_argument(
         "--repo",
         type=Path,
@@ -77,19 +59,75 @@ def _parser() -> argparse.ArgumentParser:
             "explicitly for a self-hosted instance of either kind."
         ),
     )
+
+
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="ai_rfc.forge",
+        description=(
+            "Collect a repository's pull/merge requests, reviews and comments "
+            "into an immutable disk snapshot — from the forge API, or from "
+            "records obtained without credentials."
+        ),
+        epilog=(
+            "environment:\n"
+            "  GITHUB_TOKEN, GITLAB_TOKEN\n"
+            "                        Read for the matching forge kind. Without\n"
+            "                        one the fetch is unauthenticated:\n"
+            "                        discussion endpoints are refused, the\n"
+            "                        snapshot records complete: false with a\n"
+            "                        denied_subfetches count, and the command\n"
+            "                        still exits 0. Read meta.json before\n"
+            "                        treating a snapshot as whole.\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--version", action="version", version=f"ai_rfc.forge {__version__}"
+    )
+    verbs = parser.add_subparsers(dest="verb", required=True)
+
+    fetch = verbs.add_parser("fetch", help="Fetch pull data from the forge API.")
+    fetch.add_argument("url", help="Repository URL on its forge.")
+    _add_target_arguments(fetch)
+
+    adopt = verbs.add_parser(
+        "adopt",
+        help="Write a snapshot from records obtained outside this tool.",
+    )
+    adopt.add_argument(
+        "records",
+        type=Path,
+        help=(
+            "A JSON file holding {pulls, reviews, comments} already shaped "
+            "like a snapshot's rows — from a forge export, a glab/gh dump, or "
+            "another operator's snapshot."
+        ),
+    )
+    adopt.add_argument(
+        "url",
+        help="Repository URL the records describe. Nothing is fetched from it; "
+        "it names the host, owner and repo the snapshot is filed under.",
+    )
+    _add_target_arguments(adopt)
+
     return parser
 
 
 def main(argv: list[str] | None = None, transport: Transport | None = None) -> int:
-    """Fetch pull data and write one snapshot.
+    """Collect pull data by the chosen route and write one snapshot.
+
+    Both verbs pin the same clone and write through the same writer; they
+    differ only in where the records come from, which the snapshot records so
+    a reader can tell how much the route could ever have delivered.
 
     Args:
         argv: Argument vector; ``None`` reads ``sys.argv``.
         transport: Transport override for tests; ``None`` uses urllib.
 
     Returns:
-        0 on success, 1 if the clone or the forge could not be read, or the
-        snapshot already exists.
+        0 on success, 1 if the clone, the forge or the records could not be
+        read, or the snapshot already exists.
     """
     args = _parser().parse_args(argv)
 
@@ -106,6 +144,10 @@ def main(argv: list[str] | None = None, transport: Transport | None = None) -> i
     )
     if head.returncode != 0:
         _report(f"error: {args.repo} is not a git repository: {head.stderr.strip()}")
+        return 1
+
+    if args.verb == "adopt":
+        _report("error: adopt is not implemented yet")
         return 1
 
     token_env = "GITHUB_TOKEN" if target.kind == "github" else "GITLAB_TOKEN"

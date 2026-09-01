@@ -146,7 +146,7 @@ def perform(
             raise PipelineError("forge needs --forge-url")
         from ..forge import cli as forge_cli
 
-        argv = [forge_url, "--repo", str(ws.clone), "--out", str(ws.forge)]
+        argv = ["fetch", forge_url, "--repo", str(ws.clone), "--out", str(ws.forge)]
         if host is not None:
             argv += ["--host", host]
         module: object = forge_cli

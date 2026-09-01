@@ -31,6 +31,7 @@ def test_writes_snapshot_and_reports_counts(clone: Path, tmp_path: Path, capsys)
     out = tmp_path / "forge"
     code = cli.main(
         [
+            "fetch",
             "https://github.com/aiortc/aioquic",
             "--repo",
             str(clone),
@@ -52,6 +53,7 @@ def test_writes_snapshot_and_reports_counts(clone: Path, tmp_path: Path, capsys)
 def test_non_repo_clone_exits_one(tmp_path: Path, capsys):
     code = cli.main(
         [
+            "fetch",
             "https://github.com/aiortc/aioquic",
             "--repo",
             str(tmp_path / "nowhere"),
@@ -70,6 +72,7 @@ def test_fetch_failure_exits_one(clone: Path, tmp_path: Path, capsys):
 
     code = cli.main(
         [
+            "fetch",
             "https://github.com/aiortc/aioquic",
             "--repo",
             str(clone),
@@ -80,3 +83,30 @@ def test_fetch_failure_exits_one(clone: Path, tmp_path: Path, capsys):
     )
     assert code == 1
     assert "500" in capsys.readouterr().err
+
+
+def test_fetch_is_a_verb_not_a_bare_positional(clone: Path, tmp_path: Path):
+    """The bare form is gone; a caller passing a URL first must now say fetch.
+
+    pipeline/run.py builds this argv, so the two must not drift — a bare URL
+    has to fail loudly rather than be read as a verb name.
+    """
+    with pytest.raises(SystemExit) as exit_info:
+        cli.main(
+            [
+                "https://github.com/aiortc/aioquic",
+                "--repo",
+                str(clone),
+                "--out",
+                str(tmp_path / "forge"),
+            ],
+            transport=_transport_empty,
+        )
+    assert exit_info.value.code == 2
+
+
+def test_an_unknown_verb_exits_two(tmp_path: Path):
+    """2 belongs to argparse alone, so an unknown verb must not reach the body."""
+    with pytest.raises(SystemExit) as exit_info:
+        cli.main(["harvest", "https://example.com/o/r"])
+    assert exit_info.value.code == 2
