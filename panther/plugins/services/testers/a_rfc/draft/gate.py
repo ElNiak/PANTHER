@@ -194,7 +194,7 @@ def run_gate(
         if entry.tag not in tags:
             findings.append(
                 f"{entry.tag}: registered in revisions.yaml but absent from "
-                f"the draft repository"
+                "the draft repository"
             )
     for tag in sorted(tags):
         if REVISION_TAG.match(tag) and tag not in registered:
