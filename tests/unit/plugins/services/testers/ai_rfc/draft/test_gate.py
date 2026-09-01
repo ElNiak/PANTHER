@@ -76,7 +76,7 @@ def test_citation_of_unknown_claim_is_found(draft_workspace):
     repo = draft_workspace["repo"]
     git(repo, "tag", "-d", "draft-test-spec-01")
     draft_file = repo / "draft-test-spec.md"
-    draft_file.write_text(draft_file.read_text() + "\nGhost. `a_rfc:spec:9.9`\n")
+    draft_file.write_text(draft_file.read_text() + "\nGhost. `ai_rfc:spec:9.9`\n")
     git(repo, "add", "draft-test-spec.md")
     git(repo, "commit", "-m", "revision 01 with a ghost citation")
     git(repo, "tag", "draft-test-spec-01")

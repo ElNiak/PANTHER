@@ -13,7 +13,7 @@ import json
 from pathlib import Path
 from typing import Any, Sequence
 
-TOOL_VERSION = "a_rfc.forge/1"
+TOOL_VERSION = "ai_rfc.forge/1"
 
 META_FILE = "meta.json"
 PULLS_FILE = "pulls.jsonl"

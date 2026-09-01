@@ -40,7 +40,7 @@ exit-code contract.
 | `a_rfc` | Validate a manifest; adjudicate claims; verify anchors |
 | `a_rfc.pipeline` | `status`, `run` — drive the deterministic stages |
 | `a_rfc.history` | Extract a commit corpus from a clone |
-| `a_rfc.forge` | Fetch PR and review evidence from GitHub or GitLab |
+| `ai_rfc.forge` | Fetch PR and review evidence from GitHub or GitLab |
 | `a_rfc.timeline` | Cluster the corpus into an ordered timeline |
 | `a_rfc.views` | Emit per-cluster evidence bundles |
 | `a_rfc.draft` | `checkpoint`, `gate`, `completeness` |

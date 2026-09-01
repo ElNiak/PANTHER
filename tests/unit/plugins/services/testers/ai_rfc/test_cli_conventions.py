@@ -29,7 +29,7 @@ pytestmark = pytest.mark.unit
 ENTRY_POINTS = (
     ("a_rfc", root_cli),
     ("a_rfc.draft", draft_cli),
-    ("a_rfc.forge", forge_cli),
+    ("ai_rfc.forge", forge_cli),
     ("a_rfc.history", history_cli),
     ("a_rfc.pipeline", pipeline_cli),
     ("a_rfc.coverage", coverage_cli),

@@ -147,7 +147,7 @@ def test_never_cited_excludes_a_claim_cited_then_dropped(
     """spec:2.1 is cited at -01; a -02 that drops it is uncited but not never."""
     repo = draft_workspace["repo"]
     (repo / "draft-test-spec.md").write_text(
-        "# Spec\n\nThe system does the thing. `a_rfc:spec:1.1`\n"
+        "# Spec\n\nThe system does the thing. `ai_rfc:spec:1.1`\n"
     )
     _git(repo, "add", "draft-test-spec.md")
     _git(repo, "commit", "-m", "revision 02")

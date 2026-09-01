@@ -36,7 +36,7 @@ assume otherwise, which is why it is stated here.
 
 Four further stages carry the corpus toward a progressive, per-PR
 reconstruction (design spec:
-`docs/superpowers/specs/2026-08-25-arfc-progressive-rfc-design.md`):
+`docs/superpowers/specs/2026-08-25-ai-rfc-progressive-rfc-design.md`):
 
 - `forge/` is the package's ONLY networked stage: it fetches a repository's
   pull/merge requests, reviews and comments (GitHub and GitLab adapters,
@@ -71,7 +71,7 @@ reconstruction (design spec:
   question register for the author-feedback loop, and gates a prose
   Internet-Draft's revision map (`gate`): revision tags must exist, map to
   clusters in increasing order, pin unedited checkpoints, and cite — as
-  backticked `` `a_rfc:<claim-id>` `` tokens — only claims their
+  backticked `` `ai_rfc:<claim-id>` `` tokens — only claims their
   checkpoint holds.
 
 `timeline/` and `views/` are corpus-side: like `history/`, they share no

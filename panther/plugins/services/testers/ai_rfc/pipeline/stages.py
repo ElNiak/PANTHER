@@ -62,7 +62,7 @@ STAGES: tuple[Stage, ...] = (
         "prose",
         Performer.AGENT,
         "Write the Internet-Draft in <workspace>/draft, citing claims as "
-        "`a_rfc:<id>` tokens, and record each revision in revisions.yaml.",
+        "`ai_rfc:<id>` tokens, and record each revision in revisions.yaml.",
     ),
     Stage(8, "checkpoint", Performer.DETERMINISTIC),
     Stage(9, "gate", Performer.DETERMINISTIC),

@@ -27,7 +27,7 @@ def _report(message: str) -> None:
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="a_rfc.forge",
+        prog="ai_rfc.forge",
         description=(
             "Fetch a repository's pull/merge requests, reviews and comments "
             "from its forge into an immutable disk snapshot."
@@ -46,7 +46,7 @@ def _parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
-        "--version", action="version", version=f"a_rfc.forge {__version__}"
+        "--version", action="version", version=f"ai_rfc.forge {__version__}"
     )
     parser.add_argument("url", help="Repository URL on its forge.")
     parser.add_argument(

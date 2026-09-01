@@ -24,9 +24,9 @@ from .questions import QuestionError, load_questions
 #: A revision tag: the draft name, a dash, and a two-digit revision number.
 REVISION_TAG = re.compile(r"^draft-.+-(?P<nn>\d\d)$")
 
-#: A claim citation in prose: a backticked ``a_rfc:<claim-id>`` token. The
+#: A claim citation in prose: a backticked ``ai_rfc:<claim-id>`` token. The
 #: backticks keep kramdown-rfc's own ``{{ }}`` machinery away from it.
-CITATION = re.compile(r"`a_rfc:([^`\s]+)`")
+CITATION = re.compile(r"`ai_rfc:([^`\s]+)`")
 
 
 class GateError(ValueError):

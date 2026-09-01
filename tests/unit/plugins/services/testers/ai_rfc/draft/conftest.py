@@ -120,12 +120,12 @@ def draft_workspace(tmp_path: Path, timeline_dir: Path) -> dict[str, Path]:
     git(repo, "config", "user.email", "t@t")
     git(repo, "config", "user.name", "t")
     draft_file = repo / "draft-test-spec.md"
-    draft_file.write_text("# Spec\n\nThe system does the thing. `a_rfc:spec:1.1`\n")
+    draft_file.write_text("# Spec\n\nThe system does the thing. `ai_rfc:spec:1.1`\n")
     git(repo, "add", "draft-test-spec.md")
     git(repo, "commit", "-m", "revision 00")
     git(repo, "tag", "draft-test-spec-00")
     draft_file.write_text(
-        draft_file.read_text() + "\nIt also does this. `a_rfc:spec:2.1`\n"
+        draft_file.read_text() + "\nIt also does this. `ai_rfc:spec:2.1`\n"
     )
     git(repo, "add", "draft-test-spec.md")
     git(repo, "commit", "-m", "revision 01")
