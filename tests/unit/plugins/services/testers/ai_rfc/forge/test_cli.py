@@ -112,6 +112,42 @@ def test_an_unknown_verb_exits_two(tmp_path: Path):
     assert exit_info.value.code == 2
 
 
+def test_a_throttled_fetch_does_not_claim_it_reached_its_ceiling(
+    clone: Path, tmp_path: Path
+):
+    """429 and 401 have opposite remedies, so they must not grade alike.
+
+    Waiting recovers a rate limit; no credential recovers a 401. Declaring the
+    pulls-only ceiling here would report the snapshot as good as the route
+    allows and stop anyone retrying, losing data that was merely deferred.
+    """
+
+    def throttling(url: str, headers: dict) -> tuple[int, dict, bytes]:
+        if "/pulls?" in url:
+            return 200, {}, json.dumps([{"number": 1, "merged_at": "x"}]).encode()
+        return 429, {}, b"{}"
+
+    out = tmp_path / "forge"
+    code = cli.main(
+        [
+            "fetch",
+            "https://github.com/aiortc/aioquic",
+            "--repo",
+            str(clone),
+            "--out",
+            str(out),
+        ],
+        transport=throttling,
+    )
+    assert code == 0
+
+    snapshot = next((out / "github.com__aiortc__aioquic").iterdir())
+    meta = json.loads((snapshot / "meta.json").read_text())
+    assert meta["denied_subfetches"] > 0
+    assert meta["complete"] is False
+    assert meta["fidelity_ceiling"] == "pulls+discussion"
+
+
 def _adopt(clone: Path, out: Path, records: Path, *extra: str) -> int:
     return cli.main(
         [

@@ -27,6 +27,16 @@ class ForgeAuthError(ForgeError):
     """Raised when the forge refuses a request for lack of authorisation."""
 
 
+class ForgeThrottled(ForgeAuthError):
+    """Raised when the forge refuses a request for now rather than for good.
+
+    Separated from its parent because the two refusals have opposite
+    remedies: no credential recovers a 401, while a 429 recovers by waiting.
+    Counting them together would let a throttled fetch be reported as having
+    reached everything its route can deliver.
+    """
+
+
 @dataclass(frozen=True)
 class ForgeTarget:
     """One repository on one forge."""
@@ -100,9 +110,10 @@ def _get_json(
         headers["Authorization"] = f"Bearer {token}"
     status, response_headers, body = transport(url, headers)
     if status in (403, 429):
-        raise ForgeAuthError(
-            f"{url} answered {status} (rate limited or forbidden); set "
-            f"GITHUB_TOKEN or GITLAB_TOKEN and retry"
+        raise ForgeThrottled(
+            f"{url} answered {status} (rate limited or forbidden); wait for "
+            f"the rate-limit window, or set GITHUB_TOKEN or GITLAB_TOKEN to "
+            f"raise it, and retry"
         )
     if status == 401:
         raise ForgeAuthError(f"{url} answered 401 (authentication required)")
@@ -242,12 +253,18 @@ class FetchResult:
     reviews even on public projects). The pull list itself is never
     degraded — without it there is nothing to snapshot — but discussion is
     enrichment, so a denial is counted and reported rather than fatal.
+
+    ``throttled`` says whether any of those refusals was a rate limit rather
+    than a lack of authorisation. It is not written to the snapshot; the
+    caller uses it to decide whether the fetch reached its route's ceiling,
+    because a throttled run has not — waiting would have got more.
     """
 
     pulls: list[dict[str, Any]]
     reviews: list[dict[str, Any]]
     comments: list[dict[str, Any]]
     denied_subfetches: int
+    throttled: bool = False
 
 
 def _fetch_github(
@@ -258,6 +275,7 @@ def _fetch_github(
     reviews: list[dict[str, Any]] = []
     comments: list[dict[str, Any]] = []
     denied = 0
+    throttled = False
     for raw in _paginated_github(
         f"{api}/pulls?state=all&per_page=100", transport, token
     ):
@@ -270,8 +288,9 @@ def _fetch_github(
                 f"{api}/pulls/{number}/reviews?per_page=100", transport, token
             ):
                 reviews.append(_github_review(review, number))
-        except ForgeAuthError:
+        except ForgeAuthError as error:
             denied += 1
+            throttled = throttled or isinstance(error, ForgeThrottled)
         try:
             for comment in _paginated_github(
                 f"{api}/pulls/{number}/comments?per_page=100", transport, token
@@ -289,9 +308,10 @@ def _fetch_github(
                 f"{api}/issues/{number}/comments?per_page=100", transport, token
             ):
                 comments.append(_github_comment(comment, number, "issue_comment"))
-        except ForgeAuthError:
+        except ForgeAuthError as error:
             denied += 1
-    return FetchResult(pulls, reviews, comments, denied)
+            throttled = throttled or isinstance(error, ForgeThrottled)
+    return FetchResult(pulls, reviews, comments, denied, throttled)
 
 
 def _fetch_gitlab(
@@ -301,6 +321,7 @@ def _fetch_gitlab(
     pulls: list[dict[str, Any]] = []
     comments: list[dict[str, Any]] = []
     denied = 0
+    throttled = False
     for raw in _paginated_gitlab(
         f"{api}/merge_requests?state=all&per_page=100", transport, token
     ):
@@ -317,9 +338,10 @@ def _fetch_gitlab(
                 if note.get("system"):
                     continue
                 comments.append(_gitlab_comment(note, number))
-        except ForgeAuthError:
+        except ForgeAuthError as error:
             denied += 1
-    return FetchResult(pulls, [], comments, denied)
+            throttled = throttled or isinstance(error, ForgeThrottled)
+    return FetchResult(pulls, [], comments, denied, throttled)
 
 
 def fetch_pull_data(

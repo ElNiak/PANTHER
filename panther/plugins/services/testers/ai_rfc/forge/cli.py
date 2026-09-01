@@ -13,7 +13,7 @@ from panther import __version__
 
 from .adopt import read_records
 from .fetch import Transport, fetch_pull_data, parse_url
-from .store import FIDELITY_CEILINGS, ForgeError, write_snapshot
+from .store import FIDELITY_CEILINGS, FULL_FIDELITY, ForgeError, write_snapshot
 
 
 def _report(message: str) -> None:
@@ -206,7 +206,12 @@ def main(argv: list[str] | None = None, transport: Transport | None = None) -> i
             comments=result.comments,
             denied_subfetches=result.denied_subfetches,
             acquisition="api",
-            fidelity_ceiling="pulls+discussion" if token else "pulls",
+            # A throttled run has not reached this route's ceiling — waiting
+            # would have got more — so it must not be declared as having done
+            # so, or it grades done and nobody is told to retry.
+            fidelity_ceiling=(
+                FULL_FIDELITY if token or result.throttled else FIDELITY_CEILINGS[0]
+            ),
         )
     except (ForgeError, OSError) as error:
         _report(f"error: {error}")
