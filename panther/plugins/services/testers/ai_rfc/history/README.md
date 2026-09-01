@@ -61,14 +61,17 @@ A full-depth copy of the whole repository directory works too, as does cloning
 a mirror — for example `github.com/cylab-be/mark` resolves to the same HEAD as
 its GitLab origin. What a clone must satisfy is only this:
 
-| Constraint | Why |
-|---|---|
-| Full depth | `git log` on a shallow clone silently returns fewer commits |
-| Not bare | The pin stage needs a working tree with a `.git` directory |
-| HEAD equals the recorded tip | Every anchor is verified against that commit |
+| Constraint | Why | Enforced by |
+|---|---|---|
+| Is itself a repository | `git rev-parse` otherwise answers for an enclosing one | `substrate` |
+| Full depth | `git log` on a shallow clone silently returns fewer commits | `substrate` |
+| Not bare | The pin stage needs a working tree with a `.git` directory | `substrate` |
+| HEAD equals the recorded tip | Every anchor is verified against that commit | `timeline`, `views` |
 
 `python -m panther.plugins.services.testers.ai_rfc.pipeline substrate <workspace>`
-reports all three at once, instead of letting them surface one stage apart.
+reports the first three at once, instead of letting them surface one stage
+apart. The tip comparison is not among them: there is no recorded tip until
+the corpus exists, so `timeline` and `views` are where it belongs.
 
 Cost is dominated by the file-changes pass, so extraction is roughly linear in
 `(commits x files touched)` rather than in repository size. A 969-commit Java

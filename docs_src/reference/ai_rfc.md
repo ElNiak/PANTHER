@@ -38,9 +38,9 @@ exit-code contract.
 | Command | Purpose |
 |---|---|
 | `ai_rfc` | Validate a manifest; adjudicate claims; verify anchors |
-| `ai_rfc.pipeline` | `status`, `run` — drive the deterministic stages |
+| `ai_rfc.pipeline` | `status`, `run`, `substrate` — drive the deterministic stages |
 | `ai_rfc.history` | Extract a commit corpus from a clone |
-| `ai_rfc.forge` | Fetch PR and review evidence from GitHub or GitLab |
+| `ai_rfc.forge` | `fetch`, `adopt` — PR and review evidence, from the API or from records obtained without credentials |
 | `ai_rfc.timeline` | Cluster the corpus into an ordered timeline |
 | `ai_rfc.views` | Emit per-cluster evidence bundles |
 | `ai_rfc.draft` | `checkpoint`, `gate`, `completeness` |

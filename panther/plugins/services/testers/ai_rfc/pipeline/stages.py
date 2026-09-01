@@ -45,7 +45,7 @@ STAGES: tuple[Stage, ...] = (
         "clean. Its HEAD is the commit every anchor is verified against. No "
         "credential is needed: a bundle (git clone repo.bundle), a full-depth "
         "directory copy or a mirror all work, provided the clone is complete "
-        "and not bare — run the substrate verb to check all three.",
+        "and not bare — the substrate verb reports both.",
     ),
     Stage(1, "history", Performer.DETERMINISTIC),
     Stage(2, "forge", Performer.DETERMINISTIC),
