@@ -125,8 +125,17 @@ def _repo_tags(draft_repo: Path) -> set[str]:
     return {tag for tag in result.stdout.splitlines() if tag}
 
 
-def _cited_ids(draft_repo: Path, tag: str) -> tuple[set[str], str | None]:
-    """Return the claim ids cited at ``tag``, or a finding when unreadable."""
+def cited_ids(draft_repo: Path, tag: str) -> tuple[set[str], str | None]:
+    """Return the claim ids cited at ``tag``, or a finding when unreadable.
+
+    Args:
+        draft_repo: The nested prose-draft git repository.
+        tag: The revision tag to read.
+
+    Returns:
+        The cited claim ids and ``None``; or an empty set and the reason the tag
+        could not be read.
+    """
     listed = _git(draft_repo, "ls-tree", "--name-only", tag)
     if listed.returncode != 0:
         return set(), f"{tag}: could not list its tree: {listed.stderr.strip()}"
@@ -246,7 +255,7 @@ def run_gate(
     for entry in entries:
         if entry.tag not in tags:
             continue
-        cited, problem = _cited_ids(draft_repo, entry.tag)
+        cited, problem = cited_ids(draft_repo, entry.tag)
         if problem is not None:
             findings.append(problem)
             continue

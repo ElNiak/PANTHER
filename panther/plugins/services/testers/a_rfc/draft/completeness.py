@@ -15,6 +15,7 @@ from pathlib import Path
 
 from ..schema import SchemaError, load
 from .checkpoint import CHECKPOINT_FILE, MANIFEST_FILE
+from .gate import GateError, cited_ids, load_revisions
 
 
 class CompletenessError(ValueError):
@@ -147,3 +148,40 @@ def attribute_claims(
         )
         for row in load_clusters(timeline_dir)
     )
+
+
+def citation_gaps(
+    draft_repo: Path, revisions_path: Path, claim_ids: frozenset[str]
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Find claims the prose does not cite.
+
+    Args:
+        draft_repo: The nested prose-draft git repository.
+        revisions_path: Path to ``revisions.yaml``.
+        claim_ids: Every claim id the reconstruction currently holds.
+
+    Returns:
+        Two tuples: ids uncited at the highest-numbered revision tag, and ids
+        cited at no tag at all. The second is a subset of the first.
+
+    Raises:
+        CompletenessError: If the revision map or the draft repo is unreadable.
+    """
+    try:
+        entries = load_revisions(revisions_path)
+    except (GateError, OSError) as error:
+        raise CompletenessError(f"could not read {revisions_path}: {error}") from error
+    if not entries:
+        return tuple(sorted(claim_ids)), tuple(sorted(claim_ids))
+
+    ever: set[str] = set()
+    head: set[str] = set()
+    highest = max(entry.number for entry in entries)
+    for entry in entries:
+        cited, problem = cited_ids(draft_repo, entry.tag)
+        if problem is not None:
+            raise CompletenessError(problem)
+        ever |= cited
+        if entry.number == highest:
+            head = cited
+    return tuple(sorted(claim_ids - head)), tuple(sorted(claim_ids - ever))

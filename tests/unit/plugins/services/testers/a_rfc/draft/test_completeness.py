@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -106,3 +107,63 @@ def test_attribution_covers_every_cluster_in_the_timeline(
     )
 
     assert [row.cluster_id for row in rows] == [row["id"] for row in clusters]
+
+
+def _git(repo: Path, *args: str) -> None:
+    subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True)
+
+
+def test_gate_clean_workspace_has_no_citation_gaps(
+    draft_workspace: dict[str, Path],
+) -> None:
+    uncited, never = completeness.citation_gaps(
+        draft_workspace["repo"],
+        draft_workspace["revisions"],
+        frozenset({"spec:1.1", "spec:2.1"}),
+    )
+
+    assert uncited == ()
+    assert never == ()
+
+
+def test_uncited_at_head_lists_claims_the_latest_tag_omits(
+    sparse_workspace: dict[str, Path],
+) -> None:
+    uncited, never = completeness.citation_gaps(
+        sparse_workspace["repo"],
+        sparse_workspace["revisions"],
+        frozenset({"spec:1.1"}),
+    )
+
+    assert uncited == ("spec:1.1",)
+    assert never == ("spec:1.1",)
+
+
+def test_never_cited_excludes_a_claim_cited_then_dropped(
+    draft_workspace: dict[str, Path],
+) -> None:
+    """spec:2.1 is cited at -01; a -02 that drops it is uncited but not never."""
+    repo = draft_workspace["repo"]
+    (repo / "draft-test-spec.md").write_text(
+        "# Spec\n\nThe system does the thing. `a_rfc:spec:1.1`\n"
+    )
+    _git(repo, "add", "draft-test-spec.md")
+    _git(repo, "commit", "-m", "revision 02")
+    _git(repo, "tag", "draft-test-spec-02")
+    pr_id = completeness.load_clusters(draft_workspace["timeline"])[1]["id"]
+    revisions = draft_workspace["revisions"]
+    revisions.write_text(
+        revisions.read_text()
+        + "  draft-test-spec-02:\n"
+        + f"    cluster_id: {pr_id}\n"
+        + f"    checkpoint_manifest_sha256: {'0' * 64}\n"
+        + "    normative_change: true\n"
+        + "    note: 'drops the second behaviour'\n"
+    )
+
+    uncited, never = completeness.citation_gaps(
+        repo, revisions, frozenset({"spec:1.1", "spec:2.1"})
+    )
+
+    assert uncited == ("spec:2.1",)
+    assert never == ()
