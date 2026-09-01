@@ -4,4 +4,5 @@ import sys
 
 from . import cli
 
-sys.exit(cli.main())
+if __name__ == "__main__":
+    sys.exit(cli.main())

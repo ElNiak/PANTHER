@@ -5,6 +5,9 @@ agent both drive, so the properties that make them scriptable are worth
 asserting once across all of them rather than six times in six files.
 """
 
+import importlib
+import sys
+
 import pytest
 
 from panther import __version__
@@ -58,3 +61,17 @@ def test_a_malformed_invocation_exits_two_everywhere(prog, module):
     with pytest.raises(SystemExit) as exit_info:
         module.main(["--no-such-flag"])
     assert exit_info.value.code == 2
+
+
+@pytest.mark.parametrize("prog,module", ENTRY_POINTS, ids=[p for p, _ in ENTRY_POINTS])
+def test_importing_an_entry_point_does_not_run_it(prog, module):
+    """``python -m`` must stay the only way these run.
+
+    An unguarded ``__main__.py`` calls ``sys.exit(cli.main())`` at import time,
+    so anything that merely imports it — a test, a driver, a documentation tool
+    — exits the interpreter, parsing whatever ``sys.argv`` happened to hold.
+    """
+    name = f"{module.__name__.rsplit('.', 1)[0]}.__main__"
+    sys.modules.pop(name, None)
+
+    importlib.import_module(name)
