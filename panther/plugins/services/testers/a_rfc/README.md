@@ -245,7 +245,7 @@ testable against fixtures and free of network access.
 **No gap in this list remains open.**
 
 The last one — nothing turned a test run into a `runtime` anchor, leaving the
-headline metric aspirational — is closed by `runtime/`, which reads a coverage
+headline metric aspirational — is closed by `coverage/`, which reads a coverage
 report, binds it to a commit and proposes anchors for the cited lines a run
 reached. It proposes rather than merges, because a runtime anchor beside a code
 anchor takes a claim to `confirmed`.
