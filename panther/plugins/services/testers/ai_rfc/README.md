@@ -96,7 +96,9 @@ sub-package's `cli.main` and nothing else, so data still hands over on disk.
 
 | Command | Purpose |
 |---|---|
-| `python -m …ai_rfc.forge URL --repo CLONE --out DIR [--host github\|gitlab]` | Fetch pull data into an immutable snapshot (the only networked command) |
+| `python -m …ai_rfc.forge fetch URL --repo CLONE --out DIR [--host github\|gitlab]` | Fetch pull data into an immutable snapshot (the only networked command); a token is optional and the snapshot records the fidelity it reached |
+| `python -m …ai_rfc.forge adopt RECORDS URL --repo CLONE --out DIR [--host github\|gitlab]` | Write the same snapshot from records obtained without credentials |
+| `python -m …ai_rfc.pipeline substrate WORKSPACE` | Report every reason the pinned clone cannot carry a reconstruction |
 | `python -m …ai_rfc.timeline CORPUS --out DIR [--repo CLONE] [--forge SNAPDIR]` | Cluster the corpus; `--repo` refuses a clone whose HEAD left the corpus tip; `--forge` enriches and rescues |
 | `python -m …ai_rfc.views TIMELINE --corpus DIR --repo CLONE --out DIR [--only ID] [--forge SNAPDIR] [--patches span\|members] [--verify]` | Emit evidence folders; `--verify` exits 3 on byte drift, and `--only` scopes both emission and verification |
 | `python -m …ai_rfc.draft checkpoint MANIFEST --timeline DIR --cluster ID --out DIR` | Freeze the manifest against one cluster |

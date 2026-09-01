@@ -44,6 +44,32 @@ Extraction refuses a shallow clone rather than extracting a truncated history
 record `git rev-parse HEAD` alongside the corpus, because every anchor a miner
 writes later names a commit, and the corpus is what justifies the choice.
 
+### When you cannot clone from the forge
+
+Nothing in this stage reaches the network, so a clone obtained by any means
+works. For a repository you hold no credentials for, or one behind a login you
+only have in a browser:
+
+```bash
+# Preferred: a bundle is a single file carrying refs and objects, and unlike a
+# directory copy it can be checked before you trust it.
+git bundle verify project.bundle
+git clone project.bundle clone/
+```
+
+A full-depth copy of the whole repository directory works too, as does cloning
+a mirror — for example `github.com/cylab-be/mark` resolves to the same HEAD as
+its GitLab origin. What a clone must satisfy is only this:
+
+| Constraint | Why |
+|---|---|
+| Full depth | `git log` on a shallow clone silently returns fewer commits |
+| Not bare | The pin stage needs a working tree with a `.git` directory |
+| HEAD equals the recorded tip | Every anchor is verified against that commit |
+
+`python -m panther.plugins.services.testers.ai_rfc.pipeline substrate <workspace>`
+reports all three at once, instead of letting them surface one stage apart.
+
 Cost is dominated by the file-changes pass, so extraction is roughly linear in
 `(commits x files touched)` rather than in repository size. A 969-commit Java
 project with 3,611 file rows extracts in about half a second.

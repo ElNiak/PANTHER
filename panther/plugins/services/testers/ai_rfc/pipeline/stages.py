@@ -42,7 +42,10 @@ STAGES: tuple[Stage, ...] = (
         "pin",
         Performer.MANUAL,
         "Clone the implementation into <workspace>/clone and leave its tree "
-        "clean. Its HEAD is the commit every anchor is verified against.",
+        "clean. Its HEAD is the commit every anchor is verified against. No "
+        "credential is needed: a bundle (git clone repo.bundle), a full-depth "
+        "directory copy or a mirror all work, provided the clone is complete "
+        "and not bare — run the substrate verb to check all three.",
     ),
     Stage(1, "history", Performer.DETERMINISTIC),
     Stage(2, "forge", Performer.DETERMINISTIC),

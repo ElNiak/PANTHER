@@ -73,5 +73,16 @@ def test_shallow_clone_is_refused(shallow_repo: Path):
     assert "shallow" in str(excinfo.value).lower()
 
 
+def test_the_shallow_remedy_does_not_assume_network_access(shallow_repo: Path):
+    """An operator working from a bundle cannot run git fetch --unshallow.
+
+    The remedy text is the only thing that reaches them at this point, so it
+    has to name a route that needs no credentials and no reachable remote.
+    """
+    with pytest.raises(ShallowRepositoryError) as excinfo:
+        assert_complete(shallow_repo)
+    assert "bundle" in str(excinfo.value)
+
+
 def test_assert_complete_passes_on_a_full_clone(corpus_repo: Path):
     assert assert_complete(corpus_repo) is None

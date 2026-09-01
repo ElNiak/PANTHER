@@ -75,7 +75,9 @@ def assert_complete(repo: Path) -> None:
     if _git(repo, "rev-parse", "--is-shallow-repository").strip() == "true":
         raise ShallowRepositoryError(
             f"{repo} is a shallow clone and its history is incomplete; "
-            f"re-clone without --depth, or run git fetch --unshallow"
+            f"re-clone without --depth, run git fetch --unshallow, or — with "
+            f"no network — clone a bundle (git clone repo.bundle) or copy the "
+            f"whole repository directory"
         )
 
 
