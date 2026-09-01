@@ -143,6 +143,48 @@ in either mode. An anchor citing code absent from the commit it names is weaker
 evidence than an overstated status, not stronger, so it is not treated as
 merely advisory.
 
+### Completeness
+
+`draft gate` asks whether a draft is *consistent*. It cannot ask whether the
+reconstruction is *finished*, because consistency is preserved by doing nothing:
+a workspace that processed one cluster of sixty-nine and stopped is perfectly
+self-consistent. `draft completeness` asks the other question.
+
+```bash
+python -m panther.plugins.services.testers.a_rfc.draft completeness \
+  path/to/workspace \
+  --out out/ \
+  --strict
+```
+
+It takes the workspace root rather than five separate paths, deriving
+`timeline/`, `checkpoints/`, `draft/`, `manifest.yaml` and `revisions.yaml` from
+it, and writes `completeness.json`. It reports:
+
+| Field | Question it answers |
+|---|---|
+| `unprocessed_clusters` | Which clusters were never checkpointed at all |
+| `silent_clusters` | Which were checkpointed but changed no claim |
+| `uncited_at_head` | Which claims the newest revision does not cite |
+| `never_cited` | Which claims *no* revision has ever cited |
+| `manifest_drift` | Which live claims are in no checkpoint yet |
+
+`uncited_at_head` and `never_cited` differ only for a claim cited once and later
+dropped; `never_cited` is the subset that was never written about at all.
+Reporting only the first would make a dropped claim indistinguishable from one
+nobody ever wrote.
+
+Claims are attributed to the cluster whose checkpoint first held them, and each
+checkpoint is differenced against its predecessor **in processing order** —
+not against `prev_cluster_id`, which names the timeline's ordinal−1 neighbour
+and on a sparse run is usually unprocessed. A cluster counts as silent only when
+it added no claim id *and* left the manifest digest unchanged, because a
+checkpoint that promotes a status or edits a claim's text adds no id but is not
+silent.
+
+Exit codes follow the table above: 0 as a linter, 1 on unreadable input, 3 under
+`--strict` when anything is outstanding.
+
 ## How to use
 
 The pipeline has four stages, and this module is only the last one:
@@ -243,6 +285,16 @@ framework, and the boundary is what lets everything here stay deterministic,
 testable against fixtures and free of network access.
 
 **No gap in this list remains open.**
+
+One gap was closed that this list had never named, which is the more instructive
+kind. Every gate here measured *consistency*, and none measured *coverage of the
+timeline* — so a workspace that mined two clusters of sixty-nine and stopped
+reported nothing outstanding, because nothing it had done was wrong. `draft
+completeness` supplies the missing axis. Run against `reconstructions/mark` it
+reports 67 of 69 clusters never checkpointed, a `processed_fraction` of 0.029,
+and one checkpoint that froze a byte-identical manifest to its predecessor and
+so recorded nothing. None of that was visible before, and none of it was a
+violation of any rule the package already enforced.
 
 The last one — nothing turned a test run into a `runtime` anchor, leaving the
 headline metric aspirational — is closed by `coverage/`, which reads a coverage
