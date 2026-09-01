@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ..models import EvidenceClass, Manifest
-from .bind import PinError, line_digest, path_index, require_clean_checkout, resolve
+from .commit import PinError, line_digest, path_index, require_clean_checkout, resolve
 from .model import CoverageReport
 
 #: What an emitted anchor claims, recorded beside every proposal. A covered

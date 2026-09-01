@@ -27,7 +27,7 @@ lazy one, so the criterion travels with every proposal.
 
 from __future__ import annotations
 
-from .bind import PinError
+from .commit import PinError
 from .jacoco import CoverageError
 from .jacoco import read as read_jacoco
 from .model import CoverageReport, ExecutedLine

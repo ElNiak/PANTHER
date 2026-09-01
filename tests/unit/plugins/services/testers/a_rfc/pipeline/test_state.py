@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from panther.plugins.services.testers.a_rfc.pipeline import cli
-from panther.plugins.services.testers.a_rfc.pipeline.probe import (
+from panther.plugins.services.testers.a_rfc.pipeline.state import (
     State,
     next_stage,
     state,

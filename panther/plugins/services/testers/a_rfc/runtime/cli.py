@@ -13,7 +13,7 @@ import yaml
 from panther import __version__
 
 from ..schema import SchemaError, load
-from .bind import PinError
+from .commit import PinError
 from .jacoco import CoverageError
 from .jacoco import read as read_jacoco
 from .propose import PROPOSAL_CRITERION, propose

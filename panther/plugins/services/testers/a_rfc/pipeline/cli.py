@@ -9,9 +9,9 @@ from pathlib import Path
 
 from panther import __version__
 
-from .probe import next_stage, state
 from .run import PipelineError, perform, workspace_from
 from .stages import BY_NAME, STAGES, Performer
+from .state import next_stage, state
 
 
 def _report(message: str) -> None:
@@ -157,7 +157,7 @@ def _run(args: argparse.Namespace) -> int:
         if stage.name == "forge" and args.forge_url is None:
             # Forge is the one networked stage and the only optional one: a
             # git-only timeline is a narrower reconstruction, not a broken one.
-            # Skipping it without a URL matches how probe steps over it, and
+            # Skipping it without a URL matches how state steps over it, and
             # the two disagreeing is what this branch exists to prevent.
             if args.start == "forge":
                 _report("error: forge was asked for but no --forge-url was given")

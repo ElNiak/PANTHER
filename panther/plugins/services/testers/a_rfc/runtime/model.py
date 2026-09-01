@@ -17,7 +17,7 @@ class ExecutedLine:
     #: The tail of the source path as the coverage tool spells it, e.g.
     #: ``be/cylab/mark/detection/OWAverage.java``. Coverage tools report a path
     #: relative to their own source roots, which is not the repository path an
-    #: anchor cites; resolving one to the other is :mod:`bind`'s job.
+    #: anchor cites; resolving one to the other is :mod:`commit`'s job.
     source_path_suffix: str
     line: int
     executed: bool

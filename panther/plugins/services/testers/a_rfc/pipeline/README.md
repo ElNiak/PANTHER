@@ -21,7 +21,7 @@ package reserves to `forge`, so obtaining the repository stays a human step.
 
 ## The stages
 
-| # | Stage | Kind | Reads → writes |
+| # | Stage | Performer | Reads → writes |
 |---|---|---|---|
 | 0 | `pin` | manual | — → `clone/` |
 | 1 | `history` | deterministic | `clone/` → `corpus/` |
@@ -36,7 +36,7 @@ package reserves to `forge`, so obtaining the repository stays a human step.
 
 `forge` is the only optional stage. Its enrichment matters — on a squash-heavy
 repository a git-only timeline sees far fewer pull requests — but a
-reconstruction without it is narrower, not broken. Both `probe` and the runner
+reconstruction without it is narrower, not broken. Both `state` and the runner
 step over it when no `--forge-url` is given, and they are written to agree:
 skipping in one and requiring it in the other is the disagreement the runner's
 explicit branch exists to prevent.
@@ -82,7 +82,7 @@ unchanged.
 
 ## The interface a driver calls
 
-`probe.next_action(workspace)` returns the first outstanding stage, its state,
+`state.next_stage(workspace)` returns the first outstanding stage, its state,
 why, and whether a model has to perform it. That is the whole contract an
 external driver needs: it can advance the deterministic stages by calling `run`
 and fill in the agent stages itself, without knowing the stage table.
