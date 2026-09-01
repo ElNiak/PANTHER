@@ -36,7 +36,7 @@ assume otherwise, which is why it is stated here.
 
 Four further stages carry the corpus toward a progressive, per-PR
 reconstruction (design spec:
-`docs/superpowers/specs/2026-08-25-ai-rfc-progressive-rfc-design.md`):
+`docs/superpowers/specs/2026-08-25-arfc-progressive-rfc-design.md`):
 
 - `forge/` is the package's ONLY networked stage: it fetches a repository's
   pull/merge requests, reviews and comments (GitHub and GitLab adapters,
@@ -469,11 +469,11 @@ coupling the file-on-disk boundary exists to prevent:
 
 | Helper | Copies |
 |---|---|
-| `_git` subprocess wrapper | `anchors.py` · `history/git_log.py` · `draft/gate.py` |
-| stderr `_report` | `cli.py` · `history/cli.py` · `timeline/cli.py` · `views/cli.py` · `draft/cli.py` |
+| `_git` subprocess call | `anchors.py` · `draft/gate.py` · `coverage/commit.py` · `history/git_log.py` · `pipeline/substrate.py` |
+| stderr `_report` | `cli.py` · `coverage/cli.py` · `draft/cli.py` · `forge/cli.py` · `history/cli.py` · `pipeline/cli.py` · `timeline/cli.py` · `views/cli.py` |
 | SHA-256 `_digest` | `history/index.py` · `timeline/store.py` · `views/emit.py` · `draft/checkpoint.py` |
 | JSONL corpus readers | `history/store.py` · `timeline/corpus.py` · `views/emit.py` |
-| Forge snapshot readers | `forge/store.py` · `timeline/cli.py` · `views/emit.py` |
+| Forge snapshot readers | `forge/store.py` · `timeline/cli.py` · `views/emit.py` · `pipeline/state.py` · `pipeline/workspace.py` |
 
 The `_git` wrappers deliberately omit `subprocess.run(check=True)`:
 `CalledProcessError` raises without stderr attached, and every caller must
@@ -481,12 +481,29 @@ distinguish "no such path" (a result) from "no such commit" (an error). The
 `_report` helpers write to stderr rather than logging, for the reason in the
 next section.
 
+**The five `_git` copies are not one helper wearing five hats.** Only three —
+`anchors.py`, `draft/gate.py` and `coverage/commit.py` — share a contract,
+returning the `CompletedProcess` untouched. `history/git_log.py` raises
+`GitError` on a non-zero exit, and `pipeline/substrate.py` projects to
+`(returncode, stdout.strip())` because every one of its checks is a yes/no about
+the clone. What repeats across all five is the four-line `subprocess.run` call,
+not the behaviour a caller depends on, so consolidating them would trade five
+small duplications for one primitive plus two wrappers.
+
 They are duplicated rather than hoisted to a shared module because `history/`
 and the manifest core share **no domain code** — the handoff between them is a
-file on disk — and hoisting five lines would mean editing the shipped, tested
+file on disk — and hoisting a few lines would mean editing the shipped, tested
 manifest core to create a coupling that buys nothing. The cost is accepted
 knowingly, and recorded here in one place so the debt is legible rather than
 discovered twice.
+
+That last sentence is the table's whole job, and it is the part that has failed
+before: the counts above were once five `_report` copies and three `_git` ones,
+and drifted to eight and five as `coverage/`, `forge/` and `pipeline/` landed —
+so the debt *was* discovered twice. **Adding a subpackage means adding its
+copies here.** The bodies themselves have not drifted: all eight `_report`
+copies are identical but for one clause the root `cli.py` adds about its own
+exit-3 gate.
 
 `anchors.py`'s `_git` additionally duplicates one the companion provenance
 module will provide once it lands. When that arrives, consolidation should

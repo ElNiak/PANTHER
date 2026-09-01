@@ -1,12 +1,14 @@
 """Conventions every ai_rfc entry point holds to.
 
-The substrate is six independent ``python -m`` commands that a human and an
+The substrate is eight independent ``python -m`` commands that a human and an
 agent both drive, so the properties that make them scriptable are worth
-asserting once across all of them rather than six times in six files.
+asserting once across all of them rather than eight times in eight files.
 """
 
 import importlib
+import re
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -75,3 +77,53 @@ def test_importing_an_entry_point_does_not_run_it(prog, module):
     sys.modules.pop(name, None)
 
     importlib.import_module(name)
+
+
+PACKAGE_ROOT = Path(root_cli.__file__).parent
+
+#: Helpers the README's "Known duplication to consolidate" table tracks by
+#: hand, keyed by the name in its first column.
+TRACKED_HELPERS = ("_report", "_git")
+
+
+def _package_sources() -> list[Path]:
+    """Every module the table speaks for: the package, minus the harness."""
+    return [
+        path
+        for path in sorted(PACKAGE_ROOT.rglob("*.py"))
+        if "harness" not in path.relative_to(PACKAGE_ROOT).parts
+        and "__pycache__" not in path.parts
+    ]
+
+
+def _defines(helper: str) -> set[str]:
+    """Modules defining ``helper``, as paths relative to the package root."""
+    pattern = re.compile(rf"^def {re.escape(helper)}\(", re.MULTILINE)
+    return {
+        path.relative_to(PACKAGE_ROOT).as_posix()
+        for path in _package_sources()
+        if pattern.search(path.read_text())
+    }
+
+
+def _declared(helper: str) -> set[str]:
+    """Modules the README's table lists as holding a copy of ``helper``."""
+    for line in (PACKAGE_ROOT / "README.md").read_text().splitlines():
+        cells = [cell.strip() for cell in line.split("|")]
+        if len(cells) > 2 and f"`{helper}`" in cells[1]:
+            return set(re.findall(r"`([^`]+\.py)`", cells[2]))
+    raise AssertionError(f"the duplication table has no row for {helper}")
+
+
+@pytest.mark.parametrize("helper", TRACKED_HELPERS)
+def test_the_duplication_table_names_every_copy(helper):
+    """The table is only worth keeping if it is accurate.
+
+    Its stated purpose is that accepted debt stays legible "rather than
+    discovered twice", and it had already failed at that twice: five ``_report``
+    copies were recorded against eight on disk, three ``_git`` against five, as
+    ``coverage/``, ``forge/`` and ``pipeline/`` landed without anyone updating
+    the row. A hand-maintained register of hand-maintained copies drifts unless
+    something counts them, so this counts them.
+    """
+    assert _declared(helper) == _defines(helper)
