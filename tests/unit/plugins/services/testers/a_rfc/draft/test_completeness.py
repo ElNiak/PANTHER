@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import subprocess
 from pathlib import Path
 
 import pytest
 
+from panther.plugins.services.testers.a_rfc.draft import cli as draft_cli
 from panther.plugins.services.testers.a_rfc.draft import completeness
 
 
@@ -221,3 +223,63 @@ def test_to_json_is_byte_stable(sparse_workspace: dict[str, Path]) -> None:
     assert first == second
     assert first.endswith("\n")
     assert json.loads(first)["totals"]["clusters_total"] == 2
+
+
+def test_completeness_verb_writes_report_and_exits_zero(
+    sparse_workspace: dict[str, Path], tmp_path: Path
+) -> None:
+    code = draft_cli.main(
+        [
+            "completeness",
+            str(sparse_workspace["root"]),
+            "--out",
+            str(tmp_path / "out"),
+        ]
+    )
+
+    assert code == 0
+    written = json.loads((tmp_path / "out" / "completeness.json").read_text())
+    assert written["totals"]["clusters_total"] == 2
+    assert len(written["unprocessed_clusters"]) == 1
+
+
+def test_completeness_verb_exits_three_under_strict(
+    sparse_workspace: dict[str, Path], tmp_path: Path
+) -> None:
+    code = draft_cli.main(
+        [
+            "completeness",
+            str(sparse_workspace["root"]),
+            "--out",
+            str(tmp_path / "out"),
+            "--strict",
+        ]
+    )
+
+    assert code == 3
+
+
+def test_completeness_verb_exits_one_on_unreadable_input(tmp_path: Path) -> None:
+    code = draft_cli.main(
+        ["completeness", str(tmp_path / "absent"), "--out", str(tmp_path / "out")]
+    )
+
+    assert code == 1
+
+
+def test_gate_strict_help_states_the_code_it_actually_returns() -> None:
+    """draft/cli.py:74 claimed exit 2; the code returns 3."""
+    parser = draft_cli._parser()
+    subparsers = next(
+        action
+        for action in parser._actions
+        if isinstance(action, argparse._SubParsersAction)
+    )
+    strict = next(
+        action
+        for action in subparsers.choices["gate"]._actions
+        if action.dest == "strict"
+    )
+
+    assert "3" in strict.help
+    assert "Exit 2" not in strict.help
