@@ -167,3 +167,57 @@ def test_never_cited_excludes_a_claim_cited_then_dropped(
 
     assert uncited == ("spec:2.1",)
     assert never == ()
+
+
+def test_build_on_a_clean_workspace_reports_nothing_outstanding(
+    draft_workspace: dict[str, Path], tmp_path: Path
+) -> None:
+    report = completeness.build(
+        draft_workspace["timeline"],
+        draft_workspace["checkpoints"],
+        tmp_path / "m2.yaml",
+        draft_workspace["revisions"],
+        draft_workspace["repo"],
+    )
+
+    assert report.unprocessed_clusters == ()
+    assert report.uncited_at_head == ()
+    assert report.manifest_drift == ()
+    assert report.totals["processed_fraction"] == 1.0
+    assert completeness.findings(report) == ()
+
+
+def test_build_on_a_sparse_workspace_reports_the_gaps(
+    sparse_workspace: dict[str, Path],
+) -> None:
+    report = completeness.build(
+        sparse_workspace["timeline"],
+        sparse_workspace["checkpoints"],
+        sparse_workspace["manifest"],
+        sparse_workspace["revisions"],
+        sparse_workspace["repo"],
+    )
+
+    assert len(report.unprocessed_clusters) == 1
+    assert report.uncited_at_head == ("spec:1.1",)
+    assert report.totals["clusters_total"] == 2
+    assert report.totals["clusters_processed"] == 1
+    assert report.totals["processed_fraction"] == 0.5
+    assert any("1 of 2" in finding for finding in completeness.findings(report))
+
+
+def test_to_json_is_byte_stable(sparse_workspace: dict[str, Path]) -> None:
+    args = (
+        sparse_workspace["timeline"],
+        sparse_workspace["checkpoints"],
+        sparse_workspace["manifest"],
+        sparse_workspace["revisions"],
+        sparse_workspace["repo"],
+    )
+
+    first = completeness.to_json(completeness.build(*args))
+    second = completeness.to_json(completeness.build(*args))
+
+    assert first == second
+    assert first.endswith("\n")
+    assert json.loads(first)["totals"]["clusters_total"] == 2

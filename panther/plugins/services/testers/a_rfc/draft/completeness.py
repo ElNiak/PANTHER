@@ -10,7 +10,7 @@ produced no claim, and which claims no prose cites.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from ..schema import SchemaError, load
@@ -185,3 +185,127 @@ def citation_gaps(
         if entry.number == highest:
             head = cited
     return tuple(sorted(claim_ids - head)), tuple(sorted(claim_ids - ever))
+
+
+@dataclass(frozen=True)
+class CompletenessReport:
+    """How much of a timeline the reconstruction has specified."""
+
+    clusters: tuple[ClusterCompleteness, ...]
+    unprocessed_clusters: tuple[str, ...]
+    silent_clusters: tuple[str, ...]
+    uncited_at_head: tuple[str, ...]
+    never_cited: tuple[str, ...]
+    manifest_drift: tuple[str, ...]
+    totals: dict[str, float]
+
+
+def build(
+    timeline_dir: Path,
+    checkpoints_dir: Path,
+    manifest_path: Path,
+    revisions_path: Path,
+    draft_repo: Path,
+) -> CompletenessReport:
+    """Measure a workspace's reconstruction completeness.
+
+    Args:
+        timeline_dir: Directory written by the timeline stage.
+        checkpoints_dir: The checkpoints root.
+        manifest_path: The live manifest.
+        revisions_path: Path to ``revisions.yaml``.
+        draft_repo: The nested prose-draft git repository.
+
+    Returns:
+        The assembled report.
+
+    Raises:
+        CompletenessError: If any input is absent or malformed.
+    """
+    rows = attribute_claims(timeline_dir, checkpoints_dir)
+    checkpointed: frozenset[str] = frozenset()
+    for name, _ in checkpoint_records(checkpoints_dir):
+        checkpointed = checkpointed | _claim_ids(checkpoints_dir / name)
+
+    try:
+        live = frozenset(claim.id for claim in load(manifest_path).claims)
+    except (SchemaError, OSError) as error:
+        raise CompletenessError(f"could not read {manifest_path}: {error}") from error
+
+    uncited_at_head, never_cited = citation_gaps(
+        draft_repo, revisions_path, checkpointed
+    )
+    processed = sum(1 for row in rows if row.checkpointed)
+    return CompletenessReport(
+        clusters=rows,
+        unprocessed_clusters=tuple(
+            row.cluster_id for row in rows if not row.checkpointed
+        ),
+        silent_clusters=tuple(
+            row.cluster_id
+            for row in rows
+            if row.checkpointed and not row.new_claim_ids and not row.manifest_changed
+        ),
+        uncited_at_head=uncited_at_head,
+        never_cited=never_cited,
+        manifest_drift=tuple(sorted(live - checkpointed)),
+        totals={
+            "checkpointed_claims": len(checkpointed),
+            "clusters_processed": processed,
+            "clusters_total": len(rows),
+            "processed_fraction": round(processed / len(rows), 4) if rows else 0.0,
+            "uncited_at_head": len(uncited_at_head),
+        },
+    )
+
+
+def to_json(report: CompletenessReport) -> str:
+    """Serialize a report byte-stably.
+
+    Args:
+        report: The report to serialize.
+
+    Returns:
+        Sorted-key JSON with a trailing newline.
+    """
+    return (
+        json.dumps(
+            {
+                "clusters": [asdict(row) for row in report.clusters],
+                "manifest_drift": list(report.manifest_drift),
+                "never_cited": list(report.never_cited),
+                "silent_clusters": list(report.silent_clusters),
+                "totals": report.totals,
+                "uncited_at_head": list(report.uncited_at_head),
+                "unprocessed_clusters": list(report.unprocessed_clusters),
+            },
+            sort_keys=True,
+            indent=2,
+        )
+        + "\n"
+    )
+
+
+def findings(report: CompletenessReport) -> tuple[str, ...]:
+    """Render a report as one diagnostic line per gap.
+
+    Args:
+        report: The report to describe.
+
+    Returns:
+        The findings, empty when the reconstruction is complete.
+    """
+    lines: list[str] = []
+    if report.unprocessed_clusters:
+        lines.append(
+            f"{len(report.unprocessed_clusters)} of "
+            f"{int(report.totals['clusters_total'])} clusters were never "
+            f"checkpointed"
+        )
+    for cluster_id in report.silent_clusters:
+        lines.append(f"{cluster_id}: checkpointed but changed no claim")
+    for claim_id in report.uncited_at_head:
+        lines.append(f"{claim_id}: no revision of the prose cites it at head")
+    for claim_id in report.manifest_drift:
+        lines.append(f"{claim_id}: in the live manifest but in no checkpoint")
+    return tuple(lines)
