@@ -1130,4 +1130,69 @@ Ordering is forced by file ownership, not preference.
 | 4. Naming `arfc`→`ai_rfc` | C1 internal (`class1`/`class2` → `mcp_surface_errors`/`bash_surface_errors`; `profile.py` → `login_profile.py`; `AI_RFC_ROOT` → `_plugin_root`); C2 env vars; C3 console script; C4 dual-accept citation regex; C5 MCP key + 16 tool names | Strictly by blast radius, one commit per tier |
 | 5. Sweep driver | `ai_rfc/sweep/` — resume derived from disk (the artifact triple, since `checkpoint.py:68-73` poisons blind retry), budget-capped, timeline digest pinned. Note `pipeline.next_stage()` **cannot** drive the loop: it is workspace-granular and returns `DONE` after the first claim (`state.py:180-191`) | Needs this plan's completeness gate as its success measure |
 
-**The governing rule for plan 4.** Three artefact classes are immutable evidence: MARK's git-tagged draft revisions, the pilot's recorded transcripts, and the committed enforcement fixture. `draft/gate.py` and `audit.py:155` both re-parse *frozen history* with *today's* pattern, so every wire rename must be **emit-new, accept-both, permanently** — never a sweep. Green tests cannot catch a break here: fixtures round-trip whatever spelling they contain. Only frozen artifacts can, which is why Task 6 Step 3 exists in this plan and its analogue must exist in every tier of plan 4.
+## Status as of 2026-09-01
+
+Plans 1, 2 and 3 are complete and committed. The package directory rename also
+landed: `testers/a_rfc` → `testers/ai_rfc`, submodule at `ai_rfc/harness`,
+import path `panther.plugins.services.testers.ai_rfc`, single version with no
+alias or compat branch.
+
+**Superseded decision.** This plan previously mandated *emit-new, accept-both,
+permanently* for every wire rename. That is now **withdrawn** at the user's
+direction: carry a single version and no legacy branch, per CLAUDE.md's "do NOT
+add backward compatibility shims when refactoring". The accepted cost is
+recorded with each item below rather than hidden.
+
+---
+
+## Plan 6 (final phase) — one spelling everywhere, no compat
+
+Everything below still carries the old spelling. The goal is a single version:
+no dual-accept, no alias, no legacy branch. Ordered by blast radius.
+
+| # | Surface | Files | Cost of the single-version cut |
+|---|---|---|---|
+| 6.1 | Internal names: `class1`/`class2` → `mcp_surface_errors`/`bash_surface_errors`; `profile.py` → `login_profile.py`; `AI_RFC_ROOT` → `_plugin_root`; expand `AUC` in its docstring | few | none |
+| 6.2 | Surface labels `bash:arfc`, `bash:python_a_rfc`, `_A_RFC`, canaries `ARFC-CANARY-7731` / `ARFC-OK` | few | none — internal to the audit |
+| 6.3 | Env vars `ARFC_WORKSPACE`, `ARFC_EXPERIMENTS_ROOT` → `AI_RFC_*` | 36 | any shell, `.mcp.json` or saved profile using the old names stops resolving; no fallback |
+| 6.4 | Console script `arfc` → `ai_rfc`; skills `arfc-*`; commands `/arfc-*`; config file `arfc.json` | ~20 | users retype the slash commands; the committed enforcement fixture keys on the literal `"arfc "` prefix and must be regenerated, not edited |
+| 6.5 | MCP server key `arfc` and all 16 `arfc_*` tools → `ai_rfc_*` | 21 | every `mcp__arfc__*` entry in a user's `settings.json` allowlist stops matching and must be updated — a required migration note, not an afterthought |
+| 6.6 | Citation prefix `` `a_rfc:<id>` `` → `` `ai_rfc:<id>` `` | 13 | **the sharp one**, see below |
+| 6.7 | Forge provenance stamp `a_rfc.forge/1` | 1 code + 3 committed `meta.json` | old snapshots no longer match the current stamp |
+
+### 6.6 is the one that needs a decision before it starts
+
+`draft/gate.py` re-parses **historical git tags**: it runs `git show <tag>:<file>`
+over every past revision and applies today's `CITATION` regex.
+`reconstructions/mark/draft` carries two real tags whose frozen prose says
+`a_rfc:`. Changing the regex with no legacy branch makes the gate see **zero**
+citations in both, which trips the "no normative change" invariant as a false
+failure — verified today that the gate is currently clean on exactly those tags.
+
+With compat ruled out, there are two honest options, and they are a **user
+decision**, not an implementation detail:
+
+- **Regenerate MARK's reconstruction** so its tags cite `ai_rfc:`. Treats the
+  reconstruction as reproducible working data. Costs a re-run of the 2-cluster
+  vertical slice; the frozen `RUN.md` stays as the historical record.
+- **Retire the frozen MARK draft repo** and accept that the pre-rename slice is
+  no longer gate-checkable, keeping it only as an archived artifact.
+
+Rewriting the tagged prose in place is not an option: it rewrites published
+history to match a later rename, which is the falsification this tool exists to
+prevent.
+
+### Already accepted, single-version costs
+
+- `experiment audit` can no longer re-derive the 2026-08-31 aioquic pilot's
+  metrics: those transcripts name the old package and the classifier now has one
+  branch. The published `report.md` stands.
+- `reconstructions/*/RUN.md` keep the old command lines on purpose — they record
+  what was actually executed, and are documentation of history, not code.
+
+### Verification for plan 6
+
+Per tier: full suite green, then re-run `draft gate --strict` and
+`draft completeness` against `reconstructions/mark`. For 6.6 specifically, the
+gate result is the *point* of the tier — decide the MARK question first, then
+make the gate prove the chosen outcome rather than discovering it.
