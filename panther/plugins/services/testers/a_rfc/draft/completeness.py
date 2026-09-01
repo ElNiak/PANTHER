@@ -10,13 +10,26 @@ produced no claim, and which claims no prose cites.
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
 
-from .checkpoint import CHECKPOINT_FILE
+from ..schema import SchemaError, load
+from .checkpoint import CHECKPOINT_FILE, MANIFEST_FILE
 
 
 class CompletenessError(ValueError):
     """Raised when the gate's inputs cannot be interpreted as written."""
+
+
+@dataclass(frozen=True)
+class ClusterCompleteness:
+    """What one timeline cluster contributed to the reconstruction."""
+
+    cluster_id: str
+    ordinal: int
+    checkpointed: bool
+    new_claim_ids: tuple[str, ...]
+    manifest_changed: bool
 
 
 def load_clusters(timeline_dir: Path) -> tuple[dict, ...]:
@@ -72,3 +85,65 @@ def checkpoint_records(checkpoints_dir: Path) -> tuple[tuple[str, dict], ...]:
         except (OSError, json.JSONDecodeError) as error:
             raise CompletenessError(f"could not read {record_path}: {error}") from error
     return tuple(sorted(records, key=lambda pair: pair[1]["ordinal"]))
+
+
+def _claim_ids(checkpoint_dir: Path) -> frozenset[str]:
+    """The claim ids held by a checkpoint's frozen manifest copy."""
+    try:
+        manifest = load(checkpoint_dir / MANIFEST_FILE)
+    except (SchemaError, OSError) as error:
+        raise CompletenessError(
+            f"could not read {checkpoint_dir / MANIFEST_FILE}: {error}"
+        ) from error
+    return frozenset(claim.id for claim in manifest.claims)
+
+
+def attribute_claims(
+    timeline_dir: Path, checkpoints_dir: Path
+) -> tuple[ClusterCompleteness, ...]:
+    """Attribute each claim to the cluster whose checkpoint first held it.
+
+    Each checkpoint is differenced against its predecessor in *processing*
+    order, not against its timeline neighbour: on a sparse run the ordinal-1
+    neighbour is usually unprocessed, and differencing against it would credit
+    every claim to every checkpoint.
+
+    Args:
+        timeline_dir: Directory written by the timeline stage.
+        checkpoints_dir: The checkpoints root.
+
+    Returns:
+        One row per timeline cluster, ascending by ordinal.
+
+    Raises:
+        CompletenessError: If any input is absent or malformed.
+    """
+    by_cluster: dict[str, ClusterCompleteness] = {}
+    seen: frozenset[str] = frozenset()
+    previous_digest: str | None = None
+    for name, record in checkpoint_records(checkpoints_dir):
+        held = _claim_ids(checkpoints_dir / name)
+        digest = record["manifest_sha256"]
+        by_cluster[record["cluster_id"]] = ClusterCompleteness(
+            cluster_id=record["cluster_id"],
+            ordinal=record["ordinal"],
+            checkpointed=True,
+            new_claim_ids=tuple(sorted(held - seen)),
+            manifest_changed=digest != previous_digest,
+        )
+        seen = seen | held
+        previous_digest = digest
+
+    return tuple(
+        by_cluster.get(
+            row["id"],
+            ClusterCompleteness(
+                cluster_id=row["id"],
+                ordinal=row["ordinal"],
+                checkpointed=False,
+                new_claim_ids=(),
+                manifest_changed=False,
+            ),
+        )
+        for row in load_clusters(timeline_dir)
+    )
