@@ -1,10 +1,11 @@
 """Immutable forge snapshots on disk.
 
-A snapshot is written once, after a complete fetch, and never overwritten:
-downstream consumers name an explicit snapshot directory, so there is no
-implicit "latest" to answer confidently from stale data. Records are sorted
-and serialised with sorted keys, so permuting the fetcher's arrival order
-cannot change a byte.
+A snapshot is written once from a single acquisition run and never
+overwritten. A run is not required to have been complete: the snapshot
+records which route obtained it and the most that route can ever deliver, so
+a reader can tell data absent because a forge refused it from data no
+credential would have returned. Records are sorted and serialised with sorted
+keys, so permuting the fetcher's arrival order cannot change a byte.
 """
 
 from __future__ import annotations
@@ -13,7 +14,7 @@ import json
 from pathlib import Path
 from typing import Any, Sequence
 
-TOOL_VERSION = "ai_rfc.forge/1"
+TOOL_VERSION = "ai_rfc.forge/2"
 
 META_FILE = "meta.json"
 PULLS_FILE = "pulls.jsonl"
@@ -53,6 +54,8 @@ def write_snapshot(
     reviews: Sequence[dict[str, Any]],
     comments: Sequence[dict[str, Any]],
     denied_subfetches: int = 0,
+    acquisition: str = "api",
+    fidelity_ceiling: str = "pulls+discussion",
 ) -> Path:
     """Write one immutable snapshot of a repository's pull-request data.
 
@@ -75,6 +78,11 @@ def write_snapshot(
         denied_subfetches: How many per-pull discussion endpoints the forge
             refused; recorded so a snapshot with missing discussion says so
             rather than looking complete.
+        acquisition: How the records were obtained — ``api`` for a forge
+            fetch, ``adopt`` for records produced elsewhere.
+        fidelity_ceiling: The most this route can ever deliver, so a reader
+            can tell a snapshot that is missing data it could still get from
+            one that has all its route allows.
 
     Returns:
         The snapshot directory.
@@ -116,12 +124,14 @@ def write_snapshot(
         ),
     )
     meta = {
+        "acquisition": acquisition,
         "api_base": _api_base(host, kind),
         "authenticated": authenticated,
         "clone_head": clone_head,
         "complete": denied_subfetches == 0,
         "denied_subfetches": denied_subfetches,
         "fetched_at": fetched_at,
+        "fidelity_ceiling": fidelity_ceiling,
         "host": host,
         "kind": kind,
         "owner": owner,

@@ -108,3 +108,52 @@ def test_read_snapshot_round_trips(tmp_path: Path):
     assert data["meta"]["owner"] == "aiortc"
     assert len(data["comments"]) == 1
     assert data["reviews"] == []
+
+
+def test_a_snapshot_declares_how_it_was_acquired(tmp_path):
+    """State grading needs the route, not just whether a token was used.
+
+    An unauthenticated fetch and an adopted dump are both incomplete for
+    reasons no retry can fix; a fetch interrupted mid-run is not. Only the
+    snapshot knows which it was.
+    """
+    snapshot = write_snapshot(
+        tmp_path,
+        host="gitlab.example",
+        owner="o",
+        repo="r",
+        kind="gitlab",
+        clone_head="a" * 40,
+        fetched_at="2026-09-01T00-00-00Z",
+        authenticated=False,
+        pulls=[],
+        reviews=[],
+        comments=[],
+        denied_subfetches=3,
+        acquisition="api",
+        fidelity_ceiling="pulls",
+    )
+    meta = json.loads((snapshot / "meta.json").read_text())
+    assert meta["acquisition"] == "api"
+    assert meta["fidelity_ceiling"] == "pulls"
+    assert meta["complete"] is False
+
+
+def test_the_declaration_defaults_to_the_authenticated_api_route(tmp_path):
+    """Existing callers keep their meaning without naming the new fields."""
+    snapshot = write_snapshot(
+        tmp_path,
+        host="gitlab.example",
+        owner="o",
+        repo="r",
+        kind="gitlab",
+        clone_head="a" * 40,
+        fetched_at="2026-09-01T00-00-01Z",
+        authenticated=True,
+        pulls=[],
+        reviews=[],
+        comments=[],
+    )
+    meta = json.loads((snapshot / "meta.json").read_text())
+    assert meta["acquisition"] == "api"
+    assert meta["fidelity_ceiling"] == "pulls+discussion"
