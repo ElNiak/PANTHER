@@ -18,8 +18,8 @@ from .models import (
     EvidenceClass,
     Intent,
     Manifest,
-    ReqClass,
     RequirementClaim,
+    RequirementClass,
     Status,
 )
 
@@ -106,8 +106,8 @@ def _claim(claim_id: Any, raw: Any) -> RequirementClaim:
         level=str(raw["level"]),
         layer=str(raw["layer"]),
         req_class=_enum(
-            ReqClass,
-            raw.get("req_class", ReqClass.PROTOCOL_BEHAVIORAL.value),
+            RequirementClass,
+            raw.get("req_class", RequirementClass.PROTOCOL_BEHAVIORAL.value),
             "req_class",
             claim_id,
         ),

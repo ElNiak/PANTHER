@@ -5,8 +5,8 @@ from panther.plugins.services.testers.a_rfc.models import (
     EvidenceClass,
     Intent,
     Manifest,
-    ReqClass,
     RequirementClaim,
+    RequirementClass,
     Status,
 )
 from panther.plugins.services.testers.a_rfc.promotion import adjudicate, violations
@@ -23,7 +23,7 @@ def _claim(**overrides):
         section="1.1",
         level="MUST",
         layer="timing",
-        req_class=ReqClass.PROTOCOL_BEHAVIORAL,
+        req_class=RequirementClass.PROTOCOL_BEHAVIORAL,
         intent=Intent.INTENDED,
     )
     base.update(overrides)

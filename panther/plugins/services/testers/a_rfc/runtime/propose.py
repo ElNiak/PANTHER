@@ -1,6 +1,6 @@
 """Propose ``runtime`` anchors from a bound coverage run.
 
-Proposals only. A ``runtime`` anchor is primary evidence, so adding one beside
+AnchorProposals only. A ``runtime`` anchor is primary evidence, so adding one beside
 an existing ``code`` anchor takes a claim to ``confirmed`` under the promotion
 rule — which is exactly why this module writes a separate file and never
 touches the manifest. Merging is somebody's decision, and it should look like
@@ -13,18 +13,18 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ..models import EvidenceClass, Manifest
-from .bind import BindError, line_digest, path_index, require_clean_checkout, resolve
+from .bind import PinError, line_digest, path_index, require_clean_checkout, resolve
 from .model import CoverageReport
 
 #: What an emitted anchor claims, recorded beside every proposal. A covered
 #: line is a line that *ran*; nothing in a coverage report says an assertion
 #: examined what it did. The promotion rule cannot tell those apart, so the
 #: distinction is written down where a reader will meet it.
-CRITERION = "line-executed"
+PROPOSAL_CRITERION = "line-executed"
 
 
 @dataclass(frozen=True)
-class Proposal:
+class AnchorProposal:
     """One runtime anchor a coverage run supports."""
 
     claim_id: str
@@ -35,7 +35,7 @@ class Proposal:
 
 
 @dataclass(frozen=True)
-class Skipped:
+class SkippedAnchor:
     """One code anchor that got no runtime anchor, and why."""
 
     claim_id: str
@@ -49,7 +49,7 @@ def propose(
     report: CoverageReport,
     repo: Path,
     commit: str,
-) -> tuple[tuple[Proposal, ...], tuple[Skipped, ...]]:
+) -> tuple[tuple[AnchorProposal, ...], tuple[SkippedAnchor, ...]]:
     """Propose runtime anchors for the lines a run actually reached.
 
     An anchor is emitted only where the manifest already cites that exact file
@@ -68,26 +68,28 @@ def propose(
         The proposals, and the code anchors that got none with the reason.
 
     Raises:
-        BindError: If the checkout is not at ``commit`` or is dirty.
+        PinError: If the checkout is not at ``commit`` or is dirty.
     """
     require_clean_checkout(repo, commit)
     index = path_index(repo, commit)
 
-    proposals: list[Proposal] = []
-    skipped: list[Skipped] = []
+    proposals: list[AnchorProposal] = []
+    skipped: list[SkippedAnchor] = []
     for claim in manifest.claims:
         for anchor in claim.anchors:
             if anchor.evidence_class is not EvidenceClass.CODE:
                 continue
             if anchor.line is None:
                 skipped.append(
-                    Skipped(claim.id, anchor.locator, None, "the anchor cites no line")
+                    SkippedAnchor(
+                        claim.id, anchor.locator, None, "the anchor cites no line"
+                    )
                 )
                 continue
             suffix = _suffix_for(anchor.locator, report)
             if suffix is None:
                 skipped.append(
-                    Skipped(
+                    SkippedAnchor(
                         claim.id,
                         anchor.locator,
                         anchor.line,
@@ -97,7 +99,7 @@ def propose(
                 continue
             if not report.executed_at(suffix, anchor.line):
                 skipped.append(
-                    Skipped(
+                    SkippedAnchor(
                         claim.id,
                         anchor.locator,
                         anchor.line,
@@ -108,12 +110,14 @@ def propose(
             try:
                 resolved = resolve(suffix, index)
                 digest = line_digest(repo, commit, resolved, anchor.line)
-            except BindError as error:
+            except PinError as error:
                 skipped.append(
-                    Skipped(claim.id, anchor.locator, anchor.line, str(error))
+                    SkippedAnchor(claim.id, anchor.locator, anchor.line, str(error))
                 )
                 continue
-            proposals.append(Proposal(claim.id, resolved, commit, anchor.line, digest))
+            proposals.append(
+                AnchorProposal(claim.id, resolved, commit, anchor.line, digest)
+            )
     return tuple(proposals), tuple(skipped)
 
 

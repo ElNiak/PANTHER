@@ -10,7 +10,7 @@ from .git_log import (
     GitError,
     ShallowRepositoryError,
     extract,
-    read_commits,
+    extract_commits,
     read_file_changes,
 )
 from .index import INDEX_FILE, StaleIndexError, build_index, open_index
@@ -34,7 +34,7 @@ __all__ = [
     "extract",
     "history_shape",
     "open_index",
-    "read_commits",
+    "extract_commits",
     "read_corpus",
     "read_file_changes",
     "write_corpus",

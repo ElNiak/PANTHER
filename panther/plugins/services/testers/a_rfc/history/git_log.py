@@ -79,7 +79,7 @@ def assert_complete(repo: Path) -> None:
         )
 
 
-def read_commits(repo: Path) -> list[Commit]:
+def extract_commits(repo: Path) -> list[Commit]:
     """Read every commit's metadata, in a deterministic order.
 
     Records are sorted by ``(authored_at, sha)``. Git's own ordering is
@@ -235,7 +235,7 @@ def extract(
     Raises:
         ShallowRepositoryError: If the clone is shallow.
     """
-    commits = read_commits(repo)
+    commits = extract_commits(repo)
     changes, totals = read_file_changes(repo, cap=cap)
 
     enriched: list[Commit] = []

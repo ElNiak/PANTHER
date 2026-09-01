@@ -15,14 +15,14 @@ success: the pipeline exits 0 and says whose turn it is.
 
 from __future__ import annotations
 
-from .probe import NextAction, StageState, State, next_action, state
+from .probe import NextStage, StageState, State, next_stage, state
 from .run import PipelineError, StageResult, perform, workspace_from
-from .stages import STAGES, Kind, Stage, stage
+from .stages import STAGES, Performer, Stage, stage
 from .workspace import Workspace, digest
 
 __all__ = [
-    "Kind",
-    "NextAction",
+    "Performer",
+    "NextStage",
     "PipelineError",
     "STAGES",
     "Stage",
@@ -31,7 +31,7 @@ __all__ = [
     "State",
     "Workspace",
     "digest",
-    "next_action",
+    "next_stage",
     "perform",
     "stage",
     "state",

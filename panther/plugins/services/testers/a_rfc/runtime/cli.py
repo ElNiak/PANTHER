@@ -13,10 +13,10 @@ import yaml
 from panther import __version__
 
 from ..schema import SchemaError, load
-from .bind import BindError
+from .bind import PinError
 from .jacoco import CoverageError
 from .jacoco import read as read_jacoco
-from .propose import CRITERION, propose
+from .propose import PROPOSAL_CRITERION, propose
 
 #: Coverage formats this command can read. The internal model is
 #: tool-agnostic; adding a format is adding a reader here.
@@ -101,7 +101,7 @@ def main(argv: list[str] | None = None) -> int:
         manifest = load(args.manifest)
         report = READERS[args.format](args.coverage)
         proposals, skipped = propose(manifest, report, args.repo, args.commit)
-    except (SchemaError, CoverageError, BindError, OSError) as error:
+    except (SchemaError, CoverageError, PinError, OSError) as error:
         _report(f"error: {error}")
         return 1
 
@@ -127,7 +127,7 @@ def main(argv: list[str] | None = None) -> int:
                 "tool": report.tool,
                 "tool_version": report.tool_version,
                 "report_sha256": report.report_sha256,
-                "criterion": CRITERION,
+                "criterion": PROPOSAL_CRITERION,
                 "commit": args.commit,
                 "proposed": [asdict(proposal) for proposal in proposals],
                 "skipped": [asdict(entry) for entry in skipped],

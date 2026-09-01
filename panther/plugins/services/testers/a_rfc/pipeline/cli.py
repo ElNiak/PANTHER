@@ -9,9 +9,9 @@ from pathlib import Path
 
 from panther import __version__
 
-from .probe import next_action, state
+from .probe import next_stage, state
 from .run import PipelineError, perform, workspace_from
-from .stages import BY_NAME, STAGES, Kind
+from .stages import BY_NAME, STAGES, Performer
 
 
 def _report(message: str) -> None:
@@ -90,25 +90,28 @@ def _parser() -> argparse.ArgumentParser:
 
 def _status_payload(workspace: Path) -> dict:
     ws = workspace_from(workspace)
-    action = next_action(ws)
+    action = next_stage(ws)
     return {
         "workspace": str(workspace),
         "stages": [
             {
                 "ordinal": entry.stage.ordinal,
                 "name": entry.stage.name,
-                "kind": entry.stage.kind.value,
+                "kind": entry.stage.performer.value,
                 "state": entry.state.value,
                 "reason": entry.reason,
             }
             for entry in state(ws)
         ],
+        # Recorded key. The Python name is `next_stage` — "action" was unbound
+        # and it returns a Stage — but `pipeline-status.json` is what a driver
+        # reads, so the key keeps the word it was published under.
         "next_action": (
             None
             if action is None
             else {
                 "stage": action.stage.name,
-                "kind": action.stage.kind.value,
+                "kind": action.stage.performer.value,
                 "state": action.state.value,
                 "reason": action.reason,
                 "instruction": action.stage.instruction,
@@ -139,7 +142,7 @@ def _run(args: argparse.Namespace) -> int:
     until = BY_NAME[args.until].ordinal if args.until else None
 
     if start is None:
-        action = next_action(ws)
+        action = next_stage(ws)
         if action is None:
             _report("note: nothing outstanding")
             return 0
@@ -161,12 +164,12 @@ def _run(args: argparse.Namespace) -> int:
                 return 1
             _report("note: skipping forge; no --forge-url given")
             continue
-        if stage.kind is not Kind.DETERMINISTIC:
+        if stage.performer is not Performer.DETERMINISTIC:
             # Reaching a boundary is the pipeline working, not failing: the
             # deterministic half is done and the next move is somebody else's.
             _report(
                 f"boundary: stage {stage.ordinal} ({stage.name}) is "
-                f"{stage.kind.value}; stopping here."
+                f"{stage.performer.value}; stopping here."
             )
             _report(f"next: {stage.instruction}")
             return _finish(args, performed, halted_at=stage.name)

@@ -27,20 +27,20 @@ lazy one, so the criterion travels with every proposal.
 
 from __future__ import annotations
 
-from .bind import BindError
+from .bind import PinError
 from .jacoco import CoverageError
 from .jacoco import read as read_jacoco
 from .model import CoverageReport, ExecutedLine
-from .propose import CRITERION, Proposal, Skipped, propose
+from .propose import PROPOSAL_CRITERION, AnchorProposal, SkippedAnchor, propose
 
 __all__ = [
-    "BindError",
-    "CRITERION",
+    "PinError",
+    "PROPOSAL_CRITERION",
     "CoverageError",
     "CoverageReport",
     "ExecutedLine",
-    "Proposal",
-    "Skipped",
+    "AnchorProposal",
+    "SkippedAnchor",
     "propose",
     "read_jacoco",
 ]

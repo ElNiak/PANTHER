@@ -5,7 +5,7 @@ import pytest
 from panther.plugins.services.testers.a_rfc.pipeline import cli
 from panther.plugins.services.testers.a_rfc.pipeline.probe import (
     State,
-    next_action,
+    next_stage,
     state,
 )
 from panther.plugins.services.testers.a_rfc.pipeline.workspace import Workspace
@@ -25,18 +25,18 @@ def test_a_bare_clone_blocks_everything_downstream(workspace: Path):
     assert states["views"] is State.BLOCKED
 
 
-def test_next_action_names_the_first_outstanding_stage(workspace: Path):
-    action = next_action(Workspace(root=workspace))
+def test_next_stage_names_the_first_outstanding_stage(workspace: Path):
+    action = next_stage(Workspace(root=workspace))
     assert action is not None
     assert action.stage.name == "history"
     assert action.is_agent is False
 
 
 def test_an_absent_clone_is_pending_not_blocked(tmp_path: Path):
-    action = next_action(Workspace(root=tmp_path / "empty"))
+    action = next_stage(Workspace(root=tmp_path / "empty"))
     assert action is not None
     assert action.stage.name == "pin"
-    assert action.stage.kind.value == "manual"
+    assert action.stage.performer.value == "manual"
 
 
 def test_a_dirty_clone_is_reported_but_does_not_block(workspace: Path):
@@ -50,7 +50,7 @@ def test_a_dirty_clone_is_reported_but_does_not_block(workspace: Path):
     entry = next(e for e in state(Workspace(root=workspace)) if e.stage.name == "pin")
     assert entry.state is State.DONE
     assert "uncommitted" in entry.reason
-    assert next_action(Workspace(root=workspace)).stage.name == "history"
+    assert next_stage(Workspace(root=workspace)).stage.name == "history"
 
 
 def test_a_moved_corpus_makes_the_timeline_stale(workspace: Path):

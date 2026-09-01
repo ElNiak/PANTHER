@@ -166,7 +166,7 @@ def perform(
         argv, module = _gate(ws, strict)
     else:
         raise PipelineError(
-            f"{stage.name} is a {stage.kind.value} stage; the pipeline reports "
+            f"{stage.name} is a {stage.performer.value} stage; the pipeline reports "
             f"it and stops rather than performing it"
         )
 

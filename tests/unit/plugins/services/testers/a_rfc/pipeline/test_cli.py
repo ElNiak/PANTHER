@@ -70,7 +70,7 @@ def test_forge_is_skipped_without_a_url_but_refused_when_asked_for(
     assert "no --forge-url" in capsys.readouterr().err
 
 
-def test_status_reports_every_stage_and_the_next_action(workspace: Path, capsys):
+def test_status_reports_every_stage_and_the_next_stage(workspace: Path, capsys):
     assert cli.main(["status", str(workspace)]) == 0
     out = capsys.readouterr().out
     assert "0  pin          done" in out

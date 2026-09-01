@@ -5,7 +5,7 @@ import pytest
 from panther.plugins.services.testers.a_rfc.models import (
     EvidenceClass,
     Intent,
-    ReqClass,
+    RequirementClass,
     Status,
 )
 from panther.plugins.services.testers.a_rfc.schema import SchemaError, dump, load
@@ -37,7 +37,7 @@ def test_extended_manifest_preserves_every_field(extended_manifest: Path):
 
     first = by_id["spec:1.1"]
     assert first.status is Status.CONFIRMED
-    assert first.req_class is ReqClass.PROTOCOL_BEHAVIORAL
+    assert first.req_class is RequirementClass.PROTOCOL_BEHAVIORAL
     assert first.intent is Intent.INTENDED
     assert first.signed_off_by == "dev-01"
     assert first.question_id == "q-007"

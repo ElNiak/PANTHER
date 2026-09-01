@@ -16,7 +16,7 @@ import subprocess
 from pathlib import Path
 
 
-class BindError(RuntimeError):
+class PinError(RuntimeError):
     """Raised when a report cannot be bound to a commit."""
 
 
@@ -38,24 +38,24 @@ def require_clean_checkout(repo: Path, commit: str) -> None:
         commit: The commit the report is to be bound to.
 
     Raises:
-        BindError: If the repository is not at that commit, or is dirty.
+        PinError: If the repository is not at that commit, or is dirty.
     """
     if not (repo / ".git").exists():
-        raise BindError(f"{repo} is not a git repository")
+        raise PinError(f"{repo} is not a git repository")
     head = _git(repo, "rev-parse", "HEAD")
     if head.returncode != 0:
-        raise BindError(f"cannot read HEAD of {repo}: {head.stderr.strip()}")
+        raise PinError(f"cannot read HEAD of {repo}: {head.stderr.strip()}")
     resolved = _git(repo, "rev-parse", commit)
     if resolved.returncode != 0:
-        raise BindError(f"{commit} is not a commit in {repo}")
+        raise PinError(f"{commit} is not a commit in {repo}")
     if head.stdout.strip() != resolved.stdout.strip():
-        raise BindError(
+        raise PinError(
             f"{repo} is at {head.stdout.strip()[:12]}, not {commit[:12]}; the "
             f"coverage describes a different checkout"
         )
     status = _git(repo, "status", "--porcelain")
     if status.stdout.strip():
-        raise BindError(
+        raise PinError(
             f"{repo} has uncommitted changes; the lines that ran are not the "
             f"lines {commit[:12]} contains"
         )
@@ -77,11 +77,11 @@ def path_index(repo: Path, commit: str) -> dict[str, list[str]]:
         A mapping from suffix to every repository path ending in it.
 
     Raises:
-        BindError: If the tree cannot be listed.
+        PinError: If the tree cannot be listed.
     """
     listed = _git(repo, "ls-tree", "-r", "--name-only", commit)
     if listed.returncode != 0:
-        raise BindError(f"cannot list {commit} in {repo}: {listed.stderr.strip()}")
+        raise PinError(f"cannot list {commit} in {repo}: {listed.stderr.strip()}")
     index: dict[str, list[str]] = {}
     for path in listed.stdout.splitlines():
         parts = path.split("/")
@@ -106,13 +106,13 @@ def resolve(suffix: str, index: dict[str, list[str]]) -> str:
         The repository path.
 
     Raises:
-        BindError: If no path or several paths end with the suffix.
+        PinError: If no path or several paths end with the suffix.
     """
     matches = index.get(suffix, [])
     if not matches:
-        raise BindError(f"no file in the commit ends with {suffix}")
+        raise PinError(f"no file in the commit ends with {suffix}")
     if len(matches) > 1:
-        raise BindError(
+        raise PinError(
             f"{suffix} is ambiguous: {', '.join(sorted(matches))}. Coverage "
             f"cannot say which was executed."
         )
@@ -136,7 +136,7 @@ def line_digest(repo: Path, commit: str, path: str, line: int) -> str:
         The SHA-256 hex digest of the line's bytes, newline excluded.
 
     Raises:
-        BindError: If the file cannot be read or the line is out of range.
+        PinError: If the file cannot be read or the line is out of range.
     """
     import hashlib
 
@@ -144,7 +144,7 @@ def line_digest(repo: Path, commit: str, path: str, line: int) -> str:
         ["git", "-C", str(repo), "show", f"{commit}:{path}"], capture_output=True
     )
     if shown.returncode != 0:
-        raise BindError(
+        raise PinError(
             f"{path} at {commit} could not be read: "
             f"{shown.stderr.decode(errors='replace').strip()}"
         )
@@ -152,7 +152,7 @@ def line_digest(repo: Path, commit: str, path: str, line: int) -> str:
     if lines and lines[-1] == b"":
         lines.pop()
     if not 1 <= line <= len(lines):
-        raise BindError(
+        raise PinError(
             f"line {line} is beyond the end of {path} ({len(lines)} lines) "
             f"at {commit}"
         )

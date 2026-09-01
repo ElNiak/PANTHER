@@ -19,7 +19,7 @@ from .promotion import Violation, adjudicate, violations
 
 
 @dataclass(frozen=True)
-class Report:
+class ManifestReport:
     """A manifest together with everything checking it revealed."""
 
     manifest: Manifest
@@ -35,7 +35,7 @@ class Report:
     verifiable_anchor_count: int = 0
 
 
-def build(manifest: Manifest, repo: Path | None = None) -> Report:
+def build(manifest: Manifest, repo: Path | None = None) -> ManifestReport:
     """Check a manifest and collect the findings.
 
     Args:
@@ -64,7 +64,7 @@ def build(manifest: Manifest, repo: Path | None = None) -> Report:
             if reason is not None:
                 unverified.append(f"{claim.id}: {anchor.locator} ({reason})")
 
-    return Report(
+    return ManifestReport(
         manifest=manifest,
         violations=violations(manifest),
         unverified=tuple(unverified),
@@ -73,7 +73,7 @@ def build(manifest: Manifest, repo: Path | None = None) -> Report:
     )
 
 
-def _adjudicated(report: Report) -> list[dict]:
+def _adjudicated(report: ManifestReport) -> list[dict]:
     """Pair every claim's stored status with what its evidence supports."""
     entries = []
     for claim in report.manifest.claims:
@@ -89,7 +89,7 @@ def _adjudicated(report: Report) -> list[dict]:
     return entries
 
 
-def _payload(report: Report) -> dict:
+def _payload(report: ManifestReport) -> dict:
     """Build the serialisable view, with derived metrics injected explicitly."""
     claims = _adjudicated(report)
     return {
@@ -118,17 +118,17 @@ def _payload(report: Report) -> dict:
     }
 
 
-def to_json(report: Report) -> str:
+def to_json(report: ManifestReport) -> str:
     """Emit the report as JSON, deterministically."""
     return json.dumps(_payload(report), sort_keys=True, indent=2) + "\n"
 
 
-def to_yaml(report: Report) -> str:
+def to_yaml(report: ManifestReport) -> str:
     """Emit the report as YAML, deterministically."""
     return yaml.safe_dump(_payload(report), sort_keys=True, default_flow_style=False)
 
 
-def to_markdown(report: Report) -> str:
+def to_markdown(report: ManifestReport) -> str:
     """Emit the report as Markdown.
 
     Claims marked ``intent: accidental`` appear only in the descriptive

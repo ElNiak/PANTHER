@@ -4,7 +4,7 @@ import pytest
 
 from panther.plugins.services.testers.a_rfc.history.git_log import (
     extract,
-    read_commits,
+    extract_commits,
     read_file_changes,
 )
 
@@ -12,7 +12,7 @@ pytestmark = pytest.mark.unit
 
 
 def _by_subject(repo: Path, subject: str) -> str:
-    return next(c.sha for c in read_commits(repo) if c.subject == subject)
+    return next(c.sha for c in extract_commits(repo) if c.subject == subject)
 
 
 def test_records_added_paths(corpus_repo: Path):

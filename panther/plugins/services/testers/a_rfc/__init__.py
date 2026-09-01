@@ -11,12 +11,12 @@ from .models import (
     EvidenceClass,
     Intent,
     Manifest,
-    ReqClass,
     RequirementClaim,
+    RequirementClass,
     Status,
 )
 from .promotion import Violation, adjudicate, violations
-from .report import Report, build, to_json, to_markdown, to_yaml
+from .report import ManifestReport, build, to_json, to_markdown, to_yaml
 from .schema import SchemaError, dump, load
 
 __all__ = [
@@ -25,8 +25,8 @@ __all__ = [
     "EvidenceClass",
     "Intent",
     "Manifest",
-    "ReqClass",
-    "Report",
+    "RequirementClass",
+    "ManifestReport",
     "RequirementClaim",
     "SchemaError",
     "Status",

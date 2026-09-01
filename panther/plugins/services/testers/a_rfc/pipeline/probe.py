@@ -21,7 +21,7 @@ from enum import Enum
 from pathlib import Path
 
 from ..schema import SchemaError, load
-from .stages import STAGES, Kind, Stage
+from .stages import STAGES, Performer, Stage
 from .workspace import Workspace, digest
 
 
@@ -39,7 +39,7 @@ class State(Enum):
     #: Pure, cheap and idempotent, so doneness is not tracked: the runner just
     #: performs it. Its output carries no digest of its input, and adding one
     #: would cost more than re-deriving the answer.
-    REDERIVABLE = "re-derivable"
+    RECOMPUTED = "re-derivable"
 
 
 @dataclass(frozen=True)
@@ -52,7 +52,7 @@ class StageState:
 
 
 @dataclass(frozen=True)
-class NextAction:
+class NextStage:
     """The first thing that needs doing, and who does it."""
 
     stage: Stage
@@ -62,7 +62,7 @@ class NextAction:
     @property
     def is_agent(self) -> bool:
         """Whether this stage needs a model rather than the runner."""
-        return self.stage.kind is Kind.AGENT
+        return self.stage.performer is Performer.AGENT
 
 
 def _read_json(path: Path) -> dict | None:
@@ -233,7 +233,7 @@ def state(ws: Workspace) -> tuple[StageState, ...]:
     views = _views(ws, timeline[0])
     mining = _mining(ws, views[0])
     rederivable = (
-        (State.REDERIVABLE, "")
+        (State.RECOMPUTED, "")
         if mining[0] is State.DONE
         else (State.BLOCKED, "there is no manifest to check")
     )
@@ -252,7 +252,7 @@ def state(ws: Workspace) -> tuple[StageState, ...]:
     return tuple(StageState(stage, *by_name[stage.name]) for stage in STAGES)
 
 
-def next_action(ws: Workspace) -> NextAction | None:
+def next_stage(ws: Workspace) -> NextStage | None:
     """The first stage that still needs doing.
 
     This is the function a driver outside the package calls: it says what to do
@@ -275,7 +275,7 @@ def next_action(ws: Workspace) -> NextAction | None:
     for entry in state(ws):
         if entry.stage.name == "forge":
             continue
-        if entry.state in (State.DONE, State.REDERIVABLE):
+        if entry.state in (State.DONE, State.RECOMPUTED):
             continue
-        return NextAction(entry.stage, entry.state, entry.reason)
+        return NextStage(entry.stage, entry.state, entry.reason)
     return None

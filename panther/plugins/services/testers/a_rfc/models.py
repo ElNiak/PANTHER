@@ -28,7 +28,7 @@ class EvidenceClass(Enum):
     RUNTIME = "runtime"
 
 
-class ReqClass(Enum):
+class RequirementClass(Enum):
     """The verification story a requirement belongs to."""
 
     PROTOCOL_BEHAVIORAL = "protocol-behavioral"
@@ -88,7 +88,7 @@ class RequirementClaim:
     section: str
     level: str
     layer: str
-    req_class: ReqClass
+    req_class: RequirementClass
     intent: Intent
     anchors: tuple[Anchor, ...] = ()
     status: Status = Status.GAP
@@ -138,7 +138,7 @@ class Manifest:
             which report ``0.0`` rather than raising.
         """
         fractions: dict[str, float] = {}
-        for req_class in ReqClass:
+        for req_class in RequirementClass:
             confirmed = [
                 claim
                 for claim in self.claims
@@ -163,7 +163,7 @@ class Manifest:
         Returns:
             One entry per requirement class, including classes with no claims.
         """
-        counts = {req_class.value: 0 for req_class in ReqClass}
+        counts = {req_class.value: 0 for req_class in RequirementClass}
         for claim in self.claims:
             if claim.status is Status.CONFIRMED:
                 counts[claim.req_class.value] += 1
