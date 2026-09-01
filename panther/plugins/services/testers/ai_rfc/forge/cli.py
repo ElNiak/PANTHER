@@ -11,6 +11,7 @@ from pathlib import Path
 
 from panther import __version__
 
+from .adopt import read_records
 from .fetch import Transport, fetch_pull_data, parse_url
 from .store import ForgeError, write_snapshot
 
@@ -147,8 +148,32 @@ def main(argv: list[str] | None = None, transport: Transport | None = None) -> i
         return 1
 
     if args.verb == "adopt":
-        _report("error: adopt is not implemented yet")
-        return 1
+        try:
+            pulls, reviews, comments = read_records(args.records)
+            snapshot = write_snapshot(
+                args.out,
+                host=target.host,
+                owner=target.owner,
+                repo=target.repo,
+                kind=target.kind,
+                clone_head=head.stdout.strip(),
+                fetched_at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%SZ"),
+                authenticated=False,
+                pulls=pulls,
+                reviews=reviews,
+                comments=comments,
+                acquisition="adopt",
+                fidelity_ceiling="pulls",
+            )
+        except (ForgeError, OSError) as error:
+            _report(f"error: {error}")
+            return 1
+        _report(
+            f"note: {len(pulls)} pull(s), {len(reviews)} review(s), "
+            f"{len(comments)} comment(s) adopted from {args.records} "
+            f"into {snapshot}"
+        )
+        return 0
 
     token_env = "GITHUB_TOKEN" if target.kind == "github" else "GITLAB_TOKEN"
     token = os.environ.get(token_env) or None
