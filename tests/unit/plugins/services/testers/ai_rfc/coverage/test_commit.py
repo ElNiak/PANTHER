@@ -43,20 +43,29 @@ def test_a_name_that_does_not_resolve_is_refused(java_repo):
     assert "is not a commit" in str(excinfo.value)
 
 
-def test_a_well_formed_sha_no_object_matches_is_still_refused(java_repo):
-    """The safety property holds even though the diagnostic misses.
+def test_a_well_formed_sha_no_object_matches_is_named_as_absent(java_repo):
+    """The likeliest mistake must not be reported as the wrong one.
 
     ``git rev-parse`` exits 0 for any 40-hex string, echoing it back without
-    checking an object exists, so a fabricated or mistyped commit never reaches
-    the "is not a commit" branch — it falls through to the HEAD comparison and
-    is refused as a different checkout. The refusal is what matters and it
-    holds; the message names the wrong reason, which is worth knowing when
-    reading one in anger.
+    looking for an object, so a mistyped commit used to reach the HEAD
+    comparison and be refused as "a different checkout" — true, but not the
+    reason, and the reason is what a reader acts on.
     """
     repo, _ = java_repo
     with pytest.raises(PinError) as excinfo:
         require_clean_checkout(repo, "0" * 40)
-    assert "different checkout" in str(excinfo.value)
+    assert "is not a commit" in str(excinfo.value)
+
+
+def test_an_annotated_tag_on_the_head_commit_is_accepted(java_repo):
+    """Peeling to ``^{commit}`` is what lets a tag name the checkout.
+
+    The comparison is against HEAD's commit id, so a tag that did not peel
+    would never match the SHA beside it.
+    """
+    repo, head = java_repo
+    _git(repo, "tag", "-a", "v1", "-m", "release", head)
+    assert require_clean_checkout(repo, "v1") is None
 
 
 def test_a_head_that_moved_past_the_commit_is_refused(java_repo):

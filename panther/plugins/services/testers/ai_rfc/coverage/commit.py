@@ -45,7 +45,11 @@ def require_clean_checkout(repo: Path, commit: str) -> None:
     head = _git(repo, "rev-parse", "HEAD")
     if head.returncode != 0:
         raise PinError(f"cannot read HEAD of {repo}: {head.stderr.strip()}")
-    resolved = _git(repo, "rev-parse", commit)
+    # ``--verify <rev>^{commit}`` rather than a plain ``rev-parse``: the latter
+    # exits 0 for any 40-hex string, echoing it back without looking for an
+    # object, so a mistyped commit reached the HEAD comparison below and was
+    # refused as a different checkout — true, but not the reason.
+    resolved = _git(repo, "rev-parse", "--verify", f"{commit}^{{commit}}")
     if resolved.returncode != 0:
         raise PinError(f"{commit} is not a commit in {repo}")
     if head.stdout.strip() != resolved.stdout.strip():
