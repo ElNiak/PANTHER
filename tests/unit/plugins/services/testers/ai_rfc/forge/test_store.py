@@ -110,6 +110,64 @@ def test_read_snapshot_round_trips(tmp_path: Path):
     assert data["reviews"] == []
 
 
+def test_the_stamp_names_the_schema_that_wrote_the_snapshot(tmp_path):
+    """The stamp is how a reader tells which schema produced a snapshot.
+
+    Snapshots are immutable, so a key added without bumping this leaves two
+    different shapes claiming the same version and nothing able to tell them
+    apart. Failing here is the reminder to bump.
+    """
+    snapshot = write_snapshot(
+        tmp_path,
+        host="gitlab.example",
+        owner="o",
+        repo="r",
+        kind="gitlab",
+        clone_head="a" * 40,
+        fetched_at="2026-09-01T00-00-03Z",
+        authenticated=True,
+        pulls=[],
+        reviews=[],
+        comments=[],
+    )
+    meta = json.loads((snapshot / "meta.json").read_text())
+    assert meta["tool_version"] == "ai_rfc.forge/2"
+    assert set(meta) == {
+        "acquisition",
+        "api_base",
+        "authenticated",
+        "clone_head",
+        "complete",
+        "denied_subfetches",
+        "fetched_at",
+        "fidelity_ceiling",
+        "host",
+        "kind",
+        "owner",
+        "repo",
+        "tool_version",
+    }
+
+
+def test_an_unknown_fidelity_ceiling_is_refused(tmp_path):
+    """Grading reads this value, so an unknown one is silently ungradeable."""
+    with pytest.raises(ForgeError, match="fidelity_ceiling"):
+        write_snapshot(
+            tmp_path,
+            host="gitlab.example",
+            owner="o",
+            repo="r",
+            kind="gitlab",
+            clone_head="a" * 40,
+            fetched_at="2026-09-01T00-00-04Z",
+            authenticated=False,
+            pulls=[],
+            reviews=[],
+            comments=[],
+            fidelity_ceiling="pulls+reviews",
+        )
+
+
 def test_a_snapshot_declares_how_it_was_acquired(tmp_path):
     """State grading needs the route, not just whether a token was used.
 

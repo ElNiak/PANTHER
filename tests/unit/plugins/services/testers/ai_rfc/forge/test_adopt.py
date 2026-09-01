@@ -60,6 +60,18 @@ def test_a_records_file_that_is_not_an_object_is_refused(tmp_path: Path):
         read_records(src)
 
 
+def test_a_file_that_is_not_utf_8_is_refused(tmp_path: Path):
+    """A dump from a latin-1 toolchain must be a diagnostic, not a traceback.
+
+    UnicodeDecodeError is a ValueError, so it escapes both an OSError guard
+    here and the CLI's (ForgeError, OSError) handler unless it is named.
+    """
+    src = tmp_path / "records.json"
+    src.write_bytes(b'{"pulls": []}\xff\xfe')
+    with pytest.raises(ForgeError):
+        read_records(src)
+
+
 def test_a_section_that_is_not_a_list_of_objects_is_refused(tmp_path: Path):
     src = _write(tmp_path / "records.json", {"pulls": ["not-an-object"]})
     with pytest.raises(ForgeError, match="pulls"):

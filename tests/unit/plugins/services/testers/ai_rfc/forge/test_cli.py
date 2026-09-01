@@ -110,3 +110,73 @@ def test_an_unknown_verb_exits_two(tmp_path: Path):
     with pytest.raises(SystemExit) as exit_info:
         cli.main(["harvest", "https://example.com/o/r"])
     assert exit_info.value.code == 2
+
+
+def _adopt(clone: Path, out: Path, records: Path, *extra: str) -> int:
+    return cli.main(
+        [
+            "adopt",
+            str(records),
+            "https://github.com/aiortc/aioquic",
+            "--repo",
+            str(clone),
+            "--out",
+            str(out),
+            *extra,
+        ]
+    )
+
+
+def test_adopt_writes_a_snapshot_declaring_its_route(
+    clone: Path, tmp_path: Path, capsys
+):
+    """The whole wiring — records, declaration, exit code, report — in one pass.
+
+    Every field below is read by a downstream stage, so a snapshot that adopts
+    records without them is indistinguishable from a full authenticated fetch.
+    """
+    records = tmp_path / "records.json"
+    records.write_text(
+        json.dumps({"pulls": [{"number": 7, "merged_at": "x"}], "reviews": []})
+    )
+    out = tmp_path / "forge"
+
+    assert _adopt(clone, out, records) == 0
+
+    snapshots = list((out / "github.com__aiortc__aioquic").iterdir())
+    assert len(snapshots) == 1
+    meta = json.loads((snapshots[0] / "meta.json").read_text())
+    assert meta["acquisition"] == "adopt"
+    assert meta["fidelity_ceiling"] == "pulls"
+    assert meta["authenticated"] is False
+    assert len(meta["clone_head"]) == 40
+    assert "1 pull" in capsys.readouterr().err
+
+
+def test_adopt_can_declare_a_higher_ceiling(clone: Path, tmp_path: Path):
+    """Records from a credentialed dump carry discussion a pulls-only one cannot."""
+    records = tmp_path / "records.json"
+    records.write_text(json.dumps({"pulls": []}))
+    out = tmp_path / "forge"
+
+    assert _adopt(clone, out, records, "--fidelity-ceiling", "pulls+discussion") == 0
+
+    snapshot = next((out / "github.com__aiortc__aioquic").iterdir())
+    meta = json.loads((snapshot / "meta.json").read_text())
+    assert meta["fidelity_ceiling"] == "pulls+discussion"
+
+
+def test_adopt_reports_an_unreadable_records_file_rather_than_raising(
+    clone: Path, tmp_path: Path, capsys
+):
+    """A latin-1 dump or a binary file must exit 1 with a diagnostic."""
+    records = tmp_path / "records.json"
+    records.write_bytes(b'{"pulls": []}\xff\xfe')
+
+    assert _adopt(clone, tmp_path / "forge", records) == 1
+    assert "error" in capsys.readouterr().err
+
+
+def test_adopt_refuses_a_missing_records_file(clone: Path, tmp_path: Path, capsys):
+    assert _adopt(clone, tmp_path / "forge", tmp_path / "absent.json") == 1
+    assert "error" in capsys.readouterr().err

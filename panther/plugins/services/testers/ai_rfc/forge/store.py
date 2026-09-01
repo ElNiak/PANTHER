@@ -25,6 +25,15 @@ COMMENTS_FILE = "comments.jsonl"
 #: than being stored under a permissive label.
 COMMENT_KINDS = frozenset({"review_comment", "issue_comment", "discussion_note"})
 
+#: What an acquisition route can deliver, ordered least to most. Grading reads
+#: the position rather than the word, so a route added later is compared rather
+#: than falling through to whatever the last ``elif`` happened to be.
+FIDELITY_CEILINGS: tuple[str, ...] = ("pulls", "pulls+discussion")
+
+#: The ceiling at which nothing is missing by route. A snapshot below it is
+#: as complete as its route allows, not stale.
+FULL_FIDELITY = FIDELITY_CEILINGS[-1]
+
 
 class ForgeError(RuntimeError):
     """Raised when forge data cannot be fetched or stored as intended."""
@@ -91,6 +100,13 @@ def write_snapshot(
         ForgeError: If the snapshot directory already exists, or a comment
             carries an unknown kind.
     """
+    if fidelity_ceiling not in FIDELITY_CEILINGS:
+        raise ForgeError(
+            f"fidelity_ceiling {fidelity_ceiling!r} is not one of "
+            f"{', '.join(FIDELITY_CEILINGS)}; grading reads this value, so an "
+            f"unknown one would be silently ungradeable"
+        )
+
     for comment in comments:
         if comment.get("kind") not in COMMENT_KINDS:
             raise ForgeError(

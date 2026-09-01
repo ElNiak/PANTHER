@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
+from ..forge.store import FIDELITY_CEILINGS, FULL_FIDELITY
 from ..schema import SchemaError, load
 from .stages import STAGES, Performer, Stage
 from .workspace import Workspace, digest
@@ -123,15 +124,19 @@ def _forge(ws: Workspace) -> tuple[State, str]:
     meta = _read_json(snapshot / "meta.json")
     if meta is None:
         return State.STALE, f"{snapshot.name}/meta.json is unreadable"
+    denied = meta.get("denied_subfetches", 0)
+    ceiling = meta.get("fidelity_ceiling")
+    if ceiling in FIDELITY_CEILINGS and ceiling != FULL_FIDELITY:
+        # Reported whether or not the route refused anything: adoption refuses
+        # nothing, so it is `complete` while still carrying no discussion, and
+        # grading on completeness alone would report it as a full fetch.
+        refused = f" {denied} richer endpoint(s) were refused, and" if denied else ""
+        return State.DONE, (
+            f"note: {snapshot.name} reaches {ceiling}, the ceiling of the "
+            f"route that wrote it.{refused} re-running that route cannot "
+            f"improve it. Clustering reads nothing that is missing."
+        )
     if not meta.get("complete", False):
-        denied = meta.get("denied_subfetches", 0)
-        if meta.get("fidelity_ceiling") == "pulls":
-            return State.DONE, (
-                f"note: {snapshot.name} carries pull records only. "
-                f"{denied} discussion endpoint(s) were refused, which is this "
-                f"route's ceiling — re-fetching without credentials cannot "
-                f"improve it. Clustering reads nothing that is missing."
-            )
         return State.STALE, (
             f"{snapshot.name} is incomplete: {denied} sub-fetch(es) were "
             f"denied. Set GITHUB_TOKEN or GITLAB_TOKEN and fetch again."

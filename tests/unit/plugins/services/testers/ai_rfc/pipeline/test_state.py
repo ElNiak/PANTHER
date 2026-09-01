@@ -124,6 +124,27 @@ def test_a_snapshot_incomplete_below_its_ceiling_is_stale(workspace: Path):
     assert entry.state is State.STALE
 
 
+def test_a_complete_snapshot_below_full_fidelity_still_names_its_ceiling(
+    workspace: Path,
+):
+    """An adopted pulls-only dump must not read like an authenticated fetch.
+
+    Adoption refuses nothing, so ``complete`` is true while the records still
+    carry no discussion. Grading on completeness alone would report it exactly
+    as a full fetch, losing the one distinction this declaration exists to make.
+    """
+    _write_forge_meta(
+        workspace,
+        complete=True,
+        denied_subfetches=0,
+        fidelity_ceiling="pulls",
+        acquisition="adopt",
+    )
+    entry = next(e for e in state(Workspace(root=workspace)) if e.stage.name == "forge")
+    assert entry.state is State.DONE
+    assert "pulls" in entry.reason
+
+
 def test_a_snapshot_without_a_declaration_grades_as_before(workspace: Path):
     """Snapshots are immutable, so older ones keep their recorded meaning."""
     _write_forge_meta(workspace)

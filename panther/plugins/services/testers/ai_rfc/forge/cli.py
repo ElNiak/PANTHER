@@ -13,7 +13,7 @@ from panther import __version__
 
 from .adopt import read_records
 from .fetch import Transport, fetch_pull_data, parse_url
-from .store import ForgeError, write_snapshot
+from .store import FIDELITY_CEILINGS, ForgeError, write_snapshot
 
 
 def _report(message: str) -> None:
@@ -110,6 +110,18 @@ def _parser() -> argparse.ArgumentParser:
         help="Repository URL the records describe. Nothing is fetched from it; "
         "it names the host, owner and repo the snapshot is filed under.",
     )
+    adopt.add_argument(
+        "--fidelity-ceiling",
+        choices=FIDELITY_CEILINGS,
+        default=FIDELITY_CEILINGS[0],
+        help=(
+            "The most the route that produced these records could deliver. "
+            "The default assumes pull records only; raise it only when the "
+            "records genuinely carry the discussion a full fetch would have, "
+            "because downstream reads this to decide whether anything is "
+            "recoverably missing."
+        ),
+    )
     _add_target_arguments(adopt)
 
     return parser
@@ -163,7 +175,7 @@ def main(argv: list[str] | None = None, transport: Transport | None = None) -> i
                 reviews=reviews,
                 comments=comments,
                 acquisition="adopt",
-                fidelity_ceiling="pulls",
+                fidelity_ceiling=args.fidelity_ceiling,
             )
         except (ForgeError, OSError) as error:
             _report(f"error: {error}")

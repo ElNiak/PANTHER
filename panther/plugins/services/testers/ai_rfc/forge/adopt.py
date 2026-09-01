@@ -39,7 +39,10 @@ def read_records(path: Path) -> tuple[list[Record], list[Record], list[Record]]:
     """
     try:
         payload = json.loads(path.read_text())
-    except (OSError, json.JSONDecodeError) as error:
+    except (OSError, ValueError) as error:
+        # ValueError subsumes JSONDecodeError and UnicodeDecodeError; a dump
+        # from a non-UTF-8 toolchain must reach the CLI's handler as a
+        # ForgeError rather than escaping it as a traceback.
         raise ForgeError(f"{path} could not be read as JSON: {error}") from error
 
     if not isinstance(payload, dict):
