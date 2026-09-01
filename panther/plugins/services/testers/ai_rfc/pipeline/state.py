@@ -125,6 +125,13 @@ def _forge(ws: Workspace) -> tuple[State, str]:
         return State.STALE, f"{snapshot.name}/meta.json is unreadable"
     if not meta.get("complete", False):
         denied = meta.get("denied_subfetches", 0)
+        if meta.get("fidelity_ceiling") == "pulls":
+            return State.DONE, (
+                f"note: {snapshot.name} carries pull records only. "
+                f"{denied} discussion endpoint(s) were refused, which is this "
+                f"route's ceiling — re-fetching without credentials cannot "
+                f"improve it. Clustering reads nothing that is missing."
+            )
         return State.STALE, (
             f"{snapshot.name} is incomplete: {denied} sub-fetch(es) were "
             f"denied. Set GITHUB_TOKEN or GITLAB_TOKEN and fetch again."

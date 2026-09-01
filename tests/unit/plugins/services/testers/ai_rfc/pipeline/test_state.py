@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -89,3 +90,43 @@ def test_adjudicate_and_gate_are_never_reported_done(workspace: Path):
     states = _states(workspace)
     assert states["adjudicate"] is State.BLOCKED
     assert states["gate"] is State.BLOCKED
+
+
+def _write_forge_meta(workspace: Path, **overrides) -> None:
+    snapshot = workspace / "forge" / "gitlab__o__r" / "snapshot-2026-09-01T00-00-00Z"
+    snapshot.mkdir(parents=True)
+    meta = {
+        "clone_head": "a" * 40,
+        "complete": False,
+        "denied_subfetches": 18,
+        **overrides,
+    }
+    (snapshot / "meta.json").write_text(json.dumps(meta))
+
+
+def test_a_snapshot_incomplete_at_its_ceiling_is_done(workspace: Path):
+    """No credential exists that would improve it, so it is not stale.
+
+    Reporting STALE here tells the operator to set a token they may not be
+    able to get, and hides that the reconstruction is as good as this route
+    allows.
+    """
+    _write_forge_meta(workspace, fidelity_ceiling="pulls", acquisition="api")
+    entry = next(e for e in state(Workspace(root=workspace)) if e.stage.name == "forge")
+    assert entry.state is State.DONE
+    assert "ceiling" in entry.reason
+
+
+def test_a_snapshot_incomplete_below_its_ceiling_is_stale(workspace: Path):
+    """A token was used and calls were still refused, so a retry may help."""
+    _write_forge_meta(workspace, fidelity_ceiling="pulls+discussion", acquisition="api")
+    entry = next(e for e in state(Workspace(root=workspace)) if e.stage.name == "forge")
+    assert entry.state is State.STALE
+
+
+def test_a_snapshot_without_a_declaration_grades_as_before(workspace: Path):
+    """Snapshots are immutable, so older ones keep their recorded meaning."""
+    _write_forge_meta(workspace)
+    entry = next(e for e in state(Workspace(root=workspace)) if e.stage.name == "forge")
+    assert entry.state is State.STALE
+    assert "GITLAB_TOKEN" in entry.reason

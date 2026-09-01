@@ -126,6 +126,8 @@ def main(argv: list[str] | None = None, transport: Transport | None = None) -> i
             reviews=result.reviews,
             comments=result.comments,
             denied_subfetches=result.denied_subfetches,
+            acquisition="api",
+            fidelity_ceiling="pulls+discussion" if token else "pulls",
         )
     except (ForgeError, OSError) as error:
         _report(f"error: {error}")
