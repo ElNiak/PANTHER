@@ -26,14 +26,14 @@ def _report(message: str) -> None:
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="a_rfc",
+        prog="ai_rfc",
         description=(
             "Validate a reconstructed requirement manifest: check its schema, "
             "adjudicate every claim against the promotion rule, and optionally "
             "verify repository anchors against their pinned commits."
         ),
     )
-    parser.add_argument("--version", action="version", version=f"a_rfc {__version__}")
+    parser.add_argument("--version", action="version", version=f"ai_rfc {__version__}")
     parser.add_argument("manifest", type=Path, help="Path to the YAML manifest.")
     parser.add_argument(
         "--out",

@@ -25,14 +25,14 @@ def _report(message: str) -> None:
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="a_rfc.history",
+        prog="ai_rfc.history",
         description=(
             "Extract a repository's commit history into a deterministic JSONL "
             "corpus, with an optional SQLite index for querying."
         ),
     )
     parser.add_argument(
-        "--version", action="version", version=f"a_rfc.history {__version__}"
+        "--version", action="version", version=f"ai_rfc.history {__version__}"
     )
     parser.add_argument("repo", type=Path, help="Path to an existing clone.")
     parser.add_argument(

@@ -124,13 +124,25 @@ def attribute_claims(
     previous_digest: str | None = None
     for name, record in checkpoint_records(checkpoints_dir):
         held = _claim_ids(checkpoints_dir / name)
-        digest = record["manifest_sha256"]
-        by_cluster[record["cluster_id"]] = ClusterCompleteness(
-            cluster_id=record["cluster_id"],
-            ordinal=record["ordinal"],
+        try:
+            digest = record["manifest_sha256"]
+            cluster_id = record["cluster_id"]
+            ordinal = record["ordinal"]
+        except KeyError as error:
+            raise CompletenessError(
+                f"{checkpoints_dir / name}: checkpoint record is missing {error}"
+            ) from error
+        # The state before any checkpoint is the empty manifest, not "unknown",
+        # so the first one changed something only if it holds something.
+        # Comparing against None instead made every first checkpoint differ,
+        # and a first checkpoint holding nothing is exactly what silent means.
+        changed = bool(held) if previous_digest is None else digest != previous_digest
+        by_cluster[cluster_id] = ClusterCompleteness(
+            cluster_id=cluster_id,
+            ordinal=ordinal,
             checkpointed=True,
             new_claim_ids=tuple(sorted(held - seen)),
-            manifest_changed=digest != previous_digest,
+            manifest_changed=changed,
         )
         seen = seen | held
         previous_digest = digest
@@ -158,7 +170,9 @@ def citation_gaps(
     Args:
         draft_repo: The nested prose-draft git repository.
         revisions_path: Path to ``revisions.yaml``.
-        claim_ids: Every claim id the reconstruction currently holds.
+        claim_ids: The ids to look for. :func:`build` passes the union of every
+            checkpointed manifest, so a claim mined but never frozen is not
+            counted as uncited — that is ``manifest_drift``'s question.
 
     Returns:
         Two tuples: ids uncited at the highest-numbered revision tag, and ids

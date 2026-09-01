@@ -1,4 +1,4 @@
-"""Conventions every a_rfc entry point holds to.
+"""Conventions every ai_rfc entry point holds to.
 
 The substrate is six independent ``python -m`` commands that a human and an
 agent both drive, so the properties that make them scriptable are worth
@@ -27,14 +27,14 @@ pytestmark = pytest.mark.unit
 #: the whole failure this file exists to prevent — so adding one is part of
 #: adding the sub-package.
 ENTRY_POINTS = (
-    ("a_rfc", root_cli),
-    ("a_rfc.draft", draft_cli),
+    ("ai_rfc", root_cli),
+    ("ai_rfc.draft", draft_cli),
     ("ai_rfc.forge", forge_cli),
-    ("a_rfc.history", history_cli),
-    ("a_rfc.pipeline", pipeline_cli),
-    ("a_rfc.coverage", coverage_cli),
-    ("a_rfc.timeline", timeline_cli),
-    ("a_rfc.views", views_cli),
+    ("ai_rfc.history", history_cli),
+    ("ai_rfc.pipeline", pipeline_cli),
+    ("ai_rfc.coverage", coverage_cli),
+    ("ai_rfc.timeline", timeline_cli),
+    ("ai_rfc.views", views_cli),
 )
 
 

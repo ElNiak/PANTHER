@@ -37,14 +37,14 @@ exit-code contract.
 
 | Command | Purpose |
 |---|---|
-| `a_rfc` | Validate a manifest; adjudicate claims; verify anchors |
-| `a_rfc.pipeline` | `status`, `run` — drive the deterministic stages |
-| `a_rfc.history` | Extract a commit corpus from a clone |
+| `ai_rfc` | Validate a manifest; adjudicate claims; verify anchors |
+| `ai_rfc.pipeline` | `status`, `run` — drive the deterministic stages |
+| `ai_rfc.history` | Extract a commit corpus from a clone |
 | `ai_rfc.forge` | Fetch PR and review evidence from GitHub or GitLab |
-| `a_rfc.timeline` | Cluster the corpus into an ordered timeline |
-| `a_rfc.views` | Emit per-cluster evidence bundles |
-| `a_rfc.draft` | `checkpoint`, `gate`, `completeness` |
-| `a_rfc.coverage` | Propose runtime anchors from a coverage report |
+| `ai_rfc.timeline` | Cluster the corpus into an ordered timeline |
+| `ai_rfc.views` | Emit per-cluster evidence bundles |
+| `ai_rfc.draft` | `checkpoint`, `gate`, `completeness` |
+| `ai_rfc.coverage` | Propose runtime anchors from a coverage report |
 
 ## Exit codes
 

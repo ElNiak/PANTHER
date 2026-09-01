@@ -35,7 +35,7 @@ def _report(message: str) -> None:
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="a_rfc.coverage",
+        prog="ai_rfc.coverage",
         description=(
             "Propose runtime anchors for the claims whose cited code lines a "
             "test run actually reached. Writes proposals; never edits the "
@@ -51,7 +51,7 @@ def _parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
-        "--version", action="version", version=f"a_rfc.coverage {__version__}"
+        "--version", action="version", version=f"ai_rfc.coverage {__version__}"
     )
     parser.add_argument("manifest", type=Path, help="The manifest to corroborate.")
     parser.add_argument(

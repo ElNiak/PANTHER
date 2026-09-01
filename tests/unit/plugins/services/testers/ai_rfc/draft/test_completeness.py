@@ -89,6 +89,42 @@ def test_later_checkpoint_owns_only_its_additions(
     assert by_ordinal[2].manifest_changed is True
 
 
+def test_a_first_checkpoint_holding_nothing_is_silent(
+    tmp_path: Path, timeline_dir: Path
+) -> None:
+    """The state before any checkpoint is the empty manifest, not "unknown".
+
+    Seeding the previous digest with None made the first checkpoint always
+    compare unequal, so it could never be reported silent — the one case the
+    measure exists to catch.
+    """
+    first = completeness.load_clusters(timeline_dir)[0]["id"]
+    root = tmp_path / "empty-checkpoints"
+    directory = root / first
+    directory.mkdir(parents=True)
+    (directory / "manifest.yaml").write_text(
+        "rfc: DEMO-1\ntitle: demo\nrequirements: {}\n"
+    )
+    (directory / "checkpoint.json").write_text(
+        json.dumps(
+            {
+                "adjudication": {},
+                "cluster_id": first,
+                "manifest_sha256": "a" * 64,
+                "ordinal": 1,
+                "prev_cluster_id": None,
+                "timeline_sha256": "1" * 64,
+            },
+            sort_keys=True,
+        )
+    )
+
+    rows = completeness.attribute_claims(timeline_dir, root)
+
+    assert rows[0].new_claim_ids == ()
+    assert rows[0].manifest_changed is False
+
+
 def test_uncheckpointed_clusters_are_reported_as_such(
     sparse_workspace: dict[str, Path],
 ) -> None:

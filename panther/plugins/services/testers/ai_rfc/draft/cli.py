@@ -30,14 +30,15 @@ def _report(message: str) -> None:
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="a_rfc.draft",
+        prog="ai_rfc.draft",
         description=(
-            "Freeze manifest checkpoints against timeline clusters, and gate "
-            "a prose draft's revision map against them."
+            "Freeze manifest checkpoints against timeline clusters, gate a "
+            "prose draft's revision map against them, and measure how much of "
+            "the timeline the reconstruction has actually specified."
         ),
     )
     parser.add_argument(
-        "--version", action="version", version=f"a_rfc.draft {__version__}"
+        "--version", action="version", version=f"ai_rfc.draft {__version__}"
     )
     verbs = parser.add_subparsers(dest="verb", required=True)
 
