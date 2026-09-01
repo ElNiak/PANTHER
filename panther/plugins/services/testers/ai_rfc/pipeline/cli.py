@@ -12,6 +12,8 @@ from panther import __version__
 from .run import PipelineError, perform, workspace_from
 from .stages import BY_NAME, STAGES, Performer
 from .state import next_stage, state
+from .substrate import check
+from .workspace import Workspace
 
 
 def _report(message: str) -> None:
@@ -45,6 +47,12 @@ def _parser() -> argparse.ArgumentParser:
         dest="as_json",
         help="Emit pipeline-status.json to stdout instead of a table.",
     )
+
+    substrate = verbs.add_parser(
+        "substrate",
+        help="Check that the pinned clone can carry a reconstruction.",
+    )
+    substrate.add_argument("workspace", type=Path, help="The workspace root.")
 
     run = verbs.add_parser("run", help="Perform the deterministic stages.")
     run.add_argument("workspace", type=Path, help="The workspace root.")
@@ -237,6 +245,11 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 _print_status(payload)
             return 0
+        if args.verb == "substrate":
+            problems = check(Workspace(root=args.workspace).clone)
+            for problem in problems:
+                _report(f"error: {problem}")
+            return 1 if problems else 0
         return _run(args)
     except (PipelineError, OSError) as error:
         _report(f"error: {error}")
