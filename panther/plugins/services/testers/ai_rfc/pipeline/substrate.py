@@ -29,6 +29,26 @@ def _git(clone: Path, *args: str) -> tuple[int, str]:
     return completed.returncode, completed.stdout.strip()
 
 
+def _owns_its_git_dir(clone: Path) -> bool:
+    """Whether ``clone`` is itself a repository rather than merely inside one.
+
+    ``git rev-parse`` answers for the nearest enclosing repository, so every
+    question below it would otherwise be answered about an ancestor — calling a
+    directory that was never cloned healthy, and attributing that ancestor's
+    shallowness to it. Bounding the git directory to the clone is what makes
+    the remaining checks describe the clone.
+    """
+    code, git_dir = _git(clone, "rev-parse", "--absolute-git-dir")
+    if code != 0:
+        return False
+    try:
+        resolved = Path(git_dir).resolve()
+        root = clone.resolve()
+    except OSError:
+        return False
+    return resolved == root or root in resolved.parents
+
+
 def check(clone: Path) -> list[str]:
     """Every reason this clone cannot carry a reconstruction.
 
@@ -41,7 +61,7 @@ def check(clone: Path) -> list[str]:
     """
     if not clone.exists():
         return [f"{clone} does not exist; {_OFFLINE_REMEDY}"]
-    if _git(clone, "rev-parse", "--git-dir")[0] != 0:
+    if not _owns_its_git_dir(clone):
         return [f"{clone} is not a git repository; {_OFFLINE_REMEDY}"]
 
     problems: list[str] = []

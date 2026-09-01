@@ -59,6 +59,34 @@ def test_a_directory_that_is_not_a_repository_is_named(tmp_path: Path):
     assert any("not a git repository" in p for p in check(plain))
 
 
+def test_a_plain_directory_inside_a_repository_is_not_mistaken_for_a_clone(
+    workspace: Path,
+):
+    """``git rev-parse`` answers for the nearest enclosing repository.
+
+    A clone that was never made is the likeliest substrate error, and the
+    workspace usually sits inside some other checkout — so a check that asks
+    git without bounding the answer calls the empty directory healthy and
+    leaves ``_pin`` to catch it a stage later, which is what this verb exists
+    to prevent.
+    """
+    nested = workspace / "clone" / "never-cloned"
+    nested.mkdir()
+    assert any("not a git repository" in p for p in check(nested))
+
+
+def test_a_shallow_enclosing_repository_is_not_reported_as_the_clone(
+    workspace: Path, tmp_path: Path
+):
+    """Answering from an ancestor also invents problems, not just hides them."""
+    truncated = _clone(workspace / "clone", tmp_path / "enclosing", "--depth", "1")
+    nested = truncated / "never-cloned"
+    nested.mkdir()
+    problems = check(nested)
+    assert any("not a git repository" in p for p in problems)
+    assert not any("is shallow" in p for p in problems)
+
+
 def test_the_verb_exits_one_when_the_clone_cannot_carry_a_reconstruction(
     tmp_path: Path, capsys
 ):
