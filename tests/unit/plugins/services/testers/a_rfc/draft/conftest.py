@@ -191,3 +191,46 @@ def manifest_path(tmp_path: Path) -> Path:
         "    question-id: q-001\n"
     )
     return path
+
+
+@pytest.fixture
+def sparse_workspace(tmp_path: Path, timeline_dir: Path) -> dict[str, Path]:
+    """A workspace of two clusters with only the first checkpointed.
+
+    Laid out so ``tmp_path`` itself is a valid workspace root: the completeness
+    verb derives every input from it.
+    """
+    epoch_id = read_clusters(timeline_dir)[0]["id"]
+
+    manifest = tmp_path / "manifest.yaml"
+    manifest.write_text(_manifest_text(with_second_claim=False))
+    checkpoints = tmp_path / "checkpoints"
+    checkpoint = write_checkpoint(manifest, timeline_dir, epoch_id, checkpoints)
+
+    repo = tmp_path / "draft"
+    repo.mkdir()
+    git(repo, "init", "-b", "main")
+    git(repo, "config", "user.email", "t@t")
+    git(repo, "config", "user.name", "t")
+    (repo / "draft-test-spec.md").write_text("# Spec\n\nNo citations yet.\n")
+    git(repo, "add", "draft-test-spec.md")
+    git(repo, "commit", "-m", "revision 00")
+    git(repo, "tag", "draft-test-spec-00")
+
+    revisions = tmp_path / "revisions.yaml"
+    revisions.write_text(
+        "revisions:\n"
+        "  draft-test-spec-00:\n"
+        f"    cluster_id: {epoch_id}\n"
+        f"    checkpoint_manifest_sha256: {_checkpoint_sha(checkpoint)}\n"
+        "    normative_change: true\n"
+        "    note: 'initial reconstruction'\n"
+    )
+    return {
+        "root": tmp_path,
+        "repo": repo,
+        "timeline": timeline_dir,
+        "checkpoints": checkpoints,
+        "manifest": manifest,
+        "revisions": revisions,
+    }
