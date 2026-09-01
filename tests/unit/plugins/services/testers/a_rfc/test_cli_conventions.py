@@ -9,11 +9,11 @@ import pytest
 
 from panther import __version__
 from panther.plugins.services.testers.a_rfc import cli as root_cli
+from panther.plugins.services.testers.a_rfc.coverage import cli as coverage_cli
 from panther.plugins.services.testers.a_rfc.draft import cli as draft_cli
 from panther.plugins.services.testers.a_rfc.forge import cli as forge_cli
 from panther.plugins.services.testers.a_rfc.history import cli as history_cli
 from panther.plugins.services.testers.a_rfc.pipeline import cli as pipeline_cli
-from panther.plugins.services.testers.a_rfc.runtime import cli as runtime_cli
 from panther.plugins.services.testers.a_rfc.timeline import cli as timeline_cli
 from panther.plugins.services.testers.a_rfc.views import cli as views_cli
 
@@ -29,7 +29,7 @@ ENTRY_POINTS = (
     ("a_rfc.forge", forge_cli),
     ("a_rfc.history", history_cli),
     ("a_rfc.pipeline", pipeline_cli),
-    ("a_rfc.runtime", runtime_cli),
+    ("a_rfc.coverage", coverage_cli),
     ("a_rfc.timeline", timeline_cli),
     ("a_rfc.views", views_cli),
 )

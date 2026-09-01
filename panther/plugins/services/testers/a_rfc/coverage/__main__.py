@@ -1,4 +1,4 @@
-"""Allow ``python -m panther.plugins.services.testers.a_rfc.runtime``."""
+"""Allow ``python -m panther.plugins.services.testers.a_rfc.coverage``."""
 
 import sys
 

@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from panther.plugins.services.testers.a_rfc.runtime.jacoco import CoverageError, read
+from panther.plugins.services.testers.a_rfc.coverage.jacoco import CoverageError, read
 
 pytestmark = pytest.mark.unit
 

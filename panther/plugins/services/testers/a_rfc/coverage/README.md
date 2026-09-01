@@ -1,4 +1,4 @@
-# `runtime/` — turning a test run into anchors
+# `coverage/` — turning a test run into anchors
 
 `runtime` is the strongest evidence class the promotion rule recognises and,
 short of a developer signature, the only route that moves
@@ -56,7 +56,7 @@ by construction rather than by coincidence.
 ## Command
 
 ```bash
-python -m …a_rfc.runtime MANIFEST --coverage jacoco.xml --format jacoco \
+python -m …a_rfc.coverage MANIFEST --coverage jacoco.xml --format jacoco \
     --repo path/to/clone --commit <sha> --out out/
 ```
 

@@ -6,8 +6,8 @@ import pytest
 import yaml
 
 from panther.plugins.services.testers.a_rfc.anchors import verify_detailed
+from panther.plugins.services.testers.a_rfc.coverage import cli
 from panther.plugins.services.testers.a_rfc.models import Anchor, EvidenceClass
-from panther.plugins.services.testers.a_rfc.runtime import cli
 from panther.plugins.services.testers.a_rfc.schema import load
 
 from .conftest import manifest_text
