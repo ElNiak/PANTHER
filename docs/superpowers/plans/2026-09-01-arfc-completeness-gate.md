@@ -1128,7 +1128,7 @@ Ordering is forced by file ownership, not preference.
 | 2. Defects | A1 `guard.py` fail-open (`:29-32` catches only `JSONDecodeError`/`ValueError`, so a non-dict payload raises `AttributeError`, exits 1, and the hook **fails open** — only exit 2 blocks); A2b `experiment/cli.py`'s undocumented exit 2; A3 absence notes for `timeline --repo` and `views --forge`; A4 ~25 missing `help=` on the agent-facing `ai_rfc_server/cli.py` plus its `:161` docstring; A5 five missing `__main__` guards | Disjoint files; the only genuine fan-out |
 | 3. Simplification | SHA-256 helper duplicated ~10×, filename triplet in 4 places, `MCP_FILE`/`MCP_CONFIG`, `RAW_PREFIX`/`RAW_SUBSTRATE`, hardcoded markdown column counts | **Before** the rename, so each renamed literal has exactly one definition site |
 | 4. Naming `arfc`→`ai_rfc` | C1 internal (`class1`/`class2` → `mcp_surface_errors`/`bash_surface_errors`; `profile.py` → `login_profile.py`; `AI_RFC_ROOT` → `_plugin_root`); C2 env vars; C3 console script; C4 dual-accept citation regex; C5 MCP key + 16 tool names | Strictly by blast radius, one commit per tier |
-| 5. Sweep driver | `ai_rfc/sweep/` — resume derived from disk (the artifact triple, since `checkpoint.py:68-73` poisons blind retry), budget-capped, timeline digest pinned. Note `pipeline.next_stage()` **cannot** drive the loop: it is workspace-granular and returns `DONE` after the first claim (`state.py:180-191`) | Needs this plan's completeness gate as its success measure |
+| 5. Sweep driver | **Superseded — see "Plan 5, corrected" below.** The `ai_rfc/sweep/` package this row described duplicates `experiment/per_cluster.py`, which already exists and is tested | Needs this plan's completeness gate as its success measure |
 
 ## Status as of 2026-09-01
 
@@ -1196,3 +1196,61 @@ Per tier: full suite green, then re-run `draft gate --strict` and
 `draft completeness` against `reconstructions/mark`. For 6.6 specifically, the
 gate result is the *point* of the tier — decide the MARK question first, then
 make the gate prove the chosen outcome rather than discovering it.
+
+---
+
+## Plan 5, corrected — do not build `sweep/`
+
+**Superseded design.** This plan specified a new `ai_rfc/sweep/` package of five
+modules. Reading `experiment/per_cluster.py` shows that package would duplicate
+tested machinery. Its own module docstring states the case it was written for:
+
+> "The pilot ran a whole window in a single session. Over ten clusters that is
+> fine; **over sixty-nine it is not** … Progress is durable between sessions
+> because it is the workspace: checkpoints, revisions and tags are on disk, and
+> the next cluster is derived from them rather than remembered."
+
+Point by point, `per_cluster.py` already provides what the `sweep/` design
+proposed: one agent session per cluster; resume **derived from disk** rather
+than remembered (`next_cluster` reads `cluster_artifacts` each iteration); a
+budget that caps the **run**, not the session, with the remainder handed to each
+session; cost re-read from the transcript through a `seen` cursor precisely
+because a cap-killed session emits no result event; a wall-clock cap; a
+per-session ledger in `sessions.jsonl` recording cluster, attempt, exit code,
+cost, cumulative cost, budget given and argv; `ATTEMPTS_PER_CLUSTER = 2`; and a
+deliberate refusal to skip a failed cluster and continue, because "later
+clusters' prose builds on earlier prose, and a draft with a hole in it is worse
+than a short one."
+
+Building a parallel package would be the same search-before-creating error this
+plan already caught twice (the SHA-256 helpers the README had justified, and
+`class1`/`class2`, which are the protocol's binding taxonomy).
+
+### The actual delta — three items, S/M not L
+
+**5a. The pristine digest is frozen but never re-verified.** `init_campaign`
+records `pristine_sha256` over every file in the template
+(`config.py:313`, `workspace.py:251`), which includes `timeline/clusters.jsonl`
+and `timeline/timeline.json`. Nothing compares it again. A template regenerated
+between runs of one campaign therefore shifts ordinals under a frozen run order
+with nothing raised. Verify it before each run and refuse on mismatch. This is
+the one genuinely new safety mechanism the `sweep/` design contributed.
+
+**5b. A partial checkpoint is opaque, not poisonous.** Confirmed mechanism:
+`write_checkpoint` raises `CheckpointError` when the directory exists
+(`draft/checkpoint.py:68-73`), and `cluster_artifacts` reports `artifacts:
+False` for checkpoint-without-tag, so the cluster is retried. Whether attempt 2
+actually dies depends on whether the agent recovers from the refusal — unverified
+without a live run, so treat as latent. The cheap fix is a **named diagnosis**
+before the retry, not a state machine: an operator should be told "checkpoint
+present, tag missing" rather than watching two attempts burn silently.
+
+**5c. "The whole timeline" is configuration, not code.** `window_clusters` reads
+the pristine record's inclusive `(low, high)` from `Target.window`
+(`workspace.py:59`). A production sweep is a target whose window spans the whole
+timeline, run with `session_mode="per-cluster"`. No new driver is required —
+this is a documented invocation.
+
+**Explicitly out of scope:** unwinding arms/repeats/seed from `Campaign`. A
+production run leaving experiment fields at defaults is tolerable; those fields
+have readers in the frozen pilot's artifacts.
