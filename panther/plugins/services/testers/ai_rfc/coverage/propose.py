@@ -70,7 +70,10 @@ def propose(
     Raises:
         PinError: If the checkout is not at ``commit`` or is dirty.
     """
-    require_clean_checkout(repo, commit)
+    # Everything below uses what the ref resolved to, never what was typed. A
+    # branch or tag names a commit today and may name another tomorrow, so
+    # recording the given string would pin an anchor to something that moves.
+    commit = require_clean_checkout(repo, commit)
     index = path_index(repo, commit)
 
     proposals: list[AnchorProposal] = []

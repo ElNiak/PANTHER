@@ -54,8 +54,10 @@ ran a sub-CLI by hand, which the authoring loop actively tells them to do.
 `status --json` emits a record for a driver to read; nothing reads it back as
 authority.
 
-Five states: `done`, `stale` (produced, but an input moved), `pending`,
-`blocked` (something upstream is not ready), and `re-derivable`.
+Six states: `done`, `partial` (produced for some of its units but not all —
+what exists is correct and stays, so the stage is resumed rather than re-run),
+`stale` (produced, but an input moved), `pending`, `blocked` (something
+upstream is not ready), and `re-derivable`.
 
 `adjudicate` and `gate` are `re-derivable`: both are pure and take
 milliseconds, and their output carries no digest of its input. Adding one to

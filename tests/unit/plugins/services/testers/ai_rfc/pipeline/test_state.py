@@ -7,6 +7,7 @@ from panther.plugins.services.testers.ai_rfc.pipeline import cli
 from panther.plugins.services.testers.ai_rfc.pipeline.state import (
     State,
     _checkpoint,
+    _cluster_ids,
     next_stage,
     state,
 )
@@ -81,6 +82,49 @@ def test_views_emitted_from_an_older_timeline_are_stale(workspace: Path):
     assert _states(workspace)["views"] is State.STALE
 
 
+def test_a_partly_checkpointed_workspace_is_not_reported_as_finished(
+    workspace: Path, capsys
+):
+    """The symptom itself, end to end: the answer `pipeline status` prints.
+
+    The defect was never in a predicate a caller reads directly — it was that
+    `status` said "nothing outstanding" for a reconstruction barely begun, and
+    `next_stage` returned None so no driver was told to continue. Asserting the
+    predicate alone would have left that unguarded, and building the chain is
+    also what exercises the real cluster ids the count is taken over.
+    """
+    assert cli.main(["run", str(workspace)]) == 0
+    (workspace / "manifest.yaml").write_text(
+        "rfc: T\ntitle: 'Fixture'\nrequirements:\n"
+        "  't:1':\n"
+        "    text: 'A claim.'\n"
+        "    section: '1'\n"
+        "    level: MUST\n"
+        "    layer: transport\n"
+        "    status: gap\n"
+    )
+    ids = _cluster_ids(Workspace(root=workspace))
+    assert len(ids) > 1, "a one-cluster timeline cannot express partial"
+    checkpoint = workspace / "checkpoints" / ids[0]
+    checkpoint.mkdir(parents=True)
+    (checkpoint / "checkpoint.json").write_text("{}")
+
+    entries = {entry.stage.name: entry for entry in state(Workspace(root=workspace))}
+    assert entries["checkpoint"].state is State.PARTIAL
+    assert entries["checkpoint"].reason == f"1 of {len(ids)} cluster(s) checkpointed"
+
+    # Something is outstanding, which is the whole point. It is `prose` rather
+    # than `checkpoint` because this fixture has no draft repository and prose
+    # is the earlier stage — correct, and the reason the assertion is that a
+    # stage is returned at all rather than which one.
+    assert next_stage(Workspace(root=workspace)) is not None
+
+    assert cli.main(["status", str(workspace)]) == 0
+    printed = capsys.readouterr().out
+    assert "nothing outstanding" not in printed
+    assert f"partial — 1 of {len(ids)} cluster(s) checkpointed" in printed
+
+
 def test_adjudicate_and_gate_are_never_reported_done(workspace: Path):
     """Both are pure and cheap, so the runner performs them rather than probing.
 
@@ -107,7 +151,12 @@ def _checkpointed(workspace: Path, *, of: int, frozen: int) -> tuple[State, str]
         "\n".join(json.dumps({"id": f"c{n:04d}"}) for n in range(1, of + 1)) + "\n"
     )
     for n in range(1, frozen + 1):
-        (workspace / "checkpoints" / f"c{n:04d}").mkdir(parents=True, exist_ok=True)
+        directory = workspace / "checkpoints" / f"c{n:04d}"
+        directory.mkdir(parents=True, exist_ok=True)
+        # The record, not just the directory: write_checkpoint creates the
+        # directory first, so one without a record is a checkpoint interrupted
+        # mid-write rather than a frozen cluster.
+        (directory / "checkpoint.json").write_text("{}")
     return _checkpoint(Workspace(root=workspace), State.DONE)
 
 

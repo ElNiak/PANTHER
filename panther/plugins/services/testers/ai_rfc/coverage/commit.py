@@ -26,7 +26,7 @@ def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def require_clean_checkout(repo: Path, commit: str) -> None:
+def require_clean_checkout(repo: Path, commit: str) -> str:
     """Refuse unless the repository is at ``commit`` with nothing uncommitted.
 
     Coverage describes the code that ran. If HEAD has moved, or the tree holds
@@ -35,7 +35,14 @@ def require_clean_checkout(repo: Path, commit: str) -> None:
 
     Args:
         repo: The clone the coverage run was produced from.
-        commit: The commit the report is to be bound to.
+        commit: The commit the report is to be bound to. Any revision git can
+            peel to a commit is accepted, including a branch or a tag.
+
+    Returns:
+        The commit id ``commit`` resolved to. Callers record this rather than
+        what they were given: ``main`` and ``v1`` name a commit today and a
+        different one tomorrow, and an anchor pinned to a moving ref is not
+        pinned at all.
 
     Raises:
         PinError: If the repository is not at that commit, or is dirty.
@@ -63,6 +70,7 @@ def require_clean_checkout(repo: Path, commit: str) -> None:
             f"{repo} has uncommitted changes; the lines that ran are not the "
             f"lines {commit[:12]} contains"
         )
+    return resolved.stdout.strip()
 
 
 def path_index(repo: Path, commit: str) -> dict[str, list[str]]:

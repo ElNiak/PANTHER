@@ -212,11 +212,20 @@ def _mining(ws: Workspace, views: State) -> tuple[State, str]:
 def _checkpoint(ws: Workspace, mining: State) -> tuple[State, str]:
     if mining is not State.DONE:
         return State.BLOCKED, "there is no manifest to freeze"
-    total = len(_cluster_ids(ws))
-    frozen = (
-        sum(1 for entry in ws.checkpoints.iterdir() if entry.is_dir())
-        if ws.checkpoints.is_dir()
-        else 0
+    # Counted per cluster id, not per directory. A checkpoint directory is
+    # named for its cluster, written once and never pruned, so a re-clustering
+    # that changes ids leaves orphans behind — and a bare directory count then
+    # reads "2 of 2" for a timeline whose second cluster was never frozen at
+    # all, which is the false "done" this whole state exists to prevent.
+    #
+    # A directory alone is also not a checkpoint: ``write_checkpoint`` creates
+    # it before writing the record, so a kill between the two leaves one that
+    # holds nothing. Requiring the record matches what ``draft/completeness``
+    # and the harness's own metrics already count, so the three agree.
+    ids = _cluster_ids(ws)
+    total = len(ids)
+    frozen = sum(
+        1 for cid in ids if (ws.checkpoints / cid / "checkpoint.json").is_file()
     )
     if not frozen:
         return State.PENDING, f"no cluster checkpointed of {total}"

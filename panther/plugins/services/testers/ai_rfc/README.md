@@ -471,7 +471,8 @@ coupling the file-on-disk boundary exists to prevent:
 |---|---|
 | `_git` subprocess call | `anchors.py` · `draft/gate.py` · `coverage/commit.py` · `history/git_log.py` · `pipeline/substrate.py` |
 | stderr `_report` | `cli.py` · `coverage/cli.py` · `draft/cli.py` · `forge/cli.py` · `history/cli.py` · `pipeline/cli.py` · `timeline/cli.py` · `views/cli.py` |
-| SHA-256 `_digest` | `history/index.py` · `timeline/store.py` · `views/emit.py` · `draft/checkpoint.py` |
+| SHA-256 `_digest` (path → hex) | `history/index.py` · `timeline/store.py` · `views/emit.py` |
+| SHA-256 `_digest_bytes` (bytes → hex) | `draft/checkpoint.py` · `views/emit.py` |
 | JSONL corpus readers | `history/store.py` · `timeline/corpus.py` · `views/emit.py` |
 | Forge snapshot readers | `forge/store.py` · `timeline/cli.py` · `views/emit.py` · `pipeline/state.py` · `pipeline/workspace.py` |
 
@@ -480,6 +481,10 @@ The `_git` wrappers deliberately omit `subprocess.run(check=True)`:
 distinguish "no such path" (a result) from "no such commit" (an error). The
 `_report` helpers write to stderr rather than logging, for the reason in the
 next section.
+
+`pipeline/workspace.py` holds a sixth digest, public and named `digest`, doing
+the same path-to-hex work. It is not in the table because one definition is not
+a duplication — but it is the natural home if these are ever consolidated.
 
 **The five `_git` copies are not one helper wearing five hats.** Only three —
 `anchors.py`, `draft/gate.py` and `coverage/commit.py` — share a contract,

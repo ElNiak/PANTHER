@@ -27,7 +27,7 @@ def _git(repo: Path, *args: str) -> str:
 
 def test_a_clean_tree_at_the_commit_is_accepted(java_repo):
     repo, head = java_repo
-    assert require_clean_checkout(repo, head) is None
+    assert require_clean_checkout(repo, head) == head
 
 
 def test_a_directory_that_is_not_a_repository_is_refused(tmp_path):
@@ -65,7 +65,18 @@ def test_an_annotated_tag_on_the_head_commit_is_accepted(java_repo):
     """
     repo, head = java_repo
     _git(repo, "tag", "-a", "v1", "-m", "release", head)
-    assert require_clean_checkout(repo, "v1") is None
+
+    # The commit id, never the tag: `v1` names this commit today and may name
+    # another tomorrow, and callers record what comes back here. `rev-parse v1`
+    # alone would have returned the tag object's own id, which is not a commit
+    # at all and would match nothing.
+    assert require_clean_checkout(repo, "v1") == head
+
+
+def test_a_branch_resolves_to_the_commit_it_currently_names(java_repo):
+    """The same hazard, and the one that predates the peeling: a branch moves."""
+    repo, head = java_repo
+    assert require_clean_checkout(repo, "main") == head
 
 
 def test_a_head_that_moved_past_the_commit_is_refused(java_repo):

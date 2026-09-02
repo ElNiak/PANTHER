@@ -82,8 +82,10 @@ def test_importing_an_entry_point_does_not_run_it(prog, module):
 PACKAGE_ROOT = Path(root_cli.__file__).parent
 
 #: Helpers the README's "Known duplication to consolidate" table tracks by
-#: hand, keyed by the name in its first column.
-TRACKED_HELPERS = ("_report", "_git")
+#: hand, keyed by the name in its first column. Every row naming a function
+#: belongs here: a row left uncovered is the one that silently passes, and the
+#: register then reads as verified while being wrong.
+TRACKED_HELPERS = ("_report", "_git", "_digest", "_digest_bytes")
 
 
 def _package_sources() -> list[Path]:
@@ -107,8 +109,22 @@ def _defines(helper: str) -> set[str]:
 
 
 def _declared(helper: str) -> set[str]:
-    """Modules the README's table lists as holding a copy of ``helper``."""
-    for line in (PACKAGE_ROOT / "README.md").read_text().splitlines():
+    """Modules the README's table lists as holding a copy of ``helper``.
+
+    Anchored to the table's own heading rather than scanning the whole file:
+    any other pipe-delimited line naming the same helper would otherwise shadow
+    the real row, and the test would then assert against something that is not
+    the register.
+    """
+    lines = (PACKAGE_ROOT / "README.md").read_text().splitlines()
+    start = next(
+        index
+        for index, line in enumerate(lines)
+        if line.startswith("## Known duplication to consolidate")
+    )
+    for line in lines[start:]:
+        if line.startswith("## ") and not line.startswith("## Known duplication"):
+            break
         cells = [cell.strip() for cell in line.split("|")]
         if len(cells) > 2 and f"`{helper}`" in cells[1]:
             return set(re.findall(r"`([^`]+\.py)`", cells[2]))
@@ -126,4 +142,8 @@ def test_the_duplication_table_names_every_copy(helper):
     the row. A hand-maintained register of hand-maintained copies drifts unless
     something counts them, so this counts them.
     """
-    assert _declared(helper) == _defines(helper)
+    defined = _defines(helper)
+    # Guards the vacuous pass: a helper consolidated away, leaving an emptied
+    # row nobody deleted, would otherwise match set() against set().
+    assert defined, f"{helper} is in the table but defined nowhere"
+    assert _declared(helper) == defined
