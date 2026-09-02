@@ -1202,3 +1202,73 @@ delivery truncated twice and the remainder did not arrive before this report was
 and S-7 — a silent 200-row truncation, an unsanitized transcript path, and a tamper check
 that digests the wrong file — plus the whole of C-1's sign-off chain, stay open until after
 the main experiment run.
+
+### Reader `server` — further findings
+
+**server-13** · `queries.py:71-75` · correctness
+`_processed_cluster_ids` counts **any directory** under `checkpoints/` as a processed
+cluster — `{entry.name for entry in checkpoints.iterdir() if entry.is_dir()}`, with no
+check that it holds a manifest. Filed as "Important if anything else writes there; Minor
+otherwise", and the reviewer then escalated it itself on learning the arm definitions: an
+agent with `Write` can create those directories.
+SEVERITY: Important — confirmed. The mechanism is real: `queries.py:69-75` validates
+nothing, and `arms.py:21,46,53,60` give `Write` to every arm while `enforcement.py:208`
+guards only `Bash`. **Not exercised in the pilot**: all **2,052** checkpoint directories
+across the six pilot run workspaces contain a `manifest.yaml`; zero are bare. So the
+progress metric is forgeable, and the pilot's own progress figures were not forged.
+
+**server-14** · `queries.py:130-132` · correctness
+`patch_offset`/`patch_limit` are unvalidated; a negative offset silently returns a tail
+slice.
+SEVERITY: Minor — confirmed by inspection; `patch_total_bytes` makes it detectable.
+
+**server-15** · `queries.py:40`, `history/index.py:123` · security
+Agent-supplied SQL runs on a read-write sqlite handle, guarded only by a leading-`select`
+regex.
+SEVERITY: Minor — confirmed by inspection; no data-modifying CTEs are reachable, `execute`
+refuses multi-statements, and extensions are off by default.
+
+**server-16** · `gates.py:23`, `draft.py:21` · resource
+No `timeout` on any `subprocess.run`, so a wedged stage hangs the tool call indefinitely.
+SEVERITY: Important if any invoked stage can block; Minor otherwise — **unsettled**; needs
+a trace into the substrate stages. Sibling of S-3 (`urlopen` without a timeout) on the
+process side rather than the network side.
+
+**server-17** · `cli.py:285` · doc-drift
+The `checkpoint` verb collapses non-zero exit codes to 1 despite two docstrings promising
+raw pass-through.
+SEVERITY: Minor — confirmed against the four branches; only `checkpoint` remaps.
+
+**server-18** · `draft.py:138` · api-contract
+`findings` is `list[dict]` or `list[str]` depending on which source is non-empty.
+SEVERITY: Minor — confirmed by inspection.
+
+**server-19** · `queries.py:66,140` · correctness
+`status()` guards on `timeline.json` but reads `clusters.jsonl` unguarded, raising
+`FileNotFoundError`.
+SEVERITY: Minor — confirmed by inspection.
+
+**server-20** · `tests/test_parity.py:85-91` · test-gap
+The parity-table test checks only that tool names appear, not verb coverage or
+verb-to-tool pairing. Independently reached by the `tests` reviewer as tests-01, from the
+other side.
+SEVERITY: Minor — confirmed by reading the assertion, a substring test over the whole file.
+
+**server-21 onward** — three remain and were not delivered before this report was
+assembled: `draft.py:66`, a merged line covering six one-line Minors, and
+`pyproject.toml:19` (the `mcp>=1.0` lower bound, unsettleable because PyPI is unreachable
+through the sandbox proxy).
+
+### A note on how server-13 was settled
+
+This is the clearest example in the review of the settling step doing real work in both
+directions at once. The reviewer filed the finding conditionally. Learning the arm
+definitions — from a slice it could not read — it correctly escalated its own conditional
+to Important, because the agent does have `Write`. But the second half of the condition,
+whether any run actually exercised it, is a question about recorded data rather than about
+code, and the answer is no: 2,052 of 2,052 checkpoint directories hold a manifest.
+
+So the defect is real and should be fixed, and no pilot figure needs revisiting. Reporting
+only the first half would have implied the pilot's saturated progress metric was suspect;
+reporting only the second would have buried a live forgery path. Both halves belong in one
+severity line.
