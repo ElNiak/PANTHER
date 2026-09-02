@@ -691,16 +691,28 @@ kept passing alongside the old behaviour.
 All harness-side, all blocked on the main experiment run finishing, all recorded in the
 review with evidence:
 
-1. **Reject an empty `--quote`** (`core/questions.py:163`) — one line, and the cheapest
-   link in C-1's chain. Blocked only by the submodule freeze, not by difficulty.
+1. **Close C-1 at its narrow end** — the `server` reviewer's recommendation, and better
+   scoped than changing the arm definitions. Two changes in one file: resolve the
+   transcript path and check workspace containment at `core/questions.py:157`, and require
+   a non-empty `quote` at `:163`. The `Write` grant reaches `record_answer`'s transcript
+   argument, so those two lines are the shared mechanism behind both the empty-quote
+   finding and the self-certifying-transcript one. This closes the chain **without**
+   touching `arms.py`, which the experiment's independent variable depends on — which is
+   precisely why it is the right harness-side fix to make first.
 2. **Stop calling a tuple containing `Edit` and `Write` `READ_TOOLS`** (`arms.py:21`), and
-   record in `enforcement.py`'s docstring which tools are therefore unconfined.
+   record in `enforcement.py`'s docstring which tools are therefore unconfined. This is a
+   legibility fix, not a containment one: item 1 does the containing.
 3. **Bind a computation to its revision** (C-5) — `load_campaign` should compare the frozen
    campaign's `git`/`prompt_sha256`/`plugin_root` against the live checkout and raise, and
    `audit_run`/`analyze_run` should refuse to overwrite a record produced under a different
    revision. Until then, do not run those verbs against the pilot.
 4. **Check a question id for collision before writing** (C-6).
 5. **Digest `guard.py` and `enforcement.py`, not only `guard.json`** (S-7 / runner-11).
+6. **Validate that a checkpoint directory holds a manifest** (`queries.py:71-75`), which
+   counts any directory as a processed cluster. Until that lands, **make the sweep part of
+   the post-run audit**: this review walked all 2,052 pilot checkpoint directories and
+   found every one genuine, and that sweep is the only reason the pilot's progress figures
+   can be left standing. A future campaign without it would have no equivalent guarantee.
 
 Task 1 is deliberately the PANTHER-side half of the same defence as item 1: even with the
 harness input unfixed, a fabricated sign-off over narrative-only evidence no longer reaches

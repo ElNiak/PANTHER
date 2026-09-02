@@ -1195,8 +1195,11 @@ place. Others in the harness may have moved.
 **Roughly 70 substring assertions in the harness test tree were not triaged**, per the
 `tests` reviewer's own account above.
 
-**`server-13` onward and the tail of the `server` slice are missing** — that reviewer's
-delivery truncated twice and the remainder did not arrive before this report was assembled.
+**The `server` slice is complete after all.** Its delivery truncated three times, and an
+earlier version of this section recorded the tail as missing. It arrived; server-21 to
+server-23 are at the end of this report. One of them, the `mcp>=1.0` lower bound, remains
+the single finding in the whole review that nobody could settle — PyPI is unreachable
+through the sandbox proxy, and the settling command is named in its severity line.
 
 **The `harness/` findings cannot be fixed this cycle** by the user's decision, so S-1, S-2
 and S-7 — a silent 200-row truncation, an unsanitized transcript path, and a tamper check
@@ -1254,10 +1257,8 @@ verb-to-tool pairing. Independently reached by the `tests` reviewer as tests-01,
 other side.
 SEVERITY: Minor — confirmed by reading the assertion, a substring test over the whole file.
 
-**server-21 onward** — three remain and were not delivered before this report was
-assembled: `draft.py:66`, a merged line covering six one-line Minors, and
-`pyproject.toml:19` (the `mcp>=1.0` lower bound, unsettleable because PyPI is unreachable
-through the sandbox proxy).
+**server-21 onward** — delivered after this section was first written; see *the tail* at
+the end of this report. The slice is complete.
 
 ### A note on how server-13 was settled
 
@@ -1520,3 +1521,48 @@ git repository with a content-introducing merge; two in-memory pytest plugins th
 monkeypatch a target and observe what a suite still passes; direct recomputation of the
 pilot metrics from the frozen transcripts; and a walk of all 2,052 pilot checkpoint
 directories. Findings that could not be settled that way say so in their own severity line.
+
+### Reader `server` — the tail, delivered after the first assembly of this report
+
+The slice is now **complete; nothing outstanding.** An earlier draft of this report
+recorded these three as never delivered; they arrived and are recorded here, and the
+coverage-limits section is corrected accordingly.
+
+**server-21** · `draft.py:66` · correctness
+`stdout.split()` on `--name-only` output splits a path containing a space into two files.
+SEVERITY: Minor — confirmed by inspection.
+
+**server-22** · six merged one-line findings · correctness / api-contract
+`claims.py:49-57` leaves the manifest at `mkstemp`'s 0600 and never `fsync`s;
+`revisions.py:23` accepts an empty `note` while `commit_draft:56` and `tag_revision:102`
+both require a non-empty message; `testing.py:86-103` uses bare `assert` for control flow,
+which `python -O` voids; `claims.py:143` flags understatement but never the
+stored-exceeds-supported direction; `queries.py:87` documents "lowest-ordinal" but returns
+file order; `queries.py:165` conflates "no tags yet" with "no draft repo".
+SEVERITY: Minor — confirmed by inspection; none reaches the evidence surface.
+
+**server-23** · `pyproject.toml:19` · correctness
+The `mcp>=1.0` lower bound may admit versions lacking the `mcp.server.fastmcp` import that
+`server.py:5` performs. Note the upper bound (`mcp<2`) is well-justified and carries its
+incident; this is about the floor.
+SEVERITY: Important if `mcp.server.fastmcp` is absent from 1.0.0; a non-finding otherwise —
+**unsettled**: PyPI is blocked by the sandbox proxy. Settled by
+`pip download mcp==1.0.0 --no-deps` and listing the wheel for `server/fastmcp`.
+
+### Two closing observations from this reader, both worth keeping
+
+**On why the forgeable progress metric is safe to leave.** The 2,052-directory sweep is
+what makes it safe: a forgeable metric that was demonstrably not forged means the pilot's
+numbers stand and nothing has to be re-run, so the finding stays live as a hardening item
+rather than becoming a retraction. **A future campaign without that sweep would have no
+such guarantee** — so if `queries.py:71-75` is not fixed, the sweep should become part of
+the post-run audit rather than something a reviewer happened to do once.
+
+**On the narrow end of the C-1 chain.** Since `Write` is granted in all three arms and the
+guard matches only `Bash`, that grant also reaches `record_answer`'s transcript argument —
+which is the shared mechanism behind both the empty-`quote` finding and the
+self-certifying-transcript one. If only one thing changes harness-side, the cheapest
+sufficient fix is at the narrow end: **resolve the transcript path and check workspace
+containment at `questions.py:157`, and require a non-empty `quote` at `:163`.** That closes
+the chain without touching the arm definitions the experiment's independent variable depends
+on — which is the change this cycle cannot afford to make.
