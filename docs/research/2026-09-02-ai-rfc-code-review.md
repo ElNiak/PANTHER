@@ -989,3 +989,216 @@ conclusion independently from opposite slices.
   currently performs.
 - `evidence-10`, `evidence-11`, `server-09`, `server-10` — each carries its settling check
   in its severity line.
+
+### Reader `runner` — remaining findings and assessment (complete)
+
+**runner-04** · `enforcement.py:204` · security
+`" ".join([python, str(guard), …])` quotes the prefixes with `repr` but not the interpreter
+or guard paths, so a space in either splits the hook command, exec fails, and a non-2 exit
+permits the call while `pretooluse_hook_starts` still increments.
+SEVERITY: Important if any campaign runs from a path containing a space; Minor otherwise —
+settled by the pilot's `runs/*/guard.json`, which shows space-free paths; the CLI's
+exec-failure exit code could not be reached.
+
+**runner-05** · `metrics.py:192-203` · correctness
+Arm C gates on `"--cluster" in command` (substring) then calls `parts.index("--cluster")`
+(token), so `--cluster=c-0007` raises an uncaught `ValueError` that aborts
+`analyze_campaign` for **every** run; arm B takes `parts[2]` unvalidated, so
+`ai_rfc checkpoint --help` yields the cluster id `"--help"`.
+SEVERITY: Important — confirmed by execution (the `ValueError` reproduced) **and against
+the pilot's own `analysis/aggregate.json`, which already carries the phantom point
+`{'cluster_id': '--help', 'index': 64}` in B1's trajectory.** Published pilot data is
+already contaminated by this.
+
+**runner-06** · `metrics.py:255-265` · correctness
+`completed_so_far` increments per checkpoint *call*, never deduplicated by cluster and
+never cross-checked against `tool_results`, so a retried checkpoint pushes
+`completed_so_far / window_size` above 1 and the AUC with it.
+SEVERITY: Important if any run checkpoints one cluster twice; Minor otherwise — measured
+`auc = 1.47` on a two-cluster synthetic, against `test_metrics.py:44`'s own `auc <= 1.0`
+assertion, and confirmed against the pilot, where checkpoint ids are unique in all six
+runs.
+
+**runner-07** · `metrics.py:185-204` vs `render.py:144-230` · duplication
+`_cluster_of_call` hard-codes the exact command strings the arm tables emit; reword a table
+and `checkpoint_calls` returns `[]`, giving `auc` 0.0 and `tokens_to_first_completion`
+None with no error.
+SEVERITY: Important if a table's checkpoint wording changes without `metrics` following;
+Minor otherwise — settled by a parity test asserting `_cluster_of_call` against each
+rendered table, which does not exist.
+
+**runner-08** · `audit.py:298`, `stream.py:16-19` · correctness
+`_DENIAL` matches bare `permission`/`denied`, so an executed out-of-arm call erroring with
+`Permission denied` is scored denied, dropped from `violations`, and `integrity` stays
+True.
+SEVERITY: Important if a run produces a non-denial error carrying that wording; Minor
+otherwise — confirmed against all six pilot audits, where every one of the 14 bypasses
+matched by `tool_use_id` from the result event, so the text fallback fired zero times.
+
+**runner-09** · `enforcement.py:151-185`, `arms.py:61` · security
+A group need only *begin* in prefix and `>` is not an operator, so
+`git log > $AI_RFC_WORKSPACE/revisions.yaml` is allowed, audited `bash:git` in-arm, and
+never reaches `hand_edits`; `sqlite3 db ".shell <cmd>"` and `git -c alias.x='!cmd' x` are
+likewise allowed and in-arm.
+SEVERITY: Important if any arm-C run uses a redirect or a dot-command; Minor otherwise —
+confirmed against the pilot transcripts, which contain zero redirect writes, zero
+`.shell`/`.system`/`.once` and zero `-c alias.`, so the pilot's `hand_edits` figures
+(C=87, B=1, A=0) are exact.
+
+**runner-10** · `per_cluster.py:223,273,343` · resource
+`time_left` is computed once per cluster but passed to `spawn` on every attempt while
+`budget_left` is recomputed, so a cluster whose first attempt exhausts the cap gets a
+second full `time_left` and the run can overrun `campaign.timeout_s` by nearly 2×.
+SEVERITY: Important if a per-cluster run ever times out on attempt 1; Minor otherwise —
+read-verified at current HEAD; no per-cluster campaign has produced artifacts.
+
+**runner-11** · `runner.py:238` vs `:34` · security — **S-7 confirmed and widened**
+The tamper digest covers `guard.json` and never `guard.py`, nor `enforcement.py`, which
+holds `is_allowed`. `guard_stats.unmodified` attests to the pointer, not the enforcement.
+SEVERITY: Important if the harness tree is writable during a run; Minor otherwise — the
+pilot's recorded and mounted digests match on every run, which proves only that the
+settings file was untouched.
+
+**runner-16** · `metrics.py:360-401`, `per_cluster.py:98-136,332` · correctness
+Both judge the surface from `init_event`, the *first* init in the concatenated transcript,
+and `surface_shortfall` is gated on `if not surface_judged`, so an MCP server that connects
+at session 1 and fails at session 5 leaves `surface.intact` True and the rest of the window
+runs unvalidated and is averaged in.
+SEVERITY: Important if a per-cluster arm-A run loses its server mid-window; Minor otherwise
+— no per-cluster campaign has produced artifacts. `stream.session_events` now exists, so
+the fix is a slice per session.
+
+**runner-19** · `summary.py:165-194,317-321` · correctness
+`seed_seen` catches bare `Exception` and returns an empty set, so `claim_delta.new_ids`
+becomes every id the checkpoint holds and the cluster reads as having introduced the entire
+workspace; disclosed only by a sibling `errors` string, with no marker on `claim_delta`
+itself.
+SEVERITY: Minor — `summary.py:1-11` scopes the module to display and explicitly excludes it
+from `metrics`, whose contract is to recompute; no published figure reads it.
+
+**Minor, one line each.** `runner-12` `report.py:55-63` vs `metrics.py:243` — two different
+token totals both labelled "tokens", only one in `DEFINITIONS`; confirmed against
+`analysis/aggregate.json` (A1: 26,588,444 vs 26,498,866, ≈0.34%). `runner-13`
+`metrics.py:437,472-476,508-511` — audit-less runs silently dropped from
+`integrity_rate`/`bypass_attempts`/`errors`/`hand_edits` with no count beside them, unlike
+`priced`/`broken`. `runner-14` `cli.py:490-513` — `audit` and `analyze` exit 0 whatever they
+find, though `cli.py:370-373` reserves 3 for "a gate said no"; Important if a campaign is
+ever script-driven, settled by `experiment-protocol.md`'s 12 unchecked boxes. `runner-15`
+`preflight.py:276-302,321-338` — `run_invocation` omits `start_new_session`, orphaning the
+MCP server on timeout, which is exactly what `spawn.py` was extracted to prevent and is
+unused here; `_ai_rfc_connected`/`_mcp_status` duplicate `stream` verbatim; nothing gates
+`campaign init` on preflight. `runner-17` `audit.py:109-136`, `metrics.py:139-145` —
+`edit_target` says paths are "resolved against the workspace" but never calls `resolve()`.
+`runner-18` `summary.py:126-131,132-139` — an unreachable branch after a `for/else`, and
+binary `numstat` lines (`-\t-\tpath`) fail `isdigit()` so binary changes vanish from
+`files`. `runner-20` `summary.py:221-231` — a *third* token accounting beside
+`metrics.trajectory` and `report._run_rows`; none of the three is named canonical.
+`runner-21` `summary.py` — no production caller at `5fa8891`; only a docstring mention and
+its own test reference it.
+
+**Assessment.** The metric logic is unusually careful about *statistical* honesty —
+undecided is never scored as failed, unpriced is never zero, void runs are excluded and
+counted — but it has no notion of *provenance* honesty, and that is where it breaks:
+re-analysis is idempotent only against the code that produced it, and re-running it
+destructively rewrites the evidence with confidently wrong numbers. Fix runner-01 first,
+as a refusal: have `load_campaign` compare `campaign.git`/`prompt_sha256`/`plugin_root`
+against the live checkout and raise `ExperimentError` on mismatch, and make
+`audit_run`/`analyze_run` refuse to overwrite a record produced under a different revision
+— not a compatibility shim for the old names. Second priority is runner-02, because it is
+cheap and converts three read-only findings into observed ones: every transcript already
+carries `hook_response` events with `exit_code` and `outcome`, and `guard_stats` reads only
+`hook_started`.
+
+### Reader `tests` — remaining findings and assessment
+
+**tests-07** · `tests/unit/…/draft/test_questions.py:43` · test-gap
+`assert questions[1].answer is not None` where the fixture supplies the exact string at
+`:30`, while the adjacent line pins `answered_by` by value.
+SEVERITY: Minor — confirmed against test_questions.py:30 versus :43.
+
+**tests-08** · `tests/unit/…/pipeline/test_stages.py:29,32` · correctness
+`set(BY_NAME) == {item.name for item in STAGES}` and `stage(item.name) is item` compare a
+computation to itself, since `stages.py:74` defines `BY_NAME` as that exact comprehension
+and `stages.py:89` is `return BY_NAME[name]`; only `:30` (`len(BY_NAME) == len(STAGES)`)
+can fail.
+SEVERITY: Minor — confirmed against stages.py:74,89.
+
+**tests-09** · `tests/unit/…/draft/test_gate.py:120` · test-gap
+`pytest.raises((GateError, OSError))` cannot distinguish the gate detecting a missing
+register from a raw `FileNotFoundError` leaking out of it.
+SEVERITY: Minor — confirmed against gate.py:32 (`GateError(ValueError)`, not an `OSError`)
+and draft/cli.py:161, which catches the same union and returns 1, so both read alike in
+production.
+
+**tests-10** · `tests/unit/…/draft/test_completeness.py:210-219` · naming
+The clean-workspace test passes `tmp_path / "m2.yaml"`, a file the `draft_workspace`
+fixture writes but does not return in its dict, so the coupling is invisible at the call
+site.
+SEVERITY: Minor — confirmed against draft/conftest.py:107-108; `completeness.build` raises
+`CompletenessError` on a missing manifest (`completeness.py:261`, post-`7d1efaad2`), so it
+cannot pass vacuously.
+
+**Two shapes hunted and found clean**, stated rather than left as silence. `EntryPoint` has
+no `__post_init__`, so `test_cli_conventions:146` can genuinely fail; `STAGES` carries an
+explicit `ordinal` field rather than an enumerate, so `test_stages:25` can genuinely fail;
+and there are **zero** `mock`, `MagicMock`, `patch` or `assert_called` occurrences across
+all 10,387 lines. Over-mocking is simply not a problem in this suite.
+
+**Re-grep after the concurrent commits.** Nothing changed in substance.
+`test_per_cluster.py` holds 11 substring-assertion hits both before `1ac26f1` and after
+`4c56538`, and the diff across both commits changes no line matching that pattern.
+`test_stream.py` went from 9 hits to 10, but the added hit is a false positive of the grep
+(a comprehension's `for e in`, not a substring test); the four assertions `4c56538`
+actually added are all exact-equality, including two empty-case guards.
+
+**Coverage, stated honestly.** Read in full: 4 of the 8 conftests (`ai_rfc/`, `draft/`,
+`harness/experiment/tests/`, `server/tests/`) — the `pipeline/`, `history/`, `views/` and
+`coverage/` conftests were not opened; `test_cli_conventions.py`; `test_parity.py`; all
+four `draft/` suites; `test_metrics.py`; `pipeline/test_stages.py`; `test_enforcement.py`
+to line 80 of 157; `parity.md`; the README duplication table. Grepped only: everything
+else. **Untriaged: roughly 70 substring-assertion hits in the harness tree**, concentrated
+in `test_workspace.py` (21), `test_render.py` (13), `test_cli_campaign.py` (12) and
+`test_per_cluster.py` (11).
+
+**Assessment.** The suite is trustworthy where it measures. The metrics, enforcement and
+audit tests assert exact numbers and deliberately guard the degenerate always-zero and
+always-None readings that would otherwise make them pass for free. The weakness is
+concentrated in the gates that check *registers* rather than behaviour. The single weakest
+test is `test_parity.py:85`: it is the completeness check on the experiment's stop-ship
+instrument and asserts nothing behavioural, only that a name appears somewhere in a
+markdown file.
+
+## Coverage limits — what this review does not cover
+
+Stated plainly rather than left for a reader to infer.
+
+**The harness moved six commits during the review.** The `runner` and `server` slices were
+read at `0b62bf3`. HEAD is now `a33a312`, and `git diff --stat 0b62bf3 HEAD` reports
+**+1,120 / −48 across 8 files**:
+
+| File | Change | Reviewed? |
+|---|---|---|
+| `experiment/summary.py` | +384, entirely new | Yes — read at `5fa8891`; runner-18..21 |
+| `experiment/per_cluster.py` | +204 | Partly — two citations re-anchored, findings unchanged |
+| `experiment/progress.py` | +88 | **No — the new 88 lines are unreviewed** |
+| `experiment/stream.py` | +36 | Yes — the cited range is above the insertion point |
+| four test files | +456 | Partly — the `tests` reviewer re-grepped two of them |
+
+So: the `runner` slice covers `0b62bf3` plus a read of `summary.py` at `5fa8891`. It does
+**not** cover the new half of `progress.py`. Nothing in this report speaks to those 88
+lines.
+
+**Line numbers are accurate to the review window, not to HEAD.** `draft/completeness.py`
+shifted about fourteen lines under commit `7d1efaad2`; that one citation is corrected in
+place. Others in the harness may have moved.
+
+**Roughly 70 substring assertions in the harness test tree were not triaged**, per the
+`tests` reviewer's own account above.
+
+**`server-13` onward and the tail of the `server` slice are missing** — that reviewer's
+delivery truncated twice and the remainder did not arrive before this report was assembled.
+
+**The `harness/` findings cannot be fixed this cycle** by the user's decision, so S-1, S-2
+and S-7 — a silent 200-row truncation, an unsanitized transcript path, and a tamper check
+that digests the wrong file — plus the whole of C-1's sign-off chain, stay open until after
+the main experiment run.
