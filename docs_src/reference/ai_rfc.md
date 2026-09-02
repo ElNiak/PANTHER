@@ -11,7 +11,8 @@ than trusted.
 
 ## The pipeline
 
-Ten stages, of which eight are deterministic Python and two are not.
+Ten stages: seven are deterministic Python, one is yours to do by hand,
+and two belong to an agent.
 
 | # | Stage | Performer | Produces |
 |---|---|---|---|
@@ -55,7 +56,7 @@ list alone, so the flat listing it produces cannot carry them.
 | `panther ai-rfc draft` | Freeze the manifest per cluster, then gate the prose against it (`checkpoint`, `gate`, `completeness`) |
 | `panther ai-rfc coverage` | Propose anchors for the lines a test run actually executed |
 
-**Stages `pipeline run` performs for you**
+**Stages `pipeline run` reaches before it needs you**
 
 | Command | Purpose |
 |---|---|

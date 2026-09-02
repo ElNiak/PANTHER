@@ -244,9 +244,9 @@ dropped in unchanged for the same reason.
    anchors are resolved against their pinned commits and any that do not exist
    are named on stderr, while the command still exits 0. Fix wrong paths and
    wrong commits here, before anything is built on top of them.
-4. **Record the supported status.** See the caveat below: the report tells you
-   what is *stored*, not what is *supported*, so today this means calling
-   `promotion.adjudicate` directly.
+4. **Record the supported status.** The report carries it: every entry under
+   `claims` in `report.json` pairs the claim's `stored` status with the
+   `supported` one its evidence earns, and flags whether it is `promotable`.
 5. **Re-run with `--strict`.** It is now a gate: any overstated claim or
    unresolved anchor exits 3.
 

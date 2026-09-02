@@ -65,7 +65,7 @@ class EntryPoint:
 #: formatter writes them verbatim, so backticks would print as backticks.
 DRIVEN = "Commands you drive"
 BY_HAND = "Run these yourself"
-PERFORMED = "Stages that pipeline run performs for you"
+PERFORMED = "Stages pipeline run reaches before it needs you"
 
 
 ENTRY_POINTS: tuple[EntryPoint, ...] = (

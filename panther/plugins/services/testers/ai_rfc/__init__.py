@@ -1,8 +1,9 @@
 """Model-free substrate for reconstructed requirement manifests.
 
-This package validates, adjudicates and reports on manifests produced by
-reconstruction agents running outside the framework. It makes no model calls
-and opens no sockets.
+This package validates manifests produced by reconstruction agents running
+outside the framework, weighs every claim against the evidence its anchors
+point at, and reports the result. It makes no model calls and opens no
+sockets.
 """
 
 from .anchors import AnchorError, UnknownCommitError, verify
