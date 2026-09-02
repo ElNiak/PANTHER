@@ -1272,3 +1272,98 @@ So the defect is real and should be fixed, and no pilot figure needs revisiting.
 only the first half would have implied the pilot's saturated progress metric was suspect;
 reporting only the second would have buried a live forgery path. Both halves belong in one
 severity line.
+
+## Debt backlog
+
+Registered gaps are treated here as debt rather than as accepted design, per the decision
+framing this review. The register itself is therefore under audit: each entry is checked
+against the code, and register *drift* — an entry that no longer describes reality — counts
+as a defect in its own right.
+
+The register is real and unusually good. It spans four READMEs (`ai_rfc/`, `pipeline/`,
+`history/`, `coverage/`), two reference documents, and named sections in the plan files.
+Several entries record measured costs and even a dead end, which is rarer and more useful
+than a list of intentions.
+
+### Registered, still accurate, and worth keeping as written
+
+| # | Item | Registered at | Cost to close | Recommendation |
+|---|---|---|---|---|
+| D-1 | `--numstat` line counts not implemented; 60 s/run is why | `history/README.md:182-189` | One opt-in flag | **Keep.** A measured refusal with the number attached. The register calls it "a defect that passes its own tests", which is the right framing. |
+| D-2 | `--no-renames` measured, changed nothing | `history/README.md:191-194` | Zero | **Keep.** A recorded dead end saves the next person an hour. |
+| D-3 | `coverage` proposes, never merges | `coverage/README.md:13-19` | n/a | **Keep.** Merging is a decision; leaving it looking like one is correct. |
+| D-4 | Criterion is `line-executed` only | `coverage/README.md:30-36` | n/a | **Keep.** The limit travels with each proposal rather than living in someone's head. |
+| D-5 | Only the JaCoCo reader exists | `coverage/cli.py:21-23` | One reader per format | **Keep** until a second format is actually needed. |
+| D-6 | `pipeline` stops at the two content stages and exits 0 | `pipeline/README.md:10-21` | n/a | **Keep.** Reaching the boundary is success. |
+| D-7 | Pipeline state is derived, never recorded | `pipeline/README.md:44-53` | n/a | **Keep.** The reasoning — a ledger "would start lying" once a sub-CLI is run by hand — is sound. |
+| D-8 | The seventh digest helper is excluded from the duplication table on purpose | `README.md:490-492` | n/a | **Keep, and do not mistake for an omission.** |
+
+### Registered, but the review shows the entry understates the problem
+
+| # | Item | Registered at | Finding | Recommendation |
+|---|---|---|---|---|
+| D-9 | `--allowedTools` does not confine a built-in tool | `enforcement.py:1-9` | This is the enabling condition for **C-1**, the evidence-fabrication chain. The register treats it as a CLI limitation to work around with a Bash guard; it is also the reason `Write` is unguarded in every arm. | **Raise.** The entry should say which tools are therefore unconfined, and `arms.py:21` should stop calling a tuple containing `Edit` and `Write` `READ_TOOLS`. |
+| D-10 | The duplication table is hand-maintained and has drifted twice | `README.md:468-521`, gate at `test_cli_conventions.py:67` | Confirmed partial gate: 6 rows, 4 covered. `tests-05` adds that the two uncovered rows name *concepts*, not `def` names, so the existing gate cannot be extended to them without rewriting the rows. | **Fix the rows, then the gate.** This is the `feedback_partial_validation_gate` shape: the uncovered row is the one that drifts. |
+| D-11 | "No gap in this list remains open" | `README.md:294` | **Now false.** This review found six Criticals and roughly twenty-three Importants, none of them in the register. | **Correct the sentence.** A register that asserts its own completeness is worse than one that does not, because a reader stops looking. |
+
+### Unregistered debt found by this review
+
+Nothing below appears in any register. Under the decision framing this review, these are
+the entries that should be added.
+
+| # | Item | Evidence | Cost |
+|---|---|---|---|
+| U-1 | `types-PyYAML` is neither declared nor installed, so mypy checks no YAML path in a YAML-centric package | 8 of 10 PANTHER-side mypy errors | One dev dependency, then fix what it exposes |
+| U-2 | Five `# noqa` suppressions with no register entry | `workspace.py:126`, `conftest.py:13`, `claims.py:41`, `questions.py:13`, `guard.py:15` | Small; `questions.py:13` is the only one with no stated reason |
+| U-3 | `history/aggregates.py` is dead — 56 lines, no production caller | `evidence-12` | Delete |
+| U-4 | `summary.py` has no production caller at `5fa8891` — 384 lines | `runner-21` | It is new; wire it up or hold it |
+| U-5 | Three separate token accountings, none named canonical | `runner-12`, `runner-20` | Pick one, document the other two as derived |
+| U-6 | Four readers of `clusters.jsonl`, three unguarded | `core-08` | One shared reader |
+| U-7 | ~70 untriaged substring assertions in the harness test tree | `tests` reviewer's own account | A follow-up pass, not a fix |
+
+### Register drift — in both directions
+
+**Closed, and closed well.** An earlier plan recorded `guard.py` failing open: its handler
+caught only `JSONDecodeError`/`ValueError`, so a non-dict payload raised `AttributeError`,
+exited 1, and 1 permits the call. That is **genuinely fixed**. `guard.py` now catches bare
+`Exception` on the payload read and returns 2, carries two `isinstance` checks each
+returning 2, and wraps `main()` in a `try/except Exception` that exits 2 — with a comment
+explaining that naming exception types "leaves the guarantee false for every type nobody
+named". This is the register working as intended.
+
+**A consequence for U-2 worth stating plainly: two of the seven `# noqa` suppressions are
+not debt at all.** `guard.py:59` and `server/cli.py:303` suppress `BLE001`, the rule that
+would push both files back toward the narrow-`except` bug the register recorded. They are
+load-bearing correctness guarantees wearing a lint suppression. Counting all seven against
+the project would have been wrong, and it is the kind of error a marker-count audit makes
+by default.
+
+**Drifted the other way.** Commit `a20cc9a7b` ("pipeline run performs six of the eight
+commands, not four", today) changed documentation only — five doc files plus `__init__.py`
+and `entrypoints.py`, no behaviour. It aligned the prose to the stage-skipping defect
+rather than fixing it, and left `State.RECOMPUTED`'s contradictory docstring standing. See
+**C-2**.
+
+### Deferred, and still blocked
+
+These four are registered in `2026-09-02-arfc-panther-subcommand.md:787-810` as blocked on
+the main experiment run finishing, because each changes strings the rendered agent skills
+record. Ranked and costed rather than dropped:
+
+| # | Item | Cost | Blocker |
+|---|---|---|---|
+| B-1 | Make the module root a dispatcher (`python -m …ai_rfc <verb>`) | Moderate; the validator moves to `validate/` | Main run |
+| B-2 | Re-render the agent skills onto `panther ai-rfc` | Small, but breaks pilot comparability | Main run |
+| B-3 | Extract `ai_rfc` as its own project | ~135 lines across ~70 files in two repositories, plus the `parents[5]`/`parents[10]` conftest arithmetic | Main run |
+| B-4 | Rename `adjudicate` → `check` inside the harness | Two surfaces: `ai_rfc_claim_adjudicate`, `claim-adjudicate` | Main run |
+
+B-3 remains the strongest structural finding on the table, and this review adds a reason
+the plan did not have: the harness moved six commits and 1,120 lines *during a review of
+it*, while the parent's pointer stayed still. Two repositories that move at different rates
+under one branch is a coordination cost that will keep being paid.
+
+**One item is now more urgent than its blocker suggests.** `harness/docs/experiment-protocol.md`
+carries 12 unchecked preregistration boxes. `runner-14` notes that `audit` and `analyze`
+exit 0 whatever they find, which is only tolerable while a human reads every report — and
+the protocol's unchecked reporting commitments are exactly the thing that would decide
+whether the pipeline is ever script-driven.
