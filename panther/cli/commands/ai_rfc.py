@@ -47,9 +47,8 @@ class SectionedGroup(click.Group):
         sections: dict[str, list[click.Command]] = {}
         # Not ``list_commands``: it sorts, and the declared order is the order
         # the stages are meant to be run in.
-        for name in self.commands:
-            command = self.get_command(ctx, name)
-            if command is None or command.hidden:
+        for command in self.commands.values():
+            if command.hidden:
                 continue
             heading = getattr(command, SECTION_ATTR, "Commands")
             sections.setdefault(heading, []).append(command)

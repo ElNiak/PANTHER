@@ -144,16 +144,21 @@ def test_every_cli_module_on_disk_is_registered():
 
 
 def test_every_entry_declares_a_section():
-    """An empty heading would drop a command out of the listing in silence."""
+    """An empty heading renders as a bare colon with its commands beneath it.
+
+    Not a crash, which is why it is worth asserting: the listing still prints
+    and still holds every command, under a heading that says nothing.
+    """
     assert all(entry.section for entry in ENTRY_POINTS)
 
 
 def test_entries_sharing_a_section_are_contiguous():
     """Declaration order is the help's order, so a section must not be split.
 
-    A section appearing in two separate runs of the tuple would print its
-    heading twice, and the second block would read as a different group of
-    commands rather than a continuation of the first.
+    ``setdefault`` in the group's ``format_commands`` merges a repeated heading
+    into its first occurrence rather than printing it twice, so a split section
+    silently hoists the later command up out of declaration order — quieter
+    than a duplicated heading, and the reason this is asserted here.
     """
     runs: list[str] = []
     for entry in ENTRY_POINTS:

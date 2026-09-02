@@ -6,6 +6,8 @@ derives from the one registry: a command on disk that nobody registered fails
 in ``test_cli_conventions``, and a registered command nobody mounted fails here.
 """
 
+import re
+
 import pytest
 from click.testing import CliRunner
 
@@ -94,3 +96,20 @@ def test_each_verb_is_listed_under_the_section_it_declares():
     sections = _command_sections(output)
     for entry in ENTRY_POINTS:
         assert f"\n  {entry.verb} " in sections[entry.section]
+
+
+def test_the_help_lists_every_verb_in_registration_order():
+    """Registration order is workflow order, and preserving it is the point.
+
+    Click's default sorts alphabetically, and so does any rewrite reaching for
+    ``list_commands``. A partial revert that keeps the headings but sorts
+    inside them renders ``forge`` (stage 2) above ``history`` (stage 1), which
+    every other assertion here passes straight over.
+    """
+    output = CliRunner().invoke(ai_rfc, ["--help"]).output
+    first_heading = next(iter(dict.fromkeys(e.section for e in ENTRY_POINTS)))
+    listing = output[output.index(f"{first_heading}:") :]
+    rendered = [
+        line.split()[0] for line in listing.splitlines() if re.match(r"^ {2}\S", line)
+    ]
+    assert rendered == [entry.verb for entry in ENTRY_POINTS]
