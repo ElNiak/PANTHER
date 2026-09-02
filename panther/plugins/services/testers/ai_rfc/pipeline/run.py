@@ -20,6 +20,7 @@ from pathlib import Path
 
 from .. import cli as adjudicate_cli
 from ..draft import cli as draft_cli
+from ..entrypoints import CommandModule
 from ..history import cli as history_cli
 from ..timeline import cli as timeline_cli
 from ..views import cli as views_cli
@@ -45,11 +46,11 @@ class StageResult:
         return self.exit_code == 0
 
 
-def _history(ws: Workspace) -> tuple[list[str], object]:
+def _history(ws: Workspace) -> tuple[list[str], CommandModule]:
     return [str(ws.clone), "--out", str(ws.corpus)], history_cli
 
 
-def _timeline(ws: Workspace) -> tuple[list[str], object]:
+def _timeline(ws: Workspace) -> tuple[list[str], CommandModule]:
     argv = [str(ws.corpus), "--out", str(ws.timeline), "--repo", str(ws.clone)]
     snapshot = ws.latest_forge_snapshot()
     if snapshot is not None:
@@ -57,7 +58,7 @@ def _timeline(ws: Workspace) -> tuple[list[str], object]:
     return argv, timeline_cli
 
 
-def _views(ws: Workspace) -> tuple[list[str], object]:
+def _views(ws: Workspace) -> tuple[list[str], CommandModule]:
     argv = [
         str(ws.timeline),
         "--corpus",
@@ -73,14 +74,14 @@ def _views(ws: Workspace) -> tuple[list[str], object]:
     return argv, views_cli
 
 
-def _adjudicate(ws: Workspace, strict: bool) -> tuple[list[str], object]:
+def _adjudicate(ws: Workspace, strict: bool) -> tuple[list[str], CommandModule]:
     argv = [str(ws.manifest), "--out", str(ws.out), "--repo", str(ws.clone)]
     if strict:
         argv.append("--strict")
     return argv, adjudicate_cli
 
 
-def _checkpoint(ws: Workspace, cluster: str) -> tuple[list[str], object]:
+def _checkpoint(ws: Workspace, cluster: str) -> tuple[list[str], CommandModule]:
     return [
         "checkpoint",
         str(ws.manifest),
@@ -93,7 +94,7 @@ def _checkpoint(ws: Workspace, cluster: str) -> tuple[list[str], object]:
     ], draft_cli
 
 
-def _gate(ws: Workspace, strict: bool) -> tuple[list[str], object]:
+def _gate(ws: Workspace, strict: bool) -> tuple[list[str], CommandModule]:
     argv = [
         "gate",
         str(ws.draft),
@@ -149,7 +150,7 @@ def perform(
         argv = ["fetch", forge_url, "--repo", str(ws.clone), "--out", str(ws.forge)]
         if host is not None:
             argv += ["--host", host]
-        module: object = forge_cli
+        module: CommandModule = forge_cli
     elif stage.name == "history":
         argv, module = _history(ws)
     elif stage.name == "timeline":
@@ -171,7 +172,7 @@ def perform(
         )
 
     ws.root.mkdir(parents=True, exist_ok=True)
-    return StageResult(stage, module.main(argv), tuple(argv))  # type: ignore[attr-defined]
+    return StageResult(stage, module.main(argv), tuple(argv))
 
 
 def workspace_from(root: Path) -> Workspace:
