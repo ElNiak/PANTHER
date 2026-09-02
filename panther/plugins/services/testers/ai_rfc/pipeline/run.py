@@ -15,6 +15,7 @@ like the workspace's fault.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -46,11 +47,49 @@ class StageResult:
         return self.exit_code == 0
 
 
-def _history(ws: Workspace) -> tuple[list[str], CommandModule]:
-    return [str(ws.clone), "--out", str(ws.corpus)], history_cli
+@dataclass(frozen=True)
+class _Request:
+    """Everything any stage builder may need, so all of them share a signature.
+
+    The uniform signature is what lets :data:`DISPATCH` be a table instead of a
+    chain of ``elif``s, and a table is what lets one assertion prove it covers
+    exactly the deterministic stages.
+    """
+
+    ws: Workspace
+    strict: bool = False
+    cluster: str | None = None
+    forge_url: str | None = None
+    host: str | None = None
 
 
-def _timeline(ws: Workspace) -> tuple[list[str], CommandModule]:
+_Builder = Callable[[_Request], "tuple[list[str], CommandModule]"]
+
+
+def _history(req: _Request) -> tuple[list[str], CommandModule]:
+    return [str(req.ws.clone), "--out", str(req.ws.corpus)], history_cli
+
+
+def _forge(req: _Request) -> tuple[list[str], CommandModule]:
+    if req.forge_url is None:
+        raise PipelineError("forge needs --forge-url")
+    from ..forge import cli as forge_cli
+
+    argv = [
+        "fetch",
+        req.forge_url,
+        "--repo",
+        str(req.ws.clone),
+        "--out",
+        str(req.ws.forge),
+    ]
+    if req.host is not None:
+        argv += ["--host", req.host]
+    return argv, forge_cli
+
+
+def _timeline(req: _Request) -> tuple[list[str], CommandModule]:
+    ws = req.ws
     argv = [str(ws.corpus), "--out", str(ws.timeline), "--repo", str(ws.clone)]
     snapshot = ws.latest_forge_snapshot()
     if snapshot is not None:
@@ -58,7 +97,8 @@ def _timeline(ws: Workspace) -> tuple[list[str], CommandModule]:
     return argv, timeline_cli
 
 
-def _views(ws: Workspace) -> tuple[list[str], CommandModule]:
+def _views(req: _Request) -> tuple[list[str], CommandModule]:
+    ws = req.ws
     argv = [
         str(ws.timeline),
         "--corpus",
@@ -74,27 +114,32 @@ def _views(ws: Workspace) -> tuple[list[str], CommandModule]:
     return argv, views_cli
 
 
-def _check(ws: Workspace, strict: bool) -> tuple[list[str], CommandModule]:
+def _check(req: _Request) -> tuple[list[str], CommandModule]:
+    ws = req.ws
     argv = [str(ws.manifest), "--out", str(ws.out), "--repo", str(ws.clone)]
-    if strict:
+    if req.strict:
         argv.append("--strict")
     return argv, check_cli
 
 
-def _checkpoint(ws: Workspace, cluster: str) -> tuple[list[str], CommandModule]:
+def _checkpoint(req: _Request) -> tuple[list[str], CommandModule]:
+    if req.cluster is None:
+        raise PipelineError("checkpoint needs --cluster")
+    ws = req.ws
     return [
         "checkpoint",
         str(ws.manifest),
         "--timeline",
         str(ws.timeline),
         "--cluster",
-        cluster,
+        req.cluster,
         "--out",
         str(ws.checkpoints),
     ], draft_cli
 
 
-def _gate(ws: Workspace, strict: bool) -> tuple[list[str], CommandModule]:
+def _gate(req: _Request) -> tuple[list[str], CommandModule]:
+    ws = req.ws
     argv = [
         "gate",
         str(ws.draft),
@@ -109,9 +154,25 @@ def _gate(ws: Workspace, strict: bool) -> tuple[list[str], CommandModule]:
         "--out",
         str(ws.out),
     ]
-    if strict:
+    if req.strict:
         argv.append("--strict")
     return argv, draft_cli
+
+
+#: Stage name to the builder that turns a request into that stage's argv. A
+#: table rather than a chain of ``elif``s, because the correspondence with
+#: ``STAGES`` is then one assertion instead of seven branches nobody re-reads:
+#: a stage renamed in ``stages.py`` but missed here used to fall through to a
+#: refusal that called a deterministic stage handed-over, and no test noticed.
+DISPATCH: dict[str, _Builder] = {
+    "history": _history,
+    "forge": _forge,
+    "timeline": _timeline,
+    "views": _views,
+    "check": _check,
+    "checkpoint": _checkpoint,
+    "gate": _gate,
+}
 
 
 def perform(
@@ -142,35 +203,16 @@ def perform(
             required argument for it is missing.
         SystemExit: If a built argv is malformed, which is a defect here.
     """
-    if stage.name == "forge":
-        if forge_url is None:
-            raise PipelineError("forge needs --forge-url")
-        from ..forge import cli as forge_cli
-
-        argv = ["fetch", forge_url, "--repo", str(ws.clone), "--out", str(ws.forge)]
-        if host is not None:
-            argv += ["--host", host]
-        module: CommandModule = forge_cli
-    elif stage.name == "history":
-        argv, module = _history(ws)
-    elif stage.name == "timeline":
-        argv, module = _timeline(ws)
-    elif stage.name == "views":
-        argv, module = _views(ws)
-    elif stage.name == "check":
-        argv, module = _check(ws, strict)
-    elif stage.name == "checkpoint":
-        if cluster is None:
-            raise PipelineError("checkpoint needs --cluster")
-        argv, module = _checkpoint(ws, cluster)
-    elif stage.name == "gate":
-        argv, module = _gate(ws, strict)
-    else:
+    builder = DISPATCH.get(stage.name)
+    if builder is None:
         raise PipelineError(
             f"{stage.name} is a {stage.performer.value} stage; the pipeline reports "
             f"it and stops rather than performing it"
         )
 
+    argv, module = builder(
+        _Request(ws, strict=strict, cluster=cluster, forge_url=forge_url, host=host)
+    )
     ws.root.mkdir(parents=True, exist_ok=True)
     return StageResult(stage, module.main(argv), tuple(argv))
 

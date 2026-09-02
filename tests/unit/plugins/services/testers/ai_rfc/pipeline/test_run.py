@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from panther.plugins.services.testers.ai_rfc.pipeline.run import (
+    DISPATCH,
     PipelineError,
     perform,
     workspace_from,
@@ -63,3 +64,15 @@ def test_a_deterministic_stage_runs_and_reports_the_argv_it_built(workspace: Pat
     assert result.stage is stage("history")
     assert str(workspace / "clone") in result.argv
     assert "--out" in result.argv
+
+
+def test_every_deterministic_stage_has_a_builder():
+    """``DISPATCH`` and ``STAGES`` are two lists that must not drift apart.
+
+    A stage renamed in ``stages.py`` but missed in the dispatch table falls
+    through to the refusal above, which would then call a deterministic stage
+    handed-over — self-contradictory, and green in every other test here.
+    """
+    assert set(DISPATCH) == {
+        item.name for item in STAGES if item.performer is Performer.DETERMINISTIC
+    }
