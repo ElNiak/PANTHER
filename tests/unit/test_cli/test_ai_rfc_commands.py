@@ -50,3 +50,47 @@ def test_version_passes_through_to_the_sub_cli(entry):
 def test_each_verb_carries_a_description(entry):
     """``mkdocs-click`` renders these; an empty help is a blank reference row."""
     assert ai_rfc.commands[entry.verb].help == entry.summary
+
+
+def _command_sections(output: str) -> dict[str, str]:
+    """Split rendered group help into {heading: the block beneath it}.
+
+    Args:
+        output: The rendered ``panther ai-rfc --help`` text.
+
+    Returns:
+        Each heading the registry declares, mapped to its slice of the help.
+
+    Raises:
+        ValueError: If a declared heading is absent, which is what click's
+            unsectioned default produces.
+    """
+    headings = list(dict.fromkeys(entry.section for entry in ENTRY_POINTS))
+    starts = [output.index(f"{heading}:") for heading in headings]
+    ends = starts[1:] + [len(output)]
+    return {
+        heading: output[start:end]
+        for heading, start, end in zip(headings, starts, ends)
+    }
+
+
+def test_the_sections_appear_in_declaration_order():
+    """Registry order is the workflow order; alphabetical would hide it."""
+    output = CliRunner().invoke(ai_rfc, ["--help"]).output
+    headings = list(dict.fromkeys(entry.section for entry in ENTRY_POINTS))
+    positions = [output.index(f"{heading}:") for heading in headings]
+    assert positions == sorted(positions)
+
+
+def test_each_verb_is_listed_under_the_section_it_declares():
+    """The only guard on the ``format_commands`` override.
+
+    Click's default sorts every command into one unlabelled block and renders
+    without error, so nothing else here would notice the sectioning reverting.
+    The needle carries the term column's indent because ``draft``'s summary
+    names ``checkpoint``, which a bare substring test would match as ``check``.
+    """
+    output = CliRunner().invoke(ai_rfc, ["--help"]).output
+    sections = _command_sections(output)
+    for entry in ENTRY_POINTS:
+        assert f"\n  {entry.verb} " in sections[entry.section]
