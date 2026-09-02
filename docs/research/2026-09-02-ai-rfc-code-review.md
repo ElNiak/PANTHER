@@ -72,3 +72,67 @@ independent: a missing annotation for `fragment` at `coverage/cli.py:109`, and o
 SEVERITY: Important — confirmed against `pyproject.toml`, which declares `PyYAML` at line
 98 with no `types-PyYAML` beside it, and against `.venv/lib/python3.10/site-packages/`,
 which holds `pyyaml-6.0.3.dist-info` and no `types_pyyaml`.
+
+## Established facts
+
+Exploration produced six claims that were never checked, by the same agent pair that also
+produced one fabricated quotation and one wrong marker count. Every row below was
+re-derived by running the command shown. They are stated here as fact so that the slice
+reviewers receive them as settled and spend their budget elsewhere.
+
+| # | Claim | How it was checked | Verdict |
+|---|---|---|---|
+| F-1 | No `TODO`/`FIXME`/`HACK`/`XXX`/`NotImplementedError`/skip/xfail/`type: ignore` anywhere | `grep -rnE` over the package and both test trees | **Confirmed.** Zero of every one of those classes. |
+| F-2 | Zero lint suppressions | same grep | **Refuted.** Seven `# noqa`, all under `harness/`, each with a stated reason. See *Debt backlog*. |
+| F-3 | All 13 PANTHER-side verbs have tests | grep each verb across `tests/unit/…/ai_rfc/` | **Confirmed.** |
+| F-4 | 8 of 16 MCP tools have no test at the tool boundary | grep each `ai_rfc_*` symbol across the server test tree | **Confirmed exactly.** |
+| F-5 | 4 verbs have no test at either layer | grep each verb string across the server test tree | **Confirmed.** |
+| F-6 | `preflight`, `render`, `workspace reseal` never reached through `cli.main` | grep `main([...])` invocations across `harness/experiment/tests/` | **Confirmed.** |
+| F-7 | No flag is defined but never read | extract every `"--flag"`, then grep its `args.*` consumption | **Confirmed**, after correcting a naive check — see below. |
+
+### F-2: the seven suppressions
+
+`experiment/guard.py:15` (E402) · `experiment/guard.py:59` (BLE001, "blocking is the only
+safe exit") · `experiment/workspace.py:126` (ANN202) · `server/tests/conftest.py:13`
+(E402) · `server/cli.py:303` (BLE001, "substrate errors surface verbatim") ·
+`core/claims.py:41` (ANN202) · `core/questions.py:13` (ANN202, the only one with no
+stated reason).
+
+### F-4 and F-5: the untested surfaces
+
+The eight tools with no test at the tool boundary are `ai_rfc_status`,
+`ai_rfc_corpus_query`, `ai_rfc_cluster_get`, `ai_rfc_question_draft`,
+`ai_rfc_question_export`, `ai_rfc_answer_record`, `ai_rfc_gate` and
+`ai_rfc_citation_gate`. Their *core* functions are tested in `test_core.py`; what is
+untested is the wrapper each MCP client actually calls, and its registration through
+`server.py`'s `ALL_TOOLS` loop.
+
+Four of those are untested at the CLI layer too, so they have no test on **either**
+surface a user or an agent can reach: `cluster-get`, `question-draft`, `question-export`
+and `answer-record`.
+
+SEVERITY: Important — confirmed against the server test tree, where a grep for each of
+the sixteen tool symbols and each of the sixteen verb strings returns no file for these
+four. `answer-record` is the load-bearing one: it is the human sign-off path, and the
+package README names developer sign-off as one of only two mechanisms that can move
+`checked_fraction` off zero. Both of its entry points are unexercised.
+
+### F-6: the three unreached experiment verbs
+
+`preflight`, `render` and `workspace reseal` have tested functions
+(`test_preflight.py`, `test_render.py`, `test_workspace.py:207`) but no test that reaches
+them through argparse. Only one of the three declares this: `experiment/preflight.py:1-7`
+states "Nothing here runs under pytest; the pure parts are tested, the calls are made once
+by hand." `render` and `workspace reseal` carry no such statement, so two of the three
+gaps are undeclared.
+
+### F-7: the correction, recorded because the naive check was wrong
+
+A first pass extracting every `"--flag"` and grepping for `args.<flag>` reported three
+unread flags: `--from`, `--json` and `--version`. All three were false positives.
+`pipeline/cli.py:61,93` give `--from` and `--json` explicit `dest="start"` and
+`dest="as_json"` — `from` is a Python keyword and cannot be an attribute name — and
+`args.start`, `args.until` and `args.as_json` are read 3, 2 and 2 times respectively.
+`--version` is `action="version"`, which argparse consumes internally. The four `dest=`
+declarations PANTHER-side are `as_json`, `start`, `until` and `verb`, and every one is
+read. **No flag is defined but never read.**
