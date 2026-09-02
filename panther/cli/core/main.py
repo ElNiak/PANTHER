@@ -160,6 +160,7 @@ def register_commands():
         ("check", "panther.cli.commands.check", "check"),
         ("metrics", "panther.cli.commands.metrics", "metrics"),
         ("ivy", "panther.cli.commands.ivy", "ivy"),
+        ("ai-rfc", "panther.cli.commands.ai_rfc", "ai_rfc"),
         ("web", "panther.cli.commands.web", "web"),
         ("build", "panther.cli.commands.build", "build"),
         ("docs", "panther.cli.commands.docs", "docs"),
