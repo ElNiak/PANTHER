@@ -125,7 +125,7 @@ def test_a_partly_checkpointed_workspace_is_not_reported_as_finished(
     assert f"partial — 1 of {len(ids)} cluster(s) checkpointed" in printed
 
 
-def test_adjudicate_and_gate_are_never_reported_done(workspace: Path):
+def test_check_and_gate_are_never_reported_done(workspace: Path):
     """Both are pure and cheap, so the runner performs them rather than probing.
 
     Recording their doneness would need an input digest their output does not
@@ -133,7 +133,7 @@ def test_adjudicate_and_gate_are_never_reported_done(workspace: Path):
     """
     assert cli.main(["run", str(workspace)]) == 0
     states = _states(workspace)
-    assert states["adjudicate"] is State.BLOCKED
+    assert states["check"] is State.BLOCKED
     assert states["gate"] is State.BLOCKED
 
 

@@ -18,7 +18,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from .. import cli as adjudicate_cli
+from .. import cli as check_cli
 from ..draft import cli as draft_cli
 from ..entrypoints import CommandModule
 from ..history import cli as history_cli
@@ -74,11 +74,11 @@ def _views(ws: Workspace) -> tuple[list[str], CommandModule]:
     return argv, views_cli
 
 
-def _adjudicate(ws: Workspace, strict: bool) -> tuple[list[str], CommandModule]:
+def _check(ws: Workspace, strict: bool) -> tuple[list[str], CommandModule]:
     argv = [str(ws.manifest), "--out", str(ws.out), "--repo", str(ws.clone)]
     if strict:
         argv.append("--strict")
-    return argv, adjudicate_cli
+    return argv, check_cli
 
 
 def _checkpoint(ws: Workspace, cluster: str) -> tuple[list[str], CommandModule]:
@@ -157,8 +157,8 @@ def perform(
         argv, module = _timeline(ws)
     elif stage.name == "views":
         argv, module = _views(ws)
-    elif stage.name == "adjudicate":
-        argv, module = _adjudicate(ws, strict)
+    elif stage.name == "check":
+        argv, module = _check(ws, strict)
     elif stage.name == "checkpoint":
         if cluster is None:
             raise PipelineError("checkpoint needs --cluster")

@@ -29,7 +29,7 @@ package reserves to `forge`, so obtaining the repository stays a human step.
 | 3 | `timeline` | deterministic | `corpus/` → `timeline/` |
 | 4 | `views` | deterministic | `timeline/` → `clusters/` |
 | 5 | `mining` | **agent** | `clusters/` → `manifest.yaml` |
-| 6 | `adjudicate` | deterministic | `manifest.yaml` → `out/report.*` |
+| 6 | `check` | deterministic | `manifest.yaml` → `out/report.*` |
 | 7 | `prose` | **agent** | evidence → `draft/`, `revisions.yaml` |
 | 8 | `checkpoint` | deterministic | `manifest.yaml` → `checkpoints/<id>/` |
 | 9 | `gate` | deterministic | `draft/` → `out/gate-report.json` |
@@ -59,7 +59,7 @@ what exists is correct and stays, so the stage is resumed rather than re-run),
 `stale` (produced, but an input moved), `pending`, `blocked` (something
 upstream is not ready), and `re-derivable`.
 
-`adjudicate` and `gate` are `re-derivable`: both are pure and take
+`check` and `gate` are `re-derivable`: both are pure and take
 milliseconds, and their output carries no digest of its input. Adding one to
 make their doneness derivable would cost more than simply re-deriving the
 answer, so the runner performs them rather than probing them.

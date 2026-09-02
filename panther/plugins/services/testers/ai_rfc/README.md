@@ -110,7 +110,7 @@ sub-package's `cli.main` and nothing else, so data still hands over on disk.
 ## CLI
 
 ```bash
-panther ai-rfc adjudicate \
+panther ai-rfc check \
   path/to/manifest.yaml \
   --out out/ \
   --repo path/to/pinned-clone \
@@ -231,7 +231,7 @@ dropped in unchanged for the same reason.
 ### The authoring loop
 
 **Do not decide a claim's status.** Write the claim and its evidence, and let
-`adjudicate` tell you what that evidence supports. Concretely:
+`check` tell you what that evidence supports. Concretely:
 
 1. **Build the corpus first.** Beyond being the citable record, its index is how
    you decide what to read: querying `file_changes` for the highest-churn paths
@@ -244,7 +244,7 @@ dropped in unchanged for the same reason.
    anchors are resolved against their pinned commits and any that do not exist
    are named on stderr, while the command still exits 0. Fix wrong paths and
    wrong commits here, before anything is built on top of them.
-4. **Record the adjudicated status.** See the caveat below: the report tells you
+4. **Record the supported status.** See the caveat below: the report tells you
    what is *stored*, not what is *supported*, so today this means calling
    `promotion.adjudicate` directly.
 5. **Re-run with `--strict`.** It is now a gate: any overstated claim or
@@ -253,8 +253,8 @@ dropped in unchanged for the same reason.
 ```bash
 panther ai-rfc history path/to/clone --out corpus/
 # ... mining happens here, outside this framework ...
-panther ai-rfc adjudicate manifest.yaml --out out/ --repo path/to/clone
-panther ai-rfc adjudicate manifest.yaml --out out/ --repo path/to/clone --strict
+panther ai-rfc check manifest.yaml --out out/ --repo path/to/clone
+panther ai-rfc check manifest.yaml --out out/ --repo path/to/clone --strict
 ```
 
 ### Reading the report

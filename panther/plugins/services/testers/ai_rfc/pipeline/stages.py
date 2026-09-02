@@ -59,7 +59,7 @@ STAGES: tuple[Stage, ...] = (
         "into <workspace>/manifest.yaml. Nothing in this package proposes a "
         "claim; the manifest arrives as YAML a miner put on disk.",
     ),
-    Stage(6, "adjudicate", Performer.DETERMINISTIC),
+    Stage(6, "check", Performer.DETERMINISTIC),
     Stage(
         7,
         "prose",

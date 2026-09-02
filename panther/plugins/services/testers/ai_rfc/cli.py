@@ -28,8 +28,9 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="ai_rfc",
         description=(
-            "Validate a reconstructed requirement manifest: check its schema, "
-            "adjudicate every claim against the promotion rule, and optionally "
+            "Report which claims in a reconstructed requirement manifest are "
+            "not backed by the code their anchors point at: check the schema, "
+            "weigh every claim against the promotion rule, and optionally "
             "verify repository anchors against their pinned commits."
         ),
     )

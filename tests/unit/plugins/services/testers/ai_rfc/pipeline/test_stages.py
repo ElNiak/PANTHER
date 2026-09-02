@@ -67,8 +67,8 @@ def test_the_first_stage_is_the_manual_pin():
     assert STAGES[0].performer is Performer.MANUAL
 
 
-def test_mining_precedes_adjudication_and_prose_precedes_its_gate():
-    """Order is the contract: nothing adjudicates claims that were never mined."""
+def test_mining_precedes_the_check_and_prose_precedes_its_gate():
+    """Order is the contract: nothing checks claims that were never mined."""
     order = [item.name for item in STAGES]
-    assert order.index("mining") < order.index("adjudicate")
+    assert order.index("mining") < order.index("check")
     assert order.index("prose") < order.index("checkpoint") < order.index("gate")

@@ -33,8 +33,8 @@ class EntryPoint:
         verb: The token following ``panther ai-rfc``.
         prog: The sub-CLI's own ``argparse`` ``prog=``, which ``--version``
             prints. Deliberately not derived from ``verb``: the root validator
-            answers to ``adjudicate`` but has always called itself ``ai_rfc``,
-            and changing that would alter output the harness records.
+            answers to ``check`` but has always called itself ``ai_rfc``, and
+            changing that would alter output the harness records.
         module: Dotted path of the ``cli`` module, not of its package — the
             ``__main__`` guard test derives that name by trimming one segment.
         summary: One line. Shown by ``--help`` and rendered into the generated
@@ -58,7 +58,7 @@ class EntryPoint:
 
 ENTRY_POINTS: tuple[EntryPoint, ...] = (
     EntryPoint(
-        "adjudicate",
+        "check",
         "ai_rfc",
         f"{PACKAGE}.cli",
         "Validate a manifest, adjudicate its claims and verify its anchors",

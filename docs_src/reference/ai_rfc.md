@@ -21,7 +21,7 @@ Ten stages, of which eight are deterministic Python and two are not.
 | 3 | timeline | deterministic | clusters and members |
 | 4 | views | deterministic | per-cluster evidence bundles |
 | 5 | **mining** | **agent** | claims in `manifest.yaml` |
-| 6 | adjudicate | deterministic | `report.{json,yaml,md}` |
+| 6 | check | deterministic | `report.{json,yaml,md}` |
 | 7 | **prose** | **agent** | the Internet-Draft |
 | 8 | checkpoint | deterministic | a frozen manifest per cluster |
 | 9 | gate | deterministic | `gate-report.json` |
@@ -39,7 +39,7 @@ unchanged, remains supported, and is what the agent harness invokes.
 
 | Command | Purpose |
 |---|---|
-| `panther ai-rfc adjudicate` | Validate a manifest; adjudicate claims; verify anchors |
+| `panther ai-rfc check` | Validate a manifest; weigh claims against evidence; verify anchors |
 | `panther ai-rfc pipeline` | `status`, `run`, `substrate` — drive the deterministic stages |
 | `panther ai-rfc history` | Extract a commit corpus from a clone |
 | `panther ai-rfc forge` | `fetch`, `adopt` — PR and review evidence, from the API or from records obtained without credentials |

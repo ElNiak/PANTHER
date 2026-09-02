@@ -273,7 +273,7 @@ def state(ws: Workspace) -> tuple[StageState, ...]:
         "timeline": timeline,
         "views": views,
         "mining": mining,
-        "adjudicate": rederivable,
+        "check": rederivable,
         "prose": _prose(ws, mining[0]),
         "checkpoint": _checkpoint(ws, mining[0]),
         "gate": rederivable,
