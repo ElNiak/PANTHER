@@ -174,27 +174,34 @@ field is stored unstripped while `text` is stripped at `schema.py:104`. **Raise
 is to refuse a malformed document rather than to repair it, and a signer is the strongest
 lever in the rule.
 
-`test_schema.py` defines no module-level helpers, so write the test self-contained, using
-whatever `load`-from-disk idiom the neighbouring tests in that file already use:
+`test_schema.py` defines no module-level helpers; its idiom is either a conftest fixture or
+an inline document written to `tmp_path`, as at `test_schema.py:126`. Follow the second,
+and note that `conftest.py`'s `BASE_ONLY` proves a manifest needs no `anchors`:
 
 ```python
-def test_a_whitespace_only_signer_is_refused():
+def test_a_whitespace_only_signer_is_refused(tmp_path: Path):
     """`signed_off_by` is the strongest lever in the promotion rule.
 
     Blanks are not names, and `schema` refuses a malformed document rather than
     repairing it — treating whitespace as absent would silently downgrade a
     claim the author believed they had signed.
     """
-    document = _valid_manifest_text().replace(
-        "signed_off_by: dev-01", "signed_off_by: '   '"
+    path = tmp_path / "blank_signer.yaml"
+    path.write_text(
+        "rfc: SPEC-1\n"
+        "title: 'x'\n"
+        "requirements:\n"
+        "  'spec:1.1':\n"
+        "    text: 'x'\n"
+        "    section: '1.1'\n"
+        "    level: MUST\n"
+        "    layer: timing\n"
+        "    signed_off_by: '   '\n"
     )
-    with pytest.raises(SchemaError):
-        load(_written(tmp_path, document))
+    with pytest.raises(SchemaError) as excinfo:
+        load(path)
+    assert "signed_off_by" in str(excinfo.value)
 ```
-
-Both `_valid_manifest_text` and `_written` are placeholders for whatever that file already
-does — **read `test_schema.py` first and follow its existing construction**; do not add a
-helper it does not have.
 
 - [ ] **Step 6: Run both suites**
 
@@ -436,7 +443,9 @@ wrong thing and would have passed against unfixed code.
 - [ ] **Step 1: Write the failing test**
 
 ```python
-def test_an_unreadable_timeline_leaves_no_checkpoint_behind(draft_workspace, tmp_path):
+def test_an_unreadable_timeline_leaves_no_checkpoint_behind(
+    timeline_dir, manifest_path, tmp_path
+):
     """A half-written checkpoint is worse than none.
 
     The write-once guard refuses the retry forever and `pipeline status` reads
@@ -445,26 +454,29 @@ def test_an_unreadable_timeline_leaves_no_checkpoint_behind(draft_workspace, tmp
     """
     out = tmp_path / "fresh-checkpoints"
     cluster_id = json.loads(
-        (draft_workspace["timeline"] / "clusters.jsonl").read_text().splitlines()[0]
+        (timeline_dir / "clusters.jsonl").read_text().splitlines()[0]
     )["id"]
-    (draft_workspace["timeline"] / "timeline.json").unlink()
+    (timeline_dir / "timeline.json").unlink()
 
     with pytest.raises(OSError):
-        write_checkpoint(
-            draft_workspace["manifest"],
-            draft_workspace["timeline"],
-            cluster_id,
-            out,
-        )
+        write_checkpoint(manifest_path, timeline_dir, cluster_id, out)
 
     assert not (out / cluster_id).exists()
 ```
 
-Three things this gets right that revision 1 did not: a **fresh** `out` directory, because
-`draft_workspace` already populates its own and both clusters are checkpointed there
-(`draft/conftest.py:100-114`); a **real** cluster id read from `clusters.jsonl`, because a
-fake one raises at `_cluster_row` before the `mkdir`; and `timeline.json` as the broken
-input. Match the fixture's dict keys to what `draft/conftest.py` actually returns.
+**Use `timeline_dir` and `manifest_path`, not `draft_workspace`.** `draft_workspace`
+returns the keys `repo`, `timeline`, `checkpoints`, `questions` and `revisions` — there is
+**no** `manifest` key, so indexing one raises `KeyError`; `manifest_path` is a separate
+fixture at `draft/conftest.py:168`. Using `timeline_dir` directly also avoids
+`draft_workspace`'s side effect of checkpointing both clusters into its own directory
+(`draft/conftest.py:100-115`), which is what would otherwise make a reused `out` hit the
+write-once guard before reaching the bug.
+
+Three things this gets right that revision 1 did not: a **fresh** `out` directory; a
+**real** cluster id read from `clusters.jsonl`, because a fake one raises at `_cluster_row`
+before the `mkdir`; and `timeline.json` as the broken input, because `_cluster_row` reads
+`clusters.jsonl` at `:35` and breaking that fails early, leaving nothing behind — which is
+the current *correct* behaviour, not the bug.
 
 - [ ] **Step 2: Run it to verify it fails**
 
@@ -549,9 +561,11 @@ class ForgeDenied(ForgeAuthError):
 
 - [ ] **Step 2: Write the failing tests**
 
-`forge/test_fetch.py:1-9` imports only `fetch_pull_data`, `parse_url` and `ForgeError`;
-extend that import to include `_paginated_github`, `_get_json`, `_default_transport`,
-`ForgeThrottled` and `ForgeDenied`. Then add:
+`forge/test_fetch.py:1-9` imports `fetch_pull_data` and `parse_url` from `forge.fetch`, and
+`ForgeError` from **`forge.store`** — the base class lives at `store.py:38`, not in
+`fetch.py`. Leave that second import alone and extend the first with `_paginated_github`,
+`_get_json`, `_default_transport`, `ForgeThrottled` and `ForgeDenied`, all of which are
+defined in `fetch.py`. Then add:
 
 ```python
 def test_pagination_will_not_follow_a_link_to_another_host():
@@ -701,14 +715,30 @@ dropped — and keeping its existing assertions:
 
 - [ ] **Step 2: Add the duplicate-id test**
 
-In `test_schema.py`, following that file's own construction idiom:
+In `test_schema.py`, following the same inline-document idiom as Task 1 Step 5:
 
 ```python
-def test_a_duplicated_requirement_id_is_refused():
+def test_a_duplicated_requirement_id_is_refused(tmp_path: Path):
     """Two claims, one id: safe_load keeps the last and the count under-reports."""
-    document = "requirements:\n  R1:\n    text: first\n  R1:\n    text: second\n"
-    with pytest.raises(SchemaError):
-        load(_written(tmp_path, document))
+    path = tmp_path / "duplicate_id.yaml"
+    path.write_text(
+        "rfc: SPEC-1\n"
+        "title: 'x'\n"
+        "requirements:\n"
+        "  'spec:1.1':\n"
+        "    text: first\n"
+        "    section: '1.1'\n"
+        "    level: MUST\n"
+        "    layer: timing\n"
+        "  'spec:1.1':\n"
+        "    text: second\n"
+        "    section: '1.1'\n"
+        "    level: MUST\n"
+        "    layer: timing\n"
+    )
+    with pytest.raises(SchemaError) as excinfo:
+        load(path)
+    assert "spec:1.1" in str(excinfo.value)
 ```
 
 - [ ] **Step 3: Run both to verify they fail**
