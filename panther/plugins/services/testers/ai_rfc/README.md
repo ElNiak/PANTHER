@@ -96,26 +96,31 @@ sub-package's `cli.main` and nothing else, so data still hands over on disk.
 
 | Command | Purpose |
 |---|---|
-| `python -m …ai_rfc.forge fetch URL --repo CLONE --out DIR [--host github\|gitlab]` | Fetch pull data into an immutable snapshot (the only networked command); a token is optional and the snapshot records the fidelity it reached |
-| `python -m …ai_rfc.forge adopt RECORDS URL --repo CLONE --out DIR [--host github\|gitlab]` | Write the same snapshot from records obtained without credentials |
-| `python -m …ai_rfc.pipeline substrate WORKSPACE` | Report every reason the pinned clone cannot carry a reconstruction |
-| `python -m …ai_rfc.timeline CORPUS --out DIR [--repo CLONE] [--forge SNAPDIR]` | Cluster the corpus; `--repo` refuses a clone whose HEAD left the corpus tip; `--forge` enriches and rescues |
-| `python -m …ai_rfc.views TIMELINE --corpus DIR --repo CLONE --out DIR [--only ID] [--forge SNAPDIR] [--patches span\|members] [--verify]` | Emit evidence folders; `--verify` exits 3 on byte drift, and `--only` scopes both emission and verification |
-| `python -m …ai_rfc.draft checkpoint MANIFEST --timeline DIR --cluster ID --out DIR` | Freeze the manifest against one cluster |
-| `python -m …ai_rfc.draft gate DRAFTREPO --timeline DIR --checkpoints DIR --questions FILE --revisions FILE --out DIR [--strict]` | Citation gate; findings exit 3 under `--strict` |
-| `python -m …ai_rfc.pipeline status WORKSPACE [--json]` | Report every stage's state and what to do next |
-| `python -m …ai_rfc.pipeline run WORKSPACE [--from STAGE] [--until STAGE] [--forge-url URL] [--cluster ID] [--strict] [--json]` | Chain the deterministic stages; stop at the next agent stage |
-| `python -m …ai_rfc.coverage MANIFEST --coverage FILE --repo CLONE --commit SHA --out DIR` | Propose `runtime` anchors for cited lines a test run reached |
+| `panther ai-rfc forge fetch URL --repo CLONE --out DIR [--host github\|gitlab]` | Fetch pull data into an immutable snapshot (the only networked command); a token is optional and the snapshot records the fidelity it reached |
+| `panther ai-rfc forge adopt RECORDS URL --repo CLONE --out DIR [--host github\|gitlab]` | Write the same snapshot from records obtained without credentials |
+| `panther ai-rfc pipeline substrate WORKSPACE` | Report every reason the pinned clone cannot carry a reconstruction |
+| `panther ai-rfc timeline CORPUS --out DIR [--repo CLONE] [--forge SNAPDIR]` | Cluster the corpus; `--repo` refuses a clone whose HEAD left the corpus tip; `--forge` enriches and rescues |
+| `panther ai-rfc views TIMELINE --corpus DIR --repo CLONE --out DIR [--only ID] [--forge SNAPDIR] [--patches span\|members] [--verify]` | Emit evidence folders; `--verify` exits 3 on byte drift, and `--only` scopes both emission and verification |
+| `panther ai-rfc draft checkpoint MANIFEST --timeline DIR --cluster ID --out DIR` | Freeze the manifest against one cluster |
+| `panther ai-rfc draft gate DRAFTREPO --timeline DIR --checkpoints DIR --questions FILE --revisions FILE --out DIR [--strict]` | Citation gate; findings exit 3 under `--strict` |
+| `panther ai-rfc pipeline status WORKSPACE [--json]` | Report every stage's state and what to do next |
+| `panther ai-rfc pipeline run WORKSPACE [--from STAGE] [--until STAGE] [--forge-url URL] [--cluster ID] [--strict] [--json]` | Chain the deterministic stages; stop at the next agent stage |
+| `panther ai-rfc coverage MANIFEST --coverage FILE --repo CLONE --commit SHA --out DIR` | Propose `runtime` anchors for cited lines a test run reached |
 
 ## CLI
 
 ```bash
-python -m panther.plugins.services.testers.ai_rfc \
+panther ai-rfc adjudicate \
   path/to/manifest.yaml \
   --out out/ \
   --repo path/to/pinned-clone \
   --strict
 ```
+
+Every command here is also reachable as
+`python -m panther.plugins.services.testers.ai_rfc[.SUB]`, unchanged. That form
+remains supported and is what the agent harness invokes, so a rendered skill or
+a frozen experiment artifact will always show it rather than the short form.
 
 Writes `report.json`, `report.yaml` and `report.md` into `--out`. `--repo`
 names a clone against which `code` and `runtime` anchors are verified at their
@@ -153,7 +158,7 @@ a workspace that processed one cluster of sixty-nine and stopped is perfectly
 self-consistent. `draft completeness` asks the other question.
 
 ```bash
-python -m panther.plugins.services.testers.ai_rfc.draft completeness \
+panther ai-rfc draft completeness \
   path/to/workspace \
   --out out/ \
   --strict
@@ -246,10 +251,10 @@ dropped in unchanged for the same reason.
    unresolved anchor exits 3.
 
 ```bash
-python -m panther.plugins.services.testers.ai_rfc.history path/to/clone --out corpus/
+panther ai-rfc history path/to/clone --out corpus/
 # ... mining happens here, outside this framework ...
-python -m panther.plugins.services.testers.ai_rfc manifest.yaml --out out/ --repo path/to/clone
-python -m panther.plugins.services.testers.ai_rfc manifest.yaml --out out/ --repo path/to/clone --strict
+panther ai-rfc adjudicate manifest.yaml --out out/ --repo path/to/clone
+panther ai-rfc adjudicate manifest.yaml --out out/ --repo path/to/clone --strict
 ```
 
 ### Reading the report

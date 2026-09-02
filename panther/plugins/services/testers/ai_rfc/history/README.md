@@ -12,7 +12,7 @@ it touches is `git`, run against a local clone.
 ## CLI
 
 ```bash
-python -m panther.plugins.services.testers.ai_rfc.history \
+panther ai-rfc history \
   path/to/pinned-clone \
   --out corpus/ \
   --cap 1000 \
@@ -36,7 +36,7 @@ Exit codes:
 
 ```bash
 git clone https://host/org/project.git clone/      # NOT --depth 1
-python -m panther.plugins.services.testers.ai_rfc.history clone/ --out corpus/
+panther ai-rfc history clone/ --out corpus/
 ```
 
 Extraction refuses a shallow clone rather than extracting a truncated history
@@ -68,7 +68,7 @@ its GitLab origin. What a clone must satisfy is only this:
 | Not bare | The pin stage needs a working tree with a `.git` directory | `substrate` |
 | HEAD equals the recorded tip | Every anchor is verified against that commit | `timeline`, `views` |
 
-`python -m panther.plugins.services.testers.ai_rfc.pipeline substrate <workspace>`
+`panther ai-rfc pipeline substrate <workspace>`
 reports the first three at once, instead of letting them surface one stage
 apart. The tip comparison is not among them: there is no recorded tip until
 the corpus exists, so `timeline` and `views` are where it belongs.

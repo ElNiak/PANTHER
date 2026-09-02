@@ -32,19 +32,21 @@ substrate is current and the next move belongs to somebody else.
 
 ## Command surface
 
-Each subpackage is its own `python -m` entry point, and all of them share one
-exit-code contract.
+Each subpackage is a verb under `panther ai-rfc`, and all of them share one
+exit-code contract. Every verb is equally reachable as
+`python -m panther.plugins.services.testers.ai_rfc[.SUB]`; that form is
+unchanged, remains supported, and is what the agent harness invokes.
 
 | Command | Purpose |
 |---|---|
-| `ai_rfc` | Validate a manifest; adjudicate claims; verify anchors |
-| `ai_rfc.pipeline` | `status`, `run`, `substrate` — drive the deterministic stages |
-| `ai_rfc.history` | Extract a commit corpus from a clone |
-| `ai_rfc.forge` | `fetch`, `adopt` — PR and review evidence, from the API or from records obtained without credentials |
-| `ai_rfc.timeline` | Cluster the corpus into an ordered timeline |
-| `ai_rfc.views` | Emit per-cluster evidence bundles |
-| `ai_rfc.draft` | `checkpoint`, `gate`, `completeness` |
-| `ai_rfc.coverage` | Propose runtime anchors from a coverage report |
+| `panther ai-rfc adjudicate` | Validate a manifest; adjudicate claims; verify anchors |
+| `panther ai-rfc pipeline` | `status`, `run`, `substrate` — drive the deterministic stages |
+| `panther ai-rfc history` | Extract a commit corpus from a clone |
+| `panther ai-rfc forge` | `fetch`, `adopt` — PR and review evidence, from the API or from records obtained without credentials |
+| `panther ai-rfc timeline` | Cluster the corpus into an ordered timeline |
+| `panther ai-rfc views` | Emit per-cluster evidence bundles |
+| `panther ai-rfc draft` | `checkpoint`, `gate`, `completeness` |
+| `panther ai-rfc coverage` | Propose runtime anchors from a coverage report |
 
 ## Exit codes
 

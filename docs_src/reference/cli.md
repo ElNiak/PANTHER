@@ -2,13 +2,18 @@
 
 Complete reference for the `panther` command-line interface.
 
-!!! note "Not every command in the repository is a `panther` subcommand"
+!!! note "The `ai-rfc` subcommands forward their arguments"
 
     The `ai_rfc` substrate, which reconstructs a requirement specification from
     an existing implementation's history, is deliberately not registered as a
-    plugin type and has no console script. Its eight entry points are reached as
-    `python -m panther.plugins.services.testers.ai_rfc...` and are documented in
-    [ai_rfc (reconstructed specs)](ai_rfc.md) — nothing below covers them.
+    plugin type — it is reached as `panther ai-rfc <verb>`. Its eight
+    subcommands below are passthroughs onto standalone `argparse` commands, so
+    their arguments are not described here; see
+    [ai_rfc (reconstructed specs)](ai_rfc.md) for each one's options.
+
+    Every verb is equally reachable as
+    `python -m panther.plugins.services.testers.ai_rfc[.SUB]`, which is
+    unchanged and is what the agent harness invokes.
 
 ::: mkdocs-click
     :module: panther.cli.core.main
