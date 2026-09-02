@@ -739,7 +739,11 @@ hand-written table. It deliberately stopped at `promotion.adjudicate`, which
 genuinely adjudicates, and it could not reach the harness submodule, whose MCP
 tool `ai_rfc_claim_adjudicate` and CLI verb `claim-adjudicate` still carry the
 old word. `panther ai-rfc check --version` also still prints `ai_rfc`, because
-`prog` may not change.
+`prog` may not change. And `pipeline run --from adjudicate` / `--until
+adjudicate` are now rejected, since `pipeline/cli.py:59,66` take
+`choices=sorted(BY_NAME)`. Accepted: nothing in this repository or the
+harness passes a stage name to either flag, and argparse names `check`
+among the valid choices in the error it prints.
 
 ## Corrections found during execution
 

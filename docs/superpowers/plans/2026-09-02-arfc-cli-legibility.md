@@ -48,7 +48,9 @@ Three defects, all in the text rather than the structure:
 
 1. **`adjudicate`'s summary defines the word with itself** — "Validate a manifest, *adjudicate* its claims". A reader who does not know the word learns nothing.
 2. **Two summaries lead with bare tokens** (`checkpoint, gate, completeness —`), so the eye hits jargon before meaning.
-3. **The list hides the workflow.** The eight verbs are stages 1–9 of one pipeline (`pipeline/stages.py:39-70`), and `pipeline run` already performs four of them for you (`pipeline/run.py:145-172`). Presented alphabetically as peers, that ordering is invisible — which is what makes eight feel like too many.
+3. **The list hides the workflow.** The eight verbs are stages 1–9 of one pipeline (`pipeline/stages.py:39-70`), and `pipeline run` performs every deterministic stage among them — six of the eight commands — stopping only at `pin`, `mining` and `prose` (`pipeline/run.py`). Presented alphabetically as peers, that ordering is invisible — which is what makes eight feel like too many.
+
+   *Corrected after review.* This sentence originally read "already performs four of them for you", citing a range that dispatches seven stages. That miscount propagated into a section heading and a counted sentence in `cli.md`; both are fixed in `a20cc9a7b`. Left annotated rather than silently rewritten, because the wrong number is the reason two other things were wrong.
 
 ### Why the eight verbs stay
 
