@@ -141,3 +141,22 @@ def test_every_cli_module_on_disk_is_registered():
         if "harness" not in path.relative_to(PACKAGE_ROOT).parts
     }
     assert on_disk == {entry.module for entry in ENTRY_POINTS}
+
+
+def test_every_entry_declares_a_section():
+    """An empty heading would drop a command out of the listing in silence."""
+    assert all(entry.section for entry in ENTRY_POINTS)
+
+
+def test_entries_sharing_a_section_are_contiguous():
+    """Declaration order is the help's order, so a section must not be split.
+
+    A section appearing in two separate runs of the tuple would print its
+    heading twice, and the second block would read as a different group of
+    commands rather than a continuation of the first.
+    """
+    runs: list[str] = []
+    for entry in ENTRY_POINTS:
+        if not runs or runs[-1] != entry.section:
+            runs.append(entry.section)
+    assert len(runs) == len(set(runs))

@@ -40,12 +40,17 @@ class EntryPoint:
         summary: One line. Shown by ``--help`` and rendered into the generated
             CLI reference by ``mkdocs-click``, where it is the only description
             a reader gets, since the arguments forward untouched.
+        section: The heading ``panther ai-rfc --help`` lists this command
+            under. Entries sharing one are kept contiguous in
+            :data:`ENTRY_POINTS`, because that order is the order the help
+            prints.
     """
 
     verb: str
     prog: str
     module: str
     summary: str
+    section: str
 
     def load(self) -> CommandModule:
         """Import the module this entry names.
@@ -56,53 +61,71 @@ class EntryPoint:
         return cast(CommandModule, import_module(self.module))
 
 
+#: Headings ``panther ai-rfc --help`` lists commands under. Plain text: click's
+#: formatter writes them verbatim, so backticks would print as backticks.
+DRIVEN = "Commands you drive"
+BY_HAND = "Run these yourself"
+PERFORMED = "Stages that pipeline run performs for you"
+
+
 ENTRY_POINTS: tuple[EntryPoint, ...] = (
+    EntryPoint(
+        "pipeline",
+        "ai_rfc.pipeline",
+        f"{PACKAGE}.pipeline.cli",
+        "Show where a workspace stands and run whatever stage is ready "
+        "(status, substrate, run)",
+        DRIVEN,
+    ),
     EntryPoint(
         "check",
         "ai_rfc",
         f"{PACKAGE}.cli",
-        "Validate a manifest, adjudicate its claims and verify its anchors",
-    ),
-    EntryPoint(
-        "coverage",
-        "ai_rfc.coverage",
-        f"{PACKAGE}.coverage.cli",
-        "Propose runtime anchors from a coverage report",
+        "Report which manifest claims are not backed by the code their "
+        "anchors point at",
+        BY_HAND,
     ),
     EntryPoint(
         "draft",
         "ai_rfc.draft",
         f"{PACKAGE}.draft.cli",
-        "checkpoint, gate, completeness — freeze and gate a prose draft",
+        "Freeze the manifest per cluster, then gate the prose against it "
+        "(checkpoint, gate, completeness)",
+        BY_HAND,
     ),
     EntryPoint(
-        "forge",
-        "ai_rfc.forge",
-        f"{PACKAGE}.forge.cli",
-        "fetch, adopt — pull and review evidence, with or without credentials",
+        "coverage",
+        "ai_rfc.coverage",
+        f"{PACKAGE}.coverage.cli",
+        "Propose anchors for the lines a test run actually executed",
+        BY_HAND,
     ),
     EntryPoint(
         "history",
         "ai_rfc.history",
         f"{PACKAGE}.history.cli",
-        "Extract a commit corpus from a clone",
+        "Turn a pinned clone's commits into a queryable corpus",
+        PERFORMED,
     ),
     EntryPoint(
-        "pipeline",
-        "ai_rfc.pipeline",
-        f"{PACKAGE}.pipeline.cli",
-        "status, substrate, run — drive the deterministic stages",
+        "forge",
+        "ai_rfc.forge",
+        f"{PACKAGE}.forge.cli",
+        "Pull pull-request discussion from GitHub or GitLab (fetch, adopt)",
+        PERFORMED,
     ),
     EntryPoint(
         "timeline",
         "ai_rfc.timeline",
         f"{PACKAGE}.timeline.cli",
-        "Cluster the corpus into an ordered timeline",
+        "Group the corpus into ordered clusters, one per pull request",
+        PERFORMED,
     ),
     EntryPoint(
         "views",
         "ai_rfc.views",
         f"{PACKAGE}.views.cli",
-        "Emit per-cluster evidence bundles",
+        "Write the per-cluster evidence folder an author reads",
+        PERFORMED,
     ),
 )
