@@ -1367,3 +1367,156 @@ carries 12 unchecked preregistration boxes. `runner-14` notes that `audit` and `
 exit 0 whatever they find, which is only tolerable while a human reads every report — and
 the protocol's unchecked reporting commitments are exactly the thing that would decide
 whether the pipeline is ever script-driven.
+
+## Strengths
+
+Named accurately rather than generously, because the assessment below depends on the
+difference. These are the things a reviewer would have to work to find fault with.
+
+**The evidence layer is the best-reasoned part of the codebase, and it is honestly
+tested.** `test_promotion.py:90-109` asserts that interview+paper and interview+ADR *stay*
+at `inferred` — the two-narrative-source route a lazy suite would omit, and precisely the
+circularity `PRIMARY_EVIDENCE` exists to block. `claims.py:22-36,95-99` excludes `status`
+from the writable fields *and* rejects it separately with an explanatory message, so an
+agent cannot assert a standing its evidence does not support.
+
+**Numbers are reported with the denominator that makes them readable.**
+`models.py:154-169` reports `confirmed_count_by_req_class` beside the fraction, with a
+docstring naming the reason: `0.0` has two readings and only the denominator says which.
+`metrics._arm_summary` reports `runs_with_unknown_cost` and `runs_with_broken_surface`
+beside the figures they were excluded from rather than folding unknown into zero.
+`report.py:28-35` with `cli.py:99-104` makes "no findings" distinguishable from "nothing
+checked". This is instrument design, not bookkeeping, and it is consistent across
+modules by different-looking hands.
+
+**Determinism is defended where it would actually leak.** `views/emit.py:21-40` neutralises
+every gitconfig drift source a reviewer could name, with the reasoning recorded.
+`coverage/commit.py:55-61` uses `rev-parse --verify <rev>^{commit}` and carries a comment
+naming the plain-`rev-parse` trap it replaced — which exits 0 for any 40-hex string.
+`history/git_log.py:105-118` keeps a field-count guard deliberately after `maxsplit` made
+it redundant.
+
+**Writes are made safe before they are made.** `claims.py:60-66` round-trips every manifest
+write through the strict schema in a scratch directory *before* `os.replace`, then re-reads
+from disk and returns what actually stored rather than echoing the input.
+`draft.py:114-140` is tag-then-verify-then-delete, with the ordering rationale written down
+and `rolled_back` reported rather than hidden.
+
+**One reader, not two.** `audit.in_arm` decides Bash by calling `enforcement.is_allowed` —
+the same function the live guard runs — instead of re-deriving from a surface label. The
+`runner` reviewer checked the remaining derived pair and confirmed they still agree. This
+is the single place where a second reader would have drifted, and it was avoided
+deliberately.
+
+**The tests guard their own degenerate readings.** `test_metrics.py:164-189` asserts both
+that an unpriced run is excluded *and* that a priced failure still scores 0.375, so the
+metric cannot pass by being always-zero. `test_enforcement.py:54-68` is an adversarial
+allowlist suite — command substitution, backticks, `| sh`, the empty string — not a
+happy-path one. `test_cli_conventions.py:125-127` guards its own vacuous pass before
+comparing sets. `draft/conftest.py:41-55` builds its fixture *through the shipped code*, so
+fixture and production cannot drift apart. And across all 10,387 lines of test there are
+**zero** occurrences of `mock`, `MagicMock`, `patch` or `assert_called`.
+
+**A version pin that carries its incident.** `server/pyproject.toml:13-19` pins `mcp<2` and
+records the failure it prevents — tools silently absent while the session still reports
+success, and the run that spent $5.90 mining claims in an invented vocabulary because
+nothing was there to validate them. This is how a version bound should be written.
+
+**A register entry that closed properly.** The `guard.py` fail-open defect recorded in an
+earlier plan is genuinely fixed, and fixed in the harder, more correct direction: a bare
+`except Exception` returning the blocking exit code, two `isinstance` guards, and a
+top-level catch — with a comment explaining why naming exception types leaves the guarantee
+false for every type nobody named.
+
+## Assessment
+
+**Is the code any good? Yes, and unusually so in its reasoning — but it has a blind spot
+with a name.** The craft is real: the evidence rules, the determinism defences, the
+denominators beside the fractions, the write-then-verify discipline. What the codebase
+consistently gets right is *statistical* honesty — undecided is never scored as failed,
+unpriced is never zero, a cap is never silently rounded to a complete answer.
+
+What it does not have is a notion of **provenance** honesty: no part of it asks "who
+produced this, under what code, and were they entitled to?" Every one of the six Criticals
+is that same absence wearing a different hat. The agent under measurement can author its
+own sign-offs (C-1) because nothing binds evidence to a human. Re-analysis rewrites the
+record with confidently wrong numbers (C-5) because nothing binds a computation to the
+revision that produced it. A question overwrite destroys a human answer (C-6) because
+nothing checks whether an id was already claimed. The manifest goes unvalidated on the
+default path (C-2) because nothing insists the check was performed. That is one design gap
+with six symptoms, not six unrelated bugs — which is good news, because it makes the fix a
+coherent piece of work rather than a list of patches.
+
+**Is technical debt hiding in it? Almost none is hiding; a lot is written down; and the
+register itself has one dangerous sentence.** There are zero `TODO`, `FIXME`, `HACK`,
+`XXX`, `NotImplementedError`, skipped or expected-fail tests, and zero `# type: ignore`
+across 18,443 lines and two repositories. Seven `# noqa` suppressions exist, all in the
+harness — and two of those are correctness guarantees rather than debt, suppressing the
+very rule that would reintroduce a bug the project already fixed. PANTHER-side formatting
+and linting are completely clean.
+
+The debt is instead recorded in prose, in unusual quantity and quality — measured costs, a
+recorded dead end, deliberate exclusions marked as deliberate. Treating those entries as
+debt rather than as settled design, which is what you asked for, produces the backlog
+above: eight entries worth keeping as written, three where the register understates the
+problem, and seven genuinely unregistered items. The one entry to change first is
+`README.md:294`, "No gap in this list remains open." That is now false, and a register
+asserting its own completeness is worse than no register, because a reader stops looking.
+
+**Are the commands and features finished? The commands are; the surfaces are not evenly
+tested; and two features are present without a caller.** All 13 PANTHER-side verbs exist,
+carry help text and tests, and no flag is defined but never read. But 8 of 16 MCP tools
+have no test at the tool boundary, and four verbs — `cluster-get`, `question-draft`,
+`question-export`, `answer-record` — have none at either surface a user or agent can reach.
+`answer-record` is the one that matters: it is the human sign-off path, and it is both
+untested at both entry points and the centre of C-1. Three `experiment` verbs are never
+reached through `cli.main`, and only one of the three declares it. Two modules have no
+production caller at all: `history/aggregates.py` (56 lines) and the brand-new
+`summary.py` (384 lines).
+
+**What to fix first, in order.** C-1, because an instrument whose subject can author its
+own grades cannot support a published claim, and because the cheapest link — rejecting an
+empty quote — is a one-line change. C-5 next, as a refusal rather than a shim: make
+`load_campaign` compare the frozen campaign's revision against the live checkout and raise,
+and make `audit_run`/`analyze_run` decline to overwrite a record produced under a different
+revision. Then C-2, which is the one number the instrument exists to produce going
+unverified on the path most runs take. Then `evidence-01`, the highest-value item this
+review could not settle — the mechanism is confirmed against a purpose-built repository and
+only the question of whether real targets exercise it remains.
+
+**One thing to do before any of that.** Decide how two repositories moving at different
+rates under one branch is going to be coordinated. This review watched the harness advance
+six commits and 1,120 lines while it was being read, which is why one 88-line change went
+unreviewed and two citations went stale. That is not a code defect, but it set the ceiling
+on what this review could guarantee.
+
+## How this report was checked
+
+**Every severity line carries its evidence.** 88 severity lines were extracted and each
+joined with its continuation, then tested for a settling check or a confirming artifact.
+Four did not match the pattern and were read individually: all four carry their evidence in
+a phrasing the check did not anticipate — "settled from the other side by the `server`
+reviewer", "the pilot's recorded and mounted digests match on every run", "no per-cluster
+campaign has produced artifacts", and a citation of the module docstring that scopes
+`summary.py` out of `metrics`. They are legal. The check was left as it is rather than
+widened until it went green, because a gate tuned to pass is not a gate.
+
+The plan's own version of this check was a single-line `grep`. It flagged 44 legal lines,
+because a severity line whose settling clause wraps to the next line is still one logical
+line. That is recorded here rather than quietly fixed: the gate a plan specifies is itself
+a claim, and this one was wrong.
+
+**No placeholder survived.** A grep for `<verbatim>` and `TBD` returns nothing.
+
+**All seven seed findings are accounted for.** S-1 and S-2 confirmed and widened by the
+`server` reviewer; S-3, S-4 and S-6 confirmed by `evidence`, with evidence-08 identified as
+the substantive part of S-6; S-5 confirmed by `core` as core-05; S-7 confirmed and widened
+by `runner` as runner-11, which adds that `enforcement.py` is equally undigested.
+
+**What was measured rather than read.** The confirmations in this report rest on: three
+full test-suite runs; `mypy`, `black` and `flake8` at the correct settings; a probe
+workspace exercising `pipeline run` both ways; an injected forge transport; a purpose-built
+git repository with a content-introducing merge; two in-memory pytest plugins that
+monkeypatch a target and observe what a suite still passes; direct recomputation of the
+pilot metrics from the frozen transcripts; and a walk of all 2,052 pilot checkpoint
+directories. Findings that could not be settled that way say so in their own severity line.
