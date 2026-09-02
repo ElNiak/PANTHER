@@ -491,3 +491,222 @@ question becomes answered, and re-answering overwrites `answer`/`answered_by`/
 `answered_at` — so a second call with `author_confirmed_exact_text=True` grants the
 sign-off the first call withheld.
 SEVERITY: Important — confirmed against `draft/questions.py`.
+
+### Reader `runner` — `harness/experiment/` source (5,345 LOC)
+
+**Partial.** Truncated inside runner-04; the remainder was requested.
+
+This reviewer verified read-only and, importantly, **deliberately did not run the `audit`
+or `analyze` CLI verbs against the pilot**, because both overwrite `audit/` and
+`analysis/` in place. Every recomputation was done by calling the pure functions in
+memory. That restraint is what made runner-01 findable without destroying the evidence it
+rests on.
+
+**Strengths.** `audit.in_arm` (`audit.py:190-192`) decides Bash by calling
+`enforcement.is_allowed` — the same function the live guard runs — instead of the surface
+label, which is the one place a second reader would have drifted. The reviewer checked the
+remaining derived pair: `bash_prefixes` yields `('ai_rfc ',)` and
+`('python -m …ai_rfc', 'git ', 'sqlite3 ')`, `_stage_surface` maps each to its family, and
+**they still agree**. `stream.merge_results` (`:189-234`) sums cost across per-session
+result events rather than taking the tail. `metrics._arm_summary` reports
+`runs_with_unknown_cost` and `runs_with_broken_surface` beside the figures they were
+excluded from, instead of folding unknown into zero. `guard.py:39-45` rejects non-dict
+payloads before `.get`, closing the path where an exception would exit 1 and allow.
+
+**runner-01** · `metrics.py:494-518`, `audit.py:403-416`, `config.py:334-355` · correctness
+Nothing compares a frozen campaign's `git`/`prompt_sha256`/`plugin_root` against the
+running checkout, yet every constant that classifies a transcript (`arms.RAW_PREFIX`,
+`Bash(ai_rfc *)`, `audit._stage_surface`, `classify`'s `mcp__ai_rfc__`,
+`stream.ai_rfc_connected`, `metrics._cluster_of_call`) is a literal that moves with a
+rename; `campaign.git` is only copied into the aggregate for display (`metrics.py:526`).
+Re-running today's code over the **unchanged** pilot transcripts flips B1 `integrity`
+True→**False** with 177 fabricated `executed_out_of_arm` entries, C1 → False with 41, A1 →
+False with 170 **and** `surface.intact` False (its server is named `arfc`), which drops
+both arm-A runs from `_arm_summary` so arm A reports `runs: 0` and dashes for every
+figure. `checkpoint_calls` returns 0 for B1 (stored: 11) → `auc` 0.0,
+`tokens_to_first_completion` None. `cli.analyze` calls `audit_campaign` **first**, which
+rewrites all six `audit/*.json` in place, and only then reaches `run_gates`, which would
+ImportError because `campaign.plugin_root` no longer exists — destroying the evidence
+without producing a replacement.
+SEVERITY: Critical — confirmed against
+`~/arfc-experiments/campaigns/pilot-aioquic-w02-11-20260831`, whose stored audits show
+`integrity: true` and surfaces `bash:arfc`/`bash:python_a_rfc`/`mcp` while today's code
+recomputes `integrity: false` and `bash:other`/`mcp:other` from the identical bytes. The
+pilot's own `audit.pre-mixed-family-fix/` directory shows this overwrite path is already
+live.
+
+**runner-02** · `audit.py:263-274` · correctness
+`guard_stats` counts `hook_started` only. The stream also carries `hook_response` with
+`exit_code` and `outcome` (verified: 180 in B1, 120 in C1, exit_code 2 on a real denial),
+so a guard that starts and then fails open — exit 1 is *allow* — still scores
+`fired_for_every_bash_call: True`. This is the evidence that would settle runner-03 and
+runner-04, and it is not read.
+SEVERITY: Important if a guard ever exits anything but 0 or 2; Minor otherwise — settled
+by tallying `hook_response.exit_code` per run, which for the pilot is 2 on every denial.
+
+**runner-03** · `guard.py:13-15` · security
+`from experiment.enforcement import is_allowed` sits outside the `try` at `:57` that
+exists precisely because "an exception escaping main() would exit 1, and 1 does not
+block". An ImportError there — harness moved, `enforcement.py` broken mid-campaign — exits
+1 and the command runs, defeating the only real arm separation.
+SEVERITY: Important if the import can fail during a campaign; Minor otherwise — settled by
+runner-02's `hook_response.exit_code` tally, which no run currently inspects.
+
+**runner-04 onward** — pending; truncated in delivery.
+
+### Reader `tests` — all three test trees (10,387 LOC)
+
+**Partial.** Truncated inside tests-07; the remainder was requested.
+
+**Strengths.** `harness/experiment/tests/test_metrics.py:164-189` — the unknown-cost test
+asserts both that an unpriced run is excluded *and* (`:186-188`) that a priced failure
+still scores 0.375, so the metric cannot pass by being always-zero; same discipline at
+`:258-291` for void runs. `test_enforcement.py:54-68` — adversarial allowlist cases
+(command substitution, backticks, `| sh`, the empty string), each asserted blocked, not a
+happy-path allowlist test. `test_cli_conventions.py:125-127` guards its own vacuous pass
+before comparing sets. `draft/conftest.py:41-55` builds the timeline fixture *through the
+shipped code* (`read_commits` → `build_timeline` → `write_timeline`) rather than
+hand-writing JSON, so fixture and production cannot drift apart.
+
+**tests-01** · `harness/plugins/ai-rfc/server/tests/test_parity.py:85` · test-gap
+`test_every_tool_is_in_the_parity_table` greps the whole `parity.md` text for
+`` `<tool_name>` ``, so a row stripped to its name (empty verb and substrate columns)
+passes — and, with no vacuous-pass guard like `test_cli_conventions:125-127`, a tool
+deleted from `ALL_TOOLS` leaves its row standing, green.
+SEVERITY: Important — confirmed against `tools.py:135-152` (16 tools) and
+`harness/docs/parity.md:10-25` (16 rows), where the suite makes cross-arm assertions for 5.
+
+**tests-02** · `harness/docs/parity.md:4-5` · doc-drift
+The document states the suite "keeps every write byte-identical and every read
+JSON-identical across arms". Five tool↔verb pairs have such an assertion (`claim_upsert`,
+`claim_record_status`, `claim_adjudicate`, `draft_commit`, `revision_tag`); the
+`cluster_next`/`checkpoint`/`revision_record` calls at `test_parity.py:116-120` run through
+`tools.*` on *both* arms, so they are setup, not parity.
+SEVERITY: Important — confirmed against parity.md:4-5 versus the 5 cross-arm assertions in
+test_parity.py.
+
+**tests-03** · `tests/unit/…/draft/test_gate.py:58` · test-gap
+`test_unknown_cluster_id_is_found` asserts `any("c9999" in finding)`, and the mutation
+produces two findings that both contain it, so deleting either rule leaves the test green.
+SEVERITY: Minor — confirmed by a spied run printing both findings; the input only the
+timeline rule catches cannot arise normally, since `write_checkpoint` refuses it
+(`test_checkpoint.py:60-67`).
+
+**tests-04** · `tests/unit/…/draft/test_gate.py:33-117` · test-gap
+All ten mutation tests assert `any(needle in finding)` and none asserts the finding
+*count*, so a gate over-reporting on every input passes all ten;
+`test_non_increasing_cluster_ordinals_are_found` already produces a second, unasserted
+finding.
+SEVERITY: Minor — confirmed by the spied run; `test_clean_workspace_gates_clean:30` still
+pins `== ()` on a clean workspace.
+
+**tests-05** · `tests/unit/…/test_cli_conventions.py:67` · test-gap
+`TRACKED_HELPERS` covers 4 of the README table's 6 rows; the uncovered "JSONL corpus
+readers" and "Forge snapshot readers" rows name concepts rather than `def` names, so
+`_defines()` (which greps `^def <name>(`) cannot be extended to them without rewriting the
+rows — and the docstring at `:118-122` records that this table has already drifted twice.
+SEVERITY: Minor — confirmed against README.md:475-482 and a grep of both rows' modules,
+neither of which has drifted today.
+
+**tests-06** · `tests/unit/…/draft/test_questions.py:47` · test-gap
+`test_dump_is_idempotent` round-trips the serializer through itself and never asserts
+fidelity to the source.
+SEVERITY: Minor — confirmed by mutation (6/6 green with `answered_by` stripped inside
+`dump_questions`), which shows the field is unpinned through a dump while `dump_questions`
+is correct today.
+
+**tests-07 onward** — pending; truncated in delivery. One correction already supplied:
+tests-10 cites `completeness.py:245-247` for the `CompletenessError` on an unreadable
+manifest; concurrent work moved that raise to line 261. The behaviour is unchanged and the
+finding stands.
+
+## The code moved while it was being reviewed
+
+This is recorded before the findings are ranked, because it bounds what any of them can
+claim.
+
+The plan for this review asserted that "the tree is free — no campaign has touched
+`~/arfc-experiments/campaigns/` today, the harness submodule is clean at its pinned
+pointer, and the working tree has no uncommitted changes." That was true when it was
+written and false within the hour. **Another session was implementing on this same branch,
+in this same worktree, throughout the review window.**
+
+The reflog is unambiguous. Four commits here are this review's; two interleaved ones are
+not:
+
+| Time | Commit | Whose |
+|---|---|---|
+| 13:59:58 | `442959aab` plan the whole-codebase review | review |
+| **14:00:51** | **`90817ebe8` correct the miscount that produced the false heading** | **other session** |
+| 14:05:15 | `4776df34a` record the review baseline | review |
+| 14:07:43 | `ce8aa733e` verify the command inventory before dispatching readers | review |
+| **14:26:27** | **`7d1efaad2` make a checkpoint's claim ids readable by name** | **other session** |
+| 14:27:53 | `dded8e643` collect findings from three of five slice reviews | review |
+
+And inside the `harness` submodule, two commits landed mid-review — `1ac26f1` at 14:21:50
+("read a run's transcript once per attempt, not twice") and `4c56538` at 14:24:09 ("slice
+a run's transcript by session"), touching `per_cluster.py`, `stream.py` and their tests.
+The submodule HEAD is therefore `4c56538`, two commits ahead of the pointer `0b62bf38`
+this repository records; the parent's ` M` on that path is a gitlink gap, not a dirty
+tree. Two further untracked files, `experiment/summary.py` and
+`experiment/tests/test_summary.py`, are in-progress work that had not been committed when
+this was written.
+
+### What this costs the review
+
+**The baseline describes a state that no longer exists.** The 390 / 339 / 40 counts were
+measured at 14:05, before both harness commits and before `7d1efaad2`. They remain an
+honest record of that moment and are not re-run here, because a second baseline taken
+after further concurrent commits would be equally stale.
+
+**Some citations have moved.** `draft/completeness.py` shifted by about fourteen lines, so
+finding tests-10's citation of `completeness.py:245-247` is now line 261 — behaviour
+unchanged, finding intact. The `tests` reviewer's untriaged substring-assertion hits in
+`test_per_cluster.py` describe that file as it stood before `1ac26f1`. Every line number
+in this report should be treated as accurate to the review window, not to HEAD.
+
+**One reviewer's scratch file was overwritten by another's.** Running five agents plus an
+implementer in one worktree is not free, and this is the cheapest possible illustration of
+why.
+
+### A wrong accusation, and how it was settled
+
+A modified `draft/completeness.py` appeared mid-review, renaming `_claim_ids` to
+`claim_ids_of` with a docstring justifying the change as "Public because the experiment
+harness attributes claims per cluster while a run is in flight." Because the `harness/`
+reviewer owns exactly that code, this review accused it of implementing rather than
+reviewing.
+
+**That accusation was wrong**, and the reviewer refuted it with better evidence than the
+accusation had: it had never called an edit tool at all, every write went to its
+scratchpad, and — decisively — it had read `per_cluster.py` in full and established that
+the file performs no claim-id extraction of any kind, with zero occurrences of `claim_id`,
+`claim_ids` or `_claim_ids`. So the new docstring asserts a caller that does not exist. The
+reviewer declined to report the refactor as a finding of its own on the grounds that doing
+so would put a fabricated defect into the review. That was the right call, and it is worth
+recording as its own observation:
+
+**`draft/completeness.py:91`'s `claim_ids_of` carries a docstring that justifies its
+public visibility by naming a caller in `harness/experiment/` which does not exist.**
+SEVERITY: Minor — confirmed against `harness/experiment/per_cluster.py`, where a grep for
+`claim_id`, `claim_ids` and `_claim_ids` returns zero hits, and whose import set contains
+nothing from `draft/`.
+
+The general lesson, which this project has recorded before and just paid for again: a
+worktree isolates the checkout, not the branch. `git status` stays clean while HEAD moves
+underneath. Before attributing an unexpected change to an agent you dispatched, read the
+reflog.
+
+## Operational hazard — do not run two commands against the pilot
+
+Recorded here rather than in the findings list because it is a live risk to existing
+evidence, not a defect to schedule.
+
+**Do not run `python -m experiment audit` or `python -m experiment analyze` against
+`~/arfc-experiments/campaigns/pilot-aioquic-w02-11-20260831/`.** Per runner-01, today's
+code recomputes `integrity: false` from the pilot's unchanged bytes, with hundreds of
+fabricated `executed_out_of_arm` entries; `cli.analyze` calls `audit_campaign` first,
+which rewrites all six `audit/*.json` in place, and then crashes before regenerating the
+analysis. The result is destroyed evidence and no replacement. The pilot directory already
+contains `audit.pre-mixed-family-fix/`, a hand-preserved copy of an earlier `audit/`,
+which indicates this overwrite path has fired before.
