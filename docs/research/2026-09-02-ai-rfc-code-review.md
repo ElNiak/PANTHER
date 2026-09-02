@@ -710,3 +710,117 @@ which rewrites all six `audit/*.json` in place, and then crashes before regenera
 analysis. The result is destroyed evidence and no replacement. The pilot directory already
 contains `audit.pre-mixed-family-fix/`, a hand-preserved copy of an earlier `audit/`,
 which indicates this overwrite path has fired before.
+
+### Reader `core` — remaining findings and assessment (complete)
+
+**core-11** · `pipeline/cli.py:160-164` · correctness
+`--until` naming a stage earlier than `--from` breaks on the first iteration, so the run
+exits 0 having performed nothing and printed nothing.
+SEVERITY: Minor — confirmed by reading; `_finish` with `performed=[]` returns 0 and prints
+only under `--json`.
+
+**core-12** · `pipeline/cli.py:236-237` · doc-drift
+The docstring promises exit 1 when "a stage was asked for that this command does not
+perform", but `--from mining` reaches the boundary branch at `:175` and exits 0.
+SEVERITY: Minor — confirmed by reading; only the two missing-argument `PipelineError`s
+reach the exit-1 path.
+
+**core-13** · `schema.py:121` · correctness
+`testable` is passed through with no type check while every neighbouring field is
+validated, so `testable: "no"` stores a truthy string in a field typed `bool | None`.
+SEVERITY: Minor if no consumer branches on it; Important otherwise — settled by grepping
+the harness for `testable`. **Settled by the `server` reviewer, in a different slice:
+nothing reads `testable` today, so this resolves to Minor** — see the `cli.py:27-34,82`
+finding below, which independently reached the same conclusion from the other side.
+
+**core-14** · `tests/unit/…/test_schema.py`, `test_anchors.py`, `pipeline/test_cli.py` ·
+test-gap
+Nothing covers a YAML syntax error, a duplicate requirement id, a symbolic-ref commit, or
+a mixed-type id map (`sorted()` at `schema.py:152` raises an uncaught `TypeError` on `1`
+and `"B"` together — confirmed), and no test runs the pipeline past mining.
+SEVERITY: Important — confirmed: a grep for `YAMLError`/`ScannerError` over the suite
+returns nothing, `test_anchors.py:22` only ever pins a resolved `rev-parse HEAD` result,
+and **every finding core-01 through core-09 is invisible to the current suite**.
+
+**Assessment.** The slice is sound where it matters most: the evidence layer itself —
+`promotion.adjudicate`, the status ranking, the anchor digests — is carefully reasoned and
+honestly tested, and the defects cluster in the plumbing around it rather than in the
+promotion rule. Fix core-01 first: the pipeline's default path exits 0 without ever
+performing `check` or `gate`, so the one number the instrument exists to produce goes
+unverified on the path most runs take.
+
+### Reader `server` — further findings
+
+Delivered without ids after server-03; numbered here in the order received. Still
+truncated — a further remainder was requested.
+
+**server-04** · `questions.py:198-200` · correctness
+One `author_confirmed_exact_text` boolean writes `signed_off_by` to every claim on the
+question, including claims that received no anchor and claims added to the question after
+it was asked, though the docstring at `:138` says "the exact claim wording", singular.
+SEVERITY: Important — confirmed against `promotion.py:70`, where any `signed_off_by`
+returns `Status.CONFIRMED`, so every claim so marked reaches top status on one author's
+confirmation of one wording.
+
+**server-05** · `claims.py:110-111` · correctness
+`body = dict(existing)` then `body.update(fields)` preserves `signed_off_by` across a
+`text` change, so a re-worded claim keeps a sign-off certifying wording the author never
+saw; excluding `signed_off_by` from `_WRITABLE_FIELDS` blocks setting it but not
+inheriting it.
+SEVERITY: Important — confirmed against `promotion.py:67-70`; the re-worded claim stays
+CONFIRMED.
+
+**server-06** · `questions.py:157-163` · security
+The transcript is any file the caller names, `answered_by` is free text, and
+`author_confirmed_exact_text` is caller-supplied, so nothing binds a sign-off to a human
+and the agent being audited can author the evidence that grades it.
+SEVERITY: Critical if the runner grants the agent Write or Bash into the workspace;
+Important otherwise — settled by whether the runner's tool allowlist permits writing
+`interviews/`.
+
+**server-07** · `gates.py:87-88,133-137`, `queries.py:142-143` · api-contract
+Both gates read `out/report.json` and `out/gate-report.json` whenever the file exists,
+with no check that this run wrote it, so a previous run's report is returned beside a
+failing exit code, unmarked; `queries.status` returns it with no exit code at all, and
+`draft.py:138` surfaces stale findings beside `rolled_back: True`.
+SEVERITY: Important — confirmed against `ai_rfc/cli.py:85-90` and `draft/cli.py:154-158`,
+both of which return 1 before writing any report.
+
+**server-08** · `cli.py:27-34,82` · api-contract
+`_parse_fields` yields strings only and `cli.py:82` advertises `testable` as a `--field`
+key, so the CLI arm writes `testable: 'false'` where the MCP arm writes `testable: false`
+— the documented path, not misuse.
+SEVERITY: Important — confirmed by round-tripping through `schema.load`/`schema.dump`,
+which returns `str`, re-emits `'false'`, and neither coerces nor rejects; nothing reads
+`testable` today, so the damage is to the compared artifact, not to adjudication. **This
+is the finding that settles core-13.**
+
+**server-09** · `tests/test_parity.py:26-58` · test-gap
+The byte-for-byte upsert parity test sends `intent=intended`, a string, so it exercises the
+one case where the coercion above is invisible; the single non-string writable field is the
+one it never sends.
+SEVERITY: Important if the campaign treats manifest bytes as an arm-comparison outcome;
+Minor otherwise — settled by whether the campaign diffs manifests across arms.
+
+**server-10** · `questions.py:76-85,181-201` · correctness
+`questions.yaml` is committed before the manifest is normalized, so a manifest validation
+failure leaves the register recording an answered or newly drafted question the manifest
+does not reflect, with no rollback.
+SEVERITY: Important if a schema failure is reachable between the two writes; Minor
+otherwise — settled by whether any `_normalize_and_write` input can fail validation after
+`_document` loaded cleanly.
+
+**server-11** · `questions.py:55` · correctness
+`set(claim_ids) <= set(entry.claim_ids)` blocks only subsets, so re-asking an identical
+question with one extra claim id bypasses the "do not ask twice" guardrail; the docstring
+matches the code, so the gap is in the rule rather than the prose.
+SEVERITY: Minor — confirmed by inspection; the bypass costs an author a duplicate
+question, not evidence integrity.
+
+**server-12** · `gates.py:23-31` · api-contract
+`_run` discards stdout entirely, so a substrate reporting on stdout would yield
+`{exit_code: N, stderr: []}` — a failure with no stated reason.
+SEVERITY: Minor — confirmed by grep; both invoked CLIs write only to stderr today, so this
+is latent.
+
+**server-13 onward** — pending; truncated in delivery.
