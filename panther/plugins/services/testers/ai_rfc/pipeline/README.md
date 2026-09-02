@@ -70,8 +70,8 @@ blocking on it would hide a corpus and timeline that are perfectly current.
 ## Commands
 
 ```bash
-python -m …a_rfc.pipeline status WORKSPACE [--json]
-python -m …a_rfc.pipeline run WORKSPACE [--from STAGE] [--until STAGE] \
+python -m …ai_rfc.pipeline status WORKSPACE [--json]
+python -m …ai_rfc.pipeline run WORKSPACE [--from STAGE] [--until STAGE] \
     [--forge-url URL] [--host github|gitlab] [--cluster ID] [--strict] [--json]
 ```
 

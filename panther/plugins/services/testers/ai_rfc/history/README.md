@@ -294,7 +294,7 @@ you assert against is a rendering that can change.
 
 The corpus feeds claim mining, which runs in agents outside this framework.
 The miner's output is a manifest, validated by the manifest modules at the
-`a_rfc` package root. The corpus is also read by the sibling `timeline/`
+`ai_rfc` package root. The corpus is also read by the sibling `timeline/`
 subpackage (and, through the timeline, by `views/`) — corpus-side stages
 that, like this one, re-parse the JSONL themselves rather than importing it. **The handoff between the two is a file on disk, not
 an import** — `history/` deliberately shares no domain code with its parent

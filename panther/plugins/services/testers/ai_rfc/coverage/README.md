@@ -56,7 +56,7 @@ by construction rather than by coincidence.
 ## Command
 
 ```bash
-python -m …a_rfc.coverage MANIFEST --coverage jacoco.xml --format jacoco \
+python -m …ai_rfc.coverage MANIFEST --coverage jacoco.xml --format jacoco \
     --repo path/to/clone --commit <sha> --out out/
 ```
 
