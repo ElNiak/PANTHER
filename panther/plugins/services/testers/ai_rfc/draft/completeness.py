@@ -88,8 +88,22 @@ def checkpoint_records(checkpoints_dir: Path) -> tuple[tuple[str, dict], ...]:
     return tuple(sorted(records, key=lambda pair: pair[1]["ordinal"]))
 
 
-def _claim_ids(checkpoint_dir: Path) -> frozenset[str]:
-    """The claim ids held by a checkpoint's frozen manifest copy."""
+def claim_ids_of(checkpoint_dir: Path) -> frozenset[str]:
+    """The claim ids held by a checkpoint's frozen manifest copy.
+
+    Public because the experiment harness attributes claims per cluster while a
+    run is in flight, and a second extraction there would be free to drift from
+    the one :func:`attribute_claims` uses.
+
+    Args:
+        checkpoint_dir: One directory under the checkpoints root.
+
+    Returns:
+        Every claim id the frozen manifest holds.
+
+    Raises:
+        CompletenessError: If the manifest is absent or malformed.
+    """
     try:
         manifest = load(checkpoint_dir / MANIFEST_FILE)
     except (SchemaError, OSError) as error:
@@ -123,7 +137,7 @@ def attribute_claims(
     seen: frozenset[str] = frozenset()
     previous_digest: str | None = None
     for name, record in checkpoint_records(checkpoints_dir):
-        held = _claim_ids(checkpoints_dir / name)
+        held = claim_ids_of(checkpoints_dir / name)
         try:
             digest = record["manifest_sha256"]
             cluster_id = record["cluster_id"]
@@ -239,7 +253,7 @@ def build(
     rows = attribute_claims(timeline_dir, checkpoints_dir)
     checkpointed: frozenset[str] = frozenset()
     for name, _ in checkpoint_records(checkpoints_dir):
-        checkpointed = checkpointed | _claim_ids(checkpoints_dir / name)
+        checkpointed = checkpointed | claim_ids_of(checkpoints_dir / name)
 
     try:
         live = frozenset(claim.id for claim in load(manifest_path).claims)
