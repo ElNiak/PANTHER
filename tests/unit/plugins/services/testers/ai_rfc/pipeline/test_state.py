@@ -6,6 +6,7 @@ import pytest
 from panther.plugins.services.testers.ai_rfc.pipeline import cli
 from panther.plugins.services.testers.ai_rfc.pipeline.state import (
     State,
+    _checkpoint,
     next_stage,
     state,
 )
@@ -90,6 +91,47 @@ def test_adjudicate_and_gate_are_never_reported_done(workspace: Path):
     states = _states(workspace)
     assert states["adjudicate"] is State.BLOCKED
     assert states["gate"] is State.BLOCKED
+
+
+def _checkpointed(workspace: Path, *, of: int, frozen: int) -> tuple[State, str]:
+    """Grade `checkpoint` over a timeline of ``of`` clusters, ``frozen`` done.
+
+    Calls the predicate directly rather than through :func:`state`, because
+    reaching `checkpoint` through the chain means standing up a clone, a corpus,
+    a current timeline, views and a loaded manifest — none of which this
+    predicate reads.
+    """
+    timeline = workspace / "timeline"
+    timeline.mkdir(parents=True, exist_ok=True)
+    timeline.joinpath("clusters.jsonl").write_text(
+        "\n".join(json.dumps({"id": f"c{n:04d}"}) for n in range(1, of + 1)) + "\n"
+    )
+    for n in range(1, frozen + 1):
+        (workspace / "checkpoints" / f"c{n:04d}").mkdir(parents=True, exist_ok=True)
+    return _checkpoint(Workspace(root=workspace), State.DONE)
+
+
+def test_a_partly_checkpointed_timeline_is_partial_not_done(workspace: Path):
+    """The defect this state exists for: two clusters of sixty-nine read `done`.
+
+    The predicate had the numbers in hand — it wrote "2 of 69" into its own note
+    — and returned DONE beside them, so `pipeline status` answered "nothing
+    outstanding" for a reconstruction that had barely started.
+    """
+    result, reason = _checkpointed(workspace, of=69, frozen=2)
+    assert result is State.PARTIAL
+    assert reason == "2 of 69 cluster(s) checkpointed"
+
+
+def test_a_fully_checkpointed_timeline_is_done(workspace: Path):
+    result, reason = _checkpointed(workspace, of=3, frozen=3)
+    assert result is State.DONE
+    assert reason == "3 of 3 cluster(s) checkpointed"
+
+
+def test_no_checkpoint_at_all_is_pending(workspace: Path):
+    result, _ = _checkpointed(workspace, of=3, frozen=0)
+    assert result is State.PENDING
 
 
 def _write_forge_meta(workspace: Path, **overrides) -> None:

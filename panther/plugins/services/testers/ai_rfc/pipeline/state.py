@@ -31,6 +31,12 @@ class State(Enum):
 
     #: Produced, and consistent with the inputs currently on disk.
     DONE = "done"
+    #: Produced for some of the units it covers, but not all of them. Unlike
+    #: ``STALE``, what exists is correct and stays: the stage is resumed rather
+    #: than re-run. A stage that grades doneness by asking whether it produced
+    #: *anything* cannot report this, and so reports a reconstruction of two
+    #: clusters in sixty-nine as finished.
+    PARTIAL = "partial"
     #: Produced, but an input has moved since. Re-run it.
     STALE = "stale"
     #: Not produced yet, and everything it needs is ready.
@@ -214,6 +220,8 @@ def _checkpoint(ws: Workspace, mining: State) -> tuple[State, str]:
     )
     if not frozen:
         return State.PENDING, f"no cluster checkpointed of {total}"
+    if frozen < total:
+        return State.PARTIAL, f"{frozen} of {total} cluster(s) checkpointed"
     return State.DONE, f"{frozen} of {total} cluster(s) checkpointed"
 
 
