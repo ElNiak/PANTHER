@@ -879,6 +879,23 @@ exits 3 and reports the violation. Settled further during this review: commit `a
 **documentation only** — five doc and `__init__`/`entrypoints` files, no behaviour — so it
 aligned the prose to the skip and left the enum's contradictory docstring standing.
 
+**Correction, added after this finding was first written.** Reviewing the fix plan surfaced
+a root cause that sits between two slices and that no reviewer stated, and it changes what
+this entry claims. The skipped stage is `check` (ordinal 6). **`gate` (ordinal 9) is not
+skipped — it is unreachable on the default path by construction**, because `prose` (7) is
+an agent boundary and `_run` returns at the first non-deterministic stage
+(`pipeline/cli.py:176-182`) without asking whether that stage is already `DONE`. `gate` is
+reachable today only under `run --cluster <id>`, where `next_stage`'s skipping of
+re-derivable stages returns `checkpoint` and the walk performs checkpoint then gate.
+
+So the defect has two halves, and the second is the deeper one: the start-ordinal
+derivation misses `check`, **and** the walk treats a completed boundary as a stopping
+point. Any fix that only changes the start derivation makes things worse — `check` is
+`RECOMPUTED` or `BLOCKED` but never `DONE`, so starting from "the first stage not done"
+always halts at `prose` and loses `checkpoint` and `gate` as well. That regression was
+caught in review before it shipped; see `docs/superpowers/plans/2026-09-02-arfc-provenance-fix.md`
+§*What review changed*.
+
 **C-3. A failed checkpoint is unrecoverable without manual `rm -rf`.** (`core-02`)
 `write_checkpoint` creates the directory and writes `manifest.yaml` before reading
 `timeline.json` (`draft/checkpoint.py:74-98`), so a failure there leaves a directory
