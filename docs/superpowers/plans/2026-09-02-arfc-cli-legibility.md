@@ -850,3 +850,61 @@ attribute 'update_gui'`), two docker-compose environment tests, and
 modules, pre-commit clean on all sixteen changed files, both doors agree on
 exit 1 and exit 3 with a byte-identical `report.json`, and no `prog=` value,
 file location or `harness/` path was touched.
+
+---
+
+## Fixes from code review
+
+A reviewer read `e85be8762..ff1845cd1` against this plan. No Critical findings. It
+independently re-derived invocation-neutrality, rename completeness, and the
+stage-name claim, and closed one gap this plan never checked: nothing in the
+harness submodule constructs an `EntryPoint`, so adding a required fifth field
+could not break an external positional call.
+
+**Two Important findings were defects in the plan itself, not in its execution.**
+
+**The plan's premise about `pipeline run` was wrong.** Context §3 claimed it
+"already performs four of them for you" and cited `run.py:145-172` — a range
+that dispatches *seven* stages. `perform()` runs every `Performer.DETERMINISTIC`
+stage: `history`, `forge`, `timeline`, `views`, `check`, `checkpoint`, `gate`. It
+stops only at `pin`, `mining` and `prose`. So `pipeline run` performs six of the
+eight commands, not four. The section heading was reworded from "Stages that
+pipeline run performs for you" to "Stages pipeline run reaches before it needs
+you", which drops the false implicature, and `docs_src/reference/cli.md`'s
+counted sentence — flatly false as written — was replaced. The heading "Run
+these yourself" was left alone: it claims you *can* run those by hand, which is
+true, and never claimed the pipeline does not.
+
+**The two rendering tests guarded the headings, not the commands.** The reviewer
+built a mutant `format_commands` that preserves section order but sorts within
+each section, and both tests stayed green while `forge` (stage 2) rendered above
+`history` (stage 1). `test_the_help_lists_every_verb_in_registration_order` now
+asserts the full rendered sequence. Verified red-green against that same mutant:
+the two original tests pass on it, the new one fails.
+
+**One structural fix.** `perform()`'s seven-branch `elif` chain was a
+hand-maintained mirror of `STAGES` with no test covering the `check` branch. Had
+this rename updated `stages.py` and missed `run.py`, the call would have fallen
+through to a refusal calling a deterministic stage handed-over, with the suite
+green. It is now a `DISPATCH` table plus one assertion,
+`set(DISPATCH) == {deterministic stage names}`. Verified red-green by deleting
+the `check` entry.
+
+**Minor fixes applied:** two test docstrings stated mechanisms the reviewer
+falsified (an empty section renders a bare colon rather than dropping a command;
+a split section is merged by `setdefault` rather than printing its heading
+twice); `README.md:247` still claimed the report does not tell you the supported
+status, which `report.py` has emitted under `claims[].supported` all along;
+`format_commands` now iterates `self.commands.values()` instead of re-looking-up
+each name; `docs_src/reference/ai_rfc.md` said eight stages were deterministic
+when seven are; and the package docstring no longer describes itself with the
+retired word.
+
+**Deviation worth recording:** Task 2b said to drop the double-backticks in the
+group docstring. They were replaced with quotes instead — better in the
+terminal, but it loses inline-code rendering in the `mkdocs-click` block.
+
+**Not acted on:** `SectionedGroup` stays local to `panther/cli/commands/ai_rfc.py`
+(the reviewer agreed, having confirmed no conflict with `PantherGroup`), and the
+historical plan document keeps its unannotated `panther ai-rfc adjudicate`
+examples, since a record should read as it was written.
