@@ -11,6 +11,11 @@ Complete reference for the `panther` command-line interface.
     their arguments are not described here; see
     [ai_rfc (reconstructed specs)](ai_rfc.md) for each one's options.
 
+    The generated listing below is flat and alphabetical. `panther ai-rfc
+    --help` groups the same eight under three headings — the one command you
+    drive, the three you run yourself, and the four `pipeline run` performs
+    for you — because that grouping is the workflow order.
+
     Every verb is equally reachable as
     `python -m panther.plugins.services.testers.ai_rfc[.SUB]`, which is
     unchanged and is what the agent harness invokes.

@@ -37,16 +37,32 @@ exit-code contract. Every verb is equally reachable as
 `python -m panther.plugins.services.testers.ai_rfc[.SUB]`; that form is
 unchanged, remains supported, and is what the agent harness invokes.
 
+The three groupings below are the ones `panther ai-rfc --help` prints, in the
+same order. `mkdocs-click` renders the generated reference from click's command
+list alone, so the flat listing it produces cannot carry them.
+
+**Commands you drive**
+
 | Command | Purpose |
 |---|---|
-| `panther ai-rfc check` | Validate a manifest; weigh claims against evidence; verify anchors |
-| `panther ai-rfc pipeline` | `status`, `run`, `substrate` — drive the deterministic stages |
-| `panther ai-rfc history` | Extract a commit corpus from a clone |
-| `panther ai-rfc forge` | `fetch`, `adopt` — PR and review evidence, from the API or from records obtained without credentials |
-| `panther ai-rfc timeline` | Cluster the corpus into an ordered timeline |
-| `panther ai-rfc views` | Emit per-cluster evidence bundles |
-| `panther ai-rfc draft` | `checkpoint`, `gate`, `completeness` |
-| `panther ai-rfc coverage` | Propose runtime anchors from a coverage report |
+| `panther ai-rfc pipeline` | Show where a workspace stands and run whatever stage is ready (`status`, `substrate`, `run`) |
+
+**Run these yourself**
+
+| Command | Purpose |
+|---|---|
+| `panther ai-rfc check` | Report which manifest claims are not backed by the code their anchors point at |
+| `panther ai-rfc draft` | Freeze the manifest per cluster, then gate the prose against it (`checkpoint`, `gate`, `completeness`) |
+| `panther ai-rfc coverage` | Propose anchors for the lines a test run actually executed |
+
+**Stages `pipeline run` performs for you**
+
+| Command | Purpose |
+|---|---|
+| `panther ai-rfc history` | Turn a pinned clone's commits into a queryable corpus |
+| `panther ai-rfc forge` | Pull pull-request discussion from GitHub or GitLab (`fetch`, `adopt`) |
+| `panther ai-rfc timeline` | Group the corpus into ordered clusters, one per pull request |
+| `panther ai-rfc views` | Write the per-cluster evidence folder an author reads |
 
 ## Exit codes
 

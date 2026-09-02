@@ -727,7 +727,19 @@ One real parity divergence: click consumes `--` before forwarding
 reaches argparse as `['-weird.yaml']` and errors, where `python -m` would treat
 it as the manifest. It affects only paths beginning with a hyphen. Closing it
 means re-inserting the separator on the click side, which is redesign rather
-than plumbing.
+than plumbing. (That example predates the rename recorded below; the verb is
+now `check`. The divergence itself is unchanged.)
+
+One accepted vocabulary split, added by the follow-up plan
+`2026-09-02-arfc-cli-legibility.md`. That plan renamed this package's manifest
+gate from `adjudicate` to `check` everywhere a user reads it — the click verb,
+stage 6 in `pipeline/stages.py`, the dispatch literal in `pipeline/run.py`, the
+`pipeline/state.py` key, the `python -m` door's `--help` prose, and every
+hand-written table. It deliberately stopped at `promotion.adjudicate`, which
+genuinely adjudicates, and it could not reach the harness submodule, whose MCP
+tool `ai_rfc_claim_adjudicate` and CLI verb `claim-adjudicate` still carry the
+old word. `panther ai-rfc check --version` also still prints `ai_rfc`, because
+`prog` may not change.
 
 ## Corrections found during execution
 
@@ -791,3 +803,9 @@ the main experiment run completing.
    plus rewriting the `parents[5]`/`parents[10]` conftest arithmetic into a
    marker-file search, and the two filesystem-path citations at
    `docs_src/reference/ai_rfc.md:5,79` that Task 4 deliberately leaves alone.
+
+4. **Rename the concept inside the harness submodule.** `ai_rfc_claim_adjudicate`
+   and `claim-adjudicate` are the last two surfaces still calling the manifest
+   gate `adjudicate`; everything in this repository now calls it `check`. Same
+   blocker as 1-3: the strings reach the rendered agent skills, and changing
+   them breaks comparability with the pilot.
