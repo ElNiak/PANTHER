@@ -2,24 +2,11 @@
 
 Complete reference for the `panther` command-line interface.
 
-!!! note "The `ai-rfc` subcommands forward their arguments"
+!!! note "`ai-rfc` forwards its arguments"
 
-    The `ai_rfc` substrate, which reconstructs a requirement specification from
-    an existing implementation's history, is deliberately not registered as a
-    plugin type — it is reached as `panther ai-rfc <verb>`. Its eight
-    subcommands below are passthroughs onto standalone `argparse` commands, so
-    their arguments are not described here; see
-    [ai_rfc (reconstructed specs)](ai_rfc.md) for each one's options.
-
-    The generated listing below is flat and alphabetical. `panther ai-rfc
-    --help` groups the same eight under three headings, in workflow order.
-    Note that `pipeline run` performs every deterministic stage, `check` and
-    `draft` included; it stops only at `pin`, `mining` and `prose`, which are
-    yours. The third heading names the four it reaches before that first stop.
-
-    Every verb is equally reachable as
-    `python -m panther.plugins.services.testers.ai_rfc[.SUB]`, which is
-    unchanged and is what the agent harness invokes.
+    `panther ai-rfc` is a passthrough onto the installed `ai-rfc` tool, an
+    independent project consumed as a submodule; its arguments are not
+    described here. See [ai_rfc (reconstructed specs)](ai_rfc.md).
 
 ::: mkdocs-click
     :module: panther.cli.core.main

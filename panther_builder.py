@@ -174,6 +174,12 @@ Bootstrap commands:
                 else:
                     os.environ["CMAKE_POLICY_VERSION_MINIMUM"] = old_val
 
+        # Install ai_rfc submodule if present
+        ai_rfc_path = project_root / "panther" / "plugins" / "services" / "testers" / "ai_rfc"
+        if (ai_rfc_path / "pyproject.toml").exists():
+            print("Installing ai_rfc submodule...")
+            _run([sys.executable, "-m", "pip", "install", "--editable", f"{ai_rfc_path}[mcp]"])
+
         print("\nPANTHER installed. You can now use 'panther' CLI commands.")
         return 0
 
