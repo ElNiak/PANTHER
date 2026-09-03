@@ -147,7 +147,8 @@ def _paginated_github(
     url: str, transport: Transport, token: str | None
 ) -> list[dict[str, Any]]:
     items: list[dict[str, Any]] = []
-    host = urllib.parse.urlsplit(url).netloc
+    start = urllib.parse.urlsplit(url)
+    scheme, host = start.scheme, start.netloc
     current_url: str | None = url
     pages = 0
     while current_url:
@@ -162,11 +163,13 @@ def _paginated_github(
         matched = _NEXT_LINK.search(headers.get("link", ""))
         next_url = matched.group(1) if matched else None
         if next_url:
-            next_host = urllib.parse.urlsplit(next_url).netloc
-            if next_host != host:
+            next_split = urllib.parse.urlsplit(next_url)
+            if next_split.scheme != scheme or next_split.netloc != host:
                 raise ForgeError(
-                    f"{current_url}'s Link header pointed from {host} to "
-                    f"{next_host}; refusing to send its token off-host"
+                    f"{current_url}'s Link header pointed from "
+                    f"{scheme}://{host} to "
+                    f"{next_split.scheme}://{next_split.netloc}; refusing "
+                    f"to send its token to another origin"
                 )
         current_url = next_url
     return items

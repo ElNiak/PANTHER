@@ -1,4 +1,5 @@
 import json
+import urllib.request
 
 import pytest
 
@@ -269,6 +270,27 @@ def test_pagination_will_not_follow_a_link_to_another_host():
     assert calls == ["https://api.github.com/repos/o/p/pulls"]
 
 
+def test_pagination_will_not_follow_a_link_that_downgrades_the_scheme():
+    """A scheme downgrade leaks the token the same way a host change does.
+
+    The Link header is remote-controlled.
+    """
+    calls = []
+
+    def transport(url, headers):
+        calls.append(url)
+        return (
+            200,
+            {"Link": '<http://api.github.com/repos/o/p/pulls?page=2>; rel="next"'},
+            b"[]",
+        )
+
+    with pytest.raises(ForgeError):
+        _paginated_github("https://api.github.com/repos/o/p/pulls", transport, "SECRET")
+
+    assert calls == ["https://api.github.com/repos/o/p/pulls"]
+
+
 def test_pagination_is_bounded():
     """A self-referential Link must raise, not loop.
 
@@ -299,8 +321,33 @@ def test_a_rate_limit_is_distinguishable_from_a_denial():
         _get_json("https://api.github.com/x", lambda u, h: (429, {}, b""), None)
 
 
-def test_the_default_transport_sets_a_timeout():
-    """A hung forge must not block the only networked stage forever."""
-    import inspect
+def test_the_default_transport_sets_a_timeout(monkeypatch):
+    """A hung forge must not block the only networked stage forever.
 
-    assert "timeout=" in inspect.getsource(_default_transport)
+    Only a call proves the argument is passed — a source-grep would pass
+    on a comment or a dead branch.
+    """
+    calls = []
+
+    class _FakeResponse:
+        status = 200
+        headers: dict = {}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc_info):
+            return False
+
+        def read(self):
+            return b"{}"
+
+    def fake_urlopen(request, **kwargs):
+        calls.append(kwargs)
+        return _FakeResponse()
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+
+    _default_transport("https://api.github.com/x", {})
+
+    assert calls[0]["timeout"] == 30
