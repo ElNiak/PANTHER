@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import re
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from typing import Any, Callable
@@ -21,6 +22,7 @@ from .store import ForgeError
 Transport = Callable[[str, dict[str, str]], tuple[int, dict[str, str], bytes]]
 
 _NEXT_LINK = re.compile(r"<([^>]+)>;\s*rel=\"next\"")
+_PAGE_CAP = 1000
 
 
 class ForgeAuthError(ForgeError):
@@ -34,6 +36,16 @@ class ForgeThrottled(ForgeAuthError):
     remedies: no credential recovers a 401, while a 429 recovers by waiting.
     Counting them together would let a throttled fetch be reported as having
     reached everything its route can deliver.
+    """
+
+
+class ForgeDenied(ForgeAuthError):
+    """A forge refused a request permanently.
+
+    Distinct from :class:`ForgeThrottled` because the remedies differ and the
+    snapshot's fidelity grading reads which one occurred: waiting clears a 429
+    and never clears a 403. Inherits ``ForgeAuthError`` so the per-pull
+    handlers keep counting it as a denied sub-fetch.
     """
 
 
@@ -94,7 +106,9 @@ def _default_transport(
 ) -> tuple[int, dict[str, str], bytes]:
     request = urllib.request.Request(url, headers=headers)
     try:
-        with urllib.request.urlopen(request) as response:
+        # forge is the pipeline's only networked stage; a forge that accepts
+        # the connection and never answers would otherwise block forever.
+        with urllib.request.urlopen(request, timeout=30) as response:
             return response.status, dict(response.headers), response.read()
     except urllib.error.HTTPError as error:
         return error.code, dict(error.headers or {}), error.read()
@@ -109,11 +123,17 @@ def _get_json(
     if token:
         headers["Authorization"] = f"Bearer {token}"
     status, response_headers, body = transport(url, headers)
-    if status in (403, 429):
+    if status == 429:
         raise ForgeThrottled(
-            f"{url} answered {status} (rate limited or forbidden); wait for "
-            f"the rate-limit window, or set GITHUB_TOKEN or GITLAB_TOKEN to "
-            f"raise it, and retry"
+            f"{url} answered 429 (rate limited); wait for the rate-limit "
+            f"window and retry, or set GITHUB_TOKEN or GITLAB_TOKEN to "
+            f"raise it"
+        )
+    if status == 403:
+        raise ForgeDenied(
+            f"{url} answered 403 (access denied); set GITHUB_TOKEN or "
+            f"GITLAB_TOKEN to a credential with access, or check that the "
+            f"existing one has it — retrying will not help"
         )
     if status == 401:
         raise ForgeAuthError(f"{url} answered 401 (authentication required)")
@@ -127,12 +147,28 @@ def _paginated_github(
     url: str, transport: Transport, token: str | None
 ) -> list[dict[str, Any]]:
     items: list[dict[str, Any]] = []
-    next_url: str | None = url
-    while next_url:
-        payload, headers = _get_json(next_url, transport, token)
+    host = urllib.parse.urlsplit(url).netloc
+    current_url: str | None = url
+    pages = 0
+    while current_url:
+        pages += 1
+        if pages > _PAGE_CAP:
+            raise ForgeError(
+                f"{url} did not finish paginating after {_PAGE_CAP} pages; "
+                f"refusing to keep following it"
+            )
+        payload, headers = _get_json(current_url, transport, token)
         items.extend(payload)
         matched = _NEXT_LINK.search(headers.get("link", ""))
         next_url = matched.group(1) if matched else None
+        if next_url:
+            next_host = urllib.parse.urlsplit(next_url).netloc
+            if next_host != host:
+                raise ForgeError(
+                    f"{current_url}'s Link header pointed from {host} to "
+                    f"{next_host}; refusing to send its token off-host"
+                )
+        current_url = next_url
     return items
 
 
@@ -141,13 +177,25 @@ def _paginated_gitlab(
 ) -> list[dict[str, Any]]:
     items: list[dict[str, Any]] = []
     page = 1
+    pages = 0
     while True:
+        pages += 1
+        if pages > _PAGE_CAP:
+            raise ForgeError(
+                f"{url} did not finish paginating after {_PAGE_CAP} pages; "
+                f"refusing to keep following it"
+            )
         payload, headers = _get_json(f"{url}&page={page}", transport, token)
         items.extend(payload)
         next_page = headers.get("x-next-page", "")
         if not next_page:
             return items
-        page = int(next_page)
+        try:
+            page = int(next_page)
+        except ValueError:
+            raise ForgeError(
+                f"{url} returned a non-numeric x-next-page header {next_page!r}"
+            ) from None
 
 
 def _actor(record: dict[str, Any] | None, key: str, field: str = "login") -> str:

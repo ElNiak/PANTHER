@@ -3,6 +3,12 @@ import json
 import pytest
 
 from panther.plugins.services.testers.ai_rfc.forge.fetch import (
+    _PAGE_CAP,
+    ForgeDenied,
+    ForgeThrottled,
+    _default_transport,
+    _get_json,
+    _paginated_github,
     fetch_pull_data,
     parse_url,
 )
@@ -247,3 +253,54 @@ def test_denied_discussion_endpoints_degrade_with_a_count():
     assert [pull["number"] for pull in result.pulls] == [5, 6]
     assert result.comments == []
     assert result.denied_subfetches == 2
+
+
+def test_pagination_will_not_follow_a_link_to_another_host():
+    """The Link header is remote-controlled and the request carries a token."""
+    calls = []
+
+    def transport(url, headers):
+        calls.append(url)
+        return 200, {"Link": '<https://evil.example/steal>; rel="next"'}, b"[]"
+
+    with pytest.raises(ForgeError):
+        _paginated_github("https://api.github.com/repos/o/p/pulls", transport, "SECRET")
+
+    assert calls == ["https://api.github.com/repos/o/p/pulls"]
+
+
+def test_pagination_is_bounded():
+    """A self-referential Link must raise, not loop.
+
+    Counts calls and raises from the transport itself, so a missing bound
+    fails this test rather than hanging the suite. The guard is pinned to
+    ``_PAGE_CAP`` itself (rather than an arbitrary smaller number) because
+    the two must agree: the guard only needs to sit safely above the real
+    cap to catch a *missing* bound, and a lower guard would trip on the
+    real cap's own last, legitimate page.
+    """
+    calls = []
+
+    def transport(url, headers):
+        calls.append(url)
+        if len(calls) > _PAGE_CAP:
+            raise AssertionError("unbounded pagination")
+        return 200, {"Link": f'<{url}>; rel="next"'}, b"[]"
+
+    with pytest.raises(ForgeError):
+        _paginated_github("https://api.github.com/repos/o/p/pulls", transport, None)
+
+
+def test_a_rate_limit_is_distinguishable_from_a_denial():
+    """429 recovers by waiting; 403 does not. One type cannot say which."""
+    with pytest.raises(ForgeDenied):
+        _get_json("https://api.github.com/x", lambda u, h: (403, {}, b""), None)
+    with pytest.raises(ForgeThrottled):
+        _get_json("https://api.github.com/x", lambda u, h: (429, {}, b""), None)
+
+
+def test_the_default_transport_sets_a_timeout():
+    """A hung forge must not block the only networked stage forever."""
+    import inspect
+
+    assert "timeout=" in inspect.getsource(_default_transport)
