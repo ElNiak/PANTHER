@@ -72,7 +72,7 @@ Facts verified directly on the current tree, invalidated only by SP1's verbatim 
 | `ai_rfc/experiment/prompts/loop.tmpl.md` | 5 | Step 3b, `structure_upsert` |
 | `plugins/ai-rfc/skills/ai-rfc-editorial/SKILL.md` (new) | 6 | What an editorial pass may and may not do |
 | `ai_rfc/experiment/per_cluster.py` | 7 | Schedule and run a consolidation round; failure semantics |
-| `ai_rfc/experiment/cli.py` | 8 | `--consolidate-every`, `campaign init --task consolidation` |
+| `ai_rfc/experiment/cli.py` | 8 | `campaign init --consolidate-every`, `run --task consolidation` |
 | `docs/experiment-protocol.md`, `README.md`, the spec | 9 | The recorded round change and the gate correction |
 
 Tasks 1–3 touch no prompt and no scheduling and can land first; Tasks 4–6 are the prompt surface; Tasks 7–8 are the sweep; Task 9 records.
@@ -153,6 +153,7 @@ git commit -m "docs(ai_rfc): repair the SP7c contract against the landed tree"
 **Interfaces:**
 - Consumes: the `Campaign` dataclass and `load_campaign`'s `Campaign(**payload)` (**C6**).
 - Produces: `Campaign.consolidate_every: int = 10`.
+- **Second home, recorded 2026-09-03 (not this plan's work).** The one-door CLI's `recon.yaml` defines an operator-facing `sessions.consolidate_every` (default 10) in the new `ai_rfc/config.py` (CLI-1 plan, `Field("sessions.consolidate_every", ..., default=10)`). Under the agreed order SP7c lands first, so that field must **feed** this one rather than duplicate its default; whoever writes CLI-1 reconciles the two homes. Nothing to do here — keep `Campaign.consolidate_every` as specified.
 
 **Why this shape.** `load_campaign` splats the frozen JSON straight into the dataclass (**C6**), so a field without a default makes **every campaign frozen before today unloadable** — including the finished MARK campaign this work is measured against. `session_mode: str = "single"` is the existing precedent, and `test_a_campaign_frozen_before_the_field_existed_still_loads` (**C16**) is the existing test for exactly this hazard; extend it rather than writing a second one.
 
