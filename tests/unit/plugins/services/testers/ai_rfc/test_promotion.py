@@ -69,9 +69,24 @@ def test_runtime_anchor_reaches_confirmed():
     assert adjudicate(claim) is Status.CONFIRMED
 
 
-def test_signoff_with_an_anchor_reaches_confirmed():
+def test_signoff_over_narrative_evidence_is_capped_at_inferred():
+    """A sign-off is one person's assertion; so is an ADR.
+
+    The two-class route already refuses two narrative sources because they may
+    be one person counted twice. A sign-off over narrative-only evidence is that
+    same person counted twice, so it is capped the same way.
+    """
     claim = _claim(
         anchors=(Anchor(EvidenceClass.ADR, "adr/0007.md"),),
+        signed_off_by="dev-01",
+    )
+    assert adjudicate(claim) is Status.INFERRED
+
+
+def test_signoff_beside_a_primary_anchor_reaches_confirmed():
+    """One code anchor alone is inferred; a developer vouching for it is not."""
+    claim = _claim(
+        anchors=(Anchor(EvidenceClass.CODE, "src/timer.py", commit=SHA),),
         signed_off_by="dev-01",
     )
     assert adjudicate(claim) is Status.CONFIRMED

@@ -99,6 +99,13 @@ def _claim(claim_id: Any, raw: Any) -> RequirementClaim:
         if required not in raw:
             raise SchemaError(f"{claim_id}: missing required field {required}")
 
+    signed_off_by = raw.get("signed_off_by")
+    if signed_off_by is not None and not signed_off_by.strip():
+        raise SchemaError(
+            f"{claim_id}: signed_off_by is blank; omit the field if there is "
+            f"no signer"
+        )
+
     return RequirementClaim(
         id=claim_id,
         text=str(raw["text"]).strip(),
@@ -116,7 +123,7 @@ def _claim(claim_id: Any, raw: Any) -> RequirementClaim:
         ),
         anchors=tuple(_anchor(item, claim_id) for item in raw.get("anchors", ())),
         status=_enum(Status, raw.get("status", Status.GAP.value), "status", claim_id),
-        signed_off_by=raw.get("signed_off_by"),
+        signed_off_by=signed_off_by,
         question_id=raw.get("question-id"),
         testable=raw.get("testable"),
     )

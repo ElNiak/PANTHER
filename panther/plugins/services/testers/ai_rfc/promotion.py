@@ -41,10 +41,14 @@ class Violation:
 def adjudicate(claim: RequirementClaim) -> Status:
     """Decide the strongest status a claim's evidence actually supports.
 
-    A claim reaches ``confirmed`` only through developer sign-off, runtime
-    corroboration, or two distinct evidence classes **at least one of which is
-    primary** — code or runtime, not somebody's account of the system. Claims
-    resting only on decision records or paper prose are capped at ``inferred``.
+    A claim reaches ``confirmed`` through runtime corroboration, through two
+    distinct evidence classes at least one of which is primary, or through
+    developer sign-off **beside a primary anchor** — code or runtime, not
+    somebody's account of the system. A sign-off over narrative evidence alone
+    is capped at ``inferred``, whether that evidence is a decision record, a
+    paper or an interview: a signature over one person's account is that person
+    counted twice, which is the circularity the two-class route already refuses.
+    Claims resting only on decision records or paper prose are capped at ``inferred``.
     A claim with no evidence at all is a ``gap``, sign-off notwithstanding —
     signing off on nothing records nothing.
 
@@ -64,10 +68,10 @@ def adjudicate(claim: RequirementClaim) -> Status:
 
     classes = claim.evidence_classes
 
-    if classes <= WEAK_EVIDENCE and not claim.signed_off_by:
+    if classes <= WEAK_EVIDENCE:
         return Status.INFERRED
 
-    if claim.signed_off_by:
+    if claim.signed_off_by and classes & PRIMARY_EVIDENCE:
         return Status.CONFIRMED
 
     if EvidenceClass.RUNTIME in classes:

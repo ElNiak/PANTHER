@@ -202,3 +202,27 @@ def test_anchor_line_sha256_without_line_is_rejected(tmp_path: Path):
             tmp_path,
         )
     assert "line_sha256" in str(excinfo.value)
+
+
+def test_a_whitespace_only_signer_is_refused(tmp_path: Path):
+    """`signed_off_by` is the strongest lever in the promotion rule.
+
+    Blanks are not names, and `schema` refuses a malformed document rather than
+    repairing it — treating whitespace as absent would silently downgrade a
+    claim the author believed they had signed.
+    """
+    path = tmp_path / "blank_signer.yaml"
+    path.write_text(
+        "rfc: SPEC-1\n"
+        "title: 'x'\n"
+        "requirements:\n"
+        "  'spec:1.1':\n"
+        "    text: 'x'\n"
+        "    section: '1.1'\n"
+        "    level: MUST\n"
+        "    layer: timing\n"
+        "    signed_off_by: '   '\n"
+    )
+    with pytest.raises(SchemaError) as excinfo:
+        load(path)
+    assert "signed_off_by" in str(excinfo.value)
