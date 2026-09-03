@@ -1281,11 +1281,16 @@ def test_one_consolidation_can_be_run_against_a_finished_workspace(
     import experiment.per_cluster as per_cluster
 
     seen = {}
-    monkeypatch.setattr(
-        per_cluster, "_run_consolidation",
-        lambda *args, **kwargs: seen.setdefault("at_end", kwargs["at_end"]) is None or True,
-    )
+
+    def fake_consolidation(campaign, ref, due, **kwargs):
+        seen["at_end"] = kwargs["at_end"]
+        seen["ordinal"] = due.ordinal
+        return True
+
+    monkeypatch.setattr(per_cluster, "_run_consolidation", fake_consolidation)
     assert _run_cli(["run", "--task", "consolidation", *_run_args(tmp_path)]) == 0
+    # at_end is right outside a sweep too: a manual consolidation consolidates
+    # whatever remains, regardless of the interval.
     assert seen["at_end"] is True
 ```
 
@@ -1388,7 +1393,9 @@ Then bump the submodule pointer in PANTHER (`chore(ai_rfc): bump ai_rfc to SP7c 
 ## Self-review (run by the plan author on 2026-09-03)
 
 1. **Spec coverage.** The roadmap row names six items: `loop.tmpl.md` steps → Task 5; `consolidation.tmpl.md` → Task 4; the `ai-rfc-editorial` skill → Task 6; scheduling from disk → Tasks 2 and 7; `--consolidate-every` → Tasks 1 and 8; protocol docs → Task 9. The gate is Task 7 Step 1's sequence test, re-stated in Task 8 Step 4 and corrected in Task 9 Step 3. D43 → Tasks 4, 5, 7. D48 → Task 3 (the join filter) and Task 7 (the base cluster). D50 → Task 2's derivation, with the ledger contingency noted in its "Why this shape". D52's three SP7c clauses → the prompt's closing paragraph (Task 4 Step 3) and Task 7's failure semantics. D41 → the consolidation prompt's figure step and the editorial skill. Not in SP7c: the instrument and the paid runs (D44, D47 → SP7d), though Task 8's `--task consolidation` exists **because** D47 step 2 needs it.
-2. **Placeholder scan.** No "TBD"/"TODO"/"handle edge cases"; every code step shows its code. Five steps say "read the landed shape first", each naming the exact grep and what to do with either answer: Task 0 (the whole contract), Task 4 Step 7 (`prepare_run_argv`, which SP7a Task 8 may already have parameterised), Task 5 Step 4 (the render verb's name), Task 7 Step 3 (the `spawn` call site and `_env`), and Task 8 (the CLI's parser shape, which SP7a Task 5 and SP3 both touch). Each is a symbol whose location only an earlier plan decides. Task 3's two test helpers are the one place a helper is described rather than written — they wrap existing module helpers whose names must be read first, and the tests that use them are written in full.
+2. **Placeholder scan.** No "TBD"/"TODO"/"handle edge cases". Two exceptions to "every code step shows its code", both deliberate and both named here rather than glossed — SP7b's self-review learned that lesson the expensive way. **Task 3 Step 1's `_workspace_with_revisions` and `_revisions_with_a_consolidation`** are described, not written: each wraps a helper the target test module already has under a name only the landed tree knows, and the tests that call them are written in full, so the shape is pinned even though the wrapper is not. **Task 8 Step 1's `_init_campaign_via_cli`, `_run_cli` and `_run_args`** are the same case. Everything else is code.
+
+   Five steps say "read the landed shape first", each naming the exact grep and what to do with either answer: Task 0 (the whole contract), Task 4 Step 7 (`prepare_run_argv`, which SP7a Task 8 may already have parameterised), Task 5 Step 4 (the render verb's name), Task 7 Step 3 (the `spawn` call site and `_env`), and Task 8 Step 3 (the CLI's parser shape, which SP7a Task 5 and SP3 both touch). Each is a symbol whose location only an earlier plan decides.
 3. **Type consistency.** `consolidation_due(workspace, every, *, at_end=False) -> Due | None` is called with those arguments in Tasks 2, 7 and 8, and its `Due(ordinal, base_cluster, since, reason)` is constructed positionally in Task 7's tests exactly as Task 2 declares it. `_run_consolidation(campaign, ref, due, *, budget_usd, timeout_s, at_end, report) -> bool` matches between Task 7's definition, its scheduler call sites and Task 8's dispatch. `render_consolidation(arm) -> str` and `consolidation_prompt(arm, plugin_root) -> str` match between Task 4's definitions and its tests. `prepare_run_argv(..., prompt_file=None)` matches between Task 4 Step 7 and Task 7 Step 3.
 4. **The two things a reviewer should check hardest.** First, that the mid-sweep `continue` in Task 7 Step 4 is present — without it a consolidation is followed by a cluster round chosen from stale progress, which is a silent mis-sequencing no test in this plan would catch except the ordering assertion. Second, that `consolidation_due` is imported **into `per_cluster`'s module namespace**; the tests monkeypatch it there, so a `from … import` inside the function body would make every scheduling test pass against unpatched code.
 
