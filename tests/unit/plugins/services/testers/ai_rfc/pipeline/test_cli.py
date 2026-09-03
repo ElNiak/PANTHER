@@ -88,6 +88,21 @@ def test_status_json_is_machine_readable(workspace: Path, capsys):
     assert payload["next_action"]["stage"] == "history"
 
 
+def test_a_default_run_performs_the_manifest_check(mined_workspace, capsys):
+    """The default path must not step over the one gate that reads the manifest.
+
+    `next_stage` skips re-derivable stages, which is right for a driver asking
+    what is outstanding and wrong as a description of what a run performs:
+    `check` sits before the `prose` boundary and `gate` after it, so the walk
+    reaches neither.
+    """
+    code = cli.main(["run", str(mined_workspace), "--strict", "--json"])
+
+    assert code == 3
+    performed = json.loads(capsys.readouterr().out)["performed"]
+    assert "check" in [entry["stage"] for entry in performed]
+
+
 def test_a_corrupt_artifact_reads_as_stale_rather_than_crashing(
     workspace: Path, capsys
 ):

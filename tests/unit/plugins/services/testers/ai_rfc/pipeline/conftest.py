@@ -3,6 +3,8 @@ from pathlib import Path
 
 import pytest
 
+from panther.plugins.services.testers.ai_rfc.pipeline import cli
+
 
 def _run(repo: Path, *args: str) -> None:
     subprocess.run(
@@ -38,3 +40,27 @@ def workspace(tmp_path: Path) -> Path:
     _run(clone, "commit", "-m", "direct push")
     _run(clone, "merge", "--no-ff", "feat", "-m", "Merge branch 'feat'")
     return root
+
+
+@pytest.fixture
+def mined_workspace(workspace: Path) -> Path:
+    """A workspace carrying a manifest whose stored status its evidence denies.
+
+    `check` is re-derivable and so never `DONE`; the point of this fixture is a
+    workspace where the walk stops at an agent boundary while a manifest sits on
+    disk overstating a claim. If `check` does not run, nothing notices.
+    """
+    assert cli.main(["run", str(workspace)]) == 0
+    (workspace / "manifest.yaml").write_text(
+        "rfc: T\ntitle: 'Fixture'\nrequirements:\n"
+        "  't:1':\n"
+        "    text: 'A claim.'\n"
+        "    section: '1'\n"
+        "    level: MUST\n"
+        "    layer: transport\n"
+        "    status: confirmed\n"
+        "    anchors:\n"
+        "      - evidence_class: adr\n"
+        "        locator: 'doc:fixture'\n"
+    )
+    return workspace

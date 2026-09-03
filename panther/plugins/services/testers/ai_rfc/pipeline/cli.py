@@ -11,7 +11,7 @@ from panther import __version__
 
 from .run import PipelineError, perform, workspace_from
 from .stages import BY_NAME, STAGES, Performer
-from .state import next_stage, state
+from .state import State, next_stage, state
 from .substrate import check
 from .workspace import Workspace
 
@@ -157,6 +157,8 @@ def _run(args: argparse.Namespace) -> int:
         start = action.stage.ordinal
 
     performed: list[dict] = []
+    halted_at: str | None = None
+    code = 0
     for stage in STAGES:
         if stage.ordinal < start:
             continue
@@ -180,7 +182,8 @@ def _run(args: argparse.Namespace) -> int:
                 f"{stage.performer.value}; stopping here."
             )
             _report(f"next: {stage.instruction}")
-            return _finish(args, performed, halted_at=stage.name)
+            halted_at = stage.name
+            break
         result = perform(
             stage,
             ws,
@@ -198,8 +201,55 @@ def _run(args: argparse.Namespace) -> int:
         )
         if not result.ok:
             _report(f"error: {stage.name} exited {result.exit_code}")
-            return _finish(args, performed, halted_at=stage.name, code=result.exit_code)
-    return _finish(args, performed, halted_at=None)
+            halted_at = stage.name
+            code = result.exit_code
+            break
+
+    rederived = _perform_rederivable(args, ws, performed)
+    if code == 0:
+        code = rederived
+    return _finish(args, performed, halted_at=halted_at, code=code)
+
+
+def _perform_rederivable(
+    args: argparse.Namespace, ws: Workspace, performed: list[dict]
+) -> int:
+    """Run the checks the stage walk cannot reach, and return the worst exit code.
+
+    ``check`` and ``gate`` are the only re-derivable stages: neither records
+    doneness and neither mutates the workspace beyond its own report, so both
+    are safe to run whenever their inputs exist. The walk cannot reach them
+    reliably — ``check`` sits at ordinal 6 but the agent boundary ``prose`` at 7
+    ends the walk, and ``gate`` at 9 needs the draft ``prose`` produces — so
+    they are performed by state instead.
+
+    Args:
+        args: The parsed arguments; ``strict`` decides whether findings exit 3.
+        ws: The workspace to check.
+        performed: The record the walk appended to; extended in place.
+
+    Returns:
+        The highest exit code any check returned, or 0.
+    """
+    states = {entry.stage.name: entry.state for entry in state(ws)}
+    worst = 0
+    for name in ("check", "gate"):
+        if states.get(name) is not State.RECOMPUTED:
+            continue
+        if name == "gate" and states.get("prose") is not State.DONE:
+            # `gate` reads the draft repository, the question register and the
+            # revision log, none of which exist until `prose` has been written.
+            continue
+        result = perform(BY_NAME[name], ws, strict=args.strict, cluster=args.cluster)
+        performed.append(
+            {
+                "stage": name,
+                "exit_code": result.exit_code,
+                "argv": list(result.argv),
+            }
+        )
+        worst = max(worst, result.exit_code)
+    return worst
 
 
 def _finish(
