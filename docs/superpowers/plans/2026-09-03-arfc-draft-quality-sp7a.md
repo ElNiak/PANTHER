@@ -2305,6 +2305,14 @@ def test_init_records_the_toolchain_digest(
 
 Also add `import hashlib` to `tests/experiment/test_config.py`; its imports today are `json`, `Path`, `pytest` and the config names, with no `hashlib`.
 
+**And keep every *other* `_init(...)` call in that module working.** Step 4 makes `init_campaign`
+refuse without a verified toolchain, and the module's six existing tests call `_init(...)` with
+none, so they fail wholesale unless `_init` supplies one: give the helper a default
+`toolchain=tmp_path / "toolchain.json"` written as `{"template_home": "/t"}`, and have a
+module-level autouse fixture monkeypatch `toolchain_module.verify` to `(True, ())`. (The two new
+tests above override `verify` themselves, so the autouse stub must be overridable — set it with
+`monkeypatch.setattr` in the fixture, not by editing the module.)
+
 In `tests/experiment/test_runner.py`, extend the existing `build_env` test: `assert env["AI_RFC_TOOLCHAIN"] == campaign.toolchain` when the campaign fixture carries one, and `"AI_RFC_TOOLCHAIN" not in env` when `campaign.toolchain is None`. **And amend `test_launch_streams_events_and_records_status` in the same file**: it asserts `set(env) == {"CLAUDE_CONFIG_DIR", "AI_RFC_WORKSPACE", "PATH", "HOME", "USER", "LANG"}` — an exact set of six keys. Once the `campaign` fixture carries a toolchain, `build_env` adds a seventh, `AI_RFC_TOOLCHAIN`; add it to that expected set or Step 5 will not be green. In `tests/experiment/test_arms.py`, extend the `mcp_config` test: `mcp_config(python=..., workspace=..., toolchain=Path("/t/toolchain.json"))["mcpServers"]["ai_rfc"]["env"]["AI_RFC_TOOLCHAIN"] == "/t/toolchain.json"`.
 
 - [ ] **Step 2: Run them to verify they fail**
