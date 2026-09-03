@@ -43,7 +43,7 @@ Facts about code SP7a does **not** touch, verified directly on the current tree 
 
 | # | Item | Verified shape |
 |---|---|---|
-| C11 | `schema.load` | requires exactly `("rfc", "title", "requirements")` at top level and **silently drops every unknown top-level key**; failures raise `SchemaError(ValueError)` with message `f"{claim_id_or_path}: {problem}"` |
+| C11 | `schema.load` | requires exactly `("rfc", "title", "requirements")` at top level and **silently drops every unknown top-level key**; failures raise `SchemaError(ValueError)` with message `f"{claim_id_or_path}: {problem}"`. **SP0 is complete as of `2e5354b6c` (2026-09-03), so its strict duplicate-key loader has landed** — Task 1 extends that loader rather than adding a second one, and a duplicated `structures:` id is already refused before this plan's validation runs |
 | C12 | `schema.dump` | `yaml.safe_dump({"rfc", "title", "requirements"}, sort_keys=True, default_flow_style=False, allow_unicode=True, width=88)`. `sort_keys=True` sorts **every** mapping level. Adding `structures` yields top-level order `requirements, rfc, structures, title` |
 | C13 | optional-key precedent | `dump` gates an optional key exactly as `if claim.testable is not None: body["testable"] = …`. `structures` must be gated the same way or `test_dump_is_byte_stable` / `test_load_of_dump_is_a_fixed_point` break |
 | C14 | `models.py` | every dataclass is `@dataclass(frozen=True)` and performs **zero** validation — all validation lives in `schema.py`. `RequirementClaim.level` and `.layer` are plain `str` |
@@ -1193,19 +1193,103 @@ def parse_blocks(text: str) -> tuple[dict[str, str], tuple[str, ...]]:
     return bodies, tuple(findings)
 ```
 
-- [ ] **Step 6: Run the tests to verify they pass**
+- [ ] **Step 6: Freeze one golden per kind**
+
+This plan's roadmap gate is "goldens per kind", and the property tests above do not deliver it. It
+matters here more than anywhere else: the rendering is **frozen into every checkpoint**, so an
+incidental change — one space in the ruler, a renamed table header — would stale every
+`structures.md` already in production and fail every gate. Only a byte comparison catches that at
+test time.
+
+Register the regeneration switch in the **root** test conftest; `pytest_addoption` is honoured only
+there, not in a subdirectory conftest:
+
+```python
+# tests/conftest.py
+def pytest_addoption(parser):
+    parser.addoption(
+        "--update-goldens",
+        action="store_true",
+        default=False,
+        help="Rewrite the structure goldens from the current renderer.",
+    )
+```
+
+Append to `tests/substrate/draft/test_structures.py`:
+
+```python
+from pathlib import Path
+
+GOLDENS = Path(__file__).parent / "goldens"
+
+
+def _message():
+    return Structure(
+        id="hello",
+        kind=StructureKind.MESSAGE,
+        title="Hello",
+        section="3.1",
+        fields=(
+            Field(name="token", claim="spec:3.1", type="opaque", width=64, description="Session token."),
+        ),
+    )
+
+
+def _record():
+    return Structure(
+        id="entry",
+        kind=StructureKind.RECORD,
+        title="Log entry",
+        section="7.2",
+        fields=(Field(name="stamp", claim="spec:7.1", type="uint64", description="Milliseconds."),),
+    )
+
+
+@pytest.mark.parametrize(
+    "name, build",
+    [
+        ("wire-format", _wire),
+        ("message", _message),
+        ("record", _record),
+        ("enum", _enum),
+        ("state-machine", _machine),
+    ],
+)
+def test_each_kind_matches_its_golden(name, build, request):
+    produced = render(build())
+    path = GOLDENS / f"{name}.md"
+    if request.config.getoption("--update-goldens"):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(produced)
+    assert path.read_text() == produced, (
+        f"the {name} rendering changed, so every structures.md frozen in every "
+        f"checkpoint is now stale and every gate over them will fail. If the "
+        f"change is intended, re-run with --update-goldens and say so in the "
+        f"commit message."
+    )
+```
+
+Generate them once, then **read each of the five files** and satisfy yourself it looks like a
+specification figure before committing — a golden is only worth what its first review was worth:
+
+```bash
+cd $AIRFC && SSLKEYLOGFILE= $PY -m pytest tests/substrate/draft/test_structures.py -k golden --update-goldens
+cd $AIRFC && cat tests/substrate/draft/goldens/wire-format.md
+```
+
+- [ ] **Step 7: Run the tests to verify they pass**
 
 Run: `cd $AIRFC && SSLKEYLOGFILE= $PY -m pytest tests/substrate/draft/test_structures.py -v`
-Expected: all PASS. If `test_the_bit_diagram_wraps...` fails on the column bound, the ruler is not being `rstrip`ed — fix `_ruler`, not the assertion.
+Expected: all PASS, goldens included, **without** `--update-goldens`. If `test_the_bit_diagram_wraps…` fails on the column bound, the ruler is not being `rstrip`ed — fix `_ruler`, not the assertion.
 
-- [ ] **Step 7: Lint, type-check and commit**
+- [ ] **Step 8: Lint, type-check and commit**
 
 ```bash
 cd $AIRFC && $PY -m black ai_rfc/draft/structures.py tests/substrate/draft/test_structures.py
 cd $AIRFC && $PY -m flake8 --max-line-length=88 ai_rfc/draft/structures.py tests/substrate/draft/test_structures.py
 cd $AIRFC && $PY -m mypy --follow-imports=silent ai_rfc/draft/structures.py
 cd $AIRFC && git status --short
-git add ai_rfc/draft/structures.py tests/substrate/draft/test_structures.py
+git add ai_rfc/draft/structures.py tests/substrate/draft/test_structures.py tests/substrate/draft/goldens tests/conftest.py
 git commit -m "feat: render a manifest structure as one delimited block"
 ```
 
@@ -1798,9 +1882,17 @@ def test_a_consolidation_whose_requirements_moved_is_a_finding(consolidated_work
 
 
 def test_the_first_revision_may_not_be_a_consolidation(consolidated_workspace):
+    # The fixture writes no `kind:` on the first entry (it defaults to cluster),
+    # so make it one by appending the two keys to that entry's block.
     ws = consolidated_workspace
-    text = ws["revisions"].read_text()
-    ws["revisions"].write_text(text.replace("kind: cluster\n", "kind: consolidation\n", 1))
+    ws["revisions"].write_text(
+        ws["revisions"].read_text().replace(
+            "    note: 'initial reconstruction'\n",
+            "    note: 'initial reconstruction'\n"
+            "    kind: consolidation\n"
+            "    checkpoint: consolidations/01\n",
+        )
+    )
     findings = run_gate(
         ws["repo"], ws["timeline"], ws["checkpoints"], ws["questions"], ws["revisions"],
         consolidations_dir=ws["consolidations"],
@@ -1826,40 +1918,6 @@ STRUCTURED_BLOCK = (
 )
 
 
-def _append_to_draft(workspace, text):
-    """Append to the draft and move its tag, so the gate sees the new bytes."""
-    return _retag_draft_with(workspace, lambda body: body + "\n" + text)
-
-
-def _retag_draft_with(workspace, transform):
-    repo = workspace["repo"]
-    name = next(p for p in repo.iterdir() if p.name.startswith("draft-"))
-    name.write_text(transform(name.read_text()))
-    tag = git(repo, "tag", "-l").split()[-1]
-    git(repo, "add", name.name)
-    git(repo, "commit", "-m", "edit")
-    git(repo, "tag", "-f", "-a", tag, "-m", "retag")
-    return repo
-
-
-@pytest.fixture
-def structured_workspace(tmp_path, timeline_dir):
-    """A one-revision workspace whose checkpoint freezes one structure block."""
-    from ai_rfc.draft.structures import render_all
-    from ai_rfc.schema import load as load_manifest
-
-    workspace = _build_draft_workspace(tmp_path, timeline_dir, extra=STRUCTURED_BLOCK)
-    manifest = load_manifest(workspace["checkpoints"] / "c1" / "manifest.yaml")
-    repo = workspace["repo"]
-    name = next(p for p in repo.iterdir() if p.name.startswith("draft-"))
-    name.write_text(name.read_text() + "\n" + render_all(manifest))
-    tag = git(repo, "tag", "-l").split()[-1]
-    git(repo, "add", name.name)
-    git(repo, "commit", "-m", "paste the rendered structures")
-    git(repo, "tag", "-f", "-a", tag, "-m", "retag")
-    return workspace
-
-
 @pytest.fixture
 def consolidated_workspace(structured_workspace, tmp_path):
     """`structured_workspace` plus one consolidation revision after it."""
@@ -1867,15 +1925,99 @@ def consolidated_workspace(structured_workspace, tmp_path):
 
     workspace = structured_workspace
     consolidations = tmp_path / "consolidations"
-    base = workspace["checkpoints"] / "c1"
-    write_consolidation_checkpoint(base / "manifest.yaml", 1, base, "c1", consolidations)
+    base = workspace["last_checkpoint"]
+    write_consolidation_checkpoint(
+        base / "manifest.yaml", 1, base, workspace["last_cluster"], consolidations
+    )
     workspace["consolidations"] = consolidations
-    # Second revision, kind: consolidation, pointing at consolidations/01.
     _record_consolidation(workspace, ordinal=2, checkpoint="consolidations/01")
     return workspace
 ```
 
-`_build_draft_workspace` is the existing `draft_workspace` fixture's body promoted to a plain function taking an optional `extra` manifest block — do that promotion first, and leave `draft_workspace` calling it with no `extra` so every existing test is unchanged. `_record_consolidation` appends one entry to `revisions.yaml` and creates the matching annotated tag, mirroring the existing `_record` helper.
+**Promote the existing fixture body first.** `draft_workspace` currently builds everything inline. Turn its body into a plain function with one added parameter and leave the fixture as a two-line caller, so every existing test is untouched:
+
+```python
+def _build_draft_workspace(tmp_path, timeline_dir, extra=""):
+    """The `draft_workspace` body, with an optional extra manifest block.
+
+    This is the existing fixture's code verbatim except for two changes, both
+    marked below: the second manifest gains `extra`, and the returned mapping
+    names the last checkpoint and cluster so a consolidation can be built on it.
+    """
+    ...  # every line of today's draft_workspace body, up to the return, with:
+    #   second_manifest.write_text(_manifest_text(with_second_claim=True) + extra)
+    return {
+        "repo": repo,
+        "timeline": timeline_dir,
+        "checkpoints": checkpoints,
+        "questions": questions,
+        "revisions": revisions,
+        "last_checkpoint": second_checkpoint,   # new, additive
+        "last_cluster": pr_id,                  # new, additive
+    }
+
+
+@pytest.fixture
+def draft_workspace(tmp_path: Path, timeline_dir: Path) -> dict[str, Path]:
+    """A gate-clean workspace: draft repo, checkpoints, questions, revisions."""
+    return _build_draft_workspace(tmp_path, timeline_dir)
+```
+
+The two new mapping keys are additive; every existing test indexes by name, so none sees a change.
+
+The three helpers the tests above use, in full. The draft file is `draft-test-spec.md` and the last tag is `draft-test-spec-01`, both fixed by the fixture, so neither needs discovering:
+
+```python
+def _retag_draft_with(workspace, transform):
+    """Rewrite the draft, commit, and move the last tag onto the new commit."""
+    repo = workspace["repo"]
+    draft_file = repo / "draft-test-spec.md"
+    draft_file.write_text(transform(draft_file.read_text()))
+    git(repo, "add", "draft-test-spec.md")
+    git(repo, "commit", "-m", "edit")
+    git(repo, "tag", "-f", "draft-test-spec-01")
+    return repo
+
+
+def _append_to_draft(workspace, text):
+    return _retag_draft_with(workspace, lambda body: body + "\n" + text)
+
+
+def _record_consolidation(workspace, ordinal, checkpoint):
+    """Append one consolidation revision and tag the current HEAD."""
+    directory = workspace["consolidations"] / Path(checkpoint).name
+    sha = json.loads((directory / "checkpoint.json").read_text())["manifest_sha256"]
+    tag = f"draft-test-spec-{ordinal:02d}"
+    workspace["revisions"].write_text(
+        workspace["revisions"].read_text()
+        + f"  {tag}:\n"
+        f"    cluster_id: {workspace['last_cluster']}\n"
+        f"    checkpoint_manifest_sha256: {sha}\n"
+        "    normative_change: false\n"
+        "    note: 'consolidated'\n"
+        "    kind: consolidation\n"
+        f"    checkpoint: {checkpoint}\n"
+    )
+    git(workspace["repo"], "tag", tag)
+    return tag
+```
+
+Add `import json` and `from pathlib import Path` at the top of `conftest.py` if they are not already there. `structured_workspace` writes into `draft-test-spec.md` and re-tags `draft-test-spec-01` the same way `_retag_draft_with` does — use that helper rather than repeating the git calls:
+
+```python
+@pytest.fixture
+def structured_workspace(tmp_path, timeline_dir):
+    """A workspace whose last checkpoint freezes one structure block, pasted."""
+    from ai_rfc.draft.structures import render_all
+    from ai_rfc.schema import load as load_manifest
+
+    workspace = _build_draft_workspace(tmp_path, timeline_dir, extra=STRUCTURED_BLOCK)
+    manifest = load_manifest(workspace["last_checkpoint"] / "manifest.yaml")
+    _retag_draft_with(workspace, lambda body: body + "\n" + render_all(manifest))
+    return workspace
+```
+
+Replace the two placeholder fixtures sketched earlier in this step with this one.
 
 - [ ] **Step 3: Run them to verify they fail**
 
@@ -1958,11 +2100,12 @@ Inside `run_gate`'s per-entry loop, after the existing checkpoint comparisons:
 
 ```python
         # Spec check 8: a consolidation follows its base and changes only structures.
+        # `record` is the checkpoint.json the loop already parsed for the
+        # manifest-digest comparison; do not re-read it.
         if entry.kind == "consolidation":
             if previous is None:
                 findings.append(f"{entry.tag}: the first revision cannot be a consolidation")
             else:
-                record = _read_json(checkpoint_dir / CHECKPOINT_FILE)
                 if record.get("kind") != "consolidation":
                     findings.append(
                         f"{entry.tag}: {entry.checkpoint} is not a consolidation checkpoint"
@@ -2000,7 +2143,23 @@ Inside `run_gate`'s per-entry loop, after the existing checkpoint comparisons:
                 )
 ```
 
-`text` is the draft source at the tag, read through `draft_text` (**C1**) — the same call `cited_ids` already makes; hoist it so the tag's blob is read once per entry, not twice. `previous` is the preceding `RevisionEntry` in the loop; if the loop does not already keep one, add it. Import `parse_blocks`/`STRUCTURES_FILE` from `.structures` and `requirements_digest` from `.checkpoint`, and `load` from `ai_rfc.schema`.
+Three details the loop needs, none of which exists today:
+
+```python
+    # Before the loop, beside `claim_ids_by_tag`:
+    previous: RevisionEntry | None = None
+    ...
+    for entry in entries:
+        ...
+        # As the LAST statement of the loop body. The `continue` taken when a
+        # checkpoint is missing deliberately leaves `previous` unchanged: a
+        # revision with no checkpoint is not a valid base for a consolidation.
+        previous = entry
+```
+
+`text` is the draft source at the tag. `cited_ids` reads that blob already; after SP7a it does so through `draft_text` (**C1**), so hoist one `_, text = draft_text(draft_repo, entry.tag)` above the checks and pass the text into `cited_ids` instead of letting it read again — one read, one parse. If the hoist turns out to change `cited_ids`'s signature more than a keyword, leave `cited_ids` alone and call `draft_text` once here; two reads of the same immutable blob are wasteful but not wrong, whereas two *parsers* would be.
+
+Import `parse_blocks` and `STRUCTURES_FILE` from `.structures`, `requirements_digest` from `.checkpoint`, and `load` from `ai_rfc.schema`. `json` and `CHECKPOINT_FILE`/`MANIFEST_FILE` are already imported by this module.
 
 - [ ] **Step 7: Run the gate suite**
 
@@ -2085,14 +2244,14 @@ def test_checkpoint_writes_a_consolidation_when_asked(tmp_path, timeline_dir, ca
     assert (consolidations / "01" / "checkpoint.json").is_file()
 
 
-def test_consolidation_requires_a_base(tmp_path, timeline_dir):
+def test_consolidation_requires_a_base(tmp_path, timeline_dir, capsys):
     path = tmp_path / "m.yaml"
     path.write_text(_manifest_text())
-    with pytest.raises(SystemExit):
-        main([
-            "checkpoint", str(path), "--timeline", str(timeline_dir), "--cluster", "c1",
-            "--out", str(tmp_path / "c"), "--consolidation", "1",
-        ])
+    assert main([
+        "checkpoint", str(path), "--timeline", str(timeline_dir), "--cluster", "c1",
+        "--out", str(tmp_path / "c"), "--consolidation", "1",
+    ]) == 2
+    assert "--base" in capsys.readouterr().err
 ```
 
 Import `STRUCTURED_BLOCK` from the suite's `conftest` (added in Task 5 Step 2).
@@ -2180,9 +2339,7 @@ Extend the `checkpoint` branch to route on the new flag:
 
 and pass the new root through to the gate: `run_gate(..., consolidations_dir=args.consolidations)`.
 
-Return **2** for `--consolidation` without `--base` so it reads as a usage error; the test asserts `SystemExit` because argparse-level failures and this branch both terminate the CLI, and `main` is invoked through the console entry point.
-
-> If `test_consolidation_requires_a_base` fails with a plain `2` return rather than `SystemExit`, change the test to `assert main([...]) == 2`. Either contract is fine; pick the one the module already uses for usage errors and make both the code and the test say the same thing.
+`--consolidation` without `--base` returns **2** and reports through `_report` (which writes to stderr, as the module's other error paths do). Two flags cannot be made mutually required by argparse alone, so the check is in the branch; returning rather than raising keeps `main`'s contract "an int is the exit code", which the rest of the dispatch already follows.
 
 - [ ] **Step 5: Check the registry**
 
@@ -2286,9 +2443,18 @@ def test_the_tool_wrappers_reach_the_cores(workspace, monkeypatch):
     assert "ai_rfc:struct:header begin" in tools.ai_rfc_draft_render()
 ```
 
-Append to `tests/server/test_parity.py`:
+Append to `tests/server/test_parity.py`, adding `import json` to the module's existing imports and
+defining the body locally rather than importing it across test modules:
 
 ```python
+FIELDS = {
+    "kind": "record",
+    "title": "Message header",
+    "section": "4",
+    "fields": [{"name": "version", "type": "uint8", "claim": "spec:1.1"}],
+}
+
+
 def test_structure_upsert_parity(make_workspace, capsys):
     tool_arm, cli_arm, use = _twins(make_workspace)
     use(tool_arm)
@@ -2393,7 +2559,9 @@ def upsert_structure(ctx: Context, structure_id: str, fields: dict[str, Any]) ->
         _normalize_and_write(ctx, document)
     except SchemaError as error:
         raise CoreError(str(error)) from error
-    return load(ctx.manifest).structures and dict(fields)
+    # Return what was actually stored, re-read after the round trip, exactly as
+    # upsert_claim does — the write normalises, so the input is not the record.
+    return dict(_document(ctx)["structures"][structure_id])
 
 
 def render_structures(ctx: Context) -> str:
@@ -2638,15 +2806,20 @@ Expected: FAIL — `lint()` takes no `structures` keyword.
 In `ai_rfc/draft/lint.py`, add the helper (re-anchor with `grep -n "^def lint"`):
 
 ```python
-def _structures(text: str, manifest: Manifest | None, frozen: str | None) -> dict[str, Any]:
-    """Compare the draft's delimited blocks with what the manifest declares."""
+def _structures(text: str, manifest: Manifest | None, rendered: str | None) -> dict[str, Any]:
+    """Compare the draft's delimited blocks with the manifest's rendering.
+
+    ``rendered`` is what the manifest renders *now*, not a checkpoint's frozen
+    bytes: the gate owns historical fidelity at a tag, the lint owns "this draft
+    has drifted from its manifest".
+    """
     declared = {s.id: s for s in manifest.structures} if manifest else {}
     bodies, malformed = parse_blocks(text)
-    frozen_bodies, _ = parse_blocks(frozen) if frozen else ({}, ())
+    current, _ = parse_blocks(rendered) if rendered else ({}, ())
     stale = sorted(
         structure_id
         for structure_id, body in bodies.items()
-        if structure_id in frozen_bodies and body != frozen_bodies[structure_id]
+        if structure_id in current and body != current[structure_id]
     )
     return {
         "defined": len(declared),
@@ -2699,9 +2872,44 @@ and pass them into the report:
 
 Import `parse_blocks` from `.structures`, and `Manifest`/`RequirementClass` from `ai_rfc.models`.
 
-- [ ] **Step 5: Open the metric filter**
+- [ ] **Step 5: Open the metric filter and feed the comparison**
 
-Add `"structures"` (and `"data_model_claims_unbound"`) to `_METRIC_KEYS` (**C4**; re-anchor with `grep -rn "_METRIC_KEYS" ai_rfc/server/`), and have the `draft_lint` core pass the frozen `structures.md` through when the paired checkpoint has one.
+**The lint and the gate compare against different things, deliberately.** The gate runs at a tag and
+compares each block against the bytes *frozen in the paired checkpoint* — historical fidelity. The
+lint runs on the working draft, where there is no paired checkpoint yet, and compares against what
+the *current manifest renders now* — "your draft is out of date with your manifest". So the lint
+core renders rather than reading a checkpoint, and needs no notion of which checkpoint is paired.
+
+In the `draft_lint` core, pass the rendering alongside the manifest it already loads (re-anchor with
+`grep -rn "def draft_lint\|lint(" ai_rfc/server/core/`):
+
+```python
+    report = lint(
+        text,
+        manifest=manifest,
+        manifest_error=manifest_error,
+        source=source,
+        structures=render_all(manifest) if manifest is not None else None,
+    )
+```
+
+with `from ai_rfc.draft.structures import render_all` at the top of that module.
+
+Then open the filter, or every metric above is computed and thrown away (**C4**; re-anchor with
+`grep -rn "_METRIC_KEYS" ai_rfc/server/`):
+
+```python
+_METRIC_KEYS = (
+    ...,  # the seven SP7a keys, unchanged
+    "structures",
+    "data_model_claims_unbound",
+)
+```
+
+If `_METRIC_KEYS` filters `report.to_json()`'s top level rather than a `metrics` sub-mapping, the two
+new keys live under `extra` and the filter must reach into it — read the SP7a code before editing,
+and make the parity test from Step 1 the thing that decides, since it asserts on the tool's actual
+return value.
 
 - [ ] **Step 6: Run both suites and commit**
 
@@ -2878,8 +3086,10 @@ Then bump the submodule pointer in PANTHER (one commit, `chore(ai_rfc): bump ai_
 
 ## Self-review (run by the plan author on 2026-09-03)
 
-1. **Spec coverage.** The roadmap row for SP7b names seven items; each has a task. `Level` enum → Task 1. Revision `kind`/`checkpoint` → Task 5 (substrate) and Task 7 (the writer). `structures:` schema → Task 1. Renderer → Task 2. Frozen `structures.md` → Task 4. Consolidation checkpoint → Task 4. Gate checks 8–11 → Task 5. `draft render` → Tasks 6 and 7. `structure upsert` → Task 7. `checkpoint --consolidation` → Tasks 6 (substrate, required first by **C24**) and 7 (server). The gate — "goldens per kind; a one-byte tamper is a finding" — is Task 2 Step 1 (`test_each_kind_renders_its_own_legend`) and Task 5 / Task 10 Step 3 (`test_a_one_byte_edit_to_a_rendered_block_is_a_finding`). D52's three SP7b clauses land in Tasks 1 (closed enum), 8 (unloadable manifest, unbound data-model claim). Not in SP7b by design: the consolidation *round* and its prompts (D43 → SP7c), the instrument and the paid runs (D44, D47 → SP7d).
-2. **Placeholder scan.** No "TBD"/"TODO"/"handle edge cases". Every code step shows its code. Three steps deliberately say "read the landed shape first" rather than guessing — Task 0 Step 3 (the whole contract), Task 6 Step 5 (`entrypoints.py`, which SP7a never touched per **C10**), and Task 7 Step 3's note on `_document`/`_normalize_and_write` — because each names a symbol whose final location only SP1 and SP7a decide, and each says exactly what to grep and what to do with either answer.
+1. **Spec coverage.** The roadmap row for SP7b names seven items; each has a task. `Level` enum → Task 1. Revision `kind`/`checkpoint` → Task 5 (substrate) and Task 7 (the writer). `structures:` schema → Task 1. Renderer → Task 2. Frozen `structures.md` → Task 4. Consolidation checkpoint → Task 4. Gate checks 8–11 → Task 5. `draft render` → Tasks 6 and 7. `structure upsert` → Task 7. `checkpoint --consolidation` → Tasks 6 (substrate, required first by **C24**) and 7 (server). The roadmap gate — "goldens per kind; a one-byte tamper is a finding" — is Task 2 Step 6 (five byte-exact goldens with a `--update-goldens` regeneration path) and Task 5 / Task 10 Step 3 (`test_a_one_byte_edit_to_a_rendered_block_is_a_finding`). D52's three SP7b clauses land in Tasks 1 (closed enum) and 8 (unloadable manifest, unbound data-model claim). Not in SP7b by design: the consolidation *round* and its prompts (D43 → SP7c), the instrument and the paid runs (D44, D47 → SP7d).
+2. **Placeholder scan.** No "TBD"/"TODO"/"handle edge cases". A first pass of this review was too generous and claimed every code step showed its code; a second pass found seven places where it did not, and all seven are now fixed: Task 2 had property tests standing in for the goldens the roadmap gate demands; Task 5's `_build_draft_workspace`, `_retag_draft_with` and `_record_consolidation` were prose; Task 5 referenced a `_read_json` that does not exist (the gate parses `checkpoint.json` inline and already holds it as `record`) and hedged where `previous` is kept; Task 6's test asserted `SystemExit` while its code returned `2`; Task 7's `upsert_structure` returned `… .structures and dict(fields)`, a tuple on the empty path that would not typecheck; Task 7's parity tests used `FIELDS` and `json` without either; and Task 8's metric plumbing was a sentence.
+
+   Three steps still say "read the landed shape first" rather than guessing, and that is deliberate: Task 0 Step 3 (the whole contract), Task 6 Step 5 (`entrypoints.py`, which SP7a never touches per **C10**), and Task 7 Step 3's note on `_document`/`_normalize_and_write`. Each names a symbol whose final location only SP1 and SP7a decide, and each says exactly what to grep and what to do with either answer. One more is a mechanical promotion rather than an invention: Task 5 Step 2 says to move today's `draft_workspace` fixture body into `_build_draft_workspace` verbatim, and marks the only two lines that change.
 3. **Type consistency.** `render(structure) -> str` and `render_all(manifest) -> str` are used with those types in Tasks 2, 4, 6, 7 and 8. `parse_blocks(text) -> tuple[dict[str, str], tuple[str, ...]]` is unpacked as two values in Tasks 2, 5 and 8. `requirements_digest(manifest) -> str` is called on a `Manifest` in Tasks 4 and 5. `structure_statuses(manifest) -> dict[str, tuple[Status, Status]]` is unpacked as a pair in Task 3 twice. `Structure.claims -> tuple[str, ...]` is iterated in Tasks 1, 3 and 8. `write_consolidation_checkpoint(manifest_path, ordinal, base_checkpoint, cluster_id, out)` is called with those five in Tasks 4, 5 (fixture) and 6. `upsert_structure(ctx, structure_id, fields)` and `render_structures(ctx)` match between Task 7's core, its tools and its CLI branches.
 4. **The one thing a reviewer should check hardest.** Task 5 Step 6 hoists `draft_text` so a tag's blob is read once per entry. If `cited_ids` still reads it separately, the gate reads the same blob twice per revision — harmless for correctness but the beginning of the two-readers-drift problem this plan otherwise avoids. Confirm one read, one parse.
 
