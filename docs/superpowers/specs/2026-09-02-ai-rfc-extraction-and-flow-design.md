@@ -65,3 +65,17 @@ Decisions D1 to D28 from `docs/superpowers/specs/2026-08-25-arfc-progressive-rfc
 | SP6 | PANTHER side | Builder, `docs build` wipe, pointer pages. | `panther docs build` no longer destroys tracked work. |
 
 ---
+
+## Outcome — SP1 (2026-09-03)
+
+Executed subagent-driven; nine ai_rfc commits `d7f2c69..abc07a3` plus the fix
+wave `89c4bd5`, and three PANTHER commits `b50e569d0`, `ddfee0af8`,
+`80e6a19e4`. Every golden reproduced byte-for-byte through `ai-rfc`,
+`python -m ai_rfc` and `panther ai-rfc`; 808 tests in the ai_rfc repository;
+PANTHER's unit suite unchanged in failures. R10 is amended: the plugin names
+its interpreter through `AI_RFC_PYTHON`. Two things the plan assumed proved
+false and are recorded in the plan's *Corrections*: a submodule directory named
+after its package is shadowed under pytest wherever PANTHER puts
+`panther/plugins/services/testers` on `sys.path`, and `panther build dev` did
+not install the submodule until `build.py` learned to. Push SHAs are recorded
+below once the user confirms Task 8.

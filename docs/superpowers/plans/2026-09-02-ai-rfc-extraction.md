@@ -1683,3 +1683,90 @@ git commit -m "docs(ai_rfc): record the extraction outcome"
 **Type consistency.** `mcp_config(*, python: str, workspace: Path)` is defined in Task 5 Step 5, tested in Step 2 and called in `runner.py` and `preflight.py` with the same keywords. `Context(workspace=...)` from Task 4 Step 4 is what Task 5's `metrics.py:136` constructs. `preseed(workspace, ordinals)` matches its three test call sites. `ai_rfc.cli.main(argv) -> int` is what Task 7's door calls and what Task 3's tests exercise.
 
 **Known ordering hazard.** Between Task 4 and Task 5 the experiment suite does not collect; both tasks say so, and Task 5 restores it.
+
+## Outcome (executed 2026-09-03, subagent-driven)
+
+| Task | Commits | Gate |
+|---|---|---|
+| 0 | none (goldens + baselines under `reconstructions/_baselines/extraction-2026-09-02/`) | substrate 405 (376 without the 29 PANTHER door tests); experiment 377; server 40; whole PANTHER unit suite 1529 passed / 19 failed / 8 errors |
+| 1 | ai_rfc `d7f2c69` | 376 passed; both goldens identical |
+| 2 | ai_rfc `7561521` | 371 (5 aggregates tests gone) |
+| 3 | ai_rfc `9d87151`, fix `3d1ac2c` | 384; `ai-rfc` script; three goldens identical |
+| 4 | ai_rfc `41d7b65`, fix `17467fd` | server 43 + substrate 384 |
+| 5 | ai_rfc `51e84fa`, fix `3b12595` | 806 (experiment 379) |
+| 6 | ai_rfc `9971640`, fix `abc07a3` | 808 |
+| 7 | PANTHER `b50e569d0` | door tests 5/5; whole unit suite 1149 passed with the same 19 failures / 8 errors |
+| final fix wave | PANTHER `ddfee0af8`, ai_rfc `89c4bd5`, pointer bump `80e6a19e4` | door tests 5/5 under both pytest configs; 808 |
+| 8 | pending the user's push confirmation | |
+
+## Corrections found during execution
+
+- **`-o pythonpath=` was needed for Task 1's suite run** and the plan's Step 7
+  did not say so: PANTHER's `pytest.ini` is discovered from the nested
+  checkout until Task 3 writes `pyproject.toml`, and its `pythonpath` puts the
+  old copy first.
+- **The move needed four more edits than the brief listed** — the validator's
+  relative imports (`..report`, `..schema`) after it went one level deeper,
+  `pipeline/run.py`'s import of it, `tests/substrate/test_cli.py`'s import,
+  and the README's three prose mentions of the root `cli.py`.
+- **`tests/pytest.ini` and the root `pytest.ini` both put
+  `panther/plugins/services/testers` on `sys.path`**, so a submodule root
+  named `ai_rfc` (no `__init__.py`) becomes a namespace package that shadows
+  the installed one under pytest (setuptools' editable finder is appended to
+  `sys.meta_path`; `PathFinder` wins). Both files now list the submodule root
+  first. The shadow is structural (D30 named the directory after the package)
+  and SP6 should remove it at the root.
+- **`panther build dev` never installed the submodule**: the plan named
+  `panther_builder.py`, whose install block runs only on the bootstrap path
+  because `panther_builder.py` forwards to the `panther` CLI whenever it
+  resolves. `panther/cli/commands/build.py` now carries
+  `_install_ai_rfc_submodule` beside the ivy step.
+- **`python3` in `.mcp.json` did not resolve to an interpreter with the
+  package** and a server that fails to start mounts no tools without failing
+  the session; the command is now `${AI_RFC_PYTHON}`, a required variable
+  beside `AI_RFC_WORKSPACE` (R10 amended: the requirement is explicit).
+- **`CLAUDE.md` may not be written by any agent** (a project guard hook), so
+  Task 7's two edits are for the user, below.
+- **The experiment suite was 377, not 339; the `mcp_config` test already
+  existed; `test_parity.py` and the guard hook derived paths by depth;
+  `test_arms.py` builds one old-prefix string on purpose; the stream fixture
+  freezes an older spelling on purpose** — all recorded in the ledger as
+  rulings.
+- **The regenerated arm-C prompt instructs `python -m ai_rfc draft
+  checkpoint` while `metrics._cluster_of_call` matched only the module form**
+  — it now accepts both, and the fake `claude` emits the dispatcher form.
+- The old `ai-rfc-server` distribution had to be uninstalled before Task 4's
+  reinstall; `[tool.mypy] explicit_package_bases = true` is needed for mypy to
+  run from a checkout nested under PANTHER's package tree.
+
+## CLAUDE.md edits for the user to apply
+
+Insert after the `pip install -e panther/plugins/services/testers/panther_ivy/` line:
+
+```bash
+# If using ai_rfc (init submodule first):
+git submodule update --init panther/plugins/services/testers/ai_rfc
+pip install -e 'panther/plugins/services/testers/ai_rfc[mcp]'
+```
+
+Change the "Excluded from linting" bullet to:
+
+```
+- **Excluded from linting**: `panther/plugins/services/testers/panther_ivy/` and `panther/plugins/services/testers/ai_rfc/` (submodules)
+```
+
+## Backlog carried forward
+
+SP2: dead `campaign` parameters with stale docstrings in `metrics.py` and
+`summary.py`; the temporal comment in `metrics.py`; `git["panther"]` in the
+campaign record now pins a repository holding none of the code under test;
+`server/__main__.py` without `sys.exit`. SP3: `entrypoints.py:43` still names
+`mkdocs-click`; `dynamic = ["version"]` instead of three copies of `0.1.0`;
+`check/cli.py` mixes absolute and relative imports; `doctor` should check
+`AI_RFC_PYTHON`'s interpreter, which the init command's `ai-rfc --help` probe
+does not. SP5: the isort/black pass (7 package files, ~16 test files, and
+`tests/server/test_core.py`), a pre-commit config and CI for the new
+repository, the README's "fails loudly" overclaim for `AI_RFC_PYTHON`,
+`fake_claude/claude:295` at 92 columns. SP6: the structural namespace shadow
+(either `panther_ivy` becomes importable by its install rather than by the
+`testers` path entry, or the submodule directory is not named `ai_rfc`).
