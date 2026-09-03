@@ -879,3 +879,51 @@ Harness-side, blocked on the main experiment run, all recorded in the review wit
 Task 1 is the PANTHER-side half of the same defence as item 1: even with the harness input
 unfixed, a fabricated sign-off over narrative-only evidence no longer reaches `confirmed`.
 Either alone narrows C-1; the two together close it.
+
+## Outcome (executed 2026-09-03, subagent-driven)
+
+| Task | Commits | Suite after |
+|---|---|---|
+| 1 | `ac3831ebb` | 392 |
+| 2 | `883e36c8c`, fix round `ed4f7462a` | 396 |
+| 3 | `21aa06fdc` | 397 |
+| 4 | `7f830848a`, fix round `d65ee8782` | 402 |
+| 5 | `2e5354b6c` | 403 |
+| final-review fix wave | `4f903b188` | 405 |
+
+Eight commits, not five: two task reviews and the whole-branch review each
+found something the plan's own text had wrong. Baseline 390 → **405 passing,
+zero failures**; mypy 10 → 9 errors PANTHER-side; black and flake8 clean.
+Peer docs-only commits interleave in the range (`0b50e18a2`, `31b35618c`,
+`34e4bdd45`, `d32090b5b`, `bec576f39`, `3526f4864`, `55e763f08`).
+
+## Corrections found during execution
+
+- **Task 2's "nothing outstanding" early return bypassed the new helper**, so a
+  finished workspace still exited 0 unchecked; it now falls through the single
+  exit path. `--until` bounds the re-derived checks from above and `--from`
+  (the explicit flag, never the derived start) from below; a stage the walk
+  already performed is not performed twice. The plan's claim that `gate`'s
+  inputs "do not exist until prose has been written" was wrong about
+  `_prose`, which never looks at the question register; the helper now also
+  requires `questions.yaml` to exist, which nothing in this package creates.
+- **Task 4's bounded-pagination test could not hold with `_PAGE_CAP = 1000`**
+  (its mock guard was 50); the guard now equals the cap. The host check also
+  compares the scheme, since an `http://` downgrade of the same host leaks the
+  token the same way, and the timeout test calls the transport through a fake
+  `urlopen` instead of grepping source.
+- **Task 5's strict loader** refuses a self-referencing YAML alias that
+  `SafeLoader` accepts (its constructor is not a generator); accepted, since
+  no manifest shape here is recursive and merge keys were already given up.
+- The plan's Final Verification expected five commits and a 10-error mypy
+  baseline; both figures were stale at execution.
+
+## Deferred to the backlog
+
+A 403 walked through a per-pull sub-fetch end to end (forge tests); regrading
+`gate` in `pipeline/state.py:279` as blocked without prose and a register
+(changes `status` output); duplicate-key defence for the question and revision
+loaders (`draft/questions.py:118`, `draft/gate.py:74`); the eleven pre-existing
+suite warnings; `state()` raising `OSError` inside `_perform_rederivable`
+bypasses `_finish`; the `--from`/`--until` help sentence that can be read as
+"the checks never run without an explicit range" (SP3 rewrites that CLI).
