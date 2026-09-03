@@ -48,7 +48,6 @@ def adjudicate(claim: RequirementClaim) -> Status:
     is capped at ``inferred``, whether that evidence is a decision record, a
     paper or an interview: a signature over one person's account is that person
     counted twice, which is the circularity the two-class route already refuses.
-    Claims resting only on decision records or paper prose are capped at ``inferred``.
     A claim with no evidence at all is a ``gap``, sign-off notwithstanding —
     signing off on nothing records nothing.
 

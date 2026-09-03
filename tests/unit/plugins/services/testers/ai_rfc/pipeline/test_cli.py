@@ -121,6 +121,30 @@ def test_a_finished_workspace_still_performs_the_manifest_check(
     assert "check" in [entry["stage"] for entry in performed]
 
 
+def test_gate_is_skipped_when_the_question_register_is_missing(
+    finished_workspace, capsys
+):
+    """``prose`` reading DONE does not mean the question register exists.
+
+    `_prose` (state.py) grades doneness from the draft repository and
+    revisions.yaml alone; no stage this walk performs ever writes
+    questions.yaml. Before this fix, `gate` ran anyway and its own CLI
+    turned the missing file into an `error:` line and exit 1 — a spurious
+    per-stage failure on an input `_prose` never promised. `check` must
+    still run and drive the exit code, since it needs no register at all.
+    """
+    (finished_workspace / "questions.yaml").unlink()
+
+    code = cli.main(["run", str(finished_workspace), "--strict", "--json"])
+    captured = capsys.readouterr()
+
+    assert code == 3
+    performed = [entry["stage"] for entry in json.loads(captured.out)["performed"]]
+    assert "check" in performed
+    assert "gate" not in performed
+    assert "error:" not in captured.err
+
+
 def test_until_bounds_the_rederivable_checks_too(mined_workspace, capsys):
     """``--until``'s contract must hold for the whole command, not just the walk.
 
@@ -142,6 +166,36 @@ def test_until_bounds_the_rederivable_checks_too(mined_workspace, capsys):
     assert code == 3
     performed = json.loads(capsys.readouterr().out)["performed"]
     assert "check" in [entry["stage"] for entry in performed]
+
+
+def test_from_bounds_the_rederivable_checks_too(finished_workspace, capsys):
+    """``--from``'s contract must hold for the whole command, not just the walk.
+
+    Mirrors `test_until_bounds_the_rederivable_checks_too`: `check` sits at
+    ordinal 6, three stages below `gate` at 9, so ``--from gate --until
+    gate`` must keep it from running even though `_perform_rederivable`
+    would otherwise perform every re-derivable stage regardless of where the
+    walk started.
+    """
+    code = cli.main(
+        [
+            "run",
+            str(finished_workspace),
+            "--from",
+            "gate",
+            "--until",
+            "gate",
+            "--strict",
+            "--json",
+        ]
+    )
+    performed = [
+        entry["stage"] for entry in json.loads(capsys.readouterr().out)["performed"]
+    ]
+
+    assert code == 0
+    assert "gate" in performed
+    assert "check" not in performed
 
 
 def test_a_stage_the_walk_already_ran_is_not_performed_twice(mined_workspace, capsys):

@@ -61,14 +61,22 @@ def _parser() -> argparse.ArgumentParser:
         dest="start",
         choices=sorted(BY_NAME),
         default=None,
-        help="First stage to run; default is wherever the workspace stands.",
+        help=(
+            "First stage to run; default is wherever the workspace stands. "
+            "The re-derivable checks (check, gate) run only inside a range "
+            "given explicitly with --from/--until."
+        ),
     )
     run.add_argument(
         "--until",
         dest="until",
         choices=sorted(BY_NAME),
         default=None,
-        help="Last stage to run; default is the next agent boundary.",
+        help=(
+            "Last stage to run; default is the next agent boundary. The "
+            "re-derivable checks (check, gate) run only inside a range "
+            "given explicitly with --from/--until."
+        ),
     )
     run.add_argument(
         "--forge-url", default=None, help="Repository URL, for the forge stage."
@@ -146,7 +154,11 @@ def _print_status(payload: dict) -> None:
 
 def _run(args: argparse.Namespace) -> int:
     ws = workspace_from(args.workspace)
-    start = BY_NAME[args.start].ordinal if args.start else None
+    # Captured before `start` is possibly overwritten by the walk's derived
+    # start below: `_perform_rederivable` needs the caller's own `--from`
+    # ordinal, not wherever the walk ended up beginning.
+    explicit_start = BY_NAME[args.start].ordinal if args.start is not None else None
+    start = explicit_start
     until = BY_NAME[args.until].ordinal if args.until else None
 
     if start is None:
@@ -211,7 +223,7 @@ def _run(args: argparse.Namespace) -> int:
             code = result.exit_code
             break
 
-    rederived = _perform_rederivable(args, ws, performed, until)
+    rederived = _perform_rederivable(args, ws, performed, until, explicit_start)
     if code == 0:
         code = rederived
     return _finish(args, performed, halted_at=halted_at, code=code)
@@ -222,6 +234,7 @@ def _perform_rederivable(
     ws: Workspace,
     performed: list[dict],
     until: int | None,
+    explicit_start: int | None,
 ) -> int:
     """Run the checks the stage walk cannot reach, and return the worst exit code.
 
@@ -235,22 +248,31 @@ def _perform_rederivable(
     ``next_stage`` reports nothing outstanding, so a finished workspace still
     reaches this function.
 
-    Two rules keep this from doing more than the caller asked for. A stage
+    Three rules keep this from doing more than the caller asked for. A stage
     already recorded in ``performed`` is skipped — the walk already ran it
     this invocation (``--from check`` puts ``check`` on the walk directly),
     and running it again would duplicate the record without changing the
-    exit code, since both stages are idempotent. And when ``until`` bounds
-    the run, a re-derivable stage past that ordinal is skipped too, so
+    exit code, since both stages are idempotent. When ``until`` bounds the
+    run, a re-derivable stage past that ordinal is skipped too, so
     ``--until``'s contract holds for the whole command and not only for the
-    walk that preceded this call.
+    walk that preceded this call. And when ``explicit_start`` bounds the run
+    — the caller gave an explicit ``--from`` — a re-derivable stage before
+    that ordinal is skipped the same way; it is deliberately the flag's own
+    ordinal and not the walk's derived start, because on a workspace with no
+    ``--from`` the walk itself starts at ``prose`` (the next agent boundary)
+    while ``check`` at ordinal 6 must still run — bounding on the derived
+    start would skip exactly the default-path check this function exists to
+    perform.
 
     Args:
         args: The parsed arguments; ``strict`` decides whether findings exit 3.
         ws: The workspace to check.
         performed: The record the walk appended to; extended in place, and
             read to skip a stage the walk already performed.
-        until: The last stage's ordinal the caller bounded the run to, or
-            ``None`` when the caller gave no ``--until``.
+        until: The last stage's ordinal the caller bounded the run to via
+            ``--until``, or ``None`` when the caller gave none.
+        explicit_start: The first stage's ordinal the caller bounded the run
+            to via ``--from``, or ``None`` when the caller gave none.
 
     Returns:
         The highest exit code any check returned, or 0.
@@ -261,13 +283,19 @@ def _perform_rederivable(
     for name in ("check", "gate"):
         if name in already:
             continue
+        if explicit_start is not None and BY_NAME[name].ordinal < explicit_start:
+            continue
         if until is not None and BY_NAME[name].ordinal > until:
             continue
         if states.get(name) is not State.RECOMPUTED:
             continue
-        if name == "gate" and states.get("prose") is not State.DONE:
-            # `gate` reads the draft repository, the question register and the
-            # revision log, none of which exist until `prose` has been written.
+        if name == "gate" and not (
+            states.get("prose") is State.DONE and ws.questions.exists()
+        ):
+            # `_prose` (state.py) grades doneness from the draft repository
+            # and revisions.yaml alone; no stage this walk performs ever
+            # writes questions.yaml, so the register's existence is checked
+            # here directly rather than assumed from `prose`'s state.
             continue
         result = perform(BY_NAME[name], ws, strict=args.strict, cluster=args.cluster)
         performed.append(
@@ -310,9 +338,11 @@ def main(argv: list[str] | None = None) -> int:
 
     Returns:
         0 on success, including when the run stops at a stage a person or a
-        model must perform — reaching a boundary is the pipeline working. 1 if
-        the workspace could not be read or a stage was asked for that this
-        command does not perform. Otherwise a stage's own exit code, so a
+        model must perform — reaching a boundary is the pipeline working —
+        unless a re-derived ``check`` or ``gate`` still finds something under
+        ``--strict``, since those run whether or not the walk reached them.
+        1 if the workspace could not be read or a stage was asked for that
+        this command does not perform. Otherwise a stage's own exit code, so a
         strict gate's 3 reaches the caller unchanged. 2 is left to argparse.
     """
     args = _parser().parse_args(argv)
