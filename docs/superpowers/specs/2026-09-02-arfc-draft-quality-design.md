@@ -189,9 +189,28 @@ cluster round (per_cluster.py)                      consolidation round (new, ev
 
 ## Open items carried into the execution plans
 
-- The bcp14 boilerplate may auto-inject the RFC 2119/8174 references; the first offline build
-  decides whether the skeleton's explicit `normative:` entries duplicate them.
 - `claude -p --tools ""` for the judge is unverified syntax; probe it before writing `judge.py`.
-- Ruby 4.0.1 with kramdown-rfc is unverified (the gemspec sets no ceiling); the fallback is
-  Ruby 3.3 via `ruby-install`/`chruby`, then the Docker image.
-- The template `Gemfile` pins nothing; `toolchain.json` records the resolved `Gemfile.lock`.
+
+## Settled by the toolchain run-and-see (2026-09-03)
+
+Provisioned by hand under `~/ai-rfc-experiments/tools/` and recorded in `toolchain.json` there
+(the `experiment toolchain provision|verify` commands of SP7a automate exactly this):
+
+- **Ruby 4.0.1 runs kramdown-rfc 1.7.43**; no fallback needed. Bundler 4.0.3 installs the
+  binstubs under `.gems/ruby/4.0.0/bin`, not the `.gems/bin` the template's PATH export
+  expects, so `draft build` passes `kramdown-rfc=<binstub>` with `GEM_PATH`/`GEM_HOME` as
+  make command-line variables (make exports those to recipes).
+- xml2rfc 3.34.0 (plus iddiff, svgcheck, rfc-tidy, pyang) in the library venv; idnits 3.1.0
+  and aasvg 0.5.7 via npm (`@ietf-tools/idnits` is on the registry).
+- **Offline double build is byte-identical** with the network denied
+  (`KRAMDOWN_OFFLINE=1`, `xml2rfc -N --cache`, a black-hole proxy, `-D 2026-08-26`), after one
+  online seed build that cached all 17 allowlisted references.
+- **The bcp14 boilerplate injects RFC 2119/8174 itself**: listing them in `normative:` produces
+  a "both inline and in YAML header" warning. The skeleton must NOT list them.
+- `XML2RFC_OPTS` must be passed in full on the make command line: a command-line variable
+  silences `config.mk`'s `+= --cache=…`, so `--cache` is repeated explicitly. Never set `CI=true`.
+- The `make idnits` target needs the draft committed in a clone (`build-targets.sh` reads
+  `HEAD`); `draft build`'s scratch clone satisfies it. idnits reports kramdown-rfc's
+  `<?line?>` instructions as a LINE_PI warning on unversioned XML.
+- Apple GNU Make 3.81 sufficed. The template `Gemfile` pins nothing; the resolved
+  `Gemfile.lock` is recorded beside `toolchain.json`.
