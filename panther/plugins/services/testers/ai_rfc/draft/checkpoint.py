@@ -65,6 +65,13 @@ def write_checkpoint(
     manifest = load(manifest_path)
     row, prev_cluster_id = _cluster_row(timeline_dir, cluster_id)
 
+    # Every input is read before anything is created. A failure after `mkdir`
+    # leaves a directory the write-once guard below then refuses forever, and
+    # `pipeline status` reads it as unfrozen and routes the operator straight
+    # back into the stage that will refuse them.
+    timeline_sha256 = _digest_bytes((timeline_dir / "timeline.json").read_bytes())
+    normalized = dump(manifest).encode()
+
     checkpoint_dir = out / cluster_id
     if checkpoint_dir.exists():
         raise CheckpointError(
@@ -73,7 +80,6 @@ def write_checkpoint(
         )
     checkpoint_dir.mkdir(parents=True)
 
-    normalized = dump(manifest).encode()
     (checkpoint_dir / MANIFEST_FILE).write_bytes(normalized)
 
     supported_counts = {status.value: 0 for status in Status}
@@ -95,7 +101,7 @@ def write_checkpoint(
         "manifest_sha256": _digest_bytes(normalized),
         "ordinal": row["ordinal"],
         "prev_cluster_id": prev_cluster_id,
-        "timeline_sha256": _digest_bytes((timeline_dir / "timeline.json").read_bytes()),
+        "timeline_sha256": timeline_sha256,
     }
     (checkpoint_dir / CHECKPOINT_FILE).write_text(
         json.dumps(record, sort_keys=True, indent=2) + "\n"

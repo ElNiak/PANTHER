@@ -100,6 +100,27 @@ def test_two_checkpoints_of_same_manifest_are_byte_identical(
         assert (first / name).read_bytes() == (second / name).read_bytes()
 
 
+def test_an_unreadable_timeline_leaves_no_checkpoint_behind(
+    timeline_dir, manifest_path, tmp_path
+):
+    """A half-written checkpoint is worse than none.
+
+    The write-once guard refuses the retry forever and `pipeline status` reads
+    the bare directory as unfrozen, so the operator is routed back into the
+    stage that will refuse them, with no documented recovery.
+    """
+    out = tmp_path / "fresh-checkpoints"
+    cluster_id = json.loads(
+        (timeline_dir / "clusters.jsonl").read_text().splitlines()[0]
+    )["id"]
+    (timeline_dir / "timeline.json").unlink()
+
+    with pytest.raises(OSError):
+        write_checkpoint(manifest_path, timeline_dir, cluster_id, out)
+
+    assert not (out / cluster_id).exists()
+
+
 def test_empty_manifest_checkpoints_with_zero_counts(
     timeline_dir: Path, tmp_path: Path
 ):
