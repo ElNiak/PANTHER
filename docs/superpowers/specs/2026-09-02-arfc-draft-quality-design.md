@@ -227,6 +227,15 @@ the flags.
 A non-neutral working directory leaks the project through the path alone: the first probe named
 "PANTHER" purely from its cwd string. Run the judge from a neutral directory.
 
+**Decided 2026-09-03: accept the leak and record it.** SP7d's judge runs without `--bare`, with the
+user-global `CLAUDE.md` in context, rather than waiting on an API key. The run manifest must
+therefore carry the condition explicitly — alongside the model id, prompt templates, toolchain
+versions and dataset digest — so a reader knows the scores were not produced under a fully blinded
+harness. The judge stays secondary and quote-verified, which is what makes this tolerable; it is not
+a substitute for the deterministic lint or the ground-truth set. If an `ANTHROPIC_API_KEY` is
+provisioned later, switching to `--bare` is a one-line change and the manifest field records which
+regime produced which scores.
+
 ## Settled by the toolchain run-and-see (2026-09-03)
 
 Provisioned by hand under `~/ai-rfc-experiments/tools/` and recorded in `toolchain.json` there
