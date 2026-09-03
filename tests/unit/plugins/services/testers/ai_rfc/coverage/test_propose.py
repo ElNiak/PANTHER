@@ -96,12 +96,13 @@ def test_the_provenance_names_what_the_anchor_actually_claims(
     repo, commit = java_repo
     out = tmp_path / "out"
     manifest = _manifest(tmp_path, commit, line=5)
-    assert cli.main(_argv(manifest, coverage_report, repo, commit, out)) == 0
+    assert cli.main(_argv(manifest, coverage_report, repo, "HEAD", out)) == 0
     record = json.loads((out / "runtime-anchors.json").read_text())
     assert record["criterion"] == "line-executed"
     assert record["tool"] == "jacoco"
     assert len(record["report_sha256"]) == 64
-    assert record["commit"] == commit
+    assert record["commit"] != "HEAD"
+    assert len(record["commit"]) == 40
 
 
 def test_a_dirty_tree_is_refused(java_repo, coverage_report, tmp_path: Path, capsys):

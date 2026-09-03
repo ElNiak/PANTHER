@@ -129,6 +129,30 @@ def _claim(claim_id: Any, raw: Any) -> RequirementClaim:
     )
 
 
+class _StrictLoader(yaml.SafeLoader):
+    """Refuses a duplicated mapping key.
+
+    ``yaml.safe_load`` keeps the last of two identically-keyed entries, so a
+    manifest with a repeated requirement id silently loses a claim and every
+    count derived from it under-reports with no diagnostic.
+    """
+
+
+def _no_duplicate_keys(loader, node, deep=False):
+    mapping = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        if key in mapping:
+            raise SchemaError(f"duplicated key {key!r}")
+        mapping[key] = loader.construct_object(value_node, deep=deep)
+    return mapping
+
+
+_StrictLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _no_duplicate_keys
+)
+
+
 def load(path: Path) -> Manifest:
     """Read a manifest from disk.
 
@@ -145,7 +169,7 @@ def load(path: Path) -> Manifest:
         SchemaError: If the document is malformed, carries an unknown value in
             a closed vocabulary, or leaves an identifier unquoted.
     """
-    document = yaml.safe_load(Path(path).read_text())
+    document = yaml.load(Path(path).read_text(), _StrictLoader)
     if not isinstance(document, dict):
         raise SchemaError(f"{path}: top level must be a mapping")
     for required in ("rfc", "title", "requirements"):

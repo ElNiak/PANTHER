@@ -49,7 +49,7 @@ def propose(
     report: CoverageReport,
     repo: Path,
     commit: str,
-) -> tuple[tuple[AnchorProposal, ...], tuple[SkippedAnchor, ...]]:
+) -> tuple[tuple[AnchorProposal, ...], tuple[SkippedAnchor, ...], str]:
     """Propose runtime anchors for the lines a run actually reached.
 
     An anchor is emitted only where the manifest already cites that exact file
@@ -65,7 +65,12 @@ def propose(
         commit: The commit to bind the anchors to.
 
     Returns:
-        The proposals, and the code anchors that got none with the reason.
+        The proposals, the code anchors that got none with the reason, and the
+        commit ``commit`` resolved to. Callers recording provenance must use
+        this third element, not the ``commit`` argument: a branch or tag
+        names a commit today and may name another tomorrow, so recording what
+        was typed would describe the run with something that moves while
+        every proposal in it is pinned to what it resolved to.
 
     Raises:
         PinError: If the checkout is not at ``commit`` or is dirty.
@@ -121,7 +126,7 @@ def propose(
             proposals.append(
                 AnchorProposal(claim.id, resolved, commit, anchor.line, digest)
             )
-    return tuple(proposals), tuple(skipped)
+    return tuple(proposals), tuple(skipped), commit
 
 
 def _suffix_for(locator: str, report: CoverageReport) -> str | None:

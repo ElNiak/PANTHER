@@ -100,7 +100,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         manifest = load(args.manifest)
         report = READERS[args.format](args.coverage)
-        proposals, skipped = propose(manifest, report, args.repo, args.commit)
+        proposals, skipped, commit = propose(manifest, report, args.repo, args.commit)
     except (SchemaError, CoverageError, PinError, OSError) as error:
         _report(f"error: {error}")
         return 1
@@ -128,7 +128,7 @@ def main(argv: list[str] | None = None) -> int:
                 "tool_version": report.tool_version,
                 "report_sha256": report.report_sha256,
                 "criterion": PROPOSAL_CRITERION,
-                "commit": args.commit,
+                "commit": commit,
                 "proposed": [asdict(proposal) for proposal in proposals],
                 "skipped": [asdict(entry) for entry in skipped],
             },

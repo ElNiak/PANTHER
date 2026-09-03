@@ -226,3 +226,26 @@ def test_a_whitespace_only_signer_is_refused(tmp_path: Path):
     with pytest.raises(SchemaError) as excinfo:
         load(path)
     assert "signed_off_by" in str(excinfo.value)
+
+
+def test_a_duplicated_requirement_id_is_refused(tmp_path: Path):
+    """Two claims, one id: safe_load keeps the last and the count under-reports."""
+    path = tmp_path / "duplicate_id.yaml"
+    path.write_text(
+        "rfc: SPEC-1\n"
+        "title: 'x'\n"
+        "requirements:\n"
+        "  'spec:1.1':\n"
+        "    text: first\n"
+        "    section: '1.1'\n"
+        "    level: MUST\n"
+        "    layer: timing\n"
+        "  'spec:1.1':\n"
+        "    text: second\n"
+        "    section: '1.1'\n"
+        "    level: MUST\n"
+        "    layer: timing\n"
+    )
+    with pytest.raises(SchemaError) as excinfo:
+        load(path)
+    assert "spec:1.1" in str(excinfo.value)
