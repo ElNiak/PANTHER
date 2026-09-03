@@ -158,6 +158,24 @@ def _install_ivy_submodule(project_root: Path) -> int:
             os.environ["CMAKE_POLICY_VERSION_MINIMUM"] = old_val
 
 
+def _install_ai_rfc_submodule(project_root: Path) -> int:
+    """Install the ai_rfc submodule in editable mode (if present)."""
+    ai_rfc_path = (
+        project_root / "panther" / "plugins" / "services" / "testers" / "ai_rfc"
+    )
+    if not (ai_rfc_path / "pyproject.toml").exists():
+        warning_message(
+            "Skipping ai_rfc: submodule not initialized"
+            " (run 'git submodule update --init')"
+        )
+        return 0
+    info_message("Installing ai_rfc submodule...")
+    return run_command(
+        [sys.executable, "-m", "pip", "install", "--editable", f"{ai_rfc_path}[mcp]"],
+        cwd=project_root,
+    )
+
+
 def _run_tests(project_root: Path) -> int:
     """Run the test suite."""
     info_message("Running tests...")
@@ -219,7 +237,7 @@ def dev(ctx):
     r"""Install PANTHER in development (editable) mode.
 
     Cleans artifacts, installs dependencies, performs an editable install,
-    and installs the panther_ivy submodule if present.
+    and installs the panther_ivy and ai_rfc submodules if present.
 
     \b
     Example:
@@ -232,6 +250,7 @@ def dev(ctx):
         lambda: _uninstall_package(root),
         lambda: _install_editable(root),
         lambda: _install_ivy_submodule(root),
+        lambda: _install_ai_rfc_submodule(root),
     )
     if result == 0:
         success_message("Development install completed successfully.")
@@ -267,13 +286,14 @@ def install(ctx):
     """Install dependencies and set up editable install.
 
     Installs build dependencies, performs editable install, and installs
-    the panther_ivy submodule if present.
+    the panther_ivy and ai_rfc submodules if present.
     """
     root = find_project_root()
     result = _run_steps(
         lambda: _install_dependencies(root),
         lambda: _install_editable(root),
         lambda: _install_ivy_submodule(root),
+        lambda: _install_ai_rfc_submodule(root),
     )
     if result == 0:
         success_message("Install completed successfully.")
