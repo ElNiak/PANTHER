@@ -79,3 +79,5 @@ after its package is shadowed under pytest wherever PANTHER puts
 `panther/plugins/services/testers` on `sys.path`, and `panther build dev` did
 not install the submodule until `build.py` learned to. Push SHAs are recorded
 below once the user confirms Task 8.
+
+Pushed 2026-09-03 with the user's confirmation: ai_rfc `main` at `89c4bd5` (github.com/ElNiak/ai_rfc), then PANTHER `feat/arfc-pipeline-and-runtime-anchors` at `e22dad825` plus this record.
