@@ -12,8 +12,11 @@
 
 ## Global Constraints
 
-- **Layout.** This plan executes AFTER SP1 (extraction) on the ai_rfc repository layout: `AIRFC` = the single submodule at `$PANTHER/panther/plugins/services/testers/ai_rfc` (its own git repository, github.com/ElNiak/ai_rfc). Packages: `ai_rfc/` (substrate), `ai_rfc/server/` (MCP server + parity CLI), `ai_rfc/experiment/` (driver, with `prompts/` and `guard.py`), `plugins/ai-rfc/` (skills, commands, `.mcp.json`), `docs/`. Tests: `tests/substrate/`, `tests/server/`, `tests/experiment/`. `PY` = `$PANTHER/.venv/bin/python`. Verify with `ls $AIRFC/ai_rfc/draft $AIRFC/tests/substrate` before Task 1; if SP1 has not landed, STOP — do not execute this plan on the old layout.
+- **Layout.** This plan executes AFTER SP1 (extraction) on the ai_rfc repository layout: `AIRFC` = the single submodule at `$PANTHER/panther/plugins/services/testers/ai_rfc` (its own git repository, github.com/ElNiak/ai_rfc). Packages: `ai_rfc/` (substrate), `ai_rfc/server/` (MCP server + parity CLI), `ai_rfc/experiment/` (driver, with `prompts/` and `guard.py`), `plugins/ai-rfc/` (skills, commands, `.mcp.json`), `docs/`. Tests: `tests/substrate/`, `tests/server/`, `tests/experiment/`. `PY` = `$PANTHER/.venv/bin/python`. Before Task 1 verify **all three**: `ls $AIRFC/ai_rfc/draft $AIRFC/tests/substrate`; `cd $AIRFC && $PY -c "import ai_rfc, ai_rfc.draft, ai_rfc.server, ai_rfc.experiment"`; and a clean `git status --short` in both repositories. If SP1 has not landed, or has landed only in part, STOP — do not execute this plan on the old layout. The `ls` alone is not sufficient: SP1's Task 7 is a designated confirmation point whose Step 4 moves the directory and re-adds the submodule *before* Steps 5–7 teach the builder, verify and commit, so a pause inside that window leaves the directories present while the package is not importable and PANTHER's tree is half-migrated and uncommitted.
 - **Every file:line anchor in the spec was verified on the pre-move layout** (PANTHER `21523d10c`, harness `26e522a`); the content moved verbatim. Re-anchor by symbol (`grep -n "def <name>"`) before editing, never by remembered line number. Another session (`ai-rfc-extraction-packaging`) owns SP0/SP1 and commits to the same branch; run `git log -1 --format='%h %ad %s' --date=format:'%H:%M:%S'` and `git status --short` in BOTH `$PANTHER` and `$AIRFC` before every task. **If `git status --short` lists files you did not touch, do not commit** — pre-commit stashes and restores a peer's unstaged work around your commit; wait or coordinate.
+- **Three Task 4 snippets are SP1-contingent — re-derive, do not trust** (independent review, 2026-09-03). (a) Step 3's `return Context(workspace=..., toolchain=...)` omits `panther_repo`, which today's `server/paths.py` `Context` requires with no default; check SP1's landed `paths.py` and keep the field if it survived the move. (b) Step 1's three new tests take a `fixture_workspace` parameter that today exists only in the experiment suite's `conftest.py` — the server suite provides `make_workspace` and `workspace`; check the landed server conftest first. (c) `recorded`, in `test_tag_revision_refuses_when_the_build_has_findings`, is not a fixture today but a private helper *function* `_recorded(workspace, tag=...)` called inside the test body — a shape change, not a rename.
+- **The four build diagnostic regexes are unvalidated against real tool output.** `_OFFLINE_STUB`, `_XML2RFC_UNRESOLVED`, `_KRAMDOWN_WARNING` and `_IDNITS_SUMMARY` are exercised only by tests whose fake `make` stderr was written alongside the regexes, and the one real-toolchain test asserts only `exit_code == 0` and the outputs. Before Task 10, run one real build against a draft citing a deliberately unresolvable reference and confirm the broken-reference path actually fires. A regex that never matches turns the hard build gate (D49) into a no-op that reports success.
+- **Two SP7b hooks are named here but not built.** `LintReport.extra` is described as where SP7b adds its `structures` block, but `lint()` never populates it and the dataclass is frozen, so SP7b needs a new `lint()` keyword; and Task 4's `draft_lint` core filters the report through the closed `_METRIC_KEYS` tuple, which has no `extra`, so SP7b must extend it or its structure metrics never reach the tool and CLI output. SP7b owns both; neither is designed in this plan.
 - **Stage by explicit path**: never `git add -A` or `git add .`. Commit format in `$AIRFC`: `type: lowercase summary` (no scope — that repository's history); in `$PANTHER`: `type(scope): lowercase summary`. No `--no-verify`; a pre-commit failure is fixed and re-staged. `docs/` under `$PANTHER` is gitignored but tracked → `git add -f`.
 - **Tests**: `cd $AIRFC && SSLKEYLOGFILE= $PY -m pytest tests -n auto` (baseline after SP1: 769 = 390 substrate + 339 experiment + 40 server, all green). Sandbox off for `pytest`, `pip`, `npm`, `bundle`, nested-git writes and `git push`. `mypy --follow-imports=silent`; `flake8 --max-line-length=88`; `black --check`; ruff runs as a pre-commit hook only.
 - **Never run** `panther docs build`, `panther_builder.py clean|package-dev` (both `rmtree` `$PANTHER/docs/`), or `python -m ai_rfc.experiment audit|analyze` against `~/ai-rfc-experiments/campaigns/mark-full-1` or `~/arfc-experiments/campaigns/pilot-aioquic-w02-11-20260831` (they rewrite evidence).
@@ -886,12 +889,14 @@ from ai_rfc.schema import load
 
 from .conftest import _manifest_text, git
 
+# No bare `---` closer: the skeleton and every draft this tool produces close
+# their front matter with `--- abstract`. A fixture that adds one would exercise
+# a path no real draft takes and hide a broken `_parts`.
 FRONT = (
     "---\n"
     'title: "T"\n'
     "docname: draft-test-spec-latest\n"
     "{refs}"
-    "---\n"
 )
 STUB = "This document reconstructs the specification of t from its\nimplementation history. " + STUB_ABSTRACT_MARKER + ".\n"
 WRITTEN = "T is a server that stores things and answers queries about them.\n"
@@ -966,7 +971,10 @@ def test_figures_need_a_citation_within_three_lines_of_the_closing_fence():
 
 
 def test_tables_are_counted_by_their_rule_row():
-    body = "| Field | Type |\n|---|---|\n| a | int |\n\n| X |\n|:-:|\n| 1 |\n"
+    # `_TABLE_RULE` requires three or more dashes per cell, so an alignment row
+    # must be written `|:---:|`, not `|:-:|`. The floor is deliberate: a shorter
+    # run would also match a bare `---` thematic break.
+    body = "| Field | Type |\n|---|---|\n| a | int |\n\n| X |\n|:---:|\n| 1 |\n"
     assert lint(_draft(body=body)).blocks["tables"] == 2
 
 
@@ -1165,22 +1173,35 @@ class LintReport:
         return json.dumps(payload, indent=2, sort_keys=True) + "\n"
 
 
+_SECTION_MARKERS = ("--- abstract", "--- middle", "--- back")
+
+
 def _parts(text: str) -> dict[str, str]:
     """Split kramdown-rfc source into front matter, abstract, middle and back."""
     parts = {"front": "", "abstract": "", "middle": "", "back": ""}
     lines = text.splitlines()
     front_end = 0
+    body_start = 0
     if lines and lines[0].strip() == "---":
         for index in range(1, len(lines)):
-            if lines[index].strip() == "---":
-                front_end = index
+            marker = lines[index].strip()
+            if marker == "---":
+                front_end, body_start = index, index + 1
+                break
+            # kramdown-rfc also lets the first section marker close the front
+            # matter, and that is what every draft this tool produces does: the
+            # skeleton and the MARK draft both go straight from `---` to
+            # `--- abstract`. Treating only a bare `---` as the terminator left
+            # `front` empty and every reference count permanently zero.
+            if marker in _SECTION_MARKERS:
+                front_end, body_start = index, index
                 break
         parts["front"] = "\n".join(lines[1:front_end]) + "\n"
     current = "preamble"
     buckets: dict[str, list[str]] = {"preamble": [], "abstract": [], "middle": [], "back": []}
-    for line in lines[front_end + 1 if front_end else 0 :]:
+    for line in lines[body_start:]:
         marker = line.strip()
-        if marker in ("--- abstract", "--- middle", "--- back"):
+        if marker in _SECTION_MARKERS:
             current = marker.split()[1]
             continue
         buckets[current].append(line)
@@ -1217,14 +1238,25 @@ def _references(front: str) -> dict[str, int]:
 
 
 def _prose_lines(body: str) -> list[tuple[int, str]]:
-    """Body lines outside fenced blocks and directives, with 1-based numbers."""
+    """Body lines outside fences, comments and directives, with 1-based numbers."""
     kept: list[tuple[int, str]] = []
     fenced = False
+    commented = False
     for number, line in enumerate(body.splitlines(), start=1):
+        stripped = line.lstrip()
         if _FENCE.match(line):
             fenced = not fenced
             continue
-        if fenced or line.lstrip().startswith("{::"):
+        # kramdown-rfc drops comment blocks, so their bodies never reach the
+        # built draft and must not be linted. Skipping only lines starting
+        # `{::` left both the body and the `{:/comment}` closer in the prose.
+        if stripped.startswith("{::comment}"):
+            commented = True
+            continue
+        if stripped.startswith("{:/comment}"):
+            commented = False
+            continue
+        if fenced or commented or stripped.startswith("{::"):
             continue
         kept.append((number, line))
     return kept
@@ -1969,13 +2001,17 @@ Append both to `ALL_TOOLS` (last two entries; that is the parity-table order). I
 and in the dispatch, following the module's existing pattern for emitting a result dict as JSON and returning its `exit_code` (copy the `gate` verb's branch):
 
 ```python
-    if args.verb == "draft-build":
-        return _emit(tools.ai_rfc_draft_build(args.ref))
-    if args.verb == "draft-lint":
-        return _emit(tools.ai_rfc_draft_lint(worktree=not args.committed))
+    elif args.verb == "draft-build":
+        result = tools.ai_rfc_draft_build(args.ref)
+        _emit(result)
+        return result["exit_code"]
+    elif args.verb == "draft-lint":
+        result = tools.ai_rfc_draft_lint(worktree=not args.committed)
+        _emit(result)
+        return result["exit_code"]
 ```
 
-(`_emit` is whatever name the module uses for "print JSON, return exit_code" — grep `json.dumps` in `cli.py` and reuse it.)
+(`_emit` prints JSON and returns `None` — it does **not** return the exit code, so emitting and returning are two statements, exactly as the real `gate` branch does. Grep `def _emit` in `cli.py` to confirm the name before editing; `return _emit(...)` would return `None` and break `main`'s contract.)
 
 `docs/parity.md`: add two rows after `ai_rfc_revision_tag`:
 
@@ -3097,7 +3133,14 @@ def test_the_skeleton_compiles_as_a_stub_that_lint_recognises(template_repo, tmp
     assert report.sections["present"][:3] == ["Introduction", "Conventions and Definitions", "Architecture Overview"]
     assert "Change Log" in report.sections["present"] and "Acknowledgements" in report.sections["present"]
     assert report.blocks["figures"] == 0 and report.citations["tokens"] == 0
-    assert report.narration == []
+    # The skeleton declares exactly one informative reference, inline. This
+    # asserts against the real closing convention (`--- abstract`, never a bare
+    # `---`) and is the cheapest check that `_parts` did not collapse `front`.
+    assert report.references == {"normative": 0, "informative": 1, "inline": 1}
+    # `## Reconstruction Method` legitimately names the unit of reconstruction,
+    # so the bare `cluster` pattern fires twice; none of the shapes the detector
+    # actually targets — ordinals, added/withdrawn counts, "this revision" — may.
+    assert {entry["pattern"] for entry in report.narration} <= {"cluster"}
 ```
 
 - [ ] **Step 2: Run them to verify they fail**
@@ -3422,14 +3465,14 @@ listing them again is a build warning.
 
 ## Revisions
 
-- One revision per spec-relevant cluster: extend the prose, commit, build,
-  then tag with an **annotated** tag `draft-<name>-NN` (two digits, monotone
-  in cluster ordinal).
-- Record every revision in `$AI_RFC_WORKSPACE/revisions.yaml`:
+- One revision per spec-relevant round: extend the prose, commit, build, then
+  tag with an **annotated** tag `draft-<name>-NN` (two digits, monotone across
+  the sweep).
+- Record every revision in `$AI_RFC_WORKSPACE/revisions.yaml` with, at minimum:
   `cluster_id`, `checkpoint_manifest_sha256` (from the checkpoint's
   `checkpoint.json`), an explicit boolean `normative_change`, a one-line
-  `note`.
-- A cluster that changes nothing normative still gets a revision entry with
+  `note`. A round may carry further fields; this list is not closed.
+- A round that changes nothing normative still gets a revision entry with
   `normative_change: false` and a rationale. Its citation set must equal the
   previous revision's; the gate checks.
 
@@ -3596,7 +3639,7 @@ Expected: `migrate-draft` prints a new HEAD and `git -C /tmp/claude/mark-a1/draf
 
 - [ ] **Step 5: Write the baseline document**
 
-Create `docs/experiments/2026-09-03-sp7a-mark-baseline.md` with: the suite count from Step 2; the `toolchain verify` line; the `build-report.json` fields `exit_code`, `findings`, `date`, `outputs` digests; the full `lint-report.json` `findings` list and the `keywords`, `blocks`, `citations` and `sections` blocks verbatim; the gate result. This is the "before" the SP7d replay measures against — state that in the first paragraph, and state that the copy under `/tmp/claude` is disposable (the numbers are reproducible from the campaign directory).
+Create `docs/experiments/2026-09-03-sp7a-mark-baseline.md` with: the suite count from Step 2; the `toolchain verify` line; the `build-report.json` fields `exit_code`, `findings`, `date`, `outputs` digests; the full `lint-report.json` `findings` list and the `keywords`, `blocks`, `citations` and `sections` blocks verbatim; the gate result. State in the first paragraph that these numbers are the **SP7a waypoint**, measured with SP7a's structure-less lint — *not* SP7d's "before". SP7d's replay re-runs the final (SP7b-extended) lint on a fresh copy so that both sides of its before/after table come from one instrument; a comparison across the two lints would measure instrument drift, not content. State also that the copy under `/tmp/claude` is disposable (the numbers are reproducible from the campaign directory, and a read-only snapshot of the same bytes is sealed at `~/ai-rfc-experiments/baselines/mark-a1-2026-09-03`).
 
 - [ ] **Step 6: Commit**
 
@@ -3615,6 +3658,50 @@ Then bump the submodule pointer in PANTHER (one commit, `chore(ai_rfc): bump ai_
 1. **Spec coverage.** D42 → Task 4 (rows, freeze) and Task 10 (protocol). D45 → Tasks 5–7 (toolchain, adopter scaffold, migrate). D46 → Task 6 (references sealed at `prepare`), Task 1 (`--refcache` override), Task 4 (the core passes `<workspace>/refcache`). D49 → Task 4 (build stage in `tag_revision`) and Task 5 (`campaign init` refuses). D51 → Task 8. D52's "lint reports an unloadable manifest" → Task 2. The "Settled by the toolchain run-and-see" section → Task 1's argv/env (binstub, `GEM_PATH`, `XML2RFC_OPTS` in full, no `CI`), Task 9's skeleton (no RFC 2119/8174 in `normative:`), Task 5's `provision`. Not in SP7a by design: structures (D40, D48 → SP7b), consolidation rounds (D43 → SP7c), lint/judge/ground-truth in the analysis and the paid runs (D44, D47 → SP7d).
 2. **Placeholder scan.** No "TBD"/"TODO"/"handle edge cases"; every code step shows the code; the two places that say "grep for the name" (`CoreError`'s module, the `_emit` helper) name what to grep and why, because SP1 decides their final location.
 3. **Type consistency.** `build(draft_repo, *, toolchain, out, ref, targets, date, refcache, runner)` is called with those keywords in Tasks 1, 4 (via the verb), 5 (`verify`) and 9 (Step 7). `draft_text(repo, ref) -> (name, text)` in Tasks 1, 2. `lint(text, *, manifest, manifest_error, source)` in Tasks 2, 4, 9. `Campaign.toolchain: str | None`, `Campaign.task_template: Path` in Tasks 5, 8. `render_task(window, template=)` in Task 8. `_write_adopter_files(dest, *, template, template_commit)` in Tasks 6–7. `mcp_config(*, python, workspace, toolchain=None)` in Task 5 (SP1's signature plus one keyword).
+
+## Independent review (three reviewers who did not author this plan, 2026-09-03)
+
+Run on the pre-move layout, which is where the plan's anchors were verified and the last point at
+which they are cheaply checkable. Paths were judged through the spec's SP1 translation table, so a
+path being wrong *today* was not treated as a finding. Fixed in place:
+
+1. **`_parts` never found the end of the front matter** (Critical). It looked only for a bare
+   `---`, but the skeleton and the MARK draft both close with `--- abstract` at line 28 and never
+   emit a bare closer. `front_end` stayed `0`, `parts["front"]` collapsed to `"\n"`, and
+   `_references` returned all zeros for **every real draft**. Task 2's `FRONT` fixture added an
+   artificial bare `---`, so the suite passed while the feature was dead. Fixed: `_SECTION_MARKERS`
+   also terminate the front matter; the fixture now uses the real convention; and the Task 9
+   skeleton test asserts `references == {"normative": 0, "informative": 1, "inline": 1}`, which is
+   the discriminating check that would have caught it.
+2. **The skeleton lint test asserted `narration == []`, which is false** (Critical). `_prose_lines`
+   skipped only lines starting `{::` — not a comment body, and not the `{:/comment}` closer, which
+   does not even start with `{::` — and `_introduction` stays inside the section across level-2
+   headings, so `## Reconstruction Method`'s legitimate prose ("one timeline cluster at a time")
+   matched the bare `\bclusters?\b` pattern. Fixed: `_prose_lines` now tracks comment blocks
+   (kramdown-rfc drops them, so linting them was wrong regardless), and the assertion is now
+   `{entry["pattern"] for entry in report.narration} <= {"cluster"}`.
+3. **`test_tables_are_counted_by_their_rule_row` could not pass** (Critical). `_TABLE_RULE` requires
+   `-{3,}`; the fixture's second table used `|:-:|`. Fixed in the fixture, with the three-dash floor
+   documented as deliberate.
+4. **`return _emit(...)` returns `None`, not an exit code** (Warning). `_emit` is `-> None`; the real
+   `gate` branch emits and returns in two statements. Fixed, and the plan's wrong description of
+   `_emit` corrected.
+5. **The bundled `## Revisions` skill text asserted cluster-only cardinality and a closed field
+   list** (Warning). SP7c bundles this same text into the consolidation prompt, where a revision is
+   `kind: consolidation` with a `checkpoint` field; SP7c would have had to undo it. Reworded
+   round-generic now, which is subtractive and forward-references nothing.
+6. Carried into Global Constraints rather than fixed here: the strengthened Task 0 precondition (the
+   `ls` alone passes on a half-migrated tree), the three SP1-contingent Task 4 snippets, the four
+   unvalidated build-diagnostic regexes, and the two `LintReport.extra` / `_METRIC_KEYS` hooks SP7b
+   must build.
+
+Checked and found sound: every path in the File Structure table and every task's `Files:` block
+resolves through the translation table to a real pre-move file; SP0 Tasks 3–5 collide with nothing
+here (`checkpoint.py` and `coverage/propose.py` are never referenced, `forge/fetch.py` only by
+analogy, and `schema.py`'s use already wraps `load()` in a broad `except`); the SP0 Task 2 flag on
+`pipeline/cli.py` is adequate; the 18-tool count, the two `parity.md` rows and the `tag_revision`
+insertion anchor are byte-exact; and Task 9 leaves `loop.tmpl.md`'s step numbering, `SLOT_TABLES`
+and the generated-skill test as clean extension points for SP7c.
 
 ## Execution
 

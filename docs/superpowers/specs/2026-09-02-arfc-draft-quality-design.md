@@ -184,12 +184,48 @@ cluster round (per_cluster.py)                      consolidation round (new, ev
 |---|---|---|
 | SP7a compile-and-lint | task-prompt freeze fix; toolchain provisioning and verify; adopter scaffold, references, `migrate-draft`; `draft build` and `draft lint` (without structure fields); their tools and verbs; the skeleton and skill rewrites | the template example builds twice byte-identically offline; the MARK A1 copy builds, lints and gates clean |
 | SP7b structures | `Level` enum; revision `kind`/`checkpoint`; `structures:` schema, renderer, frozen `structures.md`, consolidation checkpoint, gate checks 8–11; `draft render`, `structure upsert`, `checkpoint --consolidation` | goldens per kind; a one-byte tamper is a finding |
-| SP7c consolidation rounds | `loop.tmpl.md` steps, `consolidation.tmpl.md`, scheduling from disk, `--consolidate-every`, `campaign init --task consolidation`, protocol docs | `fake_claude` sequence `c1,c2,cons,c3,cons(final)` |
-| SP7d instrument and runs | lint/build metrics in analysis; `experiment judge`; `experiment ground-truth` with `experiment/groundtruth/aioquic-w02-11.yaml`; the three evaluation runs | before/after table on the MARK copy; aioquic v2 compared with the pilot |
+| SP7c consolidation rounds | `loop.tmpl.md` steps, `consolidation.tmpl.md`, the `ai-rfc-editorial` skill, scheduling from disk, `--consolidate-every`, `campaign init --task consolidation`, protocol docs | `fake_claude` sequence `c1,c2,cons,c3,cons(final)` |
+| SP7d instrument and runs | lint/build metrics in analysis; `experiment judge`; `experiment ground-truth` with `experiment/groundtruth/aioquic-w02-11.yaml`; the three evaluation runs | before/after table on the MARK copy, both sides re-linted by the final instrument; aioquic v2 compared with the pilot |
 
-## Open items carried into the execution plans
+`ai-rfc-editorial` belongs to SP7c: SP7a Task 9 authors only `ai-rfc-rfc-style` and `ai-rfc-figures`,
+while SP7c's `CONSOLIDATION_TEXTS` is the sole consumer of the editorial skill.
 
-- `claude -p --tools ""` for the judge is unverified syntax; probe it before writing `judge.py`.
+**SP7a Task 10's numbers are the SP7a waypoint, not SP7d's "before".** Task 10 lints with SP7a's
+structure-less lint; SP7d's "after" uses the SP7b-extended lint. SP7d's replay therefore re-runs
+the *final* lint on a fresh copy of the MARK A1 workspace so that both sides of the before/after
+table are produced by one instrument, and the comparison measures content rather than instrument
+drift. Task 10's own copy under `/tmp/claude` is disposable and is never SP7d's input.
+
+## Settled by the judge probe (2026-09-03, `claude` 2.1.259)
+
+The open item "`claude -p --tools \"\"` is unverified syntax" is closed. The syntax is real and
+documented ("Use `\"\"` to disable all tools"), and the session's `init` event is the authority
+on what the judge actually holds — never the model's self-report, which claimed tools it did not
+have. Verified incantation, run from a working directory outside any project:
+
+```
+claude -p --tools "" --strict-mcp-config \
+  --system-prompt "<rubric>" --exclude-dynamic-system-prompt-sections \
+  --model <model> --output-format stream-json --verbose
+```
+
+`init` then reports `"tools":[]` and `"mcp_servers":[]` (both confirmed), and the project-specific
+context disappears. `judge.py` must assert those two fields on the init event rather than trusting
+the flags.
+
+**D44's "blinded" is not fully achieved by these flags.** Two residual leaks, both measured:
+
+- The user-global `~/.claude/CLAUDE.md` still loads. Only `--bare` removes CLAUDE.md
+  auto-discovery — but `--bare` also skips keychain reads, so it fails with "Not logged in"
+  unless `ANTHROPIC_API_KEY` is set in the environment (it is not, on this machine today).
+  **A fully blinded judge therefore requires an API key, not the interactive OAuth session.**
+  Until one is provisioned, the judge runs with the global CLAUDE.md in context; record that in
+  the run manifest, since it is a scoring-relevant condition.
+- `slash_commands` still lists the user's skills. With `tools:[]` there is no Skill tool to
+  invoke them, so they are inert, but the names remain in the prompt.
+
+A non-neutral working directory leaks the project through the path alone: the first probe named
+"PANTHER" purely from its cwd string. Run the judge from a neutral directory.
 
 ## Settled by the toolchain run-and-see (2026-09-03)
 
