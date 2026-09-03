@@ -14,11 +14,11 @@
 
 - **Layout.** This plan executes AFTER SP1 (extraction) on the ai_rfc repository layout: `AIRFC` = the single submodule at `$PANTHER/panther/plugins/services/testers/ai_rfc` (its own git repository, github.com/ElNiak/ai_rfc). Packages: `ai_rfc/` (substrate), `ai_rfc/server/` (MCP server + parity CLI), `ai_rfc/experiment/` (driver, with `prompts/` and `guard.py`), `plugins/ai-rfc/` (skills, commands, `.mcp.json`), `docs/`. Tests: `tests/substrate/`, `tests/server/`, `tests/experiment/`. `PY` = `$PANTHER/.venv/bin/python`. Before Task 1 verify **all three**: `ls $AIRFC/ai_rfc/draft $AIRFC/tests/substrate`; `cd $AIRFC && $PY -c "import ai_rfc, ai_rfc.draft, ai_rfc.server, ai_rfc.experiment"`; and a clean `git status --short` in both repositories. If SP1 has not landed, or has landed only in part, STOP — do not execute this plan on the old layout. The `ls` alone is not sufficient: SP1's Task 7 is a designated confirmation point whose Step 4 moves the directory and re-adds the submodule *before* Steps 5–7 teach the builder, verify and commit, so a pause inside that window leaves the directories present while the package is not importable and PANTHER's tree is half-migrated and uncommitted.
 - **Every file:line anchor in the spec was verified on the pre-move layout** (PANTHER `21523d10c`, harness `26e522a`); the content moved verbatim. Re-anchor by symbol (`grep -n "def <name>"`) before editing, never by remembered line number. Another session (`ai-rfc-extraction-packaging`) owns SP0/SP1 and commits to the same branch; run `git log -1 --format='%h %ad %s' --date=format:'%H:%M:%S'` and `git status --short` in BOTH `$PANTHER` and `$AIRFC` before every task. **If `git status --short` lists files you did not touch, do not commit** — pre-commit stashes and restores a peer's unstaged work around your commit; wait or coordinate.
-- **Three Task 4 snippets are SP1-contingent — re-derive, do not trust** (independent review, 2026-09-03). (a) Step 3's `return Context(workspace=..., toolchain=...)` omits `panther_repo`, which today's `server/paths.py` `Context` requires with no default; check SP1's landed `paths.py` and keep the field if it survived the move. (b) Step 1's three new tests take a `fixture_workspace` parameter that today exists only in the experiment suite's `conftest.py` — the server suite provides `make_workspace` and `workspace`; check the landed server conftest first. (c) `recorded`, in `test_tag_revision_refuses_when_the_build_has_findings`, is not a fixture today but a private helper *function* `_recorded(workspace, tag=...)` called inside the test body — a shape change, not a rename.
+- **The three SP1-contingent Task 4 snippets are now RESOLVED** (checked against the landed tree on 2026-09-03 after SP1 committed at PANTHER `b50e569d0`, ai_rfc `abc07a3`). (a) `panther_repo` did **not** survive in `server/paths.py`: `Context` is now only `workspace: Path`, so Step 3's `Context(workspace=..., toolchain=...)` is correct as written — **no change needed**. (b) There is no `fixture_workspace` in the server suite; `tests/server/conftest.py` provides `make_workspace` and `workspace`, and `workspace` is a resolved **`Context`**, not a path — Task 4 Step 1 has been rewritten to use it. (c) `_recorded` is a module-level helper at `tests/server/test_draft.py:16` returning the **cluster id string**, not a fixture returning a dict — Task 4's test has been rewritten to call it. **A fourth, unflagged case**: `panther_repo` *does* survive in the experiment driver (`experiment/workspace.prepare()` and `experiment/cli.py` still require it, and `tests/experiment/test_config.py:50`'s `_init` still takes it), so Tasks 5, 6 and 8 must keep passing it. Retiring it is CLI-1's job.
 - **The four build diagnostic regexes are unvalidated against real tool output.** `_OFFLINE_STUB`, `_XML2RFC_UNRESOLVED`, `_KRAMDOWN_WARNING` and `_IDNITS_SUMMARY` are exercised only by tests whose fake `make` stderr was written alongside the regexes, and the one real-toolchain test asserts only `exit_code == 0` and the outputs. Before Task 10, run one real build against a draft citing a deliberately unresolvable reference and confirm the broken-reference path actually fires. A regex that never matches turns the hard build gate (D49) into a no-op that reports success.
 - **Two SP7b hooks are named here but not built.** `LintReport.extra` is described as where SP7b adds its `structures` block, but `lint()` never populates it and the dataclass is frozen, so SP7b needs a new `lint()` keyword; and Task 4's `draft_lint` core filters the report through the closed `_METRIC_KEYS` tuple, which has no `extra`, so SP7b must extend it or its structure metrics never reach the tool and CLI output. SP7b owns both; neither is designed in this plan.
 - **Stage by explicit path**: never `git add -A` or `git add .`. Commit format in `$AIRFC`: `type: lowercase summary` (no scope — that repository's history); in `$PANTHER`: `type(scope): lowercase summary`. No `--no-verify`; a pre-commit failure is fixed and re-staged. `docs/` under `$PANTHER` is gitignored but tracked → `git add -f`.
-- **Tests**: `cd $AIRFC && SSLKEYLOGFILE= $PY -m pytest tests -n auto` (baseline after SP1: 769 = 390 substrate + 339 experiment + 40 server, all green). Sandbox off for `pytest`, `pip`, `npm`, `bundle`, nested-git writes and `git push`. `mypy --follow-imports=silent`; `flake8 --max-line-length=88`; `black --check`; ruff runs as a pre-commit hook only.
+- **Tests**: `cd $AIRFC && SSLKEYLOGFILE= $PY -m pytest tests -n auto` (**measured baseline after SP1, 2026-09-03: 808 = 384 substrate + 45 server + 379 experiment, 0 failed** — not the 769 this plan and SP1 both predicted, because SP0 and SP1 added tests; use the measured number). Sandbox off for `pytest`, `pip`, `npm`, `bundle`, nested-git writes and `git push`. `mypy --follow-imports=silent`; `flake8 --max-line-length=88`; `black --check`; ruff runs as a pre-commit hook only.
 - **Never run** `panther docs build`, `panther_builder.py clean|package-dev` (both `rmtree` `$PANTHER/docs/`), or `python -m ai_rfc.experiment audit|analyze` against `~/ai-rfc-experiments/campaigns/mark-full-1` or `~/arfc-experiments/campaigns/pilot-aioquic-w02-11-20260831` (they rewrite evidence).
 - **The substrate stays model-free and, except `forge`, network-free.** `draft build` runs the template's `make` with the network denied (`KRAMDOWN_OFFLINE=1`, `xml2rfc -N --cache`, a black-hole proxy). The only networked step in this plan is `experiment toolchain provision`, run once by an operator.
 - **Toolchain facts (verified 2026-09-03, `~/ai-rfc-experiments/tools/toolchain.json`)**: Ruby 4.0.1 runs kramdown-rfc 1.7.43; Bundler 4 puts binstubs under `.gems/ruby/4.0.0/bin` (NOT `.gems/bin`), so make gets `kramdown-rfc=<binstub> GEM_PATH=<gem_path> GEM_HOME=<gem_path>` as command-line variables (make exports those to recipes); `XML2RFC_OPTS` passed on the command line silences `config.mk`'s `+= --cache=…`, so `--cache=<refcache>` is repeated explicitly; never set `CI=true`; the bcp14 boilerplate injects RFC 2119/8174 itself — the skeleton must not list them; `make idnits` needs the draft committed in a clone (`build-targets.sh` reads `HEAD`); Apple make 3.81 suffices.
@@ -74,18 +74,18 @@ from ai_rfc.draft.gate import draft_text
 
 
 def test_draft_text_reads_the_single_draft_at_a_ref(draft_workspace):
-    name, text = draft_text(draft_workspace["draft"], "draft-test-spec-00")
+    name, text = draft_text(draft_workspace["repo"], "draft-test-spec-00")
     assert name == "draft-test-spec.md"
     assert "`ai_rfc:spec:1.1`" in text and "`ai_rfc:spec:2.1`" not in text
 
 
 def test_draft_text_refuses_a_ref_without_one_draft(draft_workspace, tmp_path):
     with pytest.raises(GateError) as excinfo:
-        draft_text(draft_workspace["draft"], "no-such-ref")
+        draft_text(draft_workspace["repo"], "no-such-ref")
     assert "no-such-ref" in str(excinfo.value)
 ```
 
-(`draft_workspace` is the existing fixture in `tests/substrate/draft/conftest.py`; its dict key for the repository is whatever the fixture already returns — read the fixture's `return` statement and use that key. `GateError` and `pytest` are already imported in `test_gate.py`.)
+(`draft_workspace` is the existing fixture in `tests/substrate/draft/conftest.py`. Its key for the repository is **`"repo"`** — verified at `tests/substrate/draft/conftest.py:160`; the plan previously wrote `"draft"`, which would `KeyError`. `GateError` and `pytest` are already imported in `test_gate.py`.)
 
 - [ ] **Step 2: Run it to verify it fails**
 
@@ -138,7 +138,7 @@ def cited_ids(draft_repo: Path, tag: str) -> tuple[set[str], str | None]:
     return set(CITATION.findall(text)), None
 ```
 
-Keep the original docstring of `cited_ids` (Args/Returns) — only the body changes. The finding strings are byte-identical to today's, so no gate test moves.
+Keep the original docstring of `cited_ids` (Args/Returns) — only the body changes. No gate test moves. (One string does change: today's `cited_ids` says "expected exactly one draft-*.md at **the tag**" and the extracted `draft_text` says "at **the ref**", which is right for a function that takes any ref. Nothing asserts that substring today, so it is safe — but the plan's earlier claim of byte-identical findings was inaccurate.)
 
 - [ ] **Step 4: Run the gate tests**
 
@@ -793,7 +793,12 @@ Below the `completeness` parser in `_parser()`:
     )
 ```
 
-In `main()`, before the `completeness` branch's final `return`, add the dispatch:
+In `main()`, add the dispatch as a **top-level `if` statement, a sibling of the other verb
+branches** — that is, after the `completeness` branch closes with its `return 0` and before the
+unguarded `gate` code begins (`draft/cli.py:151` and `:153` today). `gate` has no
+`if args.verb == "gate":` guard of its own; it is the bottom fallthrough, so a new branch placed
+after it never runs, and one indented inside `completeness` runs only for that verb. Four-space
+indentation, matching the other top-level `if`s:
 
 ```python
     if args.verb == "build":
@@ -843,7 +848,13 @@ Expected: all PASS (the real-toolchain test SKIPPED unless `AI_RFC_TOOLCHAIN` is
 
 - [ ] **Step 10: README rows, lint, commit**
 
-In `ai_rfc/README.md`: add a verb-table row `| ai-rfc draft build DRAFTREPO --out DIR [--ref REF] [--toolchain PATH] [--strict] | Compile a revision with the template toolchain, offline; findings exit 3 under --strict |` beside the other `draft` rows, and add `draft/build.py` to the `_git` row of the duplication table (the README's own rule: "Adding a subpackage means adding its copies here" — the count becomes six). Then:
+In `ai_rfc/README.md`: add a verb-table row beside the other `draft` rows, **matching the existing rows' format** — they carry a `panther ai-rfc` prefix and backtick the whole command (`ai_rfc/README.md:104-105`), so write:
+
+```
+| `panther ai-rfc draft build DRAFTREPO --out DIR [--ref REF] [--toolchain PATH] [--strict]` | Compile a revision with the template toolchain, offline; findings exit 3 under `--strict` |
+```
+
+and add `draft/build.py` to the `_git` row of the duplication table (the README's own rule: "Adding a subpackage means adding its copies here" — the count becomes six). **Also update the prose beneath that table**: it reads "The five `_git` copies are not one helper wearing five hats. Only three… share a contract, returning the `CompletedProcess` untouched" (`ai_rfc/README.md:494-495`). `build.py`'s `_git` returns the `CompletedProcess` untouched too, so those numbers become six and four. Leaving the prose stale is precisely the "discovered twice" failure the README itself warns about at line 511. Then:
 
 ```bash
 cd $AIRFC && $PY -m black ai_rfc/draft tests/substrate/draft && $PY -m flake8 --max-line-length=88 ai_rfc/draft tests/substrate/draft && $PY -m mypy --follow-imports=silent ai_rfc/draft/build.py
@@ -1424,7 +1435,8 @@ Parser, below `build`:
     )
 ```
 
-Dispatch in `main()`:
+Dispatch in `main()`, as a **top-level `if`** beside Task 1's `build` branch and before the
+unguarded `gate` fallthrough — same placement rule as Task 1 Step 8:
 
 ```python
     if args.verb == "lint":
@@ -1496,7 +1508,7 @@ git commit -m "feat: measure a draft revision's quality deterministically"
 
 **Files:**
 - Modify: `ai_rfc/pipeline/stages.py` (two stages, `OPTIONAL`, `is_optional`), `ai_rfc/pipeline/state.py` (`_lint`, `_build`, `next_stage`), `ai_rfc/pipeline/run.py` (`_Request.toolchain`, `_lint`, `_build`, `DISPATCH`, `perform`), `ai_rfc/pipeline/cli.py` (`--toolchain`, the skip rule), `ai_rfc/pipeline/workspace.py` (a `draft` property if absent), `ai_rfc/pipeline/README.md`
-- Test: `tests/substrate/pipeline/test_state.py`, `tests/substrate/pipeline/test_run.py`, `tests/substrate/pipeline/test_cli.py`
+- Test: `tests/substrate/pipeline/conftest.py` (the `drafted_workspace` fixture), `tests/substrate/pipeline/test_state.py`, `tests/substrate/pipeline/test_run.py`, `tests/substrate/pipeline/test_cli.py`
 
 **Interfaces:**
 - Consumes: `ai_rfc.draft.build.REPORT_FILE`/`BUILD_DIR` (Task 1), the `draft lint`/`draft build` verbs (Tasks 1–2), `ai_rfc.pipeline.stages.STAGES/BY_NAME`, `state.State` members `DONE`, `RECOMPUTED`, `BLOCKED`, `STALE`.
@@ -1515,57 +1527,106 @@ def test_lint_and_build_requests_name_the_workspace_paths(tmp_path):
 
     ws = Workspace(tmp_path)
     argv, module = DISPATCH["lint"](_Request(ws, strict=True))
-    assert argv == [str(ws.draft), "--out", str(ws.out), "--manifest", str(ws.manifest), "--strict"]
+    assert argv == [
+        "lint",
+        str(ws.draft), "--out", str(ws.out), "--manifest", str(ws.manifest), "--strict",
+    ]
     assert module.__name__ == "ai_rfc.draft.cli"
     argv, module = DISPATCH["build"](_Request(ws, toolchain=tmp_path / "tc.json"))
-    assert argv == [str(ws.draft), "--out", str(ws.out), "--toolchain", str(tmp_path / "tc.json")]
+    assert argv == [
+        "build",
+        str(ws.draft), "--out", str(ws.out), "--toolchain", str(tmp_path / "tc.json"),
+    ]
 ```
 
-Append to `tests/substrate/pipeline/test_state.py` (use that module's existing workspace fixture — read its name at the top of the file; below it is called `prepared`, a workspace whose prose stage is DONE):
+> **Review correction (post-SP1, verified on the landed tree).** The verb is `argv[0]`:
+> `pipeline/run.py`'s `_checkpoint` and `_gate` both open their list with `"checkpoint"` /
+> `"gate"` before any path, because `draft/cli.py` dispatches on an argparse subparser. Without
+> the prefix `draft_cli.main(argv)` receives a filesystem path where the verb belongs and exits 2.
+> Step 5's builders carry the same prefix.
+
+First add one fixture to `tests/substrate/pipeline/conftest.py`, because both `test_state.py` and
+`test_cli.py` below need a workspace whose draft can actually be read:
 
 ```python
-def test_build_is_blocked_until_prose_then_stale_until_rebuilt(prepared):
+@pytest.fixture
+def drafted_workspace(finished_workspace: Path) -> Workspace:
+    """`finished_workspace` with a committed draft file.
+
+    `finished_workspace` only `git init`s the draft repository, so `draft lint`
+    and `draft build` — which read the draft at a ref — have nothing to read.
+    """
+    ws = Workspace(root=finished_workspace)
+    _run(ws.draft, "config", "user.email", "t@t")
+    _run(ws.draft, "config", "user.name", "t")
+    (ws.draft / "draft-test-spec.md").write_text(
+        "# Spec\n\nThe system does the thing. `ai_rfc:spec:1.1`\n"
+    )
+    _run(ws.draft, "add", "draft-test-spec.md")
+    _run(ws.draft, "commit", "-m", "revision 00")
+    return ws
+```
+
+Append to `tests/substrate/pipeline/test_state.py`:
+
+```python
+def test_build_is_blocked_until_prose_then_stale_until_rebuilt(drafted_workspace):
     from ai_rfc.pipeline.state import State, state
     from ai_rfc.draft.build import BUILD_DIR, REPORT_FILE
 
-    by_name = {entry.stage.name: entry for entry in state(prepared)}
+    by_name = {entry.stage.name: entry for entry in state(drafted_workspace)}
     assert by_name["lint"].state is State.RECOMPUTED
     assert by_name["build"].state is State.BLOCKED
-    report_dir = prepared.out / BUILD_DIR
+    report_dir = drafted_workspace.out / BUILD_DIR
     report_dir.mkdir(parents=True)
     (report_dir / REPORT_FILE).write_text(
         json.dumps({"commit": "0" * 40, "exit_code": 0, "findings": []})
     )
-    by_name = {entry.stage.name: entry for entry in state(prepared)}
+    by_name = {entry.stage.name: entry for entry in state(drafted_workspace)}
     assert by_name["build"].state is State.STALE
 
 
-def test_optional_stages_are_stepped_over_by_next_stage(prepared):
+def test_optional_stages_are_stepped_over_by_next_stage(drafted_workspace):
     from ai_rfc.pipeline.stages import BY_NAME, is_optional
     from ai_rfc.pipeline.state import next_stage
 
     assert is_optional(BY_NAME["forge"]) and is_optional(BY_NAME["build"])
     assert not is_optional(BY_NAME["lint"])
-    outstanding = next_stage(prepared)
+    outstanding = next_stage(drafted_workspace)
     assert outstanding is None or outstanding.stage.name not in ("forge", "build")
 ```
+
+> **Review correction (post-SP1, verified on the landed tree).** The plan named a fixture
+> `prepared`; **no such fixture exists**. `tests/substrate/pipeline/conftest.py` provides
+> `workspace`, `mined_workspace` and `finished_workspace`, and `finished_workspace` returns a bare
+> `Path`, not a `Workspace` — every existing test wraps it (`_states` in `test_state.py` does
+> `state(Workspace(root=root))`). Reading `.out` off a `Path` raises `AttributeError`, and `.root`
+> would silently resolve to the filesystem root. Hence the `drafted_workspace` fixture above, which
+> returns a `Workspace` and commits a draft file so the lint and build verbs have a ref to read.
+> Its name deliberately avoids the words `build`, `lint` and `toolchain` so it cannot collide with
+> the substring assertions below.
 
 Append to `tests/substrate/pipeline/test_cli.py` (mirror the existing forge-skip test's shape — find it with `grep -n "forge" tests/substrate/pipeline/test_cli.py`):
 
 ```python
-def test_run_skips_build_without_a_toolchain_and_says_so(prepared, capsys, monkeypatch):
+def test_run_skips_build_without_a_toolchain_and_says_so(
+    drafted_workspace, capsys, monkeypatch
+):
     from ai_rfc.pipeline.cli import main
 
     monkeypatch.delenv("AI_RFC_TOOLCHAIN", raising=False)
-    assert main(["run", str(prepared.root), "--from", "lint", "--until", "build"]) == 0
+    root = str(drafted_workspace.root)
+    assert main(["run", root, "--from", "lint", "--until", "build"]) == 0
     assert "skipping build; no --toolchain given" in capsys.readouterr().err
 
 
-def test_run_asked_for_build_without_a_toolchain_is_an_error(prepared, capsys, monkeypatch):
+def test_run_asked_for_build_without_a_toolchain_is_an_error(
+    drafted_workspace, capsys, monkeypatch
+):
     from ai_rfc.pipeline.cli import main
 
     monkeypatch.delenv("AI_RFC_TOOLCHAIN", raising=False)
-    assert main(["run", str(prepared.root), "--from", "build"]) == 1
+    assert main(["run", str(drafted_workspace.root), "--from", "build"]) == 1
     assert "build was asked for but no --toolchain was given" in capsys.readouterr().err
 ```
 
@@ -1640,22 +1701,32 @@ In `ai_rfc/pipeline/run.py`: add `toolchain: Path | None = None` to `_Request`; 
 
 ```python
 def _lint(req: _Request) -> tuple[list[str], CommandModule]:
-    argv = [str(req.ws.draft), "--out", str(req.ws.out), "--manifest", str(req.ws.manifest)]
+    argv = [
+        "lint",
+        str(req.ws.draft), "--out", str(req.ws.out), "--manifest", str(req.ws.manifest),
+    ]
     if req.strict:
         argv.append("--strict")
     return argv, draft_cli
 
 
 def _build(req: _Request) -> tuple[list[str], CommandModule]:
-    argv = [str(req.ws.draft), "--out", str(req.ws.out), "--toolchain", str(req.toolchain)]
+    argv = [
+        "build",
+        str(req.ws.draft), "--out", str(req.ws.out), "--toolchain", str(req.toolchain),
+    ]
     if req.strict:
         argv.append("--strict")
     return argv, draft_cli
 ```
 
-`DISPATCH` gains `"lint": _lint, "build": _build`; `perform()` gains `toolchain: Path | None = None` and passes it into `_Request`. Check how the existing builders name the verb (the `draft_cli` module's `main` receives `["gate", …]` — look at `_gate` and prefix `"lint"`/`"build"` the same way).
+`DISPATCH` gains `"lint": _lint, "build": _build`; `perform()` gains `toolchain: Path | None = None` and passes it into `_Request`. The leading verb is not optional — `_checkpoint` and `_gate` in the same file open their lists with `"checkpoint"` / `"gate"`, and `draft_cli.main` dispatches on it.
 
-In `ai_rfc/pipeline/cli.py`: add to the `run` parser
+In `ai_rfc/pipeline/cli.py`, first add the imports the new code needs — the file today imports
+neither `os` nor the optional-stage names (`grep -n "^import\|^from" ai_rfc/pipeline/cli.py`
+shows `from .stages import BY_NAME, STAGES, Performer`): add `import os` and extend that line to
+`from .stages import BY_NAME, OPTIONAL, STAGES, Performer, is_optional`. Then add to the `run`
+parser
 
 ```python
     run.add_argument(
@@ -1692,7 +1763,7 @@ Expected: all PASS, including the DISPATCH-coverage assertion (it now counts nin
 ```bash
 cd $AIRFC && $PY -m black ai_rfc/pipeline tests/substrate/pipeline && $PY -m flake8 --max-line-length=88 ai_rfc/pipeline tests/substrate/pipeline && $PY -m mypy --follow-imports=silent ai_rfc/pipeline
 git status --short
-git add ai_rfc/pipeline/stages.py ai_rfc/pipeline/state.py ai_rfc/pipeline/run.py ai_rfc/pipeline/cli.py ai_rfc/pipeline/workspace.py ai_rfc/pipeline/README.md tests/substrate/pipeline/test_state.py tests/substrate/pipeline/test_run.py tests/substrate/pipeline/test_cli.py
+git add ai_rfc/pipeline/stages.py ai_rfc/pipeline/state.py ai_rfc/pipeline/run.py ai_rfc/pipeline/cli.py ai_rfc/pipeline/workspace.py ai_rfc/pipeline/README.md tests/substrate/pipeline/conftest.py tests/substrate/pipeline/test_state.py tests/substrate/pipeline/test_run.py tests/substrate/pipeline/test_cli.py
 git commit -m "feat: add the lint and build stages behind one optional-stage rule"
 ```
 
@@ -1762,18 +1833,18 @@ def _fake_run(report: dict, code: int = 0):
     return run
 
 
-def test_draft_build_needs_a_toolchain(fixture_workspace, monkeypatch):
+def test_draft_build_needs_a_toolchain(workspace, monkeypatch):
     monkeypatch.delenv("AI_RFC_TOOLCHAIN", raising=False)
     with pytest.raises(CoreError) as excinfo:
         draft_build(resolve_context())
     assert "AI_RFC_TOOLCHAIN" in str(excinfo.value)
 
 
-def test_draft_build_runs_the_verb_and_reads_the_report(fixture_workspace, monkeypatch, tmp_path):
+def test_draft_build_runs_the_verb_and_reads_the_report(workspace, monkeypatch, tmp_path):
     record = tmp_path / "toolchain.json"
     record.write_text("{}")
     monkeypatch.setenv("AI_RFC_TOOLCHAIN", str(record))
-    (fixture_workspace / "refcache").mkdir()
+    (workspace.workspace / "refcache").mkdir()
     fake = _fake_run({"commit": "c" * 40, "exit_code": 0, "findings": [], "outputs": {"draft-x.txt": {}}})
     monkeypatch.setattr(build_core, "_run", fake)
     result = draft_build(resolve_context(), ref="draft-test-spec-00")
@@ -1784,7 +1855,7 @@ def test_draft_build_runs_the_verb_and_reads_the_report(fixture_workspace, monke
     assert result == {"exit_code": 0, "stderr": ["note: fake"], "findings": [], "commit": "c" * 40, "outputs": {"draft-x.txt": {}}}
 
 
-def test_draft_lint_measures_the_worktree_by_default(fixture_workspace):
+def test_draft_lint_measures_the_worktree_by_default(workspace):
     result = draft_lint(resolve_context())
     assert result["exit_code"] == 0
     assert set(result["metrics"]) == {"sections", "abstract", "references", "keywords", "blocks", "citations", "narration"}
@@ -1792,27 +1863,43 @@ def test_draft_lint_measures_the_worktree_by_default(fixture_workspace):
     assert tools.ai_rfc_draft_lint()["metrics"] == result["metrics"]
 ```
 
-Append to `tests/server/test_draft.py` (it holds the `tag_revision` tests; reuse its fixture that records a revision — read the file for the fixture name, below called `recorded`):
+Append to `tests/server/test_draft.py` (it holds the `tag_revision` tests, and the module-level
+helpers `_recorded`, `_draft` and the imported `git` this test reuses):
 
 ```python
-def test_tag_revision_refuses_when_the_build_has_findings(recorded, monkeypatch, tmp_path):
+def test_tag_revision_refuses_when_the_build_has_findings(workspace, monkeypatch, tmp_path):
     from ai_rfc.server.core import draft as draft_core
-    from ai_rfc.server.core.draft import tag_revision
-    from ai_rfc.server.paths import resolve_context
 
+    _recorded(workspace)
     record = tmp_path / "toolchain.json"
     record.write_text("{}")
     monkeypatch.setenv("AI_RFC_TOOLCHAIN", str(record))
     monkeypatch.setattr(
         draft_core,
         "draft_build",
-        lambda ctx, ref="HEAD": {"exit_code": 0, "stderr": [], "findings": ["broken reference RFC9999 (not in the refcache)"], "commit": None, "outputs": {}},
+        lambda ctx, ref="HEAD": {
+            "exit_code": 0,
+            "stderr": [],
+            "findings": ["broken reference RFC9999 (not in the refcache)"],
+            "commit": None,
+            "outputs": {},
+        },
     )
-    result = tag_revision(resolve_context(), recorded["tag"], "msg")
+    result = tag_revision(workspace, "draft-test-spec-00", "msg")
     assert result["stage"] == "draft_build" and result["exit_code"] == 3
     assert result["findings"] == ["broken reference RFC9999 (not in the refcache)"]
-    assert recorded["tag"] not in draft_core._git(resolve_context(), "tag", "-l").stdout
+    assert git(_draft(workspace), "tag", "-l") == ""
 ```
+
+> **Review correction (post-SP1, verified on the landed tree).** The plan assumed a fixture
+> `recorded` returning a dict with a `"tag"` key. There is no such fixture: `_recorded` is a
+> **module-level helper function** (`tests/server/test_draft.py:16`), it must be called with an
+> explicit `workspace`, and it returns `first["id"]` — the **cluster id string**, not a dict, so
+> `recorded["tag"]` was wrong twice over. The tag it writes is its default,
+> `"draft-test-spec-00"`. The `workspace` fixture is a resolved `Context` (see
+> `tests/server/conftest.py`), which is what every other test in this file passes straight into
+> `tag_revision`, so `resolve_context()` is unnecessary here. The final assertion uses the file's
+> own `git(_draft(workspace), …)` idiom rather than reaching into `draft_core._git`.
 
 Append to `tests/server/test_parity.py`:
 
@@ -2002,14 +2089,25 @@ and in the dispatch, following the module's existing pattern for emitting a resu
 
 ```python
     elif args.verb == "draft-build":
-        result = tools.ai_rfc_draft_build(args.ref)
+        result = build.draft_build(ctx, args.ref)
         _emit(result)
         return result["exit_code"]
     elif args.verb == "draft-lint":
-        result = tools.ai_rfc_draft_lint(worktree=not args.committed)
+        result = build.draft_lint(ctx, worktree=not args.committed)
         _emit(result)
         return result["exit_code"]
 ```
+
+Extend the dispatch's deferred import to `from .core import build, claims, draft, gates, queries, questions, revisions`.
+
+> **Review correction (post-SP1, verified on the landed tree).** The plan called
+> `tools.ai_rfc_draft_build(...)` here, but **`ai_rfc/server/cli.py` never imports `tools`** — its
+> only imports are `from .core import CoreError`, `from .paths import EnvError, resolve_context`,
+> and the deferred `from .core import claims, draft, gates, queries, questions, revisions` inside
+> the dispatch. Every branch calls a `.core` module with the already-resolved `ctx` (e.g.
+> `draft.tag_revision(ctx, …)`). As written the branch raised `NameError: name 'tools' is not
+> defined`; going through the core also avoids re-resolving the context the tool wrappers build
+> for themselves.
 
 (`_emit` prints JSON and returns `None` — it does **not** return the exit code, so emitting and returning are two statements, exactly as the real `gate` branch does. Grep `def _emit` in `cli.py` to confirm the name before editing; `return _emit(...)` would return `None` and break `main`'s contract.)
 
@@ -2163,33 +2261,51 @@ def test_verify_passes_a_fresh_record_and_names_what_broke(tmp_path, template_re
 Append to `tests/experiment/test_config.py` (use its existing `CampaignConfig` construction — grep `CampaignConfig(` there and copy the keyword set, adding `toolchain=`):
 
 ```python
-def test_init_refuses_without_a_verified_toolchain(pristine, tmp_path, plugin_root, monkeypatch):
+def test_init_refuses_without_a_verified_toolchain(
+    pristine, tmp_path, panther_repo, plugin_root, monkeypatch
+):
     from ai_rfc.experiment import toolchain as toolchain_module
 
     record = tmp_path / "toolchain.json"
     record.write_text('{"template_home": "/t"}\n')
     monkeypatch.setattr(toolchain_module, "verify", lambda record, runner=None: (False, ("refcache digest differs",)))
     with pytest.raises(ExperimentError) as excinfo:
-        init_campaign(_init(tmp_path, pristine, plugin_root, toolchain=record))
+        _init(tmp_path, pristine, panther_repo, plugin_root, toolchain=record)
     assert "refcache digest differs" in str(excinfo.value)
     with pytest.raises(ExperimentError) as excinfo:
-        init_campaign(_init(tmp_path, pristine, plugin_root, toolchain=None))
+        _init(tmp_path, pristine, panther_repo, plugin_root, toolchain=None)
     assert "toolchain" in str(excinfo.value)
 
 
-def test_init_records_the_toolchain_digest(pristine, tmp_path, plugin_root, monkeypatch):
+def test_init_records_the_toolchain_digest(
+    pristine, tmp_path, panther_repo, plugin_root, monkeypatch
+):
     from ai_rfc.experiment import toolchain as toolchain_module
 
     record = tmp_path / "toolchain.json"
     record.write_text('{"template_home": "/t"}\n')
     monkeypatch.setattr(toolchain_module, "verify", lambda record, runner=None: (True, ()))
-    campaign = init_campaign(_init(tmp_path, pristine, plugin_root, toolchain=record))
+    campaign = _init(tmp_path, pristine, panther_repo, plugin_root, toolchain=record)
     assert campaign.toolchain == str(record) and campaign.template_home == "/t"
     assert campaign.toolchain_sha256 == hashlib.sha256(record.read_bytes()).hexdigest()
     assert json.loads((campaign.dir / "campaign.json").read_text())["toolchain_sha256"] == campaign.toolchain_sha256
 ```
 
-(`_init` is that module's existing helper: today `_init(tmp_path, pristine, panther_repo, plugin_root, **overrides)` builds a `CampaignConfig` and returns it, forwarding `**overrides`; SP1 drops its `panther_repo` parameter — match whatever signature SP1 left, and pass `toolchain=` through `**overrides`. Every other `_init(...)` call in the module now needs a toolchain too: give the helper a default `toolchain=tmp_path / "toolchain.json"` written as `{"template_home": "/t"}` and have the module-level autouse fixture monkeypatch `toolchain_module.verify` to `(True, ())`.) In `tests/experiment/test_runner.py`, extend the existing `build_env` test: `assert env["AI_RFC_TOOLCHAIN"] == campaign.toolchain` when the campaign fixture carries one, and `"AI_RFC_TOOLCHAIN" not in env` when `campaign.toolchain is None`. In `tests/experiment/test_arms.py`, extend the `mcp_config` test: `mcp_config(python=..., workspace=..., toolchain=Path("/t/toolchain.json"))["mcpServers"]["ai_rfc"]["env"]["AI_RFC_TOOLCHAIN"] == "/t/toolchain.json"`.
+> **Review correction (post-SP1, verified on the landed tree).** Two defects, both fixed above.
+> **(1)** `_init` **already returns a `Campaign`** — its last line is
+> `return init_campaign(CampaignConfig(**kwargs))` (`tests/experiment/test_config.py:69`). The plan
+> wrapped it in a second `init_campaign(...)`, which would pass a `Campaign` where a
+> `CampaignConfig` is expected and raise `AttributeError: 'Campaign' object has no attribute
+> 'campaign_id'`. Note the two `pytest.raises` cases would have passed *by accident*, since the
+> inner call raises first. **(2)** `_init`'s signature is still
+> `_init(tmp_path, pristine, panther_repo, plugin_root, **overrides)`
+> (`test_config.py:50`) — **SP1 did not drop `panther_repo` from the experiment suite**, only from
+> the server's `Context`. Omitting it would bind `plugin_root` to `panther_repo` positionally. The
+> `panther_repo` fixture must therefore be requested by every new test here.
+
+Also add `import hashlib` to `tests/experiment/test_config.py`; its imports today are `json`, `Path`, `pytest` and the config names, with no `hashlib`.
+
+In `tests/experiment/test_runner.py`, extend the existing `build_env` test: `assert env["AI_RFC_TOOLCHAIN"] == campaign.toolchain` when the campaign fixture carries one, and `"AI_RFC_TOOLCHAIN" not in env` when `campaign.toolchain is None`. **And amend `test_launch_streams_events_and_records_status` in the same file**: it asserts `set(env) == {"CLAUDE_CONFIG_DIR", "AI_RFC_WORKSPACE", "PATH", "HOME", "USER", "LANG"}` — an exact set of six keys. Once the `campaign` fixture carries a toolchain, `build_env` adds a seventh, `AI_RFC_TOOLCHAIN`; add it to that expected set or Step 5 will not be green. In `tests/experiment/test_arms.py`, extend the `mcp_config` test: `mcp_config(python=..., workspace=..., toolchain=Path("/t/toolchain.json"))["mcpServers"]["ai_rfc"]["env"]["AI_RFC_TOOLCHAIN"] == "/t/toolchain.json"`.
 
 - [ ] **Step 2: Run them to verify they fail**
 
@@ -2477,7 +2593,14 @@ and in the `Campaign(...)` construction: `toolchain=str(config.toolchain), toolc
 
 `ai_rfc/experiment/runner.py` `build_env`: after `"AI_RFC_WORKSPACE"`, add `**({"AI_RFC_TOOLCHAIN": campaign.toolchain} if campaign.toolchain else {})`. `prepare_run_argv`: pass `toolchain=Path(campaign.toolchain) if campaign.toolchain else None` into `mcp_config`. `ai_rfc/experiment/arms.py` `mcp_config(*, python, workspace, toolchain: Path | None = None)`: add `"AI_RFC_TOOLCHAIN": str(toolchain)` to the server env when given.
 
-`ai_rfc/experiment/cli.py`: `campaign init` gains `--toolchain` (type `Path`, default `<root>/tools/toolchain.json` resolved after `_add_root`, help "toolchain.json from `experiment toolchain provision`"); pass it into `CampaignConfig`. New top-level command:
+`ai_rfc/experiment/cli.py`: `campaign init` gains `--toolchain` (type `Path`, `default=None` at parse time, help "toolchain.json from `experiment toolchain provision` (default: <root>/tools/toolchain.json)"), resolved to `root / "tools" / "toolchain.json"` when `None` **inside the `campaign init` dispatch block in `main()`**, then passed into `CampaignConfig`. New top-level command:
+
+> **Review correction (post-SP1, verified on the landed tree).** The plan said the default was
+> "resolved after `_add_root`", which cannot work: `_add_root` only adds a bare `--root` with
+> `default=None`, and `root` itself is not resolved until `main()` — `_parser()` has no access to
+> it. The file's own precedent is `--baseline`, resolved against `root` inside `main()`'s dispatch,
+> not via an argparse `default=`. The same correction applies to Task 6's `workspace prepare`
+> `--toolchain`.
 
 ```python
     toolchain = commands.add_parser("toolchain", help="The shared Internet-Draft toolchain.")
@@ -2520,7 +2643,7 @@ git commit -m "feat: provision and verify one shared toolchain, and refuse campa
 
 **Interfaces:**
 - Consumes: `ai_rfc.draft.build.load_toolchain` (Task 1) for the refcache location; the template's `template/{Makefile,.gitignore,.editorconfig}` (present at the pin).
-- Produces: `Target.references: tuple[str, ...] = ()`; `scaffold_draft(dest, target, *, template, template_commit) -> str` writing the adopter layout (`Makefile`, `.gitignore`, `.editorconfig`, `draft-<name>.md`); `prepare(target, *, root, toolchain: Path | None = None, template=…, template_commit=…) -> Path` writing `<pristine>/references.yaml` and `<pristine>/refcache/`; `pristine.json` keys `scaffold_layout`, `references`, `refcache_sha256`, `toolchain_sha256`, `template_home` (and no `template_stripped`); constants `REFERENCES_FILE = "references.yaml"`, `REFCACHE_DIR = "refcache"`. Task 7 reuses the adopter file list; `draft build` (Task 4's core) picks up `<workspace>/refcache` automatically.
+- Produces: `Target.references: tuple[str, ...] = ()`; `scaffold_draft(dest, target, *, template, template_commit) -> str` writing the adopter layout (`Makefile`, `.gitignore`, `.editorconfig`, `draft-<name>.md`); `prepare(target, *, root, panther_repo, toolchain: Path | None = None, template=…, template_commit=…) -> Path` writing `<pristine>/references.yaml` and `<pristine>/refcache/`; `pristine.json` keys `scaffold_layout`, `references`, `refcache_sha256`, `toolchain_sha256`, `template_home` (and no `template_stripped`); constants `REFERENCES_FILE = "references.yaml"`, `REFCACHE_DIR = "refcache"`. Task 7 reuses the adopter file list; `draft build` (Task 4's core) picks up `<workspace>/refcache` automatically.
 
 **Why this shape.** The template's `Makefile` expects a library at `LIBDIR` and `draft build` names it explicitly, so a draft repository needs only the three adopter files — no library copy, no `lib` symlink (which `copy_workspace` would dereference and `git add -A` would commit). The references a target may cite are decided at `prepare`, copied out of the toolchain's seeded cache, and sealed into the pristine digest: a build then never asks the network, and a reference the agent invents is a build finding rather than a fetch.
 
@@ -2598,14 +2721,19 @@ def toolchain_record(tmp_path: Path) -> Path:
 
 
 def test_prepare_seals_the_targets_references_into_the_workspace(
-    fixture_workspace, template_repo, tmp_path, toolchain_record
+    fixture_workspace, panther_repo, template_repo, tmp_path, toolchain_record
 ):
     from dataclasses import replace
 
     template, commit = template_repo
     target = replace(fixture_target(fixture_workspace), references=("RFC9000",))
     pristine = prepare(
-        target, root=tmp_path / "root", toolchain=toolchain_record, template=template, template_commit=commit
+        target,
+        root=tmp_path / "root",
+        panther_repo=panther_repo,
+        toolchain=toolchain_record,
+        template=template,
+        template_commit=commit,
     )
     assert (pristine / "references.yaml").read_text() == "references:\n- RFC9000\n"
     assert (pristine / "refcache" / "reference.RFC.9000.xml").exists()
@@ -2618,28 +2746,53 @@ def test_prepare_seals_the_targets_references_into_the_workspace(
 
 
 def test_prepare_refuses_a_reference_the_toolchain_never_cached(
-    fixture_workspace, template_repo, tmp_path, toolchain_record
+    fixture_workspace, panther_repo, template_repo, tmp_path, toolchain_record
 ):
     from dataclasses import replace
 
     template, commit = template_repo
     target = replace(fixture_target(fixture_workspace), references=("RFC9999",))
     with pytest.raises(ExperimentError) as excinfo:
-        prepare(target, root=tmp_path / "root", toolchain=toolchain_record, template=template, template_commit=commit)
+        prepare(
+            target,
+            root=tmp_path / "root",
+            panther_repo=panther_repo,
+            toolchain=toolchain_record,
+            template=template,
+            template_commit=commit,
+        )
     assert "RFC9999" in str(excinfo.value) and "toolchain provision" in str(excinfo.value)
 
 
-def test_prepare_with_references_needs_a_toolchain(fixture_workspace, template_repo, tmp_path):
+def test_prepare_with_references_needs_a_toolchain(
+    fixture_workspace, panther_repo, template_repo, tmp_path
+):
     from dataclasses import replace
 
     template, commit = template_repo
     target = replace(fixture_target(fixture_workspace), references=("RFC9000",))
     with pytest.raises(ExperimentError) as excinfo:
-        prepare(target, root=tmp_path / "root", template=template, template_commit=commit)
+        prepare(
+            target,
+            root=tmp_path / "root",
+            panther_repo=panther_repo,
+            template=template,
+            template_commit=commit,
+        )
     assert "--toolchain" in str(excinfo.value)
 ```
 
-(`fixture_workspace`, `fixture_target`, `verify_digest` already exist in that module's imports/conftest; add `import hashlib` if missing. Remove `template_stripped` assertions elsewhere in the file if any exist — grep.)
+> **Review correction (post-SP1, verified on the landed tree).** `prepare()` still requires
+> `panther_repo` — it is a keyword-only parameter with no default at
+> `ai_rfc/experiment/workspace.py:449`, and `ai_rfc/experiment/cli.py` still passes
+> `panther_repo=args.panther_repo.resolve()` (lines 414 and 453) behind a `required=True`
+> `--panther-repo`. **SP1 removed `panther_repo` from the server's `Context`, not from the
+> experiment driver**; the two are different code paths and only the first was retired. Every call
+> above therefore passes it, and the `panther_repo` fixture (`tests/experiment/conftest.py:19`) is
+> requested alongside `fixture_workspace`, matching the module's existing `_prepare` helper at
+> `tests/experiment/test_workspace.py:279`. Retiring `--panther-repo` belongs to CLI-1, not here.
+
+(`fixture_workspace`, `fixture_target`, `verify_digest` already exist in that module's imports/conftest; `hashlib` is already imported there. Remove `template_stripped` assertions elsewhere in the file if any exist — grep.)
 
 - [ ] **Step 3: Run them to verify they fail**
 
@@ -2943,10 +3096,12 @@ def test_render_task_reads_the_template_it_is_given(tmp_path):
     assert render_task((3, 3), template=template) == "Ordinals 3..3, FROZEN COPY.\n"
 
 
-def test_init_freezes_the_task_template_beside_the_rendering(pristine, tmp_path, plugin_root):
+def test_init_freezes_the_task_template_beside_the_rendering(
+    pristine, tmp_path, panther_repo, plugin_root
+):
     from ai_rfc.experiment.config import TASK_TEMPLATE
 
-    campaign = init_campaign(_init(tmp_path, pristine, plugin_root))
+    campaign = _init(tmp_path, pristine, panther_repo, plugin_root)
     frozen = campaign.prompts_dir / "task.tmpl.md"
     assert frozen.read_bytes() == TASK_TEMPLATE.read_bytes()
     assert campaign.task_template == frozen
@@ -2974,10 +3129,21 @@ def test_per_cluster_sessions_render_from_the_frozen_template(per_cluster_campai
     ref = run_ref(per_cluster_campaign, "A1")
     copy_workspace(per_cluster_campaign.pristine_dir, ref.workspace)
     per_cluster.run_per_cluster(per_cluster_campaign, ref, report=lambda _: None)
-    assert seen and all("FROZEN-MARKER 2" in task for task in seen)
+    assert seen and all(
+        f"FROZEN-MARKER {ordinal}" in task
+        for ordinal, task in enumerate(seen, start=1)
+    )
     row = json.loads((ref.run_dir / "sessions.jsonl").read_text().splitlines()[0])
     assert row["task_template"] == str(frozen)
 ```
+
+> **Review correction (post-SP1, verified on the landed tree).** The plan asserted
+> `all("FROZEN-MARKER 2" in task for task in seen)`, but `per_cluster_campaign` builds on
+> `wide_pristine`, whose window is `(1, 2)` (`tests/experiment/test_per_cluster.py:19-31`), so
+> `run_per_cluster` processes ordinal 1 **and then** ordinal 2 and `seen` holds two tasks. The
+> `$low` substitution makes the first one `FROZEN-MARKER 1`, so the original assertion fails on
+> the first element. Asserting each session carries **its own** ordinal is both correct and
+> stronger than the original, and it does not break if the window changes.
 
 (`run_ref`, `copy_workspace`, `_stub_spawn` and `per_cluster_campaign` are that module's existing names — confirm each with grep and adapt the setup lines to how the neighbouring loop tests build a run; the assertion that matters is the `FROZEN-MARKER` one.)
 
@@ -2997,6 +3163,13 @@ def test_per_cluster_prompt_record_names_the_template_not_a_whole_window_task(
 ```
 
 (`per_cluster_campaign`, `COMPLETE_STEPS`, `run_ref`, `copy_workspace` come from `test_per_cluster.py`/`conftest.py`; import them the way `test_runner.py` already imports its helpers.)
+
+> **Review correction (post-SP1, verified on the landed tree).** `per_cluster_campaign` is a
+> fixture that itself requests `wide_pristine` (`tests/experiment/test_per_cluster.py:19` and `:39`),
+> and `wide_pristine` is **local to that module**, not in `conftest.py`. pytest resolves a
+> fixture's dependencies by name in the *requesting* module's namespace, so importing only
+> `per_cluster_campaign` makes collection fail with `fixture 'wide_pristine' not found`. Import
+> both: `from .test_per_cluster import per_cluster_campaign, wide_pristine`.
 
 - [ ] **Step 2: Run them to verify they fail**
 
@@ -3616,7 +3789,7 @@ In `docs/experiment-protocol.md`, add a dated subsection "2026-09-03 — draft q
 - [ ] **Step 2: The whole suite**
 
 Run: `cd $AIRFC && SSLKEYLOGFILE= $PY -m pytest tests -n auto 2>&1 | tail -3`
-Expected: 0 failed; the count is the SP1 baseline (769) plus every test this plan added (count them from the commits: roughly 40). Record the exact number in the baseline document below.
+Expected: 0 failed; the count is the measured SP1 baseline (**808**, not the 769 this plan originally predicted) plus every test this plan added (count them from the commits: roughly 40). Record the exact number in the baseline document below.
 
 - [ ] **Step 3: Verify the real toolchain**
 
