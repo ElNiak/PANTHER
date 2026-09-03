@@ -3,7 +3,13 @@ from pathlib import Path
 
 import pytest
 
+from panther.plugins.services.testers.ai_rfc.draft.checkpoint import write_checkpoint
 from panther.plugins.services.testers.ai_rfc.pipeline import cli
+from panther.plugins.services.testers.ai_rfc.pipeline.state import (
+    _cluster_ids,
+    next_stage,
+)
+from panther.plugins.services.testers.ai_rfc.pipeline.workspace import Workspace
 
 
 def _run(repo: Path, *args: str) -> None:
@@ -64,3 +70,28 @@ def mined_workspace(workspace: Path) -> Path:
         "        locator: 'doc:fixture'\n"
     )
     return workspace
+
+
+@pytest.fixture
+def finished_workspace(mined_workspace: Path) -> Path:
+    """A workspace where every stage reads DONE or RECOMPUTED.
+
+    `next_stage` returns `None` here — the "nothing outstanding" case `_run`
+    used to trust as nothing left to do, before the re-derivable checks could
+    run. Built by checkpointing every cluster `mined_workspace` already has
+    evidence for and giving it a draft repository, an empty question register
+    and a `revisions.yaml`, the same artifacts `draft/conftest.py`'s
+    `draft_workspace` writes, so `state()` reports `checkpoint` and `prose`
+    DONE as well as `mining`.
+    """
+    ws = Workspace(root=mined_workspace)
+    for cluster_id in _cluster_ids(ws):
+        write_checkpoint(ws.manifest, ws.timeline, cluster_id, ws.checkpoints)
+
+    ws.draft.mkdir(parents=True)
+    _run(ws.draft, "init", "-b", "main")
+    ws.questions.write_text("questions: {}\n")
+    ws.revisions.write_text("revisions: {}\n")
+
+    assert next_stage(ws) is None
+    return mined_workspace

@@ -103,6 +103,64 @@ def test_a_default_run_performs_the_manifest_check(mined_workspace, capsys):
     assert "check" in [entry["stage"] for entry in performed]
 
 
+def test_a_finished_workspace_still_performs_the_manifest_check(
+    finished_workspace, capsys
+):
+    """The "nothing outstanding" case must not skip the re-derivable checks.
+
+    `next_stage` reports nothing left to do once every stage is DONE or
+    RECOMPUTED, which is right for a driver asking what remains — but a
+    finished reconstruction can still carry a manifest whose evidence does
+    not support what it claims, and the default `run --strict` must still
+    catch that rather than trusting "nothing outstanding" as a clean exit.
+    """
+    code = cli.main(["run", str(finished_workspace), "--strict", "--json"])
+
+    assert code == 3
+    performed = json.loads(capsys.readouterr().out)["performed"]
+    assert "check" in [entry["stage"] for entry in performed]
+
+
+def test_until_bounds_the_rederivable_checks_too(mined_workspace, capsys):
+    """``--until``'s contract must hold for the whole command, not just the walk.
+
+    `check` sits at ordinal 6; asking for ``--until views`` (ordinal 4) must
+    keep it from running even though the walk itself performs nothing on a
+    mined workspace before reaching `check`. Asking for ``--until check``
+    must still run it.
+    """
+    code = cli.main(
+        ["run", str(mined_workspace), "--until", "views", "--strict", "--json"]
+    )
+    assert code == 0
+    performed = json.loads(capsys.readouterr().out)["performed"]
+    assert "check" not in [entry["stage"] for entry in performed]
+
+    code = cli.main(
+        ["run", str(mined_workspace), "--until", "check", "--strict", "--json"]
+    )
+    assert code == 3
+    performed = json.loads(capsys.readouterr().out)["performed"]
+    assert "check" in [entry["stage"] for entry in performed]
+
+
+def test_a_stage_the_walk_already_ran_is_not_performed_twice(mined_workspace, capsys):
+    """``--from check`` puts `check` on the walk; it must not also re-run after.
+
+    Idempotent either way — same violation, same exit code — but the JSON
+    record must reflect one invocation of `check`, not two.
+    """
+    code = cli.main(
+        ["run", str(mined_workspace), "--from", "check", "--strict", "--json"]
+    )
+
+    assert code == 3
+    stages = [
+        entry["stage"] for entry in json.loads(capsys.readouterr().out)["performed"]
+    ]
+    assert stages.count("check") == 1
+
+
 def test_a_corrupt_artifact_reads_as_stale_rather_than_crashing(
     workspace: Path, capsys
 ):

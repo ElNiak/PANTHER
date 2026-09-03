@@ -152,9 +152,15 @@ def _run(args: argparse.Namespace) -> int:
     if start is None:
         action = next_stage(ws)
         if action is None:
+            # Nothing left for the walk to do, but the re-derivable checks
+            # below are a separate question from the walk, so this is an
+            # empty walk rather than an early return: setting `start` past
+            # every ordinal makes the loop below a no-op while still falling
+            # through to `_perform_rederivable` and `_finish`.
             _report("note: nothing outstanding")
-            return 0
-        start = action.stage.ordinal
+            start = STAGES[-1].ordinal + 1
+        else:
+            start = action.stage.ordinal
 
     performed: list[dict] = []
     halted_at: str | None = None
@@ -205,14 +211,17 @@ def _run(args: argparse.Namespace) -> int:
             code = result.exit_code
             break
 
-    rederived = _perform_rederivable(args, ws, performed)
+    rederived = _perform_rederivable(args, ws, performed, until)
     if code == 0:
         code = rederived
     return _finish(args, performed, halted_at=halted_at, code=code)
 
 
 def _perform_rederivable(
-    args: argparse.Namespace, ws: Workspace, performed: list[dict]
+    args: argparse.Namespace,
+    ws: Workspace,
+    performed: list[dict],
+    until: int | None,
 ) -> int:
     """Run the checks the stage walk cannot reach, and return the worst exit code.
 
@@ -221,19 +230,39 @@ def _perform_rederivable(
     are safe to run whenever their inputs exist. The walk cannot reach them
     reliably — ``check`` sits at ordinal 6 but the agent boundary ``prose`` at 7
     ends the walk, and ``gate`` at 9 needs the draft ``prose`` produces — so
-    they are performed by state instead.
+    they are performed by state instead, after the walk. This includes a walk
+    that performed nothing at all: ``_run`` no longer returns early when
+    ``next_stage`` reports nothing outstanding, so a finished workspace still
+    reaches this function.
+
+    Two rules keep this from doing more than the caller asked for. A stage
+    already recorded in ``performed`` is skipped — the walk already ran it
+    this invocation (``--from check`` puts ``check`` on the walk directly),
+    and running it again would duplicate the record without changing the
+    exit code, since both stages are idempotent. And when ``until`` bounds
+    the run, a re-derivable stage past that ordinal is skipped too, so
+    ``--until``'s contract holds for the whole command and not only for the
+    walk that preceded this call.
 
     Args:
         args: The parsed arguments; ``strict`` decides whether findings exit 3.
         ws: The workspace to check.
-        performed: The record the walk appended to; extended in place.
+        performed: The record the walk appended to; extended in place, and
+            read to skip a stage the walk already performed.
+        until: The last stage's ordinal the caller bounded the run to, or
+            ``None`` when the caller gave no ``--until``.
 
     Returns:
         The highest exit code any check returned, or 0.
     """
+    already = {entry["stage"] for entry in performed}
     states = {entry.stage.name: entry.state for entry in state(ws)}
     worst = 0
     for name in ("check", "gate"):
+        if name in already:
+            continue
+        if until is not None and BY_NAME[name].ordinal > until:
+            continue
         if states.get(name) is not State.RECOMPUTED:
             continue
         if name == "gate" and states.get("prose") is not State.DONE:
