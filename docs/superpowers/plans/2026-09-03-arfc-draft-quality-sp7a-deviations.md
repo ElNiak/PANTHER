@@ -521,3 +521,30 @@ deletions staged, and a re-run hit the function's own dirty-tree guard.
 pathspec before removing anything), and `_write_adopter_files` only writes; `scaffold_draft` fetches
 before creating `dest`. A test migrates against a template lacking `.editorconfig` and asserts the
 draft is untouched.
+
+---
+
+## D30 — Four defects in the plan's toolchain code, and a fake runner the plan's own code crashed
+
+**Plan said.** Task 5 Step 3: `verify` wraps only `load_toolchain` ("every failure is a reason, not
+a crash"); `provision` writes the record and then self-verifies, raising on failure; Step 1's
+`_fake_tools` `else` branch handles every non-make program; Step 1's refusal test asserts
+`"toolchain" in str(excinfo.value)`; Step 5 says an autouse fixture stubs `verify` for the shared
+campaign fixtures.
+
+**Code showed.** Staging and `build()` failures after the load (a `BuildError` is a `RuntimeError`,
+not an `ExperimentError`) escaped `toolchain verify` and `campaign init` as tracebacks; a failed
+self-verify left `toolchain.json` on disk so a retry hit "provisioned once"; the refusal assertion
+also matched the verify-failed message; the autouse stub patched the module global `provision`
+calls, making its self-verify unreachable in `test_toolchain.py`; and `provision`'s own
+`_version(run, make, "--version")` probe (no `-C`) crashed the brief's fake runner at
+`argv.index("-C")`. Also found: `_version` recorded make's last banner line, and `campaign init`
+resolved its default unconditionally so the "run provision once" message was unreachable.
+
+**What I did.** Ruling R13: `verify` turns every post-load failure into a reason; a failed
+self-verify unlinks the record; the gate test asserts "needs a verified toolchain"; the autouse stub
+skips `test_toolchain.py`; the fake runner keys the seed build on `"txt" in argv`; `_version` takes
+the first line and needs exit 0; the CLI resolves the default only when the file exists; the digest
+reason names the differing entry; a committed CLI test replaces the one-off smoke check. Step 6
+(scratch) was run by the controller against the landed code and succeeded: 15-entry cache,
+`verify` → `ok`, and a full four-target build validated `_IDNITS_SUMMARY` against real idnits.
