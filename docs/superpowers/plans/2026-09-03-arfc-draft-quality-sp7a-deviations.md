@@ -448,3 +448,43 @@ existing file means this run wrote it; tests pair a stale report with a failing 
 substrate-level twin (`draft/build.py` never clears `build-report.json`, so the pipeline's
 `state._build` could grade a failed rebuild from the old report) lives in Task 1's file and is
 deferred to the final review with the recommendation to unlink at the start of `build()`.
+
+---
+
+## D26 — The sealing loop shadowed `prepare()`'s `source`
+
+**Plan said.** Task 6 Step 4 point 4: inside `prepare`, the loop over `target.references` binds
+`source = record_toolchain.refcache / name` before copying each cached reference.
+
+**Code showed.** `prepare()` already binds `source` to the substrate directory it copies from, and
+reads it again afterwards for `record["source"]`; transcribed verbatim, any target declaring
+references — both real targets after this task — would have recorded the last refcache file as its
+source. None of the brief's tests asserted `record["source"]`.
+
+**What I did.** The loop-local is `ref_source`; nothing else changed. The review checks the
+`pristine.json` record for the real targets' `source`.
+
+---
+
+## D27 — Four defects in the plan's adopter-scaffold and sealing code
+
+**Plan said.** Task 6 Step 4: `prepare` resolves and loads the toolchain and scans for uncached
+references *after* the substrate copy and the scaffold; `scaffold_draft` filters `draft-*` out of the
+copied `.gitignore`; Step 2's sealing test ends with a bare `verify_digest(pristine)`, and its
+scaffold test asserts `"draft-*" not in ignored` against a fixture that never contains it.
+
+**Code showed.** `load_toolchain` raises `BuildError`, which the experiment CLI does not catch, so a
+stale auto-selected `<root>/tools/toolchain.json` produced a traceback; the three configuration
+checks read nothing under `pristine`, so a mistyped `--toolchain` left a half-built tree that
+`prepare` then refused to overwrite; `verify_digest` returns a list and never raises, so the bare
+call asserted nothing; and the real template's `template/.gitignore` (checked in the toolchain
+root) never lists `draft-*` — that line lived in the old library-root ignore — so the filter was
+dead code guarded by a vacuous assertion, with no test proving the draft file is committed.
+
+**What I did.** Ruling R11: `prepare` wraps `load_toolchain` into `ExperimentError`; the
+configuration checks run before anything is written and the refusal tests assert no pristine
+directory remains; the sealing test asserts `refcache/reference.RFC.9000.xml` and
+`references.yaml` appear in `pristine.sha256` and that `verify_digest` is empty; the `draft-*`
+filter is deleted and the scaffold test asserts the draft is in the commit's tree; an empty
+reference list is written as `references: []`. Task 7's `_write_adopter_files` must not reintroduce
+the filter.
