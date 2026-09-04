@@ -355,3 +355,61 @@ as D18.
 the dropped marker so back-matter numbers align, and a trailing `{#…}`/`{:…}` is stripped from
 heading titles; each RED-first. Done in Task 2's fix round rather than the final review so Task 10's
 MARK baseline is measured with the corrected instrument.
+
+---
+
+## D21 — A re-derivable `lint` would have run on a draft repository with no commit
+
+**Plan said.** Task 3 Step 4: `lint` is RECOMPUTED whenever `prose` is DONE; Step 5 adds `"lint"`
+to the re-derivable tuple in `pipeline/cli.py`'s `_perform_rederivable`, so a finished workspace
+lints after the walk. The HEAD helper is `_draft_head`.
+
+**Code showed.** `_prose` grades doneness from the draft repository's `.git` and `revisions.yaml`
+alone; the suite's shared `finished_workspace` fixture `git init`s the draft with no commit and
+asserts `next_stage(ws) is None`. Performing `lint` there makes `draft lint` print `error: …` and
+return 1, which fails `test_gate_is_skipped_when_the_question_register_is_missing`'s
+`"error:" not in captured.err`. Grading `lint` BLOCKED without a commit instead would break the
+fixture's `next_stage` assertion.
+
+**What I did.** Ruling R7: `_perform_rederivable` skips `lint` when the draft has no HEAD commit,
+checked directly there like the existing gate guard on the question register, with a test beside
+that guard's; `lint`'s state stays as the plan wrote it. The helper is public `draft_head(ws)`
+because `state._build` and the CLI guard both use it.
+
+---
+
+## D22 — Three plan-mandated defects in the build stage's state and runner code
+
+**Plan said.** Task 3 Step 4: `_build` reads the report with a bare `json.loads` and grades a
+missing report BLOCKED ("no build report yet; run with --toolchain"); Step 5: `_build` in `run.py`
+stringifies `req.toolchain` into the argv with no guard.
+
+**Code showed.** `state.py` already has `_read_json`, whose docstring says a malformed artifact is
+a stage to re-run, not an error to raise, and a tested invariant exists for the timeline; the
+`State` enum defines PENDING as "not produced yet, and everything it needs is ready" — which is the
+only way that branch is reached, since prose is DONE there; and `perform()`'s docstring promises a
+`PipelineError` for a missing required argument, which `_forge` and `_checkpoint` honour and
+`_build` did not (`--toolchain None`).
+
+**What I did.** `_build` uses `_read_json` (an unreadable report is STALE), a missing report with
+prose DONE is PENDING, and `run._build` raises `PipelineError("build needs --toolchain")`; the
+plan's state test now asserts BLOCKED without prose, PENDING before a report and STALE after a
+mismatching one, and a refusal test joins `test_run.py`'s existing three.
+
+---
+
+## D23 — A stale build was unreachable by `run --toolchain`
+
+**Plan said.** Task 3's design: `next_stage` steps over optional stages and the runner skips them
+without their flag — "one rule, two callers" — and the README sentence the task writes says the two
+therefore agree.
+
+**Code showed.** They agree on skipping, not on reaching: `_run` derives its start from
+`next_stage`, which steps over `build` unconditionally, so a workspace whose only outstanding item
+is a STALE or PENDING build makes `status` say so while `run --toolchain X` reports nothing
+outstanding and rebuilds nothing; only `--from build` reached it. Inherited from `forge`, and fatal
+to D49's purpose once a report goes stale.
+
+**What I did.** Ruling R9: `next_stage(ws, *, enabled=())` steps over only the optional stages
+whose flag was not given, and `run` passes the flags it received; `status` passes none. Forge
+gets the same semantics. The README paragraph now claims exactly that.
