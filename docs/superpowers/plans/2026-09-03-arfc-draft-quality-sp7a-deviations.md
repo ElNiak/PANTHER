@@ -488,3 +488,36 @@ directory remains; the sealing test asserts `refcache/reference.RFC.9000.xml` an
 filter is deleted and the scaffold test asserts the draft is in the commit's tree; an empty
 reference list is written as `references: []`. Task 7's `_write_adopter_files` must not reintroduce
 the filter.
+
+---
+
+## D28 — Two campaign construction sites the plan did not list needed the toolchain
+
+**Plan said.** Task 5's files: `experiment/{toolchain,cli,config,runner,arms}.py` and
+`tests/experiment/{test_toolchain,test_config,test_runner,test_arms}.py` (plus `conftest.py` for the
+shared `campaign` fixture, per Step 5).
+
+**Code showed.** `init_campaign` also runs from `tests/experiment/test_per_cluster.py:41`
+(`per_cluster_campaign`, a Task 8 file in the plan) and, through the CLI, from four `campaign init`
+round-trips in `tests/experiment/test_cli_campaign.py`, a module the plan's File Structure never
+names. Step 4's refusal without a verified toolchain fails all of them.
+
+**What I did.** Asked; the user allowed Task 5 to add toolchain plumbing (a record fixture and a
+stubbed `verify`) to both modules, test code only, committed with Task 5's own files.
+
+---
+
+## D29 — The migration removed every tracked file before the network clone
+
+**Plan said.** Task 7 Step 3: `migrate_draft` runs `git rm` per tracked non-draft file, then
+`_write_adopter_files` (which clones the template) copies the three adopter files.
+
+**Code showed.** On the real A1 draft that is 92 `git rm` subprocesses before the first network
+call; a clone error or a template lacking an adopter file raised with the tree gutted and the
+deletions staged, and a re-run hit the function's own dirty-tree guard.
+
+**What I did.** Ruling R12: the adopter files are fetched into memory first
+(`_fetch_adopter_files`), the removals collapse into one `git rm -q -- …` (git validates every
+pathspec before removing anything), and `_write_adopter_files` only writes; `scaffold_draft` fetches
+before creating `dest`. A test migrates against a template lacking `.editorconfig` and asserts the
+draft is untouched.
