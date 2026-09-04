@@ -209,3 +209,78 @@ Log-only observations: `test_toolchain.py`'s `provision` tests need `ruby` and `
 Task 10 Step 4 clone the template from GitHub (network, no spend); the MARK `Target.references`
 (`RFC9110`, `RFC8259`) are absent from the hand-made cache, which only matters to a future `prepare`
 (SP7d), not to SP7a.
+
+---
+
+## D13 — Task 1's `test_load_toolchain_names_the_missing_key` fixture failed on the wrong key
+
+**Plan said.** Task 1 Step 5: the fixture writes `{"template_home": "/x"}` and the test asserts
+`"'make'" in str(excinfo.value)`.
+
+**Code showed.** `Toolchain(...)`'s keyword arguments are evaluated left to right in the plan's own
+Step 7 code (`template_home`, `template_commit`, `refcache`, `make`, …), so
+`record["refcache"]["dir"]` raises `KeyError('refcache')` before `record["make"]["path"]` is
+reached: the error named `'refcache'`, not `'make'`.
+
+**What I did.** The implementer added `"refcache": {"dir": "/x"}` to the fixture so `make` really is
+the first gap, and the assertion passes for the reason it claims. `build.py` is as the plan wrote it.
+
+---
+
+## D14 — The real offline stub names the refcache file; the finding now names the citation key
+
+**Plan said.** Task 1's fixtures, Task 4's `tag_revision` test and Task 9's slot text all expect a
+broken reference to be reported as the citation key (`broken reference RFC9999 (not in the
+refcache)`). The Global Constraints asked for one real build against an unresolvable reference
+before Task 10 to confirm the path fires.
+
+**Code showed.** The real kramdown-rfc 1.7.43 stub reads
+`*** KRAMDOWN_OFFLINE: Inserting broken reference for reference.RFC.9999.xml` — the cache file it
+tried to fetch, not the key the front matter cited. `_OFFLINE_STUB` matched and the hard gate fired
+(verified on 2026-09-04 with the real toolchain: `exit_code 0`, one finding), but the finding named
+`reference.RFC.9999.xml`.
+
+**What I did.** Ruling R1 (the crashed session's controller, carried out by this one):
+`build.py` gained `_reference_key()`, which strips `reference.`/`.xml` and folds a numbered series
+(`RFC.9999` → `RFC9999`) while leaving I-D names and bare keys unchanged, applied at both the
+kramdown-rfc and xml2rfc captures; a parametrized test covers the three shapes and the real-wording
+test asserts `RFC9999`. Committed separately as ai_rfc `1c289b2` on top of Task 1's `ae435fd`. Task
+4's expected finding string and Task 9's prompt text are literally true because of it. Only
+`_OFFLINE_STUB` has been validated against real output; `_XML2RFC_UNRESOLVED`, `_KRAMDOWN_WARNING`
+and `_IDNITS_SUMMARY`, and the `lint`/`idnits` make targets, remain for Task 10 (see the ledger).
+
+---
+
+## D15 — RED surfaced as `ImportError`, not `ModuleNotFoundError` (cosmetic)
+
+**Plan said.** Task 1 Step 6: every build test fails at import with
+`ModuleNotFoundError: No module named 'ai_rfc.draft.build'`.
+
+**Code showed.** The test module imports `from ai_rfc.draft import build as build_module` first,
+and that form raises `ImportError: cannot import name 'build' from 'ai_rfc.draft'` for a missing
+submodule. Same cause, different exception class.
+
+**What I did.** Nothing in the code; recorded so the next plan predicts the right exception for
+this import form.
+
+---
+
+## D16 — The scratch clone re-rooted relative paths through `git -C`
+
+**Plan said.** Task 1 Step 7: `cloned = _git(draft_repo.parent, "clone", "-q", "--no-hardlinks",
+str(draft_repo), str(scratch))`, with the note that `-C` on the parent keeps git from treating the
+scratch path as inside the source repository.
+
+**Code showed.** The task review reproduced that `git -C <dir>` re-roots every relative argument:
+with a relative `draft_repo` the clone fails outright, and with an absolute `draft_repo` but a
+relative `--out out/` (the natural invocation) the clone lands at `<parent>/out/build/scratch` —
+a stray clone beside the draft repository, inside the workspace tree — and the verb then fails at
+`checkout` with a misleading "could not check out" error. The stated rationale does not hold:
+the scratch lives under `out/`, never inside the source repository. Every existing caller passes
+absolute `tmp_path`-derived paths, which is why no test noticed.
+
+**What I did.** Ruling R2: `build()` resolves `draft_repo` and `out` once at its top, and the
+clone receives only absolute paths (via `_git(build_dir, "clone", …)`), so `-C` has nothing to
+re-root. A RED test runs `build()` from another working directory with relative paths and asserts
+the scratch lands under `out/build/scratch`. The same fix round adds the missing fake-`make` test
+for the xml2rfc unresolved-request branch, which the R1 change touched without coverage.
