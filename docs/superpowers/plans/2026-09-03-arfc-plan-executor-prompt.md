@@ -1,5 +1,8 @@
 # Executor prompt for the ai_rfc implementation plans
 
+> Superseded on 2026-09-04 by 2026-09-04-arfc-plan-executor-prompt.md, which is written for the
+> post-extraction layout; this file is kept for the record and should not be pasted any more.
+
 Paste everything below the rule as the first message of a fresh Claude Code session in the
 `iut-ai-rfc` worktree, after replacing the `PLAN=` line with the plan to execute. Architected
 2026-09-03 with the prompt-architect skill; it is self-contained and assumes this machine's
