@@ -284,3 +284,74 @@ clone receives only absolute paths (via `_git(build_dir, "clone", …)`), so `-C
 re-root. A RED test runs `build()` from another working directory with relative paths and asserts
 the scratch lands under `out/build/scratch`. The same fix round adds the missing fake-`make` test
 for the xml2rfc unresolved-request branch, which the R1 change touched without coverage.
+
+---
+
+## D17 — The narration detector's `break` contradicted its own test, and the count named the wrong unit
+
+**Plan said.** Task 2 Step 3: `_narration` appends one entry per Introduction line and `break`s at
+the first matching pattern; the finding reads "introduction: narrates the reconstruction (N
+line(s), e.g. line X)" with N = `len(self.narration)`. Step 1's
+`test_narration_is_detected_in_the_introduction_only` puts an ordinal-cluster sentence and an
+added/withdrawn sentence on **one** line and asserts both patterns are reported.
+
+**Code showed.** With the `break` the test cannot pass (one entry per line). Without it, the generic
+`cluster` pattern co-fires on every ordinal-cluster line by construction (the ordinal regex requires
+the word "cluster"), so `len(self.narration)` counts pattern matches, not lines: on the MARK A1 draft
+121 entries over 87 distinct lines.
+
+**What I did.** Ruling R3: entries are per (line, pattern) for the specific patterns, the generic
+`cluster` pattern fires only when no specific pattern matched the line, and the finding counts
+distinct lines. The brief's test passes unchanged; two tests pin the new semantics.
+
+---
+
+## D18 — The skeleton-stub marker never matched a wrapped abstract
+
+**Plan said.** Task 2 Step 3: `"is_stub": STUB_ABSTRACT_MARKER in abstract_text` — a literal
+substring test on the marker sentence "Each revision reflects the implementation as it stood at one
+cluster". Step 6 predicts `abstract: still the skeleton stub` among the MARK draft's findings.
+
+**Code showed.** Real drafts hard-wrap the abstract; in the MARK draft the wrap falls between "it"
+and "stood", inside the marker, so the check silently never fired and Step 6 produced three of the
+four predicted findings. The plan's own Task 9 skeleton wraps the sentence at the same place
+("as it\nstood"), so Task 9's `is_stub is True` assertion would have failed too. The brief's `STUB`
+fixture wraps outside the marker, which is why twelve green tests hid it.
+
+**What I did.** The implementer whitespace-normalises the abstract before the check; the fix round
+adds the RED test the constraints require (marker wrapped between "it" and "stood").
+
+---
+
+## D19 — A malformed manifest crashed `draft lint` instead of becoming a finding
+
+**Plan said.** Task 2 Step 4: the lint branch catches `(SchemaError, OSError)` around
+`load(args.manifest)`; `--manifest`'s help promises "unloadable → a finding, not an error".
+
+**Code showed.** `ai_rfc/schema.load` calls `yaml.load` unguarded, so a YAML syntax error escapes as
+`yaml.YAMLError`, which is neither. Neither CLI test passes `--manifest`, so the branch was
+unreachable by the suite. The checkpoint branch of the same file carries the same pre-existing gap.
+
+**What I did.** Ruling R4: the lint branch also catches `yaml.YAMLError`, with a CLI test on a
+broken manifest. The root fix — `schema.load` wrapping `YAMLError` into `SchemaError`, which also
+cures the checkpoint branch — touches `ai_rfc/schema.py`, outside this plan's File Structure, and is
+deferred to the final review for the user's decision.
+
+---
+
+## D20 — Three number defects in the plan's lint code, fixed before Task 10 records the baseline
+
+**Plan said.** Task 2 Step 3: the figure window slice takes `FIGURE_CITATION_WINDOW + 1` lines
+while the finding says "within 3 lines"; `body = parts["middle"] + parts["back"]` after `_parts`
+drops the `--- back` marker line; `_HEADING` captures a heading's trailing kramdown attribute list
+as part of its title.
+
+**Code showed.** A citation on the fourth line after a closing fence counted as within three;
+every back-matter figure reported a line number one too low; `# Introduction {#intro}` read as a
+missing required section and switched the narration detector off — the same false-negative class
+as D18.
+
+**What I did.** Rulings R5 and R6: the window is exactly three lines, one empty line stands in for
+the dropped marker so back-matter numbers align, and a trailing `{#…}`/`{:…}` is stripped from
+heading titles; each RED-first. Done in Task 2's fix round rather than the final review so Task 10's
+MARK baseline is measured with the corrected instrument.
