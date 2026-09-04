@@ -413,3 +413,38 @@ to D49's purpose once a report goes stale.
 **What I did.** Ruling R9: `next_stage(ws, *, enabled=())` steps over only the optional stages
 whose flag was not given, and `run` passes the flags it received; `status` passes none. Forge
 gets the same semantics. The README paragraph now claims exactly that.
+
+---
+
+## D24 — The `tag_revision` build-gate test needed a context resolved after its env
+
+**Plan said.** Task 4 Step 1's review correction: the `workspace` fixture is a resolved `Context`,
+"which is what every other test in this file passes straight into `tag_revision`, so
+`resolve_context()` is unnecessary here".
+
+**Code showed.** `Context` is frozen and the fixture resolves it before the test body runs; the
+test then sets `AI_RFC_TOOLCHAIN` with `monkeypatch.setenv`, so the fixture's `ctx.toolchain` is
+still `None` and the build stage the test exists to exercise never fires. The tool wrappers and the
+CLI both resolve a fresh context per call, which is why they see the variable.
+
+**What I did.** The test re-resolves the context after setting the variable and passes that to
+`tag_revision`; nothing in the production code changed.
+
+---
+
+## D25 — The server cores read whatever report was on disk, not the one this run wrote
+
+**Plan said.** Task 4 Step 4: `draft_build` and `draft_lint` read `out/build/build-report.json` /
+`out/lint-report.json` "if `report_path.exists()`", with `findings` falling back to stderr "when no
+report was written".
+
+**Code showed.** The substrate verbs never clear an old report and abort before writing one on a
+bad `--ref`, an incomplete toolchain, a clone or checkout failure, or an unreadable draft (exit 1).
+After one successful run, a failed build therefore returned the previous run's `commit`, `outputs`
+and `findings`, and `tag_revision`'s refusal carried `findings: []` with no reason.
+
+**What I did.** Ruling R10: both cores unlink the previous report before running the verb, so an
+existing file means this run wrote it; tests pair a stale report with a failing fake run. The
+substrate-level twin (`draft/build.py` never clears `build-report.json`, so the pipeline's
+`state._build` could grade a failed rebuild from the old report) lives in Task 1's file and is
+deferred to the final review with the recommendation to unlink at the start of `build()`.
