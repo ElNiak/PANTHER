@@ -19,6 +19,7 @@
 - **Two SP7b hooks are named here but not built.** `LintReport.extra` is described as where SP7b adds its `structures` block, but `lint()` never populates it and the dataclass is frozen, so SP7b needs a new `lint()` keyword; and Task 4's `draft_lint` core filters the report through the closed `_METRIC_KEYS` tuple, which has no `extra`, so SP7b must extend it or its structure metrics never reach the tool and CLI output. SP7b owns both; neither is designed in this plan.
 - **Stage by explicit path**: never `git add -A` or `git add .`. Commit format in `$AIRFC`: `type: lowercase summary` (no scope — that repository's history); in `$PANTHER`: `type(scope): lowercase summary`. No `--no-verify`; a pre-commit failure is fixed and re-staged. `docs/` under `$PANTHER` is gitignored but tracked → `git add -f`.
 - **Tests**: `cd $AIRFC && SSLKEYLOGFILE= $PY -m pytest tests -n auto` (**measured baseline after SP1, 2026-09-03: 808 = 384 substrate + 45 server + 379 experiment, 0 failed** — not the 769 this plan and SP1 both predicted, because SP0 and SP1 added tests; use the measured number). Sandbox off for `pytest`, `pip`, `npm`, `bundle`, nested-git writes and `git push`. `mypy --follow-imports=silent`; `flake8 --max-line-length=88`; `black --check`; ruff runs as a pre-commit hook only.
+- **Lint is file-scoped** (added 2026-09-04, deviation D8). Run `black`, `isort --profile black`, `flake8 --max-line-length=88` and `mypy --follow-imports=silent` on the task's own files only, never on a directory: at `89c4bd5` the repository carries debt SP5 owns (black would reformat `ai_rfc/server/core/gates.py`, `ai_rfc/server/core/questions.py` and `tests/server/test_core.py`; isort flags five test modules; flake8 reports 51 findings, mostly under `experiment/`). Where a task file already carries flake8 findings — `ai_rfc/experiment/config.py` (2) in Tasks 5 and 8, `ai_rfc/experiment/render.py` (5) in Task 9 — the count may not increase and unrelated findings are left alone. Reformatting a task-owned file that was already dirty (`ai_rfc/server/cli.py`, `tests/experiment/test_per_cluster.py`, `tests/experiment/test_workspace.py`) is accepted.
 - **Never run** `panther docs build`, `panther_builder.py clean|package-dev` (both `rmtree` `$PANTHER/docs/`), or `python -m ai_rfc.experiment audit|analyze` against `~/ai-rfc-experiments/campaigns/mark-full-1` or `~/arfc-experiments/campaigns/pilot-aioquic-w02-11-20260831` (they rewrite evidence).
 - **The substrate stays model-free and, except `forge`, network-free.** `draft build` runs the template's `make` with the network denied (`KRAMDOWN_OFFLINE=1`, `xml2rfc -N --cache`, a black-hole proxy). The only networked step in this plan is `experiment toolchain provision`, run once by an operator.
 - **Toolchain facts (verified 2026-09-03, `~/ai-rfc-experiments/tools/toolchain.json`)**: Ruby 4.0.1 runs kramdown-rfc 1.7.43; Bundler 4 puts binstubs under `.gems/ruby/4.0.0/bin` (NOT `.gems/bin`), so make gets `kramdown-rfc=<binstub> GEM_PATH=<gem_path> GEM_HOME=<gem_path>` as command-line variables (make exports those to recipes); `XML2RFC_OPTS` passed on the command line silences `config.mk`'s `+= --cache=…`, so `--cache=<refcache>` is repeated explicitly; never set `CI=true`; the bcp14 boilerplate injects RFC 2119/8174 itself — the skeleton must not list them; `make idnits` needs the draft committed in a clone (`build-targets.sh` reads `HEAD`); Apple make 3.81 suffices.
@@ -848,16 +849,20 @@ Expected: all PASS (the real-toolchain test SKIPPED unless `AI_RFC_TOOLCHAIN` is
 
 - [ ] **Step 10: README rows, lint, commit**
 
-In `ai_rfc/README.md`: add a verb-table row beside the other `draft` rows, **matching the existing rows' format** — they carry a `panther ai-rfc` prefix and backtick the whole command (`ai_rfc/README.md:104-105`), so write:
+In `ai_rfc/README.md`: add a verb-table row beside the other `draft` rows, **matching the existing rows' format** — since the fix wave `89c4bd5` they carry a bare `ai-rfc` prefix (no `panther`) and backtick the whole command (`ai_rfc/README.md:104-105`), so write:
 
 ```
-| `panther ai-rfc draft build DRAFTREPO --out DIR [--ref REF] [--toolchain PATH] [--strict]` | Compile a revision with the template toolchain, offline; findings exit 3 under `--strict` |
+| `ai-rfc draft build DRAFTREPO --out DIR [--ref REF] [--toolchain PATH] [--strict]` | Compile a revision with the template toolchain, offline; findings exit 3 under `--strict` |
 ```
 
-and add `draft/build.py` to the `_git` row of the duplication table (the README's own rule: "Adding a subpackage means adding its copies here" — the count becomes six). **Also update the prose beneath that table**: it reads "The five `_git` copies are not one helper wearing five hats. Only three… share a contract, returning the `CompletedProcess` untouched" (`ai_rfc/README.md:494-495`). `build.py`'s `_git` returns the `CompletedProcess` untouched too, so those numbers become six and four. Leaving the prose stale is precisely the "discovered twice" failure the README itself warns about at line 511. Then:
+> **Review correction (2026-09-04, fix-wave tree `89c4bd5`, deviation D6).** The plan previously
+> told the implementer to write a `panther ai-rfc` prefix; the fix wave removed that prefix from
+> every row, so the literal instruction would have produced the table's only `panther`-prefixed row.
+
+and add `draft/build.py` to the `_git` row of the duplication table (`ai_rfc/README.md:476`; the README's own rule: "Adding a subpackage means adding its copies here" — the count becomes six). **Also update the prose beneath that table**: it reads "The five `_git` copies are not one helper wearing five hats. Only three… share a contract, returning the `CompletedProcess` untouched" (`ai_rfc/README.md:493-495`). `build.py`'s `_git` returns the `CompletedProcess` untouched too, so those numbers become six and four. Leaving the prose stale is precisely the "discovered twice" failure the README itself warns about at lines 507 and 512. Then (lint is file-scoped — see Global Constraints):
 
 ```bash
-cd $AIRFC && $PY -m black ai_rfc/draft tests/substrate/draft && $PY -m flake8 --max-line-length=88 ai_rfc/draft tests/substrate/draft && $PY -m mypy --follow-imports=silent ai_rfc/draft/build.py
+cd $AIRFC && $PY -m black ai_rfc/draft/build.py ai_rfc/draft/cli.py ai_rfc/draft/gate.py tests/substrate/draft/test_build.py tests/substrate/draft/test_gate.py && $PY -m isort --profile black ai_rfc/draft/build.py ai_rfc/draft/cli.py ai_rfc/draft/gate.py tests/substrate/draft/test_build.py tests/substrate/draft/test_gate.py && $PY -m flake8 --max-line-length=88 ai_rfc/draft/build.py ai_rfc/draft/cli.py ai_rfc/draft/gate.py tests/substrate/draft/test_build.py tests/substrate/draft/test_gate.py && $PY -m mypy --follow-imports=silent ai_rfc/draft/build.py
 git status --short   # only your files may be listed
 git add ai_rfc/draft/build.py ai_rfc/draft/cli.py ai_rfc/draft/gate.py ai_rfc/README.md tests/substrate/draft/test_build.py tests/substrate/draft/test_gate.py
 git commit -m "feat: compile a draft revision with the template toolchain, offline"
@@ -1493,10 +1498,16 @@ Expected: exit 0; stderr lists findings including `abstract: still the skeleton 
 
 - [ ] **Step 7: README row, lint, commit**
 
-Add `| ai-rfc draft lint DRAFTREPO --out DIR [--ref REF \| --worktree] [--manifest PATH] [--strict] | Deterministic quality metrics; findings exit 3 under --strict |` to the README verb table. Then:
+Add the row below to the README verb table, beside Task 1's `build` row and in its neighbours' format (bare `ai-rfc` prefix, the whole command backticked — deviation D6):
+
+```
+| `ai-rfc draft lint DRAFTREPO --out DIR [--ref REF \| --worktree] [--manifest PATH] [--strict]` | Deterministic quality metrics; findings exit 3 under `--strict` |
+```
+
+Then:
 
 ```bash
-cd $AIRFC && $PY -m black ai_rfc/draft tests/substrate/draft && $PY -m flake8 --max-line-length=88 ai_rfc/draft tests/substrate/draft && $PY -m mypy --follow-imports=silent ai_rfc/draft/lint.py
+cd $AIRFC && $PY -m black ai_rfc/draft/lint.py ai_rfc/draft/cli.py tests/substrate/draft/test_lint.py && $PY -m isort --profile black ai_rfc/draft/lint.py ai_rfc/draft/cli.py tests/substrate/draft/test_lint.py && $PY -m flake8 --max-line-length=88 ai_rfc/draft/lint.py ai_rfc/draft/cli.py tests/substrate/draft/test_lint.py && $PY -m mypy --follow-imports=silent ai_rfc/draft/lint.py
 git status --short
 git add ai_rfc/draft/lint.py ai_rfc/draft/cli.py ai_rfc/README.md tests/substrate/draft/test_lint.py
 git commit -m "feat: measure a draft revision's quality deterministically"
@@ -1761,7 +1772,7 @@ Expected: all PASS, including the DISPATCH-coverage assertion (it now counts nin
 - [ ] **Step 7: Lint and commit**
 
 ```bash
-cd $AIRFC && $PY -m black ai_rfc/pipeline tests/substrate/pipeline && $PY -m flake8 --max-line-length=88 ai_rfc/pipeline tests/substrate/pipeline && $PY -m mypy --follow-imports=silent ai_rfc/pipeline
+cd $AIRFC && $PY -m black ai_rfc/pipeline/stages.py ai_rfc/pipeline/state.py ai_rfc/pipeline/run.py ai_rfc/pipeline/cli.py ai_rfc/pipeline/workspace.py tests/substrate/pipeline/conftest.py tests/substrate/pipeline/test_state.py tests/substrate/pipeline/test_run.py tests/substrate/pipeline/test_cli.py && $PY -m isort --profile black ai_rfc/pipeline/stages.py ai_rfc/pipeline/state.py ai_rfc/pipeline/run.py ai_rfc/pipeline/cli.py ai_rfc/pipeline/workspace.py tests/substrate/pipeline/conftest.py tests/substrate/pipeline/test_state.py tests/substrate/pipeline/test_run.py tests/substrate/pipeline/test_cli.py && $PY -m flake8 --max-line-length=88 ai_rfc/pipeline/stages.py ai_rfc/pipeline/state.py ai_rfc/pipeline/run.py ai_rfc/pipeline/cli.py ai_rfc/pipeline/workspace.py tests/substrate/pipeline/conftest.py tests/substrate/pipeline/test_state.py tests/substrate/pipeline/test_run.py tests/substrate/pipeline/test_cli.py && $PY -m mypy --follow-imports=silent ai_rfc/pipeline/stages.py ai_rfc/pipeline/state.py ai_rfc/pipeline/run.py ai_rfc/pipeline/cli.py ai_rfc/pipeline/workspace.py
 git status --short
 git add ai_rfc/pipeline/stages.py ai_rfc/pipeline/state.py ai_rfc/pipeline/run.py ai_rfc/pipeline/cli.py ai_rfc/pipeline/workspace.py ai_rfc/pipeline/README.md tests/substrate/pipeline/conftest.py tests/substrate/pipeline/test_state.py tests/substrate/pipeline/test_run.py tests/substrate/pipeline/test_cli.py
 git commit -m "feat: add the lint and build stages behind one optional-stage rule"
@@ -2128,7 +2139,7 @@ Expected: all PASS, including `test_every_tool_is_in_the_parity_table` with 18 t
 - [ ] **Step 8: Lint and commit**
 
 ```bash
-cd $AIRFC && $PY -m black ai_rfc/server tests/server && $PY -m flake8 --max-line-length=88 ai_rfc/server tests/server && $PY -m mypy --follow-imports=silent ai_rfc/server
+cd $AIRFC && $PY -m black ai_rfc/server/paths.py ai_rfc/server/core/build.py ai_rfc/server/core/draft.py ai_rfc/server/tools.py ai_rfc/server/cli.py tests/server/test_paths.py tests/server/test_build.py tests/server/test_draft.py tests/server/test_parity.py && $PY -m isort --profile black ai_rfc/server/paths.py ai_rfc/server/core/build.py ai_rfc/server/core/draft.py ai_rfc/server/tools.py ai_rfc/server/cli.py tests/server/test_paths.py tests/server/test_build.py tests/server/test_draft.py tests/server/test_parity.py && $PY -m flake8 --max-line-length=88 ai_rfc/server/paths.py ai_rfc/server/core/build.py ai_rfc/server/core/draft.py ai_rfc/server/tools.py ai_rfc/server/cli.py tests/server/test_paths.py tests/server/test_build.py tests/server/test_draft.py tests/server/test_parity.py && $PY -m mypy --follow-imports=silent ai_rfc/server/paths.py ai_rfc/server/core/build.py ai_rfc/server/core/draft.py ai_rfc/server/tools.py ai_rfc/server/cli.py
 git status --short
 git add ai_rfc/server/paths.py ai_rfc/server/core/build.py ai_rfc/server/core/draft.py ai_rfc/server/tools.py ai_rfc/server/cli.py docs/parity.md tests/server/test_paths.py tests/server/test_build.py tests/server/test_draft.py tests/server/test_parity.py
 git commit -m "feat: build and lint the draft through the server, and build before every tag"
@@ -2338,6 +2349,7 @@ import hashlib
 import json
 import shutil
 import subprocess
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
@@ -2555,31 +2567,38 @@ def verify(record: Path, *, runner: Runner | None = None) -> tuple[bool, tuple[s
     if reasons:
         return False, tuple(reasons)
     example = toolchain.template_home / "example" / EXAMPLE_DRAFT
-    scratch = tools / "verify"
-    if scratch.exists():
-        shutil.rmtree(scratch)
-    repo = scratch / "example"
-    repo.mkdir(parents=True)
-    shutil.copyfile(example, repo / EXAMPLE_DRAFT)
-    shutil.copyfile(toolchain.template_home / "template" / "Makefile", repo / "Makefile")
-    _git(repo, "init", "-q", "-b", "main")
-    _git(repo, "config", "user.name", "ai-rfc-harness")
-    _git(repo, "config", "user.email", "ai-rfc-harness@localhost")
-    _git(repo, "add", EXAMPLE_DRAFT, "Makefile")
-    _git(repo, "commit", "-q", "-m", "example", date="2026-08-26T00:00:00+00:00")
-    digests = []
-    for attempt in ("first", "second"):
-        report = build(repo, toolchain=toolchain, out=scratch / attempt, targets=("txt",), date=VERIFY_DATE, runner=runner)
-        if report.exit_code != 0 or report.findings:
-            reasons.append(f"the example did not build offline ({attempt}): {'; '.join(report.findings) or report.exit_code}")
-            return False, tuple(reasons)
-        digests.append({name: entry["sha256"] for name, entry in report.outputs.items()})
+    # The scratch lives outside the toolchain root: tools/ is evidence, and
+    # campaign init calls verify on every init.
+    with tempfile.TemporaryDirectory(prefix="ai-rfc-toolchain-verify-") as staging:
+        scratch = Path(staging)
+        repo = scratch / "example"
+        repo.mkdir(parents=True)
+        shutil.copyfile(example, repo / EXAMPLE_DRAFT)
+        shutil.copyfile(toolchain.template_home / "template" / "Makefile", repo / "Makefile")
+        _git(repo, "init", "-q", "-b", "main")
+        _git(repo, "config", "user.name", "ai-rfc-harness")
+        _git(repo, "config", "user.email", "ai-rfc-harness@localhost")
+        _git(repo, "add", EXAMPLE_DRAFT, "Makefile")
+        _git(repo, "commit", "-q", "-m", "example", date="2026-08-26T00:00:00+00:00")
+        digests = []
+        for attempt in ("first", "second"):
+            report = build(repo, toolchain=toolchain, out=scratch / attempt, targets=("txt",), date=VERIFY_DATE, runner=runner)
+            if report.exit_code != 0 or report.findings:
+                reasons.append(f"the example did not build offline ({attempt}): {'; '.join(report.findings) or report.exit_code}")
+                return False, tuple(reasons)
+            digests.append({name: entry["sha256"] for name, entry in report.outputs.items()})
     if digests[0] != digests[1]:
         reasons.append("two offline builds of the example differ")
     return not reasons, tuple(reasons)
 ```
 
 (`_run_git` and `_git` are `workspace.py`'s helpers; `_git` accepts `date=`. `XML2RFC_BASE_OPTS` is imported for the docstring's reader only — remove the import if flake8 flags it.)
+
+> **Review correction (2026-09-04, deviation D9).** The plan built `verify`'s scratch at
+> `tools / "verify"`, inside the toolchain root. That root (`~/ai-rfc-experiments/tools`) is
+> read-only evidence, and `init_campaign` calls `verify` on every campaign, so every init would have
+> written a clone and two builds into it. The scratch is now a temporary directory removed on exit;
+> no test asserts its location.
 
 - [ ] **Step 4: The campaign gate and the session env**
 
@@ -2632,10 +2651,22 @@ Expected: all PASS. Existing campaign fixtures construct `CampaignConfig` withou
 
 The 2026-09-03 hand-provisioned toolchain lives at `~/ai-rfc-experiments/tools`. `provision` refuses an existing record, so prove the command on a scratch root: `cd $AIRFC && SSLKEYLOGFILE= $PY -m ai_rfc.experiment toolchain provision --root /tmp/claude/tc-probe` then `… toolchain verify --root /tmp/claude/tc-probe`. Expected: both exit 0; `verify` prints `ok`. Then replace the hand-made record: move `~/ai-rfc-experiments/tools` to `~/ai-rfc-experiments/tools.manual-2026-09-03` and re-run `provision --root ~/ai-rfc-experiments` so the production record is the command's own output. Keep the manual copy until SP7d's replay has run.
 
+> **Why the production record must be regenerated rather than kept (2026-09-04, deviation D10).**
+> The hand-made `refcache.sha256` lists absolute paths (`<sha256>  /Users/…/.refcache/reference.….xml`),
+> while `_digest_refcache` writes and `verify` compares bare names — so `toolchain verify` refuses
+> the 2026-09-03 record on format alone, and Task 10 Step 3 passes only after this step. The
+> hand-made cache holds 17 entries (13 RFCs plus `I-D.ietf-quic-qlog-main-schema`,
+> `I-D.ietf-quic-qlog-quic-events`, `I-D.ietf-quic-http-22`, `I-D.ietf-quic-transport-22`);
+> `DEFAULT_REFERENCES` seeds 15 RFCs, adding `RFC9110` and `RFC8259` (MARK's `Target.references`,
+> which the hand-made cache lacks) and no I-D (no `Target.references` names one). After this step the
+> production cache is 15 entries and the four I-Ds survive only in `tools.manual-2026-09-03`.
+> Decided with the user on 2026-09-04: re-provision as written above.
+
 - [ ] **Step 7: Lint and commit**
 
 ```bash
-cd $AIRFC && $PY -m black ai_rfc/experiment tests/experiment && $PY -m flake8 --max-line-length=88 ai_rfc/experiment tests/experiment && $PY -m mypy --follow-imports=silent ai_rfc/experiment/toolchain.py ai_rfc/experiment/config.py
+cd $AIRFC && $PY -m black ai_rfc/experiment/toolchain.py ai_rfc/experiment/config.py ai_rfc/experiment/runner.py ai_rfc/experiment/arms.py ai_rfc/experiment/cli.py tests/experiment/test_toolchain.py tests/experiment/test_config.py tests/experiment/test_runner.py tests/experiment/test_arms.py tests/experiment/conftest.py && $PY -m isort --profile black ai_rfc/experiment/toolchain.py ai_rfc/experiment/config.py ai_rfc/experiment/runner.py ai_rfc/experiment/arms.py ai_rfc/experiment/cli.py tests/experiment/test_toolchain.py tests/experiment/test_config.py tests/experiment/test_runner.py tests/experiment/test_arms.py tests/experiment/conftest.py && $PY -m flake8 --max-line-length=88 ai_rfc/experiment/toolchain.py ai_rfc/experiment/runner.py ai_rfc/experiment/arms.py ai_rfc/experiment/cli.py tests/experiment/test_toolchain.py tests/experiment/test_config.py tests/experiment/test_runner.py tests/experiment/test_arms.py tests/experiment/conftest.py && $PY -m mypy --follow-imports=silent ai_rfc/experiment/toolchain.py ai_rfc/experiment/config.py
+$PY -m flake8 --max-line-length=88 ai_rfc/experiment/config.py | wc -l   # 2 pre-existing findings at 89c4bd5; the count may not grow
 git status --short
 git add ai_rfc/experiment/toolchain.py ai_rfc/experiment/config.py ai_rfc/experiment/runner.py ai_rfc/experiment/arms.py ai_rfc/experiment/cli.py tests/experiment/test_toolchain.py tests/experiment/test_config.py tests/experiment/test_runner.py tests/experiment/test_arms.py tests/experiment/conftest.py
 git commit -m "feat: provision and verify one shared toolchain, and refuse campaigns without it"
@@ -2911,7 +2942,7 @@ Expected: all PASS. If `test_scaffold_is_byte_deterministic` fails, the culprit 
 - [ ] **Step 6: Lint and commit**
 
 ```bash
-cd $AIRFC && $PY -m black ai_rfc/experiment tests/experiment && $PY -m flake8 --max-line-length=88 ai_rfc/experiment tests/experiment && $PY -m mypy --follow-imports=silent ai_rfc/experiment/workspace.py
+cd $AIRFC && $PY -m black ai_rfc/experiment/workspace.py ai_rfc/experiment/cli.py tests/experiment/conftest.py tests/experiment/test_workspace.py && $PY -m isort --profile black ai_rfc/experiment/workspace.py ai_rfc/experiment/cli.py tests/experiment/conftest.py tests/experiment/test_workspace.py && $PY -m flake8 --max-line-length=88 ai_rfc/experiment/workspace.py ai_rfc/experiment/cli.py tests/experiment/conftest.py tests/experiment/test_workspace.py && $PY -m mypy --follow-imports=silent ai_rfc/experiment/workspace.py
 git status --short
 git add ai_rfc/experiment/workspace.py ai_rfc/experiment/cli.py tests/experiment/conftest.py tests/experiment/test_workspace.py
 git commit -m "feat: scaffold drafts as template adopters and seal their references"
@@ -3073,7 +3104,7 @@ CLI: `workspace migrate-draft WORKSPACE [--template] [--template-commit]` with `
 Run: `cd $AIRFC && SSLKEYLOGFILE= $PY -m pytest tests/experiment/test_workspace.py -v` — Expected: all PASS.
 
 ```bash
-cd $AIRFC && $PY -m black ai_rfc/experiment/workspace.py ai_rfc/experiment/cli.py tests/experiment/test_workspace.py && $PY -m flake8 --max-line-length=88 ai_rfc/experiment/workspace.py ai_rfc/experiment/cli.py tests/experiment/test_workspace.py
+cd $AIRFC && $PY -m black ai_rfc/experiment/workspace.py ai_rfc/experiment/cli.py tests/experiment/test_workspace.py && $PY -m isort --profile black ai_rfc/experiment/workspace.py ai_rfc/experiment/cli.py tests/experiment/test_workspace.py && $PY -m flake8 --max-line-length=88 ai_rfc/experiment/workspace.py ai_rfc/experiment/cli.py tests/experiment/test_workspace.py && $PY -m mypy --follow-imports=silent ai_rfc/experiment/workspace.py
 git status --short
 git add ai_rfc/experiment/workspace.py ai_rfc/experiment/cli.py tests/experiment/test_workspace.py
 git commit -m "feat: migrate a library-root draft to the adopter layout in one commit"
@@ -3255,7 +3286,8 @@ On `Campaign`, add:
 Run: `cd $AIRFC && SSLKEYLOGFILE= $PY -m pytest tests/experiment -n auto` — Expected: all PASS.
 
 ```bash
-cd $AIRFC && $PY -m black ai_rfc/experiment tests/experiment && $PY -m flake8 --max-line-length=88 ai_rfc/experiment tests/experiment
+cd $AIRFC && $PY -m black ai_rfc/experiment/config.py ai_rfc/experiment/per_cluster.py ai_rfc/experiment/runner.py tests/experiment/test_config.py tests/experiment/test_per_cluster.py tests/experiment/test_runner.py && $PY -m isort --profile black ai_rfc/experiment/config.py ai_rfc/experiment/per_cluster.py ai_rfc/experiment/runner.py tests/experiment/test_config.py tests/experiment/test_per_cluster.py tests/experiment/test_runner.py && $PY -m flake8 --max-line-length=88 ai_rfc/experiment/per_cluster.py ai_rfc/experiment/runner.py tests/experiment/test_config.py tests/experiment/test_per_cluster.py tests/experiment/test_runner.py && $PY -m mypy --follow-imports=silent ai_rfc/experiment/config.py ai_rfc/experiment/per_cluster.py ai_rfc/experiment/runner.py
+$PY -m flake8 --max-line-length=88 ai_rfc/experiment/config.py | wc -l   # 2 pre-existing findings at 89c4bd5; the count may not grow
 git status --short
 git add ai_rfc/experiment/config.py ai_rfc/experiment/per_cluster.py ai_rfc/experiment/runner.py tests/experiment/test_config.py tests/experiment/test_per_cluster.py tests/experiment/test_runner.py
 git commit -m "fix: freeze the task template a per-cluster session renders from"
@@ -3392,7 +3424,7 @@ NEUTRAL_TEXTS = (
 )
 ```
 
-and in `SKILL_FRONTMATTER`'s `allowed-tools`, replace the `python -m panther…` pattern with whatever SP1 made `RAW_PREFIX` (`Bash(python -m ai_rfc*)`) if SP1 did not already.
+`SKILL_FRONTMATTER`'s `allowed-tools` already reads `Bash(python -m ai_rfc*)` (SP1 did it; verified at `89c4bd5`, `render.py:30`) — nothing to change there (deviation D11).
 
 - [ ] **Step 4: The skeleton**
 
@@ -3771,7 +3803,8 @@ Expected: `0 () ['draft-elniak-mark-reconstructed.html', 'draft-elniak-mark-reco
 - [ ] **Step 8: Commit**
 
 ```bash
-cd $AIRFC && $PY -m black ai_rfc/experiment/render.py tests/experiment && $PY -m flake8 --max-line-length=88 ai_rfc/experiment/render.py tests/experiment
+cd $AIRFC && $PY -m black ai_rfc/experiment/render.py tests/experiment/test_render.py tests/experiment/test_workspace.py && $PY -m isort --profile black ai_rfc/experiment/render.py tests/experiment/test_render.py tests/experiment/test_workspace.py && $PY -m flake8 --max-line-length=88 tests/experiment/test_render.py tests/experiment/test_workspace.py && $PY -m mypy --follow-imports=silent ai_rfc/experiment/render.py
+$PY -m flake8 --max-line-length=88 ai_rfc/experiment/render.py | wc -l   # 5 pre-existing findings at 89c4bd5; the count may not grow
 git status --short
 git add ai_rfc/experiment/prompts/loop.tmpl.md ai_rfc/experiment/prompts/draft-skeleton.md ai_rfc/experiment/render.py plugins/ai-rfc/skills/ai-rfc-rfc-style/SKILL.md plugins/ai-rfc/skills/ai-rfc-rfc-style/references/keyword-policy.md plugins/ai-rfc/skills/ai-rfc-figures/SKILL.md plugins/ai-rfc/skills/ai-rfc-reconstruction-loop/SKILL.md tests/experiment/test_render.py tests/experiment/test_workspace.py
 git commit -m "feat: build before every tag, and tell the agent what a specification looks like"
@@ -3792,7 +3825,7 @@ git commit -m "feat: build before every tag, and tell the agent what a specifica
 
 - [ ] **Step 1: Protocol and README**
 
-In `docs/experiment-protocol.md`, add a dated subsection "2026-09-03 — draft quality v2, SP7a" stating, in this order: (1) the tool surface is 18 tools (`ai_rfc_draft_build`, `ai_rfc_draft_lint` added; `docs/parity.md` is the table); (2) the raw arm C is frozen at the 16-tool surface (spec D42) and the parity table's third column says "not available in arm C" for the new rows — a v2 campaign compares arms A and B only; (3) every revision tag runs `draft build` first when `AI_RFC_TOOLCHAIN` is set, and `campaign init` refuses without a verified toolchain, so in a campaign every tag compiles; (4) the campaign record freezes `task.tmpl.md` and per-cluster sessions render from it (the previous `task.md` digest described a prompt no per-cluster session ran); (5) `pristine.json` seals `references.yaml` and `refcache/`. In the repository `README.md`: add `AI_RFC_TOOLCHAIN` to the environment-contract table ("optional; names `toolchain.json`; required by the build gate"), the two commands `python -m ai_rfc.experiment toolchain provision` / `verify` under the experiment section, and replace the sentence about the draft being scaffolded from the template root with "scaffolded as a template adopter (`Makefile`, `.gitignore`, `.editorconfig`); the shared library lives under `<root>/tools/i-d-template`".
+In `docs/experiment-protocol.md`, add a dated subsection "2026-09-03 — draft quality v2, SP7a" stating, in this order: (1) the tool surface is 18 tools (`ai_rfc_draft_build`, `ai_rfc_draft_lint` added; `docs/parity.md` is the table); (2) the raw arm C is frozen at the 16-tool surface (spec D42) and the parity table's third column says "not available in arm C" for the new rows — a v2 campaign compares arms A and B only; (3) every revision tag runs `draft build` first when `AI_RFC_TOOLCHAIN` is set, and `campaign init` refuses without a verified toolchain, so in a campaign every tag compiles; (4) the campaign record freezes `task.tmpl.md` and per-cluster sessions render from it (the previous `task.md` digest described a prompt no per-cluster session ran); (5) `pristine.json` seals `references.yaml` and `refcache/`. In the repository `README.md` (as the fix wave `89c4bd5` left it — deviation D7): the *Environment contract* section is one paragraph, "Two variables: `AI_RFC_PYTHON`, … and `AI_RFC_WORKSPACE`, … Missing either fails loudly; nothing guesses." Extend it to a third, optional variable, `AI_RFC_TOOLCHAIN` (names the `toolchain.json` that `experiment toolchain provision` writes; optional everywhere except the build gate, which refuses without it), keeping the fails-loudly sentence true of the two required ones. In the *Experiment harness* paragraph, add `toolchain provision|verify` and `workspace migrate-draft` to the verb list and append: "The draft repository is scaffolded as a template adopter (`Makefile`, `.gitignore`, `.editorconfig`); the shared library lives under `<root>/tools/i-d-template`." (The README has no sentence about scaffolding from the template root to replace; the only such text is in the rfc-style skill Task 9 rewrites.)
 
 - [ ] **Step 2: The whole suite**
 
@@ -3802,7 +3835,7 @@ Expected: 0 failed; the count is the measured SP1 baseline (**808**, not the 769
 - [ ] **Step 3: Verify the real toolchain**
 
 Run: `cd $AIRFC && SSLKEYLOGFILE= $PY -m ai_rfc.experiment toolchain verify --root ~/ai-rfc-experiments`
-Expected: `ok`, exit 0 (this is the record Task 5 Step 6 re-provisioned).
+Expected: `ok`, exit 0 (this is the record Task 5 Step 6 re-provisioned — the hand-made 2026-09-03 record cannot pass, because its `refcache.sha256` lists absolute paths where `verify` compares bare names; deviation D10).
 
 - [ ] **Step 4: Build and lint the finished MARK draft on a copy**
 

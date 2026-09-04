@@ -2,6 +2,7 @@
 
 One entry per deviation: what the plan said, what the code showed, what I did.
 Anchors verified against PANTHER `b50e569d0` / ai_rfc `abc07a3` (SP1 landed 2026-09-03 19:36).
+Re-verified 2026-09-04 against PANTHER `d13633459` / ai_rfc `89c4bd5` (the fix wave): entries D6–D12.
 
 ---
 
@@ -84,3 +85,127 @@ site.
 **What I did.** Substituted the submodule log `26e522a..abc07a3` (eleven commits, Tasks 1–6 plus two
 style/doc commits) and diffed SP1's File Structure against the landed `ls`. Also noted for whoever
 finishes SP1: **Task 8 (push) has not run** — the submodule has 77 unpushed commits on `main`.
+
+---
+
+## D6 — The README verb rows lost their `panther ai-rfc` prefix in the fix wave
+
+**Plan said.** Task 1 Step 10: the existing rows "carry a `panther ai-rfc` prefix and backtick the
+whole command (`ai_rfc/README.md:104-105`)", so write `| \`panther ai-rfc draft build …\` |`; the
+`_git` prose sits at `:494-495` and the README's warning at line 511. Task 2 Step 7's row was written
+without backticks.
+
+**Code showed.** ai_rfc `89c4bd5` ("document the ai-rfc door") rewrote every row to a bare `ai-rfc`
+prefix, still backticking the whole command (`ai_rfc/README.md:104-105`); the duplication-table row
+is at `:476`, the prose at `:493-495`, "discovered twice" at `:507` and the "Adding a subpackage" rule
+at `:512`.
+
+**What I did.** Both new rows now read `` `ai-rfc draft build …` `` / `` `ai-rfc draft lint …` `` with
+the whole command backticked, and the line anchors were updated. Followed literally, the old text
+would have produced the table's only `panther`-prefixed row.
+
+---
+
+## D7 — The root README's environment contract is prose, and it has no scaffold sentence
+
+**Plan said.** Task 10 Step 1: add `AI_RFC_TOOLCHAIN` "to the environment-contract table" and
+"replace the sentence about the draft being scaffolded from the template root".
+
+**Code showed.** At `89c4bd5` the *Environment contract* section is one paragraph ("Two variables:
+`AI_RFC_PYTHON`, … and `AI_RFC_WORKSPACE`, … Missing either fails loudly"); `README.md` contains no
+sentence about scaffolding — the only such text is in `plugins/ai-rfc/skills/ai-rfc-rfc-style/SKILL.md`,
+which Task 9 replaces whole.
+
+**What I did.** Task 10 Step 1 now extends the paragraph to a third, optional variable and adds the
+adopter-layout sentence plus `toolchain provision|verify` and `workspace migrate-draft` to the
+*Experiment harness* paragraph's verb list.
+
+---
+
+## D8 — The repository is not lint-clean, so directory-scoped lint lines reach outside the task
+
+**Plan said.** Every task's lint step ran `black <package dir> <tests dir> && flake8 … && mypy …`,
+without isort.
+
+**Code showed.** At `89c4bd5`, `pyproject.toml` configures `[tool.isort] profile = "black"` and lists
+isort under `dev`, but the tree carries debt SP5 owns: `black --check ai_rfc tests` would reformat
+4 files (`ai_rfc/server/cli.py`, `ai_rfc/server/core/gates.py`, `ai_rfc/server/core/questions.py`,
+`tests/server/test_core.py`); `isort --check-only` flags 5 test modules
+(`tests/substrate/timeline/test_build.py`, `tests/substrate/coverage/test_commit.py`,
+`tests/server/test_core.py`, `tests/experiment/test_per_cluster.py`, `tests/experiment/test_workspace.py`);
+`flake8 --max-line-length=88 ai_rfc tests` reports 51 findings — none under `draft/` or `pipeline/`;
+`ai_rfc/experiment/render.py` 5, `ai_rfc/experiment/config.py` 2, `ai_rfc/server/core/queries.py` 1,
+the rest in `experiment/{report,metrics,preflight,enforcement,audit}.py` and five experiment test
+modules. A directory-scoped `black ai_rfc/server` reformats three files Task 4 does not own, and a
+directory-scoped `flake8 ai_rfc/experiment` fails on old debt.
+
+**What I did.** Added a Global Constraints bullet and rewrote every lint line to name the task's own
+files, with `isort --profile black` added; where a task file already carries flake8 findings
+(`config.py`: 2 in Tasks 5 and 8; `render.py`: 5 in Task 9) the line counts them and requires no
+increase. Reformatting a task-owned file that was already dirty (`server/cli.py`,
+`test_per_cluster.py`, `test_workspace.py`) is accepted, since the file is in the task's list.
+
+---
+
+## D9 — `verify()` built its scratch inside the toolchain root
+
+**Plan said.** Task 5 Step 3: `scratch = tools / "verify"`, removed and recreated on every call.
+
+**Code showed.** A plan defect rather than a code fact: `tools/` (`~/ai-rfc-experiments/tools`) is
+read-only evidence under the executor prompt, and `init_campaign` calls `verify` on every campaign,
+so every init would have written a clone and two builds into it.
+
+**What I did.** The scratch is now a `tempfile.TemporaryDirectory`, removed on exit; `import tempfile`
+added. No test asserts the scratch location.
+
+---
+
+## D10 — The hand-made toolchain record cannot pass the plan's `verify`, and re-provisioning changes the cache
+
+**Plan said.** Task 5 Step 6 re-provisions the production record "so the production record is the
+command's own output"; Task 10 Step 3 expects `toolchain verify --root ~/ai-rfc-experiments` to print
+`ok`.
+
+**Code showed.** The 2026-09-03 `~/ai-rfc-experiments/tools/refcache.sha256` lists absolute paths
+(`<sha256>  /Users/…/.refcache/reference.….xml`), while `_digest_refcache` writes and `verify`
+compares `<sha256>  <name>` — so `verify` refuses the hand-made record on format alone. The hand-made
+cache holds 17 entries (13 RFCs plus `I-D.ietf-quic-qlog-main-schema`, `I-D.ietf-quic-qlog-quic-events`,
+`I-D.ietf-quic-http-22`, `I-D.ietf-quic-transport-22`); `DEFAULT_REFERENCES` seeds 15 RFCs, adding
+`RFC9110` and `RFC8259` (MARK's `Target.references`, absent from the hand-made cache) and no I-D (no
+`Target.references` names one).
+
+**What I did.** Recorded the dependency in Task 5 Step 6 and Task 10 Step 3. Decided with the user on
+2026-09-04: re-provision as planned; the production cache becomes 15 entries and the four I-Ds survive
+only in `tools.manual-2026-09-03`.
+
+---
+
+## D11 — Task 9's allowed-tools edit was already done by SP1
+
+**Plan said.** Task 9 Step 3: replace the `python -m panther…` pattern in `SKILL_FRONTMATTER`'s
+`allowed-tools` "if SP1 did not already".
+
+**Code showed.** `ai_rfc/experiment/render.py:30` at `89c4bd5` already reads `Bash(python -m ai_rfc*)`.
+
+**What I did.** Marked the step a no-op.
+
+---
+
+## D12 — Anchors re-verified on the fix-wave tree
+
+The D1–D5 anchors were verified at PANTHER `b50e569d0` / ai_rfc `abc07a3`. Since then ai_rfc gained
+`89c4bd5` (fix wave) and PANTHER `ddfee0af8`, `80e6a19e4`, `e22dad825`, `d13633459` and `e2f07b288`.
+The only plan-named files that changed are `README.md`, `ai_rfc/README.md` and
+`ai_rfc/experiment/render.py` (D6, D7, D11), plus `pyproject.toml` (D8). Spot-checked and unchanged:
+`server/paths.py`'s `Context` (`workspace`, `manifest`); `pipeline/cli.py`'s `--from` (`dest="start"`)
+and the forge skip at lines 185–193; `server/core/gates._run(ctx, module, *args)`; `CoreError` in
+`server/core/__init__.py`; `server/cli._emit -> None` and the `gate` branch at `cli.py:283`;
+`render.arm_prompt(arm, plugin_root)`; `docs/parity.md` ending with the `ai_rfc_revision_tag` row;
+16 entries in `ALL_TOOLS`. Baselines re-measured on 2026-09-04: ai_rfc 808 passed in 22.9 s;
+PANTHER door tests 5 passed.
+
+Log-only observations: `test_toolchain.py`'s `provision` tests need `ruby` and `node` on `PATH`
+(`shutil.which` inside `provision`) — true on this machine, a note for SP5's CI; Task 9 Step 7 and
+Task 10 Step 4 clone the template from GitHub (network, no spend); the MARK `Target.references`
+(`RFC9110`, `RFC8259`) are absent from the hand-made cache, which only matters to a future `prepare`
+(SP7d), not to SP7a.
