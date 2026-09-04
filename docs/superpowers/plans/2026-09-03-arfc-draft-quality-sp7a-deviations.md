@@ -645,3 +645,29 @@ working-tree file, so ai_rfc `2f87d7e` carries that session's `TaskProfile`, `IN
 follow-up commit of its own can claim attribution); the SP7a task re-review judges only SP7a's
 hunks; the whole-branch review is told which lines are not SP7a's. Lesson recorded: two sessions
 editing one file cannot commit by pathspec without mixing — one must hold the file.
+
+---
+
+## D36 — Task 10 re-anchored on a peer's README, and its measurements
+
+**Plan said.** Task 10 Step 1 extends the README's environment-contract paragraph to a third,
+optional variable and replaces a scaffold sentence (D7); Step 4 expects `gate --strict` to exit 0;
+the Global Constraints require a real build against an unresolvable reference before Task 10.
+
+**Code showed.** A peer session rewrote `README.md` on 2026-09-04 (its docs series 804dae0–3499875)
+and already described `AI_RFC_TOOLCHAIN`; the same session's gate rule 93308a5 could have made the
+strict gate exit 3 on the MARK A1 draft (it did not: exit 0, no findings). The real broken-reference
+build had been run under Task 1 with the hand-made toolchain; the first cut of the baseline cited
+it secondhand and carried two wrong provenance figures (a commit distance and a byte count) and
+the README's stale "sixteen" verbs.
+
+**What I did.** The README edits extend the peer's sentence rather than adding a second
+description; the protocol subsection carries the brief's five points plus idnits' `submission`
+mode (D32) and the lint's number semantics; the baseline records the measured numbers (suite 928 +
+1 skipped at the measuring commit; build exit 0 with no findings and two idnits warnings; four lint
+findings with narration 88 entries over 87 distinct lines; gate exit 0). Ruling R17: the fix round
+corrects the two figures and the README count, and re-runs the unresolvable-reference build against
+the re-provisioned production toolchain so `_OFFLINE_STUB` and the citation-key normalisation are
+validated first-hand in the baseline. `_KRAMDOWN_WARNING` and `_XML2RFC_UNRESOLVED` remain without a
+positive real-output match: the MARK build produced no kramdown warnings, and under
+`KRAMDOWN_OFFLINE` a missing reference is stubbed before xml2rfc ever sees an unresolved request.
