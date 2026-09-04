@@ -548,3 +548,24 @@ the first line and needs exit 0; the CLI resolves the default only when the file
 reason names the differing entry; a committed CLI test replaces the one-off smoke check. Step 6
 (scratch) was run by the controller against the landed code and succeeded: 15-entry cache,
 `verify` → `ok`, and a full four-target build validated `_IDNITS_SUMMARY` against real idnits.
+
+---
+
+## D31 — The per-cluster fallback to the live task template was a shim that could not fire
+
+**Plan said.** Task 8 Step 3: `per_cluster.py` renders from `campaign.task_template` when it exists,
+else from the source `TASK_TEMPLATE` — "the fallback keeps campaigns frozen before this field
+readable".
+
+**Code showed.** `launch` reads `campaign.task_template` unguarded before dispatching to the
+per-cluster loop, so an old campaign died with `FileNotFoundError` and never reached the fallback;
+where it would have fired, it rendered from the live source — the very drift the task removes —
+with no `task.tmpl.md` digest to check the rendering against; and it is the backward-compatibility
+shim the Global Constraints forbid.
+
+**What I did.** Ruling R14: no fallback. A per-cluster campaign without `task.tmpl.md` is refused
+with an `ExperimentError` naming the file and the remedy, in `launch` before `prompt.md` is written
+and in the loop's render; tests delete the frozen copy and assert the error. Also: the frozen
+digest hashes the bytes written, the `prompt.md` prose derives the file name from
+`TASK_TEMPLATE_FILE`, and a vacuous needle ("ordinals 2 through 2" against a (1, 2) window) became
+"ordinals 1 through 2".
