@@ -671,3 +671,42 @@ the re-provisioned production toolchain so `_OFFLINE_STUB` and the citation-key 
 validated first-hand in the baseline. `_KRAMDOWN_WARNING` and `_XML2RFC_UNRESOLVED` remain without a
 positive real-output match: the MARK build produced no kramdown warnings, and under
 `KRAMDOWN_OFFLINE` a missing reference is stubbed before xml2rfc ever sees an unresolved request.
+
+---
+
+## D37 — "The only networked step in this plan is `toolchain provision`" is false as landed
+
+**Plan said.** Global Constraints: the substrate stays network-free except `forge`, and the only
+networked step in the plan is `experiment toolchain provision`, run once by an operator.
+
+**Code showed.** `scaffold_draft`, `migrate_draft` and therefore `prepare` clone the template from
+the pinned GitHub URL to fetch the three adopter files, on every call; and because `provision`
+deletes the template's `.git` after checkout, `template_home` cannot serve as a local clone source.
+The substrate verbs themselves (`draft build`, `draft lint`, the pipeline stages, the server cores)
+stay offline; `campaign init` stays offline; the networked steps are the harness's scaffold,
+migration and prepare. The final review found it; the baseline document already states it.
+
+**What I did.** Recorded here; the constraint sentence is wrong for the harness, right for the
+substrate. Follow-up (SP5 or SP7d, not SP7a): read the adopter files from
+`template_home/template/` whenever a toolchain is given, so a provisioned machine scaffolds and
+migrates offline.
+
+---
+
+## D38 — Three seams the whole-branch review found, closed in one fix wave
+
+**Plan said.** Task 2's `_prose_lines` checks fences, then comments; Task 3's `_build` argv has no
+`--refcache`; Task 8's ruling R14 refused an unfrozen task template but the plan never asked
+`launch` to refuse a campaign whose `toolchain` is `None`.
+
+**Code showed.** A `{::comment}` line inside artwork set the comment flag with no closer and
+silenced every later prose line (executed repro); the pipeline built without the workspace's
+sealed refcache while the server core passed it, so D46's seal was unenforced on the operator path;
+an old single-mode campaign launched with no build gate at all.
+
+**What I did.** One fix wave: the fence guard precedes the comment toggles; `run._build` passes
+`--refcache <workspace>/refcache` when it exists; `launch` refuses a campaign without a toolchain
+in R14's shape. Folded minors: an empty abstract is a finding; `build()` clears the previous report
+first and its docstring no longer claims byte-for-byte reproducibility; `campaign init --toolchain`
+is resolved before freezing; the pipeline README's `run` synopsis names `--toolchain`;
+`test_build.py` carries the suite's marker.
