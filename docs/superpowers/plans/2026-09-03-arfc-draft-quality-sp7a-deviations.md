@@ -569,3 +569,79 @@ and in the loop's render; tests delete the frozen copy and assert the error. Als
 digest hashes the bytes written, the `prompt.md` prose derives the file name from
 `TASK_TEMPLATE_FILE`, and a vacuous needle ("ordinals 2 through 2" against a (1, 2) window) became
 "ordinals 1 through 2".
+
+---
+
+## D32 — idnits in `normal` mode rejects every real draft's references, and the skeleton rendered an empty section
+
+**Plan said.** Task 9 Step 7: a freshly scaffolded MARK draft builds with the real toolchain to
+`0 () [html, txt]`; Task 1 runs the template's `make idnits` as it comes (`idnits_mode` defaults
+to `normal` in `main.mk`), and D49 counts every idnits error as a build finding.
+
+**Code showed.** The build exited 0 with `idnits reported 2 error(s)`: the skeleton's Security
+Considerations is comment-only, so it renders empty (`INVALID_SECURITY_CONSIDERATIONS_SECTION`);
+and idnits 3.1.0's `normal` mode flags the nested `<references><name>References</name>` wrapper
+kramdown-rfc emits whenever a draft has both normative and informative references
+(`INVALID_REFERENCES_NAME`) — the RFC 7991 structure of every real reconstruction draft, which
+the template's example never produces because it has only normative references. In `submission`
+mode, the datatracker's own, the references nit is not reported at all. Left as is, the hard tag
+gate would have refused every real tag.
+
+**What I did.** Ruling R15: `build()` passes `idnits_mode=submission` to make; the skeleton's
+Security Considerations carries one honest sentence outside its comment; Task 9's Step 7 is re-run
+to `0 ()`. Task 10's protocol note records the mode. The idnits summary regex was validated against
+real output in the process (`{'ERROR': 2, 'WARNING': 1, 'COMMENT': 1}`).
+
+---
+
+## D33 — Two verbatim skill descriptions broke the 250-character convention the same step enforces
+
+**Plan said.** Task 9 Step 5 gives the three skill files verbatim and then asks that they be
+checked against `.claude/rules/skill-conventions.md` (descriptions under 250 characters).
+
+**Code showed.** The rfc-style description was 266 characters and the figures description exactly
+250.
+
+**What I did.** Trimmed both (241 and 228) keeping every trigger phrase; bodies unchanged.
+
+---
+
+## D34 — The skeleton and skills contradicted the lint and the arm-neutrality invariant they serve
+
+**Plan said.** Task 9 Step 4's skeleton quotes the stub-marker sentence inside the abstract's
+guidance comment and places `## Reconstruction Method` ("one timeline cluster at a time …") under
+`# Introduction`; Step 5's figures skill shows a worked example with the citation on the fourth line
+after the fence; the rfc-style skill's build section names `ai_rfc_draft_build` and
+`ai_rfc draft-build`; loop step 8 carries a static "exit 0 with no findings" tail after the
+`{{draft_build}}` slot; and Task 4 changed `revision_tag` without touching the slot text that
+describes it.
+
+**Code showed.** `lint()` bucketed the abstract by plain lines, so the quoted marker kept
+`is_stub` true forever once the paragraph was rewritten; the Introduction narration fired on every
+skeleton-derived draft, contradicting loop step 6; the figures example failed the three-line window
+the skill states; arm C's bundled prompt named a tool and a verb it does not have and was told to
+meet a bar its slot says is unavailable; the `revision_tag` slot omitted the build stage.
+
+**What I did.** Ruling R16: the lint strips comment blocks from the abstract (measure what
+renders); the comment paraphrases the marker; `# Reconstruction Method` moves to the back matter
+and the skeleton test asserts no narration; the figures example is corrected and moved to
+`references/`; the rfc-style build section is arm-neutral and the bar lives in the A/B/interactive
+slot texts; the `revision_tag` slot texts describe the build stage. Folded into Task 9's fix round.
+
+---
+
+## D35 — A peer session's uncommitted `render.py` work rode along in Task 9's fix commit
+
+**Plan said.** Every commit stages its task's files by explicit path; the executor prompt's rule
+is to wait when a peer's unstaged files are present.
+
+**Code showed.** The `gepa-optimize-ai-rfc-skills` session was editing `ai_rfc/experiment/render.py`
+in the same window as Task 9's fix round (both had announced it); a pathspec commit takes the whole
+working-tree file, so ai_rfc `2f87d7e` carries that session's `TaskProfile`, `INTERVIEW_TEXTS` and
+`render_task(profile=)` additions (roughly 240 lines) beside SP7a's slot-text changes. Its
+`config.py`, `test_config.py` and `prompts/task-interview.md` were not swept (unstaged/untracked).
+
+**What I did.** Told the peer the facts (nothing altered, its remaining files untouched, a
+follow-up commit of its own can claim attribution); the SP7a task re-review judges only SP7a's
+hunks; the whole-branch review is told which lines are not SP7a's. Lesson recorded: two sessions
+editing one file cannot commit by pathspec without mixing — one must hold the file.
