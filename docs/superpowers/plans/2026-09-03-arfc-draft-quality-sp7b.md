@@ -1977,8 +1977,13 @@ def test_a_faithful_consolidation_gates_clean(consolidated_workspace):
 
 def test_a_consolidation_that_drops_a_citation_is_a_finding(consolidated_workspace):
     # D52: a consolidation recorded normative_change: false keeps every citation.
+    # Only the consolidation's own tag moves; `_retag_draft_with` would move
+    # revision 01 too and hide the drop.
     ws = consolidated_workspace
-    _retag_draft_with(ws, lambda text: text.replace("`ai_rfc:spec:2.1`", "nothing"))
+    draft_file = ws["repo"] / "draft-test-spec.md"
+    draft_file.write_text(draft_file.read_text().replace("`ai_rfc:spec:2.1`", "nothing"))
+    git(ws["repo"], "add", "draft-test-spec.md")
+    git(ws["repo"], "commit", "-m", "drop a citation")
     git(ws["repo"], "tag", "-f", "draft-test-spec-02")
     findings = run_gate(
         ws["repo"], ws["timeline"], ws["checkpoints"], ws["questions"], ws["revisions"],

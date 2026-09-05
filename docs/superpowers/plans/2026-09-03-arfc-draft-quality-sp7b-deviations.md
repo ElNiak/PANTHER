@@ -339,3 +339,18 @@ with their landed shapes; C30 (server fixture ids and the checkpoint-then-record
 C20–C22, C24–C26 and C29 hold as written; `_document`/`_normalize_and_write` are module-level
 (`claims.py:60,69`), `gate` is still the unguarded fallthrough (`draft/cli.py:303`), and every
 `Manifest(...)` construction site is keyword-only (`schema.py:189` plus eleven test sites).
+
+---
+
+## D18 — Pre-flight: the drop-a-citation test moved both tags
+
+**Plan said.** (After D9's correction) `test_a_consolidation_that_drops_a_citation_is_a_finding`
+rewrote the draft through `_retag_draft_with` and then force-moved `draft-test-spec-02`.
+
+**Code showed.** `_retag_draft_with` (Task 5 Step 2) force-moves `draft-test-spec-01` onto the new
+commit, so revisions 01 and 02 would have shared one commit and one cited set — no drop for the
+gate to see; the test could not fail for its own reason.
+
+**What I did.** The test writes, commits and moves `-02` only, leaving `-01` on the commit that
+still cites `spec:2.1`. Found by the SDD pre-flight scan, fixed in the plan before Task 1 was
+dispatched.
