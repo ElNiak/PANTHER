@@ -514,3 +514,51 @@ fresh implementer finished the round on the same brief and report file. Deferred
 `## Structures` line reads "1 claims"; `promotion.py`'s dead `claim_id in by_id` filter creates a
 latent `KeyError` in `to_markdown` for a code-built manifest (delete the filter; unreachable via
 `load`).
+
+---
+
+## D25 — Task 4 as landed (`76856b4`)
+
+**Plan said.** Step 4's prose says the consolidation writer's write-once guard "mirrors
+`write_checkpoint`'s own so the wording matches"; the helper `requirements_digest` is anchored on
+`^MANIFEST_FILE`; Step 3 says "the tests assert" that rendering precedes `mkdir`; Step 8 lints
+with black, flake8 and mypy.
+
+**Code showed.** `write_checkpoint`'s guard says "written once and never overwritten" while the
+plan's code block and its test require "immutable" (the word `verify_checkpoint` already uses);
+`_digest_bytes`, which the helper calls, is defined below `CheckpointError`, not at the constants
+block; no test can observe the render-before-`mkdir` order (a missing timeline raises `OSError`
+before `render_all` is reached) — the ordering is verified by reading the diff; four
+brief-supplied test lines exceed 88 columns. The peer's `3cb1ffe` and `2797df0` bracket the task;
+the pre-task tree collected 1200 + 11 once the peer's module was committed, and the task's commit
+measures 1208 + 11.
+
+**What I did.** The code block and test win over the prose ("immutable"); `requirements_digest`
+sits after `_digest_bytes`; the ordering claim is recorded as verified by reading; black wrapped
+the four lines; isort ran per the Global Constraints. Concern carried to Task 5: the gate must
+call `requirements_digest` rather than re-derive its own comparison, or the writer and the gate
+drift.
+
+---
+
+## D26 — Task 4's digest was pinned by nothing, and the ordinal had no bound (ruling R16)
+
+**Plan said.** Task 4 Step 1's succeeding consolidation tests pass the same
+`_structured_manifest(tmp_path)` as both base and consolidation; `write_consolidation_checkpoint`
+takes any `ordinal` and writes `out / f"{ordinal:02d}"`.
+
+**Code showed.** With identical manifests the two digests always agree, so deleting
+`replace(manifest, structures=())` from `requirements_digest` left every test green while
+refusing every legitimate consolidation (mutation confirmed); `verify_checkpoint`'s two new
+branches and the render-before-`mkdir` ordering had no test; `f"{100:02d}"` yields `100`, a third
+digit that sorts before `99`.
+
+**What I did.** A test writes a consolidation with the base's requirements and a changed
+structures block (`uint8` → `uint16`) and asserts it is written with different `structures_sha256`
+and `manifest_sha256`; the two verify branches and the ordering (monkeypatched `render_all`) are
+covered; **Ruling R16:** an `ordinal` outside 1..99 is refused before any file is read — the
+`consolidations/<NN>` scheme is two digits, as D52 keeps `REVISION_TAG` — cost if wrong: a
+hundredth consolidation is refused, and D52's 69 + 7 fits. Landed as `047813a`; suite 1215 + 11.
+Deferred: `verify_checkpoint` does not cross-check a consolidation record's `kind`/`base_checkpoint`
+(check 8 does); the base is not verified before its requirements are trusted (the gate verifies
+every checkpoint at tag time).
