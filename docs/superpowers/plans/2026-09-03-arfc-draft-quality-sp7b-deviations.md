@@ -354,3 +354,81 @@ gate to see; the test could not fail for its own reason.
 **What I did.** The test writes, commits and moves `-02` only, leaving `-01` on the commit that
 still cites `spec:2.1`. Found by the SDD pre-flight scan, fixed in the plan before Task 1 was
 dispatched.
+
+---
+
+## D19 — Closing `level` made a peer-suite test unreachable (Task 1, ruling R7)
+
+**Plan said.** Task 1 Step 11 (after D3): `tests/experiment/optimize/test_scoring.py:658`
+"stays green unchanged"; the file was outside the task's list.
+
+**Code showed.** `test_a_level_outside_the_bcp14_vocabulary_does_not_count` plants a claim with
+`level: "OUGHT TO"` and asserts the score's `WHY_BAD_LEVEL` row. Its own helper
+`_write_requirements` (`test_scoring.py:69`, `path.write_text(dump(load(path)))`) is the first
+thing that loads the manifest, so with the closed enum `SchemaError` fires there and `score()` is
+never reached. `WHY_BAD_LEVEL`, the `LEVELS` comparison at `scoring.py:265` and the comment at
+`scoring.py:59` ("schema.load takes level as a free string") are now unreachable or false.
+
+**What I did.** Ruling R7: the test is rewritten as
+`test_a_level_outside_the_bcp14_vocabulary_is_refused_at_load`, wrapping exactly the
+`_write_requirements` call in `pytest.raises(SchemaError)` and asserting the message names
+`OUGHT TO` and says `permitted values are`; the planted input is unchanged; the now-unused
+`WHY_BAD_LEVEL` import is dropped from the test module; the file joined Task 1's commit. The
+three stale items in `scoring.py` stay (the peer session's cleanup — told twice, at dispatch and
+with the facts). Cost if wrong: one rewritten test in a peer file, one commit to revert.
+
+---
+
+## D20 — Two interface gaps in the plan's schema code (Task 1, rulings R8 and R9)
+
+**Plan said.** `_structure(structure_id: str, raw)` matches the id against `_STRUCTURE_ID`;
+`load` builds structures in document order; the interface says "`schema.SchemaError` still
+signals every failure" and the stability tests must hold.
+
+**Code showed.** A YAML key such as `4.1:` arrives as a `float`, and `re.match` raised
+`TypeError` at `schema.py:243` (RED seen). `dump` sorts every mapping (`sort_keys=True`), so a
+manifest declaring two structures out of id order failed `load(dump(load(x))) == load(x)` (RED:
+`['header', 'codes'] == ['codes', 'header']`).
+
+**What I did.** R8: `_structure` type-checks the id first (signature `Any`, the value is
+untyped from YAML) with the unquoted-identifier message the `_STRING_FIELDS` check already uses
+for `section`/`question-id`; the test asserts `float` and `quote` because `4.1` also appears as
+a section in the fixture. R9: `load` sorts the built `Structure` objects by id (after validation,
+so every key is a string); `load`'s docstring states the guarantee. Landed as a second commit,
+`7a4d6f9` (amended once from `e715a83` to add one assertion — the amend itself broke the no-amend rule and is noted in the ledger), because the rulings crossed the implementer's first commit. Costs: one guard line;
+declaration order of structures is lost, which nothing reads.
+
+Implementer-reported deviations also folded in: long snippet lines wrapped to `black`'s shape;
+`_sequence`/`_required` defined before their callers; `isort` collapsed two pre-existing
+multi-line imports in `test_report.py`/`test_schema.py` (Step 12 mandates `isort`); the two
+`scoring.py` lines that would have exceeded 88 columns were hand-wrapped (no formatter on that
+file; flake8 count unchanged at 1).
+
+---
+
+## D21 — Two more schema gaps the task review found (Task 1, ruling R10)
+
+**Plan said.** Task 1 Step 9: `structures = tuple(_structure(id, raw) for id, raw in
+(document.get("structures") or {}).items())`; Step 8: `_structure` reads only the member key its
+kind sanctions (`fields` for the three field kinds, `values` for enum, `transitions` for
+state-machine) and `states` for every kind.
+
+**Code showed.** A `structures:` block written as a list or a scalar escaped `load` as
+`AttributeError` (`.items()` on a non-dict; RED seen at `schema.py:349`), against the interface
+"`SchemaError` signals every failure". A member key valid under another kind — `fields:` on an
+enum, `states:` on a wire-format — loaded silently and was dropped or kept meaninglessly by
+`dump`; because the server persists every write through `load`/`dump` (C22), the author's block is
+destroyed on the next write with no diagnostic — the defect class this task exists to close, one
+level down.
+
+**What I did.** The mapping guard mirrors the `requirements` one. **Ruling R10:** `_structure`
+refuses any of `fields`, `values`, `transitions`, `states` its kind does not sanction, on key
+presence (an empty `fields: []` on an enum is authored confusion), before any member is parsed —
+message `"<id>: a structure of kind <kind> does not take <key>"`; the empty-member message uses
+the same phrasing so the article is right for every kind. Landed as `d3c6021`; suite 1131 + 10.
+Cost if wrong: a manifest carrying a stray member key fails to load; no such manifest exists.
+Deferred to the final review (ledger): `structures: []` still loads as empty through `or {}`;
+`_structure_to_dict` gates on non-emptiness rather than kind; two parallel kind tables.
+
+Task 1 head: `d3c6021` (three commits after `07a02fb`; the review saw the first two as a package
+cut before an amend that added one assertion, then the fix commit).
