@@ -487,3 +487,30 @@ with `--update-goldens` before any real checkpoint; a wire-format author must si
 one collapsed import line. Deferred: `width=0` on a programmatic `Structure` still vanishes (the
 loader rejects zero); the bit ruler is 32 wide over a partial first row; the ladder's plainness
 (R11) is SP7c's editorial call.
+
+---
+
+## D24 — Task 3's tests could not tell a binding-blind implementation from the real one (ruling R15)
+
+**Plan said.** Task 3 Step 1 (after D6): the promotion test binds both of the fixture's claims and
+asserts `stored is min(claim.status …)` and `supported is min(adjudicate(claim) …)` over
+`manifest.claims`; the report tests assert `"header" in text`; nothing asserts the `structures`
+payload key.
+
+**Code showed.** Task 3's production code (`642a31d`: `structure_statuses`, the `## Structures`
+section, the `structures` payload key) is correct, but the review showed that a
+`structure_statuses` ignoring `structure.claims` and taking the minimum over every manifest claim
+passes all four tests: the fixture binds every claim, so the two minima coincide, and both stored
+statuses default to GAP. The payload key ships through `ai_rfc check` untested.
+
+**What I did.** **Ruling R15:** the structure binds a strict subset (`spec:1.1` only), the bound
+and unbound claims differ on both axes (`status: inferred` on the bound one; the unbound one GAP
+with no anchors), the assertions name the expected `Status` members by hand and reject the
+binding-blind answer, and the JSON payload's `structures` key is asserted exactly; a mutation
+check (binding-blind `structure_statuses`) must fail the new assertions. Tests only; the
+production diff stands. Cost if wrong: none. The first implementer hit its usage limit
+mid-round (resets 13:00 Europe/Brussels) with the two test files edited and production clean; a
+fresh implementer finished the round on the same brief and report file. Deferred: the
+`## Structures` line reads "1 claims"; `promotion.py`'s dead `claim_id in by_id` filter creates a
+latent `KeyError` in `to_markdown` for a code-built manifest (delete the filter; unreachable via
+`load`).
