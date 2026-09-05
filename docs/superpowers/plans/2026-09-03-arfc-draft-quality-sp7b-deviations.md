@@ -432,3 +432,58 @@ Deferred to the final review (ledger): `structures: []` still loads as empty thr
 
 Task 1 head: `d3c6021` (three commits after `07a02fb`; the review saw the first two as a package
 cut before an amend that added one assertion, then the fix commit).
+
+---
+
+## D22 — Task 2 as landed (`ac471bd`), and the ladder ruling
+
+**Plan said.** Step 5's `parse_blocks` closes the marker branch with a bare `else:`; Step 8
+stages `tests/substrate/draft/goldens` as a directory and names black, flake8 and mypy; the
+state-machine ladder stacks each state's box in declaration order and lists the edges as text
+lines below.
+
+**Code showed.** mypy rejects the bare `else:` (`Item "None" of "Match[str] | None" has no
+attribute "group"`); the row's rules forbid staging a directory; `isort --profile black` would
+collapse the test module's multi-line `from ai_rfc.models import (…)` while both sibling modules
+in that directory keep the same form (pre-existing debt, SP7a D8). A peer commit (`8cdf92b`,
+`refactor(experiment): lift the one-shot claude environment into profile.py`) landed between the
+task's BASE `d3c6021` and its commit; the peer's files were dirty in the shared tree while the
+task ran and clean by its commit, so no `--only` form was needed. The ladder renders adjacent
+`+------+` rules between stacked boxes with the edges as `a --event--> b` lines: plain, but
+deterministic and readable; the wire-format golden reads as an RFC figure.
+
+**What I did.** `elif end:` (behaviour-identical); goldens staged by file; isort left off for
+the new test module; the review range excludes the peer's commit. **Ruling R11:** the ladder
+stays as the plan drew it; a redraw is SP7c's editorial decision, to be made before any real
+`structures.md` is frozen (no production checkpoint carries structures until then). Cost if
+wrong: SP7c regenerates five goldens with `--update-goldens`. Suite 1152 + 10 (1131, plus the
+peer's 3, plus 18).
+
+---
+
+## D23 — Two rendering defects in the plan's diagram code (Task 2, rulings R12–R14)
+
+**Plan said.** Step 3's `_diagram` emits one rule above each row sized to that row and a closing
+rule sized to the last row; `_rows` reads `int(field.width or 0)`; Step 8 lints with black,
+flake8 and mypy.
+
+**Code showed.** With the brief's own 48-bit fixture the rule between the full row and the
+16-bit continuation was 16 bits wide, leaving the full row open on the right (probed: 32-bit top
+border, 16-bit bottom); the only golden with a diagram has two full rows, which is why the goldens
+hid it. A wire-format field without `width` is schema-legal (`width` is optional for every kind)
+and was dropped from the diagram while the legend still listed it, shifting every later field.
+`isort --profile black` would collapse the new test module's six-name import; the Global
+Constraints mandate isort on a task's files and the brief's lint line omitted it.
+
+**What I did.** **R12:** the border above row *i* is `_rule(max(bits(i-1), bits(i)))` and the
+closing border `_rule(bits(last))` — the RFC convention for a full row over a partial one; the
+fixture's exact 32- and 16-bit rule strings are asserted; the wire-format golden is byte-identical
+(re-reviewer reconstructed the pre-fix code and reproduced the RED). **R13:** `schema.py` refuses
+a `wire-format` field without `width` (message/record keep it optional; carve-out test) and the
+renderer raises `ValueError` for a programmatic `Structure` that breaks the invariant. **R14:**
+isort runs on the task's own files. Landed as `2e7b69b`; suite 1165 + 10 (a peer commit,
+`d437a9e`, added 9 tests in between). Costs if wrong: a different partial-row look, regenerated
+with `--update-goldens` before any real checkpoint; a wire-format author must size every field;
+one collapsed import line. Deferred: `width=0` on a programmatic `Structure` still vanishes (the
+loader rejects zero); the bit ruler is 32 wide over a partial first row; the ladder's plainness
+(R11) is SP7c's editorial call.
