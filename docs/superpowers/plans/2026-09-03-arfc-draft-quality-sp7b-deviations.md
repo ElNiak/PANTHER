@@ -673,3 +673,40 @@ the first survives through `schema.load`; the render twin compares bytes without
 by the gate, not the core); a non-mapping `structures:` key still raises `TypeError` in the upsert
 where `schema.load` gives `SchemaError`; the tool-count test counts `ALL_TOOLS`, not the table.
 `docs/experiment-protocol.md`'s "18 tools" is the dated SP7a entry; Task 10 writes the SP7b one.
+
+---
+
+## D30 — Task 8 as landed (`e74dc7a`, fix `03eeb1e`): the lint renders for itself and forgives its own figures
+
+**Plan said.** Files: `draft/lint.py`, `draft/cli.py`, `server/core/build.py` and two test modules;
+`_structures` runs `parse_blocks` whether or not a manifest loaded and reports every block as
+"names no structure this manifest declares" when none did; `structures=None` leaves the stale
+comparison silent; the `lint` verb passes `render_all(manifest)`; the RED reason is one
+`TypeError` for all six lint tests.
+
+**Code showed.** `tests/server/test_build.py:77-85` enumerates `_METRIC_KEYS`' seven keys by hand,
+so `"extra"` could not land without it (a sibling the pre-flight scan missed). Two tests failed on
+`KeyError` from the empty `extra`, not `TypeError`. A draft linted without a manifest — a legitimate
+invocation, and the server's own path when the schema refuses the manifest (D52's degrade case) —
+was accused on every block and `--strict` exited 3. A caller passing a manifest but no rendering
+got `stale: []` with no signal. The renderer's wire-format and state-machine output puts the
+first claim cell four lines past the closing `~~~` fence against SP7a's three-line caption window,
+so the substrate's own rendering failed the substrate's own lint; every Task 8 test used `record`,
+which renders no fence. The verb's `structures=` pass was pinned by nothing.
+
+**What I did.** Task 8 landed as the brief specifies (`e74dc7a`; 7 tests; suite 1269 + 11) under
+**R29** (`test_build.py` gains the one token in the same commit). Fix round 1 (`03eeb1e`, two
+implementers — the first stopped on a session usage limit with R31 and R33 in the tree; a fresh
+one finished) under five rulings. **R30:** a CLI-level test pins the stale finding through the
+verb. **R31:** with no manifest the block counts are zero and no block is accused; `malformed`
+delimiters are still reported. **R32:** `lint()` renders `render_all(manifest)` itself when
+`structures` is `None`; an explicit rendering overrides; the verb's redundant pass is gone.
+**R33:** `structures.block_spans(text)` is public, and a fence inside a block's span is exempt
+from the caption-citation rule while still counting as a figure (`draft/structures.py` and its
+tests joined the file list). **R34:** the unbound test discriminates the requirement class, the
+parity test asserts the value, the unknown-block test asserts its finding. Suite 1280 + 11.
+**R35:** an uncited hand figure wrapped in block markers on a draft with NO manifest now yields
+no finding beyond `manifest: unloadable` — accepted; with a manifest it is unknown or stale, and
+the gate compares the bytes. Deferred to the whole-branch fix wave: the `_structures`/`lint()`
+docstrings disagree on frozen-versus-live and one test name still says "frozen bytes". Deferred
+to SP7c: duplicate block ids collapse last-wins in `parse_blocks` (Task 2's shape).
