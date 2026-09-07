@@ -562,3 +562,41 @@ hundredth consolidation is refused, and D52's 69 + 7 fits. Landed as `047813a`; 
 Deferred: `verify_checkpoint` does not cross-check a consolidation record's `kind`/`base_checkpoint`
 (check 8 does); the base is not verified before its requirements are trusted (the gate verifies
 every checkpoint at tag time).
+
+---
+
+## D27 — Task 5 as landed (`bcba847`), and the session trailer (ruling R17)
+
+**Plan said.** After D8–D10: `test_a_faithful_consolidation_gates_clean` "must FAIL on the
+ordinal and cited-set findings" between Steps 5 and 6; Step 3's `-k` filter covers the four
+loader tests; `load_revisions` passes `kind=kind, checkpoint=checkpoint`; check 8 binds `record`
+and `manifest`; the fixture keeps `-> dict[str, Path]`; commit messages are the plan's own.
+
+**Code showed.** The fixture tags `-01` and `-02` on one commit, so only the ordinal finding
+fires pre-Step 6 — the cited-set exemption's discriminator is
+`test_a_consolidation_that_drops_a_citation_is_a_finding` (D18's rewrite), which fails pre-(e)
+because the equality branch says "differs", not "drops". Two of the twelve tests escape the `-k`
+filter. `body` is `Any` from `yaml.safe_load`, so `checkpoint: 3` would store an `int` and make
+`Path(entry.checkpoint)` raise instead of producing a finding. `record`/`manifest` are already
+bound in the checkpoint pass and mypy refused the `Manifest | None` rebinding. The mapping now
+carries two `str` ids. The session-level instruction asks every commit for a `Claude-Session:`
+trailer; the plan's messages carry none, and Tasks 1–5's commits landed without it (never amend).
+
+**What I did.** Recorded the discriminator; the two escaped tests were run by node id; `kind` and
+`checkpoint` are `str()`-coerced at construction like every other field; check 8's locals are
+`consolidation_record`/`consolidated`; the fixture is `dict[str, Any]`; the module docstring names
+the block check. Two peer commits (`a84ebca`, `92faa22`) preceded the task's commit; suite 1231 +
+11. **Ruling R17:** from Task 6 on, every ai_rfc task commit ends with the `Claude-Session:`
+trailer (a trailer does not alter the plan's message); Tasks 1–5's commits stay as they are.
+Cost if wrong: five commits without the trailer, listed in the final report.
+
+**Fix round 1 (`50232ac`).** Review found the D52 superset exemption asserted by no test (the
+faithful fixture's tags share a commit) and check 8 comparing only the record's cluster id with a
+numbered in-code comment. **Ruling R18:** a consolidation whose tag ADDS a citation gates clean
+(previous ⊆ current) — pinned by `test_a_consolidation_that_adds_a_citation_gates_clean`, the
+only test that fails under an equality implementation. **Ruling R19:** check 8 also refuses a
+consolidation entry whose own `cluster_id` differs from its predecessor's, before the
+record-is-None guard, and the numbered comment goes. Ride-along: a missing consolidation
+checkpoint's finding names the resolved `consolidations/<NN>` directory. Re-review PASS; suite
+1234 + 11. From this entry on, PANTHER and ai_rfc commits carry the trailer of the session that
+resumed the row on 2026-09-07 (`session_018ecPzmW5mmvNyhYy3PVBwa`).
