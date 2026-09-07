@@ -634,3 +634,42 @@ Suite 1244 + 11. Deferred to SP7c: `--timeline` required-but-unread on the conso
 `parser.error` prints the top-level usage; an uncaught `FileExistsError` when `--out` names a file
 (every verb's pattern); the `end=""` mutant is invisible because the structure-free test never
 reaches `print` — remedy noted for the whole-branch fix wave (stdout == the written file's bytes).
+
+---
+
+## D29 — Task 7 as landed (`544dd10`, fix `076071e`): the server refuses what the substrate refuses
+
+**Plan said.** Step 1's cluster-duplicate test fails with `TypeError`; the `-k` selector covers the
+new tests; `write_checkpoint(consolidation=, base=)` checks `consolidation` without `base` only;
+the R4 test asserts the consolidation pins its own checkpoint; `upsert_structure` uses
+`setdefault("structures", {})`; `record_revision`'s "no checkpoint" message formats
+`relative_to(ctx.workspace)`; Step 7's D42 paragraph is the implementer's prose.
+
+**Code showed.** `record_revision` already accepted unknown keywords through its signature, so
+the duplicate test failed as `DID NOT RAISE`; the `-k` selector misses the `ALL_TOOLS` count test
+and a collection error aborts the run. The cluster and consolidation checkpoints hash the same
+unchanged manifest, so the R4 assertion held under an implementation that pins the cluster's
+checkpoint (the parity twin is equally blind: one core, two frontends). `ai_rfc checkpoint CLUSTER
+--base X` exited 0, wrote a cluster checkpoint and burned the write-once slot, where the substrate
+refuses the pair with exit 2 (R22). The landed paragraph called arm C "the unassisted baseline";
+`experiment/arms.py:56-60` says class 2, hybrid shell-via-tool. An absolute `checkpoint` made the
+guardrail's own error raise `ValueError`. `structures:` null (which `schema.load` accepts) made
+`setdefault` return `None` and the upsert raise `TypeError`.
+
+**What I did.** Task 7 landed as the brief specifies (`544dd10`; 11 tests; suite 1255 + 11), with
+five implementer deviations recorded (help string for the positional, a parser local renamed, a
+help line wrapped). Fix round 1 (`076071e`) under five rulings. **R24:** the R4 test and the
+parity twin upsert a structure between the two checkpoints so the shas differ; the twin, which
+cannot go RED for a core bug, also asserts the record's `kind` and a non-empty
+`structures_sha256`. **R25:** `write_checkpoint` raises `CoreError` for `base` without
+`consolidation` before any shell-out; `parity.md`'s exit-code prose says a usage error the shared
+core catches exits 1, argparse's own 2. **R26:** the paragraph ends at "so a v2 campaign compares
+those two." **R27:** `record_revision` refuses an absolute or `..`-bearing checkpoint with
+`CoreError` before any path use. **R28:** `upsert_structure` reads `get("structures") or {}` and
+refuses a non-mapping body. Folded minors: the round-trip test upserts a second id and asserts
+the first survives through `schema.load`; the render twin compares bytes without `strip`; the
+`not checkpoint` branch has a test. Suite 1262 + 11. Deferred to SP7c: the R27 guard is lexical
+(a symlink escaping the workspace, or a consolidation pinning `checkpoints/<cluster>`, is caught
+by the gate, not the core); a non-mapping `structures:` key still raises `TypeError` in the upsert
+where `schema.load` gives `SchemaError`; the tool-count test counts `ALL_TOOLS`, not the table.
+`docs/experiment-protocol.md`'s "18 tools" is the dated SP7a entry; Task 10 writes the SP7b one.
