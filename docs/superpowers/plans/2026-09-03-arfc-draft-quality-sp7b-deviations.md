@@ -600,3 +600,37 @@ record-is-None guard, and the numbered comment goes. Ride-along: a missing conso
 checkpoint's finding names the resolved `consolidations/<NN>` directory. Re-review PASS; suite
 1234 + 11. From this entry on, PANTHER and ai_rfc commits carry the trailer of the session that
 resumed the row on 2026-09-07 (`session_018ecPzmW5mmvNyhYy3PVBwa`).
+
+---
+
+## D28 — Task 6 as landed (`e609cf0`, fix `cdcece5`): the consolidation path validates its cluster
+
+**Plan said.** Step 2: `test_consolidation_requires_a_base` "passes for the wrong reason" until the
+flags are registered. Step 4: the `checkpoint` branch checks `--consolidation` without `--base`
+only; `--consolidations` is passed through to `run_gate` with no test of its own; `render --out`
+writes `structures.md` unconditionally. Files: `draft/cli.py`, `entrypoints.py`, `test_cli.py`.
+
+**Code showed.** argparse's "unrecognized arguments" message names no `--base`, so the test was
+simply RED at Step 2 (the discriminating intermediate RED between Steps 3 and 4 gave the predicted
+`DID NOT RAISE`). `run_gate(consolidations_dir=None)` equals omitting the keyword and the
+`consolidated_workspace` fixture keeps its consolidations at the sibling default, so dropping the
+pass-through passed the whole suite. `write_consolidation_checkpoint` recorded any `--cluster`
+string verbatim (the gate's check 8 catches it only at tag time), and `--base` without
+`--consolidation` was inert. mypy reports 9 pre-existing errors in `cli.py:300-360` (one `report`
+local, three types — SP5's debt, untouched).
+
+**What I did.** Task 6 landed as the brief specifies (`e609cf0`; 5 tests; suite 1239 + 11). Fix
+round 1 (`cdcece5`) under three rulings. **R20:** a CLI test pins `--consolidations` with a
+non-sibling root (with the flag: exit 0, no findings; without it, `--strict` exits 3 on the
+missing consolidation checkpoint); a mutant that drops the keyword fails it. **R21:**
+`write_consolidation_checkpoint` reads the base's `checkpoint.json` and refuses a `cluster_id`
+that differs from the record's (a base without the record is "unreadable"); the reviewer's
+`base.name == cluster` guard was rejected because a consolidation may follow another
+consolidation, whose directory is `NN`; file list extended by ruling to `draft/checkpoint.py` and
+`test_checkpoint.py`; the CLI surfaces it as exit 1. **R22:** `--base` without `--consolidation`
+is `parser.error`, exit 2. **R23:** `render --out` keeps writing a 0-byte `structures.md` for a
+structure-free manifest as specified; logged for SP7c beside the checkpoint writer's asymmetry.
+Suite 1244 + 11. Deferred to SP7c: `--timeline` required-but-unread on the consolidation path;
+`parser.error` prints the top-level usage; an uncaught `FileExistsError` when `--out` names a file
+(every verb's pattern); the `end=""` mutant is invisible because the structure-free test never
+reaches `print` — remedy noted for the whole-branch fix wave (stdout == the written file's bytes).
