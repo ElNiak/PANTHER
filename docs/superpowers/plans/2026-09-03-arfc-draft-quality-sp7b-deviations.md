@@ -710,3 +710,33 @@ no finding beyond `manifest: unloadable` — accepted; with a manifest it is unk
 the gate compares the bytes. Deferred to the whole-branch fix wave: the `_structures`/`lint()`
 docstrings disagree on frozen-versus-live and one test name still says "frozen bytes". Deferred
 to SP7c: duplicate block ids collapse last-wins in `parse_blocks` (Task 2's shape).
+
+---
+
+## D31 — Task 9 as landed (`e49d1d1`, fix `8246a15`): the skill names the member key each kind takes
+
+**Plan said.** The skill text verbatim: "with the id, the kind, the title, the section it belongs
+to, and its members. Each member names a `claim:` …"; "`ai_rfc_draft_render` returns the blocks.
+Paste them verbatim into the owning section"; a Widths section silent on which kind requires a
+width; "see the figures skill".
+
+**Code showed.** The member key is kind-dependent (`schema.py:142-159`: `fields` for wire-format,
+message and record; `values` for enum; `states` and `transitions` for state-machine) and the tool's
+second parameter is named `fields` while carrying the whole body — the reviewer reproduced an enum
+declared under `fields:` being refused, so two of five kinds were unreachable by following the
+skill. A state is a bare name with no claim, and the literal reading (states as mappings) reaches
+an uncaught `TypeError` at `schema.py:247` that escapes the tool's `except SchemaError`. Width is
+mandatory for wire-format only (`schema.py:209-217`). `render_all` returns one string of every
+structure ordered by id, and nothing checks placement. Siblings cross-reference by backticked
+slug.
+
+**What I did.** Task 9 landed byte-identical to the brief (`e49d1d1`; suite 1281 + 11). Fix
+round 1 (`8246a15`) under **R36**: the reviewer's five minimal rewordings applied verbatim —
+members under the key the kind takes, with the note that the `fields` parameter carries the whole
+body; each field, value and transition names a claim, a state is just a name; every wire-format
+field needs a width, a message or record field may omit it; one block per structure, ordered by
+id, pasted into the section that structure names; `ai-rfc-figures`. The reworded step loads all
+four shapes through `schema.load`. Closed under **R37** (a prose-only round that applies
+reviewer-quoted text is verified by the controller's diff check, no second review). Carried to the
+whole-branch fix wave: restore the dropped "declare the claim first" hint; `schema.py` must refuse
+a non-string state with `SchemaError`, not `TypeError`. Left to SP7c: the tool parameter's name.
