@@ -55,3 +55,11 @@ def test_a_strict_finding_exits_three(tmp_path):
         ai_rfc, ["check", str(manifest), "--out", str(tmp_path / "out"), "--strict"]
     )
     assert result.exit_code == 3
+
+
+def test_panther_ai_rfc_help_is_the_root_help():
+    """`panther ai-rfc --help` is `ai-rfc --help`, forwarded untouched."""
+    result = CliRunner().invoke(cli, ["ai-rfc", "--help"])
+    assert result.exit_code == 0
+    assert "Lifecycle" in result.output
+    assert "init" in result.output and "run" in result.output
