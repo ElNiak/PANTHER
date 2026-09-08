@@ -20,6 +20,7 @@
 - **No shims.** `experiment/workspace.py`'s `Target`/`TARGETS` and `prepare`'s target-table path are removed when `init` replaces them (Task 5); campaigns prepare from a config. `python -m ai_rfc.<sub>` keeps working because each module keeps a `main()` around its `configure()` — that is the server's and the raw arm's door until CLI-3, not a compatibility layer.
 - **The substrate stays model-free and, except acquisition (`init`: clone + forge), network-free.** `run` never opens a socket.
 - Line length 88, Google docstrings on public functions, `from __future__ import annotations`, comments only for a non-obvious *why*. Fixed dates in fixtures (`2026-01-01T00:00:09+00:00` style). A test needle must never match a fixture's own name; a RED test must fail at the path the change addresses.
+- **Registered-verb module layout (D1, non-negotiable — it is test-enforced).** Every row of `ENTRY_POINTS` names a **`cli` module inside its own package**, and that package carries a `__main__.py`. `EntryPoint.module`'s own docstring (`ai_rfc/entrypoints.py:40-41`) states it: "Dotted path of the `cli` module, not of its package — the `__main__` guard test derives that name by trimming one segment." Two tests enforce it: `tests/substrate/test_cli_conventions.py:136-151` asserts **set equality** between `{entry.module for entry in ENTRY_POINTS}` and every `cli.py` found by `rglob` (excluding the root door and anything under `server/` or `experiment/`), and `:48-58` derives `<package>.__main__` by trimming one segment and imports it. All ten existing packages comply. Therefore **each lifecycle verb is its own sub-package**: `ai_rfc/lifecycle/<verb>/{__init__.py,__main__.py,cli.py}`, registered as `f"{PACKAGE}.lifecycle.<verb>.cli"`. The seven verbs are `config`, `init`, `run`, `status`, `verify`, `doctor`, `toolchain`. Shared implementation stays as **flat modules** beside them — `ai_rfc/lifecycle/{workspace,common,profile}.py` — because they are not registered verbs. Inside a verb's `cli.py` the shared imports are therefore two dots (`from ..common import …`, `from ..workspace import Layout`) and the package imports are three (`from ... import __version__`, `from ...config import load_config`). Each `__main__.py` is the existing one-liner pattern the other packages use; copy `ai_rfc/draft/__main__.py`. Do NOT register a flat `ai_rfc/lifecycle/<verb>.py`: it fails both tests above.
 
 ## File Structure
 
@@ -31,11 +32,12 @@
 | `ai_rfc/entrypoints.py` | 2 | Registry rows gain `configure`/`run`; sections gain "Lifecycle" and "Agent" |
 | `ai_rfc/ledger.py` (new) | 3 | `ClusterState`, `clusters(workspace, window)`, `next_cluster`, `partial`, `window_of(workspace)`; the ONE progress reader |
 | `ai_rfc/pipeline/state.py`, `ai_rfc/draft/completeness.py`, `ai_rfc/server/core/queries.py`, `ai_rfc/experiment/{progress,metrics,per_cluster}.py` | 3 | Read ledger rows instead of computing progress themselves |
-| `ai_rfc/lifecycle/__init__.py`, `ai_rfc/lifecycle/workspace.py` (new) | 4 | `Workspace` gains `config`, `init_record`, `refcache`, `runs`; `acquire()` (clone at pin + forge snapshot), `scaffold()`, `seal()`; digest helpers moved from `experiment/workspace.py` |
-| `ai_rfc/lifecycle/init.py` (new) | 4 | `ai-rfc init --config` |
+| `ai_rfc/lifecycle/__init__.py`, `ai_rfc/lifecycle/workspace.py` (new, flat) | 4 | `Workspace` gains `config`, `init_record`, `refcache`, `runs`; `acquire()` (clone at pin + forge snapshot), `scaffold()`, `seal()`; digest helpers moved from `experiment/workspace.py` |
+| `ai_rfc/lifecycle/init/{__init__,__main__,cli}.py` (new package, D1) | 4 | `ai-rfc init --config` |
 | `ai_rfc/experiment/workspace.py` | 4, 5 | `prepare(config, …)` over `lifecycle.workspace`; `Target`/`TARGETS` removed; `preseed`, `reseal`, `copy_workspace` kept |
-| `ai_rfc/lifecycle/{run,status,verify}.py` (new) | 5 | `ai-rfc run` (deterministic stages, boundary stop), `ai-rfc status`, `ai-rfc verify` |
-| `ai_rfc/lifecycle/doctor.py` (new), `ai_rfc/toolchain.py` (moved from `experiment/toolchain.py`) | 6 | `ai-rfc doctor`, `ai-rfc toolchain provision\|verify` |
+| `ai_rfc/lifecycle/common.py` (new, flat) | 5 | `load_sealed`, `report`, `add_config_argument`, `config_path_from` — shared by every verb, not itself a verb |
+| `ai_rfc/lifecycle/{run,status,verify}/{__init__,__main__,cli}.py` (new packages, D1) | 5 | `ai-rfc run` (deterministic stages, boundary stop), `ai-rfc status`, `ai-rfc verify` |
+| `ai_rfc/lifecycle/{doctor,toolchain}/{__init__,__main__,cli}.py` (new packages, D1), `ai_rfc/lifecycle/profile.py` (moved, flat), `ai_rfc/toolchain.py` (moved from `experiment/toolchain.py`) | 6 | `ai-rfc doctor`, `ai-rfc toolchain provision\|verify` |
 | `$PANTHER/panther/cli/commands/ai_rfc.py` | 7 | Passthrough onto `ai_rfc.cli.main` (SP1 made it one; Task 7 pins the equality of help) |
 | `README.md`, `ai_rfc/README.md`, `docs/experiment-protocol.md` | 7 | The one-door flow documented |
 | `tests/cli/{test_config,test_root,test_init,test_run,test_status_verify,test_doctor}.py`, `tests/ledger/test_ledger.py`, `tests/experiment/test_workspace.py` | all | One test module per unit |
@@ -656,8 +658,8 @@ git commit -m "feat: declare a reconstruction in recon.yaml through one field ta
 
 **Files:**
 - Modify: `ai_rfc/cli.py` (replace SP1's dispatcher), `ai_rfc/entrypoints.py` (`EntryPoint` rows and sections), `ai_rfc/{check,history,forge,timeline,views,draft,coverage,pipeline}/cli.py` (the `configure`/`run` split), `ai_rfc/pipeline/cli.py` (`--from`/`--until` choices in pipeline order)
-- Create: `ai_rfc/lifecycle/__init__.py`, `ai_rfc/lifecycle/config_cmd.py` (`ai-rfc config example|reference`)
-- Test: `tests/cli/test_root.py` (new), `tests/substrate/test_cli_conventions.py` (extend)
+- Create: `ai_rfc/lifecycle/__init__.py`, and the `config` verb package per D1 — `ai_rfc/lifecycle/config/__init__.py`, `ai_rfc/lifecycle/config/__main__.py`, `ai_rfc/lifecycle/config/cli.py` (`ai-rfc config example|reference`)
+- Test: `tests/cli/test_root.py` (new), `tests/substrate/test_cli_conventions.py` (extend), `tests/substrate/test_root_cli.py` (update — it holds SP1's three dispatcher tests, see Step 6)
 
 **Interfaces:**
 - Consumes: `ai_rfc.entrypoints.ENTRY_POINTS`, `ai_rfc.config.example/reference_markdown` (Task 1).
@@ -884,19 +886,34 @@ def main(argv: list[str] | None = None) -> int:
     return args._run(args)
 ```
 
-In `ai_rfc/entrypoints.py`: add `LIFECYCLE = "Lifecycle: one config, one workspace"` and `AGENT = "Agent verbs (used inside sessions)"`, define `SECTIONS = (LIFECYCLE, DRIVEN, BY_HAND, PERFORMED, AGENT)`, and add the first lifecycle row at the top of `ENTRY_POINTS`:
+In `ai_rfc/entrypoints.py`: add `LIFECYCLE = "Lifecycle: one config, one workspace"` and `AGENT = "Agent verbs (used inside sessions)"`, define `SECTIONS = (LIFECYCLE, DRIVEN, BY_HAND, PERFORMED, AGENT)` (it does not exist today — this creates it), and add the first lifecycle row at the top of `ENTRY_POINTS`:
 
 ```python
     EntryPoint(
         "config",
         "ai-rfc config",
-        f"{PACKAGE}.lifecycle.config_cmd",
+        f"{PACKAGE}.lifecycle.config.cli",
         "Print a starter recon.yaml (example) or the field reference (reference)",
         LIFECYCLE,
     ),
 ```
 
-Create `ai_rfc/lifecycle/__init__.py` (docstring only: "Operator lifecycle verbs: one config, one workspace, one command that does what is next.") and `ai_rfc/lifecycle/config_cmd.py`:
+Every later lifecycle row (Tasks 4, 5, 6) is inserted **immediately after the previous lifecycle row**, never appended elsewhere: `tests/substrate/test_cli_conventions.py:163-175` asserts entries sharing a section are contiguous, because declaration order is help order.
+
+Create `ai_rfc/lifecycle/__init__.py` (docstring only: "Operator lifecycle verbs: one config, one workspace, one command that does what is next." — plus `class LifecycleError(RuntimeError)`, which Task 4 uses), `ai_rfc/lifecycle/config/__init__.py` (docstring only), `ai_rfc/lifecycle/config/__main__.py` (copy the existing pattern verbatim from `ai_rfc/draft/__main__.py`, changing only the docstring to ``` ``python -m ai_rfc.lifecycle.config``. ```):
+
+```python
+"""``python -m ai_rfc.lifecycle.config``."""
+
+import sys
+
+from . import cli
+
+if __name__ == "__main__":
+    sys.exit(cli.main())
+```
+
+and `ai_rfc/lifecycle/config/cli.py` (note the three-dot imports — the module now sits one level deeper than the plan's original flat layout, per D1):
 
 ```python
 """``ai-rfc config example|reference``."""
@@ -905,8 +922,8 @@ from __future__ import annotations
 
 import argparse
 
-from .. import __version__
-from ..config import example, reference_markdown
+from ... import __version__
+from ...config import example, reference_markdown
 
 
 def configure(parser: argparse.ArgumentParser) -> None:
@@ -917,7 +934,7 @@ def configure(parser: argparse.ArgumentParser) -> None:
 
 
 def build_standalone_parser() -> argparse.ArgumentParser:
-    """The parser ``python -m ai_rfc.lifecycle.config_cmd`` uses."""
+    """The parser ``python -m ai_rfc.lifecycle.config`` uses."""
     parser = argparse.ArgumentParser(prog="ai-rfc config")
     parser.add_argument("--version", action="version", version=f"ai-rfc config {__version__}")
     configure(parser)
@@ -938,14 +955,16 @@ def main(argv: list[str] | None = None) -> int:
 - [ ] **Step 6: Run the suites**
 
 Run: `cd $AIRFC && SSLKEYLOGFILE= $PY -m pytest tests/cli tests/substrate -n auto`
-Expected: all PASS. SP1's dispatcher tests in `tests/cli/` or `tests/substrate/test_cli_conventions.py` that asserted the old dispatcher's hand-written usage (`test_help_lists_every_verb_in_registration_order`, `test_an_unknown_verb_exits_two`, `test_a_verb_forwards_its_arguments_untouched`) must be updated to the argparse behaviour (help via `SystemExit(0)`, unknown verb via `SystemExit(2)` with "invalid choice"); the forwarding property is now `test_a_verb_forwards_to_its_module_run`.
+Expected: all PASS. SP1's three dispatcher tests live in **`tests/substrate/test_root_cli.py`** — `test_help_lists_every_verb_in_registration_order:13`, `test_an_unknown_verb_exits_two:33`, `test_a_verb_forwards_its_arguments_untouched:44` — not in `tests/cli/` and not in `test_cli_conventions.py`. They assert the old dispatcher's hand-written usage and must be updated to the argparse behaviour (help via `SystemExit(0)`, unknown verb via `SystemExit(2)` carrying "invalid choice"); the forwarding property is now `test_a_verb_forwards_to_its_module_run` in `tests/cli/test_root.py`. All three are data-driven off `ENTRY_POINTS`, so they will automatically demand the new lifecycle verbs behave — which is the point.
+
+Two conventions tests in `tests/substrate/test_cli_conventions.py` also cover every new row and must pass without being weakened: `test_every_entry_point_reports_its_version` calls `entry.load().main(["--version"])` and requires `SystemExit(0)` printing both `entry.prog` and `__version__` (satisfied by each verb's `build_standalone_parser`), and `test_a_malformed_invocation_exits_two_everywhere` calls `entry.load().main(["--no-such-flag"])` and requires `SystemExit(2)`. If either fails, the fix is the new module, never the test.
 
 - [ ] **Step 7: Lint and commit**
 
 ```bash
 cd $AIRFC && $PY -m black ai_rfc tests/cli tests/substrate/test_cli_conventions.py && $PY -m flake8 --max-line-length=88 ai_rfc tests/cli && $PY -m mypy --follow-imports=silent ai_rfc/cli.py ai_rfc/lifecycle ai_rfc/draft/cli.py ai_rfc/pipeline/cli.py
 git status --short
-git add ai_rfc/cli.py ai_rfc/entrypoints.py ai_rfc/lifecycle/__init__.py ai_rfc/lifecycle/config_cmd.py ai_rfc/check/cli.py ai_rfc/history/cli.py ai_rfc/forge/cli.py ai_rfc/timeline/cli.py ai_rfc/views/cli.py ai_rfc/draft/cli.py ai_rfc/coverage/cli.py ai_rfc/pipeline/cli.py tests/cli/test_root.py tests/substrate/test_cli_conventions.py
+git add ai_rfc/cli.py ai_rfc/entrypoints.py ai_rfc/lifecycle/__init__.py ai_rfc/lifecycle/config/__init__.py ai_rfc/lifecycle/config/__main__.py ai_rfc/lifecycle/config/cli.py ai_rfc/check/cli.py ai_rfc/history/cli.py ai_rfc/forge/cli.py ai_rfc/timeline/cli.py ai_rfc/views/cli.py ai_rfc/draft/cli.py ai_rfc/coverage/cli.py ai_rfc/pipeline/cli.py tests/cli/__init__.py tests/cli/test_root.py tests/substrate/test_cli_conventions.py tests/substrate/test_root_cli.py
 git commit -m "feat: one argparse root mounts every command through configure and run"
 ```
 
@@ -955,7 +974,7 @@ git commit -m "feat: one argparse root mounts every command through configure an
 
 **Files:**
 - Create: `ai_rfc/ledger.py`
-- Modify: `ai_rfc/pipeline/state.py` (`_checkpoint`), `ai_rfc/draft/completeness.py` (`unprocessed_clusters`), `ai_rfc/server/core/queries.py` (`_processed_cluster_ids`, `cluster_next`, `status`), `ai_rfc/experiment/progress.py` (`window_progress`), `ai_rfc/experiment/metrics.py` (`cluster_artifacts`), `ai_rfc/experiment/per_cluster.py` (`partial_reason` callers)
+- Modify: `ai_rfc/pipeline/state.py` (`_checkpoint`), `ai_rfc/draft/completeness.py` (the computation that fills the `unprocessed_clusters` **field** of `CompletenessReport` — the field is at `completeness.py:223` and is populated at `:269`; it is not a function, so re-anchor on `checkpoint_records:60` and `build:231` as the Interfaces block below correctly names), `ai_rfc/server/core/queries.py` (`_processed_cluster_ids`, `cluster_next`, `status`), `ai_rfc/experiment/progress.py` (`window_progress`), `ai_rfc/experiment/metrics.py` (`cluster_artifacts`), `ai_rfc/experiment/per_cluster.py` (`partial_reason` callers)
 - Test: `tests/ledger/__init__.py` (empty), `tests/ledger/test_ledger.py`
 
 **Interfaces:**
@@ -1317,7 +1336,7 @@ def counts(states: tuple[ClusterState, ...]) -> dict[str, int]:
 - [ ] **Step 4: Point the five readers at the ledger**
 
 1. `ai_rfc/pipeline/state.py` `_checkpoint`: replace the `ids`/`frozen` computation with `states = ledger.clusters(ws.root); total = len(states); frozen = sum(1 for s in states if s.checkpoint)` (import `from .. import ledger`); the PENDING/PARTIAL/DONE messages stay word-for-word.
-2. `ai_rfc/draft/completeness.py`: where `unprocessed_clusters` is computed from timeline rows minus `checkpoint_records`, compute it as `[s.id for s in ledger.clusters(workspace) if not s.checkpoint]` — `build()` takes five paths today; add the workspace root parameter it already derives them from (`draft/cli.py` passes `workspace`), or derive the root as `checkpoints_dir.parent`. Keep `checkpoint_records` for attribution.
+2. `ai_rfc/draft/completeness.py`: where the `unprocessed_clusters` field is computed from timeline rows minus `checkpoint_records`, compute it as `[s.id for s in ledger.clusters(root) if not s.checkpoint]`. **Derive the root as `checkpoints_dir.parent`; do NOT add a workspace parameter to `build()`.** `build(timeline_dir, checkpoints_dir, manifest_path, revisions_path, draft_repo)` is at `completeness.py:231-237` and its only caller passes those five paths at `draft/cli.py:267-273` — a sixth parameter would change that call site, and `ai_rfc/draft/cli.py` is deliberately **not** in this task's Files list (Task 2 already rewrote it; two tasks editing one file is the collision this ordering exists to avoid). Keep `checkpoint_records` for attribution.
 3. `ai_rfc/server/core/queries.py`: delete `_processed_cluster_ids`; `cluster_next` becomes `state = ledger.next_cluster(ctx.workspace); return None if state is None else next(row for row in _clusters(ctx) if row["id"] == state.id)`; in `status()`, `processed` becomes `{s.id for s in ledger.clusters(ctx.workspace) if s.done}` and the payload gains `"ledger": ledger.counts(states)`.
 4. `ai_rfc/experiment/progress.py` `window_progress`: `counted = [s for s in ledger.clusters(workspace) if s.in_window and not s.pre_seeded]`; `done = sum(1 for s in counted if s.done)`; the first `not s.done` row is returned as `(row_dict, artifacts_dict, index, done, total)` where `row_dict` is the timeline row (read once via `metrics.window_clusters`) and `artifacts_dict` is `cluster_artifacts(workspace, row)` — keep the tuple shape so `per_cluster.py` is untouched here.
 5. `ai_rfc/experiment/metrics.py` `cluster_artifacts`: build the dict from the ledger row for that id (`checkpoint`, `pre_seeded`, `revision_tag`, `normative_change`, `tag_exists`, and `artifacts = state.done and state.in_window and not state.pre_seeded`); `ai_rfc/experiment/per_cluster.py`: replace the body of `partial_reason(artifacts)` callers with `ledger` rows where the row is at hand, or keep `partial_reason` as the one-liner `return ledger.ClusterState(...)`-free version reading the same three keys — its three strings are now defined in one place (`ClusterState.partial_reason`); make `per_cluster.partial_reason` return `state.partial_reason` for the row's ledger state.
@@ -1343,8 +1362,8 @@ git commit -m "feat: read per-cluster progress from one ledger every surface agr
 ### Task 4: `ai-rfc init --config` — acquire, scaffold, seal
 
 **Files:**
-- Create: `ai_rfc/lifecycle/workspace.py`, `ai_rfc/lifecycle/init.py`
-- Modify: `ai_rfc/entrypoints.py` (row `init`), `ai_rfc/experiment/workspace.py` (imports the moved helpers; `Target`/`TARGETS` removed; `prepare(config, …)`), `ai_rfc/experiment/cli.py` (`workspace prepare --config`), `tests/experiment/conftest.py` (`fixture_config` replaces `fixture_target`), `tests/experiment/test_workspace.py`
+- Create: `ai_rfc/lifecycle/workspace.py` (flat), `ai_rfc/lifecycle/init/{__init__,__main__,cli}.py` (verb package, D1)
+- Modify: `ai_rfc/entrypoints.py` (row `init`), `ai_rfc/experiment/workspace.py` (imports the moved helpers; `Target`/`TARGETS` removed; `prepare(config, …)`), `ai_rfc/experiment/cli.py` (`workspace prepare --config`), `tests/conftest.py` (**APPEND** — the file already exists and owns `pytest_addoption("--update-goldens")`; overwriting it breaks every golden test), `tests/experiment/conftest.py` (`fixture_config` replaces `fixture_target`), `tests/experiment/test_workspace.py`, `tests/experiment/test_per_cluster.py` (it imports `fixture_target` at `:15` and calls it at `:30` inside `prepare(..., panther_repo=panther_repo, ...)` — both change here)
 - Test: `tests/cli/test_init.py` (new)
 
 **Interfaces:**
@@ -1462,7 +1481,12 @@ def test_init_with_references_needs_a_toolchain_and_seals_them(tmp_path, source_
     assert json.loads(ws.init_record.read_text())["references"] == ["RFC9000"]
 ```
 
-`template_repo` and `toolchain_record` are the fixtures SP7a put in `tests/experiment/conftest.py` and `tests/experiment/test_workspace.py`; move both into a shared `tests/conftest.py` at the repository root so `tests/cli` can use them (pytest discovers a root conftest for every subtree).
+`template_repo` (`tests/experiment/conftest.py:53`, yielding `(str, str)` — a path string and a commit sha, which is why `template, commit = template_repo` destructures correctly) and `toolchain_record` (`tests/experiment/conftest.py:115`) are the fixtures SP7a added. Move both into the repository-root `tests/conftest.py` so `tests/cli` can use them (pytest discovers a root conftest for every subtree).
+
+Two facts the original plan text got wrong, both of which bite silently:
+
+- **`tests/conftest.py` already exists.** It is short and holds only `pytest_addoption` registering `--update-goldens`. **Append** the fixtures to it; do not create or overwrite it, or that option disappears and every golden test errors on an unknown flag.
+- **`toolchain_record` is defined twice.** Besides the conftest copy there is a module-local shadow at `tests/experiment/test_workspace.py:370`. Moving only the conftest copy leaves the shadow in force for that module, so the two definitions silently diverge. Delete the shadow when you move the conftest copy, and re-run `tests/experiment/test_workspace.py` specifically to confirm it still passes against the shared fixture.
 
 - [ ] **Step 2: Run them to verify they fail**
 
@@ -1552,7 +1576,9 @@ def acquire(config: ReconConfig, layout: Layout) -> Acquired:
 
 with `from ..config import ReconConfig`, `from ..pipeline.run import perform`, `from ..pipeline.stages import BY_NAME`, `from ..pipeline.workspace import Workspace`, and `class LifecycleError(RuntimeError)` in `ai_rfc/lifecycle/__init__.py`. (`Workspace.latest_forge_snapshot()` exists in `pipeline/workspace.py`; `perform`'s forge builder passes `--repo <clone> --out <forge root> --host`.) The forge stage reads the token from `config.source.token_env`'s variable through the forge CLI's own environment handling, so nothing here touches tokens.
 
-- [ ] **Step 4: Write `ai_rfc/lifecycle/init.py`**
+- [ ] **Step 4: Write the `init` verb package**
+
+Create `ai_rfc/lifecycle/init/__init__.py` (docstring only) and `ai_rfc/lifecycle/init/__main__.py` (the `ai_rfc/draft/__main__.py` pattern, docstring ``` ``python -m ai_rfc.lifecycle.init``. ```), then `ai_rfc/lifecycle/init/cli.py` — note the three-dot package imports and two-dot shared-module imports required by D1:
 
 ```python
 """``ai-rfc init --config recon.yaml``: build the workspace a reconstruction runs in."""
@@ -1566,10 +1592,10 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .. import __version__
-from ..config import ConfigError, ReconConfig, dump_config, load_config
-from . import LifecycleError
-from .workspace import (
+from ... import __version__
+from ...config import ConfigError, ReconConfig, dump_config, load_config
+from .. import LifecycleError
+from ..workspace import (
     TEMPLATE_COMMIT,
     TEMPLATE_URL,
     Layout,
@@ -1682,7 +1708,7 @@ def configure(parser: argparse.ArgumentParser) -> None:
 
 
 def build_standalone_parser() -> argparse.ArgumentParser:
-    """The parser ``python -m ai_rfc.lifecycle.init`` uses."""
+    """The parser ``python -m ai_rfc.lifecycle.init`` uses (its ``cli`` module)."""
     parser = argparse.ArgumentParser(prog="ai-rfc init")
     parser.add_argument("--version", action="version", version=f"ai-rfc init {__version__}")
     configure(parser)
@@ -1713,7 +1739,7 @@ def main(argv: list[str] | None = None) -> int:
     return run(build_standalone_parser().parse_args(argv))
 ```
 
-Register `EntryPoint("init", "ai-rfc init", f"{PACKAGE}.lifecycle.init", "Create the workspace from recon.yaml: clone at the pin, fetch the forge, scaffold the draft", LIFECYCLE)` after `config` in `ENTRY_POINTS`.
+Register `EntryPoint("init", "ai-rfc init", f"{PACKAGE}.lifecycle.init.cli", "Create the workspace from recon.yaml: clone at the pin, fetch the forge, scaffold the draft", LIFECYCLE)` **immediately after the `config` row** in `ENTRY_POINTS` — the section-contiguity test requires it, and the module path ends in `.cli` per D1.
 
 - [ ] **Step 5: Re-point the harness at the moved helpers and make `prepare` take a config**
 
@@ -1756,6 +1782,8 @@ def prepare(
 
 (`preseed` lost its `panther_repo` parameter in SP1; `read_clusters` is `ai_rfc.timeline.store.read_clusters`; `out_of_window` stays. `pristine.json` keeps `target`, `window`, `clone_head`, `draft_head`, `pre_seeded` because `campaign init`, `copy_workspace` and `metrics.window_clusters` read them.) In `ai_rfc/experiment/cli.py`, `workspace prepare` drops the positional target and `--panther-repo`, gains `--config` (required) and loads it with `load_config`. In `tests/experiment/conftest.py`, replace `fixture_target(source, window)` with `fixture_config(tmp_path, source: Path, window=(2, 2)) -> tuple[ReconConfig, Path]` that writes a `recon.yaml` (`name: fixture`, `source.repo: <source>/clone`, `host: none`, `pin: <HEAD of that clone>`, `draft.name: draft-test-fixture`, `window: [low, high]`) and returns `(load_config(path), path)`; the `pristine` fixture calls `prepare(config, root=…, config_path=path, template=…, template_commit=…)`. Update every `fixture_target` caller in `tests/experiment/test_workspace.py` (the scaffold tests call `scaffold(config, Layout(dest), template=…, template_commit=…)` now).
 
+**`fixture_target` has 16 call sites across three files, not one.** It is a plain module-level function at `tests/experiment/conftest.py:80`, not a pytest fixture, so callers reach it by `from .conftest import fixture_target`. The sites are `tests/experiment/conftest.py:107`; `tests/experiment/test_workspace.py` (import `:24`; calls `:33, :42, :72, :78, :91, :296, :361, :401, :434, :456, :475, :497, :642, :678`); and **`tests/experiment/test_per_cluster.py`** (import `:15`; call `:30`). The last file is the one the original plan missed. Its `wide_pristine` fixture calls `prepare(fixture_target(fixture_workspace, window=(1, 2)), root=…, panther_repo=panther_repo, template=…, template_commit=commit)` — both the positional `Target` and the `panther_repo=` keyword disappear in this step, so it must become `prepare(config, root=…, config_path=path, template=…, template_commit=commit)` built from `fixture_config`. Verify with `grep -rn "fixture_target\|panther_repo" tests/` before committing: zero hits outside a deliberate CLI-3 leftover.
+
 - [ ] **Step 6: Run the suites**
 
 Run: `cd $AIRFC && SSLKEYLOGFILE= $PY -m pytest tests/cli/test_init.py tests/experiment -n auto`
@@ -1766,7 +1794,7 @@ Expected: all PASS. `test_scaffold_is_byte_deterministic` still holds (the confi
 ```bash
 cd $AIRFC && $PY -m black ai_rfc tests && $PY -m flake8 --max-line-length=88 ai_rfc/lifecycle ai_rfc/experiment/workspace.py tests/cli && $PY -m mypy --follow-imports=silent ai_rfc/lifecycle
 git status --short
-git add ai_rfc/lifecycle/__init__.py ai_rfc/lifecycle/workspace.py ai_rfc/lifecycle/init.py ai_rfc/entrypoints.py ai_rfc/experiment/workspace.py ai_rfc/experiment/cli.py tests/conftest.py tests/cli/test_init.py tests/experiment/conftest.py tests/experiment/test_workspace.py
+git add ai_rfc/lifecycle/workspace.py ai_rfc/lifecycle/init/__init__.py ai_rfc/lifecycle/init/__main__.py ai_rfc/lifecycle/init/cli.py ai_rfc/lifecycle/__init__.py ai_rfc/entrypoints.py ai_rfc/experiment/workspace.py ai_rfc/experiment/cli.py tests/conftest.py tests/cli/test_init.py tests/experiment/conftest.py tests/experiment/test_workspace.py tests/experiment/test_per_cluster.py
 git commit -m "feat: initialise a workspace from recon.yaml, and prepare campaign pristines from it"
 ```
 
@@ -1775,9 +1803,9 @@ git commit -m "feat: initialise a workspace from recon.yaml, and prepare campaig
 ### Task 5: `ai-rfc run`, `ai-rfc status`, `ai-rfc verify` — the deterministic half behind one config
 
 **Files:**
-- Create: `ai_rfc/lifecycle/common.py`, `ai_rfc/lifecycle/run.py`, `ai_rfc/lifecycle/status.py`, `ai_rfc/lifecycle/verify.py`
-- Modify: `ai_rfc/pipeline/cli.py` (`status_payload`/`print_status` made public), `ai_rfc/entrypoints.py` (rows `run`, `status`, `verify`)
-- Test: `tests/cli/test_run.py`, `tests/cli/test_status_verify.py` (new); `tests/conftest.py` (`source_repo` and `initialised` fixtures)
+- Create: `ai_rfc/lifecycle/common.py` (flat — shared, not a verb), and three verb packages per D1: `ai_rfc/lifecycle/{run,status,verify}/{__init__,__main__,cli}.py`
+- Modify: `ai_rfc/pipeline/cli.py` (`status_payload`/`print_status` made public), `ai_rfc/entrypoints.py` (rows `run`, `status`, `verify`, each inserted immediately after the previous lifecycle row), `ai_rfc/lifecycle/init/cli.py` (loses `add_config_argument`/`config_path_from`/`_report` to `common.py` and imports them back)
+- Test: `tests/cli/test_run.py`, `tests/cli/test_status_verify.py` (new); `tests/conftest.py` (**append** `source_repo` and `initialised` fixtures — the file exists)
 
 **Interfaces:**
 - Consumes: `load_config`, `drift`, `dump_config` (Task 1); `Layout`, `initialise`, `verify_digest` (Task 4); `ledger.clusters/next_cluster/counts` (Task 3); `ai_rfc.pipeline.run.perform`, `ai_rfc.pipeline.stages.{STAGES, BY_NAME, Performer, is_optional}`, `ai_rfc.pipeline.state.{state, State}`; `ai_rfc.draft.cli.main` (completeness).
@@ -2001,9 +2029,11 @@ def load_sealed(config_path: Path) -> tuple[ReconConfig, ReconConfig, Layout, li
     return given, sealed, layout, noted
 ```
 
-Move `add_config_argument`/`config_path_from`/`_report` out of `init.py` into this module and import them there.
+`common.py` is a **flat module** at `ai_rfc/lifecycle/common.py`, not a verb package — it registers no `EntryPoint`, so D1 does not apply to it. Its own imports stay two-dot (`from ..config import …`, `from . import LifecycleError`, `from .workspace import Layout`) exactly as written above. Move `add_config_argument`/`config_path_from`/`_report` out of `ai_rfc/lifecycle/init/cli.py` into it, and import them back there as `from ..common import add_config_argument, config_path_from, report` (renaming `_report` to `report`, which is what every other verb calls it).
 
-- [ ] **Step 4: `run.py`**
+- [ ] **Step 4: the `run` verb package**
+
+Create `ai_rfc/lifecycle/run/{__init__.py,__main__.py}` per D1, then `ai_rfc/lifecycle/run/cli.py`:
 
 ```python
 """``ai-rfc run --config``: perform every deterministic stage that is next, then stop at the boundary."""
@@ -2012,13 +2042,13 @@ from __future__ import annotations
 
 import argparse
 
-from .. import __version__, ledger
-from ..config import ConfigError
-from ..pipeline.run import perform
-from ..pipeline.stages import BY_NAME, STAGES, Performer, is_optional
-from ..pipeline.state import State, state
-from . import LifecycleError
-from .common import add_config_argument, config_path_from, load_sealed, report
+from ... import __version__, ledger
+from ...config import ConfigError
+from ...pipeline.run import perform
+from ...pipeline.stages import BY_NAME, STAGES, Performer, is_optional
+from ...pipeline.state import State, state
+from .. import LifecycleError
+from ..common import add_config_argument, config_path_from, load_sealed, report
 
 BOUNDARY = "mining"
 
@@ -2079,7 +2109,7 @@ def configure(parser: argparse.ArgumentParser) -> None:
     """Arguments of ``ai-rfc run``."""
     parser.description = "Perform every deterministic stage that is next; stop at the agent boundary with the ledger printed."
     add_config_argument(parser)
-    parser.add_argument("--until", choices=[s.name for s in STAGES if s.performer is Performer.DETERMINISTIC and s.ordinal < BY_NAME[BOUNDARY].ordinal], default=None, help="Stop after this stage.")
+    parser.add_argument("--until", choices=[s.name for s in STAGES if s.performer is Performer.DETERMINISTIC and s.ordinal < BY_NAME[BOUNDARY].ordinal and not is_optional(s)], default=None, help="Stop after this stage.")
 
 
 def build_standalone_parser() -> argparse.ArgumentParser:
@@ -2104,11 +2134,11 @@ def main(argv: list[str] | None = None) -> int:
     return run(build_standalone_parser().parse_args(argv))
 ```
 
-(`state()` takes a `Workspace`; `Layout` is one. `is_optional` is SP7a Task 3's predicate; `forge` and `build` are its members. The `until` choices are `history`, `timeline`, `views`.)
+(`state()` takes a `Workspace`; `Layout` is one. `is_optional` is SP7a Task 3's predicate; `OPTIONAL` is exactly `{"forge", "build"}` at `pipeline/stages.py:82`. The `until` choices are `history`, `timeline`, `views` — and the `and not is_optional(s)` clause above is what makes that true: `STAGES` holds twelve stages and `forge` is a fourth DETERMINISTIC stage at ordinal 2, before `mining` at ordinal 5. Without that clause argparse would offer `--until forge`, the walk would skip `forge` via `is_optional`, the `until == stage.name` test would never fire, and `run` would silently continue to the boundary instead of stopping. The walk itself is correct as written: `pin` is MANUAL at ordinal 0 and falls through the first branch, `forge` is skipped, and `mining` — the first AGENT stage — breaks the loop.)
 
 - [ ] **Step 5: `status.py` and `verify.py`**
 
-In `ai_rfc/pipeline/cli.py`, rename `_status_payload` → `status_payload` and `_print_status` → `print_status` (public; update the two internal callers). Then `ai_rfc/lifecycle/status.py`:
+In `ai_rfc/pipeline/cli.py`, rename `_status_payload` → `status_payload` (`:122`) and `_print_status` → `print_status` (`:154`); both are private today with exactly two internal call sites, at `:388` and `:392`, and no references anywhere else in `ai_rfc/` or `tests/`. Then create the `status` and `verify` verb packages per D1 (`{__init__,__main__}.py` each) and write `ai_rfc/lifecycle/status/cli.py`:
 
 ```python
 """``ai-rfc status --config``: stages, ledger, init record and config drift in one view."""
@@ -2118,12 +2148,12 @@ from __future__ import annotations
 import argparse
 import json
 
-from .. import __version__, ledger
-from ..config import ConfigError, drift, load_config
-from ..pipeline.cli import print_status, status_payload
-from . import LifecycleError
-from .common import add_config_argument, config_path_from, report
-from .workspace import Layout
+from ... import __version__, ledger
+from ...config import ConfigError, drift, load_config
+from ...pipeline.cli import print_status, status_payload
+from .. import LifecycleError
+from ..common import add_config_argument, config_path_from, report
+from ..workspace import Layout
 
 
 def payload(config_path) -> dict:
@@ -2195,7 +2225,7 @@ def main(argv: list[str] | None = None) -> int:
     return run(build_standalone_parser().parse_args(argv))
 ```
 
-`ai_rfc/lifecycle/verify.py`:
+`ai_rfc/lifecycle/verify/cli.py`:
 
 ```python
 """``ai-rfc verify --config``: every gate the workspace can pass, in one command."""
@@ -2204,14 +2234,14 @@ from __future__ import annotations
 
 import argparse
 
-from .. import __version__
-from ..config import ConfigError, drift, load_config
-from ..draft import cli as draft_cli
-from ..pipeline.run import perform
-from ..pipeline.stages import BY_NAME
-from . import LifecycleError
-from .common import add_config_argument, config_path_from, report
-from .workspace import Layout
+from ... import __version__
+from ...config import ConfigError, drift, load_config
+from ...draft import cli as draft_cli
+from ...pipeline.run import perform
+from ...pipeline.stages import BY_NAME
+from .. import LifecycleError
+from ..common import add_config_argument, config_path_from, report
+from ..workspace import Layout
 
 
 def verify(config_path, *, strict: bool) -> int:
@@ -2281,7 +2311,7 @@ def main(argv: list[str] | None = None) -> int:
     return run(build_standalone_parser().parse_args(argv))
 ```
 
-(`perform(..., strict=True)` passes `--strict` to check, gate and lint through their builders; `lint` and `build` are SP7a Task 3's stages; `perform`'s `toolchain=` keyword is SP7a Task 3's addition. The `gate` builder needs `revisions.yaml`, `questions.yaml`, checkpoints and the draft — all present after `init`, so a fresh workspace gates clean; completeness reports every cluster unprocessed, which is the finding the test expects.) Register the three `EntryPoint` rows (`run`, `status`, `verify`; prog `ai-rfc <verb>`; section `LIFECYCLE`; summaries "Perform every deterministic stage that is next, then stop at the agent boundary", "Where the reconstruction stands", "Every gate in one exit code").
+(`perform(..., strict=True)` passes `--strict` to check, gate and lint through their builders; `lint` and `build` are SP7a Task 3's stages; `perform`'s `toolchain=` keyword is SP7a Task 3's addition. The `gate` builder needs `revisions.yaml`, `questions.yaml`, checkpoints and the draft — all present after `init`, so a fresh workspace gates clean; completeness reports every cluster unprocessed, which is the finding the test expects.) Register the three `EntryPoint` rows (`run`, `status`, `verify`; module `f"{PACKAGE}.lifecycle.<verb>.cli"` per D1; prog `ai-rfc <verb>`; section `LIFECYCLE`; summaries "Perform every deterministic stage that is next, then stop at the agent boundary", "Where the reconstruction stands", "Every gate in one exit code"), inserted **immediately after the `init` row** so the LIFECYCLE block stays contiguous.
 
 - [ ] **Step 6: Run the suites**
 
@@ -2293,7 +2323,7 @@ Expected: all PASS. If `test_run_performs_the_deterministic_stages_and_stops_at_
 ```bash
 cd $AIRFC && $PY -m black ai_rfc tests && $PY -m flake8 --max-line-length=88 ai_rfc/lifecycle ai_rfc/pipeline/cli.py tests/cli && $PY -m mypy --follow-imports=silent ai_rfc/lifecycle
 git status --short
-git add ai_rfc/lifecycle/common.py ai_rfc/lifecycle/run.py ai_rfc/lifecycle/status.py ai_rfc/lifecycle/verify.py ai_rfc/lifecycle/init.py ai_rfc/pipeline/cli.py ai_rfc/entrypoints.py tests/conftest.py tests/cli/test_init.py tests/cli/test_run.py tests/cli/test_status_verify.py
+git add ai_rfc/lifecycle/common.py ai_rfc/lifecycle/run/__init__.py ai_rfc/lifecycle/run/__main__.py ai_rfc/lifecycle/run/cli.py ai_rfc/lifecycle/status/__init__.py ai_rfc/lifecycle/status/__main__.py ai_rfc/lifecycle/status/cli.py ai_rfc/lifecycle/verify/__init__.py ai_rfc/lifecycle/verify/__main__.py ai_rfc/lifecycle/verify/cli.py ai_rfc/lifecycle/init/cli.py ai_rfc/pipeline/cli.py ai_rfc/entrypoints.py tests/conftest.py tests/cli/test_init.py tests/cli/test_run.py tests/cli/test_status_verify.py
 git commit -m "feat: run, status and verify a reconstruction from one config"
 ```
 
@@ -2302,27 +2332,64 @@ git commit -m "feat: run, status and verify a reconstruction from one config"
 ### Task 6: `ai-rfc doctor` and `ai-rfc toolchain provision|verify` — the environment, checked once
 
 **Files:**
-- Move: `ai_rfc/experiment/toolchain.py` → `ai_rfc/toolchain.py`; `ai_rfc/experiment/profile.py` → `ai_rfc/lifecycle/profile.py`; `tests/experiment/test_toolchain.py` → `tests/cli/test_toolchain.py`
-- Create: `ai_rfc/lifecycle/toolchain_cmd.py`, `ai_rfc/lifecycle/doctor.py`
-- Modify: `ai_rfc/experiment/{config,cli,preflight}.py` (imports; the `toolchain` command leaves `experiment`), `ai_rfc/entrypoints.py` (rows `toolchain`, `doctor`)
+- Move: `ai_rfc/experiment/toolchain.py` → `ai_rfc/toolchain.py`; `ai_rfc/experiment/profile.py` → `ai_rfc/lifecycle/profile.py` (flat — not a verb); `tests/experiment/test_toolchain.py` → `tests/cli/test_toolchain.py`; `tests/experiment/test_profile.py` → `tests/cli/test_profile.py` (orphaned by the `profile.py` move — it imports all three names from `ai_rfc.experiment.profile` at `:5`)
+- Create: `ai_rfc/lifecycle/{toolchain,doctor}/{__init__,__main__,cli}.py` (verb packages, D1)
+- Modify: `ai_rfc/experiment/{config,cli,preflight,paths}.py` (imports; the `toolchain` command leaves `experiment`), `ai_rfc/experiment/optimize/claude_cli.py` (**imports `profile_env` — see Step 1; the original grep does not find it**), `ai_rfc/config.py` (gains `profile_dir`/`default_root`), `ai_rfc/entrypoints.py` (rows `toolchain`, `doctor`, inserted after `verify`)
+- Modify (test patch sites that bind the moved module by object — all six must be re-pointed or they silently stop patching): `tests/experiment/conftest.py`, `tests/experiment/test_config.py`, `tests/experiment/test_cli_optimize.py`
 - Test: `tests/cli/test_doctor.py` (new)
 
 **Interfaces:**
-- Consumes: `ai_rfc.toolchain.{provision, verify, RECORD_FILE, TOOLS_DIR}` (SP7a Task 5, moved); `ai_rfc.lifecycle.profile.{init_profile, login_command, profile_dir}` (moved from `experiment/profile.py`); `ai_rfc.config.{load_config, experiments_root}`; `ai_rfc.draft.build.load_toolchain`.
+- Consumes: `ai_rfc.toolchain.{provision, verify, RECORD_FILE, TOOLS_DIR}` (SP7a Task 5, moved); `ai_rfc.lifecycle.profile.{init_profile, login_command, profile_env}` (moved from `experiment/profile.py`); `ai_rfc.config.{load_config, experiments_root, profile_dir}`; `ai_rfc.draft.build.load_toolchain`.
+- **Corrected contract for the moved `profile` module.** It defines exactly three public functions: `login_command(root: Path) -> str` (`:19`), `init_profile(root: Path) -> Path` (`:24`) and **`profile_env(profile: Path) -> dict[str, str]`** (`:41`). `profile_env` is a GEPA-NO-KEY addition that postdates this plan; it is public, it is load-bearing, and it must survive the move. `profile_dir` is **not** defined here — it lives in `experiment/paths.py:16` and this task moves it into `ai_rfc/config.py`. Note the asymmetry that Step 5 depends on: `init_profile` and `login_command` both take the **experiments root** and derive `root / "profile"` themselves; only `profile_env` takes the profile directory itself.
+- The module has **four** importers, all of which must keep working: `ai_rfc/experiment/cli.py:18`, `ai_rfc/experiment/preflight.py:26`, `ai_rfc/experiment/optimize/claude_cli.py:20`, and `tests/experiment/test_profile.py:5` (moved by this task).
 - Produces: verbs `ai-rfc toolchain provision [--root] [--template] [--template-commit]` and `ai-rfc toolchain verify [--root|--record PATH]`; `ai-rfc doctor [--config PATH] [--json]`; `doctor.checks(config: ReconConfig | None) -> list[Check]` with `Check(name, ok, severity: "error"|"warning"|"info", detail, fix)`. CLI-2's `run` calls `doctor.checks` before launching sessions; Task 7 documents both.
 
 **Why this shape.** Every environment failure the pilot met was discovered mid-run (missing `USER`, an unmounted MCP server, a toolchain that was never installed). `doctor` asks each question once, names the fix, and exits non-zero only for what a run cannot survive. Moving `toolchain.py` and `profile.py` out of `experiment/` is the first step of the D58 split: production needs both; the instrument imports them back.
 
 - [ ] **Step 1: Move the modules and re-point the imports**
 
+Run each move as its own plain command with literal paths — the worktree guard refuses git inside compound (`&&`-chained) commands:
+
 ```bash
-cd $AIRFC && git mv ai_rfc/experiment/toolchain.py ai_rfc/toolchain.py && git mv ai_rfc/experiment/profile.py ai_rfc/lifecycle/profile.py && git mv tests/experiment/test_toolchain.py tests/cli/test_toolchain.py
-grep -rn "experiment.toolchain\|from .toolchain\|from . import toolchain\|experiment.profile\|from .profile\|from .paths import profile_dir" ai_rfc tests plugins docs
+git mv ai_rfc/experiment/toolchain.py ai_rfc/toolchain.py
+git mv ai_rfc/experiment/profile.py ai_rfc/lifecycle/profile.py
+git mv tests/experiment/test_toolchain.py tests/cli/test_toolchain.py
+git mv tests/experiment/test_profile.py tests/cli/test_profile.py
 ```
 
-Rewrite every hit: `from . import toolchain as toolchain_module` in `experiment/config.py` → `from .. import toolchain as toolchain_module`; `from .toolchain import …` in `experiment/cli.py` → `from ..toolchain import …` (and delete the `toolchain` command block there, Step 3 re-homes it); `from .profile import init_profile, login_command` in `experiment/cli.py`/`preflight.py` → `from ..lifecycle.profile import …`; `profile_dir` stays in `experiment/paths.py` and `lifecycle/profile.py` imports it from there (`from ..experiment.paths import profile_dir` is a production→instrument import; avoid it by moving `profile_dir` and `default_root` into `ai_rfc/config.py` as `profile_dir(root)` beside `experiments_root()` and leaving `experiment/paths.py` as `from ..config import experiments_root as default_root, profile_dir`). In `tests/cli/test_toolchain.py`: `from ai_rfc.toolchain import …`.
+**The discovery grep in the original plan is defective and must not be used as written.** Measured against the landed tree, its pattern returns for `ai_rfc/experiment/optimize/claude_cli.py` **only line 5 — a docstring sentence**, matched because the `.` in `experiment.profile` matches a space. Line 20, the real `from ..profile import profile_env`, scores zero. An implementer following the original grep sees a hit for the file, opens line 5, finds prose, and moves on — and the GEPA-NO-KEY proposer breaks silently. Use this instead:
 
-Run: `cd $AIRFC && SSLKEYLOGFILE= $PY -m pytest tests/cli/test_toolchain.py tests/experiment -n auto` — Expected: all PASS (a pure move).
+```bash
+grep -rn "experiment\.toolchain\|from \.toolchain\|from \. import toolchain\|experiment\.profile\|from \.profile\|from \.\.profile\|profile_env\|from \.paths import profile_dir\|default_root" ai_rfc tests plugins docs
+```
+
+Do not rely on the grep alone. These are the complete, measured lists; every one must be rewritten.
+
+**Importers of `experiment.profile` (4).** `ai_rfc/experiment/cli.py:18` (`from .profile import init_profile, login_command`) → `from ..lifecycle.profile import init_profile, login_command`; `ai_rfc/experiment/preflight.py:26` (`from .profile import profile_env`) → `from ..lifecycle.profile import profile_env`; **`ai_rfc/experiment/optimize/claude_cli.py:20`** (`from ..profile import profile_env`, used at `:179`) → `from ...lifecycle.profile import profile_env`; `tests/cli/test_profile.py:5` (after the move) → `from ai_rfc.lifecycle.profile import init_profile, login_command, profile_env`.
+
+**Importers of `experiment.toolchain` (8), and the patch-site trap.** `ai_rfc/experiment/config.py:23` (`from . import toolchain as toolchain_module`) → `from .. import toolchain as toolchain_module`; `ai_rfc/experiment/cli.py:472, :1060, :1067` (`from .toolchain import …`) → `from ..toolchain import …`, and delete the `toolchain` command block there — Step 4 re-homes it. Then the trap: **six sites bind the module object and monkeypatch `verify` on it** — `tests/experiment/conftest.py:178`, `tests/experiment/test_config.py:152, :172, :389`, `tests/experiment/test_cli_optimize.py:703`, and `tests/cli/test_toolchain.py:175` (after the move). If they keep patching `ai_rfc.experiment.toolchain` while `config.py` binds `ai_rfc.toolchain`, the patches become invisible and those tests silently run the **real** `verify`, which builds drafts. Re-point every one to `ai_rfc.toolchain`. In `tests/cli/test_toolchain.py` the direct symbol import at `:11-19` also becomes `from ai_rfc.toolchain import …`.
+
+**The layering fix (do not skip — it is the reason the move exists).** `toolchain.py` reaches back into the instrument twice today: `:23` `from . import ExperimentError` and `:24` `from .workspace import TEMPLATE_COMMIT, TEMPLATE_URL, _git, _run_git`. Left alone, a top-level `ai_rfc/toolchain.py` would import `ai_rfc.experiment`, inverting the dependency the move is meant to remove (`experiment/__init__.py:6`: "Nothing here is imported by the plugin or the substrate"). Both are already solved by Task 4, which moved `TEMPLATE_URL`, `TEMPLATE_COMMIT`, `_run_git` and `_git` into `ai_rfc/lifecycle/workspace.py`. So rewrite `:24` to `from .lifecycle.workspace import TEMPLATE_COMMIT, TEMPLATE_URL, _git, _run_git` (production → production, no cycle: `lifecycle/workspace.py` does not import `toolchain`).
+
+**The error type (ruling D2, replacing the original plan's self-contradictory note).** Define `class ToolchainError(RuntimeError)` in `ai_rfc/toolchain.py` and replace the eleven `ExperimentError` raises (`:97, :169, :172, :176, :201, :208, :212, :220, :274, :281, :289`) with it, deleting the `from . import ExperimentError` at `:23`. Four consequences, all of which must land in the same commit or the suite goes red:
+
+1. `ai_rfc/toolchain.py:349`'s internal `except (OSError, ExperimentError)` inside `verify` becomes `except (OSError, ToolchainError, LifecycleError)`, or it raises `NameError` the first time it fires.
+2. `provision` calls `_git`/`_run_git`, which raise `LifecycleError` after Task 4's move, so `ExperimentError` would otherwise still leak out of a "pure" `ToolchainError` function. Wrap those calls and re-raise as `ToolchainError`.
+3. `ai_rfc/experiment/cli.py:1290`'s `except (ExperimentError, OSError)` — the only handler that actually guards the `provision` call site at `:1060` — must gain `ToolchainError`.
+4. `tests/cli/test_toolchain.py:115` and `:183` assert `pytest.raises(ExperimentError)`; both become `ToolchainError`. This task owns that file, so the change is in scope.
+
+The original plan justified the rename by saying "`experiment/config.py`'s `init_campaign` catches it the same way". **That premise is false and must not be relied on**: `init_campaign` calls `verify`, not `provision` (`config.py:295`), and `config.py` contains no `except ExperimentError` at all — its only handler is `except OSError` at `:232`. `verify` returns `(ok, reasons)` and raises nothing, so `config.py` needs no change beyond its import.
+
+**`profile_dir` and `default_root`.** Move both from `experiment/paths.py` into `ai_rfc/config.py` beside `experiments_root()`, keeping `profile_dir(root) -> root / "profile"` and `default_root()` byte-identical in behaviour, and reduce `experiment/paths.py` to the re-export `from ..config import experiments_root as default_root, profile_dir`. The five real importers keep working unchanged: `ai_rfc/experiment/profile.py:8`, `ai_rfc/experiment/config.py:25`, `ai_rfc/experiment/preflight.py:26`, `ai_rfc/experiment/cli.py:17`, `tests/cli/test_profile.py:4` (after the move). The moved `lifecycle/profile.py` must import from `ai_rfc.config`, never from `experiment/paths.py` — that would be the production→instrument import this step exists to remove.
+
+Run each, separately, and expect all to pass — this is a move plus an error-type change, not a behaviour change:
+
+```bash
+SSLKEYLOGFILE= $PY -m pytest tests/cli/test_toolchain.py tests/cli/test_profile.py -v
+SSLKEYLOGFILE= $PY -m pytest tests/experiment -n auto
+```
+
+Then prove the patch sites still bite, because a silently-dead monkeypatch is the one failure this step can hide: `grep -rn "toolchain_module\|ai_rfc.experiment.toolchain" tests/` must return zero references to the old path.
 
 - [ ] **Step 2: Write the failing doctor tests**
 
@@ -2338,7 +2405,7 @@ from pathlib import Path
 import pytest
 
 from ai_rfc import cli, toolchain
-from ai_rfc.lifecycle import doctor
+from ai_rfc.lifecycle.doctor import cli as doctor  # the verb's cli module, per D1
 
 
 def _fake_claude(tmp_path: Path) -> Path:
@@ -2425,7 +2492,9 @@ def test_toolchain_verbs_are_mounted_on_the_root(capsys):
 Run: `cd $AIRFC && SSLKEYLOGFILE= $PY -m pytest tests/cli/test_doctor.py -v`
 Expected: FAIL (`invalid choice: 'doctor'`, `invalid choice: 'toolchain'`).
 
-- [ ] **Step 4: `toolchain_cmd.py`**
+- [ ] **Step 4: the `toolchain` verb package**
+
+Create `ai_rfc/lifecycle/toolchain/{__init__.py,__main__.py}` per D1, then `ai_rfc/lifecycle/toolchain/cli.py`. Note that it imports `ToolchainError` from the moved production module and **not** `ExperimentError` from the instrument — that is ruling D2 in Step 1:
 
 ```python
 """``ai-rfc toolchain provision|verify``: the shared Internet-Draft toolchain, once per machine."""
@@ -2435,12 +2504,11 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from .. import __version__
-from ..config import experiments_root
-from ..lifecycle.workspace import TEMPLATE_COMMIT, TEMPLATE_URL
-from ..toolchain import RECORD_FILE, TOOLS_DIR, provision, verify
-from ..experiment import ExperimentError
-from .common import report
+from ... import __version__
+from ...config import experiments_root
+from ...toolchain import RECORD_FILE, TOOLS_DIR, ToolchainError, provision, verify
+from ..common import report
+from ..workspace import TEMPLATE_COMMIT, TEMPLATE_URL
 
 
 def configure(parser: argparse.ArgumentParser) -> None:
@@ -2470,7 +2538,7 @@ def run(args: argparse.Namespace) -> int:
     if args.verb == "provision":
         try:
             record = provision(root, template=args.template, template_commit=args.template_commit)
-        except ExperimentError as error:
+        except ToolchainError as error:
             report(f"error: {error}")
             return 1
         print(f"toolchain: {record}")
@@ -2490,9 +2558,13 @@ def main(argv: list[str] | None = None) -> int:
     return run(build_standalone_parser().parse_args(argv))
 ```
 
-(`provision` raises `ExperimentError` today because it was written under `experiment/`; when moving the module in Step 1, change its raises to a new `ai_rfc.toolchain.ToolchainError(RuntimeError)` and import that here instead — `experiment/config.py`'s `init_campaign` catches it the same way. Do not leave a production module raising the instrument's error type.)
+(`provision` raises `ExperimentError` today only because it was written under `experiment/`. Ruling D2 in Step 1 defines `ToolchainError` in the moved module and lists the four call sites that must change with it. Do not leave a production module raising the instrument's error type, and do not import `ExperimentError` here — the original plan's code block did both, and its stated justification about `init_campaign` was factually wrong.)
 
-- [ ] **Step 5: `doctor.py`**
+Also note `build_standalone_parser`'s docstring becomes ``` ``python -m ai_rfc.lifecycle.toolchain`` ```.
+
+- [ ] **Step 5: the `doctor` verb package**
+
+Create `ai_rfc/lifecycle/doctor/{__init__.py,__main__.py}` per D1, then `ai_rfc/lifecycle/doctor/cli.py`:
 
 ```python
 """``ai-rfc doctor``: every environment question a run would otherwise fail on, asked once."""
@@ -2507,11 +2579,11 @@ import subprocess
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from .. import __version__, toolchain
-from ..config import ConfigError, ReconConfig, experiments_root, load_config, profile_dir
-from ..toolchain import RECORD_FILE, TOOLS_DIR
-from .common import CONFIG_ENV, report
-from .profile import init_profile, login_command
+from ... import __version__, toolchain
+from ...config import ConfigError, ReconConfig, experiments_root, load_config, profile_dir
+from ...toolchain import RECORD_FILE, TOOLS_DIR
+from ..common import CONFIG_ENV, report
+from ..profile import init_profile, login_command
 
 
 @dataclass(frozen=True)
@@ -2539,11 +2611,26 @@ def _claude(config: ReconConfig | None) -> Check:
 
 
 def _profile(config: ReconConfig | None) -> Check:
-    root = experiments_root()
-    directory = (config.sessions.profile if config and config.sessions and config.sessions.profile else profile_dir(root))
+    """The isolated Claude Code profile sessions launch against.
+
+    ``init_profile`` and ``login_command`` both take the experiments ROOT and
+    derive ``root / "profile"`` themselves, so a configured profile is only
+    expressible when it is named ``profile`` inside its parent.
+    """
+    configured = config.sessions.profile if config and config.sessions and config.sessions.profile else None
+    directory = configured or profile_dir(experiments_root())
+    if directory.name != "profile":
+        return Check(
+            "profile",
+            False,
+            "warning",
+            f"sessions.profile is {directory}; init_profile derives <root>/profile, so this path is not created for you",
+            f"name it 'profile' under its parent ({directory.parent / 'profile'}), or create the directory yourself",
+        )
+    root = directory.parent
     created = not directory.exists()
-    init_profile(directory.parent if directory.name == "profile" else directory)
-    detail = f"{directory} ({'created' if created else 'present'}); log in once with: {login_command(directory.parent)}"
+    init_profile(root)
+    detail = f"{directory} ({'created' if created else 'present'}); log in once with: {login_command(root)}"
     return Check("profile", True, "info", detail)
 
 
@@ -2634,7 +2721,9 @@ def main(argv: list[str] | None = None) -> int:
     return run(build_standalone_parser().parse_args(argv))
 ```
 
-(`profile_dir(root)` returns `root / "profile"` and `init_profile(root)` creates `root/profile` — hence the `parent` handling; if `lifecycle/profile.py`'s signatures were changed in Step 1 to take the profile directory itself, simplify `_profile` accordingly and keep the test's `(root / "profile").is_dir()` true.) Register `EntryPoint("toolchain", "ai-rfc toolchain", f"{PACKAGE}.lifecycle.toolchain_cmd", "Install (once, networked) or verify (offline) the Internet-Draft toolchain", LIFECYCLE)` and `EntryPoint("doctor", "ai-rfc doctor", f"{PACKAGE}.lifecycle.doctor", "Check the environment a reconstruction runs in", LIFECYCLE)`.
+(Measured contract, which the original `_profile` got wrong in two ways: `profile_dir(root)` returns `root / "profile"` (`paths.py:16-18`), and **both** `init_profile(root)` (`profile.py:24`) and `login_command(root)` (`:19`) take the experiments **root**, deriving the profile directory themselves. The original code passed `directory.parent` conditionally to one and unconditionally to the other, so the two disagreed whenever the profile directory was passed directly — printing a wrong `CLAUDE_CONFIG_DIR` in user-facing login instructions. Do **not** change the signatures in Step 1; the move is a move. The test's `(root / "profile").is_dir()` stays true because the default path is unchanged.)
+
+Register `EntryPoint("toolchain", "ai-rfc toolchain", f"{PACKAGE}.lifecycle.toolchain.cli", "Install (once, networked) or verify (offline) the Internet-Draft toolchain", LIFECYCLE)` and `EntryPoint("doctor", "ai-rfc doctor", f"{PACKAGE}.lifecycle.doctor.cli", "Check the environment a reconstruction runs in", LIFECYCLE)`, both **immediately after the `verify` row** so the LIFECYCLE block stays contiguous. With these two the section holds all seven lifecycle verbs and `ENTRY_POINTS` is complete for CLI-1.
 
 - [ ] **Step 6: Run the suites**
 
@@ -2646,7 +2735,7 @@ Expected: all PASS, including the moved toolchain tests and `test_help_lists_eve
 ```bash
 cd $AIRFC && $PY -m black ai_rfc tests && $PY -m flake8 --max-line-length=88 ai_rfc/lifecycle ai_rfc/toolchain.py ai_rfc/config.py tests/cli && $PY -m mypy --follow-imports=silent ai_rfc/lifecycle ai_rfc/toolchain.py
 git status --short
-git add ai_rfc/toolchain.py ai_rfc/lifecycle/profile.py ai_rfc/lifecycle/toolchain_cmd.py ai_rfc/lifecycle/doctor.py ai_rfc/config.py ai_rfc/entrypoints.py ai_rfc/experiment/config.py ai_rfc/experiment/cli.py ai_rfc/experiment/preflight.py ai_rfc/experiment/paths.py tests/cli/test_toolchain.py tests/cli/test_doctor.py
+git add ai_rfc/toolchain.py ai_rfc/lifecycle/profile.py ai_rfc/lifecycle/toolchain/__init__.py ai_rfc/lifecycle/toolchain/__main__.py ai_rfc/lifecycle/toolchain/cli.py ai_rfc/lifecycle/doctor/__init__.py ai_rfc/lifecycle/doctor/__main__.py ai_rfc/lifecycle/doctor/cli.py ai_rfc/config.py ai_rfc/entrypoints.py ai_rfc/experiment/config.py ai_rfc/experiment/cli.py ai_rfc/experiment/preflight.py ai_rfc/experiment/paths.py ai_rfc/experiment/optimize/claude_cli.py tests/cli/test_toolchain.py tests/cli/test_profile.py tests/cli/test_doctor.py tests/experiment/conftest.py tests/experiment/test_config.py tests/experiment/test_cli_optimize.py
 git commit -m "feat: doctor and toolchain verbs check the environment once, before any run"
 ```
 
@@ -2664,7 +2753,7 @@ git commit -m "feat: doctor and toolchain verbs check the environment once, befo
 
 - [ ] **Step 1: Pin the passthrough**
 
-Read `$PANTHER/panther/cli/commands/ai_rfc.py` as SP1 left it. If it still builds click passthroughs from `ENTRY_POINTS`, replace the body with one click command that forwards `sys.argv` untouched:
+**Measured 2026-09-08: this step's edit is already done and should be a no-op.** `$PANTHER/panther/cli/commands/ai_rfc.py` is already 38 lines — one `@click.command` with `ignore_unknown_options=True`, `add_help_option=False`, a single `click.UNPROCESSED` varargs argument, `import sys` at `:16`, a lazy `from ai_rfc.cli import main` at `:31` and `sys.exit(main(list(args)))` at `:38`. `ENTRY_POINTS` has zero hits anywhere under `panther/` outside the submodule. Read the file and confirm; if it matches the shape below, change nothing and say so in the task report. The block is kept only as the specification of what it must remain:
 
 ```python
 @click.command(
@@ -2683,22 +2772,19 @@ def ai_rfc(args: tuple[str, ...]) -> None:
 Add to `$PANTHER/tests/unit/test_cli/test_ai_rfc_commands.py`:
 
 ```python
-def test_panther_ai_rfc_help_is_the_root_help(cli_runner):
-    from ai_rfc import cli as root
-
-    with pytest.raises(SystemExit):
-        root.main(["--help"])
-    expected = capsys_output_of(lambda: root.main(["--help"]))  # use the module's existing capture helper
-    result = cli_runner.invoke(panther_cli, ["ai-rfc", "--help"])
+def test_panther_ai_rfc_help_is_the_root_help():
+    """`panther ai-rfc --help` is `ai-rfc --help`, forwarded untouched."""
+    result = CliRunner().invoke(cli, ["ai-rfc", "--help"])
     assert result.exit_code == 0
-    assert "Lifecycle" in result.output and "init" in result.output and "run" in result.output
+    assert "Lifecycle" in result.output
+    assert "init" in result.output and "run" in result.output
 ```
 
-(Read that test module's fixtures first: it already invokes `panther ai-rfc` through click's runner; reuse its runner fixture and drop the `capsys_output_of` line if the module has no such helper — the assertion that matters is the three substrings.) Run: `cd $PANTHER && SSLKEYLOGFILE= $PY -m pytest tests/unit/test_cli/test_ai_rfc_commands.py -v` — Expected: PASS.
+**Measured facts about that test module, because the original plan named three things that do not exist in it.** `$PANTHER/tests/unit/test_cli/test_ai_rfc_commands.py` is 57 lines with 5 tests and **zero fixtures**: `test_the_door_reaches_the_panther_cli:16`, `test_help_is_the_tools_own:21`, `test_a_malformed_invocation_still_exits_two:27`, `test_an_unreadable_manifest_exits_one:32`, `test_a_strict_finding_exits_three:41`. There is **no `cli_runner` fixture** in scope (`tests/unit/conftest.py` does not exist, and the two `cli_runner` definitions elsewhere in the repo are not ancestors of this path), **no `capsys_output_of` helper** anywhere under `tests/`, and **no import named `panther_cli`**. The module constructs `CliRunner()` inline and imports `from panther.cli.commands.ai_rfc import ai_rfc` at `:10` and `from panther.cli.core.main import cli` at `:11`. Follow that existing style, as the snippet above does. Run: `cd $PANTHER && SSLKEYLOGFILE= $PY -m pytest tests/unit/test_cli/test_ai_rfc_commands.py -v` — Expected: 6 passed (the 5 existing plus this one). Sandbox OFF: this module's collection binds a socket through `nicegui` and fails under the sandbox with `PermissionError: [Errno 1] Operation not permitted`.
 
 - [ ] **Step 2: Documentation**
 
-`$AIRFC/README.md`: replace the "Environment contract" table's `PANTHER_REPO` row with `AI_RFC_CONFIG` ("the `recon.yaml` every lifecycle verb reads; `--config` overrides it") and keep `AI_RFC_WORKSPACE` with the note "read by the MCP server and the agent verbs until CLI-3 derives it from the config"; replace the "Install"/"Experiment harness" opening with the six-line operator flow from the spec §1 (`config example`, `doctor`, `init`, `run`, `status`, `verify`), state that `run` stops at the agent boundary until CLI-2 lands, and move the campaign commands under a heading "The experiment instrument" that starts with `python -m ai_rfc.experiment workspace prepare --config recon.yaml`. `$AIRFC/ai_rfc/README.md`: in the command table add the lifecycle rows (`ai-rfc config example|reference`, `ai-rfc init --config`, `ai-rfc run --config [--until]`, `ai-rfc status --config [--json]`, `ai-rfc verify --config [--strict]`, `ai-rfc doctor [--config]`, `ai-rfc toolchain provision|verify`) above the stage rows, and rewrite "How to use" so the config-driven flow is the primary one and the explicit-path verbs are described as what `run` performs (their retirement from the operator's help is CLI-3). `docs/experiment-protocol.md`: a dated subsection "2026-09-03 — CLI-1" stating that pristines are now prepared from a config (`Target` retired), that progress is read by one ledger with the strict definition (checkpoint + entry + tag), and that `experiment toolchain` moved to `ai-rfc toolchain`. `docs/parity.md`: one sentence under the table: "The `ai_rfc` verbs are unchanged by CLI-1; CLI-3 folds them into `ai-rfc`."
+`$AIRFC/README.md`: **re-anchored 2026-09-08 — the original instruction named a table and a row that do not exist.** `## Environment contract` is a heading at `:38`, but its body at `:40-58` is **prose, not a table** (the file's only tables are at `:62-66` and `:78-84`), and `PANTHER_REPO` appears **nowhere** in the file — it is already a retired variable, and `tests/server/test_plugin_manifest.py:15-22` actively asserts its absence from command documentation. There is therefore nothing to replace, and this is consistent with ruling R3, which leaves `PANTHER_REPO`'s retirement to CLI-3. Instead: **add** `AI_RFC_CONFIG` to that prose ("the `recon.yaml` every lifecycle verb reads; `--config` overrides it"), and extend the existing `AI_RFC_WORKSPACE` sentence at `:42` with "read by the MCP server and the agent verbs until CLI-3 derives it from the config". Do not introduce a `PANTHER_REPO` row: adding one would document a retired variable and could trip that manifest test. replace the "Install"/"Experiment harness" opening with the six-line operator flow from the spec §1 (`config example`, `doctor`, `init`, `run`, `status`, `verify`), state that `run` stops at the agent boundary until CLI-2 lands, and move the campaign commands under a heading "The experiment instrument" that starts with `python -m ai_rfc.experiment workspace prepare --config recon.yaml`. `$AIRFC/ai_rfc/README.md`: the command table is at `:108-121`, columns `Command | Purpose`, 12 rows of `ai-rfc <verb>` substrate commands; note it sits under the `## The pipeline/ subpackage` heading (`:93`), not under `## CLI` (`:123`, which holds only a code block and the exit-code table at `:146-151`) — re-measure before editing. In that table add the lifecycle rows (`ai-rfc config example|reference`, `ai-rfc init --config`, `ai-rfc run --config [--until]`, `ai-rfc status --config [--json]`, `ai-rfc verify --config [--strict]`, `ai-rfc doctor [--config]`, `ai-rfc toolchain provision|verify`) above the stage rows, and rewrite "How to use" so the config-driven flow is the primary one and the explicit-path verbs are described as what `run` performs (their retirement from the operator's help is CLI-3). `docs/experiment-protocol.md`: a dated subsection "2026-09-03 — CLI-1" stating that pristines are now prepared from a config (`Target` retired), that progress is read by one ledger with the strict definition (checkpoint + entry + tag), and that `experiment toolchain` moved to `ai-rfc toolchain`. `docs/parity.md`: **re-anchored 2026-09-08 (ruling R4)** — SP7b grew this file by 19 lines in exactly the two regions a parity note would live, so "under the table" is now ambiguous. The file is 75 lines: title `:1`, framing prose `:3-11`, the main tool table `:13-34` (header `:13`, separator `:14`, 20 rows ending at `:34`), the arm-C freeze paragraph `:36-42`, `## Exit codes` `:44` with its table `:50-55`, then prose to `:75`. Insert the sentence **immediately after line 34**, before the arm-C paragraph — not after `:42`: "The `ai_rfc` verbs are unchanged by CLI-1; CLI-3 folds them into `ai-rfc`." Re-measure the line numbers before editing; another row may have moved them again.
 
 - [ ] **Step 3: The gate — MARK through the one door**
 
@@ -2737,10 +2823,12 @@ Create `docs/experiments/2026-09-03-cli1-mark-gate.md` with the five commands, t
 - [ ] **Step 5: Commit both repositories**
 
 ```bash
-cd $AIRFC && git status --short
+cd $AIRFC
+git status --short
 git add README.md ai_rfc/README.md docs/experiment-protocol.md docs/parity.md docs/experiments/2026-09-03-cli1-mark-gate.md
 git commit -m "docs: the one-door flow, and the CLI-1 gate on MARK"
-cd $PANTHER && git status --short
+cd $PANTHER
+git status --short
 git add panther/cli/commands/ai_rfc.py tests/unit/test_cli/test_ai_rfc_commands.py
 git commit -m "feat(ai_rfc): forward panther ai-rfc to the one argparse root"
 ```
