@@ -740,3 +740,58 @@ four shapes through `schema.load`. Closed under **R37** (a prose-only round that
 reviewer-quoted text is verified by the controller's diff check, no second review). Carried to the
 whole-branch fix wave: restore the dropped "declare the claim first" hint; `schema.py` must refuse
 a non-string state with `SchemaError`, not `TypeError`. Left to SP7c: the tool parameter's name.
+
+---
+
+## D32 — Task 10 (`aef9d07`) and the whole-branch fix wave (`3fa166f`, `4f7a997`, `5a462a4`, `bf642a2`, `828afa4`)
+
+**Plan said.** Task 10: the suite count, the MARK no-regression gate, the two round-trip tests, a
+protocol subsection, three README edits, a proof document; then "one fix wave; one re-review".
+`README.md:44-50` for the workspace paragraph; the unloadable-manifest catch "in the lint"; the
+five renderings "copied verbatim from the test output". Nothing in the plan anticipated a defect
+that spans tasks.
+
+**Code showed.** Task 10 landed as specified (`aef9d07`; 1281 + 11; MARK gate `note: gate clean`,
+exit 0, findings `[]`, identical to the SP7a record; both round-trip tests pass; renderings
+byte-identical to the goldens) with five small deviations (the README paragraph is at `:40-45`;
+the catch is in `draft/cli.py`; the goldens are the renderings; item 6 folded in the unbound-claim
+finding; the worktree guard refused a heredoc). Its review found three prose overstatements: the
+one-byte test asserts a gate finding, not a refused tag; "every `structures.md` already frozen"
+does not go stale (each tag compares against its own checkpoint); arm C's prefix allowlist still
+reaches `python -m ai_rfc draft render` as an operator route. The whole-branch review (opus,
+code-reviewer, over the 20 SP7b commits with the 8 peer commits named and excluded) found the
+branch **NOT MERGEABLE**: a newline inside any structure member's text reached the rendered block
+unescaped (`_cell` escaped only pipes; the ladder and the title interpolated raw), so a
+description carrying the three-line delimiter sequence closed and reopened the block from inside
+it, `parse_blocks` reported nothing, last-wins kept the tail, and both the gate and the lint were
+silent on a tampered paste — reachable through `ai_rfc_structure_upsert`, and an honest folded
+scalar broke the table row with no adversary. Also: every substrate consolidation fixture was
+byte-identical to its base; one conceptual failure reached the two frontends as four exception
+classes; `base` escaped the workspace where `checkpoint` was refused; `parse_blocks` and
+`block_spans` were two scanners of one grammar; `lint(structures=)` had no production caller.
+
+**What I did.** One fix wave in three sequential slices on disjoint files (each slice's whole-suite
+run must not see a sibling's work in progress), then one scoped re-review. **R38:** the renderer
+collapses all whitespace at every interpolation point (a marker must own its whole line, so no
+author text may contain one; the schema stays permissive because a folded scalar is honest); a
+repeated block id is a finding; the gate reports a malformed frozen rendering against the
+checkpoint. **R39:** one private scanner behind both public readers (a 4,672-input differential
+harness showed no delta beyond the new duplicate finding). **R40:** the consolidation fixtures
+differ from their base on both the gate and the checkpoint side. **R41/R45:** `render_structures`,
+both `record_revision` validations and `write_checkpoint`'s `base` raise `CoreError`;
+`upsert_claim`'s `SchemaError` stays (SP7a's documented behaviour, SP7c's call). **R42:** `lint()`
+loses `structures=` and always renders live (no compat shim); **R43:** the draft CLI catches
+`ValueError`, writes bytes, and two tests are tightened; **R44:** the schema refuses a non-string
+state, the skill hint is restored with a needle, the three prose overstatements are corrected (the
+arm C clause in the protocol only — the proof document never mentions arms). The re-review
+reproduced the forgery's closure end to end, tried `\r`, U+2028, U+2029, a pipe after the collapse
+and a lone `{::comment}`, and proved by exhaustion that the collapse side and the parse side agree
+on every line terminator; it found one last gap — `_STRUCTURE_ID`'s `$` accepted a trailing
+newline, the one interpolation `_cell` does not cover — closed by **R46** (`\Z`). Verdict after the
+wave: **MERGEABLE**. Row gate at `828afa4`: 1300 passed + 11 skipped, door tests 5, MARK gate clean.
+Residue to SP7c is listed in the ledger (`upsert_claim`'s fourth shape, an empty-string `base`,
+`parity.md:36-39`'s absolute arm C wording, the `defined − current` lint guard, claims' private
+helpers, corrupt-file exceptions from `record_revision`, `_states` on a non-list, two near-duplicate
+test helpers). None of the nine per-task reviews had found the blocker; Task 5's review read the
+exact code and judged its line-terminator normalisation benign without asking what else a line
+terminator could do.
