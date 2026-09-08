@@ -240,3 +240,36 @@ count 7 → 7, total files 56 → 56); `sessions/` stayed empty; nothing under `
 plan already expects rewritten, not a persisted session artifact; not a stop. Task 4 Step 2's
 paragraph now says the CLI also rotates a backup of `.claude.json` under `backups/`. Cost if
 wrong: one backup file of the CLI's own config in the profile's backups directory.
+
+## D12 — The 3.11 environment cannot live inside the worktree (found after landing, 2026-09-08)
+
+**Plan said.** Global Constraints and the executor prompt (line 17): the 3.11 interpreter is
+`.superpowers/venv-optimize/bin/python`; Verification: the 3.11 selection runs from it.
+
+**Tool showed.** On 2026-09-08 the selection was 11 failed / 211 passed from that venv at ai_rfc
+bc4a603 while 3.10 passed; `python -v -c pass` printed `Skipping hidden .pth file` for both of its
+`.pth` files; `ls -lO` showed the `hidden` flag; `chflags nohidden` was reverted within a minute
+(ctime 09:32:57 after a peer's repair, 09:52:31 after mine); a 90 s probe hid every `*.pth`
+planted under the worktree (import line, path line, outside `site-packages/`) and none under
+`$TMPDIR`; pyenv's global site-packages carry no flags. The failing gate is
+`server/core/gates.py::_run` (`sys.executable -m ai_rfc.check` from the scratch workspace →
+`No module named 'ai_rfc'` → `not_completed`). The 3.10 `.venv`'s `.pth` files are hidden too and
+its suite passes: 3.10.12 does not honour the flag, 3.11.9 does. The process setting the flag is
+not identified.
+
+**What I did.** User ruling 2026-09-08: the venv is rebuilt at `~/ai-rfc-experiments/venv-optimize`
+(pyenv 3.11.9, the old venv's `pip freeze` replayed, `pip install -e '<ai_rfc>[optimize,tests]'`,
+gepa git `0632cdb`, `pip check` clean). Proven there at ai_rfc 587fcf2: 3.11 selection 222 / 2,
+slow `test_run.py` 2 passed, 3.10 whole tree 1307 / 11. The in-tree venv is left in place and is
+broken; every path to it in this plan (line 23, `PY311`) and in
+`2026-09-05-arfc-gepa-no-key-executor-prompt.md` (line 17) is superseded by the new path, and the
+`chflags` remedy recorded on 2026-09-07 is retracted. Landed: ai_rfc `587fcf2` (README +
+`test_run.py` docstring), `3940b13` (README scope); PANTHER `a09530f5b` (executor prompt path and
+Phase 1 checks). Cost if wrong: one venv rebuilt and one path in two documents.
+
+**Caveat on the bump `3c103ea18`.** Its message says "Tested at 2abe8ab: 3.10 whole tree 1228 /
+11 with the peer's then in-progress `tests/substrate/draft/test_cli.py` excluded". The working
+tree during that run also carried the peer's uncommitted edits to `ai_rfc/draft/cli.py` and
+`ai_rfc/entrypoints.py` (committed as e609cf0 at 09:30, eight minutes before the bump), so the
+count is for that mixed tree, not for 2abe8ab alone. Neither module is imported by
+`experiment/optimize`; the optimize evidence is unaffected. The message is not amended.
