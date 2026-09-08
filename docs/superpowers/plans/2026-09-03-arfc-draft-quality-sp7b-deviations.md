@@ -795,3 +795,30 @@ helpers, corrupt-file exceptions from `record_revision`, `_states` on a non-list
 test helpers). None of the nine per-task reviews had found the blocker; Task 5's review read the
 exact code and judged its line-terminator normalisation benign without asking what else a line
 terminator could do.
+
+---
+
+## D33 — proof document re-measured after the fix wave (`bc4a603`)
+
+**Plan said.** Task 10 Step 5 writes the proof document once, from the numbers
+measured at the head of Tasks 1–9; the Execution section allows "one fix wave;
+one re-review" and nothing after.
+
+**Code showed.** The proof document (`aef9d07`, corrected `5a462a4`) recorded
+the suite at 1281 + 11 and the MARK gate at the commit the whole-branch review
+found NOT MERGEABLE, and said nothing about the wave that made the branch
+shippable. The pointer bump publishes that record. `docs/parity.md:36-39`
+still said arm C "never sees" `draft-render` in the absolute, the wording the
+re-review named as the root of its A3 observation.
+
+**What I did.** One docs-only commit by the controller (R48): a dated addendum
+re-measures every claim at `828afa4` — suite 1300 passed, 11 skipped
+(118.86 s); the MARK strict gate on a fresh scratch copy of the sealed baseline
+(`/tmp/claude/sp7b` had been cleared since the Task 10 probe), `note: gate
+clean`, exit 0, findings `[]`, 32.9 s; the two plan-named gate tests 2 passed;
+five goldens unchanged — and names the wave and what it closed. The parity
+clause now carries the protocol's own sentence (the verbs are frozen; the raw
+route stays reachable behind the unchanged Bash prefix). No code changed; no
+re-review was dispatched for a docs commit. Both remotes were fetched before
+the report: ai_rfc `origin/main` is still `2abe8ab`, PANTHER's branch still
+`3c103ea18`, both ancestors of the local heads.
