@@ -973,6 +973,7 @@ git commit -m "feat: freeze a consolidation prompt per arm"
 **Files:**
 - Modify: `ai_rfc/experiment/prompts/loop.tmpl.md`, `plugins/ai-rfc/skills/ai-rfc-reconstruction-loop/SKILL.md` (regenerated)
 - Test: `tests/experiment/test_render.py`
+- **Boundary extended 2026-09-09 (pre-flight ruling R13):** also `tests/experiment/optimize/` fixtures and seeds, as far as the template change requires. Changing `loop.tmpl.md` changes what `codec._slot_reasons` demands of every GEPA candidate, so those fixtures are **this task's own breakage**, not unrelated residue — the ride-along rule does not apply and the implementer must not stop at the boundary. Update the fixtures to the new template; never weaken a slot check.
 
 **Interfaces:**
 - Consumes: the landed step numbering (**C9**); `SLOT_TABLES`'s new `structure_upsert` row (Task 4); `write_plugin_skill` (**C10**).
@@ -1522,7 +1523,9 @@ def test_one_consolidation_can_be_run_against_a_finished_workspace(
     assert seen["at_end"] is True
 ```
 
-`_init_campaign_via_cli`, `_run_cli` and `_run_args` are the module's existing helpers — read their names at the top of the file. If none exists for driving `campaign init`, write one beside the module's other helpers rather than calling `init_campaign` directly, so the test covers the parser.
+**Helper names, verified 2026-09-09 — the same repair as Tasks 1 and 4.** `_init_campaign_via_cli`, `_run_cli` and `_run_args` do **not** exist. The file is `tests/experiment/test_cli_campaign.py` (there is no `tests/experiment/test_cli.py`; the CLI tests are split into `test_cli_campaign.py` and `test_cli_optimize.py`), and its helpers are `_init(...)` at `:12` and `_recon(tmp_path)` at `:119`. Read both before writing. Drive `campaign init` through the parser rather than calling `init_campaign` directly, so the test actually covers the switch.
+
+**And thread the default from one place (ruling R10).** `--consolidate-every`'s parser default must **not** restate `10`. `sessions.consolidate_every` already exists in `ai_rfc/config.py` (`:181` the `Field`, `:349` the record field, `:573` built, `:659` round-tripped) — read the default from there so the operator-facing `recon.yaml` value and the campaign value cannot silently diverge. `Campaign.consolidate_every`'s own literal default stays, because `load_campaign` splats frozen JSON and needs it.
 
 - [ ] **Step 2: Run them to verify they fail**
 
