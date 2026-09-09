@@ -733,9 +733,13 @@ a fact that is not already a claim, stop and record it as a question instead.
    {{revision_tag}}
 7. Lint the result and fix what it finds: {{draft_lint}}
 
-`normative_change` is `false` for this round, and the citation set after it must
-equal the set before it. The gate checks both.
+`normative_change` is `false` for this round, and it must not lose a citation the
+previous revision carried. The gate rejects drops; adding a citation is allowed.
 ```
+
+**Corrected 2026-09-09 (ruling R16).** The 2026-09-03 draft of that closing paragraph said "the citation set after it must equal the set before it". That is wrong on both authorities, and the same sentence appears in Task 6's skill — fix both. Spec **D52** says "A consolidation recorded `normative_change: false` **keeps every citation**; dropping one is `true` with a note", and `ai_rfc/draft/gate.py:457-463` implements exactly that: for `kind == "consolidation"` it computes `dropped = previous_cited - cited` and reports only drops, with the message "a consolidation keeps every citation". Equality is enforced only on the *non*-consolidation branch at `:464`.
+
+The equality wording is not merely imprecise, it is self-contradictory: step 4 of this very template tells the agent to add references and a figure whose caption cites the claims it depicts, both of which grow the cited set. An agent reading the closing paragraph strictly would refuse the caption the step above just asked for.
 
 - [ ] **Step 4: Extract one validator and add the second rendering**
 
@@ -781,6 +785,16 @@ def render_consolidation(arm: str, template: str | None = None) -> str:
 Keep `render_loop`'s existing name **and signature** exactly — `arm_prompt`, `write_plugin_skill`, the optimize codec and the tests all call it, two of them positionally with a template.
 
 **A note on the "ignores unused table keys" property (C10).** `_render_template` checks only `findall(text) - set(table)`; there is deliberately no converse check, which is what lets Step 5 add consolidation slots to every arm's table without the loop rendering noticing. That tolerance is load-bearing here, not incidental — do not "tighten" it by adding a symmetric assertion.
+
+- [ ] **Step 4b: Scan the assembled bundle, not just the template (ruling R16b)**
+
+**Added 2026-09-09. Task 6's review reproduced this empirically, and this task is the only one that touches the function.** The slot check runs one stage too early. `render_loop` validates the *template* (`render.py:403`), and `arm_prompt` appends the skill bodies *afterwards* (`:479-481`); nothing rescans the result. The reviewer appended `{{low}} and {{unknown_slot}}` to a bundled skill body, called `arm_prompt("A", root)`, and got **no `ExperimentError` and both slots verbatim in the returned prompt**. Worse, on a profile that opens on a fixed `preamble` (`:477`) `render_loop` is never called at all, so **no** slot check runs on any part of that bundle.
+
+That is the row's own defect class — author text reaching a produced artifact through a validator that runs one stage too early — and this task widens the exposure by adding a second template and a second bundle through the same path. Close it here.
+
+Scan the assembled string once, before `arm_prompt` returns, and raise `ExperimentError` naming the offending slot and the text it came from. Add a test that a skill body carrying a `{{slot}}` is refused, covering **both** the rendered-template path and the `preamble` path.
+
+Two things to know. A runtime scan will reject a future skill that wants to *display* `{{lowercase}}` syntax as prose — that is correct fail-loud behaviour for this row, not a regression. And the exposure today is zero: no bundled text matches `SLOT_RE`, and `claim-citation.md`'s `{{ }}` has a space in it, so nothing currently breaks. You are closing the hole, not fixing an outage.
 
 Add the bundle and its prompt beside `NEUTRAL_TEXTS` (**C10**):
 
