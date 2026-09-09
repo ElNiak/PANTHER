@@ -1368,28 +1368,48 @@ def _run_consolidation(
 
 *Second, `.format()` interpolates agent-controlled text into a prompt.* `due.base_cluster` is a `cluster_id` read back out of `revisions.yaml` — a file an agent wrote. Interpolating it unescaped into a string that becomes a session's task is the same defect class that hid SP7b's only blocker through nine consecutive reviews, where a newline in author-controlled text forged the block delimiters the gate compared. A `cluster_id` carrying a newline, a backtick fence or a heading marker forges prompt structure the same way; and `.format()` additionally breaks outright on a literal `{` in the id.
 
-`render_task` uses `string.Template(...).safe_substitute(...)`, which removes the brace hazard but **not** the forging one — substitution never re-parses what it substitutes, so a newline still lands verbatim. Validate the id before it reaches the template:
+`render_task` uses `string.Template(...).safe_substitute(...)`, which removes the brace hazard but **not** the forging one — substitution never re-parses what it substitutes, so a newline still lands verbatim.
+
+**The guard is closed-set membership, not a character check (R11, revised 2026-09-09 after Task 2's review measured the alternatives).** A regex over allowed characters was the obvious guard and it is the wrong one. Measured through the shipped `consolidation_due`, YAML's implicit typing rewrites an agent's `cluster_id` before anything sees it:
+
+| Written in `revisions.yaml` | Arrives as |
+|---|---|
+| `01` | `'1'` |
+| `yes` | `'True'` |
+| *(empty)* | `'None'` |
+| `[a, b]` | `"['a', 'b']"` |
+| `1e3` | `'1e3'` |
+| a `\|-` block scalar | a string containing a **real newline** |
+| `../../etc`, `/etc/passwd` | unchanged |
+
+A character blacklist catches the newline and the traversal but passes `'1'`, `'True'`, `'None'` and `"['a', 'b']"` — none contains a control character, and none names a cluster. One check subsumes every row of that table:
 
 ```python
-#: A cluster id is an identifier, not prose: it reaches a session's task text
-#: and a revision entry, and a newline or fence in either forges structure the
-#: reader downstream will honour.
-CLUSTER_ID_RE = re.compile(r"\A[A-Za-z0-9._-]{1,64}\Z")
+def _checked_cluster_id(workspace: Path, cluster_id: str) -> str:
+    """The id, confirmed to name a cluster this run actually has.
 
-
-def _checked_cluster_id(cluster_id: str) -> str:
-    """The id, or a refusal naming what is wrong with it.
+    Membership is the guard rather than a character filter: YAML implicit
+    typing rewrites an agent's id before anything sees it (``01`` arrives as
+    ``'1'``, an empty value as ``'None'``), so a value can be free of control
+    characters and still name nothing. Requiring it to be a known cluster
+    covers that, a newline forging structure in the session prompt, and a
+    ``../..`` reaching the checkpoint path, in one test.
 
     Raises:
-        ExperimentError: If the id is not a bare identifier.
+        ExperimentError: If the id is not a cluster in this workspace.
     """
-    if not CLUSTER_ID_RE.match(cluster_id):
+    known = {row["id"] for row in _timeline_rows(workspace)}
+    if cluster_id not in known:
         raise ExperimentError(
-            f"cluster id {cluster_id!r} is not a bare identifier; it reaches a "
-            "session prompt and a revision entry unescaped"
+            f"cluster id {cluster_id!r} is not a cluster in this workspace; "
+            "it reaches a session prompt and a checkpoint path unescaped"
         )
     return cluster_id
 ```
+
+Read `clusters.jsonl` the way the code already does — `metrics.window_clusters` and `gate.py`'s `_cluster_ordinals` both do it; reuse one rather than adding a third reader.
+
+**The second sink.** `base_cluster` also reaches a filesystem path. `gate.py:224` does `checkpoints_dir / entry.cluster_id` with no sanitisation, while the consolidation branch one line above at `:223` already uses `Path(entry.checkpoint).name`. That asymmetry is pre-existing and out of this row's scope — do **not** fix `gate.py` here — but it is why the membership check must run before the id reaches any path join in *your* code.
 
 Add a test that a forged id is refused rather than interpolated:
 
