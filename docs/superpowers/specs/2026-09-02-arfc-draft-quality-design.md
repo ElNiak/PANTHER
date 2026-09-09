@@ -184,7 +184,7 @@ cluster round (per_cluster.py)                      consolidation round (new, ev
 |---|---|---|
 | SP7a compile-and-lint | task-prompt freeze fix; toolchain provisioning and verify; adopter scaffold, references, `migrate-draft`; `draft build` and `draft lint` (without structure fields); their tools and verbs; the skeleton and skill rewrites | the template example builds twice byte-identically offline; the MARK A1 copy builds, lints and gates clean |
 | SP7b structures | `Level` enum; revision `kind`/`checkpoint`; `structures:` schema, renderer, frozen `structures.md`, consolidation checkpoint, gate checks 8–11; `draft render`, `structure upsert`, `checkpoint --consolidation` | goldens per kind; a one-byte tamper is a finding |
-| SP7c consolidation rounds | `loop.tmpl.md` steps, `consolidation.tmpl.md`, the `ai-rfc-editorial` skill, scheduling from disk, `--consolidate-every`, `campaign init --task consolidation`, protocol docs | `fake_claude` sequence `c1,c2,cons,c3,cons(final)` |
+| SP7c consolidation rounds | `loop.tmpl.md` steps, `consolidation.tmpl.md`, the `ai-rfc-editorial` skill, scheduling from disk, `--consolidate-every`, `campaign init --task consolidation`, protocol docs | `_stub_spawn` sequence `c1,c2,cons,c3,cons(final)`, asserted on the prompt each session was launched with |
 | SP7d instrument and runs | lint/build metrics in analysis; `experiment judge`; `experiment ground-truth` with `experiment/groundtruth/aioquic-w02-11.yaml`; the three evaluation runs | before/after table on the MARK copy, both sides re-linted by the final instrument; aioquic v2 compared with the pilot |
 
 `ai-rfc-editorial` belongs to SP7c: SP7a Task 9 authors only `ai-rfc-rfc-style` and `ai-rfc-figures`,
