@@ -1176,7 +1176,9 @@ git commit -m "feat: say what an editorial pass may and may not change"
 
 **Interfaces:**
 - Consumes: `consolidation_due` and `Due` (Task 2); the frozen `consolidation-<X>.md` and `prepare_run_argv(prompt_file=)` (Task 4); the loop shape in **C11**.
-- Produces: `_run_consolidation(campaign, ref, due, *, budget_usd, timeout_s, report) -> tuple[int | None, bool]`; a sweep that schedules consolidation rounds mid-sweep and at the end.
+- Produces: `_run_consolidation(campaign, ref, due, *, budget_usd, timeout_s, at_end, report) -> tuple[bool, bool]`; a sweep that schedules consolidation rounds mid-sweep and at the end.
+
+  **Signature corrected 2026-09-09 (as landed).** The 2026-09-03 draft said `tuple[int | None, bool]` here and `bool` in the Self-review's type-consistency paragraph — two different claims, and neither is what the code needs. It returns `(recorded, timed_out)`. The second element is load-bearing: an earlier draft discarded `spawn`'s `timed_out`, and `run_per_cluster`'s `any_timeout` feeds `runner.py:320-321`, where that flag sets `exit_code=None` — so a consolidation killed on the cap would have landed in `status.json` as a run that did not time out. Both scheduler call sites and Task 8's CLI dispatch unpack the pair.
 
 **Why this shape.** Three decisions, each with a consequence a reviewer should be able to check:
 
