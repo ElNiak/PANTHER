@@ -345,3 +345,157 @@ machine cannot be unit tested without a workspace per row.
 **What I did.** Split it: `observe(ws, cfg) -> Observation` performs every disk and clock read
 (stage states, ledger rows, `spent`, `attempts`), and `plan_next(obs, cfg) -> Action` is the pure table.
 This is what makes Task 10 Step 1's nine table-driven tests real. Changes no spec decision.
+
+---
+
+# Execution-phase deviations (D15 onward)
+
+D1–D14 above were written in Phase 2 from the single `review-plan` invocation, before any task ran.
+What follows is the execution record: 15 tasks, 42 commits, `f24a16d..51033cc`. The full per-task
+ledger — 59 rulings, 43 deferred minors, every RED and mutation — is the row's SDD workspace at
+`panther/plugins/services/testers/ai_rfc/.superpowers/sdd/2026-09-10-arfc-one-door-cli2/progress.md`
+(gitignored, deliberately kept).
+
+## D15 — The row's central claim, earned and verified three ways
+
+`grep -rnE "from \.(spawn|stream|enforcement|guard|arms|render|consolidation) import|experiment\.(spawn|stream|enforcement|guard|arms|render|consolidation)\b" ai_rfc/experiment/ --include='*.py'`
+returns **zero**. The whole-branch review confirmed independently: `spawn(` has exactly **one** caller
+(`driver/session.py:408`); `run_session` is the sole entry, at `sweep.py:1019`, `per_cluster.py:262,535`
+and `runner.py:254`; and no `driver/` module imports `ai_rfc.experiment`. **One spawn path, no
+re-export stub anywhere** — ruling R2 held.
+
+## D16 — `driver/` ships twelve modules where spec §5's table lists eight
+
+`arms.py` survives although the table folds it *into* `session.py`; `render.py`, `consolidation.py` and
+the `printable` text predicate in `__init__.py` are absent from the table entirely. Ruling R5 chose this
+before Task 1 (the instrument's rendering and arm profiles are the *lower* layer, not the instrument's),
+and `enforcement.py:25`'s `ArmProfile` import made `arms.py` non-optional. The branch review judged the
+result **a coherent layer, not accretion** — the import graph is acyclic and correctly tiered:
+`__init__` ← `arms`/`stream`/`render` ← `enforcement` ← `session` ← `stop` ← `record` ← `sweep`.
+*Unlogged until now; recorded here as a spec deviation rather than only as a ruling.*
+
+## D17 — `StopReason` grew 9 → 13 across four tasks
+
+`session_failed` and `consolidation_failed` (Task 10), `bound_reached` (Task 11), `action_performed`
+(Task 12). Each is an event §5 names in prose but gives no table row, and each was justified against the
+candidate members it could have borrowed. Task 11 set the guardrail — *the next member arrives with a
+spec row or a D-number, not a docstring justification* — and Task 12's `action_performed` does **not**
+meet it. See D22.
+
+The branch review found the vocabulary coherent, with two observations: `action_performed` is decided by
+**two** mechanisms (its own `_VERB = "next"`, and `stepping=True` rewriting `run → next` anyway), and six
+of the thirteen members share one observable signature (exit 1 + verb `run` + resume-line-yes),
+separable only by `status.json`'s `reason`. Neither has a behavioural effect.
+
+## D18 — `plan_next` split into `observe` + a pure `plan_next`
+
+Spec §5 writes `plan_next(ws, cfg, ledger)` and calls it pure. A function handed a `Path` and called pure
+reads disk, and the nine-row table then cannot be unit-tested without a workspace per row. `observe(ws,
+cfg)` takes every disk and clock read; `plan_next(obs, cfg)` is pure. Changes no spec decision.
+
+## D19 — Three signatures beyond §5
+
+`classify(result, *, seen=0)` — measured: without `seen`, a launch failure in a multi-session run reads
+the **previous** session's success and returns `refused`, recreating D61's exact defect.
+`resume_line(..., cluster_id, known_clusters)` — closed-set membership per the `_checked_cluster_id`
+precedent. `exit_code(reason, *, strict_findings=False)` — §5 says both "build_failed → exit 1" and
+"strict findings 3" for one reason covering three gates, and only the caller knows which fired.
+
+## D20 — `budget_hit` consumes no attempt
+
+The one call spec text does not settle. D61's "ended on its own" is ambiguous for a budget-capped exit,
+so the tiebreaker is consequence: the sweep stops on `StopReason.budget` either way, so a consumed
+attempt could only be spent against a **later, better-funded resume** — halting a cluster because the
+operator's cap ran out rather than because it ever failed.
+
+## D21 — No `AI_RFC_FAKE_SCENARIO`, against spec §8's letter
+
+`runner.build_env` returns a **closed** environment ("nothing else is inherited"), so a variable a test
+sets never reaches the child. A test spawning the fake directly would pass while the real driver fell
+back to `default.json`. The existing `run_id = workspace.parent.name` derivation was kept and the tests
+name the parent instead. A deviation from §8's **letter**, not from a decision.
+
+## D22 — FOR THE USER: a spec D-row is owed, and only the user can add it
+
+`bound_reached` and `action_performed` both exit **0**, which reinterprets §5's literal *"stopped with
+work outstanding 1"* on precedent alone — the no-sessions boundary stop and CLI-1's `--until <stage>`
+both already return 0 with work outstanding. And D59's *"Every stop prints the ledger and the exact
+resume line"* is what **forces** `bound_reached` to be a new member: `done` is the one reason with no
+resume line.
+
+The behaviour is right and the reasoning is sound, so the code stands. **What is owed is a spec D-row
+fixing reason, exit code and resume verb for both members**, plus amending §5's exit-code sentence to
+"done or bound reached 0". That is a change to a decision the spec records, which this row's brief makes
+a stop — so it is left to the user.
+
+## D23 — Three further spec deviations the branch review found unlogged
+
+- **§7 says "a missing toolchain skips `build` and says so".** That skip branch (`sweep.py:745`) **cannot
+  fire**, because `config.py:642` defaults `toolchain` to a path so a loaded config never carries `None`.
+  Fixed in the final wave by refusing an unprovisioned toolchain **before** any session spends
+  (`sweep._require_toolchain`), and `doctor`'s now-untrue "draft builds will be skipped" corrected with
+  it. `config.py:642` is **not in this row's diff** — the row *exposed* a pre-existing CLI-1 default by
+  putting sessions inside `run`.
+- **§8 names six fake_claude scenarios**; three are fake_claude-driven and three are unit-level only.
+- **D59 names wall clock a stop condition**; `wall_clock` is implemented and tested but has **no
+  production producer**, because spec §2's `sessions` table declares no wall-clock field. Wiring one
+  would have invented config. Reachable through `sweep.run(deadline=…)`.
+
+## D24 — §5's SIGTERM half is unimplemented
+
+Task 4 closed the **SIGINT** orphan: `spawn` now walks SIGTERM → grace → SIGKILL → reap on an interrupt
+and re-raises, so Ctrl-C no longer leaves a spending session. An **outside** `kill <pid>` still orphans
+one: Python's default SIGTERM disposition terminates without unwinding, so no `except` or `finally`
+inside `spawn` can run. The only real fix is a process-global `signal.signal` handler, which would mutate
+any importing process's signal disposition as a side effect of a library call — it belongs at the CLI
+entry point, and none exists.
+
+## D25 — The standing question found a real defect in nine of fifteen tasks
+
+Each was pre-existing code this row inherited rather than wrote, and **each was fixed with the grammar's
+own emitter rather than a character filter**:
+
+| Where | What the grammar did |
+|---|---|
+| `enforcement.py` | a space in a path word-split the guard hook's command → exit 127; since **exit 2 is the only blocking value**, the arm B/C Bash guard then silently permitted every call. Fixed with `shlex.join`. |
+| `lifecycle/workspace.py` | the draft's title reached YAML frontmatter raw — a quote broke the build, a newline forged `obsoletes`/`submissiontype`. Fixed with `yaml.safe_dump`; 27 scalar shapes round-trip. |
+| `campaign_runs.py` | `run_id` reached a path join **and** an operator line; measured to reach both, stopped only by an unrelated later guard. Fixed with `re.fullmatch` and an ASCII class. |
+| `stop.py` | `shlex.quote` keeps a newline **inside** the quotes; then C0+DEL missed NEL, LS, PS, RLO, ZWSP. Fixed with `isprintable()`. |
+| `sweep.py` | agent-written cluster ids reached four progress sinks; fixed at the **boundary**, one predicate covering all four. |
+| `run/cli.py` | a `cluster:` bound forged `resume: ai-rfc run --config /tmp/evil.yaml`; and the sessionless refusal offered an **unquoted** path that the root parser rejects. |
+| `experiment/cli.py` | `_arms`' unknown-arm branch joined operator text raw where its three siblings use `!r`. |
+
+**The generalisation, from Task 9:** `shlex.quote` and then C0+DEL were both *enumerations of characters
+someone thought of*; `isprintable()` is a **predicate over the category**. And from Task 11: **an
+`except` clause is the wrong granularity for this decision — a clause catches a family, but "these line
+breaks are mine" is a property of a raise site.**
+
+**Still open, and deliberately not fixed here:** argparse's own `'unrecognized arguments: %s'` uses `%s`
+not `%r` and forges a stderr line — reproduced on `doctor` and `pipeline` as well as `experiment`, so
+**door-wide and pre-existing**. The remedy is **one site** (override `error()` on the root parser in
+`ai_rfc/cli.py`), not a sweep. And ten sibling `_report` helpers are bare `print(..., file=sys.stderr)`
+with no escaping, `forge/cli.py:173` interpolating `head.stderr.strip()` raw. This row hardened two
+boundaries and left ten.
+
+## D26 — The gate PASSES, with one qualification stated rather than implied
+
+All three of spec D60's criteria, driven through the production door (`ai-rfc init` then `ai-rfc run`),
+every session on `fake_claude`, **nothing spent** — ruling R3 held end to end.
+
+Criterion 2 kills **session 2**, not session 1, because cost only reaches the transcript in a result
+event: killing during session 1 would have made *"`spent()` still counts the killed run"* vacuous.
+Criterion 1 verifies the tag is **annotated** via `git cat-file -t`, because `ledger._tags` accepts a
+lightweight one. Criterion 3 checks the resume line byte-for-byte **and** round-trips it through
+`cli.build_parser()`.
+
+**The qualification:** `check --strict` and `lint --strict` ran the substrate's real checks — lint failed
+first and had to be earned — but `build` ran against a no-op `make`/`kramdown-rfc`, so **"build: clean"
+certifies the gate's wiring, not a compiled draft.**
+
+## D27 — A method correction worth keeping
+
+The gate's first account of D23's toolchain defect ("every session fails at launch as `session_failed`")
+**was measured** — but against `fake_claude`, which resolves context in `Session.__init__` and dies
+before emitting. The real MCP server resolves **per call**, so it advertises its tools and then fails
+each one. `server/cli.py:256` *does* resolve at startup, but that is the CLI verb arm, not the MCP arm —
+**which is precisely why naming the binary that produced an observation matters.**
