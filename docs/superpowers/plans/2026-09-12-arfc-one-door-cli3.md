@@ -1123,10 +1123,34 @@ docs; a campaign runs end to end" — plus the user's strengthening. **Nothing s
         --include='*.json' --include='*.toml' ai_rfc/ plugins/ docs/parity.md \
         docs/experiment-protocol.md README.md | grep -v 'python -m ai_rfc'
    ```
-   Expected: only `tests/driver/fixtures/` and `docs/experiments/` (M1).
+   **This grep is not the criterion, and "zero hits" was never reachable.** Its predicate is
+   `ai_rfc` + space-or-hyphen + a lowercase letter, which also matches every `from ai_rfc import …`
+   and every prose noun (`the ai_rfc substrate`, `the ai_rfc plugin`). Measured on 2026-09-14
+   *before* Task 11's edits: **38 hits — 16 retired verb forms in the three doc files, 12 import
+   statements, 10 prose nouns.** A gate stated as "zero hits" fails on 22 lines that are correct
+   Python and correct English, so the grep is a **candidate list** and this is the predicate applied
+   to it:
+
+   > A hit is a defect when the word after `ai_rfc` **is hyphenated** (a retired leaf form such as
+   > `claim-adjudicate` or `draft-render`) **or is a verb the root parser still owns** (`draft`,
+   > `check`, `status`, `experiment`, …). An `import`, or a noun the parser does not own, is not.
+
+   Over the 38 that flags **18** and misses none of the 16 doc hits. Two of the 18 are judgement
+   calls and both **stay**, so the gate's expected surviving set is exactly these two lines:
+
+   - `ai_rfc/lifecycle/profile.py:10` — "the ai_rfc **experiment** harness", a prose noun colliding
+     with a real verb name;
+   - `ai_rfc/experiment/metrics.py:182` — a comment naming arm C's `ai_rfc draft checkpoint` with
+     `python -m` elided, a genuine door reference the audit still has to match.
+
+   Re-measured after Task 11: **21 hits, of which the predicate flags exactly those two.** Outside
+   these paths, `tests/driver/fixtures/` and `docs/experiments/` are recordings and are never
+   edited to match a rename (M1).
 5. `test ! -e .venv/bin/ai_rfc && test ! -e ~/ai-rfc-experiments/venv-optimize/bin/ai_rfc` (M7).
-6. The 3.10 suite against 1859/11; the 3.11 optimize selection against 222/2/2; the PANTHER door
-   tests against 6.
+6. The 3.10 suite against **2086 passed / 11 skipped** (measured 2026-09-14 at Task 11; the 1859
+   written here was CLI-2's figure and did not survive the row — Task 11 alone moved it by 12
+   deletions and 1 addition); the 3.11 optimize selection against 222/2/2; the PANTHER door tests
+   against 6.
 
 A gate that fails gets **one** fix wave and **one** scoped re-review. If it still fails: write the
 resume point, report the failing output verbatim, end the turn.

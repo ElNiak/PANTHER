@@ -23,8 +23,9 @@ harness; two path conventions across thirteen verbs; `forge --out` names a cache
 downstream `--forge` refuses; the agent boundary with no handover; the environment triple
 assembled in three places and `PANTHER_REPO` pushed onto `sys.path` in four; five colliding
 `ai_rfc`/`ai-rfc` names; the `check` vs `claim-adjudicate` vocabulary split; a parity `checkpoint`
-that cannot report exit 3; alphabetical `--from` choices; the closed target table; no substrate
-writer for the question register.
+that collapses every non-zero code the substrate returns to 1, where its neighbours pass the code
+through; alphabetical `--from` choices; the closed target table; no substrate writer for the
+question register.
 
 Outcome wanted: **one console script, one config file, one command that does whatever is next
 until the reconstruction is done or must stop**, resumable after a kill, with the three-arm
@@ -43,6 +44,7 @@ experiment instrument kept but out of the operator's way.
 | D59 | Stop conditions: the reconstruction's lifetime budget (summed over every run's transcript, moved-aside runs included), wall clock, a cluster not done after `attempts_per_cluster` (default 2; `--retry <id>` resets), a surface shortfall (MCP not mounted), a build that will not compile, a stale substrate under existing checkpoints, operator interrupt. Never skip a cluster. A mid-sweep consolidation failure is recorded and the sweep continues; a failing sweep-end consolidation exits 1. Every stop prints the ledger and the exact resume line. Interrupted leftovers are moved aside with a suffix naming the cause, never deleted. |
 | D60 | Three dependency-ordered sub-projects with their own gates: **CLI-1 one door** (config + field-table validation, argparse root, ledger, `init`/`status`/`verify`/`doctor`, `run` for the deterministic stages stopping at the boundary), **CLI-2 autonomous driver** (sessions inside `run`, `next`, stop policy, resumability, instrument split), **CLI-3 one core** (server core calls Python APIs, agent verbs folded, `ai_rfc` retired, prompts and guard re-rendered, leaf programs retired from the operator's help). They satisfy SP3+SP4, SP2, and SP3's folding respectively. |
 | D61 | Settled from the code: `timeout_s` is per session (today's cap is per run); attempts count only sessions that ended on their own (a killed or launch-errored session consumes none — MARK's ordinal 38 halted on a $0, one-turn launch error with $12.62 left, not on budget as D38 records); runs live under the workspace (`<workspace>/runs/<ts>/`, inverting today's nesting, which the instrument keeps for campaigns); the checkpoint stage is agent-performed in the MCP shape, so the driver never runs it; `pipeline.next_stage` drives only pin..views, the ledger drives the rest; R4's retirement of the explicit-path leaf verbs happens in CLI-3, once the server core no longer shells out to them — until then the root mounts them unchanged. |
+| D62 | **The two stops that leave work outstanding and still exit 0.** `StopReason.bound_reached` (a `--until` bound was reached) and `StopReason.action_performed` (`ai-rfc next` performed its one action) are neither failures nor `done`. Exit code **0** for both: §5's "stopped with work outstanding 1" means the sweep *could not go on*, not that work exists — the no-sessions boundary stop has always returned 0 with every cluster outstanding. Both carry a **resume line**, which only `done` is refused. The resume verb differs: `bound_reached` resumes with **`run`** and *drops* the satisfied bound, because a line re-issuing a bound already reached is a fixed point that performs nothing (measured: the same workspace run twice with `--until cluster:c1` printed byte-identical output and launched nothing); `action_performed` resumes with **`next`**, because the operator who asked for one action is told how to ask for the next one, where `run` would carry the reconstruction all the way. This settles the debt CLI-2 left when it added the two members without a row. |
 
 ## Undecided in the extraction spec → settled
 
@@ -145,8 +147,9 @@ State machine:
 | `next_round()` due (SP7c) | consolidation session; mid-sweep failure noted, sweep continues; sweep-end failure → exit 1 |
 | no cluster outstanding, no round due | `check --strict`, `lint`, `build` (skipped without a toolchain); findings → stop `build_failed`, exit 1; else `done`, exit 0 |
 
-`next` performs one row; `--until <stage>|cluster:<id>|ordinal:<n>`. Exit codes: done 0; stopped
-with work outstanding 1; strict findings 3. Session classification from the result event:
+`next` performs one row; `--until <stage>|cluster:<id>|ordinal:<n>`. Exit codes: done or bound
+reached 0; stopped with work outstanding 1; strict findings 3 (D62). Session classification from
+the result event:
 *refused* (worked, cluster not done → consumes an attempt), *errored* (`is_error`, at most one turn
 → a launch or API failure: stop with the resume line, no attempt consumed), *killed* (timeout or
 interrupt), *budget_hit*. Budget is a lifetime cap: `spent()` sums result events across
@@ -160,7 +163,9 @@ the run has left. Leftovers on resume: a `runs/<ts>/` without `status.json` beco
 
 `ai_rfc/server/core/gates.py` stops shelling out to `python -m ai_rfc.draft …`: the core calls
 `write_checkpoint`, `run_gate`, the check API, `build` and `lint` in-process (exit codes become
-return values; `checkpoint` regains 3). `paths.resolve_context()` reads `AI_RFC_CONFIG`, loads the
+return values; `checkpoint` stops collapsing every non-zero code to 1 and reports the substrate's
+code as its neighbours do — there was never a 3 for it to regain, the verb having no findings
+concept and no strict mode). `paths.resolve_context()` reads `AI_RFC_CONFIG`, loads the
 sealed config, derives the workspace and toolchain. The sixteen parity verbs (plus SP7a/b's
 `draft build|lint|render`, `structure upsert`) become grouped subcommands of the root; `tools.py`
 and the grouped verbs call the same core (parity twins stay byte-identical). `render.py`'s slot
