@@ -23,6 +23,30 @@ from panther.cli.core.base import (
     success_message,
     warning_message,
 )
+from panther.tools.build_paths import GENERATED_DOCS_DIR, SITE_DIR
+
+
+def _reset_generated_output(project_root: Path) -> None:
+    """Clear the directories a documentation build writes into.
+
+    Both are generated output and neither is a corpus: the generated docs
+    directory is rebuilt from scratch on every run, and the rendered site is
+    mkdocs' own output. ``docs/`` is deliberately untouched — it holds tracked
+    plan and spec files that no build can reproduce.
+
+    The generated docs directory is removed *and recreated*. Several copy
+    steps downstream create only their destination's parent, so they need the
+    directory itself to be there already. The rendered site is only removed,
+    because mkdocs creates it.
+
+    Args:
+        project_root: Directory the generated names are joined onto.
+    """
+    for dir_name in (GENERATED_DOCS_DIR, SITE_DIR):
+        dir_path = project_root / dir_name
+        if dir_path.exists():
+            shutil.rmtree(dir_path, onerror=rmtree_onerror)
+    (project_root / GENERATED_DOCS_DIR).mkdir(parents=True)
 
 
 def _build_documentation(project_root: Path) -> int:
@@ -32,15 +56,17 @@ def _build_documentation(project_root: Path) -> int:
         escape_autorefs,
     )
 
-    # Static build_dict — maps root-level markdown to docs/ locations
+    # Static build_dict — maps root-level markdown to generated-docs locations
     build_dict = {
-        "INSTALL.md": "docs/INSTALL.md",
-        "QUICK_START.md": "docs/QUICK_START.md",
-        "workflow.md": "docs/workflow.md",
-        "panther/plugins/plugins_inventory.md": "docs/plugins_inventory.md",
-        "CONTRIBUTING.md": "docs/contributing.md",
-        "CHANGELOG.md": "docs/changelog.md",
-        "LICENSE.md": "docs/license.md",
+        "INSTALL.md": f"{GENERATED_DOCS_DIR}/INSTALL.md",
+        "QUICK_START.md": f"{GENERATED_DOCS_DIR}/QUICK_START.md",
+        "workflow.md": f"{GENERATED_DOCS_DIR}/workflow.md",
+        "panther/plugins/plugins_inventory.md": (
+            f"{GENERATED_DOCS_DIR}/plugins_inventory.md"
+        ),
+        "CONTRIBUTING.md": f"{GENERATED_DOCS_DIR}/contributing.md",
+        "CHANGELOG.md": f"{GENERATED_DOCS_DIR}/changelog.md",
+        "LICENSE.md": f"{GENERATED_DOCS_DIR}/license.md",
     }
 
     # Backup/restore mkdocs.yml
@@ -57,11 +83,9 @@ def _build_documentation(project_root: Path) -> int:
 
     info_message("Building documentation...")
 
-    # Clean docs-related artifacts
-    for dir_name in ["docs", "site"]:
-        dir_path = project_root / dir_name
-        if dir_path.exists():
-            shutil.rmtree(dir_path, onerror=rmtree_onerror)
+    # Clean generated artifacts
+    _reset_generated_output(project_root)
+    docs_dir = project_root / GENERATED_DOCS_DIR
 
     # Install dependencies if not editable install
     _is_editable = (project_root / "panther_net.egg-info").exists() or any(
@@ -77,12 +101,6 @@ def _build_documentation(project_root: Path) -> int:
         )
         if result != 0:
             warning_message("Could not install documentation dependencies")
-
-    # Prepare docs directory
-    docs_dir = project_root / "docs"
-    if docs_dir.exists():
-        shutil.rmtree(docs_dir)
-    docs_dir.mkdir(exist_ok=True)
 
     # Generate plugin inventory
     info_message("Generating plugin inventory...")
@@ -122,10 +140,10 @@ def _build_documentation(project_root: Path) -> int:
         else:
             warning_message(f"Source file {source} not found")
 
-    # Copy docs_src/ to docs/
+    # Copy docs_src/ into the generated docs directory
     docs_src_dir = project_root / "docs_src"
     if docs_src_dir.exists():
-        info_message("Copying docs_src/ to docs/...")
+        info_message(f"Copying docs_src/ to {GENERATED_DOCS_DIR}/...")
         for src_file in docs_src_dir.rglob("*"):
             if src_file.is_file():
                 rel = src_file.relative_to(docs_src_dir)
@@ -134,7 +152,7 @@ def _build_documentation(project_root: Path) -> int:
                 shutil.copy2(src_file, dest)
 
     # Copy panther/ markdown hierarchy
-    panther_docs_dir = project_root / "docs" / "panther"
+    panther_docs_dir = docs_dir / "panther"
     panther_src_dir = project_root / "panther"
     panther_docs_dir.mkdir(parents=True, exist_ok=True)
     _skip_dirs = {"submodules", "template"}
@@ -164,13 +182,7 @@ def _build_documentation(project_root: Path) -> int:
         )
         ivy_to_md_script = ivy_setup / "ivy" / "ivy_to_md.py"
         panther_ivy_docs = (
-            project_root
-            / "docs"
-            / "panther"
-            / "plugins"
-            / "services"
-            / "testers"
-            / "panther_ivy"
+            panther_docs_dir / "plugins" / "services" / "testers" / "panther_ivy"
         )
         if ivy_to_md_script.exists():
             info_message("Converting .ivy files to .md...")
