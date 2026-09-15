@@ -306,7 +306,7 @@ def install(ctx):
 def clean(ctx):
     """Clean all build artifacts.
 
-    Removes build/, dist/, docs/, site/, htmlcov/, egg-info, __pycache__,
+    Removes build/, dist/, docs_build/, site/, htmlcov/, egg-info, __pycache__,
     and .pyc files.
     """
     root = find_project_root()
