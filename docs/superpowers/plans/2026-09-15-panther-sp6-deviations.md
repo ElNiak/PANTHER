@@ -212,3 +212,63 @@ over Option A (D4). Ordering matters: while `docs/` was still ignored they were 
 3. Only then `git clean -fd docs/`.
 
 Do not skip step 1. Untracked plan files live under `docs/superpowers/plans/`.
+
+## Late entries — plan-mandated records the final review found missing
+
+- **D23** — Plan-mandated "record either way": `pyproject.toml:319` (`[tool.bandit]
+  exclude_dirs`) and `:408` (`[tool.pyright] exclude`) were **left alone**, as the plan
+  permitted. Reason, from the Task 5 report: bandit runs as `bandit -r panther/`
+  (`.github/workflows/packaging.yml:96-97`) and pyright has `include = ["panther"]`
+  (`pyproject.toml:400`), so neither tool's walk reaches a repository-root `docs_build/`
+  and neither exclude entry does any work for it. Both still list `"docs"`, now stale but
+  harmless.
+- **D24** — Plan-mandated "record either way": `panther_builder.py`'s docstring was
+  **checked and left unmodified**, confirming the brief's own correction (D8).
+  `grep -n docs panther_builder.py` found no wording that is now wrong — lines 8-20 say
+  only "Clean build artifacts" / "Clean artifacts", which is more accurate under the new
+  scheme, not less.
+
+## Correction to how the central claim is worded
+
+The final whole-row review traced every `rmtree`, `unlink`, `copy2`, `write_text` and
+`mkdir` in the three files and asked for one precision: `build.py:44-50` and
+`panther_builder.py:66-67` still sweep `__pycache__` and `*.pyc` **recursively below the
+project root**, so paths under `docs/` remain reachable in principle. It measured zero
+tracked `.pyc` or `__pycache__` entries, so nothing is at risk. State the row's result as
+**"no tracked file under `docs/` is reachable"**, not "no code path reaches `docs/`".
+
+## Further findings from the final review and the task reviews (all open, none blocking)
+
+- **A second mkdocs config writes into the corpus:** `panther/core/utils/mkdocs.yml:109`
+  declares a `site_dir` under `docs/`. This row repointed the top-level config only.
+- **The guard is an rmtree guard, not a grammar guard.** `_reject_unsafe_segments`
+  rejects absolute, `..` and multi-segment entries, but not glob metacharacters. A `*` in
+  `GENERATED_DOCS_DIR` would widen `.gitignore`, `MANIFEST.in` and `pytest.ini`
+  simultaneously **with every test still green** — measured:
+  `translate_pattern('*', prefix='docs_*')` matches `docs_src/` and `docs_assets/`. One
+  `^[A-Za-z0-9_.-]+$` assertion beside the existing guard closes the whole class. This is
+  the single most valuable follow-up the row identified.
+- **`tests/cli/pytest.ini` is entirely inert** — it carries a `[tool:pytest]` header in a
+  `pytest.ini` file, which loads as `{}`. Pre-existing, unrelated to this row.
+- **Root `norecursedirs` replaces rather than extends** pytest's built-in default
+  (`_pytest/main.py:184-199`), so the new value restates all nine defaults plus
+  `docs docs_build`. Writing `docs_build` alone would have dropped `.*` and sent a
+  root-rooted walk into `.git/` and `.venv/`.
+- `panther docs build` still rewrites the tracked `panther/plugins/plugins_inventory.md`;
+  `panther/builder_metrics/utils.py:214-240` still calls `docs/` a build artifact (dead
+  code, no callers); one assertion at `test_build_paths_contract.py:329` cannot fail.
+- **The pre-commit hook stashes other sessions' uncommitted work on every commit.**
+  Observed repeatedly in this row: it stashed the concurrent session's
+  `docs/superpowers/plans/2026-09-15-arfc-sp7d.md` **and the `ai_rfc` gitlink** — the
+  pointer this row was told never to touch — and restored them cleanly each time. A
+  failed restore would lose a peer's work silently.
+
+## The suite flip is now diagnosed, not merely reasoned
+
+The Task 2 implementer found the mechanism the controller could not prove: the flipping
+test `tests/unit/test_webapp/test_plugin_forms.py::TestPluginFormInfo::test_get_plugin_form_info_picoquic`
+carries a **runtime `pytest.skip` inside its body at line 23**, gated on picoquic
+importability, so it flips between failed and skipped according to which xdist worker
+runs it. Re-running the same committed tree at `-n 2` reproduced the pre-row baseline
+exactly. **Pin `-n` for every count comparison**; a count taken at one `-n` is not
+comparable with a count taken at another.
