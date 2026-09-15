@@ -23,13 +23,13 @@ from panther.cli.core.base import (
     success_message,
     warning_message,
 )
+from panther.tools.build_paths import CLEAN_DIRS
 
 
 def _clean_build_artifacts(project_root: Path) -> int:
     """Clean build artifacts."""
     info_message("Cleaning build artifacts...")
-    dirs_to_clean = ["build", "dist", "docs", "site", "htmlcov"]
-    for dir_name in dirs_to_clean:
+    for dir_name in CLEAN_DIRS:
         dir_path = project_root / dir_name
         if dir_path.exists():
             click.echo(f"Removing {dir_path}")
