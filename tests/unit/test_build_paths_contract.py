@@ -2,10 +2,22 @@
 
 The documentation pipeline writes its generated tree to ``docs_build/`` and
 ``docs/`` is a tracked corpus, so ``mkdocs.yml`` has to say so: mkdocs' own
-default for ``docs_dir`` is ``docs``, which is precisely the corpus. Nothing
-downstream catches a mistake here either — the ``same-dir`` plugin replaces
-``mkdocs.config.config_options.Dir.post_validation`` in its ``__init__``, which
-removes mkdocs' guard against ``docs_dir``/``site_dir`` overlap — so these
+default for ``docs_dir`` is ``docs``, which is precisely the corpus.
+
+Nothing downstream catches a mistake here. mkdocs' guard
+(``SiteDir.post_validation``, ``mkdocs/config/config_options.py:781``) rejects
+only *containment* — one of the two directories lying inside the other — and
+the wrong values that matter here are siblings: ``docs_dir: docs`` beside a
+separate ``site_dir``, and ``site_dir: docs`` beside ``docs_dir: docs_build``,
+are both accepted in silence, plugin or no plugin. The ``same-dir`` plugin
+then narrows the guard further, though not by removing it: it patches ``Dir``
+and ``DocsDir`` (``mkdocs_same_dir/plugin.py:22,24``) and leaves ``SiteDir``'s
+own body running, but ``_replace_validation`` (``:46-49``) first rewrites
+``docs_dir`` to ``…/docs/.``, and the unnormalised ``startswith`` test for a
+``site_dir`` *inside* ``docs_dir`` no longer matches. Measured on the
+installed versions: ``docs_dir: docs`` with ``site_dir: docs/site`` is
+rejected without the plugin and accepted with it, while the other direction
+(``site_dir`` containing ``docs_dir``) still fires either way. So these
 assertions are the only thing standing between a wrong value and a build that
 renders, or deletes, the wrong tree.
 
@@ -24,6 +36,7 @@ tells a user it is about to delete.
 import configparser
 import inspect
 import subprocess
+from distutils.filelist import FileList
 from pathlib import Path
 
 try:  # Python 3.11 and later
@@ -64,6 +77,20 @@ PLAUSIBLE_CORPUS_PATHS = (
     f"{CORPUS_DIR}/build/notes.md",
     f"{CORPUS_DIR}/research/2026-09-15-notes.txt",
 )
+
+# The tree the sdist recipe is executed against. Fixed names rather than the
+# files on disk, so the assertions describe the recipe and not the checkout.
+SYNTHETIC_CORPUS = (
+    f"{CORPUS_DIR}/superpowers/plans/2026-01-01-example.md",
+    f"{CORPUS_DIR}/research/2026-01-01-example.md",
+)
+SYNTHETIC_GENERATED = (
+    f"{build_paths.GENERATED_DOCS_DIR}/index.md",
+    f"{build_paths.GENERATED_DOCS_DIR}/api/panther.md",
+)
+# One ordinary packaged module, asserted to survive so that a recipe which
+# pruned everything could not pass the corpus assertion vacuously.
+SYNTHETIC_SOURCE = "panther/cli/commands/docs.py"
 
 # pytest's own lookup, keyed by file name: which section a file's settings live
 # in is decided by the file it is in, and reading the wrong one makes a setting
@@ -250,19 +277,61 @@ def _tracked_corpus_paths() -> list[str]:
     return result.stdout.splitlines()
 
 
-def _manifest_directives() -> list[list[str]]:
-    """Split ``MANIFEST.in`` into whitespace-separated directives.
+def _sdist_filelist(manifest_text: str) -> list[str]:
+    """Report which files a ``MANIFEST.in`` template would ship in an sdist.
+
+    Behavioural rather than a scan for directive tokens, because the
+    directives apply *in order* and a token scan cannot see order: a ``graft
+    docs`` appended below the ``prune`` puts the whole corpus back, and a scan
+    that merely finds a ``prune docs`` somewhere in the file reports the
+    recipe safe. The template is therefore executed, through the same
+    ``FileList`` that setuptools' own ``manifest_maker`` drives.
+
+    Seeding ``files`` before the first directive runs is what makes the result
+    mean anything. ``setuptools-scm`` registers a ``setuptools.file_finders``
+    entry point, so ``add_defaults`` calls ``walk_revctrl()`` and every
+    git-tracked file is already in the list by the time the template is read.
+    Starting from an empty list would make ``prune docs`` inert, and deleting
+    it outright would then go unnoticed here.
+
+    Args:
+        manifest_text: Contents of a ``MANIFEST.in``. Blank lines and comments
+            are dropped, as ``read_template`` drops them.
 
     Returns:
-        One token list per line that carries a directive, with blank lines
-        and comments dropped.
+        The surviving paths, sorted and de-duplicated the way
+        ``manifest_maker`` leaves them.
     """
-    text = (REPO_ROOT / "MANIFEST.in").read_text(encoding="utf-8")
-    return [
-        line.split()
-        for line in text.splitlines()
-        if line.strip() and not line.lstrip().startswith("#")
-    ]
+    file_list = FileList()
+    # Assigned before the first include-type directive: when allfiles is None,
+    # include_pattern falls back to findall(), which walks the process's
+    # current working directory.
+    file_list.allfiles = [*SYNTHETIC_CORPUS, *SYNTHETIC_GENERATED, SYNTHETIC_SOURCE]
+    # The generated tree is gitignored, so walk_revctrl never sees it: it is
+    # absent from the seed and can only arrive by way of an include, which is
+    # what lets the assertion on it discriminate.
+    file_list.files = [*SYNTHETIC_CORPUS, SYNTHETIC_SOURCE]
+
+    for line in manifest_text.splitlines():
+        directive = line.strip()
+        if directive and not directive.startswith("#"):
+            file_list.process_template_line(directive)
+
+    file_list.sort()
+    file_list.remove_duplicates()
+    return list(file_list.files)
+
+
+def _shipped_corpus(survivors: list[str]) -> list[str]:
+    """Pick the corpus paths out of an sdist filelist.
+
+    Args:
+        survivors: The return value of ``_sdist_filelist``.
+
+    Returns:
+        Every path under the corpus directory, in the order given.
+    """
+    return [path for path in survivors if path.startswith(f"{CORPUS_DIR}/")]
 
 
 def _tracked_pytest_config_paths() -> list[Path]:
@@ -394,25 +463,52 @@ def test_manifest_ships_generated_docs_not_corpus():
     why one is asserted here alongside the include. ``prune docs`` compiles to
     a pattern anchored on ``docs/`` and so leaves ``docs_build/`` untouched.
     """
-    directives = _manifest_directives()
-    included = [d[1] for d in directives if d[0] == "recursive-include" and d[1:]]
-    pruned = [d[1] for d in directives if d[0] == "prune" and d[1:]]
+    survivors = _sdist_filelist((REPO_ROOT / "MANIFEST.in").read_text(encoding="utf-8"))
 
-    assert build_paths.GENERATED_DOCS_DIR in included
-    assert CORPUS_DIR not in included, (
-        "the sdist recipe names the corpus as a tree to ship; dropping this "
-        "include is necessary but not sufficient, see the prune assertion"
+    assert SYNTHETIC_SOURCE in survivors, (
+        "the recipe ships no packaged module at all, so the assertions below "
+        "would hold for an sdist that is simply empty"
     )
-    assert CORPUS_DIR in pruned, (
-        "nothing removes the corpus from the sdist, so an sdist ships every "
-        "tracked plan and spec: walk_revctrl adds them whatever the includes "
-        "above say, and only a prune can undo that"
+    assert not _shipped_corpus(survivors), (
+        "an sdist built from this recipe ships tracked plans and specs: "
+        f"{_shipped_corpus(survivors)}. walk_revctrl adds them whatever the "
+        "includes say, so only a prune takes them back out -- and a later "
+        "graft or recursive-include naming the corpus puts them back again"
     )
-    # ``prune docs/site`` retired rather than moved, and no ``prune site``
-    # replaces it: the rendered site now sits at the project root, outside
-    # every include above, and gitignored, so walk_revctrl cannot reach it
-    # either.
-    assert CORPUS_DIR not in [p.split("/")[0] for p in pruned if "/" in p]
+    assert set(SYNTHETIC_GENERATED) <= set(survivors), (
+        f"the sdist does not ship {build_paths.GENERATED_DOCS_DIR}/, which no "
+        "walk_revctrl can supply because it is gitignored: only an include in "
+        "this recipe can put it there"
+    )
+
+
+def test_manifest_check_is_sensitive_to_directive_order(tmp_path):
+    """A directive appended below the prune must not slip past the check above.
+
+    The assertion this replaced scanned for directive tokens, and so reported
+    a recipe safe as long as a ``prune docs`` appeared somewhere in it.
+    ``MANIFEST.in`` directives apply in order, so a ``graft docs`` written
+    below that prune re-adds every plan and spec while the scan still finds
+    its token and passes.
+
+    This runs the check against exactly that input and requires it to notice,
+    which keeps the guarantee a property of what the recipe *does* rather than
+    of which words it contains. The real file is copied rather than edited.
+    """
+    grafted = tmp_path / "MANIFEST.in"
+    grafted.write_text(
+        (REPO_ROOT / "MANIFEST.in").read_text(encoding="utf-8")
+        + f"\ngraft {CORPUS_DIR}\n",
+        encoding="utf-8",
+    )
+
+    survivors = _sdist_filelist(grafted.read_text(encoding="utf-8"))
+
+    assert _shipped_corpus(survivors) == sorted(SYNTHETIC_CORPUS), (
+        "a graft appended below the prune did not put the corpus back, so "
+        "this check cannot see directive order and the assertion above it "
+        "would pass on a recipe that re-ships every plan and spec"
+    )
 
 
 def test_pytest_does_not_recurse_into_generated_docs():
