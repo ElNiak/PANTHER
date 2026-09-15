@@ -272,3 +272,64 @@ importability, so it flips between failed and skipped according to which xdist w
 runs it. Re-running the same committed tree at `-n 2` reproduced the pre-row baseline
 exactly. **Pin `-n` for every count comparison**; a count taken at one `-n` is not
 comparable with a count taken at another.
+
+## SP6 follow-through — the post-completion review pass (D25-D28)
+
+After the row was reported complete, a `requesting-code-review` +
+`verification-before-completion` pass ran two independent read-only reviewers over the
+finished work. The central claim survived re-verification, but four Important findings came
+back — two with the worst possible shape for a row about silent data loss: **the suite
+reported safe on a mutation that was not.** All four are now closed.
+
+- **D25** — Eight unanchored `.gitignore` rules still hid plausible corpus filenames.
+  Measured before the fix: `.gitignore:141:*_Report.md` hid
+  `docs/research/2026-09-15-Threat_Report.md`, `:138:REVIEW.md` hid
+  `docs/superpowers/plans/REVIEW.md`, `:113:coordination.md` hid `docs/coordination.md`;
+  same class for `build/`, `coordination`, `memory`, `2026-*.txt`, `CROSS_REVIEW.md`,
+  `AUDIT-*.md`, `ONBOARDING.md`. Such a file was invisible to `git status` and destroyed by
+  `git clean -fdx` — exactly the loss this row exists to prevent. Fixed in `d5b077830` by
+  anchoring the root-only rules, plus a `!/docs/**/build/*` negation for the case git
+  cannot re-include (a file whose parent *directory* is excluded).
+- **D26** — Appending `graft docs` to `MANIFEST.in` re-shipped all 42 corpus files with
+  every test green, because the assertion only tokenised `recursive-include` and `prune`
+  while MANIFEST directives apply in order. Fixed in `0aa5fbcc1` by executing the recipe
+  through `distutils.filelist.FileList.process_template_line` instead of scanning it.
+- **D27** — Reverting `docs.py:78` to `project_root / "docs"` left all tests green while
+  the `docs_src/` copy, the `panther/**/*.md` hierarchy and the ivy conversion wrote into
+  the tracked corpus — the needle guarded `"docs_build"`, a name the revert simply stops
+  using. Overwrite rather than deletion, so the deletion claim held and the *intent* did
+  not. Fixed in `eaf0a5b0e` with a second needle on the corpus name itself.
+- **D28** — "The list is defined once, with no duplicate literal anywhere" was **false**:
+  `panther/builder_metrics/utils.py` still carried the pre-consolidation list including
+  `"docs": project_root / "docs"`. Zero callers, and it measures directory sizes rather
+  than deleting, so the hazard was nil — but no test could see it, because both identity
+  assertions and both source needles were scoped to the two clean functions. Fixed in
+  `5e330de0d` by sourcing the dict from `CLEAN_DIRS`; the user ruled the function is kept
+  and repointed, not deleted. `2fd5b9ba2` additionally repaired a corrupted docstring found
+  in the same file.
+
+**A second round was needed on the tests themselves.** The review of the fixes found the
+new guards were partially blind: four of the eleven anchored rules had no covering path, so
+they could be un-anchored again with the suite green, and `include docs/*.md` still
+re-shipped corpus files because every synthetic corpus path was nested. Closed in
+`a2c9db196`; the scoped re-review then un-anchored **each of the eleven rules in turn** in a
+scratch repo and confirmed all eleven now go red.
+
+### Two controller corrections this pass forced
+
+1. The final report said **16 commits ahead**; the verified count at that moment was **15**.
+2. The report, and a test docstring, claimed `same-dir` defeats mkdocs' `docs_dir`/`site_dir`
+   overlap guard by replacing `Dir.post_validation`. **Wrong mechanism.**
+   `SiteDir.post_validation` (`mkdocs/config/config_options.py:781`) has its own body and
+   still runs; the guard fails because `_replace_validation`
+   (`mkdocs_same_dir/plugin.py:46-49`) rewrites `docs_dir` to `…/./.`, so the `startswith`
+   comparison never matches. The conclusion held; the stated reason did not. Corrected in
+   the test docstring by `eaf0a5b0e`.
+
+### Suite after the pass
+
+Row tests **27 → 31**. Unit suite, pinned at `-n 4`: **20 failed / 1169 passed / 4 skipped /
+1 xfailed / 1 error**, against 20 / 1164 / 5 / 1 / 1 before — passed +4 new +1
+flipped-from-skipped, failures unchanged at 20. The flip is the known
+`test_plugin_forms.py` picoquic test, which carries a runtime `pytest.skip` in its body and
+moves with xdist worker assignment; **pin `-n` for any count comparison.**
