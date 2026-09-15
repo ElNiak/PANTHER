@@ -66,8 +66,16 @@ CORPUS_DIR = "docs"
 # Names a plan or spec could plausibly carry. They are asserted on instead of
 # only the files that happen to exist today, because "no tracked name collides
 # with an ignore rule" is a property of the names people have reached for so
-# far and not of the rules: every one of these but the first was hidden by an
-# unanchored rule written for a file at the repository root.
+# far and not of the rules.
+#
+# The tuple carries one entry per rule that had to be anchored to the
+# repository root, and the entry has to be a name the *unanchored* form would
+# match, or the rule is pinned by nothing. Two ways to get that wrong, both of
+# which this tuple made and both of which are fixed below: a dated
+# ``2026-09-15-REVIEW.md`` does not match the exact-basename rule ``REVIEW.md``,
+# so the plain name is listed too; and ``coordination`` matches a *directory*,
+# which ``coordination.md`` cannot exercise, so a file beneath one is listed as
+# well. Anything removed from here silently un-pins a rule.
 PLAUSIBLE_CORPUS_PATHS = (
     f"{CORPUS_DIR}/superpowers/plans/2026-09-15-REVIEW.md",
     f"{CORPUS_DIR}/research/2026-09-15-Threat_Report.md",
@@ -76,13 +84,27 @@ PLAUSIBLE_CORPUS_PATHS = (
     f"{CORPUS_DIR}/superpowers/memory/notes.md",
     f"{CORPUS_DIR}/build/notes.md",
     f"{CORPUS_DIR}/research/2026-09-15-notes.txt",
+    f"{CORPUS_DIR}/superpowers/plans/REVIEW.md",
+    f"{CORPUS_DIR}/CROSS_REVIEW.md",
+    f"{CORPUS_DIR}/ONBOARDING.md",
+    f"{CORPUS_DIR}/coordination/notes.md",
 )
 
 # The tree the sdist recipe is executed against. Fixed names rather than the
 # files on disk, so the assertions describe the recipe and not the checkout.
+#
+# The last entry sits directly under the corpus directory and the others are
+# nested, because ``include`` anchors on the pattern exactly as written: with
+# only nested paths here, an ``include docs/*.md`` appended below the prune
+# matches nothing and re-ships the corpus with every assertion still green. No
+# tracked file sits at the top level of the corpus today, so that entry exists
+# for the recipe's sake rather than the checkout's -- and the sibling ignore
+# test above already treats ``docs/coordination.md`` as a name the corpus can
+# take.
 SYNTHETIC_CORPUS = (
     f"{CORPUS_DIR}/superpowers/plans/2026-01-01-example.md",
     f"{CORPUS_DIR}/research/2026-01-01-example.md",
+    f"{CORPUS_DIR}/coordination.md",
 )
 SYNTHETIC_GENERATED = (
     f"{build_paths.GENERATED_DOCS_DIR}/index.md",
