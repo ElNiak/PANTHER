@@ -178,3 +178,37 @@ Selection `tests/unit/ -m unit -n 4`:
   the picoquic-importability family and neither attributable to this row's production
   code — see the ledger's "Suite measurement" block for the decomposition and for what
   could NOT be proven.
+
+## MIGRATION NOTE — read before pulling this row into an existing checkout
+
+Raised by the final whole-row review as its one must-handle item. It needs no code change.
+
+Before this row, a stale generated tree under `docs/` was covered by `.gitignore:54` and was
+cleared by every `panther build clean` and every `panther docs build`. This row removes both
+of those: `.gitignore:54` is now `docs_build/`, `build clean` no longer touches `docs/`, and
+`docs build` writes to `docs_build/`. **So the row removes the only two things that cleared
+those files and simultaneously stops hiding them.**
+
+Measured: the main checkout at `…/PANTHER/master` holds **2,199 files under `docs/`** with the
+`build_dict` and `gen_ref_pages` output shape (`INSTALL.md`, `changelog.md`, `cli_click.md`,
+`core_*.md`). Four further worktrees exist beside this one. After pulling, every one of those
+files becomes a plain untracked entry in `git status`, and a single `git add .` or `git add -A`
+would commit a 2,199-file generated tree. `origin/production` tracks zero files under `docs/`
+today, so the merge lands this on every developer at once.
+
+**The natural cleanup is the shape this row rejected.** `git clean -fd docs/` is a tracked-path
+predicate — exactly what Option A was rejected for — and in any worktree holding untracked
+corpus files it deletes them. In this worktree those are
+`docs/superpowers/plans/2026-09-05-arfc-gepa-no-key-executor-prompt.md` and
+`2026-09-09-arfc-sp-closure-executor-prompt.md`, the two files whose existence decided Option B
+over Option A (D4). Ordering matters: while `docs/` was still ignored they were skipped by
+`git clean -fd` and needed `-x`; the moment this row's `.gitignore` lands, `-fd` takes them.
+
+**Procedure after pulling, per checkout:**
+
+1. `git clean -nd docs/` — **dry run first, never blind.**
+2. Read the listing. Anything hand-authored — anything under `docs/superpowers/` or
+   `docs/research/` that is not tracked — must be moved or committed before step 3.
+3. Only then `git clean -fd docs/`.
+
+Do not skip step 1. Untracked plan files live under `docs/superpowers/plans/`.
