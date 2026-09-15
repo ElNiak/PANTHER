@@ -6,6 +6,8 @@ agree because they read one definition rather than two copies of a literal.
 """
 
 import inspect
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -50,11 +52,18 @@ def test_builder_clean_preserves_docs_directory(tmp_path):
 
 
 def test_clean_dirs_exclude_docs():
-    """One definition, reached by both consumers: no literal list survives.
+    """One definition, and both cleaners reach it at the point of use.
 
-    The identity check is the load-bearing half. A tuple literal rebuilt in a
-    consumer would compare equal but would not be the same object, so ``is``
-    catches a copy that ``==`` would wave through.
+    Two independent claims, because neither alone is enough. The identity
+    check catches a tuple rebuilt at module level: it would compare equal but
+    would not be the same object. The source check catches a literal written
+    inside the function body, which identity cannot see at all, because it
+    reads the module-level binding and never looks at the loop.
+
+    The needle is positive on purpose. A negative needle for ``"docs"`` misses
+    a *correct* duplicate — ``["build", "dist", "docs_build", "site",
+    "htmlcov"]`` inlined in the body — because ``"docs"`` is not a substring of
+    ``"docs_build"``, and every other assertion here still passes on it.
     """
     assert "docs" not in build_paths.CLEAN_DIRS
     assert build_paths.GENERATED_DOCS_DIR in build_paths.CLEAN_DIRS
@@ -62,8 +71,8 @@ def test_clean_dirs_exclude_docs():
     assert build.CLEAN_DIRS is build_paths.CLEAN_DIRS
     assert panther_builder.CLEAN_DIRS is build_paths.CLEAN_DIRS
 
-    assert '"docs"' not in inspect.getsource(build._clean_build_artifacts)
-    assert '"docs"' not in inspect.getsource(panther_builder._clean)
+    assert "CLEAN_DIRS" in inspect.getsource(build._clean_build_artifacts)
+    assert "CLEAN_DIRS" in inspect.getsource(panther_builder._clean)
 
 
 def test_builder_resolves_build_paths_from_repo_root():
@@ -71,3 +80,45 @@ def test_builder_resolves_build_paths_from_repo_root():
     repo_root = Path(panther_builder.__file__).resolve().parent
 
     assert Path(build_paths.__file__).resolve().is_relative_to(repo_root)
+
+
+@pytest.mark.parametrize("unsafe", ["/etc", "/", "..", "../..", ".", "", "a/b"])
+def test_clean_dirs_rejects_entries_that_are_not_one_relative_segment(unsafe):
+    """Every entry is fed to ``shutil.rmtree(project_root / entry)`` unchecked.
+
+    ``pathlib`` makes that dangerous in two distinct ways: an absolute right
+    operand discards the left entirely, so ``Path('/repo') / '/etc'`` is
+    ``/etc``; and ``''`` or ``'.'`` resolve back to the root itself, so the
+    clean would delete the project. Both must be refused, loudly.
+    """
+    with pytest.raises(ValueError):
+        build_paths._reject_unsafe_segments((unsafe,))
+
+
+def test_shipped_clean_dirs_pass_the_guard():
+    """The guard must accept what the module actually ships."""
+    build_paths._reject_unsafe_segments(build_paths.CLEAN_DIRS)
+
+
+def test_build_paths_imports_without_site_packages():
+    """The bootstrap imports this before any dependency is installed.
+
+    ``-S`` drops ``site`` entirely, so no ``site-packages`` and no ``.pth``
+    files are on the path. A third-party import anywhere in the chain fails
+    here, rather than at somebody's first ``package-dev`` on a bare checkout.
+    """
+    repo_root = Path(panther_builder.__file__).resolve().parent
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-S",
+            "-c",
+            "from panther.tools.build_paths import CLEAN_DIRS",
+        ],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
