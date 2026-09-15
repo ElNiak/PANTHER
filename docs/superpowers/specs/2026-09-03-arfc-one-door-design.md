@@ -18,14 +18,16 @@ stages and then prints "next: read the cluster evidence and write claims" — an
 human for a step only a model session performs — and nothing in the substrate can hand over to
 the harness.
 
-Twelve frictions, each verified in the code on 2026-09-03: two front doors; the run-from-directory
+Eleven frictions, each verified in the code on 2026-09-03 — twelve were claimed and one is
+withdrawn below: two front doors; the run-from-directory
 harness; two path conventions across thirteen verbs; `forge --out` names a cache root that
 downstream `--forge` refuses; the agent boundary with no handover; the environment triple
 assembled in three places and `PANTHER_REPO` pushed onto `sys.path` in four; five colliding
-`ai_rfc`/`ai-rfc` names; the `check` vs `claim-adjudicate` vocabulary split; a parity `checkpoint`
-that collapses every non-zero code the substrate returns to 1, where its neighbours pass the code
-through; alphabetical `--from` choices; the closed target table; no substrate writer for the
-question register.
+`ai_rfc`/`ai-rfc` names; the `check` vs `claim-adjudicate` vocabulary split; **(withdrawn: this
+list counted a parity `checkpoint` that could not report exit 3, which was never a friction — the
+verb has no findings concept and no strict mode, so it returns 0 or 1 by construction and always
+did. Eleven frictions, not twelve.)**; alphabetical `--from` choices; the closed target table; no
+substrate writer for the question register.
 
 Outcome wanted: **one console script, one config file, one command that does whatever is next
 until the reconstruction is done or must stop**, resumable after a kill, with the three-arm
@@ -45,6 +47,7 @@ experiment instrument kept but out of the operator's way.
 | D60 | Three dependency-ordered sub-projects with their own gates: **CLI-1 one door** (config + field-table validation, argparse root, ledger, `init`/`status`/`verify`/`doctor`, `run` for the deterministic stages stopping at the boundary), **CLI-2 autonomous driver** (sessions inside `run`, `next`, stop policy, resumability, instrument split), **CLI-3 one core** (server core calls Python APIs, agent verbs folded, `ai_rfc` retired, prompts and guard re-rendered, leaf programs retired from the operator's help). They satisfy SP3+SP4, SP2, and SP3's folding respectively. |
 | D61 | Settled from the code: `timeout_s` is per session (today's cap is per run); attempts count only sessions that ended on their own (a killed or launch-errored session consumes none — MARK's ordinal 38 halted on a $0, one-turn launch error with $12.62 left, not on budget as D38 records); runs live under the workspace (`<workspace>/runs/<ts>/`, inverting today's nesting, which the instrument keeps for campaigns); the checkpoint stage is agent-performed in the MCP shape, so the driver never runs it; `pipeline.next_stage` drives only pin..views, the ledger drives the rest; R4's retirement of the explicit-path leaf verbs happens in CLI-3, once the server core no longer shells out to them — until then the root mounts them unchanged. |
 | D62 | **The two stops that leave work outstanding and still exit 0.** `StopReason.bound_reached` (a `--until` bound was reached) and `StopReason.action_performed` (`ai-rfc next` performed its one action) are neither failures nor `done`. Exit code **0** for both: §5's "stopped with work outstanding 1" means the sweep *could not go on*, not that work exists — the no-sessions boundary stop has always returned 0 with every cluster outstanding. Both carry a **resume line**, which only `done` is refused. The resume verb differs: `bound_reached` resumes with **`run`** and *drops* the satisfied bound, because a line re-issuing a bound already reached is a fixed point that performs nothing (measured: the same workspace run twice with `--until cluster:c1` printed byte-identical output and launched nothing); `action_performed` resumes with **`next`**, because the operator who asked for one action is told how to ask for the next one, where `run` would carry the reconstruction all the way. This settles the debt CLI-2 left when it added the two members without a row. |
+| D63 | **`ai_rfc_status` is folded as a tool only — nineteen verbs answer twenty tools.** §6's "the sixteen parity verbs … become grouped subcommands of the root" holds for every verb but this one. `ai-rfc status` already means the operator's ledger (D54) and keeps that meaning unchanged; the `ai_rfc_status` MCP tool stays exactly as it is, because the tool names are identifiers rather than a door (D56). No third spelling is minted for the folded read: a second `status` would collide, and a renamed one would be a verb no arm's prompt names. `docs/parity.md`'s row for `ai_rfc_status` therefore reads `— (MCP only)`, and its twin compares the tool against `queries.status` rather than against a verb. This is an **arm-surface** consequence, not a documentation one: arm A reaches twenty operations and arm B nineteen, the first time the compared surfaces differ in size, so it is recorded in `docs/parity.md`, `docs/experiment-protocol.md` §1 and `ai_rfc/experiment/README.md` as an asymmetry that costs arm B calls rather than information. |
 
 ## Undecided in the extraction spec → settled
 
@@ -147,9 +150,11 @@ State machine:
 | `next_round()` due (SP7c) | consolidation session; mid-sweep failure noted, sweep continues; sweep-end failure → exit 1 |
 | no cluster outstanding, no round due | `check --strict`, `lint`, `build` (skipped without a toolchain); findings → stop `build_failed`, exit 1; else `done`, exit 0 |
 
-`next` performs one row; `--until <stage>|cluster:<id>|ordinal:<n>`. Exit codes: done or bound
-reached 0; stopped with work outstanding 1; strict findings 3 (D62). Session classification from
-the result event:
+`next` performs one row; `--until <stage>|cluster:<id>|ordinal:<n>`. Exit codes: done, bound
+reached, or the one action performed 0; stopped with work outstanding 1; strict findings 3 (D62 —
+all three zero-exit reasons, because `ai-rfc next`'s `action_performed` leaves work outstanding
+exactly as `bound_reached` does, and naming only one of them would leave the other reading as a
+defect). Session classification from the result event:
 *refused* (worked, cluster not done → consumes an attempt), *errored* (`is_error`, at most one turn
 → a launch or API failure: stop with the resume line, no attempt consumed), *killed* (timeout or
 interrupt), *budget_hit*. Budget is a lifetime cap: `spent()` sums result events across
@@ -163,11 +168,15 @@ the run has left. Leftovers on resume: a `runs/<ts>/` without `status.json` beco
 
 `ai_rfc/server/core/gates.py` stops shelling out to `python -m ai_rfc.draft …`: the core calls
 `write_checkpoint`, `run_gate`, the check API, `build` and `lint` in-process (exit codes become
-return values; `checkpoint` stops collapsing every non-zero code to 1 and reports the substrate's
-code as its neighbours do — there was never a 3 for it to regain, the verb having no findings
-concept and no strict mode). `paths.resolve_context()` reads `AI_RFC_CONFIG`, loads the
+return values; `checkpoint` reports the code its core produces, which is **0 or 1**). The earlier
+"`checkpoint` regains 3" was a **spec error, not a behaviour to build**: the verb has no findings
+concept and no strict mode, so 3 was never available to it, and no reachable path ever collapsed
+its code either — not the core, not the deleted parity verb at `68d976c~1:server/cli.py:341`, not
+the verb that replaced it. A reader should look for no such change. The claim came from this
+verb's own docstring, corrected with it. `paths.resolve_context()` reads `AI_RFC_CONFIG`, loads the
 sealed config, derives the workspace and toolchain. The sixteen parity verbs (plus SP7a/b's
-`draft build|lint|render`, `structure upsert`) become grouped subcommands of the root; `tools.py`
+`draft build|lint|render`, `structure upsert`) become grouped subcommands of the root — all but
+`status`, which is folded as a tool only and gets no `ai-rfc` verb at all (D63); `tools.py`
 and the grouped verbs call the same core (parity twins stay byte-identical). `render.py`'s slot
 tables and the guard families are re-rendered to `ai-rfc …`; `experiment/config._SHIM` writes
 `bin/ai-rfc`; `docs/parity.md` gains the new verb column; `experiment-protocol.md` records the
