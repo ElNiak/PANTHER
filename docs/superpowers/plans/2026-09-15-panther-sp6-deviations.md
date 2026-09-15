@@ -112,3 +112,69 @@ Two throwaway clones of `40bb8d06d`, each seeded with an untracked sentinel unde
   `docs_dir` rather than aborting before it gets there.
   *Cost if wrong:* a shared venv was mutated while two peer sessions were active; the
   change is additive and the package is a declared dependency.
+
+- **D22** — **Infrastructure, not this row, and not any agent.** Partway through Phase 4,
+  `git status` reported all 1134 tracked files as staged deletions. Cause: an external
+  macOS process had renamed the git index files on collision —
+  `.git/worktrees/iut-ai-rfc/index` to `index 2` (145,528 bytes, Sep 15 12:56) and
+  `.git/index` to `index 2` (159,376 bytes, **Jan 15 2026**). With no file named `index`,
+  git reads an empty index, so every tracked file compares as deleted. Both renamed files
+  carry valid `DIRC` magic. HEAD (1134 files, 42 under `docs/`) and the working tree were
+  never touched, and no commit captured the deletions.
+  Repaired with the user's approval by renaming this worktree's `index 2` back to `index`,
+  which restores the real index rather than rebuilding from HEAD; `git status` then showed
+  0 staged deletions. The main checkout's January-dated `index 2` was left alone — an
+  8-month-stale index is a separate decision for the user.
+  This is the same family as the project's known issue that a watcher hides every `.pth`
+  file under this tree within ~90 s. The repository lives under `~/Documents/`, which
+  macOS syncs by default, and rename-on-collision to "name 2" is that behaviour's
+  signature. **The hazard was live**: any `git commit` without an explicit pathspec, by
+  this session or by the SP7d peer sharing the worktree, would have committed the deletion
+  of the entire repository. Explicit-pathspec staging is what made it survivable.
+
+## Phase 4 gate — observed, in throwaway clones of `415242c19`
+
+Both clones seeded with an untracked `GATE-SENTINEL.md` under `docs/superpowers/plans/`
+and a non-placeholder `htmlcov/index.html`. Counts are invariance checks, not fixed
+figures (D16): the corpus keeps growing while peers commit.
+
+`panther build clean` in `/tmp/claude-501/sp6/gate-clean` — rc=0:
+
+    echoed: Removing .../docs_build
+            Removing .../htmlcov          (docs/ NOT mentioned)
+    tracked under docs/   42  ->  42
+    docs files on disk    43  ->  43
+    git status ' D' count  0
+    untracked sentinel    SURVIVED
+    docs_build/           removed, correctly
+
+`panther docs build` in `/tmp/claude-501/sp6/gate-docs` — rc=0,
+"Documentation built in 118.61 seconds":
+
+    tracked under docs/   42  ->  42
+    docs files on disk    43  ->  43
+    git status ' D' count  0
+    untracked sentinel    SURVIVED
+    git diff --stat mkdocs.yml   EMPTY  <- destroyer 5 is dead
+    ai_rfc nav line in mkdocs.yml   still present (1 occurrence)
+    docs_build/           21 files generated   <- the build really produced output
+    site/                 468 HTML pages built
+    corpus paths in site/  0   <- no superpowers/ or research/ page published
+
+That last line matters beyond the row's stated goal: it confirms the design choice closed
+the publication exposure that the rejected option would have opened. Before this row the
+corpus was never published only because it was deleted first.
+
+Compare with the Task 1 reproduction of the same two commands, which gave 40 tracked
+deletions each, a destroyed sentinel, and `mkdocs.yml | 1 -`.
+
+## Suite
+
+Selection `tests/unit/ -m unit -n 4`:
+  baseline 20 failed / 1138 passed / 4 skipped / 1 xfailed / 1 error
+  now      20 failed / 1164 passed / 5 skipped / 1 xfailed / 1 error
+  passed 1138 + 27 new - 1 flipped = 1164; skipped 4 + 1 = 5; failed unchanged at 20.
+  The row's 27 new tests all pass in isolation. Two pre-existing tests flipped, both in
+  the picoquic-importability family and neither attributable to this row's production
+  code — see the ledger's "Suite measurement" block for the decomposition and for what
+  could NOT be proven.
