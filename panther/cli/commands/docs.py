@@ -34,10 +34,12 @@ def _reset_generated_output(project_root: Path) -> None:
     mkdocs' own output. ``docs/`` is deliberately untouched — it holds tracked
     plan and spec files that no build can reproduce.
 
-    The generated docs directory is removed *and recreated*. Several copy
-    steps downstream create only their destination's parent, so they need the
-    directory itself to be there already. The rendered site is only removed,
-    because mkdocs creates it.
+    The generated docs directory is removed *and recreated*, so that its
+    existence is this function's postcondition rather than something each
+    writer downstream has to arrange. Every copy step today happens to pass
+    ``parents=True`` and would recreate it incidentally; relying on that would
+    make the guarantee a property of five call sites instead of one. The
+    rendered site is only removed, because mkdocs creates it.
 
     Args:
         project_root: Directory the generated names are joined onto.

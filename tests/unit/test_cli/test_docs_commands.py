@@ -35,10 +35,12 @@ def _seed_corpus_and_generated_output(root: Path) -> None:
 def test_reset_generated_output_preserves_docs(tmp_path):
     """The reset must clear generated output and leave the corpus alone.
 
-    The third assertion is not decoration. The pipeline's copy loops write
-    into this directory, and several of them create only the destination's
-    *parent*, so a reset that removes without recreating leaves a path writing
-    into a directory that does not exist.
+    The third assertion is not decoration, and it is not a claim that some
+    copy step downstream would crash without it — every one of them passes
+    ``parents=True`` and would recreate the directory incidentally. It pins
+    the postcondition to the reset itself rather than to five call sites, and
+    it makes this test say what the release gate's
+    ``find docs_build -type f | wc -l`` check says.
     """
     _seed_corpus_and_generated_output(tmp_path)
 
