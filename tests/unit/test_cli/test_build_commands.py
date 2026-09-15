@@ -100,6 +100,98 @@ def test_shipped_clean_dirs_pass_the_guard():
     build_paths._reject_unsafe_segments(build_paths.CLEAN_DIRS)
 
 
+_CLEAN_DIRS_LINE = (
+    'CLEAN_DIRS = ("build", "dist", GENERATED_DOCS_DIR, SITE_DIR, "htmlcov")'
+)
+_CLEAN_DIRS_WITHOUT_SITE_DIR = (
+    'CLEAN_DIRS = ("build", "dist", GENERATED_DOCS_DIR, "htmlcov")'
+)
+
+
+def _import_mutated_build_paths(tmp_path, mutations):
+    """Import a copy of ``build_paths`` whose source has been rewritten.
+
+    The guard is only worth anything if it *runs*, and nothing that calls
+    ``_reject_unsafe_segments`` directly can tell whether the module invokes
+    it at import. Importing a deliberately unsafe copy in a subprocess can:
+    the import either raises or it does not, and a copy is used because the
+    real module has already been imported into this interpreter.
+
+    Each ``before`` must occur exactly once in the real source. That is what
+    keeps the anchors honest — reformat the module and this helper fails
+    loudly, rather than writing an unmutated copy that imports cleanly and
+    hands every caller a pass for the wrong reason.
+
+    Args:
+        tmp_path: Directory the copy is written to and imported from.
+        mutations: ``(before, after)`` pairs applied to the module source.
+
+    Returns:
+        The completed subprocess that attempted the import.
+    """
+    source = Path(build_paths.__file__).read_text(encoding="utf-8")
+    for before, after in mutations:
+        assert source.count(before) == 1, f"anchor no longer unique: {before!r}"
+        source = source.replace(before, after)
+
+    module_path = tmp_path / "build_paths_under_test.py"
+    module_path.write_text(source, encoding="utf-8")
+
+    return subprocess.run(
+        [sys.executable, "-c", "import build_paths_under_test"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_unmutated_build_paths_copy_imports_cleanly(tmp_path):
+    """Control for the two mutation tests below.
+
+    Without it, a copy that fails to import for some unrelated reason — a bad
+    path, a stray syntax error — would satisfy every "the import must fail"
+    assertion and report a guard that is not there.
+    """
+    result = _import_mutated_build_paths(tmp_path, ())
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_import_rejects_an_unsafe_docs_build_target(tmp_path):
+    """The rmtree targets must be validated in their own right.
+
+    ``GENERATED_DOCS_DIR`` and ``SITE_DIR`` are handed to ``shutil.rmtree``
+    by the documentation pipeline, which never consults ``CLEAN_DIRS``. They
+    pass the guard today only because ``CLEAN_DIRS`` happens to contain them,
+    and "what a clean removes" and "where the docs build writes" are two
+    concepts that merely coincide. The mutation separates them — an unsafe
+    ``SITE_DIR`` that ``CLEAN_DIRS`` no longer mentions — so only a guard
+    call that names the rmtree targets can refuse it.
+    """
+    result = _import_mutated_build_paths(
+        tmp_path,
+        (
+            ('SITE_DIR = "site"', 'SITE_DIR = ".."'),
+            (_CLEAN_DIRS_LINE, _CLEAN_DIRS_WITHOUT_SITE_DIR),
+        ),
+    )
+
+    assert result.returncode != 0, result.stdout
+    assert "ValueError" in result.stderr
+
+
+def test_import_rejects_an_unsafe_clean_dirs_entry(tmp_path):
+    """The other half of the wiring, pinned the same way.
+
+    ``"htmlcov"`` is a clean target and nothing else, so only the guard call
+    over ``CLEAN_DIRS`` can refuse it. Delete that call and this goes red.
+    """
+    result = _import_mutated_build_paths(tmp_path, (('"htmlcov"', '".."'),))
+
+    assert result.returncode != 0, result.stdout
+    assert "ValueError" in result.stderr
+
+
 def test_build_paths_imports_without_site_packages():
     """The bootstrap imports this before any dependency is installed.
 

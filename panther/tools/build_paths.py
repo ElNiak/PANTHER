@@ -26,7 +26,7 @@ CLEAN_DIRS = ("build", "dist", GENERATED_DOCS_DIR, SITE_DIR, "htmlcov")
 
 
 def _reject_unsafe_segments(dirs: Iterable[str]) -> None:
-    """Refuse any entry that a clean could follow out of the project root.
+    """Refuse any name that a removal could follow out of the project root.
 
     Every entry here reaches ``shutil.rmtree(project_root / entry)`` unchecked,
     and ``pathlib`` makes that dangerous in two distinct ways: an absolute
@@ -50,8 +50,14 @@ def _reject_unsafe_segments(dirs: Iterable[str]) -> None:
         parts = Path(name).parts
         if Path(name).is_absolute() or len(parts) != 1 or parts[0] == os.pardir:
             raise ValueError(
-                f"CLEAN_DIRS entries must be single relative segments: {name!r}"
+                f"build directory names must be single relative segments: {name!r}"
             )
 
 
+# Two calls, because these are two sets that merely coincide today. The docs
+# pipeline hands GENERATED_DOCS_DIR and SITE_DIR to shutil.rmtree without ever
+# reading CLEAN_DIRS; validating them only as members of CLEAN_DIRS would stop
+# covering them the moment a clean target and a build output stop being the
+# same thing.
+_reject_unsafe_segments((GENERATED_DOCS_DIR, SITE_DIR))
 _reject_unsafe_segments(CLEAN_DIRS)
