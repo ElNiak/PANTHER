@@ -5,6 +5,8 @@ import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+from panther.tools.build_paths import CLEAN_DIRS
+
 
 def get_directory_size_mb(directory: Path) -> float:
     """Get the total size of a directory in megabytes.
@@ -212,19 +214,20 @@ def list_docker_images_with_pattern(pattern: str) -> List[str]:
 def cleanup_build_artifacts(project_root: Path) -> Dict[str, float]:
     """Clean up build artifacts and return size information.
 
+    The directories come from ``panther.tools.build_paths.CLEAN_DIRS``, the
+    single definition the build entry points share. The tracked ``docs/``
+    corpus is deliberately absent from that list — it holds authored plan and
+    spec files rather than generated output — while the directory the docs
+    build writes to is present under its own name.
+
     Args:
         project_root: Root directory of the project
 
     Returns:
-        Dictionary with cleanup information
+        Mapping of ``"<name>_size_mb"`` to that directory's size in megabytes,
+        ``0.0`` for a directory the root does not have.
     """
-    artifacts = {
-        "build": project_root / "build",
-        "dist": project_root / "dist",
-        "htmlcov": project_root / "htmlcov",
-        "site": project_root / "site",
-        "docs": project_root / "docs",
-    }
+    artifacts = {name: project_root / name for name in CLEAN_DIRS}
 
     cleanup_info = {}
 
