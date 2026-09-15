@@ -74,7 +74,23 @@ def test_pipeline_reads_the_shared_directory_name():
     identifier-shaped string constants, so ``docs.GENERATED_DOCS_DIR is
     build_paths.GENERATED_DOCS_DIR`` holds even for a module that writes the
     literal. Only the source discriminates. Scoped to the two function bodies
-    so that prose elsewhere in the file cannot trip the negative needle.
+    so that prose elsewhere in the file cannot trip either negative needle.
+
+    **What is pinned.** That the generated directory is reached through the
+    shared name, that the pipeline does not re-spell that name as a literal,
+    and that it does not name the tracked corpus instead. The last of those is
+    the load-bearing one and it is not implied by the other two: restoring
+    ``docs_dir = project_root / "docs"`` leaves ``GENERATED_DOCS_DIR`` present
+    elsewhere in the body and introduces no ``docs_build`` literal, so a test
+    carrying only the first two needles stays green while the ``docs_src``
+    copy, the ``panther/**/*.md`` hierarchy and the ivy conversion all write
+    into the corpus. That is an overwrite rather than a deletion, which is why
+    the reset assertions above keep passing through it.
+
+    **What is not pinned.** That the destination is *right* — only that it is
+    spelled neither as a bare ``docs_build`` nor as a bare ``"docs"``. A
+    corpus path reached through some third name, or assembled a character at a
+    time, would pass all three needles.
     """
     bodies = inspect.getsource(docs._build_documentation) + inspect.getsource(
         docs._reset_generated_output
@@ -82,3 +98,8 @@ def test_pipeline_reads_the_shared_directory_name():
 
     assert "GENERATED_DOCS_DIR" in bodies
     assert build_paths.GENERATED_DOCS_DIR not in bodies
+    assert '"docs"' not in bodies, (
+        "the pipeline names the tracked corpus as a directory to write into; "
+        "the generated tree is what it may write to, reached through "
+        "GENERATED_DOCS_DIR"
+    )
