@@ -50,6 +50,21 @@ REPO_ROOT = Path(panther_builder.__file__).resolve().parent
 # assertions, not a second spelling of a shared value.
 CORPUS_DIR = "docs"
 
+# Names a plan or spec could plausibly carry. They are asserted on instead of
+# only the files that happen to exist today, because "no tracked name collides
+# with an ignore rule" is a property of the names people have reached for so
+# far and not of the rules: every one of these but the first was hidden by an
+# unanchored rule written for a file at the repository root.
+PLAUSIBLE_CORPUS_PATHS = (
+    f"{CORPUS_DIR}/superpowers/plans/2026-09-15-REVIEW.md",
+    f"{CORPUS_DIR}/research/2026-09-15-Threat_Report.md",
+    f"{CORPUS_DIR}/superpowers/plans/AUDIT-sp6.md",
+    f"{CORPUS_DIR}/coordination.md",
+    f"{CORPUS_DIR}/superpowers/memory/notes.md",
+    f"{CORPUS_DIR}/build/notes.md",
+    f"{CORPUS_DIR}/research/2026-09-15-notes.txt",
+)
+
 # pytest's own lookup, keyed by file name: which section a file's settings live
 # in is decided by the file it is in, and reading the wrong one makes a setting
 # that is plainly declared invisible to a test. These are the ini-style entries
@@ -174,6 +189,50 @@ def _check_ignore(*paths: str) -> subprocess.CompletedProcess:
     return result
 
 
+def _ignored_paths(*paths: str) -> dict[str, str]:
+    """Map each of ``paths`` the ignore rules genuinely exclude to its rule.
+
+    The process exit status cannot answer this. ``--verbose`` reports the last
+    pattern that matched a path, and a *negated* pattern matches exactly as a
+    positive one does: with a re-include covering the corpus, ``check-ignore``
+    prints ``!/docs/**/build/*`` for a file that is emphatically not ignored
+    and exits 0 for it. ``returncode`` therefore answers "did any rule match?"
+    rather than "is anything ignored?", and the two part company the moment a
+    negation governs the directory under test — which one now does. Only the
+    pattern text discriminates, so it is read here rather than the status.
+
+    Args:
+        paths: Repository-relative pathnames to test. They need not exist on
+            disk.
+
+    Returns:
+        One entry per genuinely-ignored path, mapping it to the rule that
+        excluded it as ``.gitignore:<line>:<pattern>``. A path that matched no
+        rule, and a path whose last match was a negation, are both absent.
+    """
+    ignored: dict[str, str] = {}
+    for line in _check_ignore(*paths).stdout.splitlines():
+        rule, tab, pathname = line.partition("\t")
+        if not tab:
+            continue
+        pattern = rule.split(":", 2)[2]
+        if not pattern.startswith("!"):
+            ignored[pathname] = rule
+    return ignored
+
+
+def _format_ignored(ignored: dict[str, str]) -> str:
+    """Render ``_ignored_paths`` output one path per line for a failure.
+
+    Args:
+        ignored: The mapping returned by ``_ignored_paths``.
+
+    Returns:
+        A newline-joined block naming each path and the rule that hid it.
+    """
+    return "\n".join(f"  {path}  <- {rule}" for path, rule in ignored.items())
+
+
 def _tracked_corpus_paths() -> list[str]:
     """List the corpus files git currently tracks.
 
@@ -272,11 +331,34 @@ def test_corpus_is_not_gitignored():
     # vacuously: on a checkout whose corpus is still empty — production
     # tracks nothing under it — the measured list alone would test nothing.
     representative = f"{CORPUS_DIR}/superpowers/plans/2026-01-01-example.md"
-    result = _check_ignore(representative, *_tracked_corpus_paths())
+    ignored = _ignored_paths(representative, *_tracked_corpus_paths())
 
-    assert result.returncode == 1, (
+    assert not ignored, (
         "ignore rules match corpus files, which therefore need 'git add -f' "
-        f"to commit and are deleted by 'git clean -fdx':\n{result.stdout}"
+        f"to commit and are deleted by 'git clean -fdx':\n{_format_ignored(ignored)}"
+    )
+
+
+def test_plausible_corpus_filenames_are_not_gitignored():
+    """No ignore rule may hide a corpus file that has not been written yet.
+
+    The test above asks only about the files committed today plus one
+    synthetic name, and all of them happen to miss the unanchored rules this
+    repository's ``.gitignore`` carries for root-level scaffolding. Those
+    rules match on a basename at any depth, so a plan called ``AUDIT-sp6.md``
+    or a note filed under ``docs/build/`` was invisible to ``git status`` and
+    destroyed outright by ``git clean -fdx`` — the exact loss this contract
+    exists to prevent — while every test here stayed green.
+
+    The names are fixed rather than generated so that a failure names the rule
+    that hides one, and none of them is the name of a file in this suite.
+    """
+    ignored = _ignored_paths(*PLAUSIBLE_CORPUS_PATHS)
+
+    assert not ignored, (
+        "ignore rules hide plausible corpus filenames, which would therefore "
+        "need 'git add -f' to commit and be deleted by 'git clean -fdx':\n"
+        f"{_format_ignored(ignored)}"
     )
 
 
@@ -287,9 +369,13 @@ def test_generated_docs_is_gitignored():
     rule has to land somewhere and not merely leave: without this, a docs
     build offers its whole regenerated tree to the next commit.
     """
-    result = _check_ignore(f"{build_paths.GENERATED_DOCS_DIR}/index.md")
+    target = f"{build_paths.GENERATED_DOCS_DIR}/index.md"
 
-    assert result.returncode == 0, (
+    # Read through _ignored_paths rather than off the exit status: a negation
+    # matching this path would set the status to 0 while leaving the file
+    # committable, so the status alone would report the generated tree safely
+    # ignored at exactly the moment it stopped being.
+    assert target in _ignored_paths(target), (
         f"{build_paths.GENERATED_DOCS_DIR}/ is not ignored, so a docs build "
         "leaves its generated tree staged for the next commit"
     )
