@@ -26,6 +26,11 @@ import inspect
 import subprocess
 from pathlib import Path
 
+try:  # Python 3.11 and later
+    import tomllib
+except ModuleNotFoundError:  # Python 3.10, where pytest itself pins tomli
+    import tomli as tomllib
+
 import pytest
 import yaml
 
@@ -44,6 +49,16 @@ REPO_ROOT = Path(panther_builder.__file__).resolve().parent
 # would invite a cleaner to iterate over it. It is the subject of these
 # assertions, not a second spelling of a shared value.
 CORPUS_DIR = "docs"
+
+# pytest's own lookup, keyed by file name: which section a file's settings live
+# in is decided by the file it is in, and reading the wrong one makes a setting
+# that is plainly declared invisible to a test. ``pyproject.toml`` is absent
+# because it is TOML rather than ini, and is handled separately below.
+PYTEST_INI_SECTIONS = {
+    "pytest.ini": "pytest",
+    "tox.ini": "pytest",
+    "setup.cfg": "tool:pytest",
+}
 
 
 class _TagTolerantLoader(yaml.SafeLoader):
@@ -187,6 +202,60 @@ def _manifest_directives() -> list[list[str]]:
     ]
 
 
+def _tracked_pytest_config_paths() -> list[Path]:
+    """List every tracked file pytest would read its settings from.
+
+    Returns:
+        Absolute paths in ``git ls-files`` order. Submodule configurations are
+        absent, because ``git ls-files`` does not descend into a submodule,
+        and that is the right answer here: a submodule's configuration governs
+        its own rootdir and never this repository's collection walk.
+    """
+    names = set(PYTEST_INI_SECTIONS) | {"pyproject.toml"}
+    result = subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "ls-files"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return [
+        REPO_ROOT / line
+        for line in result.stdout.splitlines()
+        if Path(line).name in names
+    ]
+
+
+def _declared_norecursedirs(path: Path) -> list[str] | None:
+    """Read ``norecursedirs`` out of one pytest configuration file.
+
+    Args:
+        path: A configuration file as named by
+            ``_tracked_pytest_config_paths``.
+
+    Returns:
+        The declared patterns, or ``None`` when the file declares none. A
+        ``pyproject.toml`` may spell the value either as a list or as a single
+        whitespace-separated string, and both are normalised to a token list.
+    """
+    if path.name == "pyproject.toml":
+        with path.open("rb") as handle:
+            table = tomllib.load(handle)
+        options = table.get("tool", {}).get("pytest", {}).get("ini_options", {})
+        value = options.get("norecursedirs")
+        if value is None:
+            return None
+        return list(value) if isinstance(value, list) else value.split()
+
+    # interpolation=None: the log_*_format values carry %(asctime)s, which the
+    # default parser reads as interpolation syntax and refuses.
+    parser = configparser.ConfigParser(interpolation=None)
+    parser.read(path, encoding="utf-8")
+    section = PYTEST_INI_SECTIONS[path.name]
+    if not parser.has_option(section, "norecursedirs"):
+        return None
+    return parser.get(section, "norecursedirs").split()
+
+
 def test_corpus_is_not_gitignored():
     """No ignore rule may cover the tracked corpus.
 
@@ -223,24 +292,37 @@ def test_generated_docs_is_gitignored():
 
 
 def test_manifest_ships_generated_docs_not_corpus():
-    """The sdist recipe must name the generated tree, not the corpus.
+    """The sdist must name the generated tree and prune the corpus.
 
-    This is parity, not a feature. ``docs_build/`` is gitignored and absent
-    from a fresh checkout, so an sdist built from a clean tree carries no
-    documentation either before or after — exactly as true today, where
-    ``docs/`` is likewise gitignored and ``production`` tracks nothing under
-    it. What the repoint buys is that the recipe stops naming a corpus of
-    plan and spec files it was never meant to publish.
+    Dropping an include does not keep anything out of an sdist here, because
+    ``MANIFEST.in`` is only half of what decides the filelist.
+    ``setuptools-scm`` sits in ``[build-system].requires`` and registers a
+    ``setuptools.file_finders`` entry point, so ``manifest_maker.run`` calls
+    ``add_defaults``, and that calls ``walk_revctrl()`` and adds *every
+    git-tracked file* — the whole corpus of plans and specs — before the
+    template is read at all. Only a ``prune`` takes those back out, which is
+    why one is asserted here alongside the include. ``prune docs`` compiles to
+    a pattern anchored on ``docs/`` and so leaves ``docs_build/`` untouched.
     """
     directives = _manifest_directives()
     included = [d[1] for d in directives if d[0] == "recursive-include" and d[1:]]
     pruned = [d[1] for d in directives if d[0] == "prune" and d[1:]]
 
     assert build_paths.GENERATED_DOCS_DIR in included
-    assert CORPUS_DIR not in included, "the sdist recipe still ships the corpus"
-    # ``prune docs/site`` named a directory the pipeline no longer writes; the
-    # rendered site now sits at the project root, outside every include above.
-    assert not [p for p in pruned if p.split("/")[0] == CORPUS_DIR]
+    assert CORPUS_DIR not in included, (
+        "the sdist recipe names the corpus as a tree to ship; dropping this "
+        "include is necessary but not sufficient, see the prune assertion"
+    )
+    assert CORPUS_DIR in pruned, (
+        "nothing removes the corpus from the sdist, so an sdist ships every "
+        "tracked plan and spec: walk_revctrl adds them whatever the includes "
+        "above say, and only a prune can undo that"
+    )
+    # ``prune docs/site`` retired rather than moved, and no ``prune site``
+    # replaces it: the rendered site now sits at the project root, outside
+    # every include above, and gitignored, so walk_revctrl cannot reach it
+    # either.
+    assert CORPUS_DIR not in [p.split("/")[0] for p in pruned if "/" in p]
 
 
 def test_pytest_does_not_recurse_into_generated_docs():
@@ -248,15 +330,34 @@ def test_pytest_does_not_recurse_into_generated_docs():
 
     A docs build leaves behind a copy of every Markdown file the project can
     produce, and collection walks whatever it finds on every run afterwards.
+
+    The root ``pytest.ini`` is asserted on by name because it is the only
+    configuration that can govern this at all: a root-level ``docs_build/`` is
+    reachable only from a run whose rootdir is the repository root, and such a
+    run reads that file. The same entry in ``tests/pytest.ini`` is inert —
+    its rootdir is ``tests/``, so collection never walks up to a sibling of
+    it — exactly as that file's long-standing ``docs`` entry is inert. The
+    loop then covers every other configuration that limits the walk, so a
+    file added later cannot quietly reintroduce one that descends into the
+    generated tree.
     """
-    # interpolation=None: the log_*_format values carry %(asctime)s, which the
-    # default parser reads as interpolation syntax and refuses.
-    parser = configparser.ConfigParser(interpolation=None)
-    parser.read(REPO_ROOT / "tests" / "pytest.ini", encoding="utf-8")
+    declaring = {
+        path: patterns
+        for path in _tracked_pytest_config_paths()
+        if (patterns := _declared_norecursedirs(path)) is not None
+    }
 
-    norecursedirs = parser["pytest"]["norecursedirs"].split()
-
-    assert build_paths.GENERATED_DOCS_DIR in norecursedirs
+    assert REPO_ROOT / "pytest.ini" in declaring, (
+        "the root pytest.ini declares no norecursedirs, so pytest's built-in "
+        "default applies to a run rooted at the repository root, and that "
+        f"default contains neither {CORPUS_DIR} nor "
+        f"{build_paths.GENERATED_DOCS_DIR}"
+    )
+    for path, patterns in declaring.items():
+        assert build_paths.GENERATED_DOCS_DIR in patterns, (
+            f"{path.relative_to(REPO_ROOT)} limits collection but does not "
+            f"exclude {build_paths.GENERATED_DOCS_DIR}/: {patterns}"
+        )
 
 
 def test_clean_help_enumerates_only_what_clean_removes():
