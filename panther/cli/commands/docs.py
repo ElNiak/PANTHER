@@ -71,18 +71,6 @@ def _build_documentation(project_root: Path) -> int:
         "LICENSE.md": f"{GENERATED_DOCS_DIR}/license.md",
     }
 
-    # Backup/restore mkdocs.yml
-    mkdocs_file = project_root / "mkdocs.yml"
-    if mkdocs_file.exists():
-        backup_file = project_root / "panther" / "tools" / "docs_gen" / "mkdocs.yml.bak"
-        if backup_file.exists():
-            info_message(f"Restoring backup of mkdocs.yml from {backup_file}")
-            shutil.copy2(backup_file, mkdocs_file)
-        info_message(f"Creating backup of mkdocs.yml -> {backup_file}")
-        shutil.copy2(mkdocs_file, backup_file)
-    else:
-        warning_message("mkdocs.yml not found, no backup created")
-
     info_message("Building documentation...")
 
     # Clean generated artifacts
