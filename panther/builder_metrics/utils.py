@@ -7,15 +7,13 @@ from typing import Dict, List, Optional, Tuple
 
 
 def get_directory_size_mb(directory: Path) -> float:
-    """
+    """Get the total size of a directory in megabytes.
 
-    from typing import Dict, List, Optional, Tuple, TupleGet the total size of a directory in megabytes.
+    Args:
+        directory: Path to the directory
 
-        Args:
-            directory: Path to the directory
-
-        Returns:
-            Size in megabytes
+    Returns:
+        Size in megabytes
     """
     if not directory.exists() or not directory.is_dir():
         return 0.0
