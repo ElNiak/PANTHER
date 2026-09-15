@@ -52,10 +52,14 @@ CORPUS_DIR = "docs"
 
 # pytest's own lookup, keyed by file name: which section a file's settings live
 # in is decided by the file it is in, and reading the wrong one makes a setting
-# that is plainly declared invisible to a test. ``pyproject.toml`` is absent
-# because it is TOML rather than ini, and is handled separately below.
+# that is plainly declared invisible to a test. These are the ini-style entries
+# of the list pytest searches (``_pytest/config/findpaths.py:103-107``), paired
+# with the section ``load_config_dict_from_file`` reads from each.
+# ``pyproject.toml`` is the remaining entry and is handled separately below,
+# being TOML rather than ini.
 PYTEST_INI_SECTIONS = {
     "pytest.ini": "pytest",
+    ".pytest.ini": "pytest",
     "tox.ini": "pytest",
     "setup.cfg": "tool:pytest",
 }
