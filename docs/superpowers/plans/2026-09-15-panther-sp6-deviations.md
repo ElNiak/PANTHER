@@ -59,3 +59,56 @@ plan, all fixed in the plan file before Task 1 ran.
   constraint exists to prevent. Task 1 edits no source, so no code is written inline.
   *Cost if wrong:* the controller spends context on evidence capture that a subagent
   could have isolated.
+
+- **D15** — `-n auto` hangs intermittently in this worktree while peer sessions are busy:
+  the first `tests/ -m unit -n auto` run completed in 21.57 s, two immediately-following
+  runs hung past 420 s at ~98%, and `-n 4` completed the same selection in 14.85 s with
+  an identical failure set. The row therefore runs pytest at `-n 4`, not `-n auto`.
+  *Cost if wrong:* the hang has a different cause and `-n 4` merely hides it. Ruled
+  acceptable — the failure set is identical either way, so the comparison is sound.
+- **D16** — The tracked corpus is **40 files, not 38**, as of commit `40bb8d06d`: the
+  plan and its deviation log were themselves committed under `docs/superpowers/plans/`,
+  joining the corpus this row exists to protect. Every before/after count in Task 1 and
+  the Phase 4 gate reads 40, not the 38 the plan and the brief state. The 38 figure
+  remains correct for the tree as it stood at `e4b1a7d61`.
+- **D17** — The PANTHER suite is **not green at baseline**: 20 pre-existing failures.
+  18 are in `tests/unit/test_webapp/` (17 in `test_web_observer.py`, 1 in
+  `test_plugin_forms.py`) and 2 in
+  `tests/unit/plugins/environments/network_environment/docker_compose/`. None touch the
+  docs or build commands. The row's gate therefore compares against 20 known failures
+  rather than against green, and any 21st failure is mine.
+
+## Task 1 — reproduction evidence (observed, not inferred)
+
+Two throwaway clones of `40bb8d06d`, each seeded with an untracked sentinel under
+`docs/superpowers/plans/` and a non-placeholder `htmlcov/index.html`.
+
+`panther build clean` in `/tmp/claude-501/sp6/repro-clean`:
+  echoed `Removing /private/tmp/claude-501/sp6/repro-clean/docs`;
+  docs files on disk 41 -> 0; `git status --short | grep -c '^ D'` = **40**;
+  sentinel **destroyed, unrecoverable**.
+
+`panther docs build` in `/tmp/claude-501/sp6/repro-docs`:
+  docs files on disk 41 -> regenerated without the corpus;
+  `git status --short | grep -c '^ D'` = **40**; sentinel **destroyed, unrecoverable**;
+  `git diff --stat mkdocs.yml` = `1 file changed, 1 deletion(-)`, and the line
+  `- ai_rfc (reconstructed specs): reference/ai_rfc.md` is **gone from mkdocs.yml** —
+  destroyer 5 confirmed live, not theoretical.
+
+- **D18** — `docs.py` invokes a bare `mkdocs` from `PATH` (`:238` build, `:294`
+  version, `:311` serve, `:337-346` gh-deploy) rather than `sys.executable -m mkdocs`.
+  On this machine `which mkdocs` is `/Users/elniak/.pyenv/shims/mkdocs`, a pyenv shim
+  whose site-packages differ from the project venv, so `panther docs build` aborted with
+  `Failed to load extension 'mkdocs-click'` even after that package was installed into
+  `.venv`. Prepending `.venv/bin` to `PATH` made the same command succeed: rc=0,
+  "Documentation built in 125.75 seconds", 467 HTML pages. **Pre-existing defect,
+  reported not fixed** — it is neither the wipe nor the builder, so fixing it is scope
+  expansion. The Phase 4 gate prepends `.venv/bin` to `PATH` instead.
+  *Cost if wrong:* the gate proves the property under a PATH the user does not normally
+  have. Mitigated by reporting the defect and its one-line fix.
+- **D19** — `mkdocs-click` (declared at `pyproject.toml:168` in the `[doc]` extra) was
+  missing from `.venv` and was installed. This completes the declared environment rather
+  than changing it, and was needed so the gate can prove mkdocs actually reads the new
+  `docs_dir` rather than aborting before it gets there.
+  *Cost if wrong:* a shared venv was mutated while two peer sessions were active; the
+  change is additive and the package is a declared dependency.
