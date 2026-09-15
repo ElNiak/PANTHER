@@ -318,13 +318,33 @@ scratch repo and confirmed all eleven now go red.
 ### Two controller corrections this pass forced
 
 1. The final report said **16 commits ahead**; the verified count at that moment was **15**.
-2. The report, and a test docstring, claimed `same-dir` defeats mkdocs' `docs_dir`/`site_dir`
-   overlap guard by replacing `Dir.post_validation`. **Wrong mechanism.**
-   `SiteDir.post_validation` (`mkdocs/config/config_options.py:781`) has its own body and
-   still runs; the guard fails because `_replace_validation`
-   (`mkdocs_same_dir/plugin.py:46-49`) rewrites `docs_dir` to `…/./.`, so the `startswith`
-   comparison never matches. The conclusion held; the stated reason did not. Corrected in
-   the test docstring by `eaf0a5b0e`.
+2. The controller was wrong **twice** about why mkdocs' `docs_dir`/`site_dir` overlap guard
+   does not protect this row, and the second wrong version was briefed to an implementer
+   and reported to the user. Both are recorded because the second was offered *as a
+   correction of the first*, which is how a bad fact survives.
+   - **First claim, wrong:** `same-dir` replaces `Dir.post_validation`, so the guard does
+     not run. Refuted — `SiteDir.post_validation`
+     (`mkdocs/config/config_options.py:781`) has its own body and still runs.
+   - **Second claim, also wrong:** the `…/./.` rewrite means the `startswith` comparison
+     never matches. Refuted by the implementer and confirmed by the reviewer and then by
+     the controller: `docs_dir: docs` with `site_dir: docs` is **still rejected**, plugin
+     or no plugin. The guard is two checks, and the rewrite defeats only the
+     site-inside-docs one.
+   - **Measured truth**, reproducing `SiteDir.post_validation` over six pairs:
+
+         docs_dir    site_dir    plain                        with same-dir
+         docs        docs        REJECTED (docs inside site)  REJECTED (docs inside site)
+         docs        docs/site   REJECTED (site inside docs)  accepted
+         docs        docs_build  accepted                     accepted
+         docs_build  docs        accepted                     accepted
+
+     The guard tests **containment only**, and the values that endanger this row are
+     **siblings** — `site_dir: docs` beside `docs_dir: docs_build` is accepted with no
+     plugin involved at all. So the plugin is a red herring: mkdocs' guard was never going
+     to catch this hazard, which is why the contract test is the only protection.
+   - The *conclusion* was right in all three tellings; only the reasons were wrong. The
+     implementer refused the briefed reason and wrote the measured version instead
+     (`eaf0a5b0e`), which is what shipped.
 
 ### Suite after the pass
 
@@ -333,3 +353,33 @@ Row tests **27 → 31**. Unit suite, pinned at `-n 4`: **20 failed / 1169 passed
 flipped-from-skipped, failures unchanged at 20. The flip is the known
 `test_plugin_forms.py` picoquic test, which carries a runtime `pytest.skip` in its body and
 moves with xdist worker assignment; **pin `-n` for any count comparison.**
+
+### Deferred from the follow-through's own review (Low, none blocking)
+
+- **A test that passes by coincidence**, which is this pass's own subject matter:
+  `test_manifest_check_is_sensitive_to_directive_order` compares `FileList.sort` order —
+  an `os.path.split` tuple sort — against plain `sorted()`. The new top-level
+  `docs/coordination.md` entry makes the two agree **by luck**; a `docs/zzz.md` would break
+  it. Recommended fix: compare against the same ordering the code under test uses, or sort
+  both sides explicitly.
+- **A comment carrying a slightly false claim**, the class this pass twice fixed elsewhere:
+  the new tuple's comment says one entry per anchored rule, but it is **10 paths pinning 11
+  lines** — `docs/build/notes.md` pins both `/build/` lines and the dated
+  `2026-09-15-REVIEW.md` pins none (it never matched the exact-basename rule; the
+  un-dated `docs/superpowers/plans/REVIEW.md` added in `a2c9db196` is what pins that one).
+- **`.claude/memory/` was re-added as an ignore rule** during the anchoring. Anchoring the
+  bare `memory` rule un-hid three session-handoff files under `.claude/`, and the
+  implementer re-hid them with a single narrow line rather than leave them exposed. This is
+  the one decision taken beyond the eight rules the brief named. Reversible in one line if
+  those files should be visible.
+- **`flake8` has no configuration anywhere in this repo.** CLAUDE.md documents
+  `flake8 panther/` as the lint command, but flake8 does not read `pyproject.toml`, and the
+  `max-line-length = 88` at `pyproject.toml:373` sits under
+  `[tool.pylint.messages-control]`. So the documented command runs at flake8's 79-character
+  default and reports **7,555 E501s** — it is unusable as written. Pre-existing and
+  unrelated to this row; worth a `setup.cfg` or `.flake8` in a follow-up.
+- **`git check-ignore --verbose` exits 0 on a negation match**, so a test reading its
+  verdict from the return code alone misreports a negated path as ignored. Both existing
+  ignore tests did exactly that; the implementer moved them onto a negation-aware helper in
+  `d5b077830`. Worth remembering — it is an easy way to write a green test that asserts the
+  opposite of what it means.
