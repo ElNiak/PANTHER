@@ -25,3 +25,8 @@ every §6 checkbox is ticked with a pointer to its ticket, the document is commi
 $0 dry-run of the frozen campaign passes. The OSF submission and the launch are out of scope.
 
 Also update the map's Decisions so far and close the map.
+
+The hypothesis section is
+[What are the hypotheses](01-what-are-the-hypotheses-and-primary-metrics.md)'s resolution: H1–H4,
+Holm, the secondary and descriptive lists, and the definitions. It also states the departure from
+protocol §1 ([Does the main campaign include arm C](17-does-the-main-campaign-include-arm-c.md)).

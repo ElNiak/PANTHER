@@ -160,6 +160,16 @@ pre-run → 03 and 13; k and run matrix → 15; reporting commitments → 16.
   departure from protocol §1 is stated in the preregistration, the pilot's arm-C runs are cited as
   pre-v2 history, and the class-3 companion stays in the fog. The arm-C rows D8–D14 and K2 need
   no ruling.
+- [What are the hypotheses, and which one primary metric does each carry?](issues/01-what-are-the-hypotheses-and-primary-metrics.md):
+  four confirmatory, two-sided hypotheses of arm A against arm B:
+  - **H1, the headline, completion**: completed fraction per run;
+  - **H2, cost**: cost per completed cluster;
+  - **H3, process**: tokens to first completion;
+  - **H4, quality**: the blinded judge's score.
+
+  Holm across the four; pooled, stratified exact tests. The task list must un-saturate
+  completion, or the ticket reopens. Secondary and descriptive lists and the instruments'
+  definitions are fixed.
 
 ## Not yet specified
 
@@ -169,8 +179,6 @@ pre-run → 03 and 13; k and run matrix → 15; reporting commitments → 16.
   after arm C was dropped, because it asks a different question: no function-calling layer at
   all. Unclear yet: which harness, how it is held to the same task list and gates, and how it is
   reported. Sharpens once the hypotheses and the task lists are settled.
-- **How the drafts' judged quality enters the paper**, if at all: SP7d's blinded judge exists,
-  but no hypothesis names it yet.
 
 ## Out of scope
 

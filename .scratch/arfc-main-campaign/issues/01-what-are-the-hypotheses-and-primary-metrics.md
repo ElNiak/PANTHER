@@ -1,8 +1,8 @@
 # 01 — What are the hypotheses, and which one primary metric does each carry?
 
 Type: grilling (HITL)
-Status: open
-Claimed: —
+Status: closed (grilling, 2026-09-21)
+Claimed: chart-ai-rfc-main-campaign (session 40f5ddb1), 2026-09-21 15:20 CEST
 Blocked by: [Does the main campaign include arm C](17-does-the-main-campaign-include-arm-c.md)
 Parent: [ai_rfc Main Campaign, Ready to Launch](../map.md)
 
@@ -61,3 +61,42 @@ judged quality, one way or the other.
 - The statistical plan (research, closed) recommends one pooled, stratified exact test per
   hypothesis, estimation per target, and Bonferroni or a cost-first fixed sequence across
   hypotheses. With two arms there is no within-hypothesis multiplicity layer.
+
+## Resolution (grilling, 2026-09-21)
+
+Ruled by the user in three rounds, confirmed as a whole before recording. **The user chose
+completion as the headline**, where the recommendation had been cost. **All four families are
+confirmatory**, where the recommendation had been cost and completion only. Every other answer
+followed the recommendation.
+
+**Hypotheses** (arm A against arm B, all **two-sided**, all confirmatory):
+- **H1, the headline, completion**: the completed fraction per run, meaning state-verified
+  completed clusters over the task list's size (`metrics.py:326-343`).
+- **H2, cost**: cost per completed cluster, meaning the run's cache-adjusted billed cost (faulted
+  spend excluded) over its completed clusters, on the log scale. A run that completed nothing
+  ranks worst (+infinity).
+- **H3, process efficiency**: tokens to first completion per run. A run with no completion ranks
+  worst.
+- **H4, draft quality**: the blinded judge's score for each run's final draft, on both targets.
+  The judge's prompt and rubric are frozen with the campaign.
+
+**Inference:**
+- One pooled, target-stratified, exact rank test per hypothesis; per-target results are
+  estimation (the statistical plan).
+- **Holm over H1–H4** (familywise error 0.05), with raw and adjusted p-values both reported. At
+  k = 3, the pooled floor (0.005) still reaches Holm's strictest step (0.0125).
+- **H1 must discriminate.** The task list has to un-saturate completion. If the validation pilot
+  still shows saturation, **this ticket is reopened before the freeze**.
+
+**Secondary** (estimated with intervals, not tested): cost per run, trajectory AUC, pass^k, the
+v2 form metrics, and reachable recall on aioquic. **Descriptive**: hand edits, bypass attempts,
+the error taxonomy, integrity rate, failure-cost share, gate exits, and faulted spend.
+
+**Definitions** (protocol §6 items 2 and 10), as `experiment/metrics.py` computes them and frozen
+at the pinned commit:
+- the final `checked_fraction` is reported, and is 0.0 by design (D23);
+- tokens-to-threshold is tokens to first completion;
+- AUC is as coded;
+- cost is the CLI's reported `total_cost_usd` per session, summed per run, with faulted sessions
+  excluded and unpriced sessions reported apart. **It is notional under a subscription, which the
+  freeze must check.**

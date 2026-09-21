@@ -28,3 +28,9 @@ exclusion and fault rules of
 **Output:** per primary metric, the per-cell mean and variance, and the run log with API
 conditions, linked from the resolution comment. The pilot's results are **not** evidence for the
 paper's hypotheses: they sized the campaign, and they are reported as such.
+
+**The primary metrics are ruled** ([What are the hypotheses](01-what-are-the-hypotheses-and-primary-metrics.md)):
+completed fraction per run (H1), cost per completed cluster (H2), tokens to first completion (H3),
+and the blinded judge's score (H4). Measure the per-cell variance of all four. **Check that
+completion is not saturated.** If it is, the hypotheses ticket is reopened before the freeze. Add
+the judge's cost (about $0.60 per run's final draft) to the spend estimate.

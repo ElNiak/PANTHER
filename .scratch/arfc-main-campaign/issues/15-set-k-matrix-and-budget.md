@@ -24,3 +24,9 @@ effects in hand, decide:**
 
 The user owns the budget. This ticket presents the options with their power and cost side by
 side, and records the ruling.
+
+**Sizing basis, ruled 2026-09-21:** four confirmatory hypotheses under **Holm**, whose strictest
+step is 0.0125. Size k so that each primary metric (completed fraction, cost per completed
+cluster, tokens to first completion, the judge's score) has adequate power at that step, from the
+validation pilot's **upper** SD limits. The statistical plan's minimum-detectable-effect table at
+α = 0.0167 is the nearest precomputed row.

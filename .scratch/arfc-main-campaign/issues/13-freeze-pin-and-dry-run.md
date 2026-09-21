@@ -33,6 +33,10 @@ variance estimate describes something the main campaign will not run.
 3. Re-run the **S0 enforcement spike** on the **copied** CLI. It launches real sessions, so read
    its cost first and ask the user if it is not $0.
 4. Run the parity suite on the pinned code and keep its output (pre-run evidence).
+4b. **Freeze the judge** (H4's primary metric): record the digest of its prompt and rubric beside
+   `campaign.json`. If no code records it, add that to the landing ticket before freezing. Also
+   check what `total_cost_usd` means under the subscription the campaign runs on (H2's cost):
+   whether it is a notional price or billed spend.
 5. **Dry-run each target's last gate at $0** on a copy of its pristine: `draft build`, and a tag
    created or refused. "Could start" is not "could finish" (SP7d's third blind spot).
 

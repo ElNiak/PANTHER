@@ -31,3 +31,12 @@ w02-11. Whether MARK is usable at all waits on
 and committed); whether the ground-truth window w02-11 must be included; and whether the task
 runs as one contiguous sweep (clusters build on each other's draft) or as independent tasks. That
 last choice changes what "a task" means for a progressive reconstruction.
+
+**Inputs ruled since charting (2026-09-21):**
+- **Completion is the headline hypothesis (H1)**, so this ticket carries the burden of making it
+  discriminate: the lists must be ones on which completion falls **below 1, with variance**. The
+  validation pilot checks this; if completion is still saturated there, the hypotheses ticket is
+  reopened.
+- Arms A and B only. MARK has no ground truth (only aioquic's w02-11 does), so including w02-11
+  matters only for the secondary reachable-recall estimate.
+- Per-cluster sessions, and MARK's rebuilt pristine passes every last gate.
