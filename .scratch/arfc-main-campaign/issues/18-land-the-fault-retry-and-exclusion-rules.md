@@ -49,6 +49,15 @@ row's files: `experiment/{runner,audit,per_cluster}.py`, and probably `campaign_
    - Each run records the version it **really launched** (its `--version` at launch). Today
      `runner.py:293` copies the campaign's frozen value.
    - A run whose binary reports a version other than the campaign's is **refused**.
+8. **The run order**, added on 2026-09-21 by
+   [How is run order randomized and balanced across time?](11-how-is-run-order-randomized.md):
+   - `run_order` (`experiment/config.py:230-246`) keeps its blocks and adds **position balance
+     across repeats**: a seeded Latin-square rotation, exact when k is a multiple of the arm
+     count, for two or three arms.
+   - **A cross-campaign schedule**: one command runs the two frozen campaigns (aioquic and MARK)
+     block by block in a seeded alternation, **sequentially**, and records the realised order
+     with timestamps.
+   - Replacements (item 5) are still appended at the end.
 
 **Done when**: each ruling has a RED-then-GREEN test; the full ai_rfc suite passes (report
 collected, passed, failed and skipped separately); and a $0 rehearsal with the fake claude

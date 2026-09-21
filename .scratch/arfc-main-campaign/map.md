@@ -142,6 +142,11 @@ pre-run → 03 and 13; k and run matrix → 15; reporting commitments → 16.
   `~/.local/bin/claude` symlink auto-updates, and the installer keeps only 3 versions).
   Auto-update is off, each run records its real version, and a mismatch is refused. The code is
   pinned with SP7d's clone and venv. The pin code joins the fault-rules landing ticket.
+- [How is run order randomized and balanced across time?](issues/11-how-is-run-order-randomized.md):
+  **blocks plus seeded Latin-square position balance**; aioquic and MARK blocks **alternate** in
+  time; runs are **sequential**; replacements run at the end and are disclosed. A cross-campaign
+  schedule in code enforces it and records the realised order. The seed and the planned order
+  are preregistered. The code joins the fault-rules landing ticket.
 
 ## Not yet specified
 
