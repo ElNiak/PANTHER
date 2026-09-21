@@ -43,9 +43,21 @@ pinned code and covers all three paths**, or the user rules the leak acceptable 
 
 **Also found on 2026-09-21: `campaign init` refuses at toolchain verification.**
 `~/ai-rfc-experiments/tools/toolchain.json` (sha256 `97e4e644…d79ee`) fails with "the example did
-not build offline": the venue, kramdown-rfc and v2v3 stages each exit 1. The cause was not
-diagnosed; it may be the sandbox, or a stale refcache after SP7d's rebuild. A frozen campaign
-needs a toolchain that verifies, so diagnose it here, before step 2.
+not build offline": the venue, kramdown-rfc and v2v3 stages each exit 1. **Diagnosed the same
+day in [Can the rebuilt MARK pristine pass its last gate](07-can-the-mark-pristine-pass-its-last-gate.md):
+it is the sandbox, not the toolchain.** i-d-template's `trace.sh` calls `mktemp` in
+`/var/folders/…/T` and writes `/dev/fd/62`, and the sandbox refuses both. Outside it, `toolchain
+verify` prints `ok`. So run `campaign init` and every build from an unsandboxed shell.
+
+**Add to the dry run: prove arms B and C can build inside a campaign session.** Arm A builds
+through the MCP server process; B and C run `draft build` (and the tag's build) through their
+session's Bash. The campaign profile has no sandbox key and sessions launch with
+`--setting-sources project`, so their Bash is probably unsandboxed. But no arm-B session has built
+a v2 draft yet. If it were sandboxed, B's and C's builds would fail where A's pass: an arm
+asymmetry no prompt diff or parity twin can see. A $0 run of the arm's `bin/ai-rfc draft build`
+under `driver/session.py`'s environment covers `PATH` and the environment only. **Whether Claude
+Code sandboxes a session's Bash shows only inside a real session**, and a one-turn probe costs
+money, so ask first.
 
 **Output:** the pin (commit, clone path, venv freeze digest), the `campaign.json` digests, the
 arm diffs, the S0 verdict, the parity output and the dry-run results, each linked from the

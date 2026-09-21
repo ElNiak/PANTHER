@@ -77,6 +77,8 @@ owed-fixes row lands; this map's terms go there too.
 
 **Standing lessons** from the rows before this one:
 - Dry-run a round's LAST gate on its input before paying; "could start" is not "could finish".
+- **Build outside the sandbox.** The i-d-template build fails inside a Claude Code sandbox with
+  empty stderr in its report; re-run the report's own `make` argv to see why.
 - Relaying is authoring: check at the site any claim taken from an agent or a reviewer.
 - Measure the noise before believing a delta (the GEPA pilot's floor was 0.030 per example).
 - Tests: run from the submodule root, `-n 4` (never `-n auto`), `--basetemp` under
@@ -111,6 +113,13 @@ pre-run → 03 and 13; k and run matrix → 15; reporting commitments → 16.
   guard), and 1 none by design (status, D16). Probes: A and B *can* read the corpus schema, and
   anchors keep parity. No transport is tested, and arm C has no twin. Listed, not ruled; "Rule
   each arm asymmetry" now also waits on the arm C decision.
+- [Can the rebuilt MARK pristine carry a v2 cluster through its last gate?](issues/07-can-the-mark-pristine-pass-its-last-gate.md):
+  **yes.** On a copy, the draft builds clean, and one cluster passes checkpoint, record, tag
+  (build at the tag, strict gates, no rollback) and the strict citation gate. R90 does not recur.
+  The pristine was untouched. **The toolchain cannot run inside this Claude Code sandbox**
+  (`trace.sh`'s `mktemp` in `/var/folders` and `/dev/fd/62` are refused), which explains the
+  `campaign init` refusal. Whether arms B and C can build inside a campaign session is now a
+  dry-run step of the freeze ticket.
 
 ## Not yet specified
 
