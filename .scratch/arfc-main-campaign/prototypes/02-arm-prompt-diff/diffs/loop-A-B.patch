@@ -1,0 +1,83 @@
+--- arm-A
++++ arm-B
+@@ -10,11 +10,11 @@
+
+ The evidence-hygiene, RFC-style and claim-citation rules follow this procedure; apply them throughout.
+
+-This session has no shell: drive the workspace with the `ai_rfc_*` MCP tools, exactly as named below, and edit prose with the Edit/Write tools.
++This session has no MCP server: drive the workspace with the `ai-rfc` command through Bash, exactly as written below.
+
+ ## Preconditions
+
+-- `AI_RFC_WORKSPACE` is set; the `ai_rfc` MCP server is connected and reads `AI_RFC_WORKSPACE`.
++- `AI_RFC_WORKSPACE` is set; `ai-rfc` is on `PATH` and reads `AI_RFC_WORKSPACE`.
+ - The workspace holds `corpus/`, `timeline/`, `clusters/` and the pinned
+   `clone/`. When a forge snapshot exists, the timeline MUST have been built
+   with `--forge` **before any checkpoint is written**. Forge data
+@@ -36,33 +36,33 @@
+
+ ## One iteration
+
+-1. **Pick the next cluster**: `ai_rfc_cluster_next` (returns the lowest-ordinal in-window cluster that is not done, or null. A cluster is done when `checkpoints/<id>/` holds its checkpoint, `revisions.yaml` holds an entry for it whose `kind` is `cluster` or absent (an entry with no `kind` is a cluster entry), and that entry's tag exists in `$AI_RFC_WORKSPACE/draft`; pre-seeded clusters count as done).
+-2. **Read its evidence once**: `ai_rfc_cluster_get(cluster_id, include_patch=true)` (page long diffs with `patch_offset`/`patch_limit`). Write down the changed file
++1. **Pick the next cluster**: `ai-rfc cluster next` (prints the lowest-ordinal in-window cluster that is not done, or `null`. A cluster is done when `checkpoints/<id>/` holds its checkpoint, `revisions.yaml` holds an entry for it whose `kind` is `cluster` or absent (an entry with no `kind` is a cluster entry), and that entry's tag exists in `$AI_RFC_WORKSPACE/draft`; pre-seeded clusters count as done).
++2. **Read its evidence once**: `ai-rfc cluster get <id> --patch` (add `--patch-offset N --patch-limit N` to page through long diffs). Write down the changed file
+    paths exactly as the evidence prints them, and the member commit shas;
+    anchors use those paths at those commits (no guessed prefixes such as
+    `src/`). Skip test, fixture and build files as anchors unless nothing
+    else changed. Query the corpus only when the diff alone cannot tell you
+-   what a changed line does: `ai_rfc_corpus_query(sql="SELECT path, COUNT(*) c FROM file_changes GROUP BY path ORDER BY c DESC LIMIT 20")`.
++   what a changed line does: `ai-rfc corpus query "SELECT path, COUNT(*) c FROM file_changes GROUP BY path ORDER BY c DESC LIMIT 20"`.
+ 3. **Mine claims**: behaviours the cluster introduces or changes, each with
+    pinned anchors on a file the cluster changed (a member commit is the
+    pin, and `line` is a line the diff added or changed) and NO `status`:
+-   `ai_rfc_claim_upsert(claim_id, fields)` with `text`, `section`, `level`, `layer`, optional `intent`/`req_class`, and `anchors` as a list of `{evidence_class, locator, commit, line}` (the tool refuses `status`). Before each upsert, check the claim text against the
++   `ai-rfc claim upsert <id> --text … --section … --level … --layer … [--field intent=…] [--anchor '{"evidence_class": "code", "locator": "<path>", "commit": "<sha>", "line": N}'] [--anchor '{"evidence_class": "adr", "locator": "<decision commit sha>"}']` (repeat `--anchor`, one per anchor; the verb refuses `status`). Before each upsert, check the claim text against the
+    diff line by line (see evidence hygiene: *Scope the claim to the
+    diff*). A commit message stating a decision is an `adr` anchor; PR
+    discussion explaining intent supports `intent:` but is not itself an
+    anchor class. Issue all independent upserts together in one turn.
+ 3b. If this cluster defines or changes a wire format, message, record,
+     enumeration or state machine, register it, binding every field, value
+-    or transition to a claim you just recorded: `ai_rfc_structure_upsert(structure_id, fields)` with the kind, title, section and members
++    or transition to a claim you just recorded: `ai-rfc structure upsert <id> --json '…'`
+     Then render the block and paste it into its owning section:
+-    `ai_rfc_draft_render()`. Skip this step when the cluster describes only
++    `ai-rfc draft render`. Skip this step when the cluster describes only
+     behaviour.
+-4. **Lint once, after all claims exist**: `ai_rfc_gate(strict=false)` (the linter; fix every entry under `unverified_anchors`). Fix every unverified
++4. **Lint once, after all claims exist**: `ai-rfc gate` (the linter; fix every entry under `unverified_anchors`). Fix every unverified
+    anchor (wrong paths, commits, lines) in one pass, then lint again only
+    if you changed something. If an anchor cannot be verified, narrow or
+    drop that claim rather than moving it onto an untouched file.
+-5. **Record statuses**: `ai_rfc_claim_adjudicate()` to see stored vs supported, then `ai_rfc_claim_record_status()`. Record exactly the supported
+-   value the report shows, never more. Then the strict gate: `ai_rfc_gate(strict=true)`.
++5. **Record statuses**: `ai-rfc claim check` to see stored vs supported, then `ai-rfc claim record-status`. Record exactly the supported
++   value the report shows, never more. Then the strict gate: `ai-rfc gate --strict`.
+    Exit 0 is the bar.
+ 6. **Decide spec relevance**:
+    - Normative behaviour changed → write the prose in one edit per
+@@ -77,18 +77,18 @@
+      of new claim ids against the prose: each appears once, in a sentence
+      with its own keyword.
+    - Nothing normative → no prose edit; the revision entry will say so.
+-7. **Checkpoint**: `ai_rfc_checkpoint(cluster_id)`.
+-8. **Record, build and tag the revision**: `ai_rfc_revision_record(tag="draft-<name>-NN", cluster_id, normative_change, note)`. Record the
++7. **Checkpoint**: `ai-rfc checkpoint <id>`.
++8. **Record, build and tag the revision**: `ai-rfc revision record draft-<name>-NN --cluster <id> --normative|--no-normative --note "…"`. Record the
+    tag `draft-<name>-NN` (two digits, monotone in cluster ordinal), the
+    cluster id, an explicit `normative_change` and a one-line note. Commit
+-   any prose change (`ai_rfc_draft_commit(message)`), then build it: `ai_rfc_draft_build()` — exit 0 and no findings is the bar before tagging; a failed stage names the line, a broken reference names a front-matter reference the sealed cache does not hold (cite it inline instead); `ai_rfc_revision_tag` runs it again and refuses on findings.
++   any prose change (`ai-rfc draft commit -m "<message>"`), then build it: `ai-rfc draft build` — exit 0 and no findings is the bar before tagging; a failed stage names the line, a broken reference names a front-matter reference the sealed cache does not hold (cite it inline instead).
+    Fix any finding it reports (long lines, non-ASCII, unused or undeclared
+    references) before tagging. Then create the annotated tag
+-   (`ai_rfc_revision_tag(tag, message)` — it runs the strict manifest gate, builds the draft and refuses on findings, creates the tag, runs the strict citation gate and deletes the tag again on findings). Every revision entry needs its tag, no-change
++   (`ai-rfc revision tag draft-<name>-NN -m "<message>"` — it runs the strict manifest gate, builds the draft and refuses on findings, creates the tag, runs the strict citation gate and deletes the tag again on findings). Every revision entry needs its tag, no-change
+    revisions included.
+-9. **Gate**: `ai_rfc_citation_gate(strict=true)`. Exit 0 before advancing.
++9. **Gate**: `ai-rfc citation-gate --strict`. Exit 0 before advancing.
+ 10. **Open questions**: a claim stuck at `gap`/`inferred` that blocks a
+-    section gets a question: `ai_rfc_question_draft(question="<question quoting the claim text verbatim>", claim_ids=[<id>])`.
++    section gets a question: `ai-rfc question draft "<question quoting the claim text verbatim>" --claim <id>`.
+
+ ## Failure recovery

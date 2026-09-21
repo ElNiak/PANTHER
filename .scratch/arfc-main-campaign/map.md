@@ -62,9 +62,13 @@ scorer-change spec handed to ai_rfc. Two of its findings bear on this map:
 - **8/35 is the window's ceiling, not a finding about the drafts.** The dataset is anchored at
   aioquic's 2025 tip and built from the final RFCs, while w02-11 ends in 2019 at draft-22. Its R93
   withdraws SP7d's "v2 recovers no more facts" reading.
-- **The tip-source leak.** The pristine's `clone/` working tree is checked out at the tip, so an
-  arm-A session's `Read` could open future code (no run did). A main campaign cannot freeze with
-  that open; see
+- **The tip-source leak, wider than `clone/`.** The pristine's `clone/` working tree is checked
+  out at the tip, so any arm's `Read` could open code from after the window (no run did). It is
+  wider than that: `cluster_get` has no window check, and the pristine holds all 342 clusters'
+  diffs, so every arm can read out-of-window clusters (confirmed at the site in
+  [Diff the three rendered arm prompts](issues/02-diff-the-rendered-arm-prompts.md), entry S1).
+  Arm C's unrestricted `git` also reaches the clone's whole history (its D13). A main campaign
+  cannot freeze with the leak open; see
   [Freeze prompts, pin code, and dry-run](issues/13-freeze-pin-and-dry-run.md).
 
 Any ground-truth measure this map adopts uses that map's definitions and never re-derives them.
@@ -94,6 +98,13 @@ pre-run → 03 and 13; k and run matrix → 15; reporting commitments → 16.
   hypothesis and Bonferroni or a cost-first sequence across hypotheses; no bootstrap. k = 3 → 5
   cuts the pooled minimum detectable effect from 2.05 to 1.45 SD. Size k from the validation
   pilot's upper SD limit (research, not yet adopted).
+- [Diff the three rendered arm prompts from a fresh `campaign init`](issues/02-diff-the-rendered-arm-prompts.md):
+  the prompts are **not** identical modulo syntax. Sixteen differences between arms (D1–D16),
+  among them: arm C is never told an anchor field name; arm B is never told the structure fields
+  in the loop; the one "neutral" skill in consolidation, `ai-rfc-structures`, speaks arm A's tool
+  names; and no arm but C sees the corpus schema. Two leaks are common to every arm (window-less
+  cluster access, and the clone at the tip). `task.md` is unchanged since the pilot, and
+  `campaign init`'s toolchain verification currently refuses. Listed, not ruled.
 
 ## Not yet specified
 
@@ -106,7 +117,10 @@ pre-run → 03 and 13; k and run matrix → 15; reporting commitments → 16.
   `<ai_rfc>/ai_rfc/experiment/groundtruth/aioquic-w02-11.yaml`). Whether MARK needs one depends
   on whether the hypotheses make a ground-truth measure primary or secondary. *How* it would be
   built is the sibling map's ticket "How is ground truth built for a target with no published
-  spec?", not this map's.
+  spec?", not this map's. **The sibling map ruled on 2026-09-21** that a window's ground truth is
+  anchored at the window's end (the last member commit of its last cluster; `509065a` for w02-11)
+  and cites the spec version the code declares there. A target whose code declares no spec gets
+  no dataset. **Until that ticket rules, preregister no recall figure for MARK.**
 - **How the drafts' judged quality enters the paper**, if at all: SP7d's blinded judge exists,
   but no hypothesis names it yet.
 

@@ -1,8 +1,8 @@
 # 02 — Diff the three rendered arm prompts from a fresh `campaign init`
 
 Type: task (AFK)
-Status: open
-Claimed: —
+Status: closed (task, 2026-09-21)
+Claimed: chart-ai-rfc-main-campaign (session 40f5ddb1), 2026-09-21 11:53 CEST
 Blocked by: — (ON THE FRONTIER)
 Parent: [ai_rfc Main Campaign, Ready to Launch](../map.md)
 
@@ -36,3 +36,41 @@ its `render.py` slot and line. Nothing is ruled here: the rulings are
 
 The output lands under `.scratch/arfc-main-campaign/prototypes/02-arm-prompt-diff/` (tracked)
 and is linked from the resolution comment.
+
+## Resolution (task, 2026-09-21)
+
+Asset: [`prototypes/02-arm-prompt-diff/README.md`](../prototypes/02-arm-prompt-diff/README.md),
+with the frozen prompts, the loop and consolidation pair diffs, each arm's surfaces (arm A's 20
+MCP tools as listed, arm B's and arm C's `--help` for every command their slot tables name, and
+the allowlists), `campaign.json`, and the three scripts that reproduce all of it.
+
+**How.** Rendered from a `git archive` snapshot of ai_rfc `8358238`, not the live tree, which the
+owed-fixes session had mid-edit in modules the tool listing imports. `campaign init` **refused at
+toolchain verification** ("the example did not build offline": the venue, kramdown-rfc and v2v3
+stages each exited 1). The campaign was frozen by the same code path with verification skipped.
+The refusal is recorded for
+[Freeze prompts, pin code, and dry-run](13-freeze-pin-and-dry-run.md). All nine prompt digests
+check. **`task.md` is byte-identical to the pilot's** (`05e731d3…f84539`).
+
+**What differs, beyond invocation syntax: sixteen entries (D1–D16), and two common to every arm
+(S1–S2).** The ones "Rule each arm asymmetry" most needs:
+- **D1, the anchor shape**: A gets a field list; B gets both literal anchors (after `8358238`);
+  **C's prompt never names `evidence_class` at all**.
+- **D2, structure fields in the loop**: A is told kind, title, section and members; **B is told
+  only `--json '…'`**, and its `--help` adds nothing.
+- **D16, the one "neutral" skill text written for arm A**: `ai-rfc-structures/SKILL.md`, bundled
+  into every consolidation prompt, teaches the structure body under `ai_rfc_structure_upsert` and
+  `ai_rfc_draft_render`, tool names arm B cannot call.
+- **D7, corpus schema**: neither A's `corpus_query` nor B's `corpus query` shows a table or
+  column; C has `sqlite3 .schema`. This confirms SP7d's report.
+- **D8/D9, arm C's frozen v2 surface (D42)**: no structures, no build, and a tag made by raw
+  `git tag` with no rollback.
+- **D13/D14**: C's unrestricted `git` (the clone's whole history, and the draft's tags and
+  history) and `sqlite3` (it can write the corpus).
+
+**Common to every arm** (not for the asymmetry ruling): window-less cluster access
+(`cluster_get` has no window check, and the pristine holds all 342 clusters), and the clone
+checked out at the tip. They belong to the Ground-Truth Yardstick map's tip-leak ticket and gate
+the freeze.
+
+Nothing is ruled here.
