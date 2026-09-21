@@ -18,6 +18,9 @@ Execution is carried (map Notes). The work is ai_rfc code, landed RED-test first
 explicit path in `<ai_rfc>`, $0. It waits on the owed-fixes checkpoint because it touches that
 row's files: `experiment/{runner,audit,per_cluster}.py`, and probably `campaign_runs.py` and
 `metrics.py`. Find that row's session with `ListAgents` before touching anything it owns.
+[Land the record-before-tag fix (R91/R92)](20-land-the-record-before-tag-fix.md) edits the same
+attempt loop, so the two land one at a time. A fault retry (item 2) inherits whatever a session
+killed between record and tag left behind, and that ticket covers it.
 
 **What has to exist**, with today's location (ai_rfc `c5e4a6c`):
 1. **A fault classifier on the experiment path.** Reuse `driver/stop.py`'s `classify`

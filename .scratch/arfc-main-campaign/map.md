@@ -51,9 +51,12 @@ the editable install means live code moves under a run while anyone commits to `
 check that plan's file list and message its session. **Find the session's current name with
 `ListAgents`**: it has answered as `iut-ai-rfc-0e` and as `plan-review-and-task-dispatch`. It
 owns `experiment/{runner,audit,per_cluster}.py` and `driver/{spawn,stop,coverage,record}.py`.
-**R91/R92 were reported to it, but its plan never mentions them** (grep at charting: no R91, R92,
-`consolidations_recorded` or `recorded=True`); adoption is unconfirmed, see
-[Has the owed-fixes row landed](issues/05-has-the-owed-fixes-row-landed.md). The ARM-B fix
+**R91/R92 were reported to it, but it never took them up.** On 2026-09-21 its plan, its
+deviation log and its 20 commits had no hit, and the defect was still live at `2c768b5`. **The
+user ruled that this map fixes it**, in
+[Land the record-before-tag fix (R91/R92)](issues/20-land-the-record-before-tag-fix.md), and
+the row was told so (see
+[Has the owed-fixes row landed](issues/05-has-the-owed-fixes-row-landed.md)). The ARM-B fix
 `8358238` rides that row's push.
 
 **Arms A and B only** (user ruling in
