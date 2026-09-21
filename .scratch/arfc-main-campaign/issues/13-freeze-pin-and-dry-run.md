@@ -15,14 +15,23 @@ editable install mid-run. **The validation pilot must measure the frozen artifac
 variance estimate describes something the main campaign will not run.
 
 **Do:**
-1. Pin the code at the commit and by the method
-   [Which model, CLI and code pin](09-which-model-cli-and-code-pin.md) ruled, in a clone under
-   `~/ai-rfc-experiments/code-pins/`.
+1. Pin, as [Which model, CLI and code pin](09-which-model-cli-and-code-pin.md) ruled:
+   - **The code**: choose the commit once every landing this ticket waits on is in. Clone it to
+     `~/ai-rfc-experiments/code-pins/ai_rfc-<sha>`, and make an editable install in
+     `code-pins/venv-<sha>` with dependencies constrained to the worktree venv's freeze. The
+     campaign's `--python` points at that venv.
+   - **Claude Code**: take **the version current at the freeze**, copy its versioned binary from
+     `~/.local/share/claude/versions/<version>` to `code-pins/claude-<version>`, and point
+     `--claude` at the copy, **never** the auto-updating `~/.local/bin/claude` symlink. Disable
+     auto-update for the campaign's duration. The version-record and mismatch refusal come from
+     the landing ticket.
+   - **The model**: `claude-opus-5` at effort `high`. There are no other sampling parameters to
+     set.
 2. From the pinned install, `campaign init` a campaign for each target's task list. The command
    records every rendered prompt file's digest in `campaign.json`. Publish the arm diffs
    (re-rendered after the rulings of ticket 04).
-3. Re-run the **S0 enforcement spike** on the pinned CLI. It launches real sessions, so read its
-   cost first and ask the user if it is not $0.
+3. Re-run the **S0 enforcement spike** on the **copied** CLI. It launches real sessions, so read
+   its cost first and ask the user if it is not $0.
 4. Run the parity suite on the pinned code and keep its output (pre-run evidence).
 5. **Dry-run each target's last gate at $0** on a copy of its pristine: `draft build`, and a tag
    created or refused. "Could start" is not "could finish" (SP7d's third blind spot).

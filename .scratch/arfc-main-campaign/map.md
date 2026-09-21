@@ -136,6 +136,12 @@ pre-run → 03 and 13; k and run matrix → 15; reporting commitments → 16.
   the order; a second exclusion stops the campaign. Budget hits and plain timeouts are the
   model's. Faulted spend is its own line. The code lands via the new "Land the fault, retry and
   exclusion rules in the experiment path".
+- [Which model, effort, CLI version and code pin does the main campaign fix?](issues/09-which-model-cli-and-code-pin.md):
+  **`claude-opus-5` at `high`**; sampling parameters are stated as not exposed. The Claude Code
+  version is chosen at the freeze and its binary **copied** into `code-pins/` (the
+  `~/.local/bin/claude` symlink auto-updates, and the installer keeps only 3 versions).
+  Auto-update is off, each run records its real version, and a mismatch is refused. The code is
+  pinned with SP7d's clone and venv. The pin code joins the fault-rules landing ticket.
 
 ## Not yet specified
 

@@ -42,6 +42,13 @@ row's files: `experiment/{runner,audit,per_cluster}.py`, and probably `campaign_
    replacement per cell is **appended to the run order**. A second exclusion in a cell **stops the
    campaign** for review.
 6. **Faulted spend on its own line per cell**, outside the arm's cost metrics.
+7. **The Claude Code pin**, added on 2026-09-21 by
+   [Which model, effort, CLI version and code pin …](09-which-model-cli-and-code-pin.md):
+   - `campaign init` freezes the **resolved** binary. Today `shutil.which` returns the
+     `~/.local/bin/claude` symlink, which every auto-update re-points (`experiment/config.py:346-355`).
+   - Each run records the version it **really launched** (its `--version` at launch). Today
+     `runner.py:293` copies the campaign's frozen value.
+   - A run whose binary reports a version other than the campaign's is **refused**.
 
 **Done when**: each ruling has a RED-then-GREEN test; the full ai_rfc suite passes (report
 collected, passed, failed and skipped separately); and a $0 rehearsal with the fake claude
