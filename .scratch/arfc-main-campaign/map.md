@@ -105,6 +105,12 @@ pre-run → 03 and 13; k and run matrix → 15; reporting commitments → 16.
   names; and no arm but C sees the corpus schema. Two leaks are common to every arm (window-less
   cluster access, and the clone at the tip). `task.md` is unchanged since the pilot, and
   `campaign init`'s toolchain verification currently refuses. Listed, not ruled.
+- [Audit the parity suite: which operations carry a cross-arm behavioural assertion?](issues/03-audit-the-parity-suite.md):
+  25 passed at `571355c`. All 20 tools have an A-against-B twin: 13 full, 6 partial (claim
+  upsert never sends an anchor; revision tag never refuses; three twins have no non-vacuity
+  guard), and 1 none by design (status, D16). Probes: A and B *can* read the corpus schema, and
+  anchors keep parity. No transport is tested, and arm C has no twin. Listed, not ruled; "Rule
+  each arm asymmetry" now also waits on the arm C decision.
 
 ## Not yet specified
 
