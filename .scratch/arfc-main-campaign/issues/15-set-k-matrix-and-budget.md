@@ -15,12 +15,18 @@ decision, and the pilot itself said k = 3 "adds nothing" on a zero-variance metr
 **With the validation pilot's measured variance and the statistical plan's minimum detectable
 effects in hand, decide:**
 - k per cell, and whether it differs by target.
-- The per-run budget cap and the per-run timeout (7200 s at the pilot, which used at most 22% of
-  it).
+- The per-run budget cap and the per-session timeout. The pilot's $25 cap and 7200 s timeout
+  were set for 10-cluster single-session runs. **A full MARK run needs far more**: about $350 and
+  15 h.
 - **The total budget ceiling for the main campaign**, and what happens if it is reached mid-way.
-  With arms A and B only (ruled 2026-09-21), the matrix is 2 × 2 × k. At the pilot's $21.80
-  mean, 4k runs cost about $87 × k before retries and replacements: roughly $262 at k = 3 and
-  $436 at k = 5.
+  With arms A and B only, the matrix is 2 × 2 × k. With the windows ruled in
+  [Which task list does each target use](12-which-task-list-per-target.md) (aioquic w02-31, MARK
+  w01-69), the rough costs, **superseding the earlier $87 × k estimate made at 10 clusters**, are:
+  - per run: about $57 and 1–2 h for aioquic, about $350 and 15 h for MARK;
+  - per block (both arms, both targets): about $810 and 33 h;
+  - **k = 3: about $2,400 and 100 h; k = 5: about $4,000 and 165 h**.
+
+  These come before the judge, fault retries and replacements.
 
 The user owns the budget. This ticket presents the options with their power and cost side by
 side, and records the ruling.

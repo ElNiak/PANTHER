@@ -1,8 +1,8 @@
 # 12 — Which task list does each target use, with its provenance-class coverage?
 
 Type: grilling (HITL)
-Status: open
-Claimed: —
+Status: closed (grilling, 2026-09-21)
+Claimed: chart-ai-rfc-main-campaign (session 40f5ddb1), 2026-09-21 15:37 CEST
 Blocked by: [What are the hypotheses](01-what-are-the-hypotheses-and-primary-metrics.md), [Can the rebuilt MARK pristine pass its last gate](07-can-the-mark-pristine-pass-its-last-gate.md)
 Parent: [ai_rfc Main Campaign, Ready to Launch](../map.md)
 
@@ -40,3 +40,42 @@ last choice changes what "a task" means for a progressive reconstruction.
 - Arms A and B only. MARK has no ground truth (only aioquic's w02-11 does), so including w02-11
   matters only for the secondary reachable-recall estimate.
 - Per-cluster sessions, and MARK's rebuilt pristine passes every last gate.
+
+## Resolution (grilling, 2026-09-21)
+
+Ruled by the user in two rounds, confirmed as a whole before recording. **The user chose the full
+MARK window**, where the recommendation had been w01-30. Every other answer followed the
+recommendation.
+
+**Facts found:**
+- aioquic's 342 clusters are 235 forge-rescued squashes, 104 epochs and only 3 API-visible
+  merges (ordinals 2–34).
+- MARK's 69 clusters are 37 merges and 32 epochs, with no forge squashes (GitLab).
+- **No target has shown completion below 1 for model reasons.** The pilot's w02-11 saturated.
+  MARK's full-window run (`campaigns/mark-full-1`, A1) halted at cluster 38 after two failed
+  attempts, the second costing $0.00, which is an infrastructure fault, not difficulty.
+- MARK costs about $5.06 per cluster ($187.38 for 37 clusters, about 8 hours for 38), against
+  about $1.90 per cluster for aioquic.
+
+**Rulings:**
+- **Task shape: one contiguous window per target**, run in ordinal order. A sampled list would
+  leave later clusters working on an empty draft (`experiment/workspace.py:173-208`).
+- **aioquic: w02-31**, 30 clusters (3 API-visible merges, 14 epochs, 13 forge squashes). w02-11 is
+  its prefix, and it ends at `c0031-pr-48092046ff28`.
+- **MARK: the full w01-69** (37 merges, 32 epochs). It ends at the clone head `b901f36`, so **no
+  commit lies after the window**, and the tip leak does not reach MARK through the clone.
+- **Secondary reachable recall** (aioquic only) is scored on each run's draft **at its c0011
+  revision tag**, against the Ground-Truth Yardstick map's w02-11 dataset (anchored `509065a`).
+  It covers the first 10 clusters, and says so.
+
+**Consequences, decided elsewhere:**
+- The validation pilot checks that completion is not saturated; if it is, the hypotheses ticket
+  reopens.
+- The freeze prepares a new aioquic pristine for w02-31, with the future-free cut at c0031's end.
+- "Set k …" rules the budget. **Rough costs**:
+  - per run: about $57 and 1–2 h for aioquic, about $350 and 15 h for MARK;
+  - per block (both arms, both targets): about $810 and 33 h;
+  - k = 3: about $2,400 and 100 h; k = 5: about $4,000 and 165 h.
+
+  These come before the judge, retries and replacements. The per-run budget cap must allow a MARK
+  run.

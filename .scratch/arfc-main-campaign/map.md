@@ -180,6 +180,14 @@ pre-run → 03 and 13; k and run matrix → 15; reporting commitments → 16.
     through MCP and the shim.
 
   It all lands via the new "Land the arm-parity fixes", which the freeze waits on.
+- [Which task list does each target use, with its provenance-class coverage?](issues/12-which-task-list-per-target.md):
+  **one contiguous window per target**:
+  - **aioquic w02-31**: 3 merges, 14 epochs, 13 forge squashes, with w02-11 as its prefix;
+  - **MARK's full w01-69**: 37 merges and 32 epochs, ending at its clone head.
+
+  Secondary recall is scored at each run's c0011 tag. No window has yet shown non-saturated
+  completion, which the validation pilot checks. Rough cost: about $2,400 at k = 3 and $4,000 at
+  k = 5; MARK is about $350 and 15 h per run.
 
 ## Not yet specified
 
@@ -188,7 +196,8 @@ pre-run → 03 and 13; k and run matrix → 15; reporting commitments → 16.
   separate, harness-confounded measurement and never pooled with arms A and B. It stays in scope
   after arm C was dropped, because it asks a different question: no function-calling layer at
   all. Unclear yet: which harness, how it is held to the same task list and gates, and how it is
-  reported. Sharpens once the hypotheses and the task lists are settled.
+  reported. The hypotheses and the task lists are now settled (2026-09-21), so it could graduate
+  into a ticket whenever the user chooses. It stays fog by the user's ruling in the arm-C ticket.
 
 ## Out of scope
 

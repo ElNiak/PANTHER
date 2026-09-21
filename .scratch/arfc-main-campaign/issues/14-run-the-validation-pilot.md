@@ -32,5 +32,8 @@ paper's hypotheses: they sized the campaign, and they are reported as such.
 **The primary metrics are ruled** ([What are the hypotheses](01-what-are-the-hypotheses-and-primary-metrics.md)):
 completed fraction per run (H1), cost per completed cluster (H2), tokens to first completion (H3),
 and the blinded judge's score (H4). Measure the per-cell variance of all four. **Check that
-completion is not saturated.** If it is, the hypotheses ticket is reopened before the freeze. Add
+completion is not saturated** on the ruled windows, aioquic w02-31 and MARK w01-69. No run has
+yet shown completion below 1 for model reasons (MARK's 37 of 69 was an infrastructure halt). If
+it is saturated, the hypotheses ticket is reopened before the freeze. Note that a full MARK run is
+about $350 and 15 h, so size the pilot's MARK part with the user. Add
 the judge's cost (about $0.60 per run's final draft) to the spend estimate.

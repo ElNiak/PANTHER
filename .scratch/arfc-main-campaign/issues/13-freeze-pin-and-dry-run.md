@@ -27,6 +27,12 @@ variance estimate describes something the main campaign will not run.
      the landing ticket.
    - **The model**: `claude-opus-5` at effort `high`. There are no other sampling parameters to
      set.
+1b. **Prepare the pristines for the ruled windows** ([Which task list does each target use](12-which-task-list-per-target.md)):
+   - **aioquic w02-31**: a new pristine from `workspace prepare --forge-snapshot` into a new
+     directory, with the future-free cut at c0031's end once the tip-leak fix lands. Gate it on
+     the cluster ids matching.
+   - **MARK w01-69**: the rebuilt `rebuild-sp7d/pristine/mark-w01-69`. It ends at the clone head,
+     so the clone holds no commit past the window.
 2. From the pinned install, `campaign init` a campaign for each target's task list. The command
    records every rendered prompt file's digest in `campaign.json`. Publish the arm diffs
    (re-rendered after the rulings of ticket 04).
