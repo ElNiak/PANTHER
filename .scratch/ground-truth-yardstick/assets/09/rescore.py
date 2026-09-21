@@ -1,0 +1,186 @@
+"""Re-score the pilot and v2 drafts against the w02-11 dataset built to the map's rules (ticket 09).
+
+The output takes ticket 13's report shape:
+- a per-run table: status, reachable recall, ceiling, claim accuracy with its counts, named, and the
+  future-material verdict;
+- a per-kind table;
+- per-arm rows that leave touched runs out and say so.
+
+All four drafts touched future material through `corpus_query` (ticket 12). By user ruling they are
+scored, labelled, and left out of the arm rows (13, ruling 3).
+
+Two checks are kept from the prototype:
+- reproduction: the OLD dataset against pilot A1 must give SP7d's 8/35 with the same ids;
+- truncation: the whole-token `_tokens_near` (ticket 03's edge-cut fix) must change no outcome.
+
+Run: ~/ai-rfc-experiments/code-pins/venv-3406985/bin/python rescore.py > rescore.md
+Reads only: the drafts come from `git show` on the pilot evidence tree and from the SP7d t11 copies.
+"""
+
+import json
+import subprocess
+from pathlib import Path
+
+import yaml
+
+import ai_rfc.experiment.ground_truth as gt
+
+HERE = Path(__file__).resolve().parent
+DATASET = HERE / "aioquic-w02-11-at-509065a.yaml"
+T11 = Path("/Users/elniak/Documents/Documents/Work/Project/Protocol-Testing-Security/PANTHER/master/"
+           ".claude/worktrees/iut-ai-rfc/panther/plugins/services/testers/ai_rfc/.superpowers/sdd/"
+           "2026-09-15-arfc-sp7d/t11")
+PILOT = Path.home() / "arfc-experiments/campaigns/pilot-aioquic-w02-11-20260831/runs"
+VCS = "g" + "it"
+TOUCHED = "touched: future commit metadata through `corpus_query`, no scored fact (ticket 12)"
+
+#: run label -> (arm label, draft source description)
+RUNS = {
+    "pilot v1 A1": ("pilot v1 (arm A)", "tag -10"),
+    "pilot v1 A2": ("pilot v1 (arm A)", "tag -11"),
+    "v2 A1": ("v2 (arm A)", "tag -10"),
+    "v2 A2": ("v2 (arm A)", "tag -10"),
+}
+
+
+def pilot(run: str, tag: str) -> str:
+    return subprocess.run(
+        [VCS, "-C", str(PILOT / run / "workspace/draft"), "show",
+         f"{tag}:draft-elniak-aioquic-reconstructed.md"],
+        capture_output=True, text=True, check=True).stdout
+
+
+def drafts() -> dict[str, str]:
+    # Each run's final draft is its revision for c0011, the window's last cluster (latest_tag).
+    return {"pilot v1 A1": pilot("A1", "draft-elniak-aioquic-reconstructed-10"),
+            "pilot v1 A2": pilot("A2", "draft-elniak-aioquic-reconstructed-11"),
+            "v2 A1": (T11 / "armA-drafts/A1-10.md").read_text(),
+            "v2 A2": (T11 / "armA-drafts/A2-10.md").read_text()}
+
+
+def named_ids(text: str, entries: list[dict], missed: tuple[str, ...]) -> set[str]:
+    body = gt._normalised(text)
+    patterns = [gt._symbol_pattern(e["symbol"]) for e in entries]
+    spans = gt._symbol_spans(body, patterns)
+    return {e["id"] for e, p in zip(entries, patterns) if e["id"] in missed and any(
+        not gt._inside_a_longer_symbol(m.span(), spans) for m in p.finditer(body))}
+
+
+def outcomes(text: str, entries: list[dict]) -> dict[str, str]:
+    report = gt.score_draft(text, entries)
+    named = named_ids(text, entries, report.missed)
+    state = {}
+    for e in entries:
+        i = e["id"]
+        state[i] = ("matched" if i in report.matched else "mismatched" if i in report.attempted
+                    else "named" if i in named else "absent" if i in report.missed else "excluded")
+    return state
+
+
+def whole_token_tokens_near(body, symbol, token, named):
+    found = []
+    for match in symbol.finditer(body):
+        if gt._inside_a_longer_symbol(match.span(), named):
+            continue
+        low, high = max(0, match.start() - gt.NEARBY_CHARS), match.end() + gt.NEARBY_CHARS
+        found += [t.group(0) for t in token.finditer(body) if t.start() < high and t.end() > low]
+    return found
+
+
+def counts(state: dict[str, str], entries: list[dict]) -> dict:
+    scored = [e for e in entries if state[e["id"]] != "excluded"]
+    reachable = [e for e in scored if e.get("reachable")]
+    by = {s: [e for e in scored if state[e["id"]] == s]
+          for s in ("matched", "mismatched", "named", "absent")}
+    return {"scored": len(scored), "reachable": len(reachable),
+            "matched": len(by["matched"]),
+            "matched_reachable": sum(1 for e in by["matched"] if e.get("reachable")),
+            "attempted": len(by["matched"]) + len(by["mismatched"]),
+            "named": len(by["named"]), "absent": len(by["absent"])}
+
+
+def ratio(a: int, b: int) -> str:
+    return f"{a}/{b} ({a / b:.3f})" if b else "—"
+
+
+def main() -> None:
+    entries = yaml.safe_load(DATASET.read_text())["entries"]
+    old = gt.load_dataset()["entries"]
+    texts = drafts()
+    states = {name: outcomes(text, entries) for name, text in texts.items()}
+
+    print("# Ticket 09: aioquic w02-11 re-scored on the window-anchored yardstick\n")
+    print(f"Dataset `{DATASET.name}` (anchor `509065a`, window [2, 11], declared spec h3-22). "
+          "Scorer: `ai_rfc.experiment.ground_truth.score_draft` at ai_rfc `3406985`. "
+          "Generated by `rescore.py`.\n")
+    print("## Per run\n")
+    print("| run | final draft | status | reachable recall | ceiling | claim accuracy | named | "
+          "future material |")
+    print("|---|---|---|---|---|---|---|---|")
+    per_run = {}
+    for name, state in states.items():
+        c = counts(state, entries)
+        per_run[name] = c
+        accuracy = (f"{c['matched'] / c['attempted']:.3f} ({c['attempted']} attempted of "
+                    f"{c['reachable']} reachable)" if c["attempted"] else "— (nothing attempted)")
+        print(f"| {name} | {RUNS[name][1]} | scored | {ratio(c['matched_reachable'], c['reachable'])}"
+              f" | {ratio(c['reachable'], c['scored'])} | {accuracy} | {c['named']} | {TOUCHED} |")
+
+    print("\n## Per kind (matched / mismatched / named / absent of scored)\n")
+    kinds = sorted({e["kind"] for e in entries if e["value"].startswith("0x")})
+    print("| run | " + " | ".join(kinds) + " |")
+    print("|---|" + "---|" * len(kinds))
+    for name, state in states.items():
+        cells = []
+        for kind in kinds:
+            ks = [e for e in entries if e["kind"] == kind and state[e["id"]] != "excluded"]
+            tally = [sum(1 for e in ks if state[e["id"]] == s)
+                     for s in ("matched", "mismatched", "named", "absent")]
+            cells.append(" / ".join(map(str, tally)) + f" of {len(ks)}")
+        print(f"| {name} | " + " | ".join(cells) + " |")
+
+    print("\n## Per arm (touched runs left out; ticket 13, ruling 3)\n")
+    print("| arm | runs | reachable recall (mean / min) | claim accuracy (pooled) | left out |")
+    print("|---|---|---|---|---|")
+    for arm in dict.fromkeys(a for a, _ in RUNS.values()):
+        members = [n for n, (a, _) in RUNS.items() if a == arm]
+        print(f"| {arm} | {len(members)} | — | — | {len(members)} of {len(members)} "
+              "(all touched) |")
+
+    print("\n## Per fact\n")
+    names = list(texts)
+    print("| fact | kind | " + " | ".join(names) + " |")
+    print("|---|---|" + "---|" * len(names))
+    for e in entries:
+        if states[names[0]][e["id"]] == "excluded":
+            continue
+        print(f"| `{e['symbol']}` = {e['value']} | {e['kind']} | "
+              + " | ".join(states[n][e["id"]] for n in names) + " |")
+
+    print("\n## Checks\n")
+    old_state = outcomes(texts["pilot v1 A1"], old)
+    old_matched = sorted(i for i, s in old_state.items() if s == "matched")
+    sp7d = sorted(json.loads((T11 / "gt-pilot/ground-truth.json").read_text())["matched"])
+    old_scored = sum(1 for s in old_state.values() if s != "excluded")
+    print(f"- Reproduction: the OLD dataset (tip `6d36838`) against pilot v1 A1 matches "
+          f"{len(old_matched)}/{old_scored}; identical to SP7d `t11/gt-pilot`: {old_matched == sp7d}.")
+    original = gt._tokens_near
+    changes = []
+    try:
+        for label, ents in (("old", old), ("new", entries)):
+            for name, text in texts.items():
+                gt._tokens_near = original
+                base = outcomes(text, ents)
+                gt._tokens_near = whole_token_tokens_near
+                fixed = outcomes(text, ents)
+                changes += [f"{label}/{name}/{i}: {base[i]} -> {fixed[i]}"
+                            for i in base if base[i] != fixed[i]]
+    finally:
+        gt._tokens_near = original
+    print("- Truncation (whole-token `_tokens_near`): "
+          + ("no outcome changes on either dataset for any draft." if not changes
+             else "; ".join(changes)))
+
+
+if __name__ == "__main__":
+    main()
