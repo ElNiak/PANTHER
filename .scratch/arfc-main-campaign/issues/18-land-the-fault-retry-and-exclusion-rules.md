@@ -53,7 +53,8 @@ row's files: `experiment/{runner,audit,per_cluster}.py`, and probably `campaign_
    [How is run order randomized and balanced across time?](11-how-is-run-order-randomized.md):
    - `run_order` (`experiment/config.py:230-246`) keeps its blocks and adds **position balance
      across repeats**: a seeded Latin-square rotation, exact when k is a multiple of the arm
-     count, for two or three arms.
+     count. The campaign has two arms, A and B, since arm C was dropped on 2026-09-21; the
+     rotation still takes the arm list as given.
    - **A cross-campaign schedule**: one command runs the two frozen campaigns (aioquic and MARK)
      block by block in a seeded alternation, **sequentially**, and records the realised order
      with timestamps.

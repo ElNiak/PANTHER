@@ -18,7 +18,9 @@ effects in hand, decide:**
 - The per-run budget cap and the per-run timeout (7200 s at the pilot, which used at most 22% of
   it).
 - **The total budget ceiling for the main campaign**, and what happens if it is reached mid-way.
-  At the pilot's $21.80 mean, 3 × 2 × k runs cost about $130 × k before retries.
+  With arms A and B only (ruled 2026-09-21), the matrix is 2 × 2 × k. At the pilot's $21.80
+  mean, 4k runs cost about $87 × k before retries and replacements: roughly $262 at k = 3 and
+  $436 at k = 5.
 
 The user owns the budget. This ticket presents the options with their power and cost side by
 side, and records the ruling.

@@ -42,3 +42,18 @@ can only be fixed). Many D-rows touching arm C depend on
 [Does the main campaign include arm C](17-does-the-main-campaign-include-arm-c.md): if C is
 dropped, D8–D14 need no ruling. **Wired as a blocker on 2026-09-21**, when the parity audit
 closed, so the frontier cannot offer this ticket before the arm C decision.
+
+**Arm C was dropped on 2026-09-21** ([its ticket](17-does-the-main-campaign-include-arm-c.md)).
+Rows D8–D14 and K2 need no ruling, and D1's and D16's arm-C halves fall away. The rows left to
+rule are the A-against-B ones:
+- D1: A's anchor field list against B's literal anchors;
+- D2: structure fields told to A only in the loop;
+- D3: optional claim fields;
+- D4 and D5: minor told differences;
+- D6: status, which B lacks in consolidation;
+- D7: corpus schema exposure, capability equal per the parity probes;
+- D15 (D16 in the protocol): 20 tools against 19 verbs;
+- D16 (the prompt diff's): the structures skill in A's vocabulary, now inside B's consolidation
+  prompt;
+- the six partial twins and L1–L3 of the parity audit;
+- K1: status.

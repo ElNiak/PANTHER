@@ -15,9 +15,9 @@ live. Work it from a session rooted here.
 
 ## Destination
 
-The arm comparison of `<protocol>` (arms A and B, plus arm C if
-[Does the main campaign include arm C](issues/17-does-the-main-campaign-include-arm-c.md) keeps
-it) is **ready to launch as a main campaign**: every item of
+The arm comparison of `<protocol>`, **arms A and B** (arm C was dropped by
+[Does the main campaign include arm C](issues/17-does-the-main-campaign-include-arm-c.md)), is
+**ready to launch as a main campaign**: every item of
 the protocol's §6 preregistration checklist is decided, the preregistration is written and
 committed in the repository, code and prompts are pinned, and a $0 dry-run of the campaign
 passes. The OSF submission and the launch itself are the next effort's first acts, not this
@@ -56,11 +56,12 @@ owns `experiment/{runner,audit,per_cluster}.py` and `driver/{spawn,stop,coverage
 [Has the owed-fixes row landed](issues/05-has-the-owed-fixes-row-landed.md). The ARM-B fix
 `8358238` rides that row's push.
 
-**Arm C is frozen out of v2 by spec D42**, found after charting: `<protocol>:157-159`,
-`:191-195` and `:302-306` all say "a v2 campaign compares arms A and B", and arm C never
-consolidates. The charting grilling assumed three arms, so
-[Does the main campaign include arm C](issues/17-does-the-main-campaign-include-arm-c.md) comes
-before the hypotheses.
+**Arms A and B only** (user ruling in
+[Does the main campaign include arm C](issues/17-does-the-main-campaign-include-arm-c.md)). Spec
+D42 froze arm C out of v2, and `<protocol>:157-159`, `:191-195` and `:302-306` all say "a v2
+campaign compares arms A and B". The charting grilling had assumed three arms. The departure from
+protocol §1's B-versus-C contrast is stated in the preregistration, and the pilot's arm-C runs are
+cited only as pre-v2 history.
 
 **A sibling map owns the ground truth: "Ground-Truth Yardstick"**
 (`.scratch/ground-truth-yardstick/map.md`, same worktree, charted by another session on
@@ -78,6 +79,13 @@ scorer-change spec handed to ai_rfc. Two of its findings bear on this map:
   transcript audit as the backstop. It is handed to ai_rfc through that map and **has not
   landed**. A main campaign cannot freeze with the leak open; see
   [Freeze prompts, pin code, and dry-run](issues/13-freeze-pin-and-dry-run.md).
+
+- **MARK has no ground-truth dataset** (that map's rulings of 2026-09-21). A window's ground truth
+  is anchored at the window's end and cites the spec version the code declares there. MARK's code
+  declares none: its `API_Doc_classification.md` is named by no code, and its main Java has no
+  hex constants. So **MARK's recall and claim accuracy are `None` ("no declared spec"), never 0,
+  and no figure is preregistered for them**; MARK is evaluated on form metrics and the judge.
+  aioquic w02-11's dataset is being rebuilt at its window's end (`509065a`, h3-22).
 
 Any ground-truth measure this map adopts uses that map's definitions and never re-derives them.
 Its glossary uses "window" as this map does, and plans to move into `<ai_rfc>/CONTEXT.md` once the
@@ -147,22 +155,20 @@ pre-run → 03 and 13; k and run matrix → 15; reporting commitments → 16.
   time; runs are **sequential**; replacements run at the end and are disclosed. A cross-campaign
   schedule in code enforces it and records the realised order. The seed and the planned order
   are preregistered. The code joins the fault-rules landing ticket.
+- [Does the main campaign include arm C, frozen at its pre-v2 surface?](issues/17-does-the-main-campaign-include-arm-c.md):
+  **no. The campaign compares arms A and B only** (D42), with one contrast per hypothesis. The
+  departure from protocol §1 is stated in the preregistration, the pilot's arm-C runs are cited as
+  pre-v2 history, and the class-3 companion stays in the fog. The arm-C rows D8–D14 and K2 need
+  no ruling.
 
 ## Not yet specified
 
 - **The class-3 companion measurement** (in scope, user ruling at charting). `<protocol>` §1
   allows a raw-shell arm only in a different harness (mini-swe-agent is its exemplar), run as a
-  separate, harness-confounded measurement and never pooled with arms A–C. Unclear yet: which
-  harness, how it is held to the same task list and gates, and how it is reported. Sharpens once
-  the hypotheses and the task lists are settled.
-- **Ground truth for MARK.** Ground truth exists only for aioquic w02-11 (41 facts,
-  `<ai_rfc>/ai_rfc/experiment/groundtruth/aioquic-w02-11.yaml`). Whether MARK needs one depends
-  on whether the hypotheses make a ground-truth measure primary or secondary. *How* it would be
-  built is the sibling map's ticket "How is ground truth built for a target with no published
-  spec?", not this map's. **The sibling map ruled on 2026-09-21** that a window's ground truth is
-  anchored at the window's end (the last member commit of its last cluster; `509065a` for w02-11)
-  and cites the spec version the code declares there. A target whose code declares no spec gets
-  no dataset. **Until that ticket rules, preregister no recall figure for MARK.**
+  separate, harness-confounded measurement and never pooled with arms A and B. It stays in scope
+  after arm C was dropped, because it asks a different question: no function-calling layer at
+  all. Unclear yet: which harness, how it is held to the same task list and gates, and how it is
+  reported. Sharpens once the hypotheses and the task lists are settled.
 - **How the drafts' judged quality enters the paper**, if at all: SP7d's blinded judge exists,
   but no hypothesis names it yet.
 

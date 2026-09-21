@@ -49,5 +49,15 @@ formula. The pilot measured cache reads and creation at 99.68% of 198.8 M tokens
 **Decide:** the hypothesis list; one primary metric for each; which measures are secondary or
 descriptive; and whether completion stays primary under a harder task list (then
 [Which task list does each target use](12-which-task-list-per-target.md) carries the burden of
-un-saturating it) or yields to a metric that varied. Graduates the Not-yet-specified patches on
-MARK ground truth and on judged quality, one way or the other.
+un-saturating it) or yields to a metric that varied. Graduates the Not-yet-specified patch on
+judged quality, one way or the other.
+
+**Settled since charting, so these are inputs:**
+- **The arms are A and B only** ([Does the main campaign include arm C](17-does-the-main-campaign-include-arm-c.md)),
+  so each hypothesis is one A-against-B contrast.
+- **MARK has no ground-truth dataset** (the Ground-Truth Yardstick map's rulings: MARK's code
+  declares no spec). A recall or claim-accuracy hypothesis can hold only for aioquic, on that
+  map's rebuilt w02-11 dataset and its **reachable recall**. MARK's figures are `None`.
+- The statistical plan (research, closed) recommends one pooled, stratified exact test per
+  hypothesis, estimation per target, and Bonferroni or a cost-first fixed sequence across
+  hypotheses. With two arms there is no within-hypothesis multiplicity layer.
