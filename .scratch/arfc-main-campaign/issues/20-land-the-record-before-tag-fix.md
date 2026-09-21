@@ -21,6 +21,13 @@ row's `experiment/per_cluster.py`. It lands **one at a time** with
 which edits the same attempt loop. Whichever lands second rebases its tests onto the first. Find
 the row's session with `ListAgents` before touching anything it owns.
 
+**Why it waits for the push, not just for the row's file list:** the row confirmed on 2026-09-21
+that its remaining tasks never touch `per_cluster.py`. But it commits in this worktree's own
+`<ai_rfc>` checkout, the only live one on `main`. At about 15:56 that checkout held its uncommitted
+edits to `draft/gate.py`, `server/core/{build,gates}.py` and `forge/cli.py`. A concurrent landing
+would share its index and its pre-commit stash, so re-read `draft/gate.py`'s `load_revisions`
+after the push.
+
 **The defect, at ai_rfc `2c768b5`** (SP7d ledger
 `<ai_rfc>/.superpowers/sdd/2026-09-15-arfc-sp7d/progress.md`, R91 at line 4077, R92 at line 4144):
 - **Record comes before tag, by design.** `server/core/draft.py`'s `tag_revision` refuses a tag

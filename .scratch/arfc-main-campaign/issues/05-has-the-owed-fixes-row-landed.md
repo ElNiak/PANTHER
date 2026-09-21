@@ -72,3 +72,11 @@ handed to a new ticket by the user's ruling.** The ticket stays open and unclaim
   [Land the record-before-tag fix (R91/R92)](20-land-the-record-before-tag-fix.md). That ticket
   waits on this one and blocks the freeze. The row's session is told that this map has R91/R92,
   so it leaves them.
+- **The row confirmed (2026-09-21, by message from `plan-review-and-task-dispatch`).**
+  - R91/R92 was never started there and stays out of the row and its fix wave. Its ledger now
+    names ticket 20 as the owner.
+  - The pre-push message is promised again.
+  - Its remaining tasks touch `experiment/runner.py` (Task 6), `experiment/metrics.py` and
+    `experiment/audit.py` (Task 7), and `experiment/cli.py`'s parser (Task 8), **never
+    `per_cluster.py`**. So ticket 20 waits on the push only because the row commits in this same
+    `<ai_rfc>` checkout: a concurrent landing would share its index and its pre-commit stash.
