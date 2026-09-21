@@ -1,8 +1,8 @@
 # 04 — Rule each arm asymmetry: equalize, fix or disclose?
 
 Type: grilling (HITL)
-Status: open
-Claimed: —
+Status: closed (grilling, 2026-09-21)
+Claimed: chart-ai-rfc-main-campaign (session 40f5ddb1), 2026-09-21 15:27 CEST
 Blocked by: [Diff the three rendered arm prompts](02-diff-the-rendered-arm-prompts.md), [Audit the parity suite](03-audit-the-parity-suite.md), [Does the main campaign include arm C](17-does-the-main-campaign-include-arm-c.md)
 Parent: [ai_rfc Main Campaign, Ready to Launch](../map.md)
 
@@ -57,3 +57,36 @@ rule are the A-against-B ones:
   prompt;
 - the six partial twins and L1–L3 of the parity audit;
 - K1: status.
+
+## Resolution (grilling, 2026-09-21)
+
+Ruled by the user in three rounds, confirmed as a whole before recording. **Every row is equalized
+or fixed; none is disclosed.** Arm C's rows (D8–D14, K2, L2) needed no ruling, since arm C was
+dropped.
+
+- **D1, anchor shape: equalize.** Both arms show the same two literal anchors, a code anchor
+  (locator, commit, line) and an adr anchor (a decision sha), each in the arm's own call syntax.
+- **D2, structure fields: equalize.** B's slot and its `structure upsert --help` name the fields
+  (kind, title, section, members), with a JSON example.
+- **D16 of the prompt diff, the structures skill: neutralize.** The "How" section of
+  `skills/ai-rfc-structures/SKILL.md` names the operations ("upsert the structure", "render the
+  blocks"), not arm A's tool names, and leaves the syntax to each arm's invocation lines. A test
+  pins that no bundled skill text names an arm's tools.
+- **D3, D4, D5, minor wording: equalize all three.** Optional claim fields, "the tag rebuilds the
+  draft" and "edit prose with Edit/Write" read the same in both arms.
+- **D6, K1 and D15 (the protocol's D16), status: fix.** A workspace-form verb returns exactly
+  `queries.status`, with a parity twin. It is named at landing so it does not clash with the
+  operator's `ai-rfc status`. B's consolidation slot points at it. **Parity becomes 20 tools
+  against 20 verbs, closing the protocol's D16.**
+- **D7, corpus schema: show both.** The corpus tables and columns are named in `ai_rfc_corpus_query`'s
+  description and in `corpus query --help`.
+- **The six partial twins and L3: fix all.** Add cross-arm assertions for anchors, the tag's
+  refusal and rollback, the `enum` and `state-machine` kinds, record status with ids and a
+  non-vacuity guard, draft lint's guard and exit code, and the corpus refusal and schema read. Pin
+  the status and guardrail refusals across arms.
+- **L1, transport: add twins** through an MCP client against the server and through the campaign's
+  `bin/ai-rfc` shim in a subprocess, for claim upsert with anchors, structure upsert and revision
+  tag.
+- **Landing**: a new ticket,
+  [Land the arm-parity fixes](19-land-the-arm-parity-fixes.md), which waits on the owed-fixes
+  checkpoint. The freeze waits on it.

@@ -3,7 +3,7 @@
 Type: task (AFK)
 Status: open
 Claimed: —
-Blocked by: [Rule each arm asymmetry](04-rule-each-arm-asymmetry.md), [Has the owed-fixes row landed](05-has-the-owed-fixes-row-landed.md), [Close the guard tamper hole](06-close-the-guard-tamper-hole.md), [Which model, CLI and code pin](09-which-model-cli-and-code-pin.md), [Which task list per target](12-which-task-list-per-target.md), [Land the fault, retry and exclusion rules](18-land-the-fault-retry-and-exclusion-rules.md)
+Blocked by: [Rule each arm asymmetry](04-rule-each-arm-asymmetry.md), [Has the owed-fixes row landed](05-has-the-owed-fixes-row-landed.md), [Close the guard tamper hole](06-close-the-guard-tamper-hole.md), [Which model, CLI and code pin](09-which-model-cli-and-code-pin.md), [Which task list per target](12-which-task-list-per-target.md), [Land the fault, retry and exclusion rules](18-land-the-fault-retry-and-exclusion-rules.md), [Land the arm-parity fixes](19-land-the-arm-parity-fixes.md)
 Parent: [ai_rfc Main Campaign, Ready to Launch](../map.md)
 
 ## Question

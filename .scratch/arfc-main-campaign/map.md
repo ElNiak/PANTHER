@@ -170,6 +170,16 @@ pre-run → 03 and 13; k and run matrix → 15; reporting commitments → 16.
   Holm across the four; pooled, stratified exact tests. The task list must un-saturate
   completion, or the ticket reopens. Secondary and descriptive lists and the instruments'
   definitions are fixed.
+- [Rule each arm asymmetry: equalize, fix or disclose?](issues/04-rule-each-arm-asymmetry.md):
+  **every A-against-B row is equalized or fixed; nothing is disclosed.**
+  - Literal anchors and structure fields are shown to both arms, and the minor wording matches.
+  - The structures skill is neutralized.
+  - A workspace status verb makes parity 20/20, closing the protocol's D16.
+  - The corpus schema is shown to both arms.
+  - The six partial twins and the per-arm refusals are fixed, and transport twins are added
+    through MCP and the shim.
+
+  It all lands via the new "Land the arm-parity fixes", which the freeze waits on.
 
 ## Not yet specified
 
