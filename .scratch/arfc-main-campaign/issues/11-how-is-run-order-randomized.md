@@ -26,3 +26,9 @@ every arm sees every time period); sequential or parallel execution, with the co
 how the seed and the realized order are recorded; and what happens to the order when a run is
 retried under
 [Which runs are excluded](08-which-runs-are-excluded.md).
+
+**Already ruled there (2026-09-21), so it is an input here, not an open question:** fault retries
+happen inside a run, so the run keeps its place. A replacement for an excluded run is **appended
+at the end of the order**, at most one per cell, and a second exclusion in a cell stops the
+campaign. What is left for this ticket is whether the appended replacements need their own
+balancing, since they all land at the end, in one late time block.

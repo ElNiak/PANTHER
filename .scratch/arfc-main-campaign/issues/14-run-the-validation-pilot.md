@@ -3,7 +3,7 @@
 Type: task (HITL: spend)
 Status: open
 Claimed: —
-Blocked by: [What are the hypotheses](01-what-are-the-hypotheses-and-primary-metrics.md), [Which runs are excluded](08-which-runs-are-excluded.md), [Freeze prompts, pin code, and dry-run](13-freeze-pin-and-dry-run.md)
+Blocked by: [What are the hypotheses](01-what-are-the-hypotheses-and-primary-metrics.md), [Which runs are excluded](08-which-runs-are-excluded.md), [Freeze prompts, pin code, and dry-run](13-freeze-pin-and-dry-run.md), [Land the fault, retry and exclusion rules](18-land-the-fault-retry-and-exclusion-rules.md)
 Parent: [ai_rfc Main Campaign, Ready to Launch](../map.md)
 
 ## Question

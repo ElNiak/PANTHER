@@ -3,7 +3,7 @@
 Type: task (AFK)
 Status: open
 Claimed: —
-Blocked by: [Rule each arm asymmetry](04-rule-each-arm-asymmetry.md), [Has the owed-fixes row landed](05-has-the-owed-fixes-row-landed.md), [Close the guard tamper hole](06-close-the-guard-tamper-hole.md), [Which model, CLI and code pin](09-which-model-cli-and-code-pin.md), [Which task list per target](12-which-task-list-per-target.md)
+Blocked by: [Rule each arm asymmetry](04-rule-each-arm-asymmetry.md), [Has the owed-fixes row landed](05-has-the-owed-fixes-row-landed.md), [Close the guard tamper hole](06-close-the-guard-tamper-hole.md), [Which model, CLI and code pin](09-which-model-cli-and-code-pin.md), [Which task list per target](12-which-task-list-per-target.md), [Land the fault, retry and exclusion rules](18-land-the-fault-retry-and-exclusion-rules.md)
 Parent: [ai_rfc Main Campaign, Ready to Launch](../map.md)
 
 ## Question
@@ -27,19 +27,29 @@ variance estimate describes something the main campaign will not run.
 5. **Dry-run each target's last gate at $0** on a copy of its pristine: `draft build`, and a tag
    created or refused. "Could start" is not "could finish" (SP7d's third blind spot).
 
-**Precondition from the sibling map "Ground-Truth Yardstick".** The tip-source leak has three
-paths, measured in
-[Diff the three rendered arm prompts](02-diff-the-rendered-arm-prompts.md) (entries S1, S2 and
-D13):
+**Precondition from the sibling map "Ground-Truth Yardstick".** Its "How is the tip-source leak
+closed?" was **resolved with the user on 2026-09-21**. Anything describing the repository after
+the window's end commit counts as future material, and it found **five routes**. Three were
+measured in [Diff the three rendered arm prompts](02-diff-the-rendered-arm-prompts.md) (S1, S2,
+D13); the other two are that map's findings:
 - each pristine's `clone/` working tree is checked out at the target's tip, readable by every
   arm's `Read`;
 - `cluster_get` has no window check, and the pristine holds all 342 clusters' diffs, readable by
   A's tool, B's verb and C's `Read`;
-- arm C's unrestricted `git` reaches the clone's whole history.
+- arm C's unrestricted `git` reaches the clone's whole history;
+- the forge snapshot (`pulls.jsonl`, `comments.jsonl`) mentions post-window material;
+- the corpus indexes every commit to the tip (1,182 for aioquic), and `corpus_query` admits any
+  SELECT.
 
-No run has used any of them so far. That map's "How is the tip-source leak closed?" rules the fix
-and hands it to ai_rfc as a spec. **This ticket does not freeze until the fix has landed in the
-pinned code and covers all three paths**, or the user rules the leak acceptable and disclosed.
+**Its ruled fix is a future-free workspace, with a transcript audit as the backstop.**
+`workspace prepare` cuts at the last member of the window's top cluster, keeps every merged PR
+that landed by then, clones with `--no-local --revision=<end>`, removes `origin`, and asserts the
+object set. Its research ticket measured this offline for w02-11: clusters c0001–c0011 stayed
+byte-equal, and the clone held only the 3,624 objects reachable from the end. Absolute paths to
+repositories outside the workspace stay reachable, hence the audit. The fix is handed to ai_rfc
+through that map's scorer and dataset hand-off ticket, and **has not landed**. No run has used
+any route so far. **This ticket does not freeze until that fix has landed in the pinned code and
+the audit backstop exists**, or the user rules the leak acceptable and disclosed.
 
 **Also found on 2026-09-21: `campaign init` refuses at toolchain verification.**
 `~/ai-rfc-experiments/tools/toolchain.json` (sha256 `97e4e644…d79ee`) fails with "the example did

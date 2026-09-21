@@ -32,6 +32,14 @@ earlier notes called "the main run"). **Run**: one arm × target × repeat. **Ce
 target. **Window**: a target's cluster-ordinal range; the task list may be sampled from it
 rather than equal to it (see
 [Which task list does each target use](issues/12-which-task-list-per-target.md)).
+**Session mode: per-cluster** (one session per cluster). **Attempt**: one model session on a
+cluster, 2 per cluster. **Infrastructure fault**: a session with no result event, an error within
+its first turn, an API error or rate-limit rejection, a crash or interrupt outside the model, or a
+timeout preceded by an API stall. **Fault retry**: a re-run after a fault, up to 3 per cluster,
+never an attempt. **Excluded run**: infrastructure-incomplete, or an integrity violation that the
+guard and the audit agree on. **Replacement run**: one per cell, appended to the order. The
+rulings are in
+[Which runs are excluded](issues/08-which-runs-are-excluded.md).
 
 **Execution is carried.** Unlike a default wayfinder map, tickets here may land code and run $0
 checks. **Every paid run asks the user first**, with the consent print, the command, the model
@@ -62,13 +70,13 @@ scorer-change spec handed to ai_rfc. Two of its findings bear on this map:
 - **8/35 is the window's ceiling, not a finding about the drafts.** The dataset is anchored at
   aioquic's 2025 tip and built from the final RFCs, while w02-11 ends in 2019 at draft-22. Its R93
   withdraws SP7d's "v2 recovers no more facts" reading.
-- **The tip-source leak, wider than `clone/`.** The pristine's `clone/` working tree is checked
-  out at the tip, so any arm's `Read` could open code from after the window (no run did). It is
-  wider than that: `cluster_get` has no window check, and the pristine holds all 342 clusters'
-  diffs, so every arm can read out-of-window clusters (confirmed at the site in
-  [Diff the three rendered arm prompts](issues/02-diff-the-rendered-arm-prompts.md), entry S1).
-  Arm C's unrestricted `git` also reaches the clone's whole history (its D13). A main campaign
-  cannot freeze with the leak open; see
+- **The tip-source leak: five routes, ruled on 2026-09-21.** Any material from after the
+  window's end reaches the model through `clone/` at the tip, window-less `cluster_get` over all
+  342 clusters, arm C's unrestricted `git` (all three measured in
+  [Diff the three rendered arm prompts](issues/02-diff-the-rendered-arm-prompts.md)), the forge
+  snapshot, or the corpus. That map ruled the fix: a **future-free `workspace prepare`**, with a
+  transcript audit as the backstop. It is handed to ai_rfc through that map and **has not
+  landed**. A main campaign cannot freeze with the leak open; see
   [Freeze prompts, pin code, and dry-run](issues/13-freeze-pin-and-dry-run.md).
 
 Any ground-truth measure this map adopts uses that map's definitions and never re-derives them.
@@ -120,6 +128,14 @@ pre-run → 03 and 13; k and run matrix → 15; reporting commitments → 16.
   (`trace.sh`'s `mktemp` in `/var/folders` and `/dev/fd/62` are refused), which explains the
   `campaign init` refusal. Whether arms B and C can build inside a campaign session is now a
   dry-run step of the freeze ticket.
+- [Which runs are excluded, and how is an infrastructure-faulted session treated?](issues/08-which-runs-are-excluded.md):
+  **per-cluster mode**. Faults (no result, an error in the first turn, an API error or rate
+  limit, a crash or interrupt, a timeout after an API stall) get up to 3 retries outside the 2
+  model attempts. After that, the run is excluded. Integrity exclusions happen only when the
+  guard and the audit agree. Excluded runs are reported and replaced once per cell at the end of
+  the order; a second exclusion stops the campaign. Budget hits and plain timeouts are the
+  model's. Faulted spend is its own line. The code lands via the new "Land the fault, retry and
+  exclusion rules in the experiment path".
 
 ## Not yet specified
 
@@ -148,3 +164,8 @@ pre-run → 03 and 13; k and run matrix → 15; reporting commitments → 16.
   and the scorer spec. The sibling map "Ground-Truth Yardstick" owns it. Ground truth enters here
   only as a measure, if the hypotheses call for one.
 - **Runtime anchors and `checked_fraction`.** Identically 0.0 in model-only runs by design (D23).
+- **The GEPA optimizer's harness-fault gap (D31).** `optimize/evaluator.py`'s `_harness_fault`
+  never reads `is_error`, `api_errors`, turns, cost or the exit code, so an outage session scored
+  0.0. The optimizer is not the main campaign (user ruling in
+  [Which runs are excluded](issues/08-which-runs-are-excluded.md)). The classifier this map lands
+  could serve it; that is for whoever next runs GEPA.
