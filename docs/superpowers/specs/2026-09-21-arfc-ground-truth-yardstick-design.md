@@ -7,6 +7,12 @@ name. Code is cited **by function name at ai_rfc `main` `2c768b5`**, because ano
 owed-fixes row) is changing these files. Line numbers are given only where they help find a function
 at that commit.
 
+**Amended 2026-09-22.** §7, §8, §9, §10 and §11 carry the prevention rulings made with the user
+that day, which settle research 11's open questions. The two plans that implement this spec are
+`docs/superpowers/plans/2026-09-21-arfc-ground-truth-measurement.md` (§3–§6, §7.3, §8–§10) and
+`docs/superpowers/plans/2026-09-22-arfc-future-free-workspace.md` (§7.1, §7.2, §7.4 and the
+prevention half of §7.3).
+
 `<map>` = `.scratch/ground-truth-yardstick/` in the `iut-ai-rfc` worktree.
 `<ai_rfc>` = `panther/plugins/services/testers/ai_rfc/`.
 
@@ -49,6 +55,7 @@ Three further defects were found on the way:
 | [11 — Can a future-free workspace keep the window's cluster ids?](../../../.scratch/ground-truth-yardstick/issues/11-can-a-future-free-workspace-keep-cluster-ids.md) | Yes: a truncated prepare reproduced c0001–c0011 byte-equal. Conditions in §7.1. |
 | [12 — Audit the pilot and v2 transcripts for future material](../../../.scratch/ground-truth-yardstick/issues/12-audit-old-transcripts-for-future-material.md) | All four drafts touched future material through `corpus_query` only, with no scored fact in it. They are scored, labelled. |
 | [13 — How do `analyze` and the campaign report present ground truth?](../../../.scratch/ground-truth-yardstick/issues/13-how-analyze-presents-ground-truth.md) | Scored by default; a report section; touched runs left out of arm rows; per-revision scoring is out of scope. |
+| Prevention grilling, 2026-09-22 (with the user; no ticket, the map was complete) | Prepare derives the end and builds the pristine there, asserting the window's rows byte-equal; every clone is made at its pin with no remote; forge rule R1 with `derived_from`/`truncated_at`; git honesty asserted everywhere with a recorded digest; a path guard for every file tool and every Bash path; `cluster_get` refuses only clusters after the window's top. §7, §11. |
 
 ## 3. Dataset format and selection
 
@@ -210,8 +217,8 @@ weaken its blinding, so it is out of scope here.
 **Future material** is anything describing the repository after the window's end commit. A run
 workspace carries it by five routes:
 1. `clone/` at the tip (any arm's `Read`/`Grep`/`Glob`);
-2. out-of-window `clusters/`: `cluster_get` has no window check (`server/core/queries.py`
-   `cluster_get`), and `Read` can open them directly;
+2. `clusters/` after the window's top: `cluster_get` has no window check
+   (`server/core/queries.py` `cluster_get`), and `Read` can open them directly;
 3. the forge snapshot (`forge/…/pulls.jsonl`, `comments.jsonl`);
 4. the corpus (`corpus/`, and `corpus_query` over all 1,182 commits);
 5. git objects (arm C's `Bash(git *)`).
@@ -219,32 +226,78 @@ workspace carries it by five routes:
 **Measured in ticket 12: route 4 leaked in all four audited runs** (1, 2, 2 and 6 results), from
 open-ended queries such as `authored_at > '2019-09-02'` or `ORDER BY rowid DESC`.
 
-### 7.1 Future-free `workspace prepare` (11)
+**Settled with the user on 2026-09-22** (§11). A cluster *before* the window is the run's past and
+its context. Only what follows the window's end is future material, so every rule below that names
+clusters names those after the window's top.
 
-The cut belongs in `workspace prepare` (`experiment/workspace.py` `prepare` →
-`_carry_through_the_stages`), **not** `copy_workspace`. There, the HEAD guards and the seal
-(`write_digest`) hold by construction. Conditions, measured by a real offline prepare at `509065a`
-that reproduced c0001–c0011 byte-equal:
+### 7.1 Future-free `workspace prepare` (11; rulings of 2026-09-22)
 
-- **Cut at the last member** of the window's top cluster. Only a full timeline names it, so run a
-  resolution pass over the full history and **assert** that rows 1..H match it. A mid-epoch cut keeps
-  the id but shrinks the cluster.
-- **The corpus holds only commits up to the end** (`corpus/commits.jsonl`, `files.jsonl`,
-  `index.sqlite`). This is the route that leaked. Building the corpus from the truncated clone gives
-  it; **assert** it.
-- **Keep every merged pull whose landing commit is an ancestor of the end.** Without #24 and #25,
-  c0008 and c0010 vanish. Rewrite the snapshot's `meta.clone_head` to the end.
-- **Clone with `--no-local --revision=<end>`**, and remove `origin`. A plain local clone keeps every
-  object, and `git fetch origin main` restored the tip.
-- **Assert that the stored objects are exactly those reachable from HEAD.** The seal never covers
-  `.git`.
-- **Keep the audit (§7.3):** repositories outside the workspace are still reachable by absolute path.
+The cut belongs in `workspace prepare` (`experiment/workspace.py` `prepare`), **not** in
+`copy_workspace`: there, the HEAD guards and the seal (`write_digest`) hold by construction. A real
+offline prepare at `509065a` measured it, reproducing c0001–c0011 byte-equal.
 
-### 7.2 Out-of-window access
+- **Prepare derives the end; the operator never names it.**
+  - A resolution pass runs `acquire`, history and timeline over the operator's pin, in scratch
+    space.
+  - The end is the last member of the window's top cluster H, read as cluster H+1's
+    `spine_prev_sha`. All 341 aioquic boundaries satisfy this.
+  - When H is the timeline's last cluster, or the config declares no window, the end is the pin
+    itself and nothing is cut.
+  - The cut is **always on**; no flag keeps the full history.
+- **The pristine is built at the end.** `initialise` receives the config with `source.pin` replaced
+  by the end. The sealed `recon.yaml` therefore names the real `source.repo` and pins the end.
+  `pristine.json` gains a `cut` block recording:
+  - the operator's pin and its resolution;
+  - the end;
+  - the top cluster;
+  - what the forge cut kept and dropped.
+- **Prepare asserts that the cut kept the window.** Pass 2's `clusters.jsonl` must equal pass 1's
+  rows 1..H, and its `members.jsonl` pass 1's rows for those clusters, byte for byte. A mid-epoch cut
+  keeps an id while it shrinks the cluster; this assert is the guard against that.
+- **The corpus holds only commits up to the end.** It is built from the clone at the end, and
+  prepare asserts that `corpus/commits.jsonl` equals the resolution pass's `git rev-list <end>`. This
+  is the route that leaked.
+- **Every clone holds only its pin's history.** `acquire` (`lifecycle/workspace.py`) runs
+  `git clone --no-local --revision=<pin>`, then `git remote remove origin`, for every workspace,
+  production `ai-rfc init` included.
+  - A pin is a branch, a tag or a full commit id. An abbreviated id is refused; git 2.55 reports
+    "Remote revision … not found".
+  - git ≥ 2.49 is required, and nothing falls back to another route.
+  - `--depth` is never used, because the substrate refuses shallow clones.
+- **Forge rule R1:**
+  - Keep a pull if and only if it merged and its landing commit is an ancestor of the end. The
+    landing commit is `squash_commit_sha`, else `merge_commit_sha`, exactly as `_match_pulls` reads
+    it.
+  - Keep a review or comment only if its pull is kept and its own timestamp is at or before the
+    end's committer time. An undated one is dropped.
+  - The derived snapshot keeps `fetched_at` and sets `clone_head` to the end. It records
+    `derived_from` (the source snapshot's directory name and `meta.json` sha256) and `truncated_at`
+    (the end), and `adopt_snapshot` carries both.
+  - **Disclosed, because it can't be detected:** a kept pull's title or body edited after the end.
+- **Git honesty is asserted everywhere.** Prepare, `copy_workspace`, `reseal` and the post-run audit
+  all assert three things about the clone:
+  - it has no remote;
+  - it has no `objects/info/alternates`;
+  - it stores exactly the objects reachable from HEAD.
 
-With a future-free prepare there are no out-of-window clusters left to serve. `cluster_get` should
-still **refuse an ordinal outside the run's window**, which is defence in depth. The owed-fixes commit
-`e16bff2` already guards path joins; this is a membership check, a separate concern.
+  `pristine.json` records the object set (`clone_objects`: count and digest), and `copy_workspace`
+  compares it. The seal (`write_digest`) never covers `.git`, so this is the only check there.
+- **Older pristines are refused.** Every pristine prepared before this lands has an `origin` remote,
+  and aioquic's also store objects past their end, so `copy_workspace` refuses them. They remain
+  read-only evidence. The Main Campaign re-prepares MARK w01-69, which needs no cut because it ends
+  at the clone head; that map's session was told on 2026-09-22. The interview fixture that the
+  optimize route copies is rebuilt the same way whenever it is next needed.
+- **The audit stays (§7.3).** Repositories outside the workspace are still reachable by absolute
+  path. §7.4 closes that for the tools the harness controls.
+
+### 7.2 Clusters after the window
+
+With a future-free prepare, no cluster after the window's top is left to serve. `cluster_get`
+still **refuses an ordinal above the window's top**, as defence in depth; the window is read by
+`ledger.window_of`. A cluster **before** the window, such as c0001 (pre-seeded), stays readable,
+because it is the run's past and its context. The owed-fixes commit `e16bff2` guards path joins, and
+this is a separate window check. (Amended 2026-09-22 from "refuse an ordinal outside the run's
+window".)
 
 ### 7.3 Audit backstop
 
@@ -252,11 +305,38 @@ still **refuse an ordinal outside the run's window**, which is defence in depth.
 - record each `Read`/`Grep`/`Glob` path;
 - classify every tool result by route, using ticket 12's method
   (`<map>/research/12-audit/audit.py`): future shas against `git rev-list <end>`, dates after the end,
-  out-of-window cluster ids, and clone files that differ from the end;
+  cluster ids above the window's top (amended 2026-09-22 from "out-of-window"), and clone files that
+  differ from the end;
+- check the run's clone for git honesty (§7.1). A clone that stores an object HEAD doesn't reach,
+  or that has gained a remote or alternates, makes the run **touched** through route 5, with the
+  problems as its evidence;
 - emit a per-run verdict, **clean** or **touched**, with the evidence.
 
 "Touched" means future **content** reached the model; a bare file name in a listing doesn't count
 (05, ruling 3). `analyze` shows the verdict (§6.3), and arm rows leave touched runs out.
+
+### 7.4 The path guard (rulings of 2026-09-22)
+
+The `PreToolUse` guard (`driver/guard.py`, mounted by `driver/enforcement.py` `render_settings`)
+confines Bash to an arm's command prefixes, and today that is all it does. It gains the run's
+workspace as an argument, and it refuses:
+- `Read`, `Grep`, `Glob`, `Edit` and `Write`, for **every arm**, when the path they name resolves
+  outside the run's workspace, following symlinks. The path is `file_path`, `path`, or a `pattern` or
+  `glob` that is absolute or climbs with `..`.
+- A Bash command any of whose path arguments resolves outside the workspace. This covers arm C's
+  `git`, `sqlite3` and raw-substrate commands, and arm B's `ai-rfc --config <another workspace>`,
+  which reaches the same kind of full pristine.
+- An arm C `git` subcommand that reaches another repository, whatever its arguments: `archive`,
+  `bundle`, `clone`, `config`, `fetch`, `ls-remote`, `pull`, `push`, `remote`, `submodule`,
+  `worktree`.
+
+The audit reads calls with the same predicate. An executed out-of-workspace call is an integrity
+violation, and a blocked one is a bypass attempt, as blocked Bash is today.
+
+A preflight check measures whether the installed CLI honours an exit-2 block on these tools before
+any campaign runs. It makes two live calls, which spend, so the plan stops for approval. Arm
+enforcement changes, so the Main Campaign's parity work covers it; that map's session was told on
+2026-09-22.
 
 ## 8. D-row (draft text, to be numbered when it enters the draft-quality spec)
 
@@ -271,6 +351,15 @@ still **refuse an ordinal outside the run's window**, which is defence in depth.
 > The existing `aioquic-w02-11.yaml` described the 2025 tip, so it is renamed to its anchor, and the
 > SP7d ground-truth results against it are ceiling-bound (8/35 was the most any w02-11 draft could
 > score).
+
+> **D-(next+1) — a windowed pristine holds nothing after its window's end** (added 2026-09-22).
+> `workspace prepare` derives the end commit from a full-history pass: the last member of the
+> window's top cluster. It builds the pristine at that commit and asserts that the window's
+> clusters are byte-equal to that pass. Every clone is made with `--no-local --revision=<pin>` and
+> keeps no remote. Its forge snapshot keeps only pulls that landed by the end, and only discussion
+> dated by then. The pristine record seals the clone's object set, and every copy is checked against
+> it. `cluster_get` refuses a cluster after the window's top. Every file tool and every Bash path is
+> confined to the run's workspace.
 
 ## 9. Tests that pin it
 
@@ -297,36 +386,71 @@ still **refuse an ordinal outside the run's window**, which is defence in depth.
   - "—" never 0;
   - a touched run is excluded from the arm row and counted.
 - **Prepare:**
-  - the rows-1..H assert;
+  - the rows-1..H assert, including that a cut which changes a kept cluster is refused;
   - the corpus holds no commit after the end;
-  - the object-set assert;
+  - the object-set assert and the recorded digest;
   - no `origin` remote;
-  - in-window ids byte-equal to a full prepare (11's reproduction as a test fixture).
-- **Audit:** ticket 12's four transcripts (or fixtures cut from them) classify as it found.
+  - the sealed pin is the end, and `pristine.json` names the cut;
+  - a window that ends at the last cluster is not cut;
+  - the forge cut keeps and drops rows by R1;
+  - in-window ids byte-equal to a full prepare.
+
+  The fixture is a small synthetic repository with an epoch, a merge PR and a forge-squash PR. The
+  aioquic reproduction is an acceptance step and never a test fixture, because the evidence
+  pristines are read-only.
+- **Copies:** `copy_workspace` and `reseal` refuse a clone with a remote, with alternates, with an
+  object HEAD doesn't reach, or with an object set that differs from the record, and they refuse a
+  pristine that records none.
+- **Guard:**
+  - each file tool is refused outside the workspace, and a symlink out of it is followed;
+  - a Bash path argument outside the workspace is refused;
+  - arm C's repository-reaching git subcommands are refused;
+  - the audit's in-arm verdict matches the guard's.
+- **`cluster_get`:** an ordinal above the window's top is refused; one before the window is served.
+- **Audit:** ticket 12's four transcripts (or fixtures cut from them) classify as it found. A clone
+  that gained an object makes the run touched through route 5.
 
 ## 10. Documents to amend once this lands
 
 - `<ai_rfc>/docs/experiments/2026-09-18-sp7d-instrument.md`: its ground-truth section.
 - `docs/superpowers/plans/2026-09-15-arfc-sp7d-deviations.md` (PANTHER): a deviation recording R93.
 - The held SP7d Phase 5 write-up, which uses §12's figures and labels.
-- `docs/superpowers/specs/2026-09-02-arfc-draft-quality-design.md`: the D-row in §8.
+- `docs/superpowers/specs/2026-09-02-arfc-draft-quality-design.md`: both D-rows in §8.
+- `<ai_rfc>/ai_rfc/experiment/README.md`: its enforcement section, which describes a guard that
+  covers Bash only.
+- The Main Campaign map's freeze ticket: its step 1b re-prepares MARK, and its parity work covers the
+  path guard. Both were handed to that map's session on 2026-09-22.
 
-## 11. Open questions (from research 11)
+## 11. Open questions (from research 11), resolved with the user on 2026-09-22
 
-1. **Where the cut lives:** a new `acquire` mode, or a prepare-owned pre-step? Either needs the pass-1
-   resolution and the rows-1..H assert.
-2. **Snapshot identity:** should the snapshot meta gain `truncated_at` / `derived_from`
-   (`forge/store.py` `write_snapshot`)?
-3. **Forge edge rules w02-11 does not exercise:** a pull created before the end but merged after it;
-   a never-merged pull; discussion posted after the end on a kept pull.
-4. **Narrowing arm C:** should `Bash(git *)` be narrowed to the workspace clone? Is a `Read` of an
-   absolute path outside the cwd honoured under `dontAsk` on CLI 2.1.278? (Unmeasured.)
-5. **Seal extension:** record the clone's object-set digest in `pristine.json`, or assert reachability
-   in prepare and in `copy_workspace`?
-6. **Comparability:** old runs used full pristines (332 pre-seeded). Their in-window ids and diffs are
-   identical, but any cross-change comparison of pre-seeded counts or digests must say so.
-7. **Declared references:** the sealed `references.yaml`/`refcache/` name RFC 9114 and 9204 for a
-   window that declares h3-22.
+1. **Where the cut lives:** in `prepare`, which derives the end itself (§7.1). `acquire` clones every
+   workspace at its pin with `--no-local --revision` and drops `origin`, so the pass at the end needs
+   no scratch source and `acquire` no new parameter.
+2. **Snapshot identity:** the derived snapshot's `meta.json` gains `derived_from` and
+   `truncated_at`, carried by `adopt_snapshot`, and `pristine.json` records the cut as well.
+3. **Forge edge rules:** R1. A pull merged after the end is dropped, and so is a never-merged pull.
+   Discussion dated after the end, or undated, is dropped. Title and body edits after the end are
+   disclosed as undetectable.
+4. **Narrowing:** the path guard (§7.4), for every arm and every file tool, with arm C's
+   repository-reaching git subcommands refused. Whether the CLI honours the block is a preflight
+   check, which spends.
+5. **Seal extension:** both. The honesty checks are asserted in prepare, `copy_workspace`, `reseal`
+   and the audit, and the digest is recorded in `pristine.json`.
+6. **Comparability:** a disclosure, not a decision. Old runs used full pristines (332 pre-seeded).
+   Their in-window ids and diffs are identical, but any comparison of pre-seeded counts or digests
+   says that the two kinds of pristine differ.
+7. **Declared references:** the sealed `references.yaml` and `refcache/` are a bibliography, not
+   material about the repository. They stay with ticket 01.
+
+**Handed off, not resolved here (2026-09-22):**
+- The Main Campaign scores aioquic at the c0011 revision tag inside a w02-31 window.
+- c0020 renumbers every HTTP error code into draft-23's 0x100 range, which covers 17 of the w02-11
+  dataset's 26 scored facts. c0021 adds the ALPN `h3-23` beside `h3-22`.
+- Both clusters are inside w02-31, so the cut keeps them, and a run at c0011 can read them through
+  `clone/` and `cluster_get`.
+- The measurement plan scores final drafts only, and this map ruled per-revision scoring out of
+  scope.
+- The question therefore went to the Main Campaign map's session, which rules its secondary metric.
 
 ## 12. Results on w02-11 (ticket 09, $0)
 

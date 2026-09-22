@@ -19,8 +19,10 @@ touched runs. The report gains a "Ground truth" section.
 **Spec:** `docs/superpowers/specs/2026-09-21-arfc-ground-truth-yardstick-design.md` (PANTHER). The
 rulings behind it are the tickets of the map `.scratch/ground-truth-yardstick/` (PANTHER `6b2e70f14`).
 This plan implements the spec's **measurement** half: §3–§6, §7.3 and §8–§10. The **prevention**
-half (§7.1 future-free `workspace prepare`, §7.2 `cluster_get` window check) is a separate plan,
-written after research 11's five open questions are settled with the user.
+half (§7.1 future-free `workspace prepare`, §7.2 `cluster_get` window check, §7.4 path guard) is
+`docs/superpowers/plans/2026-09-22-arfc-future-free-workspace.md`, written 2026-09-22 after the
+user settled research 11's open questions. It runs **after** this plan, because both edit
+`experiment/audit.py`.
 
 `<wt>` = the PANTHER worktree `…/PANTHER/master/.claude/worktrees/iut-ai-rfc`.
 `<ai_rfc>` = `<wt>/panther/plugins/services/testers/ai_rfc` (ai_rfc repo, branch `main`).
@@ -1108,6 +1110,12 @@ Spec §7.3 (tickets 05 and 12). The reference implementation is
 `<map>/research/12-audit/audit.py`, which is git-ignored in PANTHER. Read it; it is local to the
 worktree that ran it.
 
+**Amended 2026-09-22 (user ruling).** Only clusters **after the window's top** count as future. A
+cluster before the window, such as the pre-seeded c0001, is the run's past and its context, the
+same rule `cluster_get` follows in the prevention plan. This amendment doesn't move ticket 12's
+results, whose future-content findings all came from `corpus_query`. So Task 10's expected
+`touching` counts (2 and 6) stand.
+
 **Files:**
 - Create: `ai_rfc/experiment/future.py`
 - Modify: `ai_rfc/experiment/audit.py` (the read-tool branch records its path; `audit_run` adds
@@ -1190,9 +1198,15 @@ def test_a_clone_file_that_changed_after_the_end_touches_when_read(workspace):
     assert classify_future(events, workspace, (1, 1))["verdict"] == "touched"
 
 
-def test_an_out_of_window_cluster_touches(workspace):
+def test_a_cluster_after_the_window_touches(workspace):
     events = _call("mcp__ai_rfc__ai_rfc_cluster_get", {"cluster_id": "c0002-epoch-bbbbbbbbbbbb"}, "{}")
     assert classify_future(events, workspace, (1, 1))["verdict"] == "touched"
+
+
+def test_a_cluster_before_the_window_is_context_not_future(workspace):
+    events = _call("mcp__ai_rfc__ai_rfc_cluster_get", {"cluster_id": "c0001-epoch-aaaaaaaaaaaa"},
+                   json.dumps({"view": {"id": "c0001-epoch-aaaaaaaaaaaa"}}))
+    assert classify_future(events, workspace, (2, 2))["verdict"] == "clean"
 
 
 def test_a_file_name_in_a_listing_does_not_touch(workspace):
@@ -1226,8 +1240,9 @@ campaign fixtures).
 A run touched future material when a tool result delivered content describing
 the repository after the window's end commit (ticket 05 of the ground-truth
 yardstick map). A bare file name in a listing does not count. Five routes reach
-it: the clone's working tree, out-of-window clusters, the forge snapshot, the
-corpus, and git. The verdict is ``unmeasured`` rather than clean when the
+it: the clone's working tree, clusters after the window's top, the forge
+snapshot, the corpus, and git. A cluster before the window is the run's past,
+not its future. The verdict is ``unmeasured`` rather than clean when the
 workspace cannot say where the window ends.
 """
 
@@ -1287,8 +1302,8 @@ def classify_future(
 
     Returns:
         ``verdict``, ``end``, ``reason``, ``touching`` (one record per touching
-        call) and ``metadata`` (calls that named future commits or out-of-window
-        clusters without carrying content, such as a status naming the tip).
+        call) and ``metadata`` (calls that named future commits or clusters after
+        the window without carrying content, such as a status naming the tip).
     """
     end = window_end(workspace, window)
     clone = workspace / "clone"
@@ -1316,8 +1331,8 @@ def classify_future(
                 except ValueError:
                     continue
         for ordinal in {int(o) for o in _CLUSTER.findall(text)}:
-            if not window[0] <= ordinal <= window[1]:
-                found.append(f"out-of-window cluster c{ordinal:04d}")
+            if ordinal > window[1]:
+                found.append(f"cluster after the window c{ordinal:04d}")
         return sorted(set(found))
 
     results = tool_results(events)
@@ -1347,7 +1362,7 @@ def classify_future(
                     route, evidence = "clone", [f"{inner} differs at the window end"]
             elif rel.startswith("clusters/"):
                 ordinal = rel.split("/")[1][1:5]
-                if ordinal.isdigit() and not window[0] <= int(ordinal) <= window[1]:
+                if ordinal.isdigit() and int(ordinal) > window[1]:
                     route, evidence = "clusters", [rel]
             elif rel.startswith(("forge/", "corpus/", "timeline/")):
                 evidence = future_evidence(text, dates=True)
@@ -1355,7 +1370,7 @@ def classify_future(
         elif name.endswith("cluster_get"):
             cluster = str(tool_input.get("cluster_id", ""))
             ordinal = cluster[1:5]
-            if ordinal.isdigit() and not window[0] <= int(ordinal) <= window[1]:
+            if ordinal.isdigit() and int(ordinal) > window[1]:
                 route, evidence = "clusters", [cluster]
         elif name.endswith("corpus_query"):
             evidence = future_evidence(text, dates=True)
@@ -1834,7 +1849,8 @@ Spec §8 and §10.
   - the suite counts;
   - the acceptance figures.
 
-  Offer to write the prevention plan next (spec §7.1–§7.2; research 11's five questions).
+  The prevention plan (`docs/superpowers/plans/2026-09-22-arfc-future-free-workspace.md`) runs
+  next, from its own entry gate.
 
 ---
 

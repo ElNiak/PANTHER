@@ -203,5 +203,16 @@ these words in tickets.
 **Destination reached on 2026-09-21. Every ticket is resolved, and nothing is left in Not yet
 specified.** The hand-off is
 [`docs/superpowers/specs/2026-09-21-arfc-ground-truth-yardstick-design.md`](../../docs/superpowers/specs/2026-09-21-arfc-ground-truth-yardstick-design.md).
-Implementing it is ai_rfc work for a future row, not part of this map. The map and the spec are
-**uncommitted**, pending the user.
+Implementing it is ai_rfc work for a future row, not part of this map. The map and the spec were
+committed in PANTHER `6b2e70f14`.
+
+**After the map (2026-09-22).** The user settled research 11's open questions in a prevention
+grilling, and the spec's §7, §11 and §8 (a second D-row) record the rulings. Two plans implement
+the spec:
+- `docs/superpowers/plans/2026-09-21-arfc-ground-truth-measurement.md` (PANTHER `e6e7918b1`).
+  Its Task 5 was amended so that only clusters after the window's top count as future.
+- `docs/superpowers/plans/2026-09-22-arfc-future-free-workspace.md`, which runs after it.
+
+Both wait for the owed-fixes row. One finding went to the Main Campaign map rather than into
+either plan: that map scores aioquic at the c0011 tag inside w02-31, and c0020 renumbers 17 of the
+w02-11 dataset's 26 scored facts.
