@@ -83,7 +83,9 @@ after the push.
   4. A refused tag in attempt 1 does not block attempt 2 on the same cluster.
 - The full ai_rfc suite passes; report collected, passed, failed and skipped separately.
 - A $0 check on the R92 evidence: `mark-full-1`'s post-round copy, which the user's SP7d ruling
-  keeps exactly as the round left it. Take a copy of the copy, apply the fix's rollback or
+  keeps exactly as the round left it. Take a copy of the copy (a plain filesystem copy: once the
+  Ground-Truth Yardstick's prevention plan lands, `copy_workspace` refuses any clone with a
+  remote, and every pre-plan workspace has one), apply the fix's rollback or
   reconciliation there, then re-run the strict gates the way `analyze` does
   (`metrics.run_gates`). Expected: the citation gate is clean again and the artifacts give 37/69
   completed. **Never edit the evidence itself.**
