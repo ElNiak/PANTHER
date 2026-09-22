@@ -196,12 +196,17 @@ pre-run → 03 and 13; k and run matrix → 15; reporting commitments → 16.
   - **aioquic w02-31**: 3 merges, 14 epochs, 13 forge squashes, with w02-11 as its prefix;
   - **MARK's full w01-69**: 37 merges and 32 epochs, ending at its clone head.
 
-  Secondary recall at each run's c0011 tag was **reopened on 2026-09-22**: clusters inside
-  w02-31 expose it, and nothing scores at a tag. See
-  [How is aioquic's secondary recall measured](issues/21-how-is-aioquic-secondary-recall-measured.md).
-  No window has yet shown non-saturated
-  completion, which the validation pilot checks. Rough cost: about $2,400 at k = 3 and $4,000 at
-  k = 5; MARK is about $350 and 15 h per run.
+  Its secondary-recall line (the c0011 tag) was replaced on 2026-09-22; see the next entry. No
+  window has yet shown non-saturated completion, which the validation pilot checks. Rough cost:
+  about $2,400 at k = 3 and $4,000 at k = 5; MARK is about $350 and 15 h per run.
+- [How is aioquic's secondary recall measured, now that the c0011-tag score is exposed and unimplemented?](issues/21-how-is-aioquic-secondary-recall-measured.md):
+  **each run's final draft is scored by `score_run` against a new w02-31 dataset anchored at
+  c0031's end.** Tag scoring is not needed, and the c0011 reading is dropped.
+  - The Ground-Truth Yardstick map builds the dataset; this map proposes draft-23, which the code
+    puts first on every count.
+  - The freeze waits for the dataset and for `score_run` in ai_rfc, tracked by the new
+    checkpoint
+    [Has the Yardstick map delivered the w02-31 dataset and score_run?](issues/22-has-the-yardstick-delivered-the-w02-31-dataset.md).
 
 ## Not yet specified
 

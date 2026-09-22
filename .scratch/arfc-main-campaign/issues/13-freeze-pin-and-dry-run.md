@@ -3,7 +3,7 @@
 Type: task (AFK)
 Status: open
 Claimed: —
-Blocked by: [Rule each arm asymmetry](04-rule-each-arm-asymmetry.md), [Has the owed-fixes row landed](05-has-the-owed-fixes-row-landed.md), [Close the guard tamper hole](06-close-the-guard-tamper-hole.md), [Which model, CLI and code pin](09-which-model-cli-and-code-pin.md), [Which task list per target](12-which-task-list-per-target.md), [Land the fault, retry and exclusion rules](18-land-the-fault-retry-and-exclusion-rules.md), [Land the arm-parity fixes](19-land-the-arm-parity-fixes.md), [Land the record-before-tag fix (R91/R92)](20-land-the-record-before-tag-fix.md), [How is aioquic's secondary recall measured](21-how-is-aioquic-secondary-recall-measured.md)
+Blocked by: [Rule each arm asymmetry](04-rule-each-arm-asymmetry.md), [Has the owed-fixes row landed](05-has-the-owed-fixes-row-landed.md), [Close the guard tamper hole](06-close-the-guard-tamper-hole.md), [Which model, CLI and code pin](09-which-model-cli-and-code-pin.md), [Which task list per target](12-which-task-list-per-target.md), [Land the fault, retry and exclusion rules](18-land-the-fault-retry-and-exclusion-rules.md), [Land the arm-parity fixes](19-land-the-arm-parity-fixes.md), [Land the record-before-tag fix (R91/R92)](20-land-the-record-before-tag-fix.md), [How is aioquic's secondary recall measured](21-how-is-aioquic-secondary-recall-measured.md), [Has the Yardstick map delivered the w02-31 dataset and score_run?](22-has-the-yardstick-delivered-the-w02-31-dataset.md)
 Parent: [ai_rfc Main Campaign, Ready to Launch](../map.md)
 
 ## Question
@@ -54,6 +54,10 @@ variance estimate describes something the main campaign will not run.
    whether it is a notional price or billed spend.
 5. **Dry-run each target's last gate at $0** on a copy of its pristine: `draft build`, and a tag
    created or refused. "Could start" is not "could finish" (SP7d's third blind spot).
+6. **Dry-run the secondary recall at $0** from the pinned install: `score_run` on one aioquic
+   final draft against the w02-31 dataset
+   ([How is aioquic's secondary recall measured](21-how-is-aioquic-secondary-recall-measured.md)).
+   Record the dataset's sha256 beside `campaign.json` for the preregistration.
 
 **Precondition from the sibling map "Ground-Truth Yardstick".** Its "How is the tip-source leak
 closed?" was **resolved with the user on 2026-09-21**. Anything describing the repository after
