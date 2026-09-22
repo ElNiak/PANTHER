@@ -1142,8 +1142,11 @@ docs; a campaign runs end to end" — plus the user's strengthening. **Nothing s
 
    - `ai_rfc/lifecycle/profile.py:10` — "the ai_rfc **experiment** harness", a prose noun colliding
      with a real verb name;
-   - `ai_rfc/experiment/metrics.py:182` — a comment naming arm C's `ai_rfc draft checkpoint` with
-     `python -m` elided, a genuine door reference the audit still has to match.
+   - `ai_rfc/driver/coverage.py:247` — a comment naming arm C's `ai_rfc draft checkpoint` with
+     `python -m` elided, a genuine door reference the audit still has to match. It was written at
+     `ai_rfc/experiment/metrics.py:182`; the owed-fixes row's Task 7 promoted that matcher down into
+     `driver/`, so the comment now sits in the block at `coverage.py:245-247`, measured there on
+     2026-09-22 rather than carried over from this plan's original number.
 
    Re-measured after Task 11: **21 hits, of which the predicate flags exactly those two.** Outside
    these paths, `tests/driver/fixtures/` and `docs/experiments/` are recordings and are never
