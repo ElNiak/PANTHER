@@ -35,6 +35,15 @@ Execution is carried (map Notes). ai_rfc code lands RED-test first, committed by
    `docs/parity.md` gets its row. Tools against verbs becomes 20/20. Choose the name so it does
    not clash with the operator's `ai-rfc status`.
 4. **The corpus schema** named in `ai_rfc_corpus_query`'s description and `corpus query --help`.
+   **Arm A's half landed with the owed-fixes row's review-fix wave** (ai_rfc `0e0062f`,
+   2026-09-22 11:56). `server/tools.py` appends `history.index.schema_summary()` to the tool's
+   `__doc__`, and `tests/server/test_parity.py`'s
+   `test_the_corpus_query_description_names_every_column_of_every_table` pins it. **Arm B's half
+   is still owed.** At `0e0062f`, `agent/corpus/cli.py:32-33` says only "One SELECT over the
+   index." and "A single SELECT; at most 200 rows come back." So until this lands, only A sees
+   the schema, the reverse of the ruling. Use the same `schema_summary()` in B's `--help`, never
+   a hand-written copy, and add a twin asserting that both surfaces carry the same schema text.
+   Re-read the file after the push: the row may add B's half in the same wave.
 5. **Parity twins** in `tests/server/test_parity.py`:
    - claim upsert with `--anchor` (code and adr);
    - revision tag's refusal on build findings and its rollback on citation findings;
