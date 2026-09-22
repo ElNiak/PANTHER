@@ -51,7 +51,9 @@ there.**
   `SHA256SUMS`, and nothing may rewrite them (check pre-commit in Task 0).
 - **Evidence trees are read-only:** never re-run `audit` or `analyze` on a campaign under
   `~/ai-rfc-experiments/campaigns/` or `~/arfc-experiments/`. Acceptance runs copy the campaign under
-  `/tmp/claude-501/` first.
+  `/tmp/claude-501/` first **and rewrite the copy's `campaign.json` `root`**. A byte copy still
+  resolves its directory to the original, so `audit` and `analyze` would write there (Task 10 Step
+  4).
 - **Code citations:** cite code by function name. Line numbers drift, because the owed-fixes row
   changes these files.
 - **Docstrings:** Google-style (Args/Returns/Raises) on every public function.
@@ -170,16 +172,60 @@ Expected: FAIL. `report.matched == ("straddle",)`, because the cut token `0x1` e
     return found
 ```
 
-- [ ] **Step 4: Run the module and see everything pass**
+- [ ] **Step 4: Rewrite the one CLI test that pinned the truncation** (review 2026-09-22, C1). In
+  `tests/experiment/test_cli_ground_truth.py`, the test
+  `test_the_window_the_report_names_is_the_window_the_matcher_read` asserts the old slicing
+  behaviour. Its docstring says: "`0x100` one character out yields `0x10`… That is the matcher as
+  it stands". With whole tokens:
+  - a value one character past the window is read whole and matches;
+  - a value stays attempted while any character of it lies inside the window;
+  - the first reach that is **not** attempted is `width + len("0x100")`, that is `width + 5`, in
+    both directions. `width + 4` is still read. `_draft_with_reach` places the token `reach - 5`
+    characters after the symbol's end.
+
+  Replace its body after `width = …` with:
+
+```python
+    _, inside = _score(tmp_path, _draft_with_reach(width))
+    assert json.loads(inside.read_text())["matched"] == ["h3-error-no-error"]
+
+    # Read whole: a value that starts inside the window is one token, however
+    # far it runs past the edge ("0x100" is never cut to "0x10").
+    _, edge = _score(tmp_path, _draft_with_reach(width + 1))
+    assert json.loads(edge.read_text())["matched"] == ["h3-error-no-error"]
+    _, last = _score(tmp_path, _draft_with_reach(width + 4))
+    assert json.loads(last.read_text())["matched"] == ["h3-error-no-error"]
+
+    _, outside = _score(tmp_path, _draft_with_reach(width + 5))
+    assert json.loads(outside.read_text())["attempted"] == []
+    assert "h3-error-no-error" in json.loads(outside.read_text())["missed"]
+
+    # And the same boundary with the value written first: the two halves of the
+    # window are separate expressions.
+    _, behind = _score(tmp_path, _draft_with_reach(width, before=True))
+    assert json.loads(behind.read_text())["matched"] == ["h3-error-no-error"]
+    _, far_behind = _score(tmp_path, _draft_with_reach(width + 1, before=True))
+    assert json.loads(far_behind.read_text())["matched"] == ["h3-error-no-error"]
+    _, clear_behind = _score(tmp_path, _draft_with_reach(width + 5, before=True))
+    assert json.loads(clear_behind.read_text())["attempted"] == []
+```
+
+  Rewrite its docstring's second paragraph to say this: tokens are found in the whole text and kept
+  when their span meets the window, so a value that starts inside is read whole. Task 2 later
+  renames `missed`; its Step 6 map covers this line.
+
+- [ ] **Step 5: Run the module pair and see everything pass**
 
 Run: `… -m pytest tests/experiment/test_ground_truth.py tests/experiment/test_cli_ground_truth.py -q -n 4 --basetemp /tmp/claude-501/pytest-gtm-1`
-Expected: all pass. Ticket 08 measured that the fix changes no existing outcome.
+Expected: all pass. The review simulated every fixture-free test in `test_ground_truth.py` under
+the old and new code, and none changes outcome. The only outcome that changes is the one Step 4
+rewrites.
 
-- [ ] **Step 5: Commit** (`git status --short` first)
+- [ ] **Step 6: Commit** (`git status --short` first)
 
 ```bash
-git add tests/experiment/test_ground_truth.py ai_rfc/experiment/ground_truth.py
-git commit -m "fix(experiment): read a value near a symbol whole, not cut at the window edge" -- tests/experiment/test_ground_truth.py ai_rfc/experiment/ground_truth.py
+git add tests/experiment/test_ground_truth.py tests/experiment/test_cli_ground_truth.py ai_rfc/experiment/ground_truth.py
+git commit -m "fix(experiment): read a value near a symbol whole, not cut at the window edge" -- tests/experiment/test_ground_truth.py tests/experiment/test_cli_ground_truth.py ai_rfc/experiment/ground_truth.py
 ```
 
 ## Task 2: Named and absent outcomes, reachability-aware figures, per-kind counts, and the verb's output
@@ -226,11 +272,14 @@ def test_a_symbol_named_without_a_value_is_named_not_absent_and_not_attempted():
 
 
 def test_a_symbol_inside_a_longer_dataset_symbol_is_not_named():
+    # SETTINGS must end the longer symbol: `_symbol_pattern`'s lookahead already
+    # keeps it from matching inside HTTP_SETTINGS_ERROR, so that pair would pass
+    # without `_mentioned`'s check (review 2026-09-22, W5).
     entries = [_entry("settings", "SETTINGS", "0x4", kind="frame_type"),
-               _entry("err", "HTTP_SETTINGS_ERROR", "0xFF")]
-    report = score_draft("the peer sent HTTP_SETTINGS_ERROR.", entries)
+               _entry("missing", "HTTP_MISSING_SETTINGS", "0x12")]
+    report = score_draft("the peer sent HTTP_MISSING_SETTINGS.", entries)
     assert "settings" in report.absent
-    assert "err" in report.named
+    assert "missing" in report.named
 
 
 def test_reachable_recall_counts_reachable_facts_and_the_ceiling_says_how_many():
@@ -273,15 +322,31 @@ def test_per_kind_partitions_every_scored_entry_by_outcome():
 
 def test_an_entry_the_dataset_declares_unscored_is_excluded_with_its_reason():
     entry = _entry("dgram", "H3_DATAGRAM", "0x33",
-                   unscored_reason="cited spec RFC 9297 is not declared by the code")
+                   unscored_reason="no statement of the value in the cited section")
     report = score_draft("H3_DATAGRAM is 0x33.", [entry])
-    assert report.excluded_because == (("dgram", "cited spec RFC 9297 is not declared by the code"),)
+    assert report.excluded_because == (("dgram", "no statement of the value in the cited section"),)
     assert report.scored == 0
 ```
 
-And in `test_cli_ground_truth.py`, replace the `recall`/`missed` assertions with the new fields.
-(`test_the_report_carries_every_id_the_two_ratios_were_taken_over` and the terminal tests are the
-ones affected.) Add:
+The value's shape is checked before `unscored_reason`, so a decimal entry reports
+`EXCLUDED_DECIMAL`, never its own reason. That precedence is intended: the scorer's reason is the
+one that holds for every dataset.
+
+The old `recall`/`missed` readers to update (review 2026-09-22, W1; measured, not guessed). The
+mapping from `missed` is **not uniform**:
+- `tests/experiment/test_ground_truth.py` reads `.recall`/`.missed` at :401, :404, :417, :469, :471,
+  :491, :493, :511, :629, :643 and :659 (at `de77863`).
+  - `missed` becomes `named` at :511, :629 and :643;
+  - it becomes `absent` at :659 (the "metadata" case) and :404 (35 absent, 0 named);
+  - it becomes `named + absent` at :469 and :491.
+  - `.recall` becomes `all_facts_recall`.
+- `tests/experiment/test_cli_ground_truth.py`:
+  - `payload["recall"]` at :82 and :136 becomes `payload["all_facts_recall"]`;
+  - `["missed"]` at :240 (Task 1's rewrite) becomes `["named"]`.
+  - The terminal test's `"recall: 0 of 35 scored"` (:155) still holds as a substring of the new
+    line, so leave it.
+
+Add:
 
 ```python
 def test_the_report_carries_the_figures_their_counts_and_the_per_kind_table(tmp_path):
@@ -529,8 +594,12 @@ def figures(report: GroundTruthReport) -> dict[str, Any]:
 
 Run: `… -m pytest tests/experiment/test_ground_truth.py tests/experiment/test_cli_ground_truth.py -q -n 4 --basetemp /tmp/claude-501/pytest-gtm-2`
 Expected: all pass. Fix any other reader of `report.recall` or `report.missed` found by
-`grep -rn "\.recall\b\|\.missed\b\|\"missed\"" ai_rfc tests`: every one is updated here, and none is
-left behind.
+`grep -rn "\.recall\b\|\.missed\b\|\"missed\"\|\"recall\"" ai_rfc tests`: every one is updated here,
+and none is left behind. Also update the prose that still names the old partition:
+- `score_draft`'s docstring ("Anything else is *missed*") becomes named / absent;
+- `_write_ground_truth`'s docstring, which names `recall`;
+- rename the helpers' parameter `named` (the span list in `_tokens_near` and
+  `_inside_a_longer_symbol`) to `spans`, because `named` is now an outcome.
 
 - [ ] **Step 7: Commit**
 
@@ -547,7 +616,7 @@ Spec §3, §4.1 (tickets 01, 07, 08, 10, 13).
 **Files:**
 - Create: `ai_rfc/experiment/groundtruth/aioquic-w02-11-at-509065a.yaml`, `targets.yaml`,
   `specs/draft-ietf-quic-http-22.txt`, `specs/rfc9114.txt`, `specs/rfc9204.txt`,
-  `specs/SHA256SUMS`
+  `specs/rfc9220.txt`, `specs/rfc9297.txt`, `specs/SHA256SUMS`
 - Rename and rewrite: `groundtruth/aioquic-w02-11.yaml` → `groundtruth/aioquic-h3-at-6d36838.yaml`
 - Modify: `pyproject.toml`, `ground_truth.py`, `experiment/cli.py` (the verb's arguments)
 - Test: `tests/experiment/test_ground_truth.py`, `tests/experiment/test_cli_ground_truth.py`
@@ -579,14 +648,22 @@ Spec §3, §4.1 (tickets 01, 07, 08, 10, 13).
 mkdir -p ai_rfc/experiment/groundtruth/specs
 curl -sSf -o ai_rfc/experiment/groundtruth/specs/rfc9114.txt https://www.rfc-editor.org/rfc/rfc9114.txt
 curl -sSf -o ai_rfc/experiment/groundtruth/specs/rfc9204.txt https://www.rfc-editor.org/rfc/rfc9204.txt
+curl -sSf -o ai_rfc/experiment/groundtruth/specs/rfc9220.txt https://www.rfc-editor.org/rfc/rfc9220.txt
+curl -sSf -o ai_rfc/experiment/groundtruth/specs/rfc9297.txt https://www.rfc-editor.org/rfc/rfc9297.txt
 git -C <wt> show 6b2e70f14:.scratch/ground-truth-yardstick/assets/specs/draft-ietf-quic-http-22.txt > ai_rfc/experiment/groundtruth/specs/draft-ietf-quic-http-22.txt
-cd ai_rfc/experiment/groundtruth/specs && shasum -a 256 draft-ietf-quic-http-22.txt rfc9114.txt rfc9204.txt > SHA256SUMS && cd -
+cd ai_rfc/experiment/groundtruth/specs && shasum -a 256 draft-ietf-quic-http-22.txt rfc9114.txt rfc9204.txt rfc9220.txt rfc9297.txt > SHA256SUMS && cd -
 ```
+
+RFC 9220 and RFC 9297 are pinned because the tip code **declares** them. The user ruled this on
+2026-09-22, after the plan review found the premise false. At `6d36838`, `src/aioquic/h3/connection.py`
+links `rfc9220#section-5` at :86 (above `ENABLE_CONNECT_PROTOCOL`) and `rfc9297#section-5.1` at :88
+(above `H3_DATAGRAM`). The spec's rule counts an explicit reference to a versioned document as a
+declaration.
 
 Check: the http-22 sha256 must equal `86081a2e8c79888a0917ddb11f1d387dd3126544bc8783c2071e833eb8df3f12`
 (PANTHER `<map>/assets/specs/SHA256SUMS`). If it differs, stop.
 
-- [ ] **Step 2: Add the w02-11 dataset** from the map asset, byte-for-byte:
+- [ ] **Step 2: Add the w02-11 dataset.** Copy it from the map asset, then add one key:
 
 ```bash
 git -C <wt> show 6b2e70f14:.scratch/ground-truth-yardstick/assets/09/aioquic-w02-11-at-509065a.yaml > ai_rfc/experiment/groundtruth/aioquic-w02-11-at-509065a.yaml
@@ -604,10 +681,13 @@ Ticket 10 found that http-22 names qpack-10, which was published after the windo
 ```python
 """One-off: rewrite the tip dataset into format v2 (ticket 01, ruling 7).
 
-Declared spec: the tip code declares ALPN "h3" (`src/aioquic/h3/connection.py`, `H3_ALPN =
-["h3"]`), which is RFC 9114. RFC 9114 normatively references RFC 9204 (QPACK), the same pairing
-tickets 01 and 10 used for h3-22 and QPACK. The code names no RFC anywhere (grep found none at
-6d36838), so entries citing RFC 9220 or RFC 9297 are unscored, with that reason (ticket 07).
+Declared specs at 6d36838, each with file:line evidence:
+- ALPN "h3" (`src/aioquic/h3/connection.py:26`, `H3_ALPN = ["h3"]`) declares RFC 9114, which
+  normatively references RFC 9204 (QPACK): the same pairing tickets 01 and 10 used for h3-22.
+- The code links RFC 9220 (`connection.py:86`, above ENABLE_CONNECT_PROTOCOL) and RFC 9297
+  (`connection.py:88`, above H3_DATAGRAM). An explicit reference to a versioned document
+  declares it (spec §3.4); the user ruled so on 2026-09-22.
+An entry citing any other document is left unscored, with that reason.
 """
 
 import hashlib
@@ -624,7 +704,8 @@ GT = AI_RFC / "ai_rfc/experiment/groundtruth"
 PRISTINE = Path.home() / "ai-rfc-experiments/pristine/aioquic-w02-11"
 TIP = "6d36838d008c2202c337142fa07e8bf80e96bac8"
 WINDOW = (1, 342)
-DOCS = {"RFC 9114": "rfc9114.txt", "RFC 9204": "rfc9204.txt"}
+DOCS = {"RFC 9114": "rfc9114.txt", "RFC 9204": "rfc9204.txt",
+        "RFC 9220": "rfc9220.txt", "RFC 9297": "rfc9297.txt"}
 HEADING = re.compile(r"^(\d+(?:\.\d+)*)\.\s")
 HEX = re.compile(r"(?<![0-9a-z_])0x[0-9a-f]+(?![0-9a-z_])")
 
@@ -677,7 +758,17 @@ def reachable(path, content, window):
     return None
 
 
-old = yaml.safe_load((GT / "aioquic-h3-at-6d36838.yaml").read_text())
+old_text = (GT / "aioquic-h3-at-6d36838.yaml").read_text()
+# The old file's leading comment block (why registry sections are cited, scope,
+# provenance) is kept above the migration note.
+header_lines = []
+for line in old_text.split("\n"):
+    if line.startswith("#") or (header_lines and not line.strip()):
+        header_lines.append(line)
+        continue
+    break
+header = "\n".join(header_lines).rstrip("\n") + "\n"
+old = yaml.safe_load(old_text)
 problems = []
 for entry in old["entries"]:
     rfc = entry.pop("rfc", None) or {}
@@ -688,10 +779,15 @@ for entry in old["entries"]:
     entry["reachable"] = reachable(entry["source"]["path"], content, WINDOW)
     entry["citation"], entry["citation_agrees"] = None, None
     if not str(entry["value"]).lower().startswith("0x"):
-        continue  # not a number or a decimal: the scorer excludes it and names why
+        # Not a number, or a decimal: the scorer excludes it and names why. Its
+        # citation is kept (without a line), so the migration loses nothing.
+        if rfc:
+            entry["citation"] = {"doc": DOCS.get(rfc.get("doc"), str(rfc.get("doc"))).removesuffix(".txt"),
+                                 "section": rfc.get("section"), "line": None}
+        continue
     doc = rfc.get("doc")
     if doc not in DOCS:
-        entry["unscored_reason"] = (f"cited spec {doc} is not declared by the code at "
+        entry["unscored_reason"] = (f"cited spec {doc} is not referenced by the code at "
                                     f"{TIP[:7]} (ticket 07)")
         continue
     lines = lines_of(DOCS[doc])
@@ -710,25 +806,36 @@ document = {
     "window": list(WINDOW),
     "commit": TIP,
     "declared_spec": {
-        "version": "h3 (RFC 9114)",
-        "evidence": ['src/aioquic/h3/connection.py: H3_ALPN = ["h3"]'],
+        "version": "h3 (RFC 9114), with RFC 9220 and RFC 9297 referenced by the code",
+        "evidence": [
+            'src/aioquic/h3/connection.py:26: H3_ALPN = ["h3"]',
+            "src/aioquic/h3/connection.py:86: # https://datatracker.ietf.org/doc/html/rfc9220#section-5",
+            "src/aioquic/h3/connection.py:88: # https://datatracker.ietf.org/doc/html/rfc9297#section-5.1",
+        ],
         "normative_references": ["RFC 9204"],
     },
     "specs": {name: hashlib.sha256((GT / "specs" / name).read_bytes()).hexdigest()
-              for name in ("rfc9114.txt", "rfc9204.txt")},
+              for name in ("rfc9114.txt", "rfc9204.txt", "rfc9220.txt", "rfc9297.txt")},
     "entries": old["entries"],
 }
 (GT / "aioquic-h3-at-6d36838.yaml").write_text(
-    "# Migrated to format v2 on <date>; see docs/superpowers/specs/"
+    header
+    + "# Migrated to format v2 on <date>; see docs/superpowers/specs/"
     "2026-09-21-arfc-ground-truth-yardstick-design.md (PANTHER).\n"
     + yaml.safe_dump(document, sort_keys=False, width=100, allow_unicode=True))
 print("\n".join(problems) or "every hex entry cited")
 ```
 
+Before running it, re-check the three evidence lines with `git -C <pristine>/clone show
+6d36838:src/aioquic/h3/connection.py | sed -n '26p;86p;88p'`. If a line moved, write the line it is
+really on.
+
 Run it with the worktree venv. **Report every line it prints.** A "no line … states" entry is left
-unscored with that reason, and is not fixed by hand. Then check that the migrated file's scored count
-(hex, no `unscored_reason`) is **35 minus the 3 RFC 9297/9220 entries, minus any "no line" entries**,
-and record the number in the plan's deviation log.
+unscored with that reason, and is not fixed by hand. The review guessed, with low confidence, at
+`PRIORITY` (RFC 9114 §11.2.1 lists 0x02 as reserved) and `DUMMY` (no RFC text names it). Then check
+that the migrated file's scored count (hex, no `unscored_reason`) is **35 minus any "no line"
+entries**. Nothing else is excluded now that RFC 9220 and RFC 9297 are declared. Record that
+number, call it N, in the plan's deviation log: Step 9 and Task 10 use it.
 
 - [ ] **Step 4: Add `targets.yaml`** (ticket 07)
 
@@ -836,9 +943,20 @@ def test_selection_names_a_target_that_declares_no_spec():
     assert "b901f36" in found.reason
 ```
 
-In `test_cli_ground_truth.py`, `_score` passes `--dataset aioquic-w02-11-at-509065a.yaml`, and
-`DRAFT` states window-end facts (`HTTP_NO_ERROR is 0x00`, `HTTP_INTERNAL_ERROR is 0x03`). Update
-every test that asserted RFC-final ids. Add:
+In `test_cli_ground_truth.py`, `_score` gains a keyword-only `dataset` parameter that it passes as
+`--dataset`. It **defaults to the tip dataset `aioquic-h3-at-6d36838.yaml`** (review 2026-09-22,
+W2). Every existing CLI test keeps its subject that way:
+- `DRAFT`'s `H3_*` names;
+- `_draft_with_reach`'s `H3_NO_ERROR`/`0x100` arithmetic;
+- the not-a-number and decimal exclusions at :98 and :168-170, which the w02-11 dataset has no
+  entry for;
+- the commit `6d36838` at :177.
+
+Only the counts move: `scored == 35` at :72 and :137 becomes N from Step 3. The call at :264 (the
+non-UTF-8 test) passes no dataset today; give it one, so the test still exits 1 for its own reason.
+New tests that are about the window pass `dataset="aioquic-w02-11-at-509065a.yaml"`. Put the new
+imports (`hashlib`, `importlib.resources`, the new names) in the file's top import block, not
+mid-file, and run `black` over both test files. Add:
 
 ```python
 def test_the_verb_refuses_without_a_dataset_or_a_target_and_window(tmp_path):
@@ -922,7 +1040,8 @@ def spec_text(name: str) -> str:
         The text. It is split on ``\\n`` by readers, never with ``splitlines()``,
         because RFC text carries form feeds.
     """
-    return resources.files(PACKAGE).joinpath("specs", name).read_text(encoding="utf-8")
+    # Two joinpath calls: Python 3.10's Traversable.joinpath takes one child.
+    return resources.files(PACKAGE).joinpath("specs").joinpath(name).read_text(encoding="utf-8")
 
 
 def select_dataset(target: str, window: tuple[int, int]) -> Selection:
@@ -950,18 +1069,31 @@ def select_dataset(target: str, window: tuple[int, int]) -> Selection:
                      f"no dataset declares target {target!r} with window {list(window)}")
 ```
 
-In `experiment/cli.py`, add to the `ground-truth` parser a mutually exclusive `--dataset NAME`,
-plus `--target NAME` and `--window A-B` (parse the window with the same function `workspace prepare
---window` uses; find it with `grep -n '"--window"' ai_rfc/experiment/cli.py`). In
-`_ground_truth_run`:
-- with `--dataset`, call `load_dataset(args.dataset)`;
-- with `--target` and `--window`, call `select_dataset(...)`, and raise `ExperimentError(f"{status}:
-  {reason}")` when `dataset is None`;
-- with neither, raise `ExperimentError("name a dataset (--dataset) or a target and window
+In `experiment/cli.py`:
+- Delete the `DATASET` import (`cli.py:1156` at `de77863`).
+- Add to the `ground-truth` parser `--dataset NAME`, `--target NAME` and `--window A-B`. Parse the
+  window with `_window`, the function `workspace prepare --window` uses (`cli.py:171` at
+  `de77863`).
+
+argparse cannot express "`--dataset` or the pair" with a group, and a `required` group raises
+`SystemExit(2)` through `cli.main`. So the rule is checked in `_ground_truth_run`, which raises
+`ExperimentError`; `run` turns that into exit 1. The cases:
+- `--dataset` together with `--target` or `--window`: raise `ExperimentError("name either a dataset
+  (--dataset) or a target and window (--target, --window), not both")`.
+- `--dataset` alone: call `load_dataset(args.dataset)`.
+- `--target` and `--window` both given: call `select_dataset(...)`, and raise
+  `ExperimentError(f"{status}: {reason}")` when `dataset is None`.
+- Only one of `--target` and `--window`: raise `ExperimentError("--target and --window go
+  together")`.
+- None of the three: raise `ExperimentError("name a dataset (--dataset) or a target and window
   (--target, --window)")`.
 
 Pass the dataset's name to `_write_ground_truth` as a new keyword-only `name` parameter, and write
 `"dataset": {"name": name, "repository": …, "commit": …, "target": …, "window": …}`.
+
+Update `ai_rfc/experiment/README.md`'s `ground-truth` row (`:51` at `de77863`). It still reads
+`ground-truth DRAFT --out DIR`, "the pinned aioquic dataset" and "recall". Give the new arguments,
+the selection by target and window, and the figures' names.
 
 - [ ] **Step 9: Update the tests that still name the old dataset, then run the module pair.**
   - **Delete here:** `CHECKOUT`, `_checkout_commit`, the `pinned_checkout` fixture, and the three
@@ -973,7 +1105,12 @@ Pass the dataset's name to `_write_ground_truth` as a new keyword-only `name` pa
     `resolve_anchors(entries, clone)` signature. They stay until Task 4 replaces them.
   - **Update:** every other call of `load_dataset()` with no argument
     (`grep -n "load_dataset()" tests/`) now names `"aioquic-h3-at-6d36838.yaml"`. Any count it
-    asserted (for example "35 scored") becomes the migrated count recorded in Step 3.
+    asserted (for example "35 scored") becomes N, the migrated count recorded in Step 3. Docstrings
+    that cite 35, 39 or 41 are updated to match.
+  - **Rebuild, not re-count:** `test_the_entries_left_out_are_named_with_the_reason_each_is_left_out`
+    (`test_ground_truth.py:433-441`) asserts an exact ordered tuple of 6 `(id, reason)` pairs.
+    After migration, any "no line" exclusion interleaves in dataset order. Rebuild the tuple from
+    the migrated file's entries, in dataset order, and keep it a literal in the test.
 
   Run: `… -m pytest tests/experiment/test_ground_truth.py tests/experiment/test_cli_ground_truth.py -q -n 4 --basetemp /tmp/claude-501/pytest-gtm-3`
   Expected: all pass.
@@ -994,8 +1131,14 @@ Spec §4.2 and §4.3 (research 04's question 7; ticket 02).
 **Interfaces:** Produces `resolve_anchors(entries: list[dict], repo: Path, commit: str) ->
 tuple[str, ...]`, with a new signature. The old `(entries, clone)` form is removed.
 
-- [ ] **Step 1: Write the failing tests** (replacing `pinned_checkout`, `_checkout_commit` and the
-  old anchor tests)
+- [ ] **Step 1: Write the failing tests.** Task 3 already deleted `pinned_checkout`,
+  `_checkout_commit` and the three tests that used them. **Delete here** the two tests Task 3 kept on
+  the old signature, `test_resolve_anchors_names_every_entry_the_checkout_does_not_bear` and
+  `test_resolve_anchors_refuses_a_path_that_leaves_the_checkout`, together with their helper `_at`.
+  The fixture-repo test below ports all their cases (review 2026-09-22, W4):
+  - `contained-value` separates equality from a substring check: `0x10` against `Z = 0x10A`;
+  - `past-the-end`;
+  - `no-such-file`.
 
 ```python
 import os
@@ -1037,18 +1180,35 @@ def test_every_reachable_record_points_at_an_added_line_in_a_window_cluster(name
         assert added.startswith("+") and added[1:].strip() == source[entry["source"]["line"] - 1].strip(), entry["id"]
 
 
-def test_resolve_anchors_names_an_entry_whose_line_does_not_spell_it(tmp_path):
+def test_resolve_anchors_names_every_entry_the_commit_does_not_bear(tmp_path):
+    """Every way an anchor fails, read from git objects of a repository built here.
+
+    ``contained-value`` separates equality from a substring check: ``0x10`` is
+    contained in ``Z = 0x10A``, so only equality reports it.
+    """
     repo = tmp_path / "r"
     subprocess.run(["git", "init", "-q", str(repo)], check=True)
-    (repo / "f.py").write_text("X = 0x1\n")
-    subprocess.run(["git", "-C", str(repo), "add", "f.py"], check=True)
+    (repo / "src").mkdir()
+    (repo / "src" / "connection.py").write_text("X = 0x1\nY = 0x2\nZ = 0x10A\n")
+    subprocess.run(["git", "-C", str(repo), "add", "src/connection.py"], check=True)
     subprocess.run(["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t",
                     "commit", "-qm", "c"], check=True)
     head = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"],
                           capture_output=True, text=True, check=True).stdout.strip()
-    good = {"id": "g", "symbol": "X", "value": "0x1", "source": {"path": "f.py", "line": 1}}
-    bad = {"id": "b", "symbol": "X", "value": "0x2", "source": {"path": "f.py", "line": 1}}
-    assert resolve_anchors([good, bad], repo, head) == ("b",)
+
+    def at(line, path="src/connection.py"):
+        return {"path": path, "line": line}
+
+    entries = [
+        {"id": "resolves", "symbol": "X", "value": "0x1", "source": at(1)},
+        {"id": "wrong-value", "symbol": "Y", "value": "0x3", "source": at(2)},
+        {"id": "contained-value", "symbol": "Z", "value": "0x10", "source": at(3)},
+        {"id": "past-the-end", "symbol": "X", "value": "0x1", "source": at(9)},
+        {"id": "no-such-file", "symbol": "X", "value": "0x1", "source": at(1, "src/absent.py")},
+    ]
+    assert resolve_anchors(entries, repo, head) == (
+        "wrong-value", "contained-value", "past-the-end", "no-such-file",
+    )
 
 
 def test_resolve_anchors_refuses_an_escaping_path_without_asking_git(tmp_path, monkeypatch):
@@ -1116,24 +1276,39 @@ same rule `cluster_get` follows in the prevention plan. This amendment doesn't m
 results, whose future-content findings all came from `corpus_query`. So Task 10's expected
 `touching` counts (2 and 6) stand.
 
+**Amended 2026-09-22 by the plan review.** The fixes:
+- C2: the end's time comes from `%at`, because Python 3.10 cannot parse git's `…Z` for UTC.
+- W1: an errored result is skipped, and a file absent at both ends is not future.
+- W2: read paths are recorded in `ToolCall.path` and a `read_paths` list, not in `classify`'s
+  edit-target field.
+- W3: arms B and C's Bash routes into the corpus and git are classified.
+- W5: a content `Grep` over the clone, or with no path, is classified as ticket 12 did.
+
 **Files:**
 - Create: `ai_rfc/experiment/future.py`
-- Modify: `ai_rfc/experiment/audit.py` (the read-tool branch records its path; `audit_run` adds
-  `future_material`)
+- Modify: `ai_rfc/experiment/audit.py` (`audit_events` records each read call's path; `audit_run`
+  adds `future_material`)
 - Test: `tests/experiment/test_future.py` (new), `tests/experiment/test_audit.py`
 
 **Interfaces:**
 - Produces: `window_end(workspace: Path, window: tuple[int, int]) -> str | None`.
 - Produces: `classify_future(events: list[dict], workspace: Path, window: tuple[int, int]) ->
   dict[str, Any]`, returning `{"verdict": "clean" | "touched" | "unmeasured", "end": str | None,
-  "reason": str | None, "touching": [{"call": int, "tool": str, "route": str, "evidence": [str]}],
-  "metadata": int}`.
-- The audit record gains `future_material` (that dict).
+  "reason": str | None, "touching": [{"call": int | None, "tool": str, "route": str, "evidence":
+  [str]}], "metadata": int}`.
+  - `call` is the tool use's index in the parsed stream, not a transcript line number.
+  - It is `None` only on the `git` route record the prevention plan's audit appends, where no
+    single call is to blame.
+  - Routes: `clone`, `clusters`, `forge`, `corpus`, `timeline`, `workspace` (a content Grep with no
+    path), `git`, `cli` (arm B's `ai-rfc` or arm C's `python -m ai_rfc`).
+- The audit record gains `future_material` (that dict) and `read_paths` (the sorted paths of every
+  `Read`/`Grep`/`Glob` call).
 
 - [ ] **Step 1: Write the failing tests** (`tests/experiment/test_future.py`)
 
 ```python
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -1144,14 +1319,21 @@ from ai_rfc.experiment.future import classify_future, window_end
 pytestmark = pytest.mark.unit
 
 
-def _git(repo: Path, *args: str) -> str:
+def _git(repo: Path, *args: str, date: str | None = None) -> str:
+    env = dict(os.environ)
+    if date is not None:
+        env["GIT_AUTHOR_DATE"] = env["GIT_COMMITTER_DATE"] = date
     return subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True,
-                          check=True).stdout.strip()
+                          check=True, env=env).stdout.strip()
 
 
 @pytest.fixture
 def workspace(tmp_path: Path) -> Path:
-    """A clone with two commits: the window ends at the first, and the second is the future."""
+    """A clone with two commits: the window ends at the first, and the second is the future.
+
+    Both are dated at +00:00: git prints a UTC date as ``…Z``, which Python 3.10's
+    ``fromisoformat`` refuses. Every suite fixture is UTC (review 2026-09-22, C2).
+    """
     # Named "workspace": the classifier finds a path's place in the run by "/workspace/".
     ws = tmp_path / "workspace"
     clone = ws / "clone"
@@ -1160,7 +1342,8 @@ def workspace(tmp_path: Path) -> Path:
     for n, body in ((1, "A = 0x1\n"), (2, "A = 0x1\nB = 0x100\n")):
         (clone / "c.py").write_text(body)
         _git(clone, "add", "c.py")
-        _git(clone, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", f"c{n}")
+        _git(clone, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", f"c{n}",
+             date=f"2019-09-0{n}T00:00:00+00:00")
     first, second = _git(clone, "rev-list", "--reverse", "HEAD").split()
     (ws / "timeline").mkdir()
     (ws / "timeline" / "members.jsonl").write_text(
@@ -1170,13 +1353,39 @@ def workspace(tmp_path: Path) -> Path:
     return ws
 
 
-def _call(tool: str, tool_input: dict, text: str, call_id: str = "t1") -> list[dict]:
+def _call(tool: str, tool_input: dict, text: str, call_id: str = "t1",
+          error: bool = False) -> list[dict]:
     return [
         {"type": "assistant", "message": {"content": [
             {"type": "tool_use", "id": call_id, "name": tool, "input": tool_input}]}},
         {"type": "user", "message": {"content": [
-            {"type": "tool_result", "tool_use_id": call_id, "content": text}]}},
+            {"type": "tool_result", "tool_use_id": call_id, "content": text, "is_error": error}]}},
     ]
+
+
+def test_an_errored_read_of_a_file_absent_at_both_ends_is_not_future(workspace):
+    events = _call("Read", {"file_path": str(workspace / "clone" / "MONGODB.md")},
+                   "File does not exist.", error=True)
+    assert classify_future(events, workspace, (1, 1))["verdict"] == "clean"
+
+
+def test_a_content_grep_over_the_clone_that_hits_a_changed_file_touches(workspace):
+    hit = f"{workspace / 'clone' / 'c.py'}:2:B = 0x100"
+    events = _call("Grep", {"pattern": "B =", "path": str(workspace / "clone"),
+                            "output_mode": "content"}, hit)
+    verdict = classify_future(events, workspace, (1, 1))
+    assert verdict["verdict"] == "touched" and verdict["touching"][0]["route"] == "clone"
+
+
+@pytest.mark.parametrize("command,route", [
+    ("sqlite3 corpus/index.sqlite 'SELECT sha FROM commits'", "corpus"),
+    ("git -C clone log -1 --format=%H", "git"),
+    ("ai-rfc corpus query 'SELECT sha FROM commits'", "cli"),
+])
+def test_a_bash_result_naming_a_future_commit_touches(workspace, command, route):
+    future = (workspace / "future_sha").read_text()
+    verdict = classify_future(_call("Bash", {"command": command}, future), workspace, (1, 1))
+    assert verdict["verdict"] == "touched" and verdict["touching"][0]["route"] == route
 
 
 def test_window_end_is_the_last_member_of_the_window_s_last_cluster(workspace):
@@ -1226,9 +1435,13 @@ def test_no_timeline_is_unmeasured_never_clean(tmp_path):
     assert verdict["verdict"] == "unmeasured" and verdict["reason"]
 ```
 
-In `tests/experiment/test_audit.py`, add a test that `audit_run`'s record carries `future_material`
-with a `verdict`, and that a `Read` call's recorded path is its `file_path` (use the file's existing
-campaign fixtures).
+In `tests/experiment/test_audit.py`:
+- add a test that `audit_run`'s record carries `future_material` with a `verdict`, using the file's
+  existing campaign fixtures;
+- add a test that a **Grep** call's path reaches `read_paths` through `audit_events`. A Read's
+  `file_path` is recorded already, so a Read test would pass today and prove nothing.
+- `test_audit.py:79` (`classify("Grep", {"pattern": "x"}, WS) == ("read", "Grep", "")`) stays as
+  it is, because `classify` doesn't change.
 
 - [ ] **Step 2: Run and see failure** (ModuleNotFoundError: `ai_rfc.experiment.future`).
 
@@ -1313,8 +1526,23 @@ def classify_future(
     past = set(_git(clone, "rev-list", end).split())
     every = _git(clone, "rev-list", "--all").split()
     future = {sha for sha in every if sha not in past}
-    end_time = datetime.fromisoformat(_git(clone, "log", "-1", "--format=%aI", end).strip())
+    # Epoch seconds, not %aI: git prints a UTC date as "...Z", which Python
+    # 3.10's fromisoformat refuses, and every suite fixture is UTC.
+    end_time = datetime.fromtimestamp(
+        int(_git(clone, "log", "-1", "--format=%at", end).strip()), tz=timezone.utc
+    )
     tip = _git(clone, "rev-parse", "HEAD").strip()
+
+    def changed_at_end(inner: str) -> bool:
+        # A file the tip lacks too delivered nothing from the future; one the
+        # end lacks, or holds differently, did.
+        tip_blob = subprocess.run(["git", "-C", str(clone), "show", f"{tip}:{inner}"],
+                                  capture_output=True)
+        if tip_blob.returncode != 0:
+            return False
+        end_blob = subprocess.run(["git", "-C", str(clone), "show", f"{end}:{inner}"],
+                                  capture_output=True)
+        return end_blob.returncode != 0 or end_blob.stdout != tip_blob.stdout
 
     def future_evidence(text: str, dates: bool) -> list[str]:
         found = []
@@ -1340,8 +1568,8 @@ def classify_future(
     metadata = 0
     for use in tool_uses(events):
         result = results.get(str(use["id"]))
-        if result is None:
-            continue
+        if result is None or result["is_error"]:
+            continue  # an error delivered no content (review 2026-09-22, W1)
         name = use["name"].rsplit("__", 1)[-1]
         tool_input = use["input"] or {}
         text = result["text"]
@@ -1352,13 +1580,18 @@ def classify_future(
         if name in ("Read", "Grep"):
             path = str(tool_input.get("file_path") or tool_input.get("path") or "")
             rel = path.split("/workspace/", 1)[1] if "/workspace/" in path else path
-            if rel.startswith("clone/") and rel != "clone/":
+            if name == "Grep" and (not rel or rel == "clone" or rel.startswith("clone/")):
+                # A content Grep delivers lines of every file it names; with no
+                # path it searched the whole workspace (ticket 12's method).
+                changed = sorted({f for f in _clone_files(text) if changed_at_end(f)})
+                if changed:
+                    route, evidence = "clone", [f"{f} differs at the window end" for f in changed]
+                elif not rel:
+                    evidence = future_evidence(text, dates=True)
+                    route = "workspace" if evidence else None
+            elif rel.startswith("clone/"):
                 inner = rel[len("clone/"):]
-                end_blob = subprocess.run(["git", "-C", str(clone), "show", f"{end}:{inner}"],
-                                          capture_output=True)
-                tip_blob = subprocess.run(["git", "-C", str(clone), "show", f"{tip}:{inner}"],
-                                          capture_output=True)
-                if end_blob.returncode != 0 or end_blob.stdout != tip_blob.stdout:
+                if changed_at_end(inner):
                     route, evidence = "clone", [f"{inner} differs at the window end"]
             elif rel.startswith("clusters/"):
                 ordinal = rel.split("/")[1][1:5]
@@ -1375,19 +1608,52 @@ def classify_future(
         elif name.endswith("corpus_query"):
             evidence = future_evidence(text, dates=True)
             route = "corpus" if evidence else None
+        elif name == "Bash" and _BASH_ROUTES.get(_program(tool_input)):
+            # Arms B and C reach the corpus and git through Bash; their results
+            # are content, not metadata (review 2026-09-22, W3).
+            evidence = future_evidence(text, dates=True)
+            route = _BASH_ROUTES[_program(tool_input)] if evidence else None
         elif future_evidence(text, dates=False):
             metadata += 1
         if route:
             touching.append({"call": use["index"], "tool": name, "route": route, "evidence": evidence[:4]})
     return {"verdict": "touched" if touching else "clean", "end": end, "reason": None,
             "touching": touching, "metadata": metadata}
+
+
+#: The Bash programs that deliver corpus or git content, by route.
+_BASH_ROUTES = {"git": "git", "sqlite3": "corpus", "ai-rfc": "cli", "python": "cli"}
+
+
+def _program(tool_input: dict[str, Any]) -> str:
+    command = str(tool_input.get("command", "")).strip()
+    return command.split(None, 1)[0] if command else ""
+
+
+def _clone_files(text: str) -> set[str]:
+    """Clone-relative paths a content Grep's output names, one per ``path:line:text`` row."""
+    found: set[str] = set()
+    for line in text.splitlines():
+        head = line.split(":", 1)[0]
+        if "/workspace/clone/" in head:
+            found.add(head.split("/workspace/clone/", 1)[1])
+        elif head.startswith("clone/"):
+            found.add(head[len("clone/"):])
+    return found
 ```
 
+`future.py` must not import `experiment/audit.py`, because `audit.py` imports it. That is why
+`_program` reads the command's first word itself instead of calling `audit.bash_surface`.
+
 In `audit.py`:
-- the read-tool branch of the call classifier becomes
-  `return "read", name, str(tool_input.get("file_path") or tool_input.get("path") or "")`, so the
-  path is recorded;
-- in `audit_run`, add `"future_material": classify_future(events, run_dir / "workspace",
+- **Leave `classify` alone.** Its third element is the edit target (register, prose or other), not
+  a path.
+- In `audit_events`, record each call's path as `ToolCall.path`: `file_path`, else `path`, and for
+  `Glob`, else `pattern`. Today only `file_path` is recorded, so a Grep's `path` is lost.
+- Add `"read_paths": sorted({c.path for c in calls if c.surface == "read" and c.path})` to the
+  returned record. `asdict(ToolCall)` reaches the file only for violations and bypasses, so without
+  this an in-arm read's path is never recorded (spec §7.3).
+- In `audit_run`, add `"future_material": classify_future(events, run_dir / "workspace",
   campaign.window),` to the `audit` dict (`from .future import classify_future`).
 
 - [ ] **Step 4: Run** `tests/experiment/test_future.py tests/experiment/test_audit.py` and see them
@@ -1522,8 +1788,9 @@ def score_run(target: str, window: tuple[int, int], workspace: Path) -> dict[str
             **figures(report)}
 ```
 
-In `metrics.analyze_run`, add `"ground_truth": score_run(campaign.target, campaign.window,
-workspace),` beside `"quality"`. In `_arm_summary`, before the `return`:
+In `metrics.py`, add `from .ground_truth import STATUS_SCORED, score_run` (no import cycle: the
+review checked). In `metrics.analyze_run`, add `"ground_truth": score_run(campaign.target,
+campaign.window, workspace),` beside `"quality"`. In `_arm_summary`, before the `return`:
 
 ```python
     scored_gt = [r for r in runs if (r.get("ground_truth") or {}).get("status") == STATUS_SCORED]
@@ -1726,7 +1993,10 @@ def _ground_truth_arm_rows(arms: dict[str, dict[str, Any]]) -> list[str]:
         counts = summary.get("claim_accuracy_pooled_counts") or {}
         accuracy = None if pooled is None else f"{pooled:.3f} ({counts.get('matched')} of {counts.get('attempted')})"
         # Built first: a nested same-quote f-string needs Python 3.12, and this runs on 3.10.
-        dropped = f"{left.get('touched', 0)} touched, {left.get('unaudited', 0)} unaudited"
+        # An aggregate that never measured it (archived, or older than Task 6) has
+        # no left-out count: that is a dash, never "0 touched".
+        dropped = (None if "ground_truth_left_out" not in summary else
+                   f"{left.get('touched', 0)} touched, {left.get('unaudited', 0)} unaudited")
         rows.append(f"| {cell(arm)} | {cell(summary.get('ground_truth_runs'))} | {cell(recall)} "
                     f"| {cell(accuracy)} | {cell(dropped)} |")
     return rows
@@ -1777,8 +2047,9 @@ JUDGE_COMPLETENESS_CAVEAT = (
 )
 ```
 
-In the manifest dict, add `"caveats": [JUDGE_COMPLETENESS_CAVEAT] if "completeness" in dimensions
-else []`. In `_judge_run`, after the scores line, add
+The manifest dict is built in `_judge_manifest(transport, *, dimensions, claude_bin)`, not in
+`_judge_run`; `dimensions` is a parameter there. Add `"caveats": [JUDGE_COMPLETENESS_CAVEAT] if
+"completeness" in dimensions else []` to it. In `_judge_run`, after the `scores:` line, add
 `if "completeness" in dimensions: print(f"note: {JUDGE_COMPLETENESS_CAVEAT}")`.
 
 - [ ] **Step 4: Run** `tests/experiment/test_cli_judge.py` and see it pass.
@@ -1827,23 +2098,46 @@ Spec §8 and §10.
     draft-elniak-aioquic-reconstructed-10:draft-elniak-aioquic-reconstructed.md > pilot-A1.md`, and
     A2 at tag `-11`;
   - take the v2 drafts from `<ai_rfc>/.superpowers/sdd/2026-09-15-arfc-sp7d/t11/armA-drafts/A{1,2}-10.md`;
-  - run `ai-rfc experiment ground-truth <draft> --out out/<name> --target aioquic --window 2-11` on
-    each.
+  - run `<wt>/.venv/bin/ai-rfc experiment ground-truth <draft> --out out/<name> --target aioquic
+    --window 2-11` on each. Use the worktree's `ai-rfc`, not whichever comes first on `PATH`.
 
   **Expected:** reachable recall 11, 11, 9 and 10 of 26; claim accuracy 1.000; named 0, 0, 2 and 1.
   Any difference is a finding: stop and report.
 - [ ] **Step 3 — the tip dataset scores.** Run
-  `ai-rfc experiment ground-truth pilot-A1.md --out out/tip --dataset aioquic-h3-at-6d36838.yaml`.
-  Record the figures; this is informational. Its ceiling should be about 1.0 over window [1, 342].
-- [ ] **Step 4 — `analyze` on copies, never the originals.**
-  - Copy `~/ai-rfc-experiments/campaigns/aioquic-w02-11-v2-armA-sp7d-pinned` and
-    `…/mark-full-1-consolidate-sp7d-v2` to `/tmp/claude-501/gtm-accept/`, then run `ai-rfc
-    experiment analyze <copy>` on each (MARK takes about 18 minutes: run it detached).
+  `<wt>/.venv/bin/ai-rfc experiment ground-truth pilot-A1.md --out out/tip --dataset
+  aioquic-h3-at-6d36838.yaml`. Record the figures; they are informational. It scores N facts (Task 3
+  Step 3), including the three RFC 9220/9297 ones. Its ceiling should be 1.0 over window [1, 342]:
+  the review found all 41 tip entries reachable.
+- [ ] **Step 4 — `analyze` on copies, never the originals.** **A byte copy is not enough** (review
+  2026-09-22, C1).
+  - A campaign's directory is `root / "campaigns" / id`, and `load_campaign` reads `root` from
+    `campaign.json`. Both campaigns record `root: /Users/elniak/ai-rfc-experiments`.
+  - `analyze` runs `audit_campaign` and then `analyze_campaign`. So on a plain copy it would
+    overwrite the **originals'** `audit/` and `analysis/`, which is exactly what the Global
+    Constraints forbid.
+  - Relocate the copy explicitly:
+    1. `mkdir -p /tmp/claude-501/gtm-accept/campaigns`, then copy each campaign directory to
+       `/tmp/claude-501/gtm-accept/campaigns/<id>/`: `aioquic-w02-11-v2-armA-sp7d-pinned` and
+       `mark-full-1-consolidate-sp7d-v2`.
+    2. In each copy's `campaign.json`, rewrite `root` to `/tmp/claude-501/gtm-accept`. Leave every
+       other key alone.
+    3. **Assert before running.** `<wt>/.venv/bin/python -B -c` loads the copy with `load_campaign`
+       and checks that `campaign.dir.resolve() == Path(<copy>).resolve()`. If it doesn't hold,
+       stop.
+    4. Run `<wt>/.venv/bin/ai-rfc experiment analyze <copy>` on each. MARK takes about 18 minutes,
+       so run it detached.
+    5. **Assert after running** that the printed `aggregate:` path is under `/tmp/claude-501/`, and
+       that the originals' `audit/` and `analysis/` mtimes are unchanged. Record both before step 4.
   - **Expected:**
     - the v2 copy's Ground truth section shows 9/26 and 10/26, both touched, and an arm row with
       "2 touched";
-    - the audits' `future_material.touching` counts are 2 and 6, which reproduces ticket 12;
-    - the MARK copy shows `no declared spec` and "—", never 0.
+    - the audits' `future_material.touching` counts are 2 and 6, which reproduces ticket 12. The
+      review ran the original classifier on both transcripts and got 2 and 6. Ticket 12 found no
+      clone, cluster, forge or git route in them, so the Task 5 amendments (content Grep, Bash
+      routes, errored results) should not move those counts. If they differ, suspect those
+      amendments first, and report rather than adjust;
+    - the MARK copy shows `no declared spec`, and a dash in every figure cell, never 0. The "runs
+      used" count may truly be 0: that is a count, not a figure.
 - [ ] **Step 5 — hand over.** Stop before any gitlink bump or push; both need the user. Report:
   - every commit, per repository, with its SHA;
   - the suite counts;
@@ -1861,8 +2155,20 @@ Spec §8 and §10.
   - §5 → Tasks 2 and 3; §6.1 and §6.2 → Task 6; §6.3 → Task 7; §6.4 → Task 8; §7.3 → Task 5;
   - §8 and §10 → Task 9; §12 → Task 10 (acceptance).
   - §7.1, §7.2 and §11 → the prevention plan, deliberately.
-- **Declared-spec rule for the tip dataset (flagged for the user):** facts citing RFC 9297 or
-  RFC 9220 become unscored, because the tip code names no RFC. Only ALPN `"h3"` (RFC 9114) and its
-  normative reference RFC 9204 count, the same pairing used for h3-22 and QPACK. If the user rules
-  that a fact's own citation suffices, drop that branch of the migration script.
-- **Python 3.10:** no nested same-quote f-strings (Task 7 builds that cell's text first).
+- **The tip dataset's declared specs (ruled 2026-09-22):** the first draft of this plan said the tip
+  code names no RFC, and left the RFC 9297/9220 facts unscored. The plan review found that premise
+  false: `connection.py:86` and `:88` link RFC 9220 and RFC 9297. The user ruled them declared, so
+  they are pinned and scored (Task 3 Steps 1 and 3).
+- **Python 3.10:** no nested same-quote f-strings (Task 7 builds that cell's text first). No
+  `datetime.fromisoformat` on git's `%aI`/`%cI`, which print `…Z` for UTC (Task 5 uses `%at`).
+- **Plan review, 2026-09-22.** Three read-only reviewers checked every claim against ai_rfc
+  `de77863`–`469f82f`. Their Critical findings are fixed above:
+  - Task 10's copies would have written into the originals;
+  - the `%aI` crash;
+  - Task 1 flipped an existing CLI test;
+  - the tip dataset's false "no RFC" premise.
+
+  So are their Warnings: the old-test enumerations in Tasks 2–4, the SETTINGS test, and Task 5's
+  errored reads, read paths, Bash routes and content Grep. Informational items were taken where
+  cheap: imports, docstrings, the README row, the verb's argument rules, the `_judge_manifest`
+  site, and the worktree's `ai-rfc`.
