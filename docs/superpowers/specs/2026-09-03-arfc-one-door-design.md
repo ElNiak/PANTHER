@@ -41,20 +41,20 @@ experiment instrument kept but out of the operator's way.
 | D54 | **`ai-rfc run --config recon.yaml` performs everything that is next** — clone and forge at `init`, history, timeline, views, then one model session per cluster (checkpoints and gates happen through the session's tools), consolidation rounds (SP7c hook), check/lint/build at the end — until done or a stop condition. `ai-rfc next` performs exactly one action. `ai-rfc status` prints the ledger. State is derived from artifacts, never a counter. |
 | D55 | Sequencing: SP1 (extraction) → SP7a → SP7b → **CLI-1 → CLI-2 → CLI-3** → SP7c → SP7d. SP7a/SP7b execute as written; the unification folds their harness/server halves in one pass; SP7c targets the new driver's hook; SP7d targets `ai-rfc experiment`. |
 | D56 | Verb tree: lifecycle at top level (`init`, `run`, `next`, `status`, `verify`, `doctor`, `config example`, `toolchain provision\|verify`); agent verbs grouped (`claim`, `cluster`, `corpus`, `question`, `answer`, `revision`, `checkpoint`, `gate`, `citation-gate`, `draft`, `structure`); the instrument under `ai-rfc experiment …`. The `ai_rfc` console script, the campaign `bin/ai_rfc` shim and both `prog="ai_rfc"` values retire (CLI-3); arm B's Bash family becomes `ai-rfc *`; MCP tool names `ai_rfc_*` stay — they are identifiers, not a door. |
-| D57 | The config is the input; `init` seals a copy into the workspace with its digest. Every later verb takes `--config` or `AI_RFC_CONFIG`; the MCP server and agent verbs read `AI_RFC_CONFIG` and derive the workspace (R8: `PANTHER_REPO` gone; `AI_RFC_WORKSPACE` derived, no longer a contract). Drift between the sealed copy and the file is refused for `source.pin`, `window`, `draft.name`, noted for everything else, and reported by `verify`. |
+| D57 | The config is the input; `init` seals a copy into the workspace with its digest. Every later verb takes `--config` or `AI_RFC_CONFIG`; the MCP server and agent verbs read `AI_RFC_CONFIG` and derive the workspace (R8: `PANTHER_REPO` gone; `AI_RFC_WORKSPACE` derived rather than supplied, and no longer a contract **on the operator's side** — the driver still exports it into every session, because arms B and C spell their paths as `$AI_RFC_WORKSPACE/…` in the rendered prompts). Drift between the sealed copy and the file is refused for `source.pin`, `window`, `draft.name`, noted for everything else, and reported by `verify`. |
 | D58 | Production sessions are the MCP shape (today's arm A): `claude -p` with the `ai_rfc` MCP server, Read/Edit/Write/Grep/Glob, no Bash, the PreToolUse guard mounted with empty prefixes; budget, timeout and attempts from the config. The instrument (arms B/C, audit, parity, metrics, judge, ground truth) stays as `ai_rfc.experiment`, reached through `ai-rfc experiment …`, and shares the session launcher with production. |
-| D59 | Stop conditions: the reconstruction's lifetime budget (summed over every run's transcript, moved-aside runs included), wall clock, a cluster not done after `attempts_per_cluster` (default 2; `--retry <id>` resets), a surface shortfall (MCP not mounted), a build that will not compile, a stale substrate under existing checkpoints, operator interrupt. Never skip a cluster. A mid-sweep consolidation failure is recorded and the sweep continues; a failing sweep-end consolidation exits 1. Every stop prints the ledger and the exact resume line. Interrupted leftovers are moved aside with a suffix naming the cause, never deleted. |
+| D59 | Stop conditions: the reconstruction's lifetime budget (summed over every run's transcript, moved-aside runs included), wall clock (reachable from `recon.yaml` through `sessions.deadline_s`, landed `af12f64`), a cluster not done after `attempts_per_cluster` (default 2; `--retry <id>` resets), a surface shortfall (MCP not mounted), a build that will not compile, a stale substrate under existing checkpoints, operator interrupt (`StopReason.operator_interrupt` since `5b45d09`, so this row is built rather than aspirational). Never skip a cluster. A mid-sweep consolidation failure is recorded and the sweep continues; a failing sweep-end consolidation exits 1. Every stop prints the ledger and the exact resume line — true of an interrupt too since `5b45d09`, which catches SIGINT and SIGTERM alike around the session loop and reports the stop with its resume line. Interrupted leftovers are moved aside with a suffix naming the cause, never deleted. |
 | D60 | Three dependency-ordered sub-projects with their own gates: **CLI-1 one door** (config + field-table validation, argparse root, ledger, `init`/`status`/`verify`/`doctor`, `run` for the deterministic stages stopping at the boundary), **CLI-2 autonomous driver** (sessions inside `run`, `next`, stop policy, resumability, instrument split), **CLI-3 one core** (server core calls Python APIs, agent verbs folded, `ai_rfc` retired, prompts and guard re-rendered, leaf programs retired from the operator's help). They satisfy SP3+SP4, SP2, and SP3's folding respectively. |
 | D61 | Settled from the code: `timeout_s` is per session (today's cap is per run); attempts count only sessions that ended on their own (a killed or launch-errored session consumes none — MARK's ordinal 38 halted on a $0, one-turn launch error with $12.62 left, not on budget as D38 records); runs live under the workspace (`<workspace>/runs/<ts>/`, inverting today's nesting, which the instrument keeps for campaigns); the checkpoint stage is agent-performed in the MCP shape, so the driver never runs it; `pipeline.next_stage` drives only pin..views, the ledger drives the rest; R4's retirement of the explicit-path leaf verbs happens in CLI-3, once the server core no longer shells out to them — until then the root mounts them unchanged. |
-| D62 | **The two stops that leave work outstanding and still exit 0.** `StopReason.bound_reached` (a `--until` bound was reached) and `StopReason.action_performed` (`ai-rfc next` performed its one action) are neither failures nor `done`. Exit code **0** for both: §5's "stopped with work outstanding 1" means the sweep *could not go on*, not that work exists — the no-sessions boundary stop has always returned 0 with every cluster outstanding. Both carry a **resume line**, which only `done` is refused. The resume verb differs: `bound_reached` resumes with **`run`** and *drops* the satisfied bound, because a line re-issuing a bound already reached is a fixed point that performs nothing (measured: the same workspace run twice with `--until cluster:c1` printed byte-identical output and launched nothing); `action_performed` resumes with **`next`**, because the operator who asked for one action is told how to ask for the next one, where `run` would carry the reconstruction all the way. This settles the debt CLI-2 left when it added the two members without a row. |
-| D63 | **`ai_rfc_status` is folded as a tool only — nineteen verbs answer twenty tools.** §6's "the sixteen parity verbs … become grouped subcommands of the root" holds for every verb but this one. `ai-rfc status` already means the operator's ledger (D54) and keeps that meaning unchanged; the `ai_rfc_status` MCP tool stays exactly as it is, because the tool names are identifiers rather than a door (D56). No third spelling is minted for the folded read: a second `status` would collide, and a renamed one would be a verb no arm's prompt names. `docs/parity.md`'s row for `ai_rfc_status` therefore reads `— (MCP only)`, and its twin compares the tool against `queries.status` rather than against a verb. This is an **arm-surface** consequence, not a documentation one: arm A reaches twenty operations and arm B nineteen, the first time the compared surfaces differ in size, so it is recorded in `docs/parity.md`, `docs/experiment-protocol.md` §1 and `ai_rfc/experiment/README.md` as an asymmetry that costs arm B calls rather than information. |
+| D62 (recorded 2026-09-14 — describes shipped behaviour) | **The two stops that leave work outstanding and still exit 0.** `StopReason.bound_reached` (a `--until` bound was reached) and `StopReason.action_performed` (`ai-rfc next` performed its one action) are neither failures nor `done`. Exit code **0** for both: §5's "stopped with work outstanding 1" means the sweep *could not go on*, not that work exists — the no-sessions boundary stop has always returned 0 with every cluster outstanding. Both carry a **resume line**, which only `done` is refused. The resume verb differs: `bound_reached` resumes with **`run`** and *drops* the satisfied bound, because a line re-issuing a bound already reached is a fixed point that performs nothing (measured, and recorded where the rule is enforced — the `Measured:` paragraph on `driver/stop.py`'s `_BOUND_SATISFIED`: the same workspace run twice with `--until cluster:c1` printed byte-identical output and launched nothing); `action_performed` resumes with **`next`**, because the operator who asked for one action is told how to ask for the next one, where `run` would carry the reconstruction all the way. This settles the debt CLI-2 left when it added the two members without a row. |
+| D63 (recorded 2026-09-15 — describes shipped behaviour) | **`ai_rfc_status` is folded as a tool only — nineteen verbs answer twenty tools.** §6's "the sixteen parity verbs … become grouped subcommands of the root" holds for every verb but this one. `ai-rfc status` already means the operator's ledger (D54) and keeps that meaning unchanged; the `ai_rfc_status` MCP tool stays exactly as it is, because the tool names are identifiers rather than a door (D56). No third spelling is minted for the folded read: a second `status` would collide, and a renamed one would be a verb no arm's prompt names. `docs/parity.md`'s row for `ai_rfc_status` therefore reads `— (MCP only)`, and its twin compares the tool against `queries.status` rather than against a verb. This is an **arm-surface** consequence, not a documentation one: arm A reaches twenty operations and arm B nineteen, the first time the compared surfaces differ in size, so it is recorded in `docs/parity.md`, `docs/experiment-protocol.md` §1 and `ai_rfc/experiment/README.md` as an asymmetry that costs arm B calls rather than information. |
 
 ## Undecided in the extraction spec → settled
 
 | Item | Settled as |
 |---|---|
 | What replaces the `pipeline run` boundary | `run` continues into sessions when the config has a `sessions:` block; without one it stops at the boundary exactly as today and prints the instruction (a hand-mined workspace stays possible). |
-| Where the ten `experiment` verbs go | `ai-rfc experiment preflight\|campaign init\|run\|audit\|analyze\|questions\|judge\|ground-truth\|render`; production never needs them. |
+| Where the ten `experiment` verbs go | Twelve shipped, not ten, and not the same ten: `ai-rfc experiment profile\|preflight\|render\|workspace\|campaign\|run\|audit\|questions\|analyze\|judge\|ground-truth\|optimize`, in the order `experiment/cli.py`'s top-level `add_parser` calls declare them; production never needs them. `optimize`, `profile` and `workspace` are three the original list did not anticipate; `judge` and `ground-truth` were named in it and arrived last, as verbs of their own under SP7d. |
 | Profile and experiments root | `sessions.profile` in the config, default `<experiments_root>/profile`; `doctor` creates it and prints the login line; `AI_RFC_EXPERIMENTS_ROOT` keeps its meaning for the instrument and as the default parent of workspaces and tools. |
 | Import identity | SP1 makes `ai_rfc.experiment` a package; nothing depends on the shell's directory. |
 | Name collision | one script `ai-rfc`; `prog` values `ai-rfc <verb>`; the campaign shim becomes `bin/ai-rfc`. |
@@ -94,7 +94,7 @@ table (SP5's reference page). Sections:
 | `window` | `[low, high]` inclusive ordinals; default every cluster |
 | `draft` | `name` (required, starts with `draft-`), `title`, `abbrev`, `rfc_id` (manifest `rfc:`), `author` (name, org, email; default the harness identity) |
 | `references` | RFC/I-D ids sealed from the toolchain cache (SP7a) |
-| `sessions` | `model` (default `claude-opus-5`), `effort` (`low\|medium\|high\|xhigh`, default `high`), `budget_usd` (required when the block exists), `timeout_s` (per session, default 7200), `attempts_per_cluster` (default 2), `consolidate_every` (default 10; SP7c), `profile` (path), `claude` (binary; resolved at `init`) |
+| `sessions` | `model` (default `claude-opus-5`), `effort` (`low\|medium\|high\|xhigh`, default `high`), `budget_usd` (required when the block exists), `timeout_s` (per session, default 7200), `deadline_s` (the sweep's wall clock; no default, landed `af12f64`), `attempts_per_cluster` (default 2), `consolidate_every` (default 10; SP7c), `profile` (path), `claude` (binary; resolved at `init`) |
 | `toolchain` | path to `toolchain.json` (default `<experiments_root>/tools/toolchain.json`) |
 | `stages` | per-stage tuning (R4): `history.cap`, `timeline.forge` (bool, default true), `views.patches` (`span\|members`), `lint.must_fraction_ceiling`, `build.targets` |
 | `experiment` | optional instrument block: `arms`, `repeats`, `seed`; ignored by `run`, read by `ai-rfc experiment campaign init` |
@@ -124,13 +124,20 @@ pre-seed marker are done by definition. Consolidation checkpoints live under `co
 (D48) and never count. Replaces `pipeline/state._checkpoint`,
 `draft/completeness.checkpoint_records`'s processed set, server
 `queries._processed_cluster_ids`/`cluster_next`, `experiment/progress.window_progress`,
-`metrics.cluster_artifacts` and `per_cluster.partial_reason`; those callers read ledger rows.
+`metrics.cluster_artifacts` and `per_cluster.partial_reason`. Replacement is more than reaching the
+ledger: those callers read ledger rows *and honour `in_window` and `pre_seeded`*, through
+`ledger.counts()`/`ledger.this_runs_work()` — the reducer that applies both flags, landed `d1e34c3`
+where two callers had recomputed a window-blind total — or through `ClusterState.done`, which
+short-circuits on the same two. `draft/completeness` is the one reader that keeps a second question:
+its cluster-level processed set is replaced, but its **claim-id** sets, built from
+`checkpoint_records` and `claim_ids_of`, stay, because they answer "which *claims* has this workspace
+frozen?", which a cluster-level ledger cannot express.
 
 ### 5. The driver (CLI-2) — `ai_rfc/driver/`
 
 | Module | From | Holds |
 |---|---|---|
-| `spawn.py`, `stream.py`, `enforcement.py`, `guard.py` | `experiment/*` verbatim | process-group spawn with a SIGINT/SIGTERM handler that kills the group (today `start_new_session=True` orphans the session on Ctrl-C), transcript streaming, the guard |
+| `spawn.py`, `stream.py`, `enforcement.py`, `guard.py` | `experiment/*` verbatim | process-group spawn with a SIGINT/SIGTERM handler that kills the group (built at `5b45d09`, so this row is now true rather than aspirational: the root console script installs the one disposition, turning SIGTERM into the `KeyboardInterrupt` Ctrl-C already raises, and `spawn.py`'s `except BaseException` kills the group — `start_new_session=True`, which this parenthetical used to blame for orphaning the session, stays as the mechanism that makes a group to kill), transcript streaming, the guard |
 | `session.py` | `arms.py` profile/argv/mcp config, `runner.build_env`/`prepare_run_argv`, `per_cluster`'s event reading, cost and shortfall checks | `SessionSpec` (claude, model, effort, budget_usd, timeout_s, profile, python, workspace, toolchain, prompt_file, task, surface), `run_session(spec, run_dir) -> SessionResult` |
 | `sweep.py` | `per_cluster.run_per_cluster` minus the campaign summaries | `plan_next(ws, cfg, ledger) -> Action` (pure) and `run(cfg, ws, *, mode="all"\|"one", until, retry)`; `next_round()` hook for SP7c |
 | `record.py` | the `sessions.jsonl` writer | `run.json` (once per invocation: config/init digests, prompt drift, claude version, budget, spent before), `sessions.jsonl` rows (`task_template`, `kind`), `status.json`, `spent()`, `attempts()`, `move_aside()` |
@@ -148,10 +155,12 @@ State machine:
 | budget or wall clock reached | stop `budget` / `wall_clock` |
 | first judgeable session mounted no `ai_rfc` MCP | stop `surface_shortfall` + a doctor hint |
 | `next_round()` due (SP7c) | consolidation session; mid-sweep failure noted, sweep continues; sweep-end failure → exit 1 |
-| no cluster outstanding, no round due | `check --strict`, `lint`, `build` (skipped without a toolchain); findings → stop `build_failed`, exit 1; else `done`, exit 0 |
+| no cluster outstanding, no round due | `check --strict`, `lint`, `build` (skipped only for a caller that configures no toolchain; a loaded config always does); findings → stop `build_failed`, exit 1; else `done`, exit 0 |
 
 `next` performs one row; `--until <stage>|cluster:<id>|ordinal:<n>`. Exit codes: done, bound
-reached, or the one action performed 0; stopped with work outstanding 1; strict findings 3 (D62 —
+reached, or the one action performed 0; stopped with work outstanding 1 (one instance of 1, which
+means the command could not complete; 3 is the one code with a machine consumer, `_build_gate` in
+`driver/sweep.py`, for `check`); strict findings 3 (D62 —
 all three zero-exit reasons, because `ai-rfc next`'s `action_performed` leaves work outstanding
 exactly as `bound_reached` does, and naming only one of them would leave the other reading as a
 defect). Session classification from the result event:
@@ -187,8 +196,12 @@ leaf verbs leave the operator's help.
 
 Every failure names the artifact and the command that fixes it; nothing fails open. `init`
 refuses an existing workspace; `run` refuses a drifted pin/window/draft name and a stale
-substrate under checkpoints; a missing toolchain skips `build` and says so (D49: the build gate is
-hard whenever a toolchain is configured; `doctor` warns when none is). Diagnostics go to stderr
+substrate under checkpoints; a toolchain record that is not on disk refuses the sweep before any
+session spends, naming the record and `ai-rfc toolchain provision` (D49: the build gate is hard
+whenever a toolchain is configured — and a loaded config always configures one, because `toolchain`
+defaults to `<experiments root>/tools/toolchain.json` rather than to nothing, so the "build skipped"
+branch is reachable only for an API caller that builds a `ReconConfig` with `toolchain=None` by hand;
+`doctor` reports the record either way). Diagnostics go to stderr
 (the `panther.*` loggers swallow warnings).
 
 ### 8. Testing
@@ -197,12 +210,16 @@ Existing suites move with their modules (post-SP1: `tests/substrate`, `tests/ser
 `tests/experiment`, plus new `tests/cli`, `tests/ledger`, `tests/driver`). New properties:
 field-table validation (every required field, every choice, `example()` round-trips through
 `load_config`); root help lists every verb once and forwards untouched; the ledger agrees with the
-five replaced readers on the fixture workspace and on a copy of the finished MARK A1 workspace
-(37 done, ordinal 38 partial); driver scenarios with `fake_claude` (which gains scenario
-selection by `AI_RFC_FAKE_SCENARIO` and per-ordinal steps: two clusters complete; kill mid-session
+replaced readers §4 names on the fixture workspace and on a copy of the finished MARK A1 workspace
+(37 done of 69, ordinal 38 outstanding, and no cluster half-finished); driver scenarios with
+`fake_claude` (which gains scenario selection by a `$CLAUDE_CONFIG_DIR/fake-scenarios/<run-id>.json`
+file, falling back to `default.json`, and per-ordinal steps: two clusters complete; kill mid-session
 then resume; budget stop; gate refusal halts with `--retry`; consolidation hook no-op; `next`
 does one action); parity twins for every folded verb; `panther ai-rfc --help` equals
-`ai-rfc --help`.
+`ai-rfc --help`. The MARK assertion runs only where the sealed copy exists (`skipif` on its path),
+which makes it machine-conditional: it was the suite's only such verification when that was ruled
+on 2026-09-15, and SP7d's ground-truth scoring, which skips unless the pinned aioquic checkout is on
+the machine at the commit the dataset names, is now a second.
 
 ## Sub-projects and gates
 
@@ -210,7 +227,7 @@ does one action); parity twins for every folded verb; `panther ai-rfc --help` eq
 |---|---|---|
 | **CLI-1 one door** (SP3 config + root, SP4 ledger, SP3 doctor) | `ai_rfc/config.py`, root `ai_rfc/cli.py`, `ai_rfc/ledger.py`, `init` (absorbs `prepare`'s scaffold/registers/references/digest), `status`, `verify`, `doctor`, `config example`, `toolchain provision\|verify` moved out of `experiment`, `run` for the deterministic stages, `panther ai-rfc` passthrough | MARK: `init` from a `recon.yaml`, `run` stops at mining with the ledger printed, `status`/`verify` agree with the old readers on the A1 copy |
 | **CLI-2 autonomous driver** (SP2 driver + instrument split) | `ai_rfc/driver/*`, sessions inside `run`, `next`, stop policy, resumability, SP7c hook, `ai-rfc experiment …` over the shared launcher, fake_claude scenarios | a two-cluster MARK sweep completes and resumes after a kill; a budget stop reproduces the resume line |
-| **CLI-3 one core** (SP3 folding, R2/R8 retirements) | the core calls APIs, grouped agent verbs, `AI_RFC_CONFIG` context, `ai_rfc` script/shim/prog retired, prompts/guard/parity/docs re-rendered, leaf verbs retired from the operator's help | parity twins byte-identical; no `ai_rfc` command remains in prompts or docs; a campaign runs end to end |
+| **CLI-3 one core** (SP3 folding, R2/R8 retirements) | the core calls APIs, grouped agent verbs, `AI_RFC_CONFIG` context, `ai_rfc` script/shim/prog retired, prompts/guard/parity/docs re-rendered, leaf verbs retired from the operator's help | parity twins byte-identical; the retired-door grep's predicate flags **only its two named survivors** — the profile README in `ai_rfc/lifecycle/profile.py`, where "the ai_rfc *experiment* harness" is a prose noun colliding with a real verb name, and the comment naming arm C's `ai_rfc draft checkpoint` with `python -m` elided, which moved out of `experiment/metrics.py` into `ai_rfc/driver/coverage.py` with the coverage detector (owed-fixes Task 7) — per the CLI-3 plan's amended criterion, which replaced an unreachable "zero hits" with a candidate list plus a predicate; **that amendment changed the criterion rather than met it, and is dated in the CLI-3 deviation log as D29**; a campaign runs end to end |
 
 ## Sequencing (D55) and coordination
 
@@ -223,7 +240,7 @@ per-repository commit formats, `docs/` needs `git add -f`, sandbox off for pytes
 
 ## Risks
 
-1. Ctrl-C orphaning a spending session until `driver/spawn.py` lands.
+1. Ctrl-C orphaning a spending session until `driver/spawn.py` lands — which the risk outlived: `spawn.py` landed in CLI-2 with the group kill, and the signal disposition that reaches it arrived only at `5b45d09` (§5 c).
 2. The ledger's strict "done": hand-made workspaces and the server's laxer counting show as partial until their entries and tags exist — intended honesty, but the first `status` on old workspaces will surprise.
 3. Spend undercount: killed sessions report no result event; `status` labels spend a floor.
 4. Three plans edit `experiment/{per_cluster,config,runner}.py` (SP7a Tasks 5–8, SP7c, CLI-2); whichever lands second re-anchors by symbol; CLI-2 moves them into `driver/`.
