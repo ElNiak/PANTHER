@@ -160,3 +160,28 @@ standalone module doors still forge. Exit code **1 is overloaded across six cond
 cannot distinguish "unusable inputs" from "crashed" — which the module docstring and the spec both
 claim it can. **The spec has no decision row for the `status` ruling**: §6 still says the parity
 verbs become grouped subcommands with no exception, while one of them deliberately gets no CLI verb.
+
+## D29 (2026-09-22) — Gate row b was amended, not met, and the spec now says so
+
+Recorded while the owed-fixes row landed the one-door spec diff (its Task 10, rows #37–#40, #53).
+
+**What the plan said.** CLI-3's gate criterion b, as the spec's sub-project table stated it: *"no
+`ai_rfc` command remains in prompts or docs"* — an absolute over the retired-door grep.
+
+**What the tool showed.** The absolute was never reachable. The grep's own predicate matches every
+`from ai_rfc import …` and every prose noun, so the criterion could not have gone green at any SHA.
+`67052b9e0` (2026-09-14, PANTHER) amended the CLI-3 plan to a candidate list plus a predicate — *a
+hit is a defect when the word after `ai_rfc` is hyphenated, or is a verb the root parser still owns;
+an import, or a noun the parser does not own, is not* — under which the gate flags exactly two named
+survivors and is green. **The spec's gate row was never brought to the plan's amended text**, so the
+two artifacts stated different criteria for eight days, and the spec stated the one that fails.
+
+**What I did.** Brought the spec's row b to the plan's predicate, naming both survivors by content:
+the profile README in `ai_rfc/lifecycle/profile.py` ("the ai_rfc *experiment* harness", a prose noun
+colliding with a real verb name) and the comment naming arm C's `ai_rfc draft checkpoint` with
+`python -m` elided, which has since moved out of `experiment/metrics.py` into
+`ai_rfc/driver/coverage.py` with the coverage detector — so neither is cited by a line number that
+has already rotted once. The row is recorded **here** rather than only in the spec because **changing
+a criterion is a different act from meeting it**: a later reader comparing the gate's verdict against
+the spec's absolute must be able to find the commit that moved the goalposts (`67052b9e0`) and the
+date it moved, without inferring either from a criterion that now reads as passed.
