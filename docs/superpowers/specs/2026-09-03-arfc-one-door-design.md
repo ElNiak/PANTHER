@@ -115,9 +115,12 @@ argv untouched to `ai_rfc.cli.main` (R6). `--from`/`--until` choices follow pipe
 
 ### 4. The ledger (SP4, D35) — `ai_rfc/ledger.py`
 
-One reader for every progress surface. `ClusterState{id, ordinal, kind, in_window, checkpoint,
-revision_tag, tag_exists, done, partial_reason}`; `clusters(workspace, window)`, `next_cluster()`,
-`partial()`. **Done** = a checkpoint directory holding `checkpoint.json`, **and** a `kind: cluster`
+One reader for every progress surface. `ClusterState{id, ordinal, kind, in_window, pre_seeded,
+normative_change, checkpoint, revision_tag, tag_exists, done, partial_reason}`;
+`clusters(workspace, window)`, `next_cluster()`, `partial()`. The enumeration named nine fields and
+the dataclass carries eleven: `pre_seeded` (`ledger.py:82`) and `normative_change` (`:85`) were
+added while the ledger was built and this line was not re-derived from it. They are not incidental
+— `pre_seeded` is half of what `this_runs_work` filters on, which the paragraph below turns on. **Done** = a checkpoint directory holding `checkpoint.json`, **and** a `kind: cluster`
 revision entry, **and** its annotated tag (the harness's strict definition; the server's
 "any directory counts" definition disappears). Out-of-window clusters and clusters carrying the
 pre-seed marker are done by definition. Consolidation checkpoints live under `consolidations/`
@@ -128,7 +131,22 @@ pre-seed marker are done by definition. Consolidation checkpoints live under `co
 ledger: those callers read ledger rows *and honour `in_window` and `pre_seeded`*, through
 `ledger.counts()`/`ledger.this_runs_work()` — the reducer that applies both flags, landed `d1e34c3`
 where two callers had recomputed a window-blind total — or through `ClusterState.done`, which
-short-circuits on the same two. `draft/completeness` is the one reader that keeps a second question:
+short-circuits on the same two.
+
+**"Replaces" is a plan, and four of those six readers still recompute.** Stated here because the
+list above reads as a record of what happened and is not one. Replaced: `pipeline/state._checkpoint`
+and `draft/completeness`'s processed set (`d1e34c3`). Closed by the owed-fixes row: server
+`queries.status`'s `clusters_total` **and** `clusters_processed`, which had been the timeline's
+length and every done cluster anywhere in it, now read `ledger.counts()` (`9f0475b`); and the
+membership predicate the three copies derive their set from is now a public
+`draft.gate.cluster_ordinals` (`6929ebc`), so they cannot disagree about which clusters a workspace
+has. Still recomputing at the time of writing: `queries.cluster_next` (`queries.py:69`),
+`experiment/progress.window_progress` (`progress.py:27`), `metrics.cluster_artifacts`
+(`metrics.py:116`) and `per_cluster.partial_reason` (`:59`). The consequence worth naming is
+`metrics.window_clusters` (`metrics.py:57-73`), which keeps pre-seeded clusters: `analyze_run`'s
+`window_size` (`:348`) and the fractions over it (`:361-366`), and `analyze_campaign`'s `window_ids`
+(`:559-565`) feeding `pass_k`, all divide by a denominator that includes a baseline's work. ADR 0002
+records that remainder as open with the remedy; it is not this spec's to close. `draft/completeness` is the one reader that keeps a second question:
 its cluster-level processed set is replaced, but its **claim-id** sets, built from
 `checkpoint_records` and `claim_ids_of`, stay, because they answer "which *claims* has this workspace
 frozen?", which a cluster-level ledger cannot express.
