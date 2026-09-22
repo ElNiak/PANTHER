@@ -1920,8 +1920,17 @@ Spec §7.3 (prevention half) and §7.4, last paragraph.
   `{"measured": bool, "problems": list[str], "objects": dict | None, "sealed": dict | None,
   "reason": str | None}`.
 - Produces: `with_git_route(future: dict, clone_objects: dict) -> dict`.
+- Produces: `session_workspace(events: list[dict], fallback: Path) -> Path`, the directory the
+  session actually ran in. It is the init event's `cwd`, or `fallback` when the transcript has none.
 - The audit record gains `clone_objects`. `future_material` becomes `touched`, through the `git`
   route, when the clone has problems.
+- **Paths are judged against the workspace the session ran in, not the directory being audited.**
+  A transcript records the absolute paths the model typed, which name the run's **original**
+  location. Evidence is re-audited only on copies under `/tmp/claude-501/`, so judging those paths
+  against `run_dir / "workspace"` would put every read of every old run out of arm. The same root
+  goes to `edit_target`, through `audit_events`, which also fixes its misfiling of prose and register
+  edits on a copy. Only the path classification moves. `clone_objects_audit` and `classify_future`
+  still read the files on disk, under `run_dir / "workspace"`.
 
 - [ ] **Step 1: Write the failing tests** (`tests/experiment/test_audit.py`; reuse its imports, and
   add what's missing)
@@ -2003,7 +2012,31 @@ def test_a_workspace_without_a_clone_is_unmeasured_never_clean(tmp_path):
     assert objects["measured"] is False and objects["reason"]
     clean = {"verdict": "clean", "end": "x", "reason": None, "touching": [], "metadata": 0}
     assert with_git_route(clean, objects) == clean
+
+
+def test_a_git_route_keeps_why_the_transcript_was_unmeasured(tmp_path):
+    objects = {"measured": True, "problems": ["origin"], "objects": None, "sealed": None,
+               "reason": None}
+    unmeasured = {"verdict": "unmeasured", "end": None, "reason": "no timeline",
+                  "touching": [], "metadata": 0}
+    touched = with_git_route(unmeasured, objects)
+    assert touched["verdict"] == "touched" and touched["reason"] == "no timeline"
+
+
+def test_a_copied_run_is_judged_against_the_workspace_it_ran_in(tmp_path):
+    """Evidence is audited on copies; its transcript names the original location."""
+    original = Path("/orig/runs/A1/workspace")
+    events = [{"type": "system", "subtype": "init", "cwd": str(original)}]
+    events += _use("Read", {"file_path": str(original / "clone" / "a.py")})
+    copy = tmp_path / "copy" / "runs" / "A1" / "workspace"
+    root = session_workspace(events, copy)
+    assert root == original
+    assert audit_events(events, "A", root)["integrity"] is True
+    assert session_workspace(events[1:], copy) == copy  # no init event: the fallback
 ```
+
+  Add `session_workspace` to the import from `ai_rfc.experiment.audit`, and `from pathlib import
+  Path` if the file doesn't import it.
 
   Then update the existing tests that assert `bash_calls`, `fired_for_every_bash_call` or
   `expected_no_bash` to the new keys. Find them with
@@ -2094,22 +2127,49 @@ def with_git_route(future: dict[str, Any], clone_objects: dict[str, Any]) -> dic
     Returns:
         ``future`` unchanged when the clone has no problem; otherwise a copy
         marked ``touched`` with one more ``touching`` record on route ``git``,
-        whose ``call`` is None because no single call is to blame.
+        whose ``call`` is None because no single call is to blame. A
+        ``reason`` the transcript verdict gave, such as why it was
+        unmeasured, is kept.
     """
     if not clone_objects["problems"]:
         return future
     touching = [*future["touching"], {"call": None, "tool": "git", "route": "git",
                                       "evidence": clone_objects["problems"][:4]}]
-    return {**future, "verdict": "touched", "reason": None, "touching": touching}
+    return {**future, "verdict": "touched", "touching": touching}
+
+
+def session_workspace(events: list[dict[str, Any]], fallback: Path) -> Path:
+    """The workspace a transcript's session ran in, which its paths are relative to.
+
+    The session's working directory is its workspace (``driver.session``
+    launches it with ``cwd=spec.workspace``), and the init event records it. An
+    audit of a copied campaign must judge the transcript's paths against that
+    original location, not against the copy's.
+
+    Args:
+        events: The parsed transcript.
+        fallback: The workspace to use when the transcript records no ``cwd``.
+
+    Returns:
+        The init event's ``cwd``, else ``fallback``.
+    """
+    init = init_event(events) or {}
+    cwd = init.get("cwd")
+    return Path(cwd) if isinstance(cwd, str) and cwd else fallback
 ```
 
+  Add `init_event` to the module's existing import from `ai_rfc.driver.stream`.
+
   **`audit_run`:**
-  - Bind `workspace = run_dir / "workspace"` once, and pass it to `audit_events`.
-  - Compute `clone_objects = clone_objects_audit(workspace)`.
-  - Set `"clone_objects": clone_objects`.
+  - Bind `workspace = run_dir / "workspace"`, the files on disk, and
+    `ran_in = session_workspace(events, workspace)`, where the transcript's paths point.
+  - Pass `ran_in` to `audit_events`.
+  - Compute `clone_objects = clone_objects_audit(workspace)`, and set
+    `"clone_objects": clone_objects`.
   - The measurement plan's `future_material` entry becomes
     `"future_material": with_git_route(classify_future(events, workspace, campaign.window),
-    clone_objects)`.
+    clone_objects)`. It reads the clone on disk; its path matching splits on `/workspace/`, so it
+    doesn't depend on the root.
 
 - [ ] **Step 4: Run** the whole `tests/experiment` directory and see it pass. The audit record's keys
   changed, so any fixture comparison that is exact must be updated in this task.
@@ -2364,6 +2424,14 @@ Spec §8 (the second D-row) and §10.
   already, and the path check can be made conditional on arm C's.
 - **Measured, not assumed:** the `--revision` behaviour (Task 2's preamble) was probed on git 2.55.0
   on 2026-09-22, and research 11's numbers (Task 11 Step 2) are from 2026-09-21.
+- **Audits of copies (found in review, 2026-09-22):** Task 8 judges a transcript's paths against the
+  init event's `cwd`, so re-auditing a copied campaign doesn't put every old read out of arm.
+- **`config` in `REMOTE_GIT` is safe:** the draft repository's identity is repo-local
+  (`lifecycle/workspace.py` `scaffold` sets `user.name`/`user.email`), so refusing `git config`
+  can't strand a prose commit. No arm prompt runs `git config`.
+- **Old transcripts and `guard_stats`:** runs made before Task 7 mounted the guard for Bash only, so
+  a re-audit of one reports `fired_for_every_guarded_call: false`. That's true of those runs, and is
+  why the counts are reported beside the flag.
 - **Python 3.10:** `datetime.fromisoformat` does not read `Z`, so Task 3 replaces it. No nested
   same-quote f-strings.
 - **Unmeasured:** whether the CLI honours an exit-2 block on `Read`, `Grep`, `Glob`, `Edit` and
