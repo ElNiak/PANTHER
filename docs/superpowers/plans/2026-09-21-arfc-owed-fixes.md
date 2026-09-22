@@ -221,8 +221,12 @@ enforces "2 belongs to argparse alone".
 - [ ] **Step 3 — RED for `run`.** A stage stub exiting 2 (monkeypatch `perform`) → `run` returns 1
       with the `argparse alone` line; a stub exiting 3 → `run` returns 3 unchanged.
 - [ ] **Step 4 — implement** the three returns, move the fourteen writes, add the `run` branch.
-- [ ] **Step 5 — docs**: README lines, server README, the docstring. Grep `unusable input` across
-      `ai_rfc/ README.md docs/` → zero hits afterwards.
+- [ ] **Step 5 — docs**: README lines, server README, the docstring, **and the package's
+      exit-code table at `ai_rfc/README.md:161-170`** plus `README.md:166,221` and
+      `docs/parity.md:78,80` (D-14: the phrase grep went to zero while the table still tied 3 to
+      `--strict` and narrowed 1 in paraphrase). Check: the table states the four ruled meanings,
+      and no line in `README.md`, `ai_rfc/server/README.md` or `docs/parity.md` gives 1 a narrower
+      one — pasted, not grepped.
 - [ ] **Step 6 — verify**: `pytest tests/cli tests/substrate tests/driver -n 4`; the three REDs
       green; `test_cli_conventions.py` unchanged. **Check (#19–21):** exit 3 asserted in a test.
       **Check (#22):** the parametrized boundary test. **Check (#23):** both stubs. **Check (#24):**
@@ -586,12 +590,15 @@ would repoint nine correct citations); the CLI-3 plan's survivor line is stale b
 - [ ] **Step 3 (#59, both).** `driver/stop.py`'s `_BOUND_SATISFIED` docstring cites spec D62; the
       spec's D62 parenthetical gains "(the source is `driver/stop.py`'s `_BOUND_SATISFIED`)" —
       **folded into Task 10's single spec diff**; only the code-side pointer lands here.
-- [ ] **Step 4 (#58, PANTHER, gitignored).** Annotate
-      `.superpowers/sdd/2026-09-03-arfc-one-door-cli1/task-3-report.md`'s `git log -S` paragraph
-      (re-locate; `:106-109` has drifted) with "must not be cited later as precedent". No commit —
-      the file is untracked.
-- [ ] **Step 5 — commit**: ai_rfc `docs: name the register each D16 citation belongs to`; PANTHER
-      `docs(ai_rfc): correct the CLI-3 plan's survivor line to metrics.py:187`.
+- [x] **Step 4 (#58, gitignored — D-15: the audit named the wrong report).** The `git log -S`
+      paragraph lives in `<submodule>/.superpowers/sdd/2026-09-10-arfc-one-door-cli2/task-3-report.md`
+      (`:104-117`, the claim at `:108`, never drifted), not in the CLI-1 report, which has none.
+      Annotated in place with why the pickaxe was empty and that it must not be cited as precedent.
+      No commit — the file is gitignored.
+- [x] **Step 5 — commit**: ai_rfc `docs: name the register each D16 citation belongs to` (`ac69e95`); PANTHER
+      `docs(ai_rfc): cite the arm-C comment where Task 7 moved it` (`d679296f9`; the message this
+      step first named, "correct … to metrics.py:187", became false when Task 7 moved the comment
+      to `ai_rfc/driver/coverage.py`, R11.8).
 
 ---
 
@@ -730,3 +737,15 @@ shared worktree).
   register (its disposition policy was executed by ticket 13 — rows above Minor became tickets and
   are in the enumeration); fix `agent/__init__.py:112`'s undetermined `except Exception` (the audit
   ruled it needs a live run); touch any file the peers hold.
+
+---
+
+## Outcome — executed 2026-09-21/22
+
+Every task above ran subagent-driven with a reviewer between tasks and a whole-row review before
+the gate; the deviation log carries D-1 … D-19 and the row outcome with every commit, the suite
+figures and the gate evidence. All 59 enumerated rows are closed (55 landed, 2 measurements, 1
+withdrawn, 1 closed by the map) plus #61 and #62 (its prompt half owed as #62b). Both review
+Criticals downgraded to Important. Part A and Part B of the gate passed; Part B spent $1.40 of
+the $25 ceiling. ai_rfc `main` `3406985..8581e8b`; PANTHER docs commits listed in the outcome.
+Checkboxes above are left as the contract; execution is recorded in the log, not by ticking.
