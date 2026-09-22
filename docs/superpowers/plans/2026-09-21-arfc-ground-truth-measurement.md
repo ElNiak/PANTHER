@@ -74,7 +74,7 @@ there.**
 | `<ai_rfc>/ai_rfc/experiment/cli.py` | The verb's dataset arguments and output; the judge caveat. | 2, 3, 8 |
 | `<ai_rfc>/tests/experiment/test_ground_truth.py`, `test_cli_ground_truth.py`, `test_future.py` (new), `test_audit.py`, `test_metrics.py`, `test_report.py`, `test_cli_judge.py` | Tests | 1–8 |
 | `<ai_rfc>/CONTEXT.md` | **New.** Glossary. | 9 |
-| `<ai_rfc>/docs/experiments/2026-09-18-sp7d-instrument.md` | Correction note. | 9 |
+| `<ai_rfc>/docs/experiments/2026-09-21-sp7d-phase5.md` | **Not written here.** The SP7d Phase 5 write-up carries the recall correction; Task 9 only confirms it landed. The instrument recording is never edited. | 9 |
 | `<wt>/docs/superpowers/specs/2026-09-02-arfc-draft-quality-design.md`, `<wt>/docs/superpowers/plans/2026-09-15-arfc-sp7d-deviations.md` | D-row; deviation entry (PANTHER). | 9 |
 
 ---
@@ -1798,15 +1798,15 @@ Spec §8 and §10.
   - future material, future-free workspace, touched.
 
   It is a glossary only, with no implementation detail.
-- [ ] **Step 2 — `<ai_rfc>/docs/experiments/2026-09-18-sp7d-instrument.md`.** Append a "Correction
-  (2026-09-21)" section:
-  - the 8/35 was a ceiling, because the dataset was anchored at `6d36838` while the window ends at
-    `509065a`;
-  - on the window-anchored dataset, pilot v1 A1/A2 score 11 and 11 of 26, and v2 A1/A2 score 9 and
-    10, all touched through `corpus_query`;
-  - a pointer to the spec.
-- [ ] **Step 3 — commit in ai_rfc** — `docs: name ground truth's terms and correct SP7d's recall
-  reading`, with those two paths.
+- [ ] **Step 2 — SP7d's corrected recall reading is not this plan's to write** (amended
+  2026-09-22). `<ai_rfc>/docs/experiments/2026-09-18-sp7d-instrument.md` is a recording, and it has
+  no ground-truth section to correct: it never mentions recall or 8/35. The 8/35 reading was only
+  ever in the git-ignored SP7d ledger. The correction is published by the SP7d Phase 5 write-up,
+  `<ai_rfc>/docs/experiments/2026-09-21-sp7d-phase5.md`, a new dated file drafted in the ledger.
+  - Confirm it has landed with `git -C <ai_rfc> log --oneline -- docs/experiments/2026-09-21-sp7d-phase5.md`.
+  - If it hasn't, report that. Never edit the instrument doc; `docs/experiments/` recordings are
+    never edited.
+- [ ] **Step 3 — commit in ai_rfc** — `docs: name ground truth's terms`, with `CONTEXT.md` only.
 - [ ] **Step 4 — the D-row (PANTHER).** Find the highest D-number across
   `docs/superpowers/specs/*arfc*` with `grep -ohE '\| D[0-9]+' … | sort -t D -k2 -n | tail -1`.
   Add the next one to the decision table of

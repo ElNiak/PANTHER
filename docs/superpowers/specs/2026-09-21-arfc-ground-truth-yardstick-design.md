@@ -412,9 +412,14 @@ enforcement changes, so the Main Campaign's parity work covers it; that map's se
 
 ## 10. Documents to amend once this lands
 
-- `<ai_rfc>/docs/experiments/2026-09-18-sp7d-instrument.md`: its ground-truth section.
+- SP7d's recall reading. `<ai_rfc>/docs/experiments/2026-09-18-sp7d-instrument.md` is **not**
+  amended: it is a recording, and it holds no ground-truth section. The 8/35 reading was only ever
+  in the git-ignored SP7d ledger. The correction is published by the new dated
+  `<ai_rfc>/docs/experiments/2026-09-21-sp7d-phase5.md` below. (Amended 2026-09-22.)
 - `docs/superpowers/plans/2026-09-15-arfc-sp7d-deviations.md` (PANTHER): a deviation recording R93.
-- The held SP7d Phase 5 write-up, which uses §12's figures and labels.
+- The held SP7d Phase 5 write-up, `<ai_rfc>/docs/experiments/2026-09-21-sp7d-phase5.md`, which uses
+  §12's figures and labels. It is drafted in the SP7d ledger and committed once the owed-fixes row
+  lands.
 - `docs/superpowers/specs/2026-09-02-arfc-draft-quality-design.md`: both D-rows in §8.
 - `<ai_rfc>/ai_rfc/experiment/README.md`: its enforcement section, which describes a guard that
   covers Bash only.
