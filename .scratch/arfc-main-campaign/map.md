@@ -82,6 +82,14 @@ scorer-change spec handed to ai_rfc. Two of its findings bear on this map:
   transcript audit as the backstop. It is handed to ai_rfc through that map and **has not
   landed**. A main campaign cannot freeze with the leak open; see
   [Freeze prompts, pin code, and dry-run](issues/13-freeze-pin-and-dry-run.md).
+- **Its prevention plan was ruled by the user on 2026-09-22 (not yet written).** Its rulings:
+  - `prepare` derives the end commit itself;
+  - forge rows are kept by ancestry (R1);
+  - the guard refuses `Read`/`Grep`/`Glob` outside the workspace for every arm;
+  - object-set assertions run at three points.
+
+  They are recorded in the freeze ticket, and the guard change is item 7 of
+  [Land the arm-parity fixes](issues/19-land-the-arm-parity-fixes.md).
 
 - **MARK has no ground-truth dataset** (that map's rulings of 2026-09-21). A window's ground truth
   is anchored at the window's end and cites the spec version the code declares there. MARK's code
@@ -188,7 +196,10 @@ pre-run → 03 and 13; k and run matrix → 15; reporting commitments → 16.
   - **aioquic w02-31**: 3 merges, 14 epochs, 13 forge squashes, with w02-11 as its prefix;
   - **MARK's full w01-69**: 37 merges and 32 epochs, ending at its clone head.
 
-  Secondary recall is scored at each run's c0011 tag. No window has yet shown non-saturated
+  Secondary recall at each run's c0011 tag was **reopened on 2026-09-22**: clusters inside
+  w02-31 expose it, and nothing scores at a tag. See
+  [How is aioquic's secondary recall measured](issues/21-how-is-aioquic-secondary-recall-measured.md).
+  No window has yet shown non-saturated
   completion, which the validation pilot checks. Rough cost: about $2,400 at k = 3 and $4,000 at
   k = 5; MARK is about $350 and 15 h per run.
 

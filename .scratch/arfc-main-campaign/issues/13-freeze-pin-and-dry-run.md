@@ -3,7 +3,7 @@
 Type: task (AFK)
 Status: open
 Claimed: —
-Blocked by: [Rule each arm asymmetry](04-rule-each-arm-asymmetry.md), [Has the owed-fixes row landed](05-has-the-owed-fixes-row-landed.md), [Close the guard tamper hole](06-close-the-guard-tamper-hole.md), [Which model, CLI and code pin](09-which-model-cli-and-code-pin.md), [Which task list per target](12-which-task-list-per-target.md), [Land the fault, retry and exclusion rules](18-land-the-fault-retry-and-exclusion-rules.md), [Land the arm-parity fixes](19-land-the-arm-parity-fixes.md), [Land the record-before-tag fix (R91/R92)](20-land-the-record-before-tag-fix.md)
+Blocked by: [Rule each arm asymmetry](04-rule-each-arm-asymmetry.md), [Has the owed-fixes row landed](05-has-the-owed-fixes-row-landed.md), [Close the guard tamper hole](06-close-the-guard-tamper-hole.md), [Which model, CLI and code pin](09-which-model-cli-and-code-pin.md), [Which task list per target](12-which-task-list-per-target.md), [Land the fault, retry and exclusion rules](18-land-the-fault-retry-and-exclusion-rules.md), [Land the arm-parity fixes](19-land-the-arm-parity-fixes.md), [Land the record-before-tag fix (R91/R92)](20-land-the-record-before-tag-fix.md), [How is aioquic's secondary recall measured](21-how-is-aioquic-secondary-recall-measured.md)
 Parent: [ai_rfc Main Campaign, Ready to Launch](../map.md)
 
 ## Question
@@ -66,7 +66,25 @@ that landed by then, clones with `--no-local --revision=<end>`, removes `origin`
 object set. Its research ticket measured this offline for w02-11: clusters c0001–c0011 stayed
 byte-equal, and the clone held only the 3,624 objects reachable from the end. Absolute paths to
 repositories outside the workspace stay reachable, hence the audit. The fix is handed to ai_rfc
-through that map's scorer and dataset hand-off ticket, and **has not landed**. No run has used
+through that map's scorer and dataset hand-off ticket, and **has not landed**.
+
+**That map's prevention-plan rulings (user, 2026-09-22; relayed by `build-w02-11-dataset-handoff`;
+the plan itself is not written yet):**
+- `workspace prepare` **derives the end commit itself**; no operator names a pin. It asserts that
+  timeline rows 1..H are byte-equal to a full-history pass.
+- Forge rows follow **R1**: a merged pull is kept only if its landing commit is an ancestor of the
+  end.
+- **The PreToolUse guard also refuses `Read`/`Grep`/`Glob` paths outside the run's workspace, for
+  every arm**, and arm-C `git` naming another repository. Arm C is not in this campaign. The
+  refusal changes arm enforcement, so
+  [Land the arm-parity fixes](19-land-the-arm-parity-fixes.md) and this ticket's S0 and preflight
+  denial control must cover it.
+- `prepare`, `copy_workspace` and the post-run audit each assert that the stored git objects equal
+  those reachable from HEAD.
+
+So the w02-31 pristine above comes from the landed `prepare`, which derives the end at c0031's
+last member. Its clusters c0020 and c0021 stay in the window by design; see
+[How is aioquic's secondary recall measured](21-how-is-aioquic-secondary-recall-measured.md). No run has used
 any route so far. **This ticket does not freeze until that fix has landed in the pinned code and
 the audit backstop exists**, or the user rules the leak acceptable and disclosed.
 

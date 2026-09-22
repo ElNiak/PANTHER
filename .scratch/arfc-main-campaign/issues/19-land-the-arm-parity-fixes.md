@@ -47,6 +47,14 @@ Execution is carried (map Notes). ai_rfc code lands RED-test first, committed by
    campaign's `bin/ai-rfc` shim in a subprocess, for claim upsert with anchors, structure upsert
    and revision tag.
 
+7. **The guard's widened scope**, added on 2026-09-22. The Ground-Truth Yardstick map's
+   prevention plan (ruled by the user; not landed; see
+   [Freeze prompts, pin code, and dry-run](13-freeze-pin-and-dry-run.md)) makes the PreToolUse
+   guard refuse `Read`/`Grep`/`Glob` paths outside the run's workspace for every arm. **If it
+   lands before this ticket**, add a parity twin that pins that refusal identically for arms A and
+   B. Also check that neither arm's prompt or skill points it at a path the guard now refuses. If
+   it lands after, record here which ticket carries the twin.
+
 **Done when**: each item has a RED-then-GREEN test; the full ai_rfc suite passes (report
 collected, passed, failed and skipped separately); and a re-rendered prompt diff shows only
 invocation syntax between arms A and B.

@@ -67,6 +67,11 @@ recommendation.
 - **Secondary reachable recall** (aioquic only) is scored on each run's draft **at its c0011
   revision tag**, against the Ground-Truth Yardstick map's w02-11 dataset (anchored `509065a`).
   It covers the first 10 clusters, and says so.
+  **Superseded in part on 2026-09-22.** Clusters c0020 and c0021, inside w02-31, move 17 of the
+  dataset's 26 scored facts to draft-23 values, and a run at its c0011 tag can read them. Nothing
+  scores at a tag either. The question is reopened as
+  [How is aioquic's secondary recall measured](21-how-is-aioquic-secondary-recall-measured.md).
+  The window rulings above stand.
 
 **Consequences, decided elsewhere:**
 - The validation pilot checks that completion is not saturated; if it is, the hypotheses ticket
