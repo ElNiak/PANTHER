@@ -309,7 +309,9 @@ window".)
   differ from the end;
 - check the run's clone for git honesty (§7.1). A clone that stores an object HEAD doesn't reach,
   or that has gained a remote or alternates, makes the run **touched** through route 5, with the
-  problems as its evidence;
+  problems as its evidence. "Gained" is measured against the object set its pristine sealed. A run
+  whose pristine sealed none predates the cut, so its remote and objects may be inherited: route 5
+  is **unmeasured** for it, never touched (plan review, 2026-09-22);
 - emit a per-run verdict, **clean** or **touched**, with the evidence.
 
 "Touched" means future **content** reached the model; a bare file name in a listing doesn't count

@@ -65,7 +65,11 @@ Path shorthands:
   Cloning from `<evidence>/clone` with `--no-local` only reads it, and so does copying a pristine to
   `/tmp`.
 - **The end commit is derived, never typed.**
-  - A pin is a branch, a tag or a full commit id. An abbreviated id is refused.
+  - A pin is a branch, a lightweight tag or a full commit id. An abbreviated id is refused.
+    `--revision=<annotated tag>` also stores the tag object, which HEAD doesn't reach, so
+    `clone_object_problems` reports that clone. Pass 2 always pins a full sha, so a prepared
+    pristine never has the problem. Say so in `acquire`'s and `clone_object_problems`'
+    docstrings (plan review 2026-09-22, I1).
   - `--depth` is never used, because the substrate refuses shallow clones.
   - There is no fallback for a git older than 2.49.
 - **Unmeasured is never zero:** a check that could not run says so (`measured: false` plus a
@@ -233,7 +237,9 @@ def test_the_object_record_is_stable_and_counts_what_is_stored(source, tmp_path)
   'clone_object_problems'`.
 
 - [ ] **Step 3: Implement** in `ai_rfc/lifecycle/workspace.py`, after `verify_digest`. `hashlib` is
-  already imported there for `_digests`; if it isn't, import it.
+  already imported there for `_digests`. `typing.Any` is **not**: add `from typing import Any`.
+  `from __future__ import annotations` would let the code run without it, but flake8 (F821) and
+  mypy flag the name.
 
 ```python
 def _stored_objects(clone: Path) -> set[str]:
@@ -1040,7 +1046,7 @@ def test_prepare_refuses_a_cut_that_changes_a_kept_cluster(
 - [ ] **Step 3: Implement.** In `ai_rfc/experiment/workspace.py`:
 
   **3a. Imports.** Add `dataclasses`, `tempfile`, `from dataclasses import dataclass`, `from datetime
-  import datetime` and `from typing import Any` (keep `Iterable`). Then add:
+  import datetime, timezone` and `from typing import Any` (keep `Iterable`). Then add:
   - `from ai_rfc.forge.cut import SnapshotCut, cut_snapshot`;
   - `from ai_rfc.forge.store import ForgeError`;
   - `from ai_rfc.timeline.corpus import read_commits`;
@@ -1160,8 +1166,11 @@ def resolve_cut(
         )
 
     ancestors = frozenset(_git_checked(full.clone, "rev-list", end).split())
-    end_time = datetime.fromisoformat(
-        _git_checked(full.clone, "log", "-1", "--format=%cI", end)
+    # Epoch seconds, not %cI: git prints a UTC date as "...Z", which Python
+    # 3.10's fromisoformat refuses, and every suite fixture commits at +00:00
+    # (plan review 2026-09-22, C1).
+    end_time = datetime.fromtimestamp(
+        int(_git_checked(full.clone, "log", "-1", "--format=%ct", end)), tz=timezone.utc
     )
     # Cut from the operator's own capture when there is one, so derived_from
     # names a snapshot that outlives this call and whose meta can be re-hashed.
@@ -1307,15 +1316,31 @@ def _assert_the_cut(layout: Layout, cut: WindowCut) -> None:
   stdout. That test's window is [2, 2] over two clusters, and it adopts no snapshot, so no `forge:`
   line appears.
 
+  Two more tests reach this print through a fake, and would raise `KeyError`: `run` catches only
+  `ExperimentError`, `DriverError` and `OSError` (plan review 2026-09-22, W1). In
+  `tests/experiment/test_cli_campaign.py`,
+  `test_a_window_override_reaches_the_config_prepare_builds` (~:307) and
+  `test_without_the_override_the_configs_own_window_is_used` (~:336) monkeypatch
+  `prepare_workspace`. Their fakes write a `pristine.json` with only `cluster_count`, `pre_seeded`
+  and `window`. Add
+  `"cut": {"operator_pin": "x", "resolved_pin": "x", "end": "x", "top_cluster": "c0001-x", "cut": False, "forge": None}`
+  to both fakes' records.
+
 - [ ] **Step 5: Run** `tests/experiment/test_prepare_cut.py tests/experiment/test_workspace.py
-  tests/experiment/optimize` and see them pass. The existing prepare tests must still pass
-  unchanged: `test_prepare_adopts_captured_forge_data_instead_of_fetching_it` keeps its snapshot
-  name and `acquisition: adopt`, and `test_prepare_refuses_a_timeline_that_clustered_nothing` still
-  finds "no clusters", now raised by `resolve_cut`.
+  tests/experiment/test_cli_campaign.py tests/experiment/optimize` and see them pass. The existing
+  prepare tests must still pass unchanged:
+  - `test_prepare_adopts_captured_forge_data_instead_of_fetching_it` keeps its snapshot name and
+    `acquisition: adopt`;
+  - `test_prepare_refuses_a_timeline_that_clustered_nothing` still finds "no clusters", now raised
+    by `resolve_cut`.
+
+  Every fixture commits at `+00:00`, so these runs also exercise the UTC end time that `%ct`
+  handles.
 
 - [ ] **Step 6: Commit**: `feat(experiment): build a windowed pristine at its window's end and
   prove the cut kept the window`, with `ai_rfc/experiment/workspace.py ai_rfc/experiment/cli.py
-  tests/experiment/test_prepare_cut.py tests/experiment/test_workspace.py`.
+  tests/experiment/test_prepare_cut.py tests/experiment/test_workspace.py
+  tests/experiment/test_cli_campaign.py`.
 
 ## Task 5: `copy_workspace` and `reseal` refuse a clone past its pin
 
@@ -1549,6 +1574,21 @@ mounted with `matcher: "Bash"` only, and takes the prefixes as its whole argv.
   `GUARDED_TOOLS`. One entry per tool, rather than a regex matcher, so nothing rests on how the CLI
   reads matcher patterns.
 
+- [ ] **Step 0: Does the CLI make the model `Read` outside the workspace on its own?** This is
+  $0 and read-only (plan review 2026-09-22, W6, unverified). Recent Claude Code versions may write
+  an oversized tool result to a file under the CLI's config directory, then tell the model to
+  `Read` it. In a campaign, that directory is the profile (`CLAUDE_CONFIG_DIR`), which is outside
+  the workspace, so the guard would refuse the read and the model would lose the result. Check the
+  real transcripts:
+  - `grep -o '"file_path":"[^"]*"' ~/ai-rfc-experiments/campaigns/*/runs/*/events.jsonl | grep -v
+    '/workspace/' | sort | uniq -c | sort -rn | head`;
+  - the same over `appended.jsonl`.
+
+  If any `Read` targets a path under the profile or the CLI's config directory (a `tool-results`
+  or `projects/…` path, say), **stop and ask the user** whether the guard allows the session's own
+  spill directory. Report the paths and their counts. If there are none, record "no spill reads in
+  N transcripts" in the deviation log and carry on.
+
 - [ ] **Step 1: Write the failing tests** (`tests/driver/test_enforcement.py`).
   - Update the helpers: `_run_guard_raw(payload, *argv)` passes argv through unchanged, and
     `_run_guard(command, *prefixes, workspace=_WORKSPACE)` sends
@@ -1558,7 +1598,11 @@ mounted with `matcher: "Bash"` only, and takes the prefixes as its whole argv.
     `list(GUARDED_TOOLS)`, and every entry carries the same command.
   - Update `test_a_path_with_a_space_still_reaches_the_guard_as_one_argument`: it now expects
     `[python, str(guard), str(workspace), "ai-rfc "]`.
-  - Every `render_settings(...)` call in the file gains `workspace=Path("/w")`.
+  - Update `test_a_prefix_needing_both_quote_kinds_is_quoted_for_the_shell`: its
+    `_hook_command(...)` call gains `workspace=Path("/w")`, and the expected argv becomes
+    `["/p", "/g", "/w", prefix]` (plan review 2026-09-22, W3).
+  - Every `render_settings(...)` call in the file, including those made through `_hook_command`,
+    gains `workspace=Path("/w")`.
   - Then add:
 
 ```python
@@ -1649,6 +1693,18 @@ def test_dev_null_is_not_a_path_outside(ws):
     assert outside_paths("git -C clone log 2>/dev/null", ws) == []
 
 
+@pytest.mark.parametrize(
+    "command",
+    [
+        "sqlite3 corpus/index.sqlite 'SELECT count(*) / 2 FROM commits'",
+        "sqlite3 corpus/index.sqlite \"SELECT sha FROM commits WHERE subject LIKE '%http://%'\"",
+    ],
+)
+def test_a_slash_in_sql_is_not_a_path(ws, command):
+    # A division or a URL fragment in a query names no file (plan review 2026-09-22, W5).
+    assert refusal("Bash", {"command": command}, C, ws) is None
+
+
 @pytest.mark.parametrize("sub", sorted(REMOTE_GIT))
 def test_a_git_subcommand_that_reaches_another_repository_is_refused(ws, sub):
     assert "reaches another repository" in refusal(
@@ -1707,8 +1763,10 @@ _PATTERN_KEYS = frozenset({"pattern", "glob"})
 #: Outside every workspace, and still no route to a repository.
 _HARMLESS_OUTSIDE = frozenset({"/dev/null"})
 #: An absolute, home-relative or climbing path inside a longer word: a SQL
-#: string's ATTACH target, a redirect's file, an option's value, a URL's host.
-_EMBEDDED_PATH = re.compile(r"(?:^|(?<=[\s'\"=:,(<>]))(?:~|\.\.|/)[^\s'\",;)]*")
+#: string's ATTACH target, a redirect's file, an option's value. A leading "/"
+#: counts only when a name character follows it, so a division ("/ 2") or a
+#: URL fragment in a LIKE pattern ("//%") is not read as a path.
+_EMBEDDED_PATH = re.compile(r"(?:^|(?<=[\s'\"=:,(<>]))(?:~|\.\.|/(?=[\w.~-]))[^\s'\",;)]*")
 
 
 def _inside(candidate: str, workspace: Path) -> bool:
@@ -1907,8 +1965,10 @@ Spec §7.3 (prevention half) and §7.4, last paragraph.
 
 **Files:**
 - Modify: `ai_rfc/experiment/audit.py` (`in_arm`, `audit_events`, `guard_stats`, `audit_run`; add
-  `clone_objects_audit`, `with_git_route`)
-- Test: `tests/experiment/test_audit.py`
+  `clone_objects_audit`, `with_git_route`, `session_workspace`)
+- Test: `tests/experiment/test_audit.py`, `tests/driver/test_enforcement_corpus.py`. The corpus
+  test calls `in_arm` with four arguments at :141 and :183, about 97 parametrized cases (plan
+  review 2026-09-22, W2).
 
 **Interfaces:**
 - Consumes: `refusal`, `GUARDED_TOOLS` (Task 7); `clone_object_problems`, `clone_object_record`
@@ -1923,7 +1983,14 @@ Spec §7.3 (prevention half) and §7.4, last paragraph.
 - Produces: `session_workspace(events: list[dict], fallback: Path) -> Path`, the directory the
   session actually ran in. It is the init event's `cwd`, or `fallback` when the transcript has none.
 - The audit record gains `clone_objects`. `future_material` becomes `touched`, through the `git`
-  route, when the clone has problems.
+  route, only when the clone **gained** history after its pristine was sealed. Spec §7.3 says
+  "gained".
+  - A run whose pristine records no `clone_objects` predates this plan. Its `origin` remote and
+    past-the-end objects were **inherited**, and cannot be told from gained ones.
+  - So route 5 is **unmeasured** for such a run, with that reason. Its problems are still listed,
+    and the verdict is not touched (plan review 2026-09-22, W4).
+  - Without this, every re-audit of an old run would turn touched, and the measurement plan's
+    acceptance counts (2 and 6) would each grow by one.
 - **Paths are judged against the workspace the session ran in, not the directory being audited.**
   A transcript records the absolute paths the model typed, which name the run's **original**
   location. Evidence is re-audited only on copies under `/tmp/claude-501/`, so judging those paths
@@ -1987,7 +2054,9 @@ def test_guard_stats_counts_every_guarded_call():
     assert stats["fired_for_every_guarded_call"] is False  # no hook events in this transcript
 
 
-def test_a_clone_that_gained_history_touches_through_route_five(tmp_path):
+def _sealed_clone(tmp_path: Path, *, seal: bool) -> Path:
+    """A one-commit clone, its object set sealed into pristine.json when ``seal``."""
+    from ai_rfc.lifecycle.workspace import RECORD_FILE, clone_object_record
     from ai_rfc.server.testing import git
 
     ws = tmp_path / "workspace"
@@ -1997,14 +2066,36 @@ def test_a_clone_that_gained_history_touches_through_route_five(tmp_path):
     (clone / "a").write_text("a\n")
     git(clone, "add", "a")
     git(clone, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "a")
-    git(clone, "remote", "add", "origin", str(tmp_path))
+    if seal:
+        (ws / RECORD_FILE).write_text(
+            json.dumps({"clone_objects": clone_object_record(clone)}) + "\n"
+        )
+    return ws
+
+
+CLEAN = {"verdict": "clean", "end": "x", "reason": None, "touching": [], "metadata": 0}
+
+
+def test_a_clone_that_gained_history_touches_through_route_five(tmp_path):
+    from ai_rfc.server.testing import git
+
+    ws = _sealed_clone(tmp_path, seal=True)
+    git(ws / "clone", "remote", "add", "origin", str(tmp_path))  # gained after the seal
     objects = clone_objects_audit(ws)
     assert objects["measured"] is True and objects["problems"]
-    future = with_git_route(
-        {"verdict": "clean", "end": "x", "reason": None, "touching": [], "metadata": 0}, objects
-    )
+    future = with_git_route(CLEAN, objects)
     assert future["verdict"] == "touched"
     assert future["touching"][-1]["route"] == "git"
+
+
+def test_history_inherited_from_an_unsealed_pristine_is_unmeasured_not_touched(tmp_path):
+    from ai_rfc.server.testing import git
+
+    ws = _sealed_clone(tmp_path, seal=False)
+    git(ws / "clone", "remote", "add", "origin", str(tmp_path))  # every old pristine has one
+    objects = clone_objects_audit(ws)
+    assert objects["measured"] is False and objects["problems"] and objects["reason"]
+    assert with_git_route(CLEAN, objects) == CLEAN
 
 
 def test_a_workspace_without_a_clone_is_unmeasured_never_clean(tmp_path):
@@ -2035,12 +2126,25 @@ def test_a_copied_run_is_judged_against_the_workspace_it_ran_in(tmp_path):
     assert session_workspace(events[1:], copy) == copy  # no init event: the fallback
 ```
 
-  Add `session_workspace` to the import from `ai_rfc.experiment.audit`, and `from pathlib import
-  Path` if the file doesn't import it.
+  Add `session_workspace` to the import from `ai_rfc.experiment.audit`, plus `from pathlib import
+  Path` and `import json` if the file lacks them.
 
   Then update the existing tests that assert `bash_calls`, `fired_for_every_bash_call` or
-  `expected_no_bash` to the new keys. Find them with
+  `expected_no_bash`. Find them with
   `grep -n "bash_calls\|fired_for_every\|expected_no_bash" tests/experiment/test_audit.py`.
+  - `bash_calls` becomes `guarded_calls`, and `fired_for_every_bash_call` becomes
+    `fired_for_every_guarded_call`.
+  - `expected_no_bash` has **no successor** (plan review 2026-09-22, I3). Delete its assertions (at
+    :259 in the full-campaign test and at :333-336 at `de77863`).
+  - `test_guard_stats_treats_arm_a_silence_as_the_expected_state` rests on a premise that no longer
+    holds: arm A's `Read` and `Edit` calls are guarded now. Rewrite it as
+    `test_an_arm_a_transcript_counts_its_file_tool_calls_as_guarded`: arm A's file-tool calls with no
+    hook events give `guarded_calls > 0` and `fired_for_every_guarded_call` false.
+
+  In `tests/driver/test_enforcement_corpus.py`, the two `in_arm("Bash", {...}, bash_surface(command),
+  arm)` calls (:141, :183) gain a fifth argument, `Path("/w")`: the constructed cases use
+  `git -C /w/clone`. Agreement survives, because no current arm allows any of the 31 B1 commands.
+  Where the test compares `in_arm` with `is_allowed`, compare it with `refusal(...) is None` too.
 
 - [ ] **Step 2: Run them and see them fail**, with an `ImportError` on `clone_objects_audit`.
 
@@ -2108,7 +2212,14 @@ def clone_objects_audit(workspace: Path) -> dict[str, Any]:
                 "reason": str(error)}
     record = workspace / RECORD_FILE
     sealed = json.loads(record.read_text()).get("clone_objects") if record.exists() else None
-    if sealed is not None and sealed != objects:
+    if sealed is None:
+        # Spec §7.3 counts history a run GAINED. A pristine that sealed no object
+        # set predates the cut: its remote and past-the-end objects were inherited,
+        # and nothing here can tell them from gained ones.
+        return {"measured": False, "problems": problems, "objects": objects, "sealed": None,
+                "reason": "the pristine sealed no object set, so history the run inherited "
+                          "cannot be told from history it gained"}
+    if sealed != objects:
         problems.append(
             f"the clone's {objects['count']} stored object(s) differ from the "
             f"{sealed['count']} its pristine sealed"
@@ -2125,13 +2236,13 @@ def with_git_route(future: dict[str, Any], clone_objects: dict[str, Any]) -> dic
         clone_objects: :func:`clone_objects_audit`'s record.
 
     Returns:
-        ``future`` unchanged when the clone has no problem; otherwise a copy
-        marked ``touched`` with one more ``touching`` record on route ``git``,
-        whose ``call`` is None because no single call is to blame. A
-        ``reason`` the transcript verdict gave, such as why it was
-        unmeasured, is kept.
+        ``future`` unchanged when the clone check is unmeasured or found no
+        problem; otherwise a copy marked ``touched`` with one more
+        ``touching`` record on route ``git``, whose ``call`` is None because
+        no single call is to blame. A ``reason`` the transcript verdict gave,
+        such as why it was unmeasured, is kept.
     """
-    if not clone_objects["problems"]:
+    if not clone_objects["measured"] or not clone_objects["problems"]:
         return future
     touching = [*future["touching"], {"call": None, "tool": "git", "route": "git",
                                       "evidence": clone_objects["problems"][:4]}]
@@ -2171,11 +2282,13 @@ def session_workspace(events: list[dict[str, Any]], fallback: Path) -> Path:
     clone_objects)`. It reads the clone on disk; its path matching splits on `/workspace/`, so it
     doesn't depend on the root.
 
-- [ ] **Step 4: Run** the whole `tests/experiment` directory and see it pass. The audit record's keys
-  changed, so any fixture comparison that is exact must be updated in this task.
+- [ ] **Step 4: Run** the whole `tests/experiment` directory and `tests/driver`, and see them pass.
+  The audit record's keys changed, so any fixture comparison that is exact must be updated in this
+  task.
 
 - [ ] **Step 5: Commit**: `feat(experiment): audit every guarded call with the guard's own verdict
-  and check the run's clone`, with `ai_rfc/experiment/audit.py tests/experiment/test_audit.py`.
+  and check the run's clone`, with `ai_rfc/experiment/audit.py tests/experiment/test_audit.py
+  tests/driver/test_enforcement_corpus.py`.
 
 ## Task 9: Preflight measures the read block
 
@@ -2361,8 +2474,11 @@ Spec §8 (the second D-row) and §10.
   --forge-snapshot ~/ai-rfc-experiments/pristine/aioquic-w02-11/forge/github.com__aiortc__aioquic/snapshot-2026-08-25T15-16-59Z
 ```
 
-  **Expected**, as research 11 measured on 2026-09-21:
-  - `11 clusters (5 pr, 6 epoch) over 588 commits`;
+  **Expected**, as research 11 measured on 2026-09-21. `prepare` now runs history and timeline twice,
+  so stderr prints **two** cluster-count notes: first the resolution pass's full-history count
+  (342 clusters), then pass 2's. Read the second one. Pass 1 also clones the full history into the
+  system temporary directory, where it is removed afterwards.
+  - `11 clusters (5 pr, 6 epoch) over 588 commits` (pass 2's note);
   - `clusters: 11  pre-seeded: 1  window: [2, 11]`;
   - `cut: 509065ad2fe02d5ecbf335bdab06c7717fb510ca after c0011-epoch-d290ebea69fd`;
   - in `pristine.json`: `cut.forge.pulls_kept == [19, 22, 23, 24, 25]` and
@@ -2432,7 +2548,25 @@ Spec §8 (the second D-row) and §10.
 - **Old transcripts and `guard_stats`:** runs made before Task 7 mounted the guard for Bash only, so
   a re-audit of one reports `fired_for_every_guarded_call: false`. That's true of those runs, and is
   why the counts are reported beside the flag.
-- **Python 3.10:** `datetime.fromisoformat` does not read `Z`, so Task 3 replaces it. No nested
-  same-quote f-strings.
+- **Python 3.10:** `datetime.fromisoformat` does not read `Z`. Task 3's `_dated_by` replaces it,
+  and Task 4 reads the end's time as epoch seconds (`%ct`), because git prints a UTC date as `…Z`.
+  No nested same-quote f-strings.
+- **Plan review, 2026-09-22.** A read-only reviewer checked every claim against ai_rfc
+  `112835d` (code as `de77863`) and rebuilt Task 4's fixture in `$TMPDIR`. Fixed above:
+  - C1: `resolve_cut`'s `%cI` crash on UTC end commits. Task 11 alone would have hidden it, because
+    `509065a` is +02:00.
+  - W1: the two `test_cli_campaign.py` fakes.
+  - W2: `test_enforcement_corpus.py`'s four-argument `in_arm`.
+  - W3: the quote-kinds argv test.
+  - W4: route 5 counts only history a run gained. An unsealed pristine is unmeasured.
+  - W5: SQL division and URL fragments are not paths. The amended regex was re-run over every
+    test command: 8 refused, 7 passing, all as expected.
+  - W6: a first step checks old transcripts for CLI spill-file reads.
+  - I1: annotated tags. I2: `typing.Any`. I3: `expected_no_bash`. I5: the two cluster-count
+    notes.
+
+  Left as noted: the sealed pin is the end sha, so an operator's original `recon.yaml` pointed at a
+  pristine meets "config drift refused" (I6). Prepare configs name another workspace, so this is
+  unlikely.
 - **Unmeasured:** whether the CLI honours an exit-2 block on `Read`, `Grep`, `Glob`, `Edit` and
   `Write`. Task 9 builds the check, and Task 11 Step 6 runs it with the user's approval.
