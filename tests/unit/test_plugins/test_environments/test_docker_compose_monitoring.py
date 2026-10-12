@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
+from panther.core.test_cases.execution import test_executor as _executor_mod
 from panther.plugins.environments.config_schema import EnvironmentConfig
 from panther.plugins.environments.network_environment.base_environment_monitor import (
     ServiceHealthState,
@@ -20,6 +21,8 @@ from panther.plugins.environments.network_environment.docker_compose.background_
 from panther.plugins.environments.network_environment.docker_compose.docker_compose import (
     DockerComposeEnvironment,
 )
+
+pytestmark = pytest.mark.unit
 
 
 class TestBackgroundServiceMonitor:
@@ -382,3 +385,184 @@ class TestDockerComposeEnvironmentMonitoring:
 
         # Check should_terminate_early
         assert docker_env.should_terminate_early() is True
+
+    def test_monitor_is_told_which_services_are_testers(self, docker_env):
+        """Only the services whose manager answers is_tester() are passed as testers."""
+        tester = Mock(service_name="ivy_tester")
+        tester.is_tester = Mock(return_value=True)
+        iut = Mock(service_name="frr_server")
+        iut.is_tester = Mock(return_value=False)
+        docker_env.services_managers = [tester, iut]
+        docker_env.config = Mock()
+        docker_env.background_monitor = None
+
+        with patch.object(_dc_mod, "BackgroundServiceMonitor") as monitor_cls:
+            docker_env._start_background_monitoring_after_deployment()
+
+        kwargs = monitor_cls.call_args.kwargs
+        assert kwargs["services"] == ["ivy_tester", "frr_server"]
+        assert kwargs["testers"] == ["ivy_tester"]
+        monitor_cls.return_value.start_monitoring.assert_called_once()
+
+
+def _docker_stub(stopped):
+    """Build an execute_docker_command stand-in.
+
+    Args:
+        stopped: Container name -> the ``inspect`` output (status and exit code)
+            of a container that is no longer running; every other container runs.
+
+    Returns:
+        A callable with execute_docker_command's signature.
+    """
+
+    def run(docker_args, check=False, timeout=None):
+        result = Mock()
+        if docker_args[0] == "ps":
+            # Matches both the anchored name and the legacy <network>_<name>_1 form
+            running = not any(name in docker_args[-1] for name in stopped)
+            result.stdout = "container_id\n" if running else ""
+        else:
+            result.stdout = (
+                f"{stopped[docker_args[-1]]}\n" if docker_args[-1] in stopped else ""
+            )
+        return result
+
+    return run
+
+
+class TestTesterExitEndsTheWait:
+    """A tester's exit ends the wait as a completion; any other exit is a failure."""
+
+    @pytest.fixture
+    def config(self):
+        """Monitoring configuration with a threshold above one check."""
+        config = Mock(spec=EnvironmentConfig)
+        config.monitoring_interval_seconds = 0.05
+        config.failure_threshold_count = 3
+        config.critical_services = []
+        config.allow_partial_deployment = False
+        return config
+
+    @pytest.fixture
+    def env(self):
+        """A Docker Compose environment double."""
+        env = Mock(spec=DockerComposeEnvironment)
+        env.logger = Mock()
+        env.env_name = "test-env"
+        env.network_name = "test-net"
+        env.request_early_termination = Mock()
+        return env
+
+    def test_tester_exit_ends_the_wait_at_the_first_check(self, env, config):
+        """An exited tester requests the end at once, with its exit code and no failure."""
+        env.execute_docker_command = Mock(
+            side_effect=_docker_stub({"ivy_tester": "exited 0"})
+        )
+        monitor = BackgroundServiceMonitor(
+            env, ["ivy_tester", "frr_server"], config, testers=["ivy_tester"]
+        )
+
+        monitor._check_health()
+
+        env.request_early_termination.assert_called_once()
+        reason, details = env.request_early_termination.call_args[0]
+        assert reason == "Tester 'ivy_tester' exited (code 0)"
+        assert details["tester"] == "ivy_tester"
+        assert details["exit_code"] == 0
+        assert monitor.failure_counts["ivy_tester"] == 0
+        assert monitor.service_states["ivy_tester"] != ServiceHealthState.FAILED
+        assert monitor.monitoring_active is False
+        env.logger.error.assert_not_called()
+
+    def test_iut_exit_keeps_the_failure_path(self, env, config):
+        """An exited IUT is counted as a failure and does not end the wait at once."""
+        env.execute_docker_command = Mock(
+            side_effect=_docker_stub({"frr_server": "exited 1"})
+        )
+        monitor = BackgroundServiceMonitor(
+            env, ["ivy_tester", "frr_server"], config, testers=["ivy_tester"]
+        )
+
+        monitor._check_health()
+
+        env.request_early_termination.assert_not_called()
+        assert monitor.failure_counts["frr_server"] == 1
+        assert monitor.service_states["frr_server"] == ServiceHealthState.FAILING
+
+    @pytest.mark.parametrize("inspect_output", ["created 0", "restarting 1"])
+    def test_tester_not_running_but_not_exited_keeps_the_failure_path(
+        self, env, config, inspect_output
+    ):
+        """A tester that is not running but has not exited is counted as a failure."""
+        env.execute_docker_command = Mock(
+            side_effect=_docker_stub({"ivy_tester": inspect_output})
+        )
+        monitor = BackgroundServiceMonitor(
+            env, ["ivy_tester"], config, testers=["ivy_tester"]
+        )
+
+        monitor._check_health()
+
+        env.request_early_termination.assert_not_called()
+        assert monitor.failure_counts["ivy_tester"] == 1
+
+    def test_tester_with_no_container_keeps_the_failure_path(self, env, config):
+        """A tester whose state cannot be read is counted as a failure."""
+
+        def run(docker_args, check=False, timeout=None):
+            return Mock(stdout="")
+
+        env.execute_docker_command = Mock(side_effect=run)
+        monitor = BackgroundServiceMonitor(
+            env, ["ivy_tester"], config, testers=["ivy_tester"]
+        )
+
+        monitor._check_health()
+
+        env.request_early_termination.assert_not_called()
+        assert monitor.failure_counts["ivy_tester"] == 1
+
+    def test_long_wait_ends_within_one_slice_of_the_tester_exit(self, config):
+        """The executor's wait ends one slice after a running monitor sees the exit."""
+
+        class ClockedEnvironment:
+            """An environment whose tester container exits at a set time."""
+
+            logger = Mock()
+            env_name = "clocked"
+            network_name = "clocked-net"
+
+            def __init__(self, tester_exits_after):
+                self.exit_at = time.monotonic() + tester_exits_after
+                self.reasons = []
+
+            def execute_docker_command(self, docker_args, check=False, timeout=None):
+                exited = time.monotonic() >= self.exit_at
+                state = {"ivy_tester": "exited 0"} if exited else {}
+                return _docker_stub(state)(docker_args, check, timeout)
+
+            def request_early_termination(self, reason, details=None):
+                self.reasons.append(reason)
+
+            def should_terminate_early(self):
+                return bool(self.reasons)
+
+        env = ClockedEnvironment(tester_exits_after=0.3)
+        monitor = BackgroundServiceMonitor(
+            env, ["ivy_tester"], config, testers=["ivy_tester"]
+        )
+        test_case = Mock()
+        test_case.environment_plugin_manager = [env]
+        executor = _executor_mod.TestExecutor(test_case)
+
+        monitor.start_monitoring()
+        started = time.monotonic()
+        try:
+            executor._check_early_exit({"type": "wait", "duration": 30}, None)
+        finally:
+            monitor.stop_monitoring()
+        elapsed = time.monotonic() - started
+
+        assert env.reasons == ["Tester 'ivy_tester' exited (code 0)"]
+        assert elapsed < 0.3 + 1.0 + 0.7  # the exit, one slice, scheduling slack

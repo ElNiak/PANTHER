@@ -845,6 +845,9 @@ class DockerComposeEnvironment(
                 docker_compose_env=self,
                 services=[sm.service_name for sm in self.services_managers],
                 config=self.config.network_environment,
+                testers=[
+                    sm.service_name for sm in self.services_managers if sm.is_tester()
+                ],
             )
             self.background_monitor.start_monitoring()
         else:

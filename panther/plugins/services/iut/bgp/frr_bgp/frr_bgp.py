@@ -87,21 +87,52 @@ class FrrBgpServiceManager(
         # which prevents premature shell variable expansion.
         bgpd_conf_script = (
             f"SELF_IP=$(awk 'NR==1{{print $1; exit}}' /app/coordination/${{SERVICE_NAME}}_ip.txt 2>/dev/null || echo \"${{SERVICE_IP%% *}}\")\n"
-            f"NEIGHBOR_IP=$(awk 'NR==1{{print $1; exit}}' /app/coordination/ivy_tester_ip.txt 2>/dev/null"
-            f" || hostname -i | tr ' ' '\\n' | grep -v '^127'"
-            f' | grep -v "^${{AUX_NETWORK_SUBNET%.*/*}}\\."'
-            f" | head -n1)\n"
+            # Peer discovery must NOT hardcode the tester's service name.
+            # entrypoint.sh.jinja:470 writes ${SERVICE_NAME}_ip.txt, so the old
+            # hardcoded `ivy_tester_ip.txt` matched nothing whenever the tester
+            # service was named anything else, and the `hostname -i` fallback
+            # then returned our OWN address. FRR peered with itself and looped
+            # on NOTIFICATION(2,2) Bad Peer AS -- silently, because the fallback
+            # succeeds. Pick the one *_ip.txt that is not ours, and fail loudly
+            # rather than self-peer. (SELF_IP is resolved just above.)
+            f"PEER_FILE=$(ls /app/coordination/*_ip.txt 2>/dev/null"
+            f' | grep -v "/${{SERVICE_NAME}}_ip.txt$" | head -n1)\n'
+            f"WAIT=0\n"
+            f'while [ -z "$PEER_FILE" ] && [ $WAIT -lt 30 ]; do\n'
+            f"  sleep 1\n"
+            f"  WAIT=$((WAIT + 1))\n"
+            f"  PEER_FILE=$(ls /app/coordination/*_ip.txt 2>/dev/null"
+            f' | grep -v "/${{SERVICE_NAME}}_ip.txt$" | head -n1)\n'
+            f"done\n"
+            f"NEIGHBOR_IP=$(awk 'NR==1{{print $1; exit}}' \"$PEER_FILE\" 2>/dev/null)\n"
+            f'if [ -z "$NEIGHBOR_IP" ] || [ "$NEIGHBOR_IP" = "$SELF_IP" ]; then\n'
+            f'  echo "ERROR: no distinct peer *_ip.txt in /app/coordination'
+            f' (self=${{SERVICE_NAME}}, ip=$SELF_IP) - refusing to self-peer" >&2\n'
+            f"  ls -la /app/coordination >&2\n"
+            f"  exit 1\n"
+            f"fi\n"
             f'printf "frr defaults traditional\\n'
             f"!\\n"
             f"router bgp {ctx['as_number']}\\n"
             f" bgp router-id %s\\n"
             f" neighbor %s remote-as {ctx['neighbor_as']}\\n"
             f" neighbor %s timers {ctx['hold_time']} {ctx['keepalive_time']}\\n"
+            # ConnectRetryTime [rfc4271:8.2.1]. FRR's default is 120 s, but an
+            # experiment window is typically 120-180 s, so a single missed
+            # connect burns the whole run: measured 2026-09-09, bgpd opened one
+            # SYN at t=0.9 s while the Ivy tester was still compiling, got RST,
+            # and never tried again -- 0 BGP messages in a 180 s test.
+            # 5 s keeps retrying until the tester's listener is actually up.
+            # RFC 4271 sets no lower bound; §10 calls 120 s merely "suggested".
+            f" neighbor %s timers connect 5\\n"
             f" !\\n"
             f" address-family ipv4 unicast\\n"
             f"  neighbor %s activate\\n"
             f" exit-address-family\\n"
-            f'!\\n" "$SELF_IP" "$NEIGHBOR_IP" "$NEIGHBOR_IP" "$NEIGHBOR_IP" > /etc/frr/bgpd.conf\n'
+            # Five placeholders above: router-id, remote-as, timers,
+            # timers-connect, activate. Keep this argument list in step with
+            # them -- printf silently reuses the format on a count mismatch.
+            f'!\\n" "$SELF_IP" "$NEIGHBOR_IP" "$NEIGHBOR_IP" "$NEIGHBOR_IP" "$NEIGHBOR_IP" > /etc/frr/bgpd.conf\n'
             f'echo "Generated bgpd.conf: router-id=$SELF_IP neighbor=$NEIGHBOR_IP"'
         )
         return [

@@ -252,7 +252,7 @@ ExperimentConfig                          # Top-level: one YAML file
     │   │   └── target: Optional[str]     # References another services dict key
     │   ├── network: Optional[NetworkConfig]  # interface, port, host
     │   └── depends_on: List[str]         # Startup ordering
-    ├── steps: StepsConfig                # pre_commands, wait, post_commands
+    ├── steps: StepsConfig                # pre_commands, wait, wait_overrun_warning, post_commands
     └── iterations: int                   # How many times to repeat
 ```
 

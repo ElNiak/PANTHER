@@ -43,8 +43,27 @@ class StepsConfig(BaseConfig):
         60,
         ge=1,
         le=86400,
-        description="Wait time between steps in seconds",
+        description=(
+            "Ceiling in seconds on the test's wait step, counted from deployment. "
+            "It counts seconds spent waiting, not clock time: each check between "
+            "waits adds a little, and a machine stall or host sleep adds its whole "
+            "length. "
+            "A tester's in-container compile and its run must both fit, so set it "
+            "above the tester service's timeout plus the compile. Under Docker "
+            "Compose the step ends as soon as the tester container exits; elsewhere "
+            "it always lasts this long."
+        ),
         examples=[30, 60, 120, 300],
+        json_schema_extra={"unit": "seconds"},
+    )
+    wait_overrun_warning: int = Field(
+        10,
+        ge=1,
+        le=86400,
+        description=(
+            "Seconds the wait step may run past its ceiling before it logs a "
+            "warning; a machine stall or host sleep is the usual cause."
+        ),
         json_schema_extra={"unit": "seconds"},
     )
     post_commands: List[str] = Field(

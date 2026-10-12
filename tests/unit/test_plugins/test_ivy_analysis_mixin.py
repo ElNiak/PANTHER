@@ -12,6 +12,8 @@ ivy_analysis = pytest.importorskip(
 )
 IvyAnalysisMixin = ivy_analysis.IvyAnalysisMixin
 
+pytestmark = pytest.mark.unit
+
 
 class ConcreteIvyAnalyzer(IvyAnalysisMixin):
     """Concrete test class that mixes in IvyAnalysisMixin."""
@@ -125,15 +127,15 @@ class TestDetermineIvyVerdict:
         result = analyzer._determine_ivy_verdict("", "connection reset by peer")
         assert result["verdict"] == "IUT_CRASH"
 
-    def test_protocol_activity_no_markers_returns_no_violation(self, analyzer):
-        """Protocol activity without assumption_failed or test_completed -> NO_VIOLATION_FOUND."""
+    def test_protocol_activity_no_markers_returns_inconclusive(self, analyzer):
+        """Activity without assumption_failed or test_completed -> INCONCLUSIVE."""
         stdout = (
             "< show_socket_debug_event\n"
             "> frame.crypto.handle\n"
             "< prot.show_header\n"
         )
         result = analyzer._determine_ivy_verdict(stdout, "")
-        assert result["verdict"] == "NO_VIOLATION_FOUND"
+        assert result["verdict"] == "INCONCLUSIVE"
         assert result["assumption_failures"] == []
         assert any("Protocol activity" in d for d in result["details"])
 
@@ -286,7 +288,7 @@ class TestAnalyzeOutputsIntegration:
             for f in temp_files:
                 os.unlink(f)
 
-    def test_protocol_activity_no_markers_gives_no_violation(self, analyzer):
+    def test_protocol_activity_no_markers_gives_inconclusive(self, analyzer):
         """Mimics the 17-15-18 test: protocol activity, no assumption_failed, no test_completed."""
         file_contents = {
             "compilation_status_ivy_server": "Compilation succeeded\n",
@@ -304,10 +306,10 @@ class TestAnalyzeOutputsIntegration:
         outputs, temp_files = self._make_outputs_with_files(file_contents)
         try:
             result = analyzer.analyze_outputs_with_data(outputs)
-            assert result["passed"] is True
+            assert result["passed"] is False
             ivy_result = result["detailed_results"]["ivy_server"]
-            assert ivy_result["verdict"] == "NO_VIOLATION_FOUND"
-            assert ivy_result["execution_successful"] is True
+            assert ivy_result["verdict"] == "INCONCLUSIVE"
+            assert ivy_result["execution_successful"] is False
             assert ivy_result["compilation_succeeded"] is True
             assert ivy_result["test_executed"] is True
         finally:
@@ -332,8 +334,10 @@ class TestAnalyzeOutputsIntegration:
                 os.unlink(f)
 
     def test_passed_requires_decisive_verdict(self, analyzer):
-        """ivy has NO_VIOLATION_FOUND, picoquic has UNKNOWN -> passed: true
-        (only when all compilations succeed)."""
+        """Ivy has NO_VIOLATION_FOUND, picoquic has UNKNOWN -> passed: true.
+
+        Only when all compilations succeed.
+        """
         file_contents = {
             "compilation_status_ivy_server": "Compilation succeeded\n",
             "runtime_stdout_ivy_server": (
@@ -358,7 +362,7 @@ class TestAnalyzeOutputsIntegration:
                 os.unlink(f)
 
     def test_non_compliant_overrides_iut_success(self, analyzer):
-        """ivy has NON_COMPLIANT, picoquic has execution_successful: true -> passed: false."""
+        """Ivy has NON_COMPLIANT, picoquic has execution_successful: true -> not passed."""
         file_contents = {
             "compilation_status_ivy_server": "Compilation succeeded\n",
             "runtime_stdout_ivy_server": (
@@ -669,6 +673,152 @@ class TestFailureDeduplication:
         finally:
             for f in temp_files:
                 os.unlink(f)
+
+
+# ---------------------------------------------------------------------------
+# A tester cut off before its test ended
+# ---------------------------------------------------------------------------
+
+
+class TestCutOffTesterIsInconclusive:
+    """Protocol events with no test_completed: the run did not test the IUT."""
+
+    def _outputs(self, tmp_path, stdout):
+        files = {
+            "compilation_status_ivy_tester": "Compilation succeeded\n",
+            "runtime_stdout_ivy_tester": stdout,
+            "runtime_stderr_ivy_tester": (
+                "Starting RUNTIME phase\ncall_generating\ncycles = 3\n"
+            ),
+        }
+        outputs = {}
+        for key, content in files.items():
+            path = tmp_path / (key + ".txt")
+            path.write_text(content)
+            outputs[key] = str(path)
+        return outputs
+
+    def test_cut_off_tester_is_inconclusive_and_not_passed(self, analyzer, tmp_path):
+        stdout = "< show_tcp_accepted\n< recv_bgp_open_message(0x1,0x2,{})\n"
+        result = analyzer.analyze_outputs_with_data(self._outputs(tmp_path, stdout))
+        tester = result["detailed_results"]["ivy_tester"]
+        assert tester["verdict"] == "INCONCLUSIVE"
+        assert tester["service_status"] == "inconclusive"
+        assert tester["execution_successful"] is False
+        assert any("test_completed" in m for m in tester["error_messages"])
+        assert result["passed"] is False
+
+    def test_the_same_events_with_test_completed_pass(self, analyzer, tmp_path):
+        stdout = (
+            "< show_tcp_accepted\n< recv_bgp_open_message(0x1,0x2,{})\n"
+            "test_completed\n"
+        )
+        result = analyzer.analyze_outputs_with_data(self._outputs(tmp_path, stdout))
+        tester = result["detailed_results"]["ivy_tester"]
+        assert tester["verdict"] == "NO_VIOLATION_FOUND"
+        assert result["passed"] is True
+
+
+class TestReceiveSideAssertionIsNonCompliant:
+    """Ivy's assertion_failed: the tester rejected a message the IUT sent."""
+
+    # The last stdout lines of a BGP update-withdraw run on 2026-10-09.
+    STDOUT = (
+        "< show_tcp_accepted\n"
+        "< recv_bgp_open_message(0x1,0x2,{})\n"
+        'assertion_failed("bgp_fsm.ivy: line 120")\n'
+        'assertion_failed("require conn_state(src, dst, conn_inst.existing)'
+        ' = bgp_connection_state.open_sent")\n'
+    )
+
+    def test_assertion_is_non_compliant_and_its_detail_reaches_error_messages(
+        self, analyzer, tmp_path
+    ):
+        outputs = TestCutOffTesterIsInconclusive()._outputs(tmp_path, self.STDOUT)
+        result = analyzer.analyze_outputs_with_data(outputs)
+        tester = result["detailed_results"]["ivy_tester"]
+        assert tester["verdict"] == "NON_COMPLIANT"
+        assert tester["service_status"] == "non_compliant"
+        assert len(tester["assertion_failures"]) == 2
+        assert tester["assumption_failures"] == []
+        assert any(
+            m.startswith("Assertion failed at bgp_fsm.ivy: line 120")
+            for m in tester["error_messages"]
+        )
+        assert result["passed"] is False
+
+
+# ---------------------------------------------------------------------------
+# A tester whose own output the grader cannot read
+# ---------------------------------------------------------------------------
+
+
+def _tester_log_folder(tmp_path, stdout="", stderr="", service="ivy_tester"):
+    """A service's log folder as a Docker Compose run lays it out.
+
+    The default shape is a BGP update-withdraw rehearsal graded while its
+    tester was still compiling: stdout.log and stderr.log were both empty.
+    The outputs use the live value shape, output key -> {environment: path}.
+    """
+    folder = tmp_path / "logs" / service
+    (folder / "compile").mkdir(parents=True)
+    (folder / "stdout.log").write_text(stdout)
+    (folder / "stderr.log").write_text(stderr)
+    outputs = {
+        f"stdout_{service}": {"DockerComposeEnvironment": str(folder / "stdout.log")},
+        f"stderr_{service}": {"DockerComposeEnvironment": str(folder / "stderr.log")},
+    }
+    return folder, outputs
+
+
+@pytest.fixture
+def tester_analyzer():
+    """An analyzer running on the Ivy tester's own manager."""
+    analyzer = ConcreteIvyAnalyzer()
+    analyzer.service_name = "ivy_tester"
+    return analyzer
+
+
+class TestOwnRowUnknownIsInconclusive:
+    """No verdict from the tester's own output: the run did not test the IUT."""
+
+    def test_silent_tester_is_inconclusive_and_not_passed(
+        self, tester_analyzer, tmp_path
+    ):
+        _, outputs = _tester_log_folder(tmp_path)
+        result = tester_analyzer.analyze_outputs_with_data(outputs)
+        tester = result["detailed_results"]["ivy_tester"]
+        assert tester["verdict"] == "INCONCLUSIVE"
+        assert tester["service_status"] == "inconclusive"
+        assert tester["execution_successful"] is False
+        assert (
+            "No confirmation of successful compilation" not in tester["error_messages"]
+        )
+        assert result["passed"] is False
+
+    def test_text_without_protocol_lines_is_inconclusive(
+        self, tester_analyzer, tmp_path
+    ):
+        _, outputs = _tester_log_folder(
+            tmp_path, stdout="Using Z3 API\n", stderr="error: no route\n"
+        )
+        result = tester_analyzer.analyze_outputs_with_data(outputs)
+        tester = result["detailed_results"]["ivy_tester"]
+        assert tester["verdict"] == "INCONCLUSIVE"
+        assert tester["service_status"] == "inconclusive"
+        assert "error: no route" in tester["error_messages"]
+
+    def test_an_iut_row_with_the_same_output_stays_unknown(
+        self, tester_analyzer, tmp_path
+    ):
+        _, outputs = _tester_log_folder(tmp_path, service="frr_server")
+        result = tester_analyzer.analyze_outputs_with_data(outputs)
+        assert result["detailed_results"]["frr_server"]["verdict"] == "UNKNOWN"
+
+    def test_without_a_service_name_no_row_is_its_own(self, analyzer, tmp_path):
+        _, outputs = _tester_log_folder(tmp_path)
+        result = analyzer.analyze_outputs_with_data(outputs)
+        assert result["detailed_results"]["ivy_tester"]["verdict"] == "UNKNOWN"
 
 
 # ---------------------------------------------------------------------------

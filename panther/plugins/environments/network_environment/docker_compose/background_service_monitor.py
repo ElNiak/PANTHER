@@ -1,25 +1,38 @@
+"""Background health monitoring of the services of a Docker Compose environment."""
+
 import threading
 import time
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from ..base_environment_monitor import BaseEnvironmentMonitor, ServiceHealthState
 
 
 class BackgroundServiceMonitor(BaseEnvironmentMonitor):
-    """
-    Background service health monitor for non-blocking Docker Compose deployments.
+    """Background service health monitor for non-blocking Docker Compose deployments.
 
     Continuously monitors service health in a background daemon thread and triggers
     early experiment termination when services fail beyond configured thresholds.
+    A tester whose container has exited ends the wait at once: that is the end of
+    the test, not a failure.
     """
 
-    def __init__(self, docker_compose_env, services, config):
+    def __init__(self, docker_compose_env, services, config, testers=()):
+        """Set up the monitor; monitoring starts with ``start_monitoring``.
+
+        Args:
+            docker_compose_env: The Docker Compose environment being monitored.
+            services: Names of the services to check.
+            config: Monitoring configuration (interval, failure threshold,
+                partial-deployment policy, critical services).
+            testers: Names of the services whose container exit ends the test.
+        """
         # Initialize base monitor
         super().__init__(docker_compose_env, config, docker_compose_env.logger)
 
         # Docker Compose specific attributes
         self.docker_compose_env = docker_compose_env
         self.services = services  # list of service names
+        self.testers = set(testers)  # services whose exit ends the test
         # Service state tracking (specific to multi-service monitoring)
         self.service_states = {
             service: ServiceHealthState.STARTING for service in services
@@ -76,6 +89,14 @@ class BackgroundServiceMonitor(BaseEnvironmentMonitor):
                     self._handle_docker_failure(e)
         finally:
             self._health_check_running = False
+
+        for service_name in self.testers:
+            if service_health_status.get(service_name, True):
+                continue
+            exit_code = self._tester_exit_code(service_name)
+            if exit_code is not None:
+                self._end_on_tester_exit(service_name, exit_code)
+                return
 
         # Update state in critical section with minimal lock time
         try:
@@ -158,6 +179,62 @@ class BackgroundServiceMonitor(BaseEnvironmentMonitor):
     def _is_service_ready(self, service_name: str) -> bool:
         """Check if a specific service is ready (backward compatibility wrapper)."""
         return self._is_service_ready_with_timeout(service_name, timeout=5.0)
+
+    def _tester_exit_code(self, service_name: str) -> Optional[int]:
+        """Read a tester container's exit code, if the container has exited.
+
+        Args:
+            service_name: The tester's service name.
+
+        Returns:
+            The exit code when Docker reports the container as ``exited``, else
+            None (still running, restarting, never started, or unreadable).
+        """
+        legacy_name = f"{self.docker_compose_env.network_name}_{service_name}_1"
+        for container_name in (service_name, legacy_name):
+            try:
+                result = self.docker_compose_env.execute_docker_command(
+                    docker_args=[
+                        "inspect",
+                        "-f",
+                        "{{.State.Status}} {{.State.ExitCode}}",
+                        container_name,
+                    ],
+                    check=False,
+                    timeout=10.0,
+                )
+            except Exception as e:
+                self.logger.debug(f"Could not inspect {container_name}: {e}")
+                continue
+            fields = result.stdout.split()
+            if len(fields) == 2 and fields[0] == "exited":
+                try:
+                    return int(fields[1])
+                except ValueError:
+                    return None
+            if fields:
+                return None
+        return None
+
+    def _end_on_tester_exit(self, service_name: str, exit_code: int) -> None:
+        """End the wait because the tester finished: a completion, not a failure.
+
+        Args:
+            service_name: The tester's service name.
+            exit_code: The tester container's exit code.
+        """
+        reason = f"Tester '{service_name}' exited (code {exit_code})"
+        self.logger.info(f"{reason}: ending the wait")
+        self.environment.request_early_termination(
+            reason,
+            {
+                "monitor_type": "docker_compose",
+                "tester": service_name,
+                "exit_code": exit_code,
+                "elapsed_time": time.time() - self.start_time if self.start_time else 0,
+            },
+        )
+        self.monitoring_active = False
 
     def _handle_service_failure(self, service_name, current_state):
         """Handle individual service failure using base class logic."""

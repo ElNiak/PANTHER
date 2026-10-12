@@ -510,7 +510,14 @@ class BaseNetworkEnvironment(INetworkEnvironment, StringRepresentationMixin):
                     + ' now waiting for server services..." >> /app/logs/coordination.log\n'
                     "WAIT_COUNT=0\n"
                     "while [ $WAIT_COUNT -lt 300 ]; do\n"
-                    "\tif ls /app/coordination/*server*_ready 1>/dev/null 2>&1; then\n"
+                    # Server readiness markers are written as
+                    # `server_ready_<service>` (entrypoint.sh.jinja:744), and the
+                    # template's own cleanup at :443 removes `server_ready_*`.
+                    # The previous glob here was `*server*_ready`, which requires
+                    # a `_ready` SUFFIX and therefore never matched
+                    # `server_ready_iut` -- every client waited the full 300 s
+                    # and the run died on the service timeout instead.
+                    "\tif ls /app/coordination/server_ready_* 1>/dev/null 2>&1; then\n"
                     '\t\techo "Server services ready - client '
                     + service.service_name
                     + ' can proceed" >> /app/logs/coordination.log\n'

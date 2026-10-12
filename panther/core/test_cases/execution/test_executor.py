@@ -122,6 +122,8 @@ class TestExecutor:
                     )
 
             duration = time.time() - start_time
+            if isinstance(step_details, (int, float)):
+                self._warn_if_wait_overran(step_details, duration)
 
             # Emit step completed event
             if step_emitter:
@@ -146,6 +148,25 @@ class TestExecutor:
                     result={"completed_steps": ["wait", "record_pcap"]},
                 )
             raise
+
+    def _warn_if_wait_overran(self, ceiling: float, duration: float) -> None:
+        """Log a warning when the wait step ran past its ceiling by more than the margin.
+
+        Args:
+            ceiling: The wait step's ceiling in seconds (``steps.wait``).
+            duration: The step's measured wall-clock duration in seconds.
+        """
+        margin = self.test_case.test_config.steps.wait_overrun_warning
+        if duration - ceiling > margin:
+            self.logger.warning(
+                "Wait step ran %.2fs against its %ss ceiling, %.2fs past it (more "
+                "than the %ss warning margin); a machine stall or host sleep may "
+                "explain it.",
+                duration,
+                ceiling,
+                duration - ceiling,
+                margin,
+            )
 
     def handle_step_execution(self, step_details, step_emitter):
         """Handle execution of a complex step configuration."""
@@ -174,7 +195,15 @@ class TestExecutor:
             )
 
     def _check_early_exit(self, step_config, step_emitter) -> None:
-        """Check if an early exit condition is met."""
+        """Run the wait step, ending it early when an environment asks.
+
+        The step sleeps in short intervals and, after each one, asks every
+        environment whether to end early. Its budget is the sum of those sleeps,
+        not a clock deadline, on purpose: a machine stall or host sleep lengthens
+        the step by its whole length, and each check between sleeps adds a little.
+        A clock deadline was weighed and declined; ``_execute_single_step`` warns
+        when the measured duration overruns the ceiling instead.
+        """
         step_name = step_config.get("type", "unknown")
         step_details = step_config.get("duration", 0)
         self.logger.info("Executing wait step for %s seconds", step_details)
