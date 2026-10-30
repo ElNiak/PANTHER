@@ -1,5 +1,6 @@
 """Unit tests for IvyAnalysisMixin verdict determination and output parsing."""
 
+import json
 import logging
 import os
 import tempfile
@@ -821,6 +822,208 @@ class TestOwnRowUnknownIsInconclusive:
         assert result["detailed_results"]["ivy_tester"]["verdict"] == "UNKNOWN"
 
 
+def _write_command_statuses(folder, statuses):
+    """Write compile/cmd-N-status.txt files, one exit code per command N."""
+    for number, code in statuses.items():
+        (folder / "compile" / f"cmd-{number}-status.txt").write_text(f"{code}\n")
+
+
+def _write_inspect(folder, state, service="ivy_tester"):
+    """Write <service>_inspect.json: docker inspect's list of one object.
+
+    Only the State block is kept, with neutral values.
+    """
+    (folder / f"{service}_inspect.json").write_text(json.dumps([{"State": state}]))
+
+
+RUNNING = {"Status": "running", "Running": True, "ExitCode": 0}
+EXITED = {"Status": "exited", "Running": False, "ExitCode": 0}
+
+
+def _tester_row(analyzer, outputs):
+    return analyzer.analyze_outputs_with_data(outputs)["detailed_results"]["ivy_tester"]
+
+
+class TestSilentTesterNamesItsCase:
+    """The detail names why the tester printed nothing, from its compile files."""
+
+    def test_graded_mid_compile_says_the_compile_did_not_finish(
+        self, tester_analyzer, tmp_path
+    ):
+        # Commands 1-19 had exited 0; the Ivy compile (command 20) still ran.
+        folder, outputs = _tester_log_folder(tmp_path)
+        _write_command_statuses(folder, {n: 0 for n in range(1, 20)})
+        tester = _tester_row(tester_analyzer, outputs)
+        assert tester["verdict"] == "INCONCLUSIVE"
+        assert tester["compilation_succeeded"] is False
+        assert tester["error_messages"] == [
+            "The compile did not finish (last command 19 exited 0)"
+        ]
+
+    def test_a_non_zero_command_says_the_compile_failed(
+        self, tester_analyzer, tmp_path
+    ):
+        folder, outputs = _tester_log_folder(tmp_path)
+        _write_command_statuses(folder, {**{n: 0 for n in range(1, 20)}, 20: 1})
+        tester = _tester_row(tester_analyzer, outputs)
+        assert tester["compilation_succeeded"] is False
+        assert tester["error_messages"] == ["The compile failed: command 20 exited 1"]
+
+    def test_a_compiled_tester_that_printed_nothing_says_so(
+        self, tester_analyzer, tmp_path
+    ):
+        folder, outputs = _tester_log_folder(tmp_path)
+        _write_command_statuses(folder, {n: 0 for n in range(1, 33)})
+        (folder / "compile" / "compilation_status.txt").write_text(
+            "Compilation succeeded\n"
+        )
+        tester = _tester_row(tester_analyzer, outputs)
+        assert tester["compilation_succeeded"] is True
+        assert tester["error_messages"] == [
+            "The tester ran but printed nothing the grader reads"
+        ]
+
+    def test_a_failed_status_file_alone_says_the_compile_failed(
+        self, tester_analyzer, tmp_path
+    ):
+        folder, outputs = _tester_log_folder(tmp_path)
+        _write_command_statuses(folder, {1: 0})
+        (folder / "compile" / "compilation_status.txt").write_text(
+            "Compilation failed with code 2\n"
+        )
+        tester = _tester_row(tester_analyzer, outputs)
+        assert tester["compilation_succeeded"] is False
+        assert tester["error_messages"] == [
+            "The compile failed: Compilation failed with code 2"
+        ]
+
+    def test_commands_are_read_in_numeric_order(self, tester_analyzer, tmp_path):
+        folder, outputs = _tester_log_folder(tmp_path)
+        _write_command_statuses(folder, {2: 2, 9: 0, 10: 1})
+        tester = _tester_row(tester_analyzer, outputs)
+        assert tester["error_messages"] == ["The compile failed: command 2 exited 2"]
+
+    def test_the_last_command_is_the_highest_number(self, tester_analyzer, tmp_path):
+        folder, outputs = _tester_log_folder(tmp_path)
+        _write_command_statuses(folder, {2: 0, 9: 0, 10: 0})
+        tester = _tester_row(tester_analyzer, outputs)
+        assert tester["error_messages"] == [
+            "The compile did not finish (last command 10 exited 0)"
+        ]
+
+    def test_a_later_phase_shows_the_compile_finished(self, tester_analyzer, tmp_path):
+        # A BGP UPDATE Announce run's layout: compile/ kept command 1's status
+        # only, yet the post-compile phase ran and the test binary was launched.
+        folder, outputs = _tester_log_folder(tmp_path)
+        _write_command_statuses(folder, {1: 0})
+        (folder / "post-compile").mkdir()
+        for number in (1, 2, 3):
+            (folder / "post-compile" / f"cmd-{number}-status.txt").write_text("0\n")
+        _write_inspect(folder, EXITED)
+        tester = _tester_row(tester_analyzer, outputs)
+        assert tester["compilation_succeeded"] is True
+        assert tester["error_messages"] == [
+            "The tester ran but printed nothing the grader reads"
+        ]
+
+    def test_a_runtime_phase_shows_the_compile_finished(
+        self, tester_analyzer, tmp_path
+    ):
+        folder, outputs = _tester_log_folder(tmp_path)
+        _write_command_statuses(folder, {1: 0})
+        (folder / "runtime").mkdir()
+        (folder / "runtime" / "uname_output.log").write_text("x86_64\n")
+        tester = _tester_row(tester_analyzer, outputs)
+        assert tester["compilation_succeeded"] is True
+
+    def test_an_empty_later_phase_folder_is_not_evidence(
+        self, tester_analyzer, tmp_path
+    ):
+        folder, outputs = _tester_log_folder(tmp_path)
+        _write_command_statuses(folder, {n: 0 for n in range(1, 20)})
+        (folder / "post-compile").mkdir()
+        (folder / "runtime").mkdir()
+        tester = _tester_row(tester_analyzer, outputs)
+        assert tester["compilation_succeeded"] is False
+        assert tester["error_messages"] == [
+            "The compile did not finish (last command 19 exited 0)"
+        ]
+
+    def test_an_iut_row_keeps_its_compile_markers(self, tester_analyzer, tmp_path):
+        # Only the tester's own compile files are read; an IUT row's
+        # compilation_succeeded still comes from its output.
+        folder, outputs = _tester_log_folder(tmp_path, service="frr_server")
+        (folder / "compile" / "compilation_status.txt").write_text(
+            "Compilation succeeded\n"
+        )
+        result = tester_analyzer.analyze_outputs_with_data(outputs)
+        assert result["detailed_results"]["frr_server"]["compilation_succeeded"] is (
+            False
+        )
+
+
+class TestRunningWhenGraded:
+    """The tester row records whether its container was running when graded."""
+
+    def test_graded_while_running_says_so_first(self, tester_analyzer, tmp_path):
+        # The rehearsal: mid-compile, the container's State read Running.
+        folder, outputs = _tester_log_folder(tmp_path)
+        _write_command_statuses(folder, {n: 0 for n in range(1, 20)})
+        _write_inspect(folder, RUNNING)
+        tester = _tester_row(tester_analyzer, outputs)
+        assert tester["running_when_graded"] is True
+        assert tester["error_messages"] == ["The tester was still running when graded"]
+
+    def test_running_comes_before_a_failed_command(self, tester_analyzer, tmp_path):
+        folder, outputs = _tester_log_folder(tmp_path)
+        _write_command_statuses(folder, {1: 0, 2: 1})
+        _write_inspect(folder, RUNNING)
+        tester = _tester_row(tester_analyzer, outputs)
+        assert tester["error_messages"] == ["The tester was still running when graded"]
+
+    def test_an_exited_tester_is_not_running(self, tester_analyzer, tmp_path):
+        folder, outputs = _tester_log_folder(tmp_path)
+        _write_command_statuses(folder, {n: 0 for n in range(1, 20)})
+        _write_inspect(folder, EXITED)
+        tester = _tester_row(tester_analyzer, outputs)
+        assert tester["running_when_graded"] is False
+        assert tester["error_messages"] == [
+            "The compile did not finish (last command 19 exited 0)"
+        ]
+
+    def test_the_key_reads_running_not_status(self, tester_analyzer, tmp_path):
+        # A restarting container reports Running true under another Status.
+        folder, outputs = _tester_log_folder(tmp_path)
+        _write_inspect(folder, {"Status": "restarting", "Running": True})
+        assert _tester_row(tester_analyzer, outputs)["running_when_graded"] is True
+
+    def test_no_inspect_file_is_null(self, tester_analyzer, tmp_path):
+        _, outputs = _tester_log_folder(tmp_path)
+        assert _tester_row(tester_analyzer, outputs)["running_when_graded"] is None
+
+    def test_an_unreadable_inspect_file_is_null(self, tester_analyzer, tmp_path):
+        folder, outputs = _tester_log_folder(tmp_path)
+        (folder / "ivy_tester_inspect.json").write_text("{not json")
+        assert _tester_row(tester_analyzer, outputs)["running_when_graded"] is None
+
+
+class TestExecutionNeedsEvidence:
+    """A collected test_results file is not evidence that the test ran."""
+
+    def test_a_test_results_key_alone_is_not_execution(self, analyzer):
+        assert analyzer._verify_test_execution({"test_results": "{}"}) is False
+
+    def test_a_silent_tester_with_test_results_did_not_execute(
+        self, tester_analyzer, tmp_path
+    ):
+        folder, outputs = _tester_log_folder(tmp_path)
+        (folder / "test_results.json").write_text("{}")
+        outputs["test_results_ivy_tester"] = {
+            "DockerComposeEnvironment": str(folder / "test_results.json")
+        }
+        assert _tester_row(tester_analyzer, outputs)["test_executed"] is False
+
+
 # ---------------------------------------------------------------------------
 # Bug 5: TIMEOUT status counting
 # ---------------------------------------------------------------------------
@@ -942,3 +1145,57 @@ class TestExperimentStatusPluginFailure:
         collector = StatusCollector(experiment_dir)
         summary = collector.collect_experiment_summary()
         assert summary.status == ExperimentStatus.UNKNOWN
+
+
+# ---------------------------------------------------------------------------
+# A tester stopped by its own generator guard
+# ---------------------------------------------------------------------------
+
+
+class TestFailedGeneratorGuardIsInconclusive:
+    """A run whose only failure is the tester's own generator guard.
+
+    The lines are a real FRR run of a BGP probe test (2026-10-19): Ivy printed
+    the failure on stdout and, on stderr, that the tester was generating.
+    """
+
+    STDOUT = (
+        "> bgp_open_message_event(0xac120003,0xac120002,{pversion:0x4})\n"
+        'assumption_failed("bgp_speaker_test_generator_guard_probe.ivy: line 48")\n'
+        'assumption_failed("require ok;")\n'
+    )
+    STDERR = (
+        '"require ok;"\n'
+        "bgp_speaker_test_generator_guard_probe.ivy: line 48:"
+        " error: assumption failed\n"
+        "is_LineInFinalizeAction: 0\n"
+        "is_generating: 1\n"
+    )
+
+    def test_guard_is_inconclusive_and_its_detail_reaches_error_messages(
+        self, tester_analyzer, tmp_path
+    ):
+        _, outputs = _tester_log_folder(tmp_path, self.STDOUT, self.STDERR)
+        result = tester_analyzer.analyze_outputs_with_data(outputs)
+        tester = result["detailed_results"]["ivy_tester"]
+        assert tester["verdict"] == "INCONCLUSIVE"
+        assert tester["service_status"] == "inconclusive"
+        assert tester["execution_successful"] is False
+        assert any(
+            m.startswith(
+                "Assumption failed at bgp_speaker_test_generator_guard_probe.ivy:"
+                " line 48: require ok; -- a tester generator guard failed"
+            )
+            for m in tester["error_messages"]
+        )
+        assert result["passed"] is False
+
+    def test_the_same_failure_while_checking_the_iut_is_non_compliant(
+        self, tester_analyzer, tmp_path
+    ):
+        stderr = self.STDERR.replace("is_generating: 1", "is_generating: 0")
+        _, outputs = _tester_log_folder(tmp_path, self.STDOUT, stderr)
+        result = tester_analyzer.analyze_outputs_with_data(outputs)
+        tester = result["detailed_results"]["ivy_tester"]
+        assert tester["verdict"] == "NON_COMPLIANT"
+        assert tester["service_status"] == "non_compliant"

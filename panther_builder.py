@@ -27,6 +27,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from panther.tools.build_paths import CLEAN_DIRS
+
 
 def _rmtree_onerror(func, path, exc_info):
     """Handle permission errors during shutil.rmtree."""
@@ -54,7 +56,7 @@ def _run(cmd, cwd=None):
 def _clean(project_root):
     """Clean build artifacts."""
     print("Cleaning build artifacts...")
-    for d in ["build", "dist", "docs", "site", "htmlcov"]:
+    for d in CLEAN_DIRS:
         p = project_root / d
         if p.exists():
             shutil.rmtree(p, onerror=_rmtree_onerror)
